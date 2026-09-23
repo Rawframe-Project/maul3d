@@ -19,6 +19,7 @@ PAGES = [
     ("manual", "The manual", DOCS / "manual.md"),
     ("changelog", "The changelog", ROOT / "CHANGELOG.md"),
     ("samples", "Samples", DOCS / "samples.md"),
+    ("conventions", "Conventions", DOCS / "conventions.md"),
 ]
 
 SHELL = """<!DOCTYPE html>

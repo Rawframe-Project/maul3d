@@ -138,6 +138,8 @@ single library version and refuse loudly across versions.
 - [bindings/](bindings/): starter kits for C# (single-file
   P/Invoke) and Godot (a GDExtension skeleton), seeds meant to be
   copied into your project and grown.
+- [The conventions](docs/conventions.md): the rules both engines
+  follow, from naming to commits.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
 - [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
 - [Maul2D](https://github.com/Rawframe-Project/maul2d): the 2D sibling,
