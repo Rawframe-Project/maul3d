@@ -31,9 +31,15 @@
 
 #include <string.h>
 
-// Soft constraint coefficients:
-// bias = w/(2z+hw), massScale = hw(2z+hw)/(1+hw(2z+hw)),
-// impulseScale = 1/(1+hw(2z+hw)).
+// With w = 2 pi hertz, stiffness k = m w^2 and damping c = 2 m zeta w, an
+// implicit Euler step of length h turns the spring into a row that solves
+//   J v + (k / (h k + c)) C + (1 / (h (h k + c))) lambda = 0
+// for the total impulse lambda. Let a = h w (2 zeta + h w). Then
+//   biasRate     = k / (h k + c) = w / (2 zeta + h w)
+//   massScale    = a / (1 + a)   (m against m + the lambda term)
+//   impulseScale = 1 / (1 + a)   (the lambda term on the accumulated part)
+// and a solve adds -m massScale (J v + biasRate C) - impulseScale
+// accumulated. Zero hertz is a rigid row with no position feedback.
 m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h)
 {
     if (hertz == 0.0f)
@@ -48,9 +54,7 @@ m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h)
 }
 
 // I_w^-1 = R I_l^-1 R^T, built by applying the operator to the world
-// basis vectors. Frozen at prepare like the anchors (reference
-// discipline); the per-substep refresh arrives with the gyroscopic
-// slice.
+// basis vectors. Fixed at prepare like the contact anchors.
 m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body)
 {
     if (world->bodies.types[body] != (uint8_t)m3_dynamicBody)
@@ -658,11 +662,9 @@ typedef struct m3StepScratch
     m3Pos3* com0; // begin-of-step centers of mass (continuous, sleep, riders)
     m3Quat* rot0;
     int32_t* islandParent;
-    m3ContactConstraint* constraints;
-    int32_t constraintCount;
+    m3ContactPlan contacts;
     m3Vec3* deltaPos; // per-body position and rotation drift within the step
     m3Quat* deltaRot;
-    m3SolverColoring coloring;
     int32_t usedColors;
     m3JointConstraint* joints;
     int32_t jointCount;
@@ -725,11 +727,11 @@ static bool BeginStep(m3World* world, m3StepScratch* s)
     {
         return false;
     }
-    s->constraints = (m3ContactConstraint*)ScratchArray(world, world->contacts.pairCount,
-                                                        (int32_t)sizeof(m3ContactConstraint));
+    s->contacts.constraints = (m3ContactConstraint*)ScratchArray(
+        world, world->contacts.pairCount, (int32_t)sizeof(m3ContactConstraint));
     s->deltaPos = (m3Vec3*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Vec3));
     s->deltaRot = (m3Quat*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Quat));
-    if (s->constraints == NULL || s->deltaPos == NULL || s->deltaRot == NULL)
+    if (s->contacts.constraints == NULL || s->deltaPos == NULL || s->deltaRot == NULL)
     {
         return false;
     }
@@ -747,15 +749,18 @@ static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t sub
 {
     s->h = dt / (m3real)substeps;
     s->invH = s->h > 0.0f ? 1.0f / s->h : 0.0f;
-    s->constraintCount = m3PrepareContacts(world, s->constraints, s->h);
-    if (!m3BuildColoring(world, s->constraints, s->constraintCount, &s->coloring))
+    s->contacts.count = m3PrepareContacts(world, s->contacts.constraints, s->h);
+    s->contacts.deltaPos = s->deltaPos;
+    s->contacts.deltaRot = s->deltaRot;
+    s->contacts.invH = s->invH;
+    if (!m3ColorContacts(world, &s->contacts))
     {
         return false;
     }
     s->usedColors = 0;
     for (int32_t c = 0; c < M3_GRAPH_COLORS + 1; ++c)
     {
-        if (s->coloring.starts[c + 1] > s->coloring.starts[c])
+        if (s->contacts.coloring.starts[c + 1] > s->contacts.coloring.starts[c])
         {
             s->usedColors += 1;
         }
@@ -787,12 +792,12 @@ static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
     {
         IntegrateVelocities(world, s->movers, s->moverCount, &s->buoy, s->h);
         m3WarmStartJoints(world, s->joints, s->jointCount, s->deltaRot);
-        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 0, 1);
+        m3RunContactStage(world, &s->contacts, m3_contactWarmStart);
         m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 1);
-        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 1, 0);
+        m3RunContactStage(world, &s->contacts, m3_contactSolve);
         IntegratePositions(world, s->movers, s->moverCount, s->deltaPos, s->deltaRot, s->h);
         m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 0);
-        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 0, 0);
+        m3RunContactStage(world, &s->contacts, m3_contactRelax);
     }
 }
 
@@ -807,8 +812,8 @@ static void FinishSolve(m3World* world, const m3StepScratch* s, float dt)
         world->bodies.bodyForce[s->movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->bodies.bodyTorque[s->movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
     }
-    m3Restitution(world, s->constraints, s->constraintCount);
-    m3StoreContactImpulses(world, s->constraints, s->constraintCount);
+    m3RunContactStage(world, &s->contacts, m3_contactRestitution);
+    m3RunContactStage(world, &s->contacts, m3_contactStore);
     m3StoreJointImpulses(world, s->joints, s->jointCount);
     world->lastInvH = s->invH;
     AdvanceWind(world, dt);

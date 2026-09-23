@@ -43,6 +43,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/body.c
     src/broad_phase.c
     src/character.c
+    src/contact_prepare.c
     src/contact_solver.c
     src/continuous.c
     src/core.c

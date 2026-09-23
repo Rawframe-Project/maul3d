@@ -137,6 +137,12 @@ Work toward 0.0.1, the first release of the reworked library.
   triangle_contact.c.
 - Continuous collision is restructured into a filter and one sweep per
   target kind (convex, mesh, voxel chunk, plane).
+- Contact solver reorganized: preparation (pair filter and pre-solve
+  veto, surface mixing, point rows, center rows) lives in
+  contact_prepare.c; the rows (normal, twist, rolling, friction) work
+  on the pair's velocities loaded once per constraint and stored once,
+  and one stage runner covers warm start, solve, relax, restitution
+  and store. Results are bit for bit unchanged.
 
 ### Removed
 
