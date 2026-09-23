@@ -82,4 +82,26 @@ int32_t m3IdPoolAlloc(m3IdPool* pool);
 void m3IdPoolFree(m3IdPool* pool, int32_t index);
 int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint16_t generation);
 
+/// True when the next m3IdPoolAlloc will succeed.
+static inline bool m3IdPoolHasRoom(const m3IdPool* pool)
+{
+    return pool->freeCount > 0 || pool->maxIndex < pool->capacity;
+}
+
+/// A pool's cursors before an allocation. A create that fails after
+/// taking a slot rewinds to its mark instead of freeing the slot, so the
+/// refusal leaves the pool, generations included, exactly as it was: a
+/// refused create is not journaled and must not move any later id.
+typedef struct m3IdPoolMark
+{
+    int32_t maxIndex;
+    int32_t freeHead;
+    int32_t freeCount;
+} m3IdPoolMark;
+
+m3IdPoolMark m3IdPoolMarkNow(const m3IdPool* pool);
+/// Undoes the one allocation made since the mark; index is the slot it
+/// returned.
+void m3IdPoolRewind(m3IdPool* pool, m3IdPoolMark mark, int32_t index);
+
 #endif // MAUL3D_SRC_ALLOCATOR_H

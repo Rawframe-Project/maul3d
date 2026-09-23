@@ -7,7 +7,9 @@
 // checked field by field with memcmp. Black box: public headers only.
 
 #include "maul3d/body.h"
+#include "maul3d/character.h"
 #include "maul3d/shape.h"
+#include "maul3d/softbody.h"
 #include "test_harness.h"
 
 #include <stdio.h>
@@ -23,8 +25,94 @@ static int SameVec(m3Vec3 a, m3Vec3 b)
     return memcmp(&a, &b, sizeof(a)) == 0;
 }
 
+// A refused create is not on the tape, so it must leave no trace in the
+// id pools: a replay of the session mints the same ids.
+static void TestRefusedCreatesMoveNoIds(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.meshCapacity = 1;
+    def.bodyCapacity = 16;
+    m3WorldId world = m3CreateWorld(&def);
+    static uint8_t tape[65536];
+    CHECK(m3World_JournalBegin(world, tape, (int32_t)sizeof(tape)), "the tape starts");
+
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static const m3Vec3 tri[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    static const uint16_t idx[3] = {0, 1, 2};
+    CHECK(m3Shape_IsValid(m3CreateMeshShape(ground, &sd, tri, 3, idx, 1)), "the first mesh fits");
+    CHECK(!m3Shape_IsValid(m3CreateMeshShape(ground, &sd, tri, 3, idx, 1)),
+          "the second mesh finds no mesh slot");
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId ball = m3CreateBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    CHECK(m3Shape_IsValid(m3CreateSphereShape(ball, &sd, &sphere)), "a sphere follows");
+
+    // Four clusters at the corners of a large tetrahedron, one point of
+    // each per tet, so almost every tet edge is new: more than the edge
+    // budget of one soft body.
+    static m3Vec3 points[512];
+    static uint16_t tets[4 * 1024];
+    const m3Vec3 corners[4] = {
+        {0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f}, {0.0f, 10.0f, 0.0f}, {0.0f, 0.0f, 10.0f}};
+    for (int32_t i = 0; i < 512; ++i)
+    {
+        m3Vec3 c = corners[i / 128];
+        float j = 0.001f * (float)(i % 128);
+        points[i] = (m3Vec3){c.x + j, c.y + 2.0f * j, c.z + 3.0f * j};
+    }
+    for (int32_t t = 0; t < 1024; ++t)
+    {
+        tets[4 * t + 0] = (uint16_t)(t % 128);
+        tets[4 * t + 1] = (uint16_t)(128 + (t / 8) % 128);
+        tets[4 * t + 2] = (uint16_t)(256 + (t * 3 + t / 128) % 128);
+        tets[4 * t + 3] = (uint16_t)(384 + (t * 5 + t / 32) % 128);
+    }
+    m3SoftBodyDef soft = m3DefaultSoftBodyDef();
+    CHECK(!m3SoftBody_IsValid(m3CreateSoftBodyTet(world, &soft, points, 512, tets, 1024)),
+          "a tet body past the edge budget refuses");
+    soft.countX = 2;
+    soft.countY = 2;
+    soft.countZ = 2;
+    CHECK(m3SoftBody_IsValid(m3CreateSoftBody(world, &soft)), "a lattice follows");
+
+    // A character needs a body: with the body pool full it refuses, and
+    // the next character after a body frees up gets the first free id.
+    m3BodyId filler[64];
+    int32_t fillers = 0;
+    bd.type = m3_staticBody;
+    while (fillers < 64)
+    {
+        filler[fillers] = m3CreateBody(world, &bd);
+        if (!m3Body_IsValid(filler[fillers]))
+        {
+            break;
+        }
+        fillers += 1;
+    }
+    CHECK(fillers > 0 && fillers < 64, "the body pool fills up");
+    m3CharacterDef cd = m3DefaultCharacterDef();
+    cd.position = (m3Pos3){5.0, 2.0, 0.0};
+    CHECK(!m3Character_IsValid(m3CreateCharacter(world, &cd)),
+          "a character refuses without a body");
+    m3DestroyBody(filler[fillers - 1]);
+    CHECK(m3Character_IsValid(m3CreateCharacter(world, &cd)), "and fits once one frees up");
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t bytes = m3World_JournalEnd(world);
+    CHECK(bytes > 0, "the tape closes");
+
+    m3WorldId twin = m3CreateWorld(&def);
+    CHECK(m3World_JournalReplay(twin, tape, bytes), "the tape replays with the same ids");
+    CHECK(m3World_Hash(twin) == m3World_Hash(world), "into the same world");
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestRefusedCreatesMoveNoIds();
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
 

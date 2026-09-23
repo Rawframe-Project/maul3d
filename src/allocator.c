@@ -231,6 +231,23 @@ void m3IdPoolFree(m3IdPool* pool, int32_t index)
     pool->freeCount += 1;
 }
 
+m3IdPoolMark m3IdPoolMarkNow(const m3IdPool* pool)
+{
+    m3IdPoolMark mark = {pool->maxIndex, pool->freeHead, pool->freeCount};
+    return mark;
+}
+
+void m3IdPoolRewind(m3IdPool* pool, m3IdPoolMark mark, int32_t index)
+{
+    if (index >= 0 && index < pool->capacity)
+    {
+        pool->alive[index] = 0;
+    }
+    pool->maxIndex = mark.maxIndex;
+    pool->freeHead = mark.freeHead;
+    pool->freeCount = mark.freeCount;
+}
+
 int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint16_t generation)
 {
     return index >= 0 && index < pool->capacity && pool->alive[index] != 0 &&

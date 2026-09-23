@@ -66,20 +66,19 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
     {
         return -1;
     }
-    int32_t slot = m3IdPoolAlloc(&world->characters.charPool);
-    if (slot < 0)
+    // A character takes a slot, a body and a shape. Room for all three is
+    // checked first: a refused create is not journaled, so it must not
+    // take and free a slot and move the generations.
+    if (!m3IdPoolHasRoom(&world->characters.charPool) ||
+        !m3IdPoolHasRoom(&world->bodies.bodyPool) || !m3IdPoolHasRoom(&world->shapes.shapePool))
     {
         return -1;
     }
+    int32_t slot = m3IdPoolAlloc(&world->characters.charPool);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
     bd.position = def->position;
     int32_t body = m3CreateBodyInternal(world, &bd);
-    if (body < 0)
-    {
-        m3IdPoolFree(&world->characters.charPool, slot);
-        return -1;
-    }
     m3ShapeDef sd = m3DefaultShapeDef();
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
@@ -90,6 +89,7 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
                                           &(m3ShapeContent){NULL, NULL, NULL, NULL});
     if (shape < 0)
     {
+        // Unreachable while the tree holds two nodes per shape slot.
         m3DestroyBodyInternal(world, body);
         m3IdPoolFree(&world->characters.charPool, slot);
         return -1;

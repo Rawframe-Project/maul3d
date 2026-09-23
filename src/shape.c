@@ -220,33 +220,23 @@ static void RefreshAllVoxelCoverage(m3World* world)
     }
 }
 
-// Releases a shape's content slots. With owned false the content was just
-// handed over by a failed create and stays the caller's: the slots are
-// cleared, not freed into.
-static void ReleaseShapeContent(m3World* world, int32_t index, bool owned)
+// Releases a destroyed shape's content: the interned hull and the mesh,
+// height field and voxel slots it owns.
+static void ReleaseShapeContent(m3World* world, int32_t index)
 {
     m3Shapes* sh = &world->shapes;
     m3ReleaseHull(world, sh->shapeHullIndex[index]);
-    sh->shapeHullIndex[index] = -1;
     int32_t m = sh->shapeMeshIndex[index];
     if (m >= 0 && --world->meshes.meshRefCounts[m] == 0)
     {
-        if (owned)
-        {
-            m3MeshDataFree(&world->meshes.meshData[m]);
-        }
-        memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
+        m3MeshDataFree(&world->meshes.meshData[m]);
         m3MeshBvhFree(&world->meshes.meshBvh[m]);
         m3IdPoolFree(&world->meshes.meshPool, m);
     }
     int32_t h = sh->shapeHfIndex[index];
     if (h >= 0 && --world->heightFields.hfRefCounts[h] == 0)
     {
-        if (owned)
-        {
-            m3HeightFieldDataFree(&world->heightFields.hfData[h]);
-        }
-        memset(&world->heightFields.hfData[h], 0, sizeof(m3HeightFieldData));
+        m3HeightFieldDataFree(&world->heightFields.hfData[h]);
         m3IdPoolFree(&world->heightFields.hfPool, h);
     }
     int32_t v = sh->shapeVoxelIndex[index];
@@ -259,15 +249,72 @@ static void ReleaseShapeContent(m3World* world, int32_t index, bool owned)
         m3IdPoolFree(&world->voxels.voxelPool, v);
         RefreshAllVoxelCoverage(world);
     }
+    sh->shapeHullIndex[index] = -1;
     sh->shapeMeshIndex[index] = -1;
     sh->shapeHfIndex[index] = -1;
     sh->shapeVoxelIndex[index] = -1;
 }
 
+// The pools a shape create allocates from, marked before it starts.
+typedef struct ShapeCreateMarks
+{
+    m3IdPoolMark shape;
+    m3IdPoolMark hull;
+    m3IdPoolMark mesh;
+    m3IdPoolMark heightField;
+    m3IdPoolMark voxel;
+} ShapeCreateMarks;
+
+// Undoes a create that failed after taking its slot: every pool rewinds
+// to its mark, and staged mesh and height field content stays the
+// caller's to free.
+static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMarks* marks)
+{
+    m3Shapes* sh = &world->shapes;
+    int32_t hull = sh->shapeHullIndex[index];
+    if (hull >= 0 && --world->hulls.hullRefCounts[hull] == 0)
+    {
+        memset(&world->hulls.hullData[hull], 0, sizeof(m3HullData));
+        m3IdPoolRewind(&world->hulls.hullPool, marks->hull, hull);
+    }
+    int32_t m = sh->shapeMeshIndex[index];
+    if (m >= 0)
+    {
+        m3MeshBvhFree(&world->meshes.meshBvh[m]);
+        memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
+        world->meshes.meshRefCounts[m] = 0;
+        m3IdPoolRewind(&world->meshes.meshPool, marks->mesh, m);
+    }
+    int32_t h = sh->shapeHfIndex[index];
+    if (h >= 0)
+    {
+        memset(&world->heightFields.hfData[h], 0, sizeof(m3HeightFieldData));
+        world->heightFields.hfRefCounts[h] = 0;
+        m3IdPoolRewind(&world->heightFields.hfPool, marks->heightField, h);
+    }
+    int32_t v = sh->shapeVoxelIndex[index];
+    if (v >= 0)
+    {
+        memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
+        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
+        memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
+        world->voxels.voxelShape[v] = -1;
+        world->voxels.voxelRefCounts[v] = 0;
+        m3IdPoolRewind(&world->voxels.voxelPool, marks->voxel, v);
+        RefreshAllVoxelCoverage(world);
+    }
+    sh->shapeHullIndex[index] = -1;
+    sh->shapeMeshIndex[index] = -1;
+    sh->shapeHfIndex[index] = -1;
+    sh->shapeVoxelIndex[index] = -1;
+    UnlinkShape(world, index);
+    m3IdPoolRewind(&world->shapes.shapePool, marks->shape, index);
+}
+
 // Input checks live here because replay hands this function raw journal
 // bytes. Content that arrives prebuilt (hull, mesh, voxel, height field)
-// validated in its own decode path. On failure nothing is left behind
-// and staged mesh and height field content is still the caller's.
+// validated in its own decode path. A failure leaves every pool as it
+// was, and staged mesh and height field content is still the caller's.
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeGeom* geom, const m3ShapeDef* def,
                               const m3ShapeContent* content)
@@ -278,6 +325,10 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     {
         return -1;
     }
+    ShapeCreateMarks marks = {
+        m3IdPoolMarkNow(&world->shapes.shapePool), m3IdPoolMarkNow(&world->hulls.hullPool),
+        m3IdPoolMarkNow(&world->meshes.meshPool), m3IdPoolMarkNow(&world->heightFields.hfPool),
+        m3IdPoolMarkNow(&world->voxels.voxelPool)};
     int32_t index = m3IdPoolAlloc(&world->shapes.shapePool);
     if (index < 0)
     {
@@ -297,9 +348,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     }
     if (!ok)
     {
-        ReleaseShapeContent(world, index, false);
-        UnlinkShape(world, index);
-        m3IdPoolFree(&world->shapes.shapePool, index);
+        UndoShapeCreate(world, index, &marks);
         return -1;
     }
     m3RecomputeMass(world, bodyIndex);
@@ -315,7 +364,7 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
         m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[index]);
         world->broadphase.proxyIds[index] = M3_TREE_NULL;
     }
-    ReleaseShapeContent(world, index, true);
+    ReleaseShapeContent(world, index);
     m3Shapes* sh = &world->shapes;
     sh->shapeType[index] = 0;
     sh->shapeGeom[index] = (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};

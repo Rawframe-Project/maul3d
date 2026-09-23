@@ -6,13 +6,12 @@
 
 query.c * 2040 every world query in one module, sharing the filter and proxy helpers
 manifold_mesh.c * 1674 the triangle-soup pipeline: per-triangle kernels and the welded core
-softbody.c * 1647 the soft-body API and its XPBD pass
 quickhull.c * 1224 one algorithm: QuickHull with face merging
 distance.c * 1221 GJK distance and time of impact, sharing the simplex
-world.c * 1165 world lifecycle, tuning knobs and event access
+world.c * 1117 world lifecycle, tuning knobs and event access
 vehicle.c * 1046 raycast vehicles: create, suspension and drivetrain
-voxel.c * 1046 voxel chunks: edits, fracture, surface and links
-softbody.c m3SoftBodyPass 571 numeric kernel: one pass in a fixed operation order
+voxel.c * 1043 voxel chunks: edits, fracture, surface and links
+softbody_solver.c m3SoftBodyPass 394 numeric kernel: one pass in a fixed operation order
 vehicle.c m3VehicleApplySuspension 459 numeric kernel: one pass in a fixed operation order
 manifold_mesh.c CollideMeshCore 390 numeric kernel: one pass in a fixed operation order
 joint_wheel.c SolveWheel 295 numeric kernel: solver rows in one fixed operation order
@@ -23,7 +22,7 @@ contact_solver.c m3PrepareContacts 257 numeric kernel: solver rows in one fixed 
 query.c ShapeCastTestShape 235 numeric kernel: one pass in a fixed operation order
 joint_prismatic.c SolvePrismatic 233 numeric kernel: solver rows in one fixed operation order
 broad_phase.c m3UpdatePairs 213 numeric kernel: one pass in a fixed operation order
-softbody.c SoftCollideParticle 213 numeric kernel: one pass in a fixed operation order
+softbody_solver.c SoftCollideParticle 213 numeric kernel: one pass in a fixed operation order
 distance.c SolveSimplex4 212 numeric kernel: one pass in a fixed operation order
 distance.c m3ShapeDistance 199 numeric kernel: one pass in a fixed operation order
 continuous.c ContinuousQueryCallback 195 numeric kernel: one pass in a fixed operation order
@@ -35,14 +34,12 @@ voxel.c m3VoxelFractureSweep 158 numeric kernel: one pass in a fixed operation o
 manifold.c m3CollideSegmentHull 156 numeric kernel: one pass in a fixed operation order
 manifold_mesh.c CollideCapsuleTriangle 154 numeric kernel: one pass in a fixed operation order
 contact_solver.c SolveOneContact 149 numeric kernel: solver rows in one fixed operation order
-softbody.c m3CreateSoftBodyInternal 150 creation or teardown: validation and every slot field in one pass
 narrowphase.c CollideConvexGjkPair 141 numeric kernel: one pass in a fixed operation order
 query.c ProxyReachesShape 137 numeric kernel: one pass in a fixed operation order
 manifold_mesh.c m3CollideHeightFieldConvex 135 numeric kernel: one pass in a fixed operation order
 query.c SphereReachesShape 129 numeric kernel: one pass in a fixed operation order
 distance.c ToiMakeSeparationFunction 123 numeric kernel: one pass in a fixed operation order
 broad_phase.c SphereAabb 122 numeric kernel: one pass in a fixed operation order
-softbody.c m3CreateSoftBodyTetInternal 122 creation or teardown: validation and every slot field in one pass
 joint_spherical.c SolveSpherical 119 numeric kernel: solver rows in one fixed operation order
 island.c m3IslandWakePass 110 numeric kernel: one pass in a fixed operation order
 voxel.c m3VoxelSurfaceBuild 110 numeric kernel: one pass in a fixed operation order

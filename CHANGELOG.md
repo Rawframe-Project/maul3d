@@ -223,3 +223,9 @@ Work toward 0.0.1, the first release of the reworked library.
   without freeing the caller's staged mesh or height field arrays. The
   old rollback freed the height field samples the caller then freed
   again, and left mesh and voxel slots allocated.
+- A create refused after taking a slot leaves every id pool as it was.
+  A mesh with no free mesh slot, a tetrahedral soft body past its edge
+  budget and a character with no free body or shape took a slot and
+  freed it, bumping its generation. Refusals are not journaled, so a
+  replay of the same session minted different ids for later creates
+  and failed.
