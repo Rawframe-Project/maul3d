@@ -540,13 +540,7 @@ m3Result m3UpdatePairs(m3World* world)
                 fat.lo[k] -= (double)M3_AABB_MARGIN;
                 fat.hi[k] += (double)M3_AABB_MARGIN;
             }
-            m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[i]);
-            world->broadphase.proxyIds[i] =
-                m3TreeInsert(&world->broadphase.tree, fat.lo, fat.hi, i);
-            if (world->broadphase.proxyIds[i] == M3_TREE_NULL)
-            {
-                return m3_errorCapacity;
-            }
+            m3TreeMove(&world->broadphase.tree, world->broadphase.proxyIds[i], fat.lo, fat.hi);
         }
     }
 

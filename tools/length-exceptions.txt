@@ -40,10 +40,8 @@ joint_spherical.c SolveSpherical 119 numeric kernel: solver rows in one fixed op
 island.c m3IslandWakePass 110 numeric kernel: one pass in a fixed operation order
 voxel.c m3VoxelSurfaceBuild 110 numeric kernel: one pass in a fixed operation order
 joint_distance.c SolveDistance 109 numeric kernel: solver rows in one fixed operation order
-dynamic_tree.c Balance 107 tree kernel: one rotation or insertion in a fixed order
 narrowphase.c CollidePlaneHullPair 103 numeric kernel: one pass in a fixed operation order
 quickhull.c m3ComputeHull 103 numeric kernel: one pass in a fixed operation order
-dynamic_tree.c m3TreeInsert 99 tree kernel: one rotation or insertion in a fixed order
 solver.c PrepareBuoyancy 97 numeric kernel: solver rows in one fixed operation order
 voxel.c VoxelWakeRegion 96 numeric kernel: one pass in a fixed operation order
 destruction.c ExplodeCallback 94 numeric kernel: one pass in a fixed operation order

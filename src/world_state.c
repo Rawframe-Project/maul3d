@@ -197,6 +197,7 @@ static const m3StateArray s_state[] = {
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, treeNode, treeNode),
     M3_STATE_INLINE_CHECKED(broadphase.tree.root, M3_STATE_SNAPSHOT, indexOrNone, treeNode),
     M3_STATE_INLINE_CHECKED(broadphase.tree.freeList, M3_STATE_SNAPSHOT, indexOrNone, treeNode),
+    M3_STATE_INLINE_CHECKED(broadphase.tree.nodeCount, M3_STATE_SNAPSHOT, countEach, treeNode),
     M3_STATE_CHECKED(shapes.shapeHullIndex, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, shape),
     M3_STATE_ARRAY(hulls.hullRefCounts, int32_t, shape, M3_STATE_SNAPSHOT),
     M3_STATE_ARRAY(hulls.hullPool.generations, uint16_t, shape,

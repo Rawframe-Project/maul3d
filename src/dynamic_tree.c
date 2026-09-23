@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The classic dynamic tree, adapted from the reference family (Box2D
-// v3 / Box3D dynamic_tree.c, MIT, Erin Catto): surface-area-heuristic
-// descent for the best sibling, AVL rotations for balance. All bounds
-// math is double and every branch is a strict comparison, so the tree
-// shape is a pure function of the insertion history.
+// The broadphase tree: a bounding volume hierarchy over fat leaf boxes
+// in double precision, kept height balanced as an AVL tree so a query
+// stack of a fixed size always suffices. Double bounds keep the tree
+// exact far from the origin, where world positions are double too.
+//
+// Insertion descends from the root toward the child whose box grows
+// least by the new leaf, pairs the leaf with the node on that path that
+// adds the least total surface area to the tree, then walks back up
+// refitting boxes and restoring the AVL height rule with single and
+// double rotations. A move detaches a leaf and reattaches it through the
+// same descent, reusing its node and its old parent node, so a proxy id
+// never changes while the shape lives. A rebuild splits the leaves top
+// down at the median centroid along the widest axis.
+//
+// Every decision is a comparison of double sums and products, so the
+// tree shape is a pure function of the operation history.
 
 #include "dynamic_tree.h"
 
@@ -13,22 +24,37 @@
 
 #include <string.h>
 
-static double SurfaceArea(const double lo[3], const double hi[3])
+static void Union(const m3TreeNode* a, const double lo[3], const double hi[3], double outLo[3],
+                  double outHi[3])
+{
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        outLo[k] = a->lo[k] < lo[k] ? a->lo[k] : lo[k];
+        outHi[k] = a->hi[k] > hi[k] ? a->hi[k] : hi[k];
+    }
+}
+
+// Half the surface area: the factor two never changes a comparison.
+static double HalfArea(const double lo[3], const double hi[3])
 {
     double dx = hi[0] - lo[0];
     double dy = hi[1] - lo[1];
     double dz = hi[2] - lo[2];
-    return 2.0 * (dx * dy + dy * dz + dz * dx);
+    return dx * dy + dy * dz + dz * dx;
 }
 
-static void Union(const double aLo[3], const double aHi[3], const double bLo[3],
-                  const double bHi[3], double outLo[3], double outHi[3])
+static double NodeArea(const m3TreeNode* node)
 {
-    for (int32_t k = 0; k < 3; ++k)
-    {
-        outLo[k] = aLo[k] < bLo[k] ? aLo[k] : bLo[k];
-        outHi[k] = aHi[k] > bHi[k] ? aHi[k] : bHi[k];
-    }
+    return HalfArea(node->lo, node->hi);
+}
+
+// The half area of a node's box grown by another box.
+static double UnionArea(const m3TreeNode* node, const double lo[3], const double hi[3])
+{
+    double ulo[3];
+    double uhi[3];
+    Union(node, lo, hi, ulo, uhi);
+    return HalfArea(ulo, uhi);
 }
 
 static bool Overlap(const double aLo[3], const double aHi[3], const double bLo[3],
@@ -38,25 +64,39 @@ static bool Overlap(const double aLo[3], const double aHi[3], const double bLo[3
            aLo[2] <= bHi[2] && bLo[2] <= aHi[2];
 }
 
+static int32_t MaxHeight(const m3TreeNode* nodes, int32_t a, int32_t b)
+{
+    return nodes[a].height > nodes[b].height ? nodes[a].height : nodes[b].height;
+}
+
+// Puts every node on the free chain in ascending order.
+static void ResetNodes(m3Tree* tree)
+{
+    memset(tree->nodes, 0, (size_t)tree->capacity * sizeof(m3TreeNode));
+    for (int32_t i = 0; i < tree->capacity; ++i)
+    {
+        tree->nodes[i].parent = i + 1 < tree->capacity ? i + 1 : M3_TREE_NULL;
+        tree->nodes[i].height = -1;
+        tree->nodes[i].child1 = M3_TREE_NULL;
+        tree->nodes[i].child2 = M3_TREE_NULL;
+    }
+    tree->freeList = tree->capacity > 0 ? 0 : M3_TREE_NULL;
+    tree->root = M3_TREE_NULL;
+    tree->nodeCount = 0;
+}
+
 m3Tree m3TreeCreate(int32_t capacity)
 {
     m3Tree tree;
     memset(&tree, 0, sizeof(tree));
     tree.root = M3_TREE_NULL;
+    tree.freeList = M3_TREE_NULL;
     M3_ALLOC(tree.nodes, capacity, m3TreeNode);
-    if (tree.nodes == NULL)
+    if (tree.nodes != NULL)
     {
-        // Out of memory: an empty tree (capacity 0) tells the caller.
-        tree.freeList = M3_TREE_NULL;
-        return tree;
+        tree.capacity = capacity; // out of memory leaves capacity 0 for the caller
+        ResetNodes(&tree);
     }
-    tree.capacity = capacity;
-    for (int32_t i = 0; i < capacity; ++i)
-    {
-        tree.nodes[i].parent = i + 1 < capacity ? i + 1 : M3_TREE_NULL;
-        tree.nodes[i].height = -1;
-    }
-    tree.freeList = capacity > 0 ? 0 : M3_TREE_NULL;
     return tree;
 }
 
@@ -68,299 +108,253 @@ void m3TreeDestroy(m3Tree* tree)
     tree->freeList = M3_TREE_NULL;
 }
 
-static int32_t AllocateNode(m3Tree* tree)
+static int32_t TakeNode(m3Tree* tree)
 {
-    if (tree->freeList == M3_TREE_NULL)
-    {
-        return M3_TREE_NULL; // exhausted: loud at the caller
-    }
     int32_t id = tree->freeList;
     m3TreeNode* node = tree->nodes + id;
     tree->freeList = node->parent;
+    tree->nodeCount += 1;
+    memset(node, 0, sizeof(*node));
     node->parent = M3_TREE_NULL;
     node->child1 = M3_TREE_NULL;
     node->child2 = M3_TREE_NULL;
-    node->height = 0;
     node->userData = -1;
-    node->pad = 0;
     return id;
 }
 
-static void FreeNode(m3Tree* tree, int32_t id)
+static void GiveNode(m3Tree* tree, int32_t id)
 {
     m3TreeNode* node = tree->nodes + id;
     memset(node, 0, sizeof(*node));
     node->parent = tree->freeList;
+    node->child1 = M3_TREE_NULL;
+    node->child2 = M3_TREE_NULL;
     node->height = -1;
     tree->freeList = id;
+    tree->nodeCount -= 1;
 }
 
-// The reference AVL balance: rotate the subtree at iA if it is two
-// levels out of balance, returning the new subtree root.
-static int32_t Balance(m3Tree* tree, int32_t iA)
+// Points the parent of old (or the root) at replacement.
+static void Relink(m3Tree* tree, int32_t parent, int32_t old, int32_t replacement)
 {
-    m3TreeNode* nodes = tree->nodes;
-    m3TreeNode* A = nodes + iA;
-    if (A->height < 2 || A->child1 == M3_TREE_NULL)
+    tree->nodes[replacement].parent = parent;
+    if (parent == M3_TREE_NULL)
     {
-        return iA;
+        tree->root = replacement;
     }
-    int32_t iB = A->child1;
-    int32_t iC = A->child2;
-    m3TreeNode* B = nodes + iB;
-    m3TreeNode* C = nodes + iC;
-    int32_t balance = C->height - B->height;
-
-    if (balance > 1)
+    else if (tree->nodes[parent].child1 == old)
     {
-        // Rotate C up.
-        int32_t iF = C->child1;
-        int32_t iG = C->child2;
-        m3TreeNode* F = nodes + iF;
-        m3TreeNode* G = nodes + iG;
-        C->child1 = iA;
-        C->parent = A->parent;
-        A->parent = iC;
-        if (C->parent != M3_TREE_NULL)
-        {
-            if (nodes[C->parent].child1 == iA)
-            {
-                nodes[C->parent].child1 = iC;
-            }
-            else
-            {
-                nodes[C->parent].child2 = iC;
-            }
-        }
-        else
-        {
-            tree->root = iC;
-        }
-        if (F->height > G->height)
-        {
-            C->child2 = iF;
-            A->child2 = iG;
-            G->parent = iA;
-            Union(B->lo, B->hi, G->lo, G->hi, A->lo, A->hi);
-            Union(A->lo, A->hi, F->lo, F->hi, C->lo, C->hi);
-            A->height = 1 + (B->height > G->height ? B->height : G->height);
-            C->height = 1 + (A->height > F->height ? A->height : F->height);
-        }
-        else
-        {
-            C->child2 = iG;
-            A->child2 = iF;
-            F->parent = iA;
-            Union(B->lo, B->hi, F->lo, F->hi, A->lo, A->hi);
-            Union(A->lo, A->hi, G->lo, G->hi, C->lo, C->hi);
-            A->height = 1 + (B->height > F->height ? B->height : F->height);
-            C->height = 1 + (A->height > G->height ? A->height : G->height);
-        }
-        return iC;
+        tree->nodes[parent].child1 = replacement;
     }
-    if (balance < -1)
+    else
     {
-        // Rotate B up (mirror case).
-        int32_t iD = B->child1;
-        int32_t iE = B->child2;
-        m3TreeNode* D = nodes + iD;
-        m3TreeNode* E = nodes + iE;
-        B->child1 = iA;
-        B->parent = A->parent;
-        A->parent = iB;
-        if (B->parent != M3_TREE_NULL)
-        {
-            if (nodes[B->parent].child1 == iA)
-            {
-                nodes[B->parent].child1 = iB;
-            }
-            else
-            {
-                nodes[B->parent].child2 = iB;
-            }
-        }
-        else
-        {
-            tree->root = iB;
-        }
-        if (D->height > E->height)
-        {
-            B->child2 = iD;
-            A->child1 = iE;
-            E->parent = iA;
-            Union(C->lo, C->hi, E->lo, E->hi, A->lo, A->hi);
-            Union(A->lo, A->hi, D->lo, D->hi, B->lo, B->hi);
-            A->height = 1 + (C->height > E->height ? C->height : E->height);
-            B->height = 1 + (A->height > D->height ? A->height : D->height);
-        }
-        else
-        {
-            B->child2 = iE;
-            A->child1 = iD;
-            D->parent = iA;
-            Union(C->lo, C->hi, D->lo, D->hi, A->lo, A->hi);
-            Union(A->lo, A->hi, E->lo, E->hi, B->lo, B->hi);
-            A->height = 1 + (C->height > D->height ? C->height : D->height);
-            B->height = 1 + (A->height > E->height ? A->height : E->height);
-        }
-        return iB;
+        tree->nodes[parent].child2 = replacement;
     }
-    return iA;
 }
 
-static void FixUpward(m3Tree* tree, int32_t index)
+static void Refit(m3TreeNode* nodes, int32_t id)
+{
+    m3TreeNode* node = nodes + id;
+    Union(nodes + node->child1, nodes[node->child2].lo, nodes[node->child2].hi, node->lo, node->hi);
+    node->height = 1 + MaxHeight(nodes, node->child1, node->child2);
+}
+
+// Lifts the child on the given side (1 or 2) of top into its place. The
+// lifted node keeps its own outer child and adopts top on the vacated
+// side; top adopts the lifted node's inner child. Returns the new root
+// of the subtree.
+static int32_t Rotate(m3Tree* tree, int32_t top, int32_t side)
 {
     m3TreeNode* nodes = tree->nodes;
-    while (index != M3_TREE_NULL)
+    int32_t up = side == 1 ? nodes[top].child1 : nodes[top].child2;
+    int32_t inner = side == 1 ? nodes[up].child2 : nodes[up].child1;
+    Relink(tree, nodes[top].parent, top, up);
+    if (side == 1)
     {
-        index = Balance(tree, index);
-        m3TreeNode* node = nodes + index;
-        int32_t c1 = node->child1;
-        int32_t c2 = node->child2;
-        node->height =
-            1 + (nodes[c1].height > nodes[c2].height ? nodes[c1].height : nodes[c2].height);
-        Union(nodes[c1].lo, nodes[c1].hi, nodes[c2].lo, nodes[c2].hi, node->lo, node->hi);
-        index = node->parent;
+        nodes[top].child1 = inner;
+        nodes[up].child2 = top;
+    }
+    else
+    {
+        nodes[top].child2 = inner;
+        nodes[up].child1 = top;
+    }
+    nodes[inner].parent = top;
+    nodes[top].parent = up;
+    Refit(nodes, top);
+    Refit(nodes, up);
+    return up;
+}
+
+// Restores the AVL rule at node, whose two children are balanced subtrees
+// of any heights. The taller child rises; when its inner grandchild is
+// the taller one, that grandchild rises first so the rotation cannot
+// leave the imbalance on the other side. When the heights were more than
+// two apart the demoted node can still lean, so it is balanced in turn
+// and the new top checked again: in effect an AVL join, which lets an
+// insertion pair a leaf with a subtree of any height. Returns the root
+// of the balanced subtree.
+static int32_t Rebalance(m3Tree* tree, int32_t node)
+{
+    m3TreeNode* nodes = tree->nodes;
+    for (;;)
+    {
+        int32_t a = nodes[node].child1;
+        int32_t b = nodes[node].child2;
+        int32_t skew = nodes[b].height - nodes[a].height;
+        if (skew >= -1 && skew <= 1)
+        {
+            return node;
+        }
+        int32_t side = skew > 0 ? 2 : 1;
+        int32_t tall = side == 1 ? a : b;
+        int32_t outer = side == 1 ? nodes[tall].child1 : nodes[tall].child2;
+        int32_t inner = side == 1 ? nodes[tall].child2 : nodes[tall].child1;
+        if (nodes[inner].height > nodes[outer].height)
+        {
+            Rotate(tree, tall, side == 1 ? 2 : 1);
+        }
+        int32_t up = Rotate(tree, node, side);
+        Rebalance(tree, node);
+        Refit(nodes, up);
+        node = up;
+    }
+}
+
+// Refits boxes and heights from node up to the root, rebalancing on the
+// way.
+static void RepairUpward(m3Tree* tree, int32_t node)
+{
+    while (node != M3_TREE_NULL)
+    {
+        Refit(tree->nodes, node);
+        node = Rebalance(tree, node);
+        node = tree->nodes[node].parent;
+    }
+}
+
+// The node a new box becomes the sibling of. Pairing box with node X adds
+// a junction of area |X u box| and grows every ancestor A of X by
+// |A u box| - |A|, so the added area of the whole tree is
+//
+//     cost(X) = |X u box| + (growth of the ancestors of X).
+//
+// The descent follows the child that grows least (ties to the smaller
+// union, then to the first child) and keeps the cheapest node it meets.
+// It stops once the growth inherited so far plus |box|, the least any
+// deeper junction can cost, reaches the best cost found.
+static int32_t PickSibling(const m3Tree* tree, const double lo[3], const double hi[3])
+{
+    const m3TreeNode* nodes = tree->nodes;
+    double boxArea = HalfArea(lo, hi);
+    int32_t node = tree->root;
+    int32_t best = node;
+    double bestCost = UnionArea(nodes + node, lo, hi);
+    double inherited = 0.0;
+    while (nodes[node].height > 0)
+    {
+        inherited += UnionArea(nodes + node, lo, hi) - NodeArea(nodes + node);
+        if (inherited + boxArea >= bestCost)
+        {
+            break;
+        }
+        int32_t a = nodes[node].child1;
+        int32_t b = nodes[node].child2;
+        double areaA = UnionArea(nodes + a, lo, hi);
+        double areaB = UnionArea(nodes + b, lo, hi);
+        double growA = areaA - NodeArea(nodes + a);
+        double growB = areaB - NodeArea(nodes + b);
+        bool takeB = growB < growA || (growB == growA && areaB < areaA);
+        node = takeB ? b : a;
+        double cost = inherited + (takeB ? areaB : areaA);
+        if (cost < bestCost)
+        {
+            best = node;
+            bestCost = cost;
+        }
+    }
+    return best;
+}
+
+// Hangs leaf in the tree under junction, a free interior node.
+static void Attach(m3Tree* tree, int32_t leaf, int32_t junction)
+{
+    m3TreeNode* nodes = tree->nodes;
+    if (tree->root == M3_TREE_NULL)
+    {
+        tree->root = leaf;
+        nodes[leaf].parent = M3_TREE_NULL;
+        return;
+    }
+    int32_t sibling = PickSibling(tree, nodes[leaf].lo, nodes[leaf].hi);
+    Relink(tree, nodes[sibling].parent, sibling, junction);
+    nodes[junction].child1 = sibling;
+    nodes[junction].child2 = leaf;
+    nodes[sibling].parent = junction;
+    nodes[leaf].parent = junction;
+    RepairUpward(tree, junction);
+}
+
+// Takes leaf out of the tree and returns its old parent node, which is
+// no longer linked (M3_TREE_NULL when the leaf was the root).
+static int32_t Detach(m3Tree* tree, int32_t leaf)
+{
+    m3TreeNode* nodes = tree->nodes;
+    int32_t parent = nodes[leaf].parent;
+    nodes[leaf].parent = M3_TREE_NULL;
+    if (parent == M3_TREE_NULL)
+    {
+        tree->root = M3_TREE_NULL;
+        return M3_TREE_NULL;
+    }
+    int32_t sibling = nodes[parent].child1 == leaf ? nodes[parent].child2 : nodes[parent].child1;
+    int32_t grandParent = nodes[parent].parent;
+    Relink(tree, grandParent, parent, sibling);
+    RepairUpward(tree, grandParent);
+    return parent;
+}
+
+static void SetBounds(m3TreeNode* node, const double lo[3], const double hi[3])
+{
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        node->lo[k] = lo[k];
+        node->hi[k] = hi[k];
     }
 }
 
 int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32_t userData)
 {
-    int32_t leaf = AllocateNode(tree);
-    if (leaf == M3_TREE_NULL)
+    // A non-empty tree needs a junction node besides the leaf; both are
+    // taken up front so a full pool refuses with the tree untouched.
+    bool empty = tree->root == M3_TREE_NULL;
+    if (tree->nodeCount + (empty ? 1 : 2) > tree->capacity)
     {
         return M3_TREE_NULL;
     }
-    m3TreeNode* nodes = tree->nodes;
-    memcpy(nodes[leaf].lo, lo, sizeof(double) * 3);
-    memcpy(nodes[leaf].hi, hi, sizeof(double) * 3);
-    nodes[leaf].userData = userData;
-    nodes[leaf].height = 0;
-
-    if (tree->root == M3_TREE_NULL)
-    {
-        tree->root = leaf;
-        return leaf;
-    }
-
-    // Find the best sibling by the surface area heuristic (the
-    // reference descent: strict comparisons, deterministic path).
-    int32_t index = tree->root;
-    while (nodes[index].height > 0)
-    {
-        int32_t child1 = nodes[index].child1;
-        int32_t child2 = nodes[index].child2;
-
-        double combinedLo[3];
-        double combinedHi[3];
-        Union(nodes[index].lo, nodes[index].hi, lo, hi, combinedLo, combinedHi);
-        double combinedArea = SurfaceArea(combinedLo, combinedHi);
-        double cost = 2.0 * combinedArea;
-        double inheritance = 2.0 * (combinedArea - SurfaceArea(nodes[index].lo, nodes[index].hi));
-
-        double cost1;
-        Union(nodes[child1].lo, nodes[child1].hi, lo, hi, combinedLo, combinedHi);
-        if (nodes[child1].height == 0)
-        {
-            cost1 = SurfaceArea(combinedLo, combinedHi) + inheritance;
-        }
-        else
-        {
-            cost1 = SurfaceArea(combinedLo, combinedHi) -
-                    SurfaceArea(nodes[child1].lo, nodes[child1].hi) + inheritance;
-        }
-
-        double cost2;
-        Union(nodes[child2].lo, nodes[child2].hi, lo, hi, combinedLo, combinedHi);
-        if (nodes[child2].height == 0)
-        {
-            cost2 = SurfaceArea(combinedLo, combinedHi) + inheritance;
-        }
-        else
-        {
-            cost2 = SurfaceArea(combinedLo, combinedHi) -
-                    SurfaceArea(nodes[child2].lo, nodes[child2].hi) + inheritance;
-        }
-
-        if (cost < cost1 && cost < cost2)
-        {
-            break;
-        }
-        index = cost1 < cost2 ? child1 : child2;
-    }
-
-    // Splice a new parent above the sibling.
-    int32_t sibling = index;
-    int32_t oldParent = nodes[sibling].parent;
-    int32_t newParent = AllocateNode(tree);
-    if (newParent == M3_TREE_NULL)
-    {
-        FreeNode(tree, leaf);
-        return M3_TREE_NULL;
-    }
-    nodes[newParent].parent = oldParent;
-    nodes[newParent].userData = -1;
-    Union(lo, hi, nodes[sibling].lo, nodes[sibling].hi, nodes[newParent].lo, nodes[newParent].hi);
-    nodes[newParent].height = nodes[sibling].height + 1;
-
-    if (oldParent != M3_TREE_NULL)
-    {
-        if (nodes[oldParent].child1 == sibling)
-        {
-            nodes[oldParent].child1 = newParent;
-        }
-        else
-        {
-            nodes[oldParent].child2 = newParent;
-        }
-    }
-    else
-    {
-        tree->root = newParent;
-    }
-    nodes[newParent].child1 = sibling;
-    nodes[newParent].child2 = leaf;
-    nodes[sibling].parent = newParent;
-    nodes[leaf].parent = newParent;
-
-    FixUpward(tree, newParent);
+    int32_t leaf = TakeNode(tree);
+    SetBounds(tree->nodes + leaf, lo, hi);
+    tree->nodes[leaf].userData = userData;
+    tree->nodes[leaf].height = 0;
+    Attach(tree, leaf, empty ? M3_TREE_NULL : TakeNode(tree));
     return leaf;
 }
 
 void m3TreeRemove(m3Tree* tree, int32_t nodeId)
 {
-    m3TreeNode* nodes = tree->nodes;
-    if (nodeId == tree->root)
+    int32_t junction = Detach(tree, nodeId);
+    if (junction != M3_TREE_NULL)
     {
-        tree->root = M3_TREE_NULL;
-        FreeNode(tree, nodeId);
-        return;
+        GiveNode(tree, junction);
     }
-    int32_t parent = nodes[nodeId].parent;
-    int32_t grandParent = nodes[parent].parent;
-    int32_t sibling = nodes[parent].child1 == nodeId ? nodes[parent].child2 : nodes[parent].child1;
+    GiveNode(tree, nodeId);
+}
 
-    if (grandParent != M3_TREE_NULL)
-    {
-        if (nodes[grandParent].child1 == parent)
-        {
-            nodes[grandParent].child1 = sibling;
-        }
-        else
-        {
-            nodes[grandParent].child2 = sibling;
-        }
-        nodes[sibling].parent = grandParent;
-        FreeNode(tree, parent);
-        FixUpward(tree, grandParent);
-    }
-    else
-    {
-        tree->root = sibling;
-        nodes[sibling].parent = M3_TREE_NULL;
-        FreeNode(tree, parent);
-    }
-    FreeNode(tree, nodeId);
+void m3TreeMove(m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
+{
+    int32_t junction = Detach(tree, nodeId);
+    SetBounds(tree->nodes + nodeId, lo, hi);
+    Attach(tree, nodeId, junction);
 }
 
 bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
@@ -370,12 +364,13 @@ bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], cons
            hi[0] <= node->hi[0] && hi[1] <= node->hi[1] && hi[2] <= node->hi[2];
 }
 
+// Depth first, first child first. The stack holds at most one pending
+// sibling per level plus the node in hand, and an AVL tree over any
+// int32 node count is under 64 levels deep.
 void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
                  void* context)
 {
-    // An explicit stack keeps traversal order a pure function of the
-    // tree shape (deterministic, no recursion depth hazards).
-    int32_t stack[64];
+    int32_t stack[M3_TREE_STACK_CAPACITY];
     int32_t top = 0;
     if (tree->root != M3_TREE_NULL)
     {
@@ -383,8 +378,7 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
     }
     while (top > 0)
     {
-        int32_t id = stack[--top];
-        const m3TreeNode* node = tree->nodes + id;
+        const m3TreeNode* node = tree->nodes + stack[--top];
         if (!Overlap(node->lo, node->hi, lo, hi))
         {
             continue;
@@ -395,176 +389,173 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
             {
                 return;
             }
+            continue;
         }
-        else
-        {
-            // Children pushed child2 first so child1 pops first: one
-            // fixed order.
-            if (top + 2 <= 64)
-            {
-                stack[top++] = node->child2;
-                stack[top++] = node->child1;
-            }
-        }
+        M3_ASSERT(top + 2 <= M3_TREE_STACK_CAPACITY);
+        stack[top++] = node->child2;
+        stack[top++] = node->child1;
     }
+}
+
+// Checks one subtree and returns its leaf count, or -1 on any breach:
+// links both ways, the height rule, AVL balance and box containment.
+static int32_t CheckSubtree(const m3Tree* tree, int32_t id)
+{
+    const m3TreeNode* nodes = tree->nodes;
+    const m3TreeNode* n = nodes + id;
+    if (n->height == 0)
+    {
+        return n->child1 == M3_TREE_NULL && n->child2 == M3_TREE_NULL ? 1 : -1;
+    }
+    int32_t a = n->child1;
+    int32_t b = n->child2;
+    if (a < 0 || a >= tree->capacity || b < 0 || b >= tree->capacity || nodes[a].parent != id ||
+        nodes[b].parent != id || n->height != 1 + MaxHeight(nodes, a, b) ||
+        nodes[a].height - nodes[b].height > 1 || nodes[b].height - nodes[a].height > 1 ||
+        !m3TreeContains(tree, id, nodes[a].lo, nodes[a].hi) ||
+        !m3TreeContains(tree, id, nodes[b].lo, nodes[b].hi))
+    {
+        return -1;
+    }
+    int32_t leavesA = CheckSubtree(tree, a);
+    int32_t leavesB = CheckSubtree(tree, b);
+    return leavesA < 0 || leavesB < 0 ? -1 : leavesA + leavesB;
+}
+
+bool m3TreeValidate(const m3Tree* tree)
+{
+    if (tree->root == M3_TREE_NULL)
+    {
+        return tree->nodeCount == 0;
+    }
+    if (tree->nodes[tree->root].parent != M3_TREE_NULL)
+    {
+        return false;
+    }
+    int32_t leaves = CheckSubtree(tree, tree->root);
+    return leaves > 0 && tree->nodeCount == 2 * leaves - 1;
 }
 
 // --- Whole-tree rebuild ----------------------------------------------
 
-typedef struct RebuildScratch
+typedef struct RebuildInput
 {
     const double (*los)[3];
     const double (*his)[3];
     const int32_t* userDatas;
-    int32_t* slots; // permutation of input indices, sorted in place
+    int32_t* order;   // input indices, sorted range by range
+    int32_t* scratch; // merge buffer, as long as order
     int32_t* outNodes;
-} RebuildScratch;
+    int32_t axis;
+} RebuildInput;
 
-static double RebuildCentroid(const RebuildScratch* rs, int32_t input, int32_t axis)
+// Twice the centroid on the current axis: the factor never changes an
+// ordering.
+static double CentroidKey(const RebuildInput* in, int32_t input)
 {
-    return 0.5 * (rs->los[input][axis] + rs->his[input][axis]);
+    return in->los[input][in->axis] + in->his[input][in->axis];
 }
 
-// Insertion sort on the slot range by centroid axis, ties keeping
-// the lower input index first: deterministic and stable, and the
-// ranges shrink geometrically so the cost stays modest.
-static void RebuildSort(RebuildScratch* rs, int32_t s, int32_t e, int32_t axis)
+// Stable merge sort of order[s, e) by centroid, ties by input index.
+static void SortRange(RebuildInput* in, int32_t s, int32_t e)
 {
-    for (int32_t i = s + 1; i < e; ++i)
+    if (e - s < 2)
     {
-        int32_t key = rs->slots[i];
-        double c = RebuildCentroid(rs, key, axis);
-        int32_t j = i - 1;
-        while (j >= s)
-        {
-            double cj = RebuildCentroid(rs, rs->slots[j], axis);
-            if (cj < c || (cj == c && rs->slots[j] < key))
-            {
-                break;
-            }
-            rs->slots[j + 1] = rs->slots[j];
-            j -= 1;
-        }
-        rs->slots[j + 1] = key;
+        return;
     }
+    int32_t m = s + (e - s) / 2;
+    SortRange(in, s, m);
+    SortRange(in, m, e);
+    int32_t i = s;
+    int32_t j = m;
+    for (int32_t k = s; k < e; ++k)
+    {
+        bool takeRight =
+            i >= m || (j < e && (CentroidKey(in, in->order[j]) < CentroidKey(in, in->order[i]) ||
+                                 (CentroidKey(in, in->order[j]) == CentroidKey(in, in->order[i]) &&
+                                  in->order[j] < in->order[i])));
+        in->scratch[k] = takeRight ? in->order[j++] : in->order[i++];
+    }
+    memcpy(in->order + s, in->scratch + s, (size_t)(e - s) * sizeof(int32_t));
 }
 
-static int32_t RebuildRange(m3Tree* tree, RebuildScratch* rs, int32_t s, int32_t e)
+// The axis along which the centroids of order[s, e) spread widest; ties
+// go to the lower axis.
+static int32_t WidestAxis(RebuildInput* in, int32_t s, int32_t e)
 {
-    int32_t id = AllocateNode(tree);
-    if (id == M3_TREE_NULL)
-    {
-        return M3_TREE_NULL; // cannot happen: capacity was checked
-    }
-    m3TreeNode* node = &tree->nodes[id];
-    if (e - s == 1)
-    {
-        int32_t input = rs->slots[s];
-        for (int32_t k = 0; k < 3; ++k)
-        {
-            node->lo[k] = rs->los[input][k];
-            node->hi[k] = rs->his[input][k];
-        }
-        node->userData = rs->userDatas[input];
-        node->height = 0;
-        rs->outNodes[input] = id;
-        return id;
-    }
-    double clo[3];
-    double chi[3];
+    double lo[3];
+    double hi[3];
     for (int32_t k = 0; k < 3; ++k)
     {
-        clo[k] = RebuildCentroid(rs, rs->slots[s], k);
-        chi[k] = clo[k];
-    }
-    for (int32_t i = s + 1; i < e; ++i)
-    {
-        for (int32_t k = 0; k < 3; ++k)
+        in->axis = k;
+        lo[k] = CentroidKey(in, in->order[s]);
+        hi[k] = lo[k];
+        for (int32_t i = s + 1; i < e; ++i)
         {
-            double c = RebuildCentroid(rs, rs->slots[i], k);
-            clo[k] = c < clo[k] ? c : clo[k];
-            chi[k] = c > chi[k] ? c : chi[k];
+            double c = CentroidKey(in, in->order[i]);
+            lo[k] = c < lo[k] ? c : lo[k];
+            hi[k] = c > hi[k] ? c : hi[k];
         }
     }
     int32_t axis = 0;
-    if (chi[1] - clo[1] > chi[0] - clo[0])
+    for (int32_t k = 1; k < 3; ++k)
     {
-        axis = 1;
+        axis = hi[k] - lo[k] > hi[axis] - lo[axis] ? k : axis;
     }
-    if (chi[2] - clo[2] > chi[axis] - clo[axis])
+    return axis;
+}
+
+// Builds the subtree over order[s, e): one leaf, or two halves split at
+// the median of the sorted centroids. Halves differ by at most one leaf,
+// so the result satisfies the AVL rule.
+static int32_t BuildRange(m3Tree* tree, RebuildInput* in, int32_t s, int32_t e)
+{
+    int32_t id = TakeNode(tree);
+    if (e - s == 1)
     {
-        axis = 2;
+        int32_t input = in->order[s];
+        SetBounds(tree->nodes + id, in->los[input], in->his[input]);
+        tree->nodes[id].userData = in->userDatas[input];
+        in->outNodes[input] = id;
+        return id;
     }
-    RebuildSort(rs, s, e, axis);
+    in->axis = WidestAxis(in, s, e);
+    SortRange(in, s, e);
     int32_t mid = s + (e - s) / 2;
-    int32_t c1 = RebuildRange(tree, rs, s, mid);
-    int32_t c2 = RebuildRange(tree, rs, mid, e);
-    node = &tree->nodes[id]; // the array is fixed, the habit is cheap
-    node->child1 = c1;
-    node->child2 = c2;
-    tree->nodes[c1].parent = id;
-    tree->nodes[c2].parent = id;
-    for (int32_t k = 0; k < 3; ++k)
-    {
-        double l1 = tree->nodes[c1].lo[k];
-        double l2 = tree->nodes[c2].lo[k];
-        double h1 = tree->nodes[c1].hi[k];
-        double h2 = tree->nodes[c2].hi[k];
-        node->lo[k] = l1 < l2 ? l1 : l2;
-        node->hi[k] = h1 > h2 ? h1 : h2;
-    }
-    int32_t hA = tree->nodes[c1].height;
-    int32_t hB = tree->nodes[c2].height;
-    node->height = 1 + (hA > hB ? hA : hB);
+    int32_t a = BuildRange(tree, in, s, mid);
+    int32_t b = BuildRange(tree, in, mid, e);
+    tree->nodes[id].child1 = a;
+    tree->nodes[id].child2 = b;
+    tree->nodes[a].parent = id;
+    tree->nodes[b].parent = id;
+    Refit(tree->nodes, id);
     return id;
 }
 
 bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
                    const int32_t* userDatas, int32_t count, int32_t* outNodes)
 {
-    if (count < 0 || 2 * count - 1 > tree->capacity)
+    if (count < 0 || (count > 0 && 2 * count - 1 > tree->capacity))
     {
-        return false; // a balanced tree needs 2n - 1 nodes
+        return false; // a tree over n leaves needs 2n - 1 nodes
     }
-    // Reset every node onto the free chain in ascending order, so
-    // allocation order (and with it the whole rebuilt layout) is a
-    // pure function of the input list.
-    for (int32_t i = 0; i < tree->capacity; ++i)
+    int32_t* order = (int32_t*)m3AllocZeroed(2 * count * (int32_t)sizeof(int32_t) + 1);
+    if (order == NULL)
     {
-        tree->nodes[i].parent = i + 1 < tree->capacity ? i + 1 : M3_TREE_NULL;
-        tree->nodes[i].height = -1;
-        tree->nodes[i].child1 = M3_TREE_NULL;
-        tree->nodes[i].child2 = M3_TREE_NULL;
-        tree->nodes[i].userData = 0;
-        tree->nodes[i].pad = 0;
-        for (int32_t k = 0; k < 3; ++k)
-        {
-            tree->nodes[i].lo[k] = 0.0;
-            tree->nodes[i].hi[k] = 0.0;
-        }
+        return false; // the old tree stays untouched
     }
-    tree->freeList = tree->capacity > 0 ? 0 : M3_TREE_NULL;
-    tree->root = M3_TREE_NULL;
-    if (count == 0)
-    {
-        return true;
-    }
-    int32_t* slots = (int32_t*)m3AllocZeroed(count * (int32_t)sizeof(int32_t));
-    if (slots == NULL)
-    {
-        return false;
-    }
+    // Every node goes back on the free chain in ascending order, so the
+    // rebuilt layout is a pure function of the input list.
+    ResetNodes(tree);
     for (int32_t i = 0; i < count; ++i)
     {
-        slots[i] = i;
+        order[i] = i;
     }
-    RebuildScratch rs;
-    rs.los = los;
-    rs.his = his;
-    rs.userDatas = userDatas;
-    rs.slots = slots;
-    rs.outNodes = outNodes;
-    tree->root = RebuildRange(tree, &rs, 0, count);
-    m3Free(slots);
-    return tree->root != M3_TREE_NULL;
+    RebuildInput in = {los, his, userDatas, order, order + count, outNodes, 0};
+    if (count > 0)
+    {
+        tree->root = BuildRange(tree, &in, 0, count);
+    }
+    m3Free(order);
+    return true;
 }

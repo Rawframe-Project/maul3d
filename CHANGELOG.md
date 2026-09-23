@@ -122,6 +122,10 @@ Work toward 0.0.1, the first release of the reworked library.
   gravity, the pair count, the tree cursors and every pool cursor are
   state table rows, checked before any byte lands. A vehicle or soft
   body capacity mismatch is now `m3_errorConfig`.
+- The broadphase tree is rewritten: surface-area-guided insertion,
+  strict AVL balance, moves that keep the node id, and a rebuild that
+  leaves the old tree intact when it cannot allocate. Every golden
+  hash and bench pin is unchanged.
 
 ### Removed
 
@@ -229,3 +233,7 @@ Work toward 0.0.1, the first release of the reworked library.
   freed it, bumping its generation. Refusals are not journaled, so a
   replay of the same session minted different ids for later creates
   and failed.
+- A tree query deeper than its 64-entry stack silently skipped
+  subtrees; the tree is now strictly balanced, so the stack always
+  suffices. A broadphase rebuild that ran out of memory emptied the
+  tree while proxies still pointed into it.
