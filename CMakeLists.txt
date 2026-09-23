@@ -46,6 +46,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/contact_solver.c
     src/continuous.c
     src/core.c
+    src/destruction.c
     src/diff.c
     src/distance.c
     src/draw.c
@@ -53,19 +54,20 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/hull.c
     src/island.c
     src/joint.c
-    src/joint_params.c
     src/joint_distance.c
     src/joint_fixed.c
     src/joint_gear.c
     src/joint_generic.c
     src/joint_motor.c
     src/joint_parallel.c
+    src/joint_params.c
     src/joint_prismatic.c
     src/joint_pulley.c
     src/joint_revolute.c
     src/joint_solver.c
     src/joint_spherical.c
     src/joint_wheel.c
+    src/journal.c
     src/journal_replay.c
     src/journal_replay_actors.c
     src/journal_replay_joints.c
@@ -74,12 +76,15 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/manifold_mesh.c
     src/math_functions.c
     src/mesh_bvh.c
+    src/mover.c
     src/narrowphase.c
     src/query.c
+    src/query_proxy.c
     src/quickhull.c
     src/raycast.c
     src/replay.c
     src/shape.c
+    src/shape_cast.c
     src/shape_create.c
     src/shape_data.c
     src/shape_mass.c
@@ -90,8 +95,12 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/softbody_solver.c
     src/solver.c
     src/vehicle.c
+    src/vehicle_drivetrain.c
     src/voxel.c
+    src/voxel_fracture.c
+    src/water.c
     src/world.c
+    src/world_events.c
     src/world_hash.c
     src/world_state.c)
 maul_configure_library(maul3d)

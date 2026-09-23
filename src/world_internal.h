@@ -22,7 +22,7 @@
 
 // (int32_t) from a float is UB on NaN and outside the int range:
 // x86 shrugs INT_MIN, wasm TRAPS, and the wide fuzz walked a
-// mutated-snapshot NaN into a heightfield gather (shape.c). Every
+// mutated-snapshot NaN into a heightfield gather (shape_data.c). Every
 // grid-cell cast goes through this park-and-clamp. Legitimate
 // values are bit-identical: no real grid nears two billion cells.
 // nanPark picks which way a poisoned bound falls so lo/hi ranges
