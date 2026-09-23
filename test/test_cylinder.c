@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The cylinder gate: the factory mints an honest prism
+// The cylinder checks: the factory builds a faceted prism
 // through the hull path. Degenerate defs refuse, the quality knob
 // clamps, the prism's mass behaves like the round closed form
 // within the faceting error, a spun cylinder rolls where a cube
@@ -67,7 +67,7 @@ static void TestMassBehavesLikeTheClosedForm(void)
 {
     // No gravity, no ground contact: impulse over delta v is mass.
     // A 32-segment prism sits 0.64 percent under the round area;
-    // three percent of slack covers it with honest room.
+    // three percent of slack covers it with room to spare.
     m3WorldDef wd = m3DefaultWorldDef();
     wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     wd.bodyCapacity = 8;

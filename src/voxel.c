@@ -733,7 +733,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             // fill >= 1), but a mutated snapshot can set occupancy
             // bits over zeroed fill bytes, and 1/0 would mint a NaN
             // center that infects the whole simulation. The equal
-            // weight center is the honest fallback (count >= 1 in
+            // weight center is the fallback (count >= 1 in
             // this branch by construction).
             com = m3MulSV3(1.0f / (m3real)count, comEq);
         }

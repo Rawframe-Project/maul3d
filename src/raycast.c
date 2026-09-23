@@ -301,8 +301,7 @@ static m3RayLocalHit RayHeightField(m3Vec3 o, m3Vec3 d, const m3HeightFieldData*
     // Cell-span scan: the segment's XZ box picks the cells;
     // each contributes its two parity triangles to the same
     // front-face test the mesh path runs. A long diagonal ray
-    // scans its whole span box: honest, deterministic, and the DDA
-    // walk stays on the ledger for a profiling day.
+    // scans its whole span box, which is simple and deterministic.
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 end = m3Add3(o, d);
     m3real inv = 1.0f / hf->cellSize;
@@ -370,7 +369,7 @@ typedef struct m3RayCastContext
     m3RayHit best;
     int32_t bestShape;
     int32_t ignoreBody;   // -1 none: the suspension casts' self filter
-    m3QueryFilter filter; // 8-1: the query behaves like a shape
+    m3QueryFilter filter; // The query behaves like a shape
 } m3RayCastContext;
 
 static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
@@ -379,8 +378,7 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     int32_t body = world->shapeBody[shape];
     if (body == ctx->ignoreBody)
     {
-        return; // the caller's own body never blocks its ray (4-4's
-                // cast hook, extended to rays for the vehicle arc)
+        return; // the caller's own body never blocks its ray
     }
     if (world->bodyEnabled[body] == 0)
     {
@@ -472,10 +470,8 @@ m3RayHit m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 
 {
     m3RayCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.ignoreBody = -1;                 // zero after memset would silently filter
-                                         // body slot ZERO (the 5-1 lesson: a new
-                                         // context field visits every constructor)
-    ctx.filter = m3DefaultQueryFilter(); // the same lesson, 8-1
+    ctx.ignoreBody = -1;                 // zero after memset would ignore body slot 0
+    ctx.filter = m3DefaultQueryFilter(); // zero after memset would filter everything
     ctx.best.fraction = 1.0f;
     ctx.world = world;
     ctx.origin = origin;

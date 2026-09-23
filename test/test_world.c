@@ -230,7 +230,7 @@ static void TestShapes(void)
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
     CHECK(!m3Shape_IsValid(m3CreatePlaneShape(body, &sd, &floor)),
           "a plane on a dynamic body is refused");
-    // 2b-1: the 2a refusal flips into a feature. An offset sphere on
+    // The 2a refusal flips into a feature. An offset sphere on
     // its own body puts the COM at the offset and keeps the tensor at
     // the centroid value (no parallel-axis term about the COM itself).
     m3BodyDef od = m3DefaultBodyDef();
@@ -439,7 +439,7 @@ static void TestTreeReferee(void)
 
 static void TestHullSnapshotShrink(void)
 {
-    // 17-1: hull content is count-derived in the snapshot. A world
+    // Hull content is count-derived in the snapshot. A world
     // paying 5808 bytes per EMPTY hull slot was paying more for
     // nothing than for all its joints; now an empty slot costs 16
     // bytes and a box hull only its used prefix.
@@ -517,7 +517,7 @@ static void HookFree(void* memory, void* context)
     free(memory);
 }
 
-// R5-3: a world born under a host allocator routes every
+// A world born under a host allocator routes every
 // persistent allocation and free through it, and dies in balance.
 static void TestAllocatorHook(void)
 {
@@ -545,7 +545,7 @@ static void TestAllocatorHook(void)
     m3SetAllocator(NULL, NULL, NULL);
 }
 
-// R5-3: the ledger is computed, not accumulated, so it
+// The total is computed, not accumulated, so it
 // cannot drift; content grows it and steps do not.
 static void TestMemoryUsage(void)
 {

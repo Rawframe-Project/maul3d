@@ -95,7 +95,7 @@ static void TestCloudFilterAndPurity(void)
     int32_t all =
         m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, hits, 8);
     // The cloud floats half a meter over the floor with a 0.1
-    // skin: the plane is honestly OUT of reach, both crates in.
+    // skin: the plane is OUT of reach, both crates in.
     CHECK(all == 2, "the cloud reaches exactly the two crates");
     m3QueryFilter filter = m3DefaultQueryFilter();
     filter.maskBits = ~2ull;

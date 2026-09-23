@@ -31,7 +31,7 @@ extern "C"
         float gravityScale;
         float linearDamping;
         float angularDamping;
-        uint64_t userData; // opaque, carried verbatim
+        uint64_t userData; // opaque, carried unchanged
         /// A high speed body that gets the full continuous pass
         /// against static AND dynamic targets. Every fast
         /// dynamic body already sweeps against statics; the bullet

@@ -95,7 +95,7 @@ extern "C"
     /// Anchors one particle to a body at the particle's CURRENT
     /// position, expressed in the body's frame: the particle rides
     /// the body from then on, and the lattice's pull on it lands on
-    /// the body as an impulse at the anchor (two-way, 7-3). Cloth
+    /// the body as an impulse at the anchor, so the coupling is two-way. Cloth
     /// hangs from beams and jelly rides trucks through this.
     /// Anchoring to a static body is a moving pin; the anchor
     /// RELEASES silently if its body dies. Journaled; stale ids,

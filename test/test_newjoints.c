@@ -406,7 +406,7 @@ static void TestMotorJointServo(void)
 {
     // The servo weld: springless it idles FREE (the joint
     // holds nothing), with a spring it flies to the commanded
-    // offset AND rotation, budgets starve it honestly, and the aim
+    // offset AND rotation, budgets starve it, and the aim
     // rides twins, the journal, and the hostile wall.
 
     // Springless idle: the cube falls as if unjoined.
@@ -476,7 +476,7 @@ static void TestMotorJointServo(void)
         m3DestroyWorld(world);
     }
 
-    // The force budget starves honestly under gravity.
+    // The force budget starves under gravity.
     double rich = ServoDroop(0.0f);
     CHECK(rich < 0.15, "an uncapped servo holds the hang");
     double starved = ServoDroop(0.3f);

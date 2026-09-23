@@ -18,7 +18,7 @@ extern "C"
     {
         m3_sphereShape = 0,
         m3_planeShape = 1,       // static bodies only: an infinite half-space
-        m3_hullShape = 2,        // convex hull (boxes in 2b-3; point clouds later)
+        m3_hullShape = 2,        // convex hull: boxes and point clouds
         m3_capsuleShape = 3,     // a segment with a radius
         m3_meshShape = 4,        // static triangle soup
         m3_voxelShape = 5,       // dense 16^3 voxel chunk
@@ -66,8 +66,8 @@ extern "C"
         /// through, bullets do not stop, sleepers are not woken.
         /// Sensors do not sense other sensors.
         bool isSensor;
-        bool enableHitEvents;      // 8-5: default false, streams cost
-        bool enablePreSolveEvents; // 8-5: default false, veto calls cost
+        bool enableHitEvents;      // default false: streams cost
+        bool enablePreSolveEvents; // default false: veto calls cost
         /// Compound offset: the shape's transform relative to
         /// its body. Identity by default; a near-unit rotation is
         /// demanded, garbage refuses at create.
@@ -115,15 +115,14 @@ extern "C"
     M3_API m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def,
                                           const m3Capsule* capsule);
 
-    /// A cylinder, honestly faceted: the factory mints a
+    /// A faceted cylinder: the factory builds a
     /// 2N-vertex prism through the interned hull path (N = segments,
     /// clamped to [3, 32] so 2N fits the 64-vertex hull), so mass,
     /// contacts, casts, carving, and CCD all inherit exact hull math
     /// for the prism. The documented trade: the side is an N-gon,
     /// not a curve; 24 segments roll visually smooth at meter
-    /// scales. The analytic round cylinder stays on the ledger for
-    /// the day a consumer needs it. Degenerate axes and radii refuse
-    /// loudly like every hull.
+    /// scales. Degenerate axes and radii are refused like every
+    /// hull.
     typedef struct m3Cylinder
     {
         m3Vec3 point1; // center of one cap
@@ -269,8 +268,8 @@ extern "C"
 
     M3_API bool m3Shape_IsValid(m3ShapeId shapeId);
 
-    /// The owning body (22-2: the mover recipe needs to tell its
-    /// own shape from the world's). Null id for stale shapes.
+    /// The owning body, so a mover can tell its own shape from the
+    /// world's. Null id for stale shapes.
     M3_API m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
     /// Who touches this shape now: fills up to capacity
     /// entries and returns the count written. See m3ContactData.

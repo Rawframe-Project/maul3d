@@ -45,9 +45,8 @@ m3BodyDef m3DefaultBodyDef(void)
 
 int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
 {
-    // The hostile-input wall lives HERE since 16-7, because
-    // replay hands this function raw journal bytes (the soft-body
-    // lesson, fourth verse): nothing non-finite reaches state, a
+    // Input checks live here because replay hands this function raw
+    // journal bytes: nothing non-finite reaches state, a
     // rotation far from unit is a corrupted def, and a type byte
     // outside the enum must never mint a body.
     m3real qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
@@ -71,8 +70,8 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     world->transforms[index].q = m3NormalizeQuat(def->rotation);
     world->linearVelocities[index] = def->linearVelocity;
     world->angularVelocities[index] = def->angularVelocity;
-    // A shapeless dynamic body has unit mass and zero inertia (the
-    // reference convention); shape mass replaces this in task 7.
+    // A shapeless dynamic body has unit mass and zero inertia; its
+    // shapes replace this when they are added.
     world->invMass[index] = def->type == m3_dynamicBody ? 1.0f : 0.0f;
     world->invInertiaLocal[index] = m3MakeZeroMat3();
     world->inertiaLocal[index] = m3MakeZeroMat3();
@@ -325,7 +324,7 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
         world->awake[index] = 0;
         world->linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        // S-3b: every freeze, API-forced ones included, records its
+        // Every freeze, API-forced ones included, records its
         // cold pairs or the frozen buffer stops being a pure
         // function of the sleeping state.
         m3FreezeDiscoverPairs(world, index);
@@ -525,7 +524,7 @@ m3BodyType m3Body_GetType(m3BodyId bodyId)
     return world != NULL ? (m3BodyType)world->types[index] : m3_staticBody;
 }
 
-// The shared 8-2 wrapper skeleton: resolve, refuse hostiles and
+// The shared force and impulse wrapper: resolve, refuse hostiles and
 // non-dynamic targets quietly, journal, apply through the one
 // internal path replay uses.
 void m3Body_SetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation)

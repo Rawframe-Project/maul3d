@@ -929,7 +929,7 @@ static tbScene SceneTower(void)
 }
 
 // Scene 9: the hill. The geared car against a slope that top gear
-// cannot climb: the 12-1 analytic, playable.
+// cannot climb, matching the analytic drivetrain model.
 static tbScene SceneHill(void)
 {
     tbScene scene;
@@ -945,7 +945,7 @@ static tbScene SceneHill(void)
     // The hill: a SMOOTH hull wedge, not voxel stairs (the first
     // draft used one-meter cells and built a staircase taller than
     // the car). Sixteen degrees over twelve meters: first gear
-    // climbs it, fifth gear bogs, exactly the 12-1 analytic.
+    // climbs it, fifth gear bogs, exactly as the model predicts.
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){4.0, 0.0, 0.0};
     m3BodyId hill = m3CreateBody(scene.world, &rd);
@@ -1040,14 +1040,14 @@ static tbScene SceneJointCart(void)
         // The break cap sits ABOVE the drive torque: plain driving
         // never snaps an axle (the first tuning had them inverted
         // and the cart shed wheels pulling away); rubble impacts
-        // spike the collinearity torque past it honestly.
+        // spike the collinearity torque past it.
         m3Joint_SetBreakThresholds(scene.axles[w], 0.0f, 240.0f);
     }
     return scene;
 }
 
 // Scene 11: the tunnel. Crouch (C) under the slab, get REFUSED the
-// stand while pressed, stand past the edge: the 12-3 veto, playable.
+// stand while pressed, stand past the edge: the stand-up veto, playable.
 static tbScene SceneTunnel(void)
 {
     tbScene scene;
@@ -1074,7 +1074,7 @@ static tbScene SceneTunnel(void)
 }
 
 // Scene 12: the laundry line. A pinned cloth in gusting wind over a
-// conveyor belt hauling crates: the 11-3 fields, playable.
+// conveyor belt hauling crates: wind and conveyor fields, playable.
 static tbScene SceneClothWind(void)
 {
     tbScene scene;
@@ -1195,11 +1195,11 @@ static const tbSceneEntry s_scenes[] = {
 #define SCENE_COUNT ((int32_t)(sizeof(s_scenes) / sizeof(s_scenes[0])))
 
 // ------------------------------------------------------ host recipes
-// The fragment recipe from the voxfort bench, verbatim in spirit:
+// The fragment recipe from the voxfort bench:
 // small islands become hulls of their voxel corner clouds, large
 // ones become bounds boxes with density matched to the event mass.
 // When a detonation armed the shove, newborn fragments inherit a
-// radial kick from the blast center (13-3 demo dressing).
+// radial kick from the blast center.
 static bool s_blastArmed = false;
 static m3Pos3 s_blastAt;
 
@@ -1235,7 +1235,7 @@ static void SpawnFragments(m3WorldId world)
         fd.friction = 0.6f;
         if (ev->recipeCount > 0 && ev->recipeStart >= 0 && ev->voxelCount <= 32)
         {
-            // A COMPOUND of unit boxes, one per voxel (10-1 offsets):
+            // A compound of unit boxes, one per voxel (child offsets):
             // the fragment keeps its true silhouette. The old recipe
             // hulled small islands (a convex hull bevels an L into a
             // chipped cube) and boxed big ones (an L became a slab);

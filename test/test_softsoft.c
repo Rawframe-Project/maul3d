@@ -69,7 +69,7 @@ static void TestJelliesRefuseToMerge(void)
     sd.position = (m3Pos3){0.0, 0.15, 0.0};
     m3SoftBodyId lower = m3CreateSoftBody(world, &sd);
     // Dead-center drop from a modest height: the first draft's
-    // offset landing SLID OFF sideways (honest physics, wrong
+    // offset landing SLID OFF sideways (correct physics, wrong
     // premise for a stacking proof).
     sd.position = (m3Pos3){0.0, 1.4, 0.0};
     m3SoftBodyId upper = m3CreateSoftBody(world, &sd);
@@ -320,7 +320,7 @@ static void TestAnchorDeathStorm(void)
 
 static void TestCapacityStormAndRing(void)
 {
-    // 11-4: four lattices all touching under deterministic deaths,
+    // Four lattices all touching under deterministic deaths,
     // and an anchor RING (a rope circle bridging three cloths):
     // cycles must hold without feedback runaway, twins bit-exact.
     uint64_t hashes[2];
@@ -353,7 +353,7 @@ static void TestCapacityStormAndRing(void)
         }
         // The anchors are position EQUALITIES: pinned corners
         // legally coincide, so the separation law does not apply
-        // at the pins. The cycle's red-team law is STABILITY: no
+        // at the pins. The stress rule is STABILITY: no
         // feedback runaway, every particle finite and earthbound.
         for (int32_t k = 0; k < 3; ++k)
         {
@@ -436,7 +436,7 @@ static void TestShowcase(void)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        // The honest showcase laws. A stretchy particle span is
+        // The showcase rules. A stretchy particle span is
         // POROUS to comparable-radius spheres under load (a known
         // v1 bound, now in the MANUAL), so the ball's resting place
         // is the scene's business; what the engine PROMISES is:

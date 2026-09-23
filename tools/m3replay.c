@@ -258,7 +258,7 @@ typedef struct Scrub
     int32_t* stepEnds; // byte offset just PAST step i's record
     uint8_t** keys;    // keyframe snapshots, one per interval mark
     int32_t* keySizes; // per-key bytes: snapshots are count-derived
-                       // (10-3 meshes, 17-1 hulls) so the size
+                       // (meshes and hulls) so the size
                        // GROWS with the world and is never one
                        // number for a whole session
     int32_t keyCount;

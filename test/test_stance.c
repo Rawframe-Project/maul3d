@@ -259,7 +259,7 @@ static void TestHostileWall(void)
 
 static void TestCrouchSpamMovingCeiling(void)
 {
-    // The 12-4 red team: a kinematic press descends and rises over
+    // Stress test: a kinematic press descends and rises over
     // a character that attempts to STAND EVERY TICK. The veto must
     // flicker between grant and refusal in perfect step with the
     // press, twins must flicker identically, and a mid-storm

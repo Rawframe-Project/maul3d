@@ -138,7 +138,7 @@ extern "C"
         /// 0.1) refuses loudly. enableLimit bounds the suspension
         /// translation in meters; enableMotor drives the SPIN
         /// (rad/s, torque cap): the drive axle. The suspension
-        /// spring is the 8-6b drive: m3Joint_SetSpring plus
+        /// spring is the joint drive: m3Joint_SetSpring plus
         /// m3Joint_SetTargetTranslation. m3Joint_GetAngle reads the
         /// spin angle, m3Joint_GetTranslation the suspension travel.
         /// Breakage applies unchanged: a capped axle snaps

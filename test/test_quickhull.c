@@ -224,7 +224,7 @@ static void TestHalfEdgeTwinLaw(void)
     }
 }
 
-// 10-2: the parity cap. A dense sphere cloud must produce a hull
+// The parity cap. A dense sphere cloud must produce a hull
 // RICHER than the old 24-vertex ceiling, cap at 64, and hold the
 // half-edge laws; input past M3_HULL_MAX_INPUT refuses.
 static void TestBigHullCap(void)
@@ -258,7 +258,7 @@ static void TestBigHullCap(void)
     CHECK(!m3ComputeHull(tooMany, 257, &hull), "input past the cap refuses");
 }
 
-// 10-4 boundary fuzz: clouds at 63, 64, and 65 candidate hull
+// Boundary fuzz: clouds at 63, 64, and 65 candidate hull
 // vertices, plus degenerate stews (coplanar sheets, duplicate
 // spikes) that must simplify or refuse but never crash.
 static void TestBoundaryClouds(void)

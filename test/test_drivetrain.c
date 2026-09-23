@@ -372,7 +372,7 @@ static void TestHostileWall(void)
 
 static void TestShiftThrashStorm(void)
 {
-    // The 12-4 red team: auto shift fighting a manual gear spammer
+    // Stress test: auto shift fighting a manual gear spammer
     // fighting a rollback loop. Every 7 ticks a manual select
     // (cycling neutral, first, fifth, reverse), every 11 the
     // throttle flips, and every 60 the world snapshots, runs 30
@@ -498,7 +498,7 @@ static void TestDifferentials(void)
 
 static void TestTankSteer(void)
 {
-    // 23-1: opposite tracks spin the hull in place; equal tracks
+    // Opposite tracks spin the hull in place; equal tracks
     // run it straight; twins agree to the bit; a drivetrain
     // vehicle refuses the tank door.
     uint64_t hashes[2];

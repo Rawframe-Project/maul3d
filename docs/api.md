@@ -49,7 +49,7 @@ static inline m3Mat3 m3MakeZeroMat3(void);
 ```c
 static inline m3real m3MinF(m3real a, m3real b);
 ```
-Pinned minimum: exactly (a < b ? a : b), in this operand order, on every platform. MSVC x64 lowers the ternary through MINSS which matches; see Maul2D's arm64 lesson for why this is spelled out rather than assumed.
+Pinned minimum: exactly (a < b ? a : b), in this operand order, on every platform. MSVC x64 lowers the ternary through MINSS which matches. It is spelled out rather than assumed because some arm64 compilers lower min and max differently.
 
 ```c
 static inline m3real m3MaxF(m3real a, m3real b);
@@ -254,7 +254,7 @@ Advance the simulation: collide, then the Soft Step solver with the given subste
 ```c
 int32_t m3World_SnapshotSize(m3WorldId worldId);
 ```
-Snapshot and rollback, first-class from day one. The format is portable and versioned: field blocks in little-endian order with a header carrying a config hash (engine version, solver revision, precision, FP policy). Restore refuses a mismatched config or format loudly, restores in place, and the restored world resimulates bit-exactly (the rollback gate, task 10).
+Snapshot and rollback, first-class from day one. The format is portable and versioned: field blocks in little-endian order with a header carrying a config hash (engine version, solver revision, precision, FP policy). Restore refuses a mismatched config or format loudly, restores in place, and the restored world resimulates bit-exactly.
 
 ```c
 int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity);
@@ -921,7 +921,7 @@ bool m3Shape_IsValid(m3ShapeId shapeId);
 ```c
 m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
 ```
-The owning body (22-2: the mover recipe needs to tell its own shape from the world's). Null id for stale shapes.
+The owning body, so a mover can tell its own shape from the world's. Null id for stale shapes.
 
 ```c
 int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);
@@ -1023,7 +1023,7 @@ Pins one particle in place (inverse mass zero): how a rope hangs and a flag flie
 ```c
 void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId bodyId);
 ```
-Anchors one particle to a body at the particle's CURRENT position, expressed in the body's frame: the particle rides the body from then on, and the lattice's pull on it lands on the body as an impulse at the anchor (two-way, 7-3). Cloth hangs from beams and jelly rides trucks through this. Anchoring to a static body is a moving pin; the anchor RELEASES silently if its body dies. Journaled; stale ids, out-of-range particles, and a full anchor table (32 per soft body) are quiet no-ops.
+Anchors one particle to a body at the particle's CURRENT position, expressed in the body's frame: the particle rides the body from then on, and the lattice's pull on it lands on the body as an impulse at the anchor, so the coupling is two-way. Cloth hangs from beams and jelly rides trucks through this. Anchoring to a static body is a moving pin; the anchor RELEASES silently if its body dies. Journaled; stale ids, out-of-range particles, and a full anchor table (32 per soft body) are quiet no-ops.
 
 ```c
 void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBodyId softIdB, int32_t particleB);

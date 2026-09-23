@@ -288,7 +288,7 @@ static void TestSphericalRotationDrive(void)
 
 static void TestRuntimeOpsReplay(void)
 {
-    // The whole 8-6a op family under the journal: twins land on the
+    // The whole joint drive op family under the journal: twins land on the
     // same bits and a fresh replay reproduces the final hash.
     static uint8_t journal[131072];
     uint64_t hashes[2];

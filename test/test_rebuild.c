@@ -6,7 +6,7 @@
 // touching a single answer. Physics stays bit-identical (pairs are
 // canonical regardless of tree shape), queries return the same
 // shapes, the op journals, and the snapshot carries the new shape.
-// Plus the 4-6 carry check: a crate on a gliding kinematic
+// Plus the carry check: a crate on a gliding kinematic
 // platform rides along by friction.
 
 #include "maul3d/body.h"
@@ -158,7 +158,7 @@ static void TestRebuildTwinsReplayRollback(void)
 
 static void TestPlatformCarry(void)
 {
-    // The 4-6 carry check, rigid-body edition: a crate resting on a
+    // The carry check, rigid-body edition: a crate resting on a
     // kinematic platform gliding sideways rides along by friction.
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;

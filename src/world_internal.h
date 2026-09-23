@@ -185,7 +185,7 @@ typedef enum m3Op
     m3_opCreateHeightFieldGrid = 76,  // native terrain chunk
     m3_opCreateSoftBodyTet = 77,      // the incompressible jelly
     m3_opVehicleTankCommands = 78,
-    // R5-4: the pre-solve vetoes a step's callback made,
+    // The pre-solve vetoes a step's callback made,
     // recorded BEFORE that step's own op so a bare replay applies
     // them without the host's callback. Payload: the vetoed pair
     // keys, canonical ascending (count = bytes / 8).
@@ -206,7 +206,7 @@ typedef enum m3Op
 // Euler-consistent worst case for 24 vertices: a simplicial hull has
 // F = 2V - 4 = 44 faces and E = 3V - 6 = 66 edges (132 half edges).
 // Sized so no valid 24-vertex hull can ever overflow the fixed block.
-// 10-2: the parity caps. Euler for V = 64: F <= 2V - 4 = 124,
+// The parity caps. Euler for V = 64: F <= 2V - 4 = 124,
 // half-edges <= 6V - 12 = 372. Geometry is create-time state the
 // hash covers by INDEX, so raising the caps moves no hash; only
 // the snapshot block size (format v38).
@@ -253,7 +253,7 @@ _Static_assert(sizeof(m3HullData) == 5808, "hull data must be padding-free");
 // reference's variable allocations, argued in the 2b-9 slice). The
 // midphase in 2b-9a is a bounded per-triangle scan; the static BVH
 // arrives in 2b-9b behind the same query contract.
-// 10-3: the 16-bit ceiling. Content arrays went count-derived
+// The 16-bit ceiling. Content arrays went count-derived
 // (heap per slot, variable snapshot blocks): a fixed block at 65k
 // triangles would cost megabytes per EMPTY slot, so the 2b-9
 // fixed-block deviation is reversed here, argued in the plan.
@@ -277,7 +277,7 @@ typedef struct m3MeshData
     // ghost candidate the welding filter may silence. Baked at
     // create time, deterministic.
     uint8_t* edgeFlags;
-    // 17-2: material groups. materialCount 0 = the mesh defers to
+    // Material groups. materialCount 0 = the mesh defers to
     // its shape's material everywhere (canonical zeros throughout,
     // so a material-free mesh hashes and snapshots exactly like a
     // pre-17 one modulo the version bump).
@@ -642,7 +642,7 @@ typedef struct m3World
     m3Vec3* bodyForce;         // host force accumulator: integrated
     m3Vec3* bodyTorque;        // each substep, cleared after the step,
                                // hashed only when nonzero (additive rule)
-    uint8_t* bodyEnabled;      // 8-3: disabled = invisible everywhere
+    uint8_t* bodyEnabled;      // Disabled = invisible everywhere
     uint8_t* bodyLocks;        // bits 0-2 linear xyz, 3-5 angular xyz,
                                // bit 6 allowFastRotation
     float* bodySleepThreshold; // per-body; default the world constant
@@ -665,12 +665,12 @@ typedef struct m3World
     float* shapeDensity;
     float* shapeFriction;
     float* shapeRestitution;
-    uint8_t* shapeHitEvents;       // 8-5: emit hit events (default 0)
+    uint8_t* shapeHitEvents;       // Emit hit events (default 0)
     m3Vec3* shapeLocalPos;         // 10-1 compound offset (default zero)
     m3Quat* shapeLocalRot;         // 10-1 compound rotation (default identity)
     uint8_t* shapeHasOffset;       // fast identity short-circuit
     m3Vec3* shapeSurfaceVel;       // 11-3 conveyor (default zero)
-    uint8_t* shapePreSolve;        // 8-5: run the pre-solve veto (default 0)
+    uint8_t* shapePreSolve;        // Run the pre-solve veto (default 0)
     float* shapeRollingResistance; // hashed only when nonzero (the
                                    // additive-state golden rule)
     uint64_t* shapeCategory;       // filters: hashed only when a
@@ -741,7 +741,7 @@ typedef struct m3World
     // count-derived content while it lives) and the step scratch
     // capacity; the scratch PEAK already rides m3Counters.
     int64_t memoryBytes;
-    // R5-4: veto bookkeeping. stepVeto* collects what the live
+    // Veto bookkeeping. stepVeto* collects what the live
     // callback vetoed this step (journal fodder); replayVeto* is
     // the pending recorded set the NEXT step must apply, consumed
     // by PrepareContacts and cleared by restore like events.
@@ -825,7 +825,7 @@ typedef struct m3World
     m3real* vehDtGearRatio; // capacity * M3_DRIVETRAIN_MAX_GEARS
     m3real* vehDtReverse;
     m3real* vehDtFinal;
-    int32_t* vehDtDiffMode;  // 16-4: 0 open, 1 limited, 2 locked
+    int32_t* vehDtDiffMode;  // 0 open, 1 limited, 2 locked
     m3real* vehDtDiffCouple; // newtons per m/s of wheel disparity
     m3real* vehWheelLon;     // per wheel: last step's contact speed
                              // (cap * M3_VEHICLE_MAX_WHEELS); feeds
@@ -944,8 +944,8 @@ typedef struct m3World
     m3Quat* jointFrameQA;        // joint frame in body A (axis = local z)
     m3Quat* jointFrameQB;
     uint8_t* jointFlags;        // bit0 limit, bit1 motor
-    m3Vec3* jointBreak;         // 8-6a: x = max force, y = max torque, 0 = off
-    m3Vec3* jointSpring;        // 8-6b: x = hertz, y = damping ratio (flags bit 3)
+    m3Vec3* jointBreak;         // X = max force, y = max torque, 0 = off
+    m3Vec3* jointSpring;        // X = hertz, y = damping ratio (flags bit 3)
     float* jointTargetScalar;   // revolute angle or prismatic translation
     m3Quat* jointTargetQ;       // spherical rotation drive target
     m3Vec3* jointSpringImpulse; // warm payload: x scalar rows, xyz spherical

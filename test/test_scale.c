@@ -171,7 +171,7 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
     m3CreateVoxelChunkShape(m3CreateBody(world, &td), &sd, tower, NULL, 0.5f);
 
     // A jelly rides the block: soft bodies are in the scale gate
-    // and the worker-twin proof from 7-4 on.
+    // and the worker-twin proof.
     m3SoftBodyDef jd = m3DefaultSoftBodyDef();
     jd.position = (m3Pos3){6.0, 10.0, 6.0};
     jd.countX = 6;

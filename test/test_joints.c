@@ -760,7 +760,7 @@ static void TestTwistClamp(void)
     m3DestroyWorld(world);
 }
 
-// 2d-3 coverage fill: the joint frame builder (quat whose z-axis is
+// Coverage: the joint frame builder (quat whose z-axis is
 // the hinge axis) branches on the largest matrix diagonal; axes
 // pointing down each principal direction walk all four branches.
 static void TestFrameBuilderBranches(void)
@@ -806,7 +806,7 @@ static void TestFrameBuilderBranches(void)
     CHECK(hashes[0] == hashes[1], "all frame branches are bit-deterministic");
 }
 
-// 4-2: the weld and the rope.
+// The weld and the rope.
 static void TestWeldActsAsOneBody(void)
 {
     // Two crates welded at an offset must move as one rigid body:
@@ -1031,7 +1031,7 @@ static void TestNewJointContracts(void)
     m3DestroyWorld(world);
 }
 
-// 4-3: the generic 6-DOF reproduces its ancestors in behavioral
+// The generic 6-DOF reproduces its ancestors in behavioral
 // bands (bitwise agreement is neither expected nor sought: the row
 // structures differ by design).
 static m3JointDef GenericBase(m3BodyId a, m3BodyId b)

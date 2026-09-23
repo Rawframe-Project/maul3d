@@ -158,11 +158,8 @@ static void TestMotionLocks(void)
     }
     m3Pos3 p = m3Body_GetPosition(crate);
     m3Quat q = m3Body_GetRotation(crate);
-    // The criterion is the lock ASYMMETRY (x free, z frozen), not
-    // the slide distance: rev 20 overeats friction on shoved boxes
-    // (the cross-pass budget defect, convicted 8-3, fixed by the
-    // central-friction slice), so the exact distance is that
-    // slice's law, not this one's.
+    // The criterion is the lock asymmetry (x free, z frozen), not
+    // the slide distance, which the friction tests pin down.
     CHECK(p.x > 0.05, "the unlocked axis carries the shove");
     CHECK(fabs(p.z) < 1.0e-4, "the locked linear axis never moves");
     CHECK(fabsf(q.x) < 1.0e-4f && fabsf(q.y) < 1.0e-4f && fabsf(q.z) < 1.0e-4f,

@@ -360,7 +360,7 @@ static void TestGenerationRetirement(void)
     m3DestroyWorld(world);
 }
 
-// The 8-7 red team: every runtime op family from the table-stakes
+// Stress test: every runtime op family from the table-stakes
 // arc (32..57) against stale ids, a mechanism cross case, and a
 // rollback storm that re-runs a mixed op schedule onto the same
 // bits.

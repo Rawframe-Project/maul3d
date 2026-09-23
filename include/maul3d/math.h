@@ -76,8 +76,8 @@ extern "C"
 
     /// Pinned minimum: exactly (a < b ? a : b), in this operand order,
     /// on every platform. MSVC x64 lowers the ternary through MINSS
-    /// which matches; see Maul2D's arm64 lesson for why this is spelled
-    /// out rather than assumed.
+    /// which matches. It is spelled out rather than assumed because
+    /// some arm64 compilers lower min and max differently.
     static inline m3real m3MinF(m3real a, m3real b)
     {
         return a < b ? a : b;

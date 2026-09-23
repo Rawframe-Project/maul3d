@@ -4,7 +4,7 @@
 // The vehicle gate: the raycast suspension. A dropped chassis
 // settles with every spring at the analytic balance, the whole
 // bounce twins and rolls back to the bit, the pool churns and
-// refuses honestly, and a destroyed chassis takes its vehicle with
+// is refused, and a destroyed chassis takes its vehicle with
 // it. Wheels are casts, not bodies: nothing here touches contacts.
 
 #include "maul3d/shape.h"

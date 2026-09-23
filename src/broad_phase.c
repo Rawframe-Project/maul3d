@@ -219,7 +219,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
         return 0;
     }
     // Jointed bodies skip contact unless the joint says otherwise
-    // (the chain-fight guard, 2c-2). Walk the shorter list.
+    // so chained links do not fight. Walk the shorter list.
     for (int32_t jt = world->bodyJointHead[bodyI]; jt != -1;
          jt = world->jointBodyA[jt] == bodyI ? world->jointNextA[jt] : world->jointNextB[jt])
     {
@@ -233,7 +233,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
     return 1;
 }
 
-// S-3b: a pair is HOT when either endpoint is an awake dynamic
+// A pair is hot when either endpoint is an awake dynamic
 // body. Cold pairs (sleeping-sleeping, static-sleeping, plane-
 // sleeping) cannot change until something wakes, so they ride the
 // frozen buffer instead of being re-discovered every step.
@@ -276,7 +276,7 @@ typedef struct m3QueryCtx
 {
     m3World* world;
     m3Aabb3d* cache;     // per-step fresh bounds
-    uint8_t* cacheValid; // S-3a: sleepers fill lazily on first hit
+    uint8_t* cacheValid; // sleepers fill lazily on first hit
     m3Aabb3d selfBounds;
     int32_t self;
     int32_t overflow;
@@ -487,7 +487,7 @@ m3Result m3UpdatePairs(m3World* world)
         memset(cacheValid, 0, (size_t)(maxShape > 0 ? maxShape : 1));
         for (int32_t i = 0; i < maxShape; ++i)
         {
-            // S-3a: a sleeping body's shape has not moved since its
+            // A sleeping body's shape has not moved since its
             // island froze; skip the prefill (lazy on first hit) and
             // the whole refresh walk below skips it too.
             if (world->shapePool.alive[i] != 0 && world->proxyIds[i] != M3_TREE_NULL &&
@@ -518,7 +518,7 @@ m3Result m3UpdatePairs(m3World* world)
             // reinserted the tight box, which meant every moving
             // shape escaped its own proxy again the very next step
             // (a remove, an insert, and a rebalance per shape per
-            // step: the 6-2 profile's forty percent), and, worse,
+            // step: forty percent of a profiled step), and, worse,
             // approaching bodies could not pair until their exact
             // boxes touched: the speculative contact window the
             // solver is built around silently vanished for every
@@ -637,7 +637,7 @@ m3Result m3UpdatePairs(m3World* world)
     return m3_success;
 }
 
-// The 2a scan, verbatim in behavior: the referee the tree must match.
+// The brute-force scan: the reference result the tree must match.
 m3Result m3UpdatePairsBruteForce(m3World* world)
 {
     world->pairCount = 0;

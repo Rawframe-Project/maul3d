@@ -43,7 +43,7 @@ typedef struct JointCart
 } JointCart;
 
 // A contact-wheeled cart: a 300 kg box chassis and four sphere
-// wheels on wheel joints. Suspension is the joint's 8-6b spring
+// wheels on wheel joints. Suspension is the joint's drive spring
 // plus travel limits; drive is the joint's spin motor. Wheels are
 // bodies: everything below them is real contact, never a ray.
 static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
@@ -128,7 +128,7 @@ static void TestRubbleFieldTwins(void)
     // The plan's promise: a joint-wheeled cart crosses a rubble
     // field without ray tunneling artifacts, because there are no
     // rays: every wheel is a body and every strike is a contact.
-    // The honest assertion is that no wheel center ever sinks below
+    // The real assertion is that no wheel center ever sinks below
     // its radius, and that twin runs land on one hash.
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
@@ -162,7 +162,7 @@ static void TestRubbleFieldTwins(void)
             {
                 if (m3Body_GetPosition(cart.wheels[w]).y < 0.24)
                 {
-                    sank = true; // radius 0.3 minus honest contact slop
+                    sank = true; // radius 0.3 minus contact slop
                 }
             }
         }
@@ -176,7 +176,7 @@ static void TestRubbleFieldTwins(void)
 
 static void TestBrokenAxleDeterministic(void)
 {
-    // The 8-6 break contract on an axle: cap the front-left joint's
+    // The break contract on an axle: cap the front-left joint's
     // torque, overdrive it, and the axle snaps in-step. The wheel
     // rolls away, the cart plows on three, and a rollback through
     // the break re-runs to the same bits.
@@ -265,7 +265,7 @@ static void TestJournalReplay(void)
 static void TestHostileWall(void)
 {
     // Geometry that is not a wheel refuses loudly at create; type
-    // gates on the read and drive APIs hold; a small honest skew is
+    // gates on the read and drive APIs hold; a small real skew is
     // snapped and accepted.
     m3WorldId world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
@@ -322,7 +322,7 @@ static void TestHostileWall(void)
 
 static void TestAxleCascadeStorm(void)
 {
-    // The 12-4 red team: every axle capped, brutal torque, rough
+    // Stress test: every axle capped, brutal torque, rough
     // ground. Axles snap one after another (each break shifts load
     // onto the survivors), the cart degenerates from car to sled,
     // and a rollback seeded BEFORE the first break re-runs the

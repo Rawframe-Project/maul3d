@@ -4,7 +4,7 @@
 // The mover core gate: a kinematic capsule walks the world by
 // collide-and-slide, deterministically. Flat ground carries it at
 // exact height, walls strip the blocked component and keep the
-// rest, ceilings stop it, ledges honestly drop it, and every move
+// rest, ceilings stop it, ledges drop it, and every move
 // is a journaled command that replays and rolls back bit for bit.
 
 #include "maul3d/character.h"
@@ -271,7 +271,7 @@ static void TestCharacterContracts(void)
     m3DestroyWorld(world);
 }
 
-// 4-5: stairs, slopes, the voxel floor, and the welded seam.
+// Stairs, slopes, the voxel floor, and the welded seam.
 
 static void TestHostileMovesRedTeam(void)
 {
@@ -331,7 +331,7 @@ static void TestCharacterOnCharacter(void)
     // One walker stands on another's head: the upper grounds on the
     // lower's kinematic body, pushes nothing (kinematic bodies are
     // not pushable), and when the lower walks away the upper's next
-    // moves land it honestly on the floor below.
+    // moves land it on the floor below.
     m3WorldId world = ArenaWorld();
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.position = (m3Pos3){0.0, 2.0, 0.0};
@@ -442,7 +442,7 @@ static void TestFractureStorm(void)
     // from under it, tick after tick: fracture events fire, the
     // grounding refresh answers every edit, and twin worlds plus a
     // mid-storm rollback agree to the bit. This is the destruction
-    // interplay no other engine can even pose, under red-team load.
+    // interplay, under stress.
     static uint8_t snap[786432];
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
@@ -887,7 +887,7 @@ static void TestWeldedSeamWalk(void)
 {
     // A character crosses the chunk border of two welded slabs:
     // height wander stays inside the skin and grounding never
-    // flickers (the 3-4 promise, now on foot).
+    // flickers.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;

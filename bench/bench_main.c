@@ -135,7 +135,7 @@ static m3WorldId SceneHullJam(void)
 }
 
 // Scene 3b: the grand mesh, a ~60k-triangle terrain under
-// a crate rain: the 10-3 ceiling priced and pinned.
+// a crate rain: the mesh ceiling, timed and pinned.
 static m3WorldId SceneMeshGrand(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -193,7 +193,7 @@ static m3WorldId SceneMeshGrand(void)
     return world;
 }
 
-// Scene 3: the mesh field, the midphase workout (2c-10's target).
+// Scene 3: the mesh field, a midphase workout.
 static m3WorldId SceneMeshField(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -240,8 +240,8 @@ static m3WorldId SceneMeshField(void)
     return world;
 }
 
-// Scene 4: voxfort, the destruction demo and the
-// constitution's consumer. A hollow voxel fort is shelled by
+// Scene 4: voxfort, the destruction demo. A hollow voxel fort is
+// shelled by
 // deterministic charges; the HOST reads fragment events and turns
 // recipes into dynamic bodies (small islands become QuickHull
 // bodies from their voxel corner clouds, large ones become their
@@ -456,7 +456,7 @@ static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
     bd.type = m3_dynamicBody;
     sd.rollingResistance = 0.05f; // soft ground: rain that lands
                                   // eventually STOPS ROLLING and
-                                  // sleeps (the 6-3 aftermath fix)
+                                  // sleeps
     uint64_t rng = 0xC17B10C4ull;
     for (int32_t k = 0; k < 5000; ++k)
     {

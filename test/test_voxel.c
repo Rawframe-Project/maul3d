@@ -224,8 +224,8 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     uint64_t hashBefore = m3World_Hash(world);
 
     m3World* wp = m3WorldFromId(world);
-    // The scrub must FREE the embedded tree first (10-3 ownership):
-    // a raw memset wipes live pointers and LSAN convicts the leak.
+    // The scrub must FREE the embedded tree first (the build owns it):
+    // a raw memset wipes live pointers and LSAN reports the leak.
     m3MeshBvhFree(&wp->voxelSurface[wp->shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
     memset(&wp->voxelSurface[wp->shapeVoxelIndex[chunkShape.index1 - 1]], 0,
            sizeof(m3VoxelSurface));
@@ -328,7 +328,7 @@ static void TestVoxelRefusals(void)
 
 static void TestEditsCarveAndWake(void)
 {
-    // The headline of 3-2: a crate sleeps on a voxel floor, the
+    // The headline: a crate sleeps on a voxel floor, the
     // floor under it is carved away, the crate wakes and falls to
     // the lower level. Analytic before and after heights.
     m3WorldId world = SmallWorld();
@@ -943,7 +943,7 @@ static void TestShapeCastsAgainstVoxels(void)
     CHECK(hit.hit && hit.fraction == 0.0f, "a cast born inside the chunk reports zero");
 
     // A box cast lands on the chunk face at the same analytic
-    // height as the sphere (4-1: generic casts see voxels through
+    // height as the sphere (generic casts see voxels through
     // the shared branch).
     m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
     hit = m3World_CastBoxClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.4f, 0.4f, 0.4f},

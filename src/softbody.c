@@ -6,7 +6,7 @@
 // the distance constraints once in fixed edge order (the small-steps
 // XPBD schedule: one Gauss-Seidel sweep per substep beats many
 // sweeps per big step), collide against the world's infinite planes
-// (the wider world arrives in 7-2), then derive velocities from the
+// and the rest of the world, then derive velocities from the
 // position delta. Every loop runs in ascending slot, particle, and
 // edge order: deterministic by construction.
 
@@ -65,9 +65,9 @@ static void AddEdge(m3World* world, int32_t slot, int32_t a, int32_t b, m3real r
 
 int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
 {
-    // The validation wall (14-4 cure): replay hands this function
-    // raw mutated bytes, and the 13-4 storm proved a flipped bit in
-    // a soft def could mint NaN positions or an overflowing
+    // Input checks live here because replay hands this function raw
+    // journal bytes, and a flipped bit in a soft def could produce NaN
+    // positions or an overflowing
     // particle count. Every field check the public door ran now
     // lives here, where BOTH doors pass through; the cookie stays
     // a public-door concern like every def.
@@ -950,8 +950,8 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     v = m3Add3(v, kick);
                     world->softKick[k] = (m3Vec3){0.0f, 0.0f, 0.0f};
                 }
-                // The 8-4 hard speed cap covers particles too (14-4
-                // cure): the 13-4 storm rode a mutated blast into
+                // The hard speed cap covers particles too: a mutated
+                // blast once drove them into
                 // float overflow, positions went NaN, and a NaN cell
                 // index was undefined behavior. A capped velocity
                 // can never outrun the double range.
@@ -1250,7 +1250,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
         // Canonical order: lower slot first, ascending particle
         // indices, one projection per substep. Self-collision stays
         // out on purpose: a box lattice's structure rods already
-        // hold it apart at these scales (documented since 7-1).
+        // hold it apart at these scales.
         // No new snapshot state: contacts are transient projections.
         for (int32_t sa = 0; sa < world->softPool.maxIndex; ++sa)
         {
@@ -1372,8 +1372,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
         // Soft-to-soft anchors: position equality between two
         // lattices' particles, split by inverse mass, canonical
         // owner order (the lower slot holds the pin). EITHER side
-        // dying releases the pin silently: the 7-3 liveness lesson
-        // applied in both directions.
+        // dying releases the pin silently, in both directions.
         for (int32_t sa = 0; sa < world->softPool.maxIndex; ++sa)
         {
             if (world->softPool.alive[sa] == 0)

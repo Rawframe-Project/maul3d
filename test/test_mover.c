@@ -15,7 +15,7 @@
 
 static void TestRigidWalkerRecipe(void)
 {
-    // 22-2: the rigid character RECIPE on the public API alone: a
+    // The rigid character RECIPE on the public API alone: a
     // dynamic capsule with angular locks, steered by forces toward
     // a target speed, grounded by a ray. It crosses the yard
     // upright and stops when told; the guide documents exactly

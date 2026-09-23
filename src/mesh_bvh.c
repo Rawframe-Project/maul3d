@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Static per-mesh BVH: the midphase the benchmark asked for
-// (meshfield dominated the 2c-1 profile). Median split on the longest
+// Static per-mesh BVH, the midphase for meshes. Median split on the
+// longest
 // centroid axis with triangle-index tie breaking makes the build a
 // pure function of the triangle set: no state, no randomness, no
 // libc sort (qsort order is implementation-defined for equal keys;
@@ -328,8 +328,7 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
         stack[top++] = index + 1;
     }
     // Stack scratch on purpose: gathers run inside steady-state
-    // steps, and the zero-net-allocation law forbids heap here
-    // (the soak convicted a heap draft immediately). 128 KiB at
+    // steps, and stepping never allocates. 128 KiB at
     // the 65k cap, one live instance per gather frame.
     uint16_t tmp[M3_MESH_MAX_TRIS];
     SortAscending(out, count, tmp);

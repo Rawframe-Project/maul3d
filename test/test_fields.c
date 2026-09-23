@@ -194,7 +194,7 @@ static void TestFieldsReplay(void)
 
 static void TestConveyorOnDynamicDeck(void)
 {
-    // 11-4: a conveyor surface on a DYNAMIC platform still drives
+    // A conveyor surface on a DYNAMIC platform still drives
     // riders, and Newton collects: the deck recoils the other way.
     m3WorldId world = PlaneWorld(NULL);
     m3BodyDef dd = m3DefaultBodyDef();

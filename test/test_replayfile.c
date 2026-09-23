@@ -167,7 +167,7 @@ static void TestSmallCapacity(void)
 
 static void TestFuzz(void)
 {
-    // The 9-5 fuzz law: 200 LCG bit-mutations of a valid container
+    // The fuzz rule: 200 LCG bit-mutations of a valid container
     // must never crash. Decode either refuses or yields a view; a
     // view that decodes must survive restore + replay attempts on a
     // fresh world (the atomic-replay guarantee backs out partial
@@ -232,11 +232,11 @@ static void TestFuzz(void)
 
 static void TestFuzzPhase12Ops(void)
 {
-    // The 12-4 red team: a session DENSE in the phase 12 ops (62
+    // Stress test: a session DENSE in the phase 12 ops (62
     // drivetrain def, 63 gear, 64 stance, plus a wheel joint and
     // its runtime control) so the mutation storm actually lands on
     // their payloads. Every mutation aims at the journal region on
-    // purpose. The law is the 9-5 law: never crash, decode refuses
+    // purpose. The rule is the fuzz rule: never crash, decode refuses
     // or the atomic replay survives; the sanitizer cell converts
     // any slip into a failure.
     m3WorldDef def = Def();
@@ -363,10 +363,10 @@ static void TestFuzzPhase12Ops(void)
 
 static void TestFuzzPhase13Ops(void)
 {
-    // The 13-4 red team: a session DENSE in the phase 13 ops (65
+    // Stress test: a session DENSE in the phase 13 ops (65
     // allowFastRotation, 66 angular cap, 67 explode with carve and
     // soft push) so the mutation storm lands on their payloads.
-    // Every mutation aims at the journal region on purpose; the 9-5
+    // Every mutation aims at the journal region on purpose; the fuzz
     // law holds: never crash, decode refuses or the atomic replay
     // survives, sanitizers convert any slip into a failure.
     m3WorldDef def = Def();
@@ -492,9 +492,9 @@ static void TestFuzzPhase13Ops(void)
 
 static void TestFuzzPhase15Ops(void)
 {
-    // The 15-4 red team: a session dense in op 69 (geometry swaps)
+    // Stress test: a session dense in op 69 (geometry swaps)
     // over a rolling cylinder (op 7 recipe) and a morphing sphere,
-    // then 300 journal-aimed mutations under the 9-5 law.
+    // then 300 journal-aimed mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -588,11 +588,11 @@ static void TestFuzzPhase15Ops(void)
 
 static void TestFuzzPhase16Ops(void)
 {
-    // The 16-7 red team: a session dense in the whole phase-16
+    // Stress test: a session dense in the whole phase-16
     // surface (op 70 steering, op 71 servo aims, motor budgets,
     // gear and pulley creates on top of hinges) plus the setters
-    // the 16-7 wall sweep hardened (velocities, impulses), then
-    // 300 journal-aimed mutations under the 9-5 law.
+    // the input checks harden (velocities, impulses), then
+    // 300 journal-aimed mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -741,10 +741,10 @@ static void TestFuzzPhase16Ops(void)
 
 static void TestFuzzPhase17Ops(void)
 {
-    // The 17-5 red team: a session dense in op 72 (material paint,
+    // Stress test: a session dense in op 72 (material paint,
     // variable payload) and op 73 (broadphase rebuilds) over a
     // painted mesh floor with a conveyor lane, then 300
-    // journal-aimed mutations under the 9-5 law.
+    // journal-aimed mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -837,9 +837,9 @@ static void TestFuzzPhase17Ops(void)
 
 static void TestFuzzPhase18Ops(void)
 {
-    // The 18-3 red team: a session dense in ops 74/75 (tides in
+    // Stress test: a session dense in ops 74/75 (tides in
     // and out) over floating crates, then 300 journal-aimed
-    // mutations under the 9-5 law.
+    // mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -930,9 +930,9 @@ static void TestFuzzPhase18Ops(void)
 
 static void TestFuzzPhase19Ops(void)
 {
-    // The 19-3 red team: a session whose floor IS a native grid
+    // Stress test: a session whose floor IS a native grid
     // (op 76, variable payload) under a crate rain, then 300
-    // journal-aimed mutations under the 9-5 law.
+    // journal-aimed mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -1013,10 +1013,10 @@ static void TestFuzzPhase19Ops(void)
 
 static void TestFuzzPhase20Ops(void)
 {
-    // The 20-5 red team: a session dense in op 77 (tet creates)
+    // Stress test: a session dense in op 77 (tet creates)
     // beside bend ropes, pressurized cubes, and tethered cloth
     // (the whole phase-20 def surface), then 300 journal-aimed
-    // mutations under the 9-5 law.
+    // mutations under the fuzz rule.
     m3WorldDef def = Def();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -1109,7 +1109,7 @@ static void TestFuzzPhase20Ops(void)
     free(snap);
 }
 
-// R5-4: a session recorded WITH a vetoing pre-solve
+// A session recorded WITH a vetoing pre-solve
 // callback must replay to the same bits WITHOUT it: the veto
 // annex (op 79) makes the tape self-sufficient.
 static bool VetoAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void* context)

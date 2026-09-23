@@ -517,7 +517,7 @@ static void TestSensorSleepAndBullets(void)
     m3DestroyWorld(world);
 }
 
-// 2d-3 coverage fill: the mesh and plane branches of every cast and
+// Coverage: the mesh and plane branches of every cast and
 // overlap entry were unexercised (the coverage run named them), so
 // this scene points casts at a mesh ramp, a plane, a capsule, and a
 // hull, and probes every point-inside family.
@@ -638,7 +638,7 @@ static void TestOverlapAndInsideFamilies(void)
     m3DestroyWorld(world);
 }
 
-// 4-1: the generic casts. Boxes carry orientation, hulls carry
+// The generic casts. Boxes carry orientation, hulls carry
 // their cloud, and every cast keeps the family contracts.
 static void TestGenericCasts(void)
 {
@@ -703,7 +703,7 @@ static void TestGenericCasts(void)
     hit = m3World_CastBoxClosest(world, (m3Pos3){40.0, 4.0, 40.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
                                  identity, (m3Vec3){0.0f, -2.0f, 0.0f});
     CHECK(!hit.hit, "a cast into open air misses");
-    // The float budget (4-7 red team): a finite translation whose
+    // The float budget under stress: a finite translation whose
     // square overflows float would mint NaN inside the kernels, so
     // every cast path refuses it with a clean miss.
     hit = m3World_CastSphereClosest(world, (m3Pos3){0.0, 4.0, 0.0}, 0.5f,

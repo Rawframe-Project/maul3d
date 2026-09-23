@@ -195,7 +195,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     else if (def->type == (int32_t)m3_distanceJoint || def->type == (int32_t)m3_pulleyJoint)
     {
         // Frames are unused by the axial row(s): identity keeps the
-        // stored state canonical and the hash honest.
+        // stored state canonical and the hash stable.
         world->jointFrameQA[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
         world->jointFrameQB[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
     }

@@ -312,7 +312,7 @@ static void TestRopeInBowlAndCarve(void)
 
 static void TestSurfaceTwins(void)
 {
-    // The whole 7-2 menagerie twice: identical bits, and a mid-run
+    // Every soft body kind twice: identical bits, and a mid-run
     // rollback re-lands the drape.
     static uint8_t snap[2097152];
     uint64_t hashes[2];
@@ -452,7 +452,7 @@ static void TestBallThroughCloth(void)
     ballDef.type = m3_dynamicBody;
     ballDef.position = (m3Pos3){0.0, 2.0, -3.0};
     ballDef.linearVelocity = (m3Vec3){0.0f, 0.0f, 8.0f};
-    ballDef.gravityScale = 0.0f; // a clean speed ledger
+    ballDef.gravityScale = 0.0f; // a clean speed record
     m3BodyId ball = m3CreateBody(world, &ballDef);
     m3ShapeDef bls = m3DefaultShapeDef();
     bls.density = 50.0f; // 3.3 kg: heavier than the whole fabric,
@@ -653,7 +653,7 @@ static void TestAnchorRedTeam(void)
 
 static void TestBindTether(void)
 {
-    // 20-4: a tethered cloth dropped from height hangs within its
+    // A tethered cloth dropped from height hangs within its
     // deviation radius of the bind pose instead of falling; the
     // untethered twin drops to the floor. Hostile radius refuses.
     double y[2];
@@ -696,7 +696,7 @@ static void TestBindTether(void)
 
 static void TestTetBodies(void)
 {
-    // 20-3: a five-tet cube drops, squashes on contact, and keeps
+    // A five-tet cube drops, squashes on contact, and keeps
     // its total volume (the incompressible jelly); hostile tets
     // refuse; twins and the journal agree to the bit.
     static const m3Vec3 pts[8] = {{0.0f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.0f},
@@ -771,7 +771,7 @@ static void TestTetBodies(void)
 
 static void TestPressure(void)
 {
-    // 20-2: a pressurized cube inflates toward its target volume in
+    // A pressurized cube inflates toward its target volume in
     // zero gravity; the unpressurized twin keeps its size. Twins
     // stay bit-identical, hostile pressure refuses.
     double diag[2];
@@ -829,7 +829,7 @@ static void TestPressure(void)
 
 static void TestBendRods(void)
 {
-    // 20-1: a horizontal rope pinned at one end droops deep when
+    // A horizontal rope pinned at one end droops deep when
     // floppy and holds a shallow curve when its bend tethers are
     // stiff. Twins stay bit-identical.
     double tipY[2];
@@ -871,7 +871,7 @@ static void TestBendRods(void)
     }
     // The floppy rope folds back on itself (tip x well behind the
     // clamp); the stiff one reaches forward. Reach, not height, is
-    // the honest metric: even a rigid rod droops at the tip, but
+    // the right metric: even a rigid rod droops at the tip, but
     // only a floppy one CRUMPLES.
     CHECK(tipY[1] > 0.3 && tipY[1] > tipY[0] + 1.5,
           "the stiff rope reaches forward where the floppy one crumples");

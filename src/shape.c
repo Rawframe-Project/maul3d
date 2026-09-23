@@ -145,7 +145,7 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         // writes the geometry slab directly and a zero or NaN segment
         // must not mint an inf axis here. With length zero the d
         // term below vanishes and the isotropic (sphere) inertia is
-        // exactly right, so any unit stand-in axis is honest.
+        // exactly right, so any unit stand-in axis is correct.
         m3Vec3 u = length > 0.0f ? m3MulSV3(1.0f / length, axis) : (m3Vec3){1.0f, 0.0f, 0.0f};
         float density = world->shapeDensity[s];
         float mCyl = density * M3_PI * r * r * length;
@@ -191,7 +191,7 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
         world->maxExtents[bodyIndex] = 0.0f;
         return;
     }
-    // Two passes, the Maul2D lesson: first total mass and the mass
+    // Two passes: first total mass and the mass
     // weighted center, THEN inertia about that center via the parallel
     // axis theorem. Every term is non-negative and small; no
     // big-minus-big cancellation can occur.
@@ -414,8 +414,8 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3VoxelChunkData* voxelPrebuilt,
                               const m3HeightFieldData* hfPrebuilt)
 {
-    // The def wall lives HERE since 16-7 (the soft-body lesson,
-    // sixth verse): replay hands this function raw journal bytes.
+    // Input checks live here because replay hands this function raw
+    // journal bytes.
     // Materials and the compound pose wall every door; the plain
     // m3ShapeGeom door (op 4) also walls its geometry per type.
     // Interned slabs (hull, mesh, voxel) validate their payloads
@@ -824,11 +824,10 @@ m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def, const m3C
 m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Cylinder* cylinder,
                                 int32_t segments)
 {
-    // The honest cylinder: a 2N-vertex prism through the
-    // interned hull path. Everything downstream (mass, SAT, casts,
-    // CCD, the blast's projected area) treats the prism exactly;
-    // the N-gon side is the documented trade, and the analytic
-    // round cylinder stays on the ledger until a consumer needs it.
+    // The cylinder is a 2N-vertex prism through the interned hull
+    // path. Everything downstream (mass, SAT, casts, CCD, the blast's
+    // projected area) treats the prism exactly; the N-gon side is the
+    // documented trade.
     if (cylinder == NULL || !(cylinder->radius > 0.0f) || !m3FiniteF(cylinder->radius) ||
         !m3FiniteV3(cylinder->point1) || !m3FiniteV3(cylinder->point2))
     {
@@ -1281,9 +1280,8 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
     }
     if (world->types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
     {
-        // Static level geometry only in 3-1 (dynamic voxel bodies
-        // have no consumer yet), and sensors are convex volumes by
-        // contract: both refusals are loud.
+        // Voxel chunks are static level geometry, and sensors are
+        // convex volumes by contract: both are refused.
         return m3_nullShapeId;
     }
     m3VoxelChunkData* chunk = (m3VoxelChunkData*)m3AllocZeroed((int32_t)sizeof(m3VoxelChunkData));

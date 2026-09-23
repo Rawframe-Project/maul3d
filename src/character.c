@@ -46,9 +46,8 @@ int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId)
 
 int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
 {
-    // The def wall lives HERE since 16-7, because replay hands this
-    // function raw journal bytes (the soft-body lesson, fifth
-    // verse): a flipped radius or slope byte must refuse loudly
+    // Input checks live here because replay hands this function raw
+    // journal bytes: a flipped radius or slope byte must be refused
     // instead of minting a NaN capsule.
     if (!m3FinitePos3(def->position) || !m3FiniteF(def->radius) || !(def->radius > 0.0f) ||
         !m3FiniteF(def->halfHeight) || def->halfHeight < 0.0f || !m3FiniteF(def->maxSlopeAngle) ||
@@ -328,7 +327,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
 
     // Snap to ground: a descending character glues to walkable
     // floor within snapDistance (stairs and edges stay under foot);
-    // no floor in reach means airborne, honestly.
+    // no floor in reach means airborne.
     if (wasDescending || world->charGrounded[slot] != 0)
     {
         m3RayHit down =
@@ -437,7 +436,7 @@ void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* ro
         // contact and Move's snap only serves descents; the rider
         // still deserves the grounding truth, so ask the floor
         // classifier directly (it re-grounds within snapDistance
-        // or honestly reports the ride ended in air).
+        // or reports that the ride ended in air).
         RefreshGroundingCore(world, slot);
     }
 }
@@ -611,7 +610,7 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
     world->shapeGeom[shape].s = radius;
     world->transforms[body].p = newCenter;
     world->sleepTimes[body] = 0.0f;
-    // The grounded story stays honest through the resize (the same
+    // The grounded state stays correct through the resize (the same
     // refresh a restore runs).
     RefreshGroundingCore(world, slot);
     return true;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The voxel red team: gap eight. Negative and near-edge
+// Voxel stress: negative and near-edge
 // coordinates, the anchor convention pinned as contract, fracture
 // storms up to and past the event capacity, journal composition
 // refusals, the chunk pool sweep, and a deterministic edit storm
@@ -247,9 +247,9 @@ static void TestJournalCompositionRefusal(void)
 static void TestVoxelPoolSweep(void)
 {
     // Fill, refuse, recycle, stale: the pool contract. The
-    // generation-retirement law itself is pool-generic and was
-    // proven by churn on this same m3IdPool code in the 2d-2
-    // sweeps; re-churning 65535 generations of full chunk builds
+    // generation-retirement rule itself is pool-generic and is
+    // proven by churn on the same m3IdPool code in test_core;
+    // re-churning 65535 generations of full chunk builds
     // would buy no new proof at real sanitizer cost.
     m3WorldId world = StormWorld(2);
     m3ShapeDef sd = m3DefaultShapeDef();
@@ -363,7 +363,7 @@ static uint64_t RunEditStorm(void)
     int32_t slot = wp->shapeVoxelIndex[chunkShape.index1 - 1];
     const m3VoxelChunkData* chunk = &wp->voxelData[slot];
     CHECK(chunk->filledCount == PopCount(chunk), "filled count equals the popcount");
-    // Build takes OWNERSHIP semantics since 10-3 (it frees the
+    // Build takes ownership (it frees the
     // previous tree), so the scratch surface must start zeroed.
     m3VoxelSurface* fresh = (m3VoxelSurface*)calloc(1, sizeof(m3VoxelSurface));
     m3VoxelSurfaceBuild(fresh, chunk);

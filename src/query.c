@@ -25,7 +25,7 @@ typedef struct m3RayAllContext
     m3RayHit* hits;
     int32_t capacity;
     int32_t count;
-    m3QueryFilter filter; // 8-1
+    m3QueryFilter filter;
 } m3RayAllContext;
 
 // The single-shape ray test lives in raycast.c; queries reuse it
@@ -150,7 +150,7 @@ typedef struct m3ShapeCastContext
     m3Vec3 translation;
     m3RayHit best;
     int32_t bestShape;
-    m3QueryFilter filter; // 8-1
+    m3QueryFilter filter;
 } m3ShapeCastContext;
 
 static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
@@ -255,7 +255,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     if (world->shapeType[shape] == (uint8_t)m3_meshShape)
     {
         // Mesh targets: per-triangle TOI, ascending, bounded (the
-        // CCD recipe re-used verbatim).
+        // same recipe as continuous collision).
         const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
         m3Transform xfMv = m3ShapeWorldTransform(world, shape);
         const m3Transform* xfM = &xfMv;
@@ -418,9 +418,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
     // sep below is measured to the cast shape's SKIN (the radius is
     // already subtracted), so the stop target is one slop, full
     // stop. The old target of castRadius - slop double-counted the
-    // radius and parked every cast one radius short of the plane;
-    // the 2d-3 coverage fill caught it (this branch had never been
-    // executed by a test before).
+    // radius and parked every cast one radius short of the plane.
     m3real target = linearSlop;
     m3real tolerance = 0.25f * linearSlop;
     m3real rate = -m3Dot3(n, ctx->translation);
@@ -1055,9 +1053,7 @@ int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId
     }
     m3OverlapContext ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.filter = filter; // AFTER the memset (the 5-1 constructor
-                         // lesson caught this very line in review:
-                         // a wiped filter of zeros filters ALL)
+    ctx.filter = filter; // after the memset: a zeroed filter filters everything
     ctx.world = world;
     ctx.radius = -1.0f;
     ctx.lo[0] = lo.x;
@@ -1085,9 +1081,7 @@ int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius,
     }
     m3OverlapContext ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.filter = filter; // AFTER the memset (the 5-1 constructor
-                         // lesson caught this very line in review:
-                         // a wiped filter of zeros filters ALL)
+    ctx.filter = filter; // after the memset: a zeroed filter filters everything
     ctx.world = world;
     ctx.center = center;
     ctx.radius = radius;

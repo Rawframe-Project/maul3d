@@ -221,7 +221,7 @@ static void TestOffsetsReplayAndRollback(void)
 
 static void TestBigHullUnderTheGates(void)
 {
-    // A 40-plus vertex hull (impossible before 10-2) drops, rests,
+    // A hull of more than 40 vertices drops, rests,
     // answers a ray, and the session replays bit-exact.
     static uint8_t journal[131072];
     uint64_t hashes[2];
@@ -246,8 +246,7 @@ static void TestBigHullUnderTheGates(void)
         m3BodyId rock = m3CreateBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         // A 96-point cloud is nearly a sphere, and near-spheres
-        // never stop rolling without rolling resistance (the 6-3
-        // lesson, honored rather than relearned).
+        // never stop rolling without rolling resistance.
         sd.rollingResistance = 0.05f;
         m3ShapeId shape = m3CreateHullShape(rock, &sd, cloud, 96);
         CHECK(m3Shape_IsValid(shape), "the 96-point cloud builds a hull shape");
@@ -267,7 +266,7 @@ static void TestBigHullUnderTheGates(void)
 
 static void TestCompoundStorm(void)
 {
-    // The 10-4 storm: offset shapes created and destroyed under
+    // A storm: offset shapes created and destroyed under
     // fire, mass rebuilding every time, through a mid-flight
     // snapshot onto identical bits.
     static uint8_t snap[2097152];
@@ -322,7 +321,7 @@ static void TestCompoundStorm(void)
             {
                 snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
                 CHECK(snapBytes > 0, "the storm snapshot fits");
-                // The rollback lesson applied to ourselves: host
+                // Rollback applied to the test itself: host
                 // handles are game state too; save them WITH the
                 // snapshot or the re-run diverges on stale ids.
                 for (int32_t k2 = 0; k2 < 3; ++k2)
@@ -375,7 +374,7 @@ static void TestCompoundStorm(void)
 
 static void TestGrandMesh(void)
 {
-    // The 10-3 ceiling in the flesh: a procedural ~60k-triangle
+    // The mesh ceiling: a procedural ~60k-triangle
     // terrain accepts, carries traffic, snapshots, and restores
     // onto identical bits; one triangle past the cap refuses.
     enum

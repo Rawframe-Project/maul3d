@@ -106,7 +106,7 @@ static void TestSnapshotAndReplay(void)
 
 static void TestContacts(void)
 {
-    // 19-2: bodies land ON native terrain. A ball rests on a flat
+    // Bodies land ON native terrain. A ball rests on a flat
     // grid, a box slides across it without ghost snags, and a ball
     // on a slope rolls downhill.
     m3WorldDef wd = m3DefaultWorldDef();
@@ -229,7 +229,7 @@ static void TestContactTwins(void)
 
 static void TestRayAndOverlap(void)
 {
-    // 19-3: rays land on terrain triangles and the overlap family
+    // Rays land on terrain triangles and the overlap family
     // sees them.
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;

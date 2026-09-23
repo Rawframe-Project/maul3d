@@ -260,7 +260,7 @@ static void GateRollback(void)
 
 static void GateWorkerTwins(void)
 {
-    // Gate 4, and since 2b-11 it BITES: the four-worker run executes
+    // Gate 4: the four-worker run executes
     // the narrowphase on a real thread pool (spawned threads, any
     // scheduling the OS feels like) and must produce the exact bits
     // of the serial run. Twice, so the pool run is also self-stable.

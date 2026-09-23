@@ -21,7 +21,7 @@
 
 // Freed and freshly created vehicles carry no drivetrain: the flat
 // force model is the default, and the hash walk skips these fields
-// until an op 62 lands (the additive-state golden rule).
+// until a drivetrain is set, so worlds without one keep their hashes.
 static void ResetDrivetrain(m3World* world, int32_t slot)
 {
     world->vehDtActive[slot] = 0;
@@ -85,8 +85,8 @@ int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
 
 int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def)
 {
-    // The validation wall (16-4 cure, the soft-body lesson again):
-    // replay hands this function raw mutated bytes, and a flipped
+    // Input checks live here because replay hands this function raw
+    // journal bytes, and a flipped
     // wheelCount overran every per-wheel array. Every field check
     // the public door ran now lives here, where BOTH doors pass.
     if (def->wheelCount < 1 || def->wheelCount > M3_VEHICLE_MAX_WHEELS ||

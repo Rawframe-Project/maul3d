@@ -169,7 +169,7 @@ static void TestSlideDistanceLaw(void)
     // crate stuck in centimeters, dug its leading edge, and hopped.
     // Convicted against Maul2D (textbook decay on the identical
     // scene) and the box3d reference (pass-local budget, central
-    // friction). This is the rev 21 law.
+    // friction).
     double slides[2];
     const double shoves[2] = {3.0, 0.5};
     for (int32_t pass = 0; pass < 2; ++pass)
@@ -248,7 +248,7 @@ static void TestReplayEquality(void)
 
 static void TestBoxRests(void)
 {
-    // The 2b-5a milestone: a box dropped flat onto the plane lands on
+    // A box dropped flat onto the plane lands on
     // a four-point manifold, rests at its half height, and stays
     // level; a second box stacks on top.
     m3WorldDef def = m3DefaultWorldDef();
@@ -291,7 +291,7 @@ static void TestBoxRests(void)
 
 static void TestCapsuleRestsFlat(void)
 {
-    // The 2b-6 milestone, part one: a capsule dropped lying flat
+    // A capsule dropped lying flat
     // lands on the two-cap manifold, rests at its radius, and does
     // not roll away or pitch up.
     m3WorldId world = MakeWorld();
@@ -437,7 +437,7 @@ static void TestGyroscopicTumble(void)
 
 static void TestDeepSphereRecovers(void)
 {
-    // The 2b-7 milestone: a sphere spawned INSIDE a static box (the
+    // A sphere spawned INSIDE a static box (the
     // destruction-rubble pose) exits along the least-deep face and
     // rests on top. Spawned near the top face, the exact point-in-hull
     // kernel must pick +y deterministically.
@@ -471,7 +471,7 @@ static void TestDeepCapsuleRecovers(void)
     // A capsule skewered through the box near its top face: both cap
     // centers are OUTSIDE the side planes, so only the segment SAT
     // sees the right axis (a centroid heuristic would shove it
-    // sideways). The honest deep-recovery promise: the capsule is
+    // sideways). The deep-recovery promise: the capsule is
     // EXPELLED and settles somewhere sane. With the rev-20 friction
     // schedule the pop-out is CLEANER than it used to be (friction
     // no longer fights the virtual bias motion), so the rod may now
@@ -604,7 +604,7 @@ static void TestDeepFuzzDeterminism(void)
 
 static void TestQuickHullRockRests(void)
 {
-    // The 2b-3b payoff: a QuickHull rock (an irregular octahedron)
+    // A QuickHull rock (an irregular octahedron)
     // drops onto the plane, settles onto a face, and a journaled
     // session containing the hull create replays bit for bit (the
     // recipe points ride the journal, QuickHull rebuilds them into
@@ -654,7 +654,7 @@ static void TestQuickHullRockRests(void)
 
 static void TestBulletStopsAtWall(void)
 {
-    // The 2b-8 milestone: a sphere at 200 m/s crosses 3.3 meters per
+    // A sphere at 200 m/s crosses 3.3 meters per
     // step, sixty-six times its own radius; without the continuous
     // pass it would skip the 0.1-thick wall entirely. Every FAST
     // dynamic body sweeps against statics (the bullet flag is not
@@ -915,8 +915,8 @@ static void TestMeshContractsAndGaps(void)
     CHECK(!m3Shape_IsValid(m3CreateMeshShape(ground2, &sd, tri, 3, bad, 1)),
           "an out-of-range index is refused");
 
-    // 2b-9b flipped the capsule half of the staged gap; 2b-9c flips
-    // the hull half: the box dropped over the interior edges lands on
+    // The hull half of the mesh edge handling: the box dropped over
+    // the interior edges lands on
     // the triangle-face clip and RESTS level on the mesh.
     m3Capsule capsule = {{-0.4f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, 0.3f};
     m3CreateCapsuleShape(mover, &sd, &capsule);
@@ -1154,7 +1154,7 @@ static void TestSleepDeterminism(void)
 
 static void TestBulletStopsAtMeshWall(void)
 {
-    // The 2b-9d correctness fix: meshes are TOI targets now. A 200
+    // Meshes are TOI targets now. A 200
     // m/s bullet used to tunnel straight through a triangulated wall
     // (the documented gap); it must stop against it like it does
     // against a box wall.

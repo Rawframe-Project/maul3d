@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The 2b-14 hardening gate: the zoo (every shape family in one
+// Hardening: the zoo (every shape family in one
 // scene, twinned, snapshotted, replayed) and the capacity sweeps
 // (every pool exhausted on purpose; every refusal loud and clean,
 // the world never corrupted).
@@ -71,7 +71,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     m3BodyId sweeper = m3CreateBody(world, &kd);
     m3CreateBoxShape(sweeper, &sd, (m3Vec3){1.2f, 0.15f, 1.2f});
 
-    // 2c-12: the zoo grows articulation and a watcher. A sensor
+    // The zoo grows articulation and a watcher. A sensor
     // curtain hangs over the arena (bodies rain through it: begin
     // and end events churn every step), a two-link chain swings
     // from a static post (spherical shoulder + revolute elbow), a

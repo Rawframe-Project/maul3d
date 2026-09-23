@@ -41,7 +41,7 @@ void m3DebugAllocCounts(int64_t* allocs, int64_t* frees);
 /// Per-step scratch: a bump allocator with 16-byte alignment. Reset
 /// once per step. Exhaustion returns NULL and latches the overflow
 /// flag; the step propagates m3_errorCapacity and the world grows the
-/// stack between steps. Never aborts (the Jolt lesson).
+/// stack between steps. Never aborts.
 typedef struct m3Stack
 {
     uint8_t* base;

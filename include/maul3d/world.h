@@ -202,7 +202,7 @@ extern "C"
     /// a header carrying a config hash (engine version, solver
     /// revision, precision, FP policy). Restore refuses a mismatched
     /// config or format loudly, restores in place, and the restored
-    /// world resimulates bit-exactly (the rollback gate, task 10).
+    /// world resimulates bit-exactly.
     M3_API int32_t m3World_SnapshotSize(m3WorldId worldId);
     M3_API int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity);
     M3_API bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size);
@@ -304,8 +304,7 @@ extern "C"
 
     M3_API const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count);
 
-    /// A joint break event (8-5 machinery; joints learn to break in
-    /// the joint runtime slice). The id is already stale when the
+    /// A joint break event. The id is already stale when the
     /// event is read: the joint destroyed itself. Use it as a key,
     /// not a handle.
     typedef struct m3JointBreakEvent
@@ -574,8 +573,8 @@ extern "C"
     } m3MemoryUsage;
     M3_API m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId);
 
-    /// Wall-clock milliseconds per phase of the LAST COMPLETED step
-    ///: honest observer timing from a monotonic clock. Never
+    /// Wall-clock milliseconds per phase of the last completed step,
+    /// measured with a monotonic clock for observation only. Never
     /// deterministic, never hashed, never serialized; zero before
     /// the first step, and a step that stalls on scratch growth
     /// keeps the previous profile.

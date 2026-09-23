@@ -3,7 +3,7 @@
 //
 // Journal gate: a recorded session replayed into a fresh world must
 // reproduce the original bit for bit, including the minted ids (id
-// determinism). Until the world hash lands in task 6, equality is
+// determinism). Equality is
 // checked field by field with memcmp. Black box: public headers only.
 
 #include "maul3d/body.h"
