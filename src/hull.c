@@ -7,6 +7,7 @@
 // arrive together in a later slice (fracture fragments need them);
 // boxes need neither, their mass properties are closed form.
 
+#include "hull.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -142,28 +143,28 @@ int32_t m3InternHull(m3World* world, const m3HullData* data)
 {
     // Content dedupe in ascending slot order: identical hulls share
     // one slot, deterministically.
-    int32_t maxIndex = world->hullPool.maxIndex;
+    int32_t maxIndex = world->hulls.hullPool.maxIndex;
     for (int32_t i = 0; i < maxIndex; ++i)
     {
-        if (world->hullPool.alive[i] == 0)
+        if (world->hulls.hullPool.alive[i] == 0)
         {
             continue;
         }
         // Hull data is padding-free, so equal bytes mean an equal hull.
         // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison)
-        if (memcmp(&world->hullData[i], data, sizeof(m3HullData)) == 0)
+        if (memcmp(&world->hulls.hullData[i], data, sizeof(m3HullData)) == 0)
         {
-            world->hullRefCounts[i] += 1;
+            world->hulls.hullRefCounts[i] += 1;
             return i;
         }
     }
-    int32_t index = m3IdPoolAlloc(&world->hullPool);
+    int32_t index = m3IdPoolAlloc(&world->hulls.hullPool);
     if (index < 0)
     {
         return -1; // exhausted: loud at the caller
     }
-    world->hullData[index] = *data;
-    world->hullRefCounts[index] = 1;
+    world->hulls.hullData[index] = *data;
+    world->hulls.hullRefCounts[index] = 1;
     return index;
 }
 
@@ -173,10 +174,10 @@ void m3ReleaseHull(m3World* world, int32_t hullIndex)
     {
         return;
     }
-    world->hullRefCounts[hullIndex] -= 1;
-    if (world->hullRefCounts[hullIndex] == 0)
+    world->hulls.hullRefCounts[hullIndex] -= 1;
+    if (world->hulls.hullRefCounts[hullIndex] == 0)
     {
-        memset(&world->hullData[hullIndex], 0, sizeof(m3HullData));
-        m3IdPoolFree(&world->hullPool, hullIndex);
+        memset(&world->hulls.hullData[hullIndex], 0, sizeof(m3HullData));
+        m3IdPoolFree(&world->hulls.hullPool, hullIndex);
     }
 }

@@ -22,12 +22,12 @@ static void PrepareMotor(m3World* world, m3JointConstraint* c, const m3JointFram
     // A frame, jointTargetQ = rotation), budgets from the
     // limit slots (x = maxForce, y = maxTorque, 0 =
     // uncapped). swingAxis carries the offset to the solve.
-    c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->jointFrameQB[j]);
-    c->swingAxis = world->jointMotor[j];
-    c->lowerLimit = world->jointLimits[j].x;
-    c->upperLimit = world->jointLimits[j].y;
-    c->angularImpulse = world->jointAngularImpulse[j];
+    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
+    c->swingAxis = world->joints.jointMotor[j];
+    c->lowerLimit = world->joints.jointLimits[j].x;
+    c->upperLimit = world->joints.jointLimits[j].y;
+    c->angularImpulse = world->joints.jointAngularImpulse[j];
     if ((c->flags & M3_JOINT_SPRING) == 0)
     {
         // A springless servo idles free: no rows, and the
@@ -121,10 +121,10 @@ static void SolveMotor(m3World* world, m3JointConstraint* c, const m3JointSolveC
         vB = m3Add3(vB, m3MulSV3(c->invMassB, impulse));
         wB = m3Add3(wB, m3MulMV3(c->invIB, m3Cross3(rB, impulse)));
     }
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

@@ -16,6 +16,8 @@
 // strict float improvement, so ties resolve to the earliest
 // candidate, bit-stably.
 
+#include "quickhull.h"
+#include "hull.h"
 #include "world_internal.h"
 
 #include <float.h>

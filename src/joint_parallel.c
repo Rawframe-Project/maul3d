@@ -68,8 +68,8 @@ static void SolveParallel(m3World* world, m3JointConstraint* c, const m3JointSol
     m3Vec3 angular = m3Add3(m3MulSV3(deltaX, perpX), m3MulSV3(deltaY, perpY));
     wA = m3Sub3(wA, m3MulMV3(c->invIA, angular));
     wB = m3Add3(wB, m3MulMV3(c->invIB, angular));
-    world->angularVelocities[c->bodyA] = wA;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

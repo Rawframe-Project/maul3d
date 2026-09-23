@@ -7,6 +7,7 @@
 
 #include "maul3d/replay.h"
 
+#include "world.h"
 #include "world_internal.h"
 
 #include <stdlib.h>
@@ -41,7 +42,7 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
     m3World* a = m3WorldFromId(worldA);
     m3World* b = m3WorldFromId(worldB);
     if (a == NULL || b == NULL || out == NULL || capacity <= 0 || outCount == NULL ||
-        a->bodyCapacity != b->bodyCapacity)
+        a->bodies.bodyCapacity != b->bodies.bodyCapacity)
     {
         if (outCount != NULL)
         {
@@ -49,8 +50,8 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
         }
         return -1;
     }
-    int32_t maxA = a->bodyPool.maxIndex;
-    int32_t maxB = b->bodyPool.maxIndex;
+    int32_t maxA = a->bodies.bodyPool.maxIndex;
+    int32_t maxB = b->bodies.bodyPool.maxIndex;
     int32_t maxIndex = maxA > maxB ? maxA : maxB;
     m3BodyDiff* rows = (m3BodyDiff*)m3AllocZeroed(
         maxIndex > 0 ? maxIndex * (int32_t)sizeof(m3BodyDiff) : (int32_t)sizeof(m3BodyDiff));
@@ -65,8 +66,8 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
     int32_t found = 0;
     for (int32_t i = 0; i < maxIndex; ++i)
     {
-        int aliveA = i < maxA && a->bodyPool.alive[i] != 0;
-        int aliveB = i < maxB && b->bodyPool.alive[i] != 0;
+        int aliveA = i < maxA && a->bodies.bodyPool.alive[i] != 0;
+        int aliveB = i < maxB && b->bodies.bodyPool.alive[i] != 0;
         if (!aliveA && !aliveB)
         {
             continue;
@@ -74,7 +75,8 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
         m3BodyDiff d;
         memset(&d, 0, sizeof(d));
         d.body = (m3BodyId){i + 1, a->worldIndex0,
-                            aliveA ? a->bodyPool.generations[i] : b->bodyPool.generations[i]};
+                            aliveA ? a->bodies.bodyPool.generations[i]
+                                   : b->bodies.bodyPool.generations[i]};
         if (aliveA != aliveB)
         {
             d.onlyInA = aliveA != 0;
@@ -82,19 +84,19 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
             rows[found++] = d;
             continue;
         }
-        m3Vec3 dp = {(m3real)(a->transforms[i].p.x - b->transforms[i].p.x),
-                     (m3real)(a->transforms[i].p.y - b->transforms[i].p.y),
-                     (m3real)(a->transforms[i].p.z - b->transforms[i].p.z)};
-        m3Quat qa = a->transforms[i].q;
-        m3Quat qb = b->transforms[i].q;
+        m3Vec3 dp = {(m3real)(a->bodies.transforms[i].p.x - b->bodies.transforms[i].p.x),
+                     (m3real)(a->bodies.transforms[i].p.y - b->bodies.transforms[i].p.y),
+                     (m3real)(a->bodies.transforms[i].p.z - b->bodies.transforms[i].p.z)};
+        m3Quat qa = a->bodies.transforms[i].q;
+        m3Quat qb = b->bodies.transforms[i].q;
         m3real qdot = qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w;
-        m3Vec3 dv = m3Sub3(a->linearVelocities[i], b->linearVelocities[i]);
-        m3Vec3 dw = m3Sub3(a->angularVelocities[i], b->angularVelocities[i]);
+        m3Vec3 dv = m3Sub3(a->bodies.linearVelocities[i], b->bodies.linearVelocities[i]);
+        m3Vec3 dw = m3Sub3(a->bodies.angularVelocities[i], b->bodies.angularVelocities[i]);
         d.positionError = m3Length3(dp);
         d.rotationError = 1.0f - (qdot < 0.0f ? -qdot : qdot);
         d.velocityError = m3Length3(dv) + m3Length3(dw);
         if (d.positionError != 0.0f || d.rotationError != 0.0f || d.velocityError != 0.0f ||
-            a->awake[i] != b->awake[i])
+            a->bodies.awake[i] != b->bodies.awake[i])
         {
             rows[found++] = d;
         }

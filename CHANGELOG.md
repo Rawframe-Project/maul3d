@@ -87,6 +87,13 @@ Work toward 0.0.1, the first release of the reworked library.
 - The contact solver, continuous collision and islands moved out of
   solver.c into contact_solver.c, continuous.c and island.c, each with
   its header; solver.c keeps the step. Results are bit-identical.
+- m3World groups its 287 fields into per-subsystem blocks (bodies,
+  shapes, hulls, meshes, heightfields, voxels, broadphase, contacts,
+  joints, characters, vehicles, soft bodies, water, events, recorder),
+  as in Maul2D, and world_internal.h keeps the layout: the internal
+  declarations moved to one header per module (body.h, shape.h,
+  joint.h, voxel.h, distance.h, world.h and others). Results are bit-
+  identical.
 
 ### Removed
 

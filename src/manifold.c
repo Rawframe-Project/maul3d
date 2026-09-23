@@ -7,6 +7,8 @@
 // (narrowphase.c). Every kernel is a pure function of its inputs.
 
 #include "manifold.h"
+#include "distance.h"
+#include "shape.h"
 #include "world_internal.h"
 
 #include <float.h>
@@ -436,7 +438,7 @@ m3Manifold m3CollideHulls(const m3HullData* hullA, const m3HullData* hullB, m3Qu
 void m3SphereWorldCenter(const m3World* world, int32_t shape, double* cx, double* cy, double* cz)
 {
     m3Transform xf = m3ShapeWorldTransform(world, shape);
-    m3Vec3 r = m3RotateVec3(xf.q, world->shapeGeom[shape].v);
+    m3Vec3 r = m3RotateVec3(xf.q, world->shapes.shapeGeom[shape].v);
     *cx = xf.p.x + (double)r.x;
     *cy = xf.p.y + (double)r.y;
     *cz = xf.p.z + (double)r.z;
@@ -447,8 +449,8 @@ void m3SphereWorldCenter(const m3World* world, int32_t shape, double* cx, double
 // impulses and rotation act about the COM.
 m3Vec3 m3AnchorFromCom(const m3World* world, int32_t body, double px, double py, double pz)
 {
-    const m3Transform* xf = &world->transforms[body];
-    m3Vec3 rlc = m3RotateVec3(xf->q, world->localCenters[body]);
+    const m3Transform* xf = &world->bodies.transforms[body];
+    m3Vec3 rlc = m3RotateVec3(xf->q, world->bodies.localCenters[body]);
     return (m3Vec3){(m3real)(px - xf->p.x - (double)rlc.x), (m3real)(py - xf->p.y - (double)rlc.y),
                     (m3real)(pz - xf->p.z - (double)rlc.z)};
 }
@@ -460,10 +462,10 @@ m3Vec3 m3AnchorFromCom(const m3World* world, int32_t body, double px, double py,
 m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scratch[2])
 {
     m3DistanceProxy proxy;
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         proxy.points = hull->vertices;
         proxy.count = hull->vertexCount;
         proxy.radius = 0.0f;
@@ -471,18 +473,18 @@ m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scr
     }
     if (type == (uint8_t)m3_capsuleShape)
     {
-        scratch[0] = world->shapeGeom[shape].v;
-        scratch[1] = world->shapeGeom[shape].v2;
+        scratch[0] = world->shapes.shapeGeom[shape].v;
+        scratch[1] = world->shapes.shapeGeom[shape].v2;
         proxy.points = scratch;
         proxy.count = 2;
-        proxy.radius = world->shapeGeom[shape].s;
+        proxy.radius = world->shapes.shapeGeom[shape].s;
         return proxy;
     }
     // Sphere (planes never reach the GJK path).
-    scratch[0] = world->shapeGeom[shape].v;
+    scratch[0] = world->shapes.shapeGeom[shape].v;
     proxy.points = scratch;
     proxy.count = 1;
-    proxy.radius = world->shapeGeom[shape].s;
+    proxy.radius = world->shapes.shapeGeom[shape].s;
     return proxy;
 }
 

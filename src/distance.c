@@ -10,6 +10,7 @@
 // through the quaternion directly, the same arithmetic class our
 // whole math layer pins, one less code path to keep deterministic.
 
+#include "distance.h"
 #include "world_internal.h"
 
 #include <float.h>

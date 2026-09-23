@@ -11,7 +11,7 @@
 #include "solver.h"
 #include "world_internal.h"
 
-// Joint flags (world->jointFlags). The cone bit is the wheel's steer bit.
+// Joint flags (world->joints.jointFlags). The cone bit is the wheel's steer bit.
 #define M3_JOINT_LIMIT  1u // limits enabled
 #define M3_JOINT_MOTOR  2u // motor enabled
 #define M3_JOINT_CONE   4u // spherical cone and twist limit enabled

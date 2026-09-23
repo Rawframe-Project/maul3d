@@ -10,6 +10,8 @@
 // The 2a brute-force scan stays below as the referee: on any scene
 // both paths must produce the same list, and a test holds that gate.
 
+#include "broad_phase.h"
+#include "shape.h"
 #include "world_internal.h"
 #include <string.h>
 
@@ -26,10 +28,10 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS;
 
-    if (world->shapeType[shape] == (uint8_t)m3_hullShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_hullShape)
     {
         // Hull bounds: rotate every vertex, min and max in double.
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         m3Aabb3d box = {{1.0e30, 1.0e30, 1.0e30}, {-1.0e30, -1.0e30, -1.0e30}};
         for (int32_t v = 0; v < hull->vertexCount; ++v)
         {
@@ -49,11 +51,12 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    if (world->shapeType[shape] == (uint8_t)m3_heightFieldShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_heightFieldShape)
     {
         // Native grid bounds: the same box the fat-AABB
         // branch uses, minus the fat margin plus the tight one.
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         m3Aabb3d box;
         box.lo[0] = xf->p.x;
         box.lo[1] = xf->p.y + (double)hf->minHeight;
@@ -69,11 +72,11 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    if (world->shapeType[shape] == (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
     {
         // Voxel chunk bounds: the eight corners of the chunk box
         // [0, dim * cell]^3 in the body frame, rotated out.
-        m3real extent = (m3real)M3_VOXEL_DIM * world->shapeGeom[shape].s;
+        m3real extent = (m3real)M3_VOXEL_DIM * world->shapes.shapeGeom[shape].s;
         m3Aabb3d box = {{1.0e30, 1.0e30, 1.0e30}, {-1.0e30, -1.0e30, -1.0e30}};
         for (int32_t c = 0; c < 8; ++c)
         {
@@ -95,10 +98,10 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    if (world->shapeType[shape] == (uint8_t)m3_meshShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_meshShape)
     {
         // Mesh bounds: min and max over all vertices in double.
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         m3Aabb3d box = {{1.0e30, 1.0e30, 1.0e30}, {-1.0e30, -1.0e30, -1.0e30}};
         for (int32_t v = 0; v < mesh->vertexCount; ++v)
         {
@@ -118,15 +121,15 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    if (world->shapeType[shape] == (uint8_t)m3_capsuleShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_capsuleShape)
     {
         // Capsule bounds: the two cap-center spheres, min and max in
         // double, same fattening as everything else.
-        m3Vec3 r1 = m3RotateVec3(xf->q, world->shapeGeom[shape].v);
-        m3Vec3 r2 = m3RotateVec3(xf->q, world->shapeGeom[shape].v2);
+        m3Vec3 r1 = m3RotateVec3(xf->q, world->shapes.shapeGeom[shape].v);
+        m3Vec3 r2 = m3RotateVec3(xf->q, world->shapes.shapeGeom[shape].v2);
         double c1[3] = {xf->p.x + (double)r1.x, xf->p.y + (double)r1.y, xf->p.z + (double)r1.z};
         double c2[3] = {xf->p.x + (double)r2.x, xf->p.y + (double)r2.y, xf->p.z + (double)r2.z};
-        double fat = (double)(world->shapeGeom[shape].s + M3_AABB_MARGIN);
+        double fat = (double)(world->shapes.shapeGeom[shape].s + M3_AABB_MARGIN);
         m3Aabb3d box;
         for (int32_t k = 0; k < 3; ++k)
         {
@@ -136,24 +139,25 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    m3Vec3 local = world->shapeGeom[shape].v;
+    m3Vec3 local = world->shapes.shapeGeom[shape].v;
     m3Vec3 r = m3RotateVec3(xf->q, local);
     double cx = xf->p.x + (double)r.x;
     double cy = xf->p.y + (double)r.y;
     double cz = xf->p.z + (double)r.z;
-    double fat = (double)(world->shapeGeom[shape].s + M3_AABB_MARGIN);
+    double fat = (double)(world->shapes.shapeGeom[shape].s + M3_AABB_MARGIN);
     m3Aabb3d box = {{cx - fat, cy - fat, cz - fat}, {cx + fat, cy + fat, cz + fat}};
     return box;
 }
 
 void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi[3])
 {
-    if (world->shapeType[shape] == (uint8_t)m3_heightFieldShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_heightFieldShape)
     {
         // The native grid: min corner at the body origin,
         // the sample extremes baked at create; the mesh margin.
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
-        const m3Transform* xf = &world->transforms[world->shapeBody[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
+        const m3Transform* xf = &world->bodies.transforms[world->shapes.shapeBody[shape]];
         double margin = 0.1;
         lo[0] = xf->p.x - margin;
         lo[1] = xf->p.y + (double)hf->minHeight - margin;
@@ -181,51 +185,52 @@ static int Overlap(const m3Aabb3d* a, const m3Aabb3d* b)
 // Shared pair filter: no self pairs, no static-static pairs.
 static int PairAllowed(const m3World* world, int32_t i, int32_t j)
 {
-    int32_t bodyI = world->shapeBody[i];
-    int32_t bodyJ = world->shapeBody[j];
+    int32_t bodyI = world->shapes.shapeBody[i];
+    int32_t bodyJ = world->shapes.shapeBody[j];
     if (bodyI == bodyJ)
     {
         return 0;
     }
-    if (world->bodyEnabled[bodyI] == 0 || world->bodyEnabled[bodyJ] == 0)
+    if (world->bodies.bodyEnabled[bodyI] == 0 || world->bodies.bodyEnabled[bodyJ] == 0)
     {
         return 0; // disabled bodies vanish
     }
-    if (world->types[bodyI] == (uint8_t)m3_staticBody &&
-        world->types[bodyJ] == (uint8_t)m3_staticBody)
+    if (world->bodies.types[bodyI] == (uint8_t)m3_staticBody &&
+        world->bodies.types[bodyJ] == (uint8_t)m3_staticBody)
     {
         return 0;
     }
 
     // Sensors do not sense other sensors (the reference rule).
-    if (world->shapeSensor[i] != 0 && world->shapeSensor[j] != 0)
+    if (world->shapes.shapeSensor[i] != 0 && world->shapes.shapeSensor[j] != 0)
     {
         return 0;
     }
     // Filters: a shared nonzero group overrides the bits,
     // positive forcing and negative forbidding; otherwise each
     // category must land in the other's mask.
-    int32_t gi = world->shapeGroup[i];
-    if (gi != 0 && gi == world->shapeGroup[j])
+    int32_t gi = world->shapes.shapeGroup[i];
+    if (gi != 0 && gi == world->shapes.shapeGroup[j])
     {
         if (gi < 0)
         {
             return 0;
         }
     }
-    else if (!m3FilterPass(world->shapeCategory[i], world->shapeMask[i], world->shapeCategory[j],
-                           world->shapeMask[j]))
+    else if (!m3FilterPass(world->shapes.shapeCategory[i], world->shapes.shapeMask[i],
+                           world->shapes.shapeCategory[j], world->shapes.shapeMask[j]))
     {
         return 0;
     }
     // Jointed bodies skip contact unless the joint says otherwise
     // so chained links do not fight. Walk the shorter list.
-    for (int32_t jt = world->bodyJointHead[bodyI]; jt != -1;
-         jt = world->jointBodyA[jt] == bodyI ? world->jointNextA[jt] : world->jointNextB[jt])
+    for (int32_t jt = world->joints.bodyJointHead[bodyI]; jt != -1;
+         jt = world->joints.jointBodyA[jt] == bodyI ? world->joints.jointNextA[jt]
+                                                    : world->joints.jointNextB[jt])
     {
-        int32_t other =
-            world->jointBodyA[jt] == bodyI ? world->jointBodyB[jt] : world->jointBodyA[jt];
-        if (other == bodyJ && world->jointCollide[jt] == 0)
+        int32_t other = world->joints.jointBodyA[jt] == bodyI ? world->joints.jointBodyB[jt]
+                                                              : world->joints.jointBodyA[jt];
+        if (other == bodyJ && world->joints.jointCollide[jt] == 0)
         {
             return 0;
         }
@@ -243,25 +248,25 @@ static int PairHot(const m3World* world, int32_t i, int32_t j)
     // sleeping: they are hot whenever awake, or a walker would glide
     // through a sleeping crate it had never met (the first cut said
     // "dynamic" here and five suites said otherwise).
-    int32_t bodyI = world->shapeBody[i];
-    int32_t bodyJ = world->shapeBody[j];
-    if (world->types[bodyI] != (uint8_t)m3_staticBody && world->awake[bodyI] != 0)
+    int32_t bodyI = world->shapes.shapeBody[i];
+    int32_t bodyJ = world->shapes.shapeBody[j];
+    if (world->bodies.types[bodyI] != (uint8_t)m3_staticBody && world->bodies.awake[bodyI] != 0)
     {
         return 1;
     }
-    return world->types[bodyJ] != (uint8_t)m3_staticBody && world->awake[bodyJ] != 0;
+    return world->bodies.types[bodyJ] != (uint8_t)m3_staticBody && world->bodies.awake[bodyJ] != 0;
 }
 
 static int EmitPair(m3World* world, int32_t i, int32_t j)
 {
-    if (world->pairCount == world->pairCapacity)
+    if (world->contacts.pairCount == world->contacts.pairCapacity)
     {
         return 0; // loud at the caller
     }
     uint64_t key =
         i < j ? (((uint64_t)i << 32) | (uint64_t)j) : (((uint64_t)j << 32) | (uint64_t)i);
-    world->pairKeys[world->pairCount] = key;
-    world->pairCount += 1;
+    world->contacts.pairKeys[world->contacts.pairCount] = key;
+    world->contacts.pairCount += 1;
     return 1;
 }
 
@@ -296,9 +301,9 @@ static bool QueryHit(int32_t other, void* context)
     // the sleeper on the smaller index silently vanishing.
     if (other < ctx->self)
     {
-        int32_t otherBody = ctx->world->shapeBody[other];
-        int32_t otherQueries = ctx->world->types[otherBody] == (uint8_t)m3_staticBody ||
-                               ctx->world->awake[otherBody] != 0;
+        int32_t otherBody = ctx->world->shapes.shapeBody[other];
+        int32_t otherQueries = ctx->world->bodies.types[otherBody] == (uint8_t)m3_staticBody ||
+                               ctx->world->bodies.awake[otherBody] != 0;
         if (otherQueries)
         {
             return true; // the other side owns this emit
@@ -369,7 +374,7 @@ static bool FreezeHit(int32_t other, void* context)
         return true;
     }
     m3World* world = ctx->world;
-    if (world->sleepingPairCount == world->pairCapacity)
+    if (world->contacts.sleepingPairCount == world->contacts.pairCapacity)
     {
         ctx->overflow = 1;
         return false;
@@ -377,7 +382,7 @@ static bool FreezeHit(int32_t other, void* context)
     int32_t i = ctx->self;
     uint64_t key = i < other ? (((uint64_t)i << 32) | (uint64_t)other)
                              : (((uint64_t)other << 32) | (uint64_t)i);
-    world->sleepingPairKeys[world->sleepingPairCount++] = key;
+    world->contacts.sleepingPairKeys[world->contacts.sleepingPairCount++] = key;
     return true;
 }
 
@@ -390,83 +395,86 @@ static bool FreezeHit(int32_t other, void* context)
 // had never discovered.
 void m3FreezeDiscoverPairs(m3World* world, int32_t body)
 {
-    for (int32_t sh = world->bodyShapeHead[body]; sh >= 0; sh = world->shapeNext[sh])
+    for (int32_t sh = world->bodies.bodyShapeHead[body]; sh >= 0; sh = world->shapes.shapeNext[sh])
     {
-        if (world->shapePool.alive[sh] == 0)
+        if (world->shapes.shapePool.alive[sh] == 0)
         {
             continue;
         }
-        if (world->proxyIds[sh] != M3_TREE_NULL)
+        if (world->broadphase.proxyIds[sh] != M3_TREE_NULL)
         {
             m3FreezeCtx ctx;
             ctx.world = world;
             ctx.self = sh;
             ctx.selfBounds = SphereAabb(world, sh);
             ctx.overflow = 0;
-            m3TreeQuery(&world->tree, ctx.selfBounds.lo, ctx.selfBounds.hi, FreezeHit, &ctx);
+            m3TreeQuery(&world->broadphase.tree, ctx.selfBounds.lo, ctx.selfBounds.hi, FreezeHit,
+                        &ctx);
         }
         // Planes live outside the tree and pair unconditionally: a
         // frozen body keeps its ground pair through the buffer.
-        int32_t maxShape = world->shapePool.maxIndex;
+        int32_t maxShape = world->shapes.shapePool.maxIndex;
         for (int32_t p2 = 0; p2 < maxShape; ++p2)
         {
-            if (world->shapePool.alive[p2] == 0 || world->shapeType[p2] != (uint8_t)m3_planeShape ||
+            if (world->shapes.shapePool.alive[p2] == 0 ||
+                world->shapes.shapeType[p2] != (uint8_t)m3_planeShape ||
                 !PairAllowed(world, p2, sh))
             {
                 continue;
             }
-            if (world->sleepingPairCount == world->pairCapacity)
+            if (world->contacts.sleepingPairCount == world->contacts.pairCapacity)
             {
                 return;
             }
             uint64_t key = p2 < sh ? (((uint64_t)p2 << 32) | (uint64_t)sh)
                                    : (((uint64_t)sh << 32) | (uint64_t)p2);
-            world->sleepingPairKeys[world->sleepingPairCount++] = key;
+            world->contacts.sleepingPairKeys[world->contacts.sleepingPairCount++] = key;
         }
     }
-    world->frozenDirty = 1;
+    world->contacts.frozenDirty = 1;
 }
 
 m3Result m3UpdatePairs(m3World* world)
 {
-    if (world->pairsFullQuery != 0)
+    if (world->contacts.pairsFullQuery != 0)
     {
         // A restore invalidated the buffer: rebuild it as the pure
         // function it is of the CURRENT sleeping state, by running
         // the same discovery every freeze runs. Equality with the
         // linear run is by construction, not by bookkeeping.
-        world->sleepingPairCount = 0;
-        for (int32_t b = 0; b < world->bodyPool.maxIndex; ++b)
+        world->contacts.sleepingPairCount = 0;
+        for (int32_t b = 0; b < world->bodies.bodyPool.maxIndex; ++b)
         {
-            if (world->bodyPool.alive[b] != 0 && world->types[b] != (uint8_t)m3_staticBody &&
-                world->awake[b] == 0)
+            if (world->bodies.bodyPool.alive[b] != 0 &&
+                world->bodies.types[b] != (uint8_t)m3_staticBody && world->bodies.awake[b] == 0)
             {
                 m3FreezeDiscoverPairs(world, b);
             }
         }
-        world->pairsFullQuery = 0;
+        world->contacts.pairsFullQuery = 0;
     }
-    if (world->frozenDirty != 0)
+    if (world->contacts.frozenDirty != 0)
     {
         // Discoveries append unsorted and may duplicate (both sides
         // of a pair can freeze in different events); one canonical
         // sort plus unique restores the invariant. Rare: only steps
         // with freeze events pay it.
-        qsort(world->sleepingPairKeys, (size_t)world->sleepingPairCount, sizeof(uint64_t),
-              CompareKeys);
+        qsort(world->contacts.sleepingPairKeys, (size_t)world->contacts.sleepingPairCount,
+              sizeof(uint64_t), CompareKeys);
         int32_t w = 0;
-        for (int32_t k = 0; k < world->sleepingPairCount; ++k)
+        for (int32_t k = 0; k < world->contacts.sleepingPairCount; ++k)
         {
-            if (w == 0 || world->sleepingPairKeys[k] != world->sleepingPairKeys[w - 1])
+            if (w == 0 ||
+                world->contacts.sleepingPairKeys[k] != world->contacts.sleepingPairKeys[w - 1])
             {
-                world->sleepingPairKeys[w++] = world->sleepingPairKeys[k];
+                world->contacts.sleepingPairKeys[w++] = world->contacts.sleepingPairKeys[k];
             }
         }
-        world->sleepingPairCount = w;
-        world->frozenDirty = 0;
+        world->contacts.sleepingPairCount = w;
+        world->contacts.frozenDirty = 0;
     }
-    world->pairCount = 0;
-    int32_t maxShape = world->shapePool.maxIndex;
+    world->contacts.pairCount = 0;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
 
     // Fresh bounds, once per shape per step: the refresh,
     // the self query, and every hit re-test read this cache. Pure
@@ -490,8 +498,9 @@ m3Result m3UpdatePairs(m3World* world)
             // A sleeping body's shape has not moved since its
             // island froze; skip the prefill (lazy on first hit) and
             // the whole refresh walk below skips it too.
-            if (world->shapePool.alive[i] != 0 && world->proxyIds[i] != M3_TREE_NULL &&
-                world->awake[world->shapeBody[i]] != 0)
+            if (world->shapes.shapePool.alive[i] != 0 &&
+                world->broadphase.proxyIds[i] != M3_TREE_NULL &&
+                world->bodies.awake[world->shapes.shapeBody[i]] != 0)
             {
                 cache[i] = SphereAabb(world, i);
                 cacheValid[i] = 1;
@@ -504,15 +513,17 @@ m3Result m3UpdatePairs(m3World* world)
     // everything downstream) is a pure function of the op history.
     for (int32_t i = 0; i < maxShape; ++i)
     {
-        if (world->shapePool.alive[i] == 0 || world->proxyIds[i] == M3_TREE_NULL ||
-            world->awake[world->shapeBody[i]] == 0)
+        if (world->shapes.shapePool.alive[i] == 0 ||
+            world->broadphase.proxyIds[i] == M3_TREE_NULL ||
+            world->bodies.awake[world->shapes.shapeBody[i]] == 0)
         {
             // A frozen body cannot escape its own fat leaf: the
             // refresh was a no-op for it every step it slept.
             continue;
         }
         m3Aabb3d tight = cache != NULL ? cache[i] : SphereAabb(world, i);
-        if (!m3TreeContains(&world->tree, world->proxyIds[i], tight.lo, tight.hi))
+        if (!m3TreeContains(&world->broadphase.tree, world->broadphase.proxyIds[i], tight.lo,
+                            tight.hi))
         {
             // Reinsert FAT, like creation does. The first draft
             // reinserted the tight box, which meant every moving
@@ -529,9 +540,10 @@ m3Result m3UpdatePairs(m3World* world)
                 fat.lo[k] -= (double)M3_AABB_MARGIN;
                 fat.hi[k] += (double)M3_AABB_MARGIN;
             }
-            m3TreeRemove(&world->tree, world->proxyIds[i]);
-            world->proxyIds[i] = m3TreeInsert(&world->tree, fat.lo, fat.hi, i);
-            if (world->proxyIds[i] == M3_TREE_NULL)
+            m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[i]);
+            world->broadphase.proxyIds[i] =
+                m3TreeInsert(&world->broadphase.tree, fat.lo, fat.hi, i);
+            if (world->broadphase.proxyIds[i] == M3_TREE_NULL)
             {
                 return m3_errorCapacity;
             }
@@ -541,14 +553,15 @@ m3Result m3UpdatePairs(m3World* world)
     // Plane pass: infinite shapes pair with every allowed sphere.
     for (int32_t p = 0; p < maxShape; ++p)
     {
-        if (world->shapePool.alive[p] == 0 || world->shapeType[p] != (uint8_t)m3_planeShape)
+        if (world->shapes.shapePool.alive[p] == 0 ||
+            world->shapes.shapeType[p] != (uint8_t)m3_planeShape)
         {
             continue;
         }
         for (int32_t s = 0; s < maxShape; ++s)
         {
-            if (world->shapePool.alive[s] == 0 || world->shapeType[s] == (uint8_t)m3_planeShape ||
-                !PairAllowed(world, p, s))
+            if (world->shapes.shapePool.alive[s] == 0 ||
+                world->shapes.shapeType[s] == (uint8_t)m3_planeShape || !PairAllowed(world, p, s))
             {
                 continue;
             }
@@ -567,12 +580,12 @@ m3Result m3UpdatePairs(m3World* world)
     // every overlap exactly once.
     for (int32_t i = 0; i < maxShape; ++i)
     {
-        if (world->shapePool.alive[i] == 0 || world->proxyIds[i] == M3_TREE_NULL)
+        if (world->shapes.shapePool.alive[i] == 0 || world->broadphase.proxyIds[i] == M3_TREE_NULL)
         {
             continue;
         }
-        if (world->types[world->shapeBody[i]] != (uint8_t)m3_staticBody &&
-            world->awake[world->shapeBody[i]] == 0)
+        if (world->bodies.types[world->shapes.shapeBody[i]] != (uint8_t)m3_staticBody &&
+            world->bodies.awake[world->shapes.shapeBody[i]] == 0)
         {
             continue; // a frozen shape discovers nothing new
         }
@@ -597,7 +610,7 @@ m3Result m3UpdatePairs(m3World* world)
         ctx.selfBounds = fat;
         ctx.self = i;
         ctx.overflow = 0;
-        m3TreeQuery(&world->tree, fat.lo, fat.hi, QueryHit, &ctx);
+        m3TreeQuery(&world->broadphase.tree, fat.lo, fat.hi, QueryHit, &ctx);
         if (ctx.overflow != 0)
         {
             return m3_errorCapacity;
@@ -611,51 +624,52 @@ m3Result m3UpdatePairs(m3World* world)
     // duplicate-free.
     {
         int32_t w = 0;
-        for (int32_t k = 0; k < world->sleepingPairCount; ++k)
+        for (int32_t k = 0; k < world->contacts.sleepingPairCount; ++k)
         {
-            uint64_t key = world->sleepingPairKeys[k];
+            uint64_t key = world->contacts.sleepingPairKeys[k];
             int32_t i = (int32_t)(key >> 32);
             int32_t j = (int32_t)(key & 0xFFFFFFFFu);
-            if (world->shapePool.alive[i] == 0 || world->shapePool.alive[j] == 0 ||
+            if (world->shapes.shapePool.alive[i] == 0 || world->shapes.shapePool.alive[j] == 0 ||
                 PairHot(world, i, j))
             {
                 continue;
             }
-            world->sleepingPairKeys[w++] = key;
-            if (world->pairCount == world->pairCapacity)
+            world->contacts.sleepingPairKeys[w++] = key;
+            if (world->contacts.pairCount == world->contacts.pairCapacity)
             {
                 return m3_errorCapacity;
             }
-            world->pairKeys[world->pairCount++] = key;
+            world->contacts.pairKeys[world->contacts.pairCount++] = key;
         }
-        world->sleepingPairCount = w;
+        world->contacts.sleepingPairCount = w;
     }
 
     // One sort restores the canonical ascending order. Keys are
     // unique, so the result is independent of the sort implementation.
-    qsort(world->pairKeys, (size_t)world->pairCount, sizeof(uint64_t), CompareKeys);
+    qsort(world->contacts.pairKeys, (size_t)world->contacts.pairCount, sizeof(uint64_t),
+          CompareKeys);
     return m3_success;
 }
 
 // The brute-force scan: the reference result the tree must match.
 m3Result m3UpdatePairsBruteForce(m3World* world)
 {
-    world->pairCount = 0;
-    int32_t maxShape = world->shapePool.maxIndex;
+    world->contacts.pairCount = 0;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t i = 0; i < maxShape; ++i)
     {
-        if (world->shapePool.alive[i] == 0)
+        if (world->shapes.shapePool.alive[i] == 0)
         {
             continue;
         }
         for (int32_t j = i + 1; j < maxShape; ++j)
         {
-            if (world->shapePool.alive[j] == 0 || !PairAllowed(world, i, j))
+            if (world->shapes.shapePool.alive[j] == 0 || !PairAllowed(world, i, j))
             {
                 continue;
             }
-            uint8_t typeI = world->shapeType[i];
-            uint8_t typeJ = world->shapeType[j];
+            uint8_t typeI = world->shapes.shapeType[i];
+            uint8_t typeJ = world->shapes.shapeType[j];
             int candidate;
             if (typeI == (uint8_t)m3_planeShape || typeJ == (uint8_t)m3_planeShape)
             {

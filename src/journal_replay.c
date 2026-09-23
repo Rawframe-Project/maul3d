@@ -7,7 +7,18 @@
 // same internal functions the public API uses; created ids must match
 // the ids the recording minted.
 
+#include "body.h"
+#include "character.h"
+#include "joint.h"
 #include "journal.h"
+#include "query.h"
+#include "quickhull.h"
+#include "shape.h"
+#include "softbody.h"
+#include "solver.h"
+#include "vehicle.h"
+#include "voxel.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stddef.h>
@@ -60,7 +71,7 @@ static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
     // Id determinism: the replayed world must mint the exact
     // id the original minted, or the replay is invalid.
     if (index < 0 || index + 1 != record.expected.index1 ||
-        world->bodyPool.generations[index] != record.expected.generation)
+        world->bodies.bodyPool.generations[index] != record.expected.generation)
     {
         return false;
     }
@@ -141,12 +152,12 @@ static bool ApplyStepVetoes(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    if (bytes <= 0 || (bytes % 8) != 0 || bytes / 8 > world->pairCapacity)
+    if (bytes <= 0 || (bytes % 8) != 0 || bytes / 8 > world->contacts.pairCapacity)
     {
         return false; // hostile veto list refuses loudly
     }
-    memcpy(world->replayVetoKeys, payload, (size_t)bytes);
-    world->replayVetoCount = bytes / 8;
+    memcpy(world->contacts.replayVetoKeys, payload, (size_t)bytes);
+    world->contacts.replayVetoCount = bytes / 8;
     return true;
 }
 
@@ -196,7 +207,7 @@ static bool ApplyCreateShape(m3World* world, const m3ReplayRecord* r)
     int32_t index = m3CreateShapeInternal(world, bodyIndex, record.type, &record.geom, &record.def,
                                           NULL, NULL, NULL, NULL);
     if (index < 0 || index + 1 != record.expected.index1 ||
-        world->shapePool.generations[index] != record.expected.generation)
+        world->shapes.shapePool.generations[index] != record.expected.generation)
     {
         return false; // id determinism holds for shapes too
     }
@@ -255,7 +266,7 @@ static bool ApplyCreateMeshShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     if (index + 1 != record.expected.index1 ||
-        world->shapePool.generations[index] != record.expected.generation)
+        world->shapes.shapePool.generations[index] != record.expected.generation)
     {
         return false; // id determinism holds for mesh shapes too
     }
@@ -286,7 +297,7 @@ static bool ApplyCreateJoint(m3World* world, const m3ReplayRecord* r)
     }
     int32_t index = m3CreateJointInternal(world, &record.def, bodyA, bodyB);
     if (index < 0 || index + 1 != record.expected.index1 ||
-        world->jointPool.generations[index] != record.expected.generation)
+        world->joints.jointPool.generations[index] != record.expected.generation)
     {
         return false; // id determinism holds for joints too
     }
@@ -340,7 +351,7 @@ static bool ApplyCreateHullShape(m3World* world, const m3ReplayRecord* r)
     int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_hullShape, &geom,
                                           &record.def, &rebuilt, NULL, NULL, NULL);
     if (index < 0 || index + 1 != record.expected.index1 ||
-        world->shapePool.generations[index] != record.expected.generation)
+        world->shapes.shapePool.generations[index] != record.expected.generation)
     {
         return false; // id determinism holds for hull shapes too
     }
@@ -396,7 +407,7 @@ static bool ApplyCreateVoxelChunkShape(m3World* world, const m3ReplayRecord* r)
                                           &record.def, NULL, NULL, chunk, NULL);
     m3Free(chunk);
     if (index < 0 || index + 1 != record.expected.index1 ||
-        world->shapePool.generations[index] != record.expected.generation)
+        world->shapes.shapePool.generations[index] != record.expected.generation)
     {
         return false; // id determinism holds for voxels too
     }
@@ -421,7 +432,7 @@ static bool ApplyVoxelSet(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
         return false;
     }
@@ -445,7 +456,7 @@ static bool ApplyVoxelClear(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
         return false;
     }
@@ -471,7 +482,7 @@ static bool ApplyVoxelSetFill(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape || record.fill == 0)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape || record.fill == 0)
     {
         return false;
     }
@@ -496,7 +507,7 @@ static bool ApplyVoxelClearBox(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
         return false;
     }
@@ -527,7 +538,7 @@ static bool ApplyCreateCharacter(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3CreateCharacterInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
-        world->charPool.generations[slot] != record.expected.generation)
+        world->characters.charPool.generations[slot] != record.expected.generation)
     {
         return false; // id determinism holds for characters too
     }
@@ -628,7 +639,7 @@ static bool ApplyCreateVehicle(m3World* world, const m3ReplayRecord* r)
     record.def.chassis.world0 = world->worldIndex0;
     int32_t slot = m3CreateVehicleInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
-        world->vehPool.generations[slot] != record.expected.generation)
+        world->vehicles.vehPool.generations[slot] != record.expected.generation)
     {
         return false; // id determinism holds for vehicles too
     }
@@ -771,7 +782,7 @@ static bool ApplyCreateSoftBody(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3CreateSoftBodyInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
-        world->softPool.generations[slot] != record.expected.generation)
+        world->softBodies.softPool.generations[slot] != record.expected.generation)
     {
         return false; // id determinism holds for soft bodies too
     }
@@ -814,7 +825,8 @@ static bool ApplySoftBodyPin(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t slot = m3SoftBodySlot(world, record.id);
-    if (slot < 0 || record.particle < 0 || record.particle >= world->softParticleCount[slot])
+    if (slot < 0 || record.particle < 0 ||
+        record.particle >= world->softBodies.softParticleCount[slot])
     {
         return false;
     }
@@ -842,8 +854,8 @@ static bool ApplySoftBodyAnchor(m3World* world, const m3ReplayRecord* r)
     int32_t slot = m3SoftBodySlot(world, record.id);
     int32_t body = m3BodySlot(world, record.body);
     if (slot < 0 || body < 0 || record.particle < 0 ||
-        record.particle >= world->softParticleCount[slot] ||
-        world->softAnchorCount[slot] >= M3_SOFTBODY_MAX_ANCHORS)
+        record.particle >= world->softBodies.softParticleCount[slot] ||
+        world->softBodies.softAnchorCount[slot] >= M3_SOFTBODY_MAX_ANCHORS)
     {
         return false;
     }
@@ -872,9 +884,9 @@ static bool ApplySoftBodyAnchorSoft(m3World* world, const m3ReplayRecord* r)
     int32_t slotA = m3SoftBodySlot(world, record.idA);
     int32_t slotB = m3SoftBodySlot(world, record.idB);
     if (slotA < 0 || slotB < 0 || slotA == slotB || record.particleA < 0 || record.particleB < 0 ||
-        record.particleA >= world->softParticleCount[slotA] ||
-        record.particleB >= world->softParticleCount[slotB] ||
-        world->softSoftCount[slotA < slotB ? slotA : slotB] >= M3_SOFTBODY_MAX_ANCHORS)
+        record.particleA >= world->softBodies.softParticleCount[slotA] ||
+        record.particleB >= world->softBodies.softParticleCount[slotB] ||
+        world->softBodies.softSoftCount[slotA < slotB ? slotA : slotB] >= M3_SOFTBODY_MAX_ANCHORS)
     {
         // A flipped particle index would become an out of
         // bounds solver read: the full public wall.
@@ -1093,10 +1105,10 @@ static bool ApplyDestroyShape(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    int32_t bodyIndex = world->shapeBody[index];
+    int32_t bodyIndex = world->shapes.shapeBody[index];
     m3DestroyShapeInternal(world, index);
     m3RecomputeMass(world, bodyIndex);
-    if (world->types[bodyIndex] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[bodyIndex] == (uint8_t)m3_dynamicBody)
     {
         m3SetAwakeInternal(world, bodyIndex, 1);
     }
@@ -1308,7 +1320,7 @@ static bool ApplyCreateSoftBodyTet(m3World* world, const m3ReplayRecord* r)
     int32_t slot =
         m3CreateSoftBodyTetInternal(world, &head.def, pts, head.pointCount, tets, head.tetCount);
     if (slot < 0 || slot + 1 != head.expected.index1 ||
-        world->softPool.generations[slot] != head.expected.generation)
+        world->softBodies.softPool.generations[slot] != head.expected.generation)
     {
         return false; // id determinism holds for jelly too
     }
@@ -1328,7 +1340,7 @@ static bool ApplyCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     NormalizeShapeDefBools(&head.def);
     head.body.world0 = world->worldIndex0;
     int32_t bodyIndex = m3BodySlot(world, head.body);
-    if (bodyIndex < 0 || world->types[bodyIndex] != (uint8_t)m3_staticBody || head.nx < 2 ||
+    if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || head.nx < 2 ||
         head.nx > M3_HEIGHTFIELD_MAX_DIM || head.nz < 2 || head.nz > M3_HEIGHTFIELD_MAX_DIM ||
         !m3FiniteF(head.cellSize) || !(head.cellSize > 0.0f) ||
         bytes != (int32_t)sizeof(head) + head.nx * head.nz * (int32_t)sizeof(float))
@@ -1373,7 +1385,7 @@ static bool ApplyCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     if (index + 1 != head.expected.index1 ||
-        world->shapePool.generations[index] != head.expected.generation)
+        world->shapes.shapePool.generations[index] != head.expected.generation)
     {
         return false; // id determinism holds for terrain too
     }
@@ -1396,7 +1408,7 @@ static bool ApplyCreateWaterVolume(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3CreateWaterVolumeInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
-        world->waterPool.generations[slot] != record.expected.generation)
+        world->water.waterPool.generations[slot] != record.expected.generation)
     {
         return false; // id determinism holds for water too
     }
@@ -1415,7 +1427,7 @@ static bool ApplyDestroyWaterVolume(m3World* world, const m3ReplayRecord* r)
     memcpy(&id, payload, sizeof(id));
     id.world0 = world->worldIndex0;
     int32_t index = id.index1 - 1;
-    if (!m3IdPoolValid(&world->waterPool, index, id.generation))
+    if (!m3IdPoolValid(&world->water.waterPool, index, id.generation))
     {
         return false;
     }
@@ -1447,12 +1459,12 @@ static bool ApplySetMeshMaterials(m3World* world, const m3ReplayRecord* r)
     memcpy(&head, payload, sizeof(head));
     head.id.world0 = world->worldIndex0;
     int32_t slot = m3ShapeSlot(world, head.id);
-    if (slot < 0 || world->shapeType[slot] != (uint8_t)m3_meshShape)
+    if (slot < 0 || world->shapes.shapeType[slot] != (uint8_t)m3_meshShape)
     {
         return false;
     }
-    int32_t meshIndex = world->shapeMeshIndex[slot];
-    if (meshIndex < 0 || head.triangleCount != world->meshData[meshIndex].triangleCount ||
+    int32_t meshIndex = world->shapes.shapeMeshIndex[slot];
+    if (meshIndex < 0 || head.triangleCount != world->meshes.meshData[meshIndex].triangleCount ||
         bytes != (int32_t)sizeof(head) + head.triangleCount)
     {
         return false; // the byte array must match THIS mesh
@@ -1484,7 +1496,7 @@ static bool ApplyJointSetMotorPose(m3World* world, const m3ReplayRecord* r)
     int32_t slot = m3JointSlot(world, record.id);
     float q2 = record.rotation.x * record.rotation.x + record.rotation.y * record.rotation.y +
                record.rotation.z * record.rotation.z + record.rotation.w * record.rotation.w;
-    if (slot < 0 || world->jointType[slot] != (uint8_t)m3_motorJoint ||
+    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_motorJoint ||
         !m3FiniteV3(record.offset) || !m3FiniteQuat(record.rotation) || q2 < 0.81f || q2 > 1.21f)
     {
         return false; // hostile servo bytes fail loudly
@@ -1513,10 +1525,10 @@ static bool ApplyJointSetSteer(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     record.id.world0 = world->worldIndex0;
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || world->jointType[slot] != (uint8_t)m3_wheelJoint || !m3FiniteF(record.target) ||
-        m3AbsF(record.target) > 1.0f || !m3FiniteF(record.hertz) || !m3FiniteF(record.zeta) ||
-        !m3FiniteF(record.effort) || record.zeta < 0.0f || record.effort < 0.0f ||
-        (record.enable != 0 && !(record.hertz > 0.0f)) ||
+    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_wheelJoint ||
+        !m3FiniteF(record.target) || m3AbsF(record.target) > 1.0f || !m3FiniteF(record.hertz) ||
+        !m3FiniteF(record.zeta) || !m3FiniteF(record.effort) || record.zeta < 0.0f ||
+        record.effort < 0.0f || (record.enable != 0 && !(record.hertz > 0.0f)) ||
         (record.enable != 0 && record.enable != 1))
     {
         return false; // hostile steer bytes fail loudly
@@ -1547,8 +1559,9 @@ static bool ApplySetShapeGeom(m3World* world, const m3ReplayRecord* r)
     }
     record.id.world0 = world->worldIndex0;
     int32_t slot = record.id.index1 - 1;
-    if (slot < 0 || slot >= world->shapePool.maxIndex || world->shapePool.alive[slot] == 0 ||
-        world->shapePool.generations[slot] != record.id.generation)
+    if (slot < 0 || slot >= world->shapes.shapePool.maxIndex ||
+        world->shapes.shapePool.alive[slot] == 0 ||
+        world->shapes.shapePool.generations[slot] != record.id.generation)
     {
         return false;
     }
@@ -1754,8 +1767,9 @@ static bool ApplyJointVector(m3World* world, const m3ReplayRecord* r)
         // Mirror the public contract: the motor joint's
         // budgets are independent nonnegatives, every other
         // type wants an ordered range.
-        if (world->jointType[slot] == (uint8_t)m3_motorJoint ? (record.a < 0.0f || record.b < 0.0f)
-                                                             : record.a > record.b)
+        if (world->joints.jointType[slot] == (uint8_t)m3_motorJoint
+                ? (record.a < 0.0f || record.b < 0.0f)
+                : record.a > record.b)
         {
             return false;
         }

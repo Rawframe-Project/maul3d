@@ -489,46 +489,12 @@ typedef struct m3CreateHullShapeOp
     m3Vec3 points[M3_HULL_MAX_INPUT];
 } m3CreateHullShapeOp;
 
-typedef struct m3World
+// Bodies: the id pool and parallel SoA state, hot fields first.
+typedef struct m3Bodies
 {
-    // World-global state (snapshot header material, task 6).
-    m3Vec3 gravity;
-    // Tuning knobs: STATE, not config. They journal, they
-    // snapshot (v33), and they fold into the hash only off their
-    // defaults, so two worlds that only ever used defaults keep
-    // their old hashes. The config hash stays version + solver rev
-    // + precision + FP policy: knobs must be REPLAYABLE, and a
-    // config-hash knob would refuse the journal instead.
-    float contactHertz;
-    float contactDampingRatio;
-    float contactPushMaxSpeed;
-    float restitutionThreshold;
-    float maximumLinearSpeed;
-    float maximumAngularSpeed; // rad/s spin cap
-    uint8_t sleepEnabled;
-    uint8_t continuousEnabled;
-    float hitEventThreshold; // approach speed gate for hit events
-    // Wind: a deterministic field. The gust phase
-    // ACCUMULATES as state so a rollback resumes the same wave;
-    // speed zero means no wind and nothing folds into the hash.
-    m3Vec3 windDir;
-    float windSpeed;
-    float windGustHertz;
-    float windGustScale;
-    float windPhase;
-    uint64_t stepCount;
     int32_t bodyCapacity;
-    int32_t shapeCapacity;
-    int32_t workerCount;
-    m3EnqueueTaskFn* enqueueTask; // host threading hooks (never state)
-    m3FinishTaskFn* finishTask;
-    void* userTaskContext;
-    uint16_t generation;  // this world slot's generation
-    uint16_t worldIndex0; // 0-based slot in the world table
-
     // Body identity.
     m3IdPool bodyPool;
-
     // SoA body state, hot fields first. All persistent, all walked by
     // the snapshot in task 6.
     m3Transform* transforms;
@@ -565,7 +531,13 @@ typedef struct m3World
     char* bodyNames;           // cap * M3_BODY_NAME_CAPACITY:
                                // journaled + snapshot, never hashed
     int32_t* bodyShapeHead;    // head of each body's shape list, -1 none
+} m3Bodies;
 
+// Shapes: the id pool and SoA state, with each shape's link into the
+// interned hull, mesh, heightfield and voxel content.
+typedef struct m3Shapes
+{
+    int32_t shapeCapacity;
     // Shape identity and SoA shape state (persistent, walked).
     m3IdPool shapePool;
     int32_t* shapeBody;
@@ -591,18 +563,51 @@ typedef struct m3World
     int32_t* shapeMeshIndex;  // mesh slot, -1 for non-meshes
     int32_t* shapeVoxelIndex; // voxel chunk slot, -1 otherwise
     uint8_t* shapeSensor;     // 1 = overlap detector, never contact response
+    int32_t* shapeHfIndex;
+} m3Shapes;
 
+// The interned hull pool: immutable content, refcounted.
+typedef struct m3Hulls
+{
     // The interned hull pool (immutable content, refcounted).
     m3IdPool hullPool;
     m3HullData* hullData;
     int32_t* hullRefCounts;
+} m3Hulls;
 
+// Static mesh slots: immutable content, refcounted, and each mesh's BVH
+// (derived data, rebuilt on create and restore, never hashed).
+typedef struct m3Meshes
+{
     // Static mesh slots (immutable content, refcounted, no content
     // dedupe: meshes are big and user-authored).
     int32_t meshCapacity;
     m3IdPool meshPool;
     m3MeshData* meshData;
     int32_t* meshRefCounts;
+    // slot (-1 none), from exact
+    // grid-aligned transforms
+
+    // Per-mesh static BVH: DERIVED data, never in the
+    // snapshot or the hash. Rebuilt from mesh content on create and
+    // on restore; the build is a pure function of the triangle set,
+    // so twin worlds always agree bit for bit.
+    struct m3MeshBvh* meshBvh;
+} m3Meshes;
+
+// Native heightfields: interned like meshes, one slot per shape.
+typedef struct m3HeightFields
+{
+    // Native heightfields: interned like meshes, one slot
+    // per shape capacity, count-derived content.
+    m3IdPool hfPool;
+    m3HeightFieldData* hfData;
+    int32_t* hfRefCounts;
+} m3HeightFields;
+
+// Voxel chunk slots: the mesh-slot pattern plus the derived surface.
+typedef struct m3Voxels
+{
     // Voxel chunk slots: the mesh-slot pattern (pool,
     // refcounts, per-slot state block), plus the DERIVED surface.
     int32_t voxelCapacity;
@@ -612,21 +617,24 @@ typedef struct m3World
     struct m3VoxelSurface* voxelSurface; // derived, not snapshot
     int32_t* voxelShape;                 // owning shape per slot, -1 free
     int32_t* voxelNeighbors;             // derived: 6 welded slots per
-                                         // slot (-1 none), from exact
-                                         // grid-aligned transforms
+} m3Voxels;
 
-    // Per-mesh static BVH: DERIVED data, never in the
-    // snapshot or the hash. Rebuilt from mesh content on create and
-    // on restore; the build is a pure function of the triangle set,
-    // so twin worlds always agree bit for bit.
-    struct m3MeshBvh* meshBvh;
-
+// Broadphase: the fat-AABB tree and each shape's proxy.
+typedef struct m3Broadphase
+{
     // Broadphase: the fat-AABB tree (spheres only; infinite planes
     // stay out and take a dedicated pass), per-shape proxy ids, both
     // persistent snapshot state.
     m3Tree tree;
     int32_t* proxyIds; // M3_TREE_NULL for planes and dead shapes
+} m3Broadphase;
 
+// Contacts: candidate pairs in ascending key order and their manifolds
+// (warm-start impulses live here, so this is snapshot state), last
+// step's pairs for the impulse carry, the cold-pair harvest, and the
+// pre-solve veto bookkeeping.
+typedef struct m3Contacts
+{
     // Candidate pairs in canonical ascending key order, and their
     // manifolds (persistent: warm-start impulses live here and ride
     // the snapshot).
@@ -646,10 +654,6 @@ typedef struct m3World
     int32_t sleepingPairCount;
     uint8_t pairsFullQuery;
     uint8_t frozenDirty;
-    // D1: persistent bytes this world holds (arrays at create plus
-    // count-derived content while it lives) and the step scratch
-    // capacity; the scratch PEAK already rides m3Counters.
-    int64_t memoryBytes;
     // Veto bookkeeping. stepVeto* collects what the live
     // callback vetoed this step (journal fodder); replayVeto* is
     // the pending recorded set the NEXT step must apply, consumed
@@ -661,7 +665,61 @@ typedef struct m3World
     m3Manifold* manifolds;
     int32_t pairCount;
     int32_t pairCapacity;
+} m3Contacts;
 
+// Joints: SoA arenas, all persistent snapshot state, and the per-body
+// joint lists that drive the jointed-pair filter, the destroy cascade
+// and island coupling.
+typedef struct m3Joints
+{
+    // Generic 6-DOF state: packed modes (2 bits per axis,
+    // linear 0..5, angular 6..11, motor axis 12..15) and per-axis
+    // limit vectors. Folded into the hash only for generic-typed
+    // joints (the golden rule for additive state).
+    uint16_t* jointGenericModes;
+    m3Vec3* jointGenLinLower;
+    m3Vec3* jointGenLinUpper;
+    m3Vec3* jointGenAngLower;
+    m3Vec3* jointGenAngUpper;
+    // Pulley world anchors: fixed points the two rope
+    // segments hang from, double like every world position. Folded
+    // into the hash only for pulley-typed joints (the golden rule
+    // for additive state).
+    m3Pos3* jointGroundA;
+    m3Pos3* jointGroundB;
+    m3IdPool jointPool;
+    uint8_t* jointType;
+    int32_t* jointBodyA;
+    int32_t* jointBodyB;
+    m3Vec3* jointLocalA;
+    m3Vec3* jointLocalB;
+    uint8_t* jointCollide;
+    m3Vec3* jointImpulse;        // warm-start linear impulse
+    m3Vec3* jointPerpImpulse;    // x, y = collinearity rows; z = motor
+    m3Vec3* jointLimitImpulse;   // x = lower, y = upper, z unused
+    m3Vec3* jointAngularImpulse; // prismatic 3-DOF rotation lock
+    m3Quat* jointFrameQA;        // joint frame in body A (axis = local z)
+    m3Quat* jointFrameQB;
+    uint8_t* jointFlags;        // bit0 limit, bit1 motor
+    m3Vec3* jointBreak;         // X = max force, y = max torque, 0 = off
+    m3Vec3* jointSpring;        // X = hertz, y = damping ratio (flags bit 3)
+    float* jointTargetScalar;   // revolute angle or prismatic translation
+    m3Quat* jointTargetQ;       // spherical rotation drive target
+    m3Vec3* jointSpringImpulse; // warm payload: x scalar rows, xyz spherical
+    m3Vec3* jointMotor;         // x = motorSpeed, y = maxMotorTorque, z unused
+    m3Vec3* jointLimits;        // x = lower angle, y = upper angle, z unused
+    int32_t* bodyJointHead;
+    int32_t* jointNextA; // next joint in body A's list
+    int32_t* jointNextB; // next joint in body B's list
+    int32_t jointCapacity;
+    m3JointBreakEvent* jointBreakEvents;
+    int32_t jointBreakEventCount;
+} m3Joints;
+
+// Characters: the pool and per-slot state (config and the grounded story
+// are simulation state).
+typedef struct m3Characters
+{
     // Joints: SoA arenas, all persistent snapshot state. The
     // warm-start impulse is simulation state (the architecture doc
     // names it); the body lists drive the jointed-pair contact
@@ -684,7 +742,12 @@ typedef struct m3World
     m3real* charPushMax;     // heaviest pushable body / mass ratio
     int32_t* charGroundBody; // body slot under our feet, -1 none
     uint16_t* charGroundGen; // that body's generation when recorded
+} m3Characters;
 
+// Vehicles: pooled raycast vehicles; per-slot config, per-wheel arrays at
+// slot * M3_VEHICLE_MAX_WHEELS + wheel, tank mode and the drivetrain.
+typedef struct m3Vehicles
+{
     // Vehicles: pooled raycast vehicles. Per-slot config plus
     // per-wheel arrays at slot * M3_VEHICLE_MAX_WHEELS + wheel. All
     // persistent simulation state: snapshotted, hashed for live
@@ -720,7 +783,6 @@ typedef struct m3World
     m3real* vehSteer;
     m3real* vehBrake;
     m3real* vehWheelSpin; // accumulated spin angle, render state
-
     // The drivetrain: per-vehicle engine curve and gearbox.
     // Def fields land by journaled op; gear, clutch countdown, and
     // last engine speed are simulation state (snapshot always,
@@ -747,7 +809,11 @@ typedef struct m3World
     int8_t* vehDtGear;    // -1 reverse, 0 neutral, 1..gearCount
     int32_t* vehDtClutch; // torque-cut countdown, steps
     m3real* vehDtRpm;     // engine speed from the last pass
+} m3Vehicles;
 
+// Soft bodies: XPBD particle lattices in fixed-size blocks per slot.
+typedef struct m3SoftBodies
+{
     // Soft bodies: XPBD particle lattices, fixed-size blocks
     // per slot (the snapshot walker's simplest shape). Positions
     // and previous positions in double like every body; all of it
@@ -807,28 +873,11 @@ typedef struct m3World
     int32_t* softSoftSlotB;
     uint16_t* softSoftGenB;
     int32_t* softSoftParticleB;
+} m3SoftBodies;
 
-    // Generic 6-DOF state: packed modes (2 bits per axis,
-    // linear 0..5, angular 6..11, motor axis 12..15) and per-axis
-    // limit vectors. Folded into the hash only for generic-typed
-    // joints (the golden rule for additive state).
-    uint16_t* jointGenericModes;
-    m3Vec3* jointGenLinLower;
-    m3Vec3* jointGenLinUpper;
-    m3Vec3* jointGenAngLower;
-    m3Vec3* jointGenAngUpper;
-    // Native heightfields: interned like meshes, one slot
-    // per shape capacity, count-derived content.
-    m3IdPool hfPool;
-    m3HeightFieldData* hfData;
-    int32_t* hfRefCounts;
-    int32_t* shapeHfIndex;
-    // Pulley world anchors: fixed points the two rope
-    // segments hang from, double like every world position. Folded
-    // into the hash only for pulley-typed joints (the golden rule
-    // for additive state).
-    m3Pos3* jointGroundA;
-    m3Pos3* jointGroundB;
+// Water volumes: fixed slots of world-anchored boxes.
+typedef struct m3WaterVolumes
+{
     // Water volumes: fixed 8 slots, world-anchored boxes.
     // Hashed off-default (only while any volume is alive), fixed
     // snapshot blocks (v48).
@@ -839,32 +888,11 @@ typedef struct m3World
     float waterLinDrag[M3_MAX_WATER_VOLUMES];
     float waterAngDrag[M3_MAX_WATER_VOLUMES];
     m3Vec3 waterFlow[M3_MAX_WATER_VOLUMES];
-    m3IdPool jointPool;
-    uint8_t* jointType;
-    int32_t* jointBodyA;
-    int32_t* jointBodyB;
-    m3Vec3* jointLocalA;
-    m3Vec3* jointLocalB;
-    uint8_t* jointCollide;
-    m3Vec3* jointImpulse;        // warm-start linear impulse
-    m3Vec3* jointPerpImpulse;    // x, y = collinearity rows; z = motor
-    m3Vec3* jointLimitImpulse;   // x = lower, y = upper, z unused
-    m3Vec3* jointAngularImpulse; // prismatic 3-DOF rotation lock
-    m3Quat* jointFrameQA;        // joint frame in body A (axis = local z)
-    m3Quat* jointFrameQB;
-    uint8_t* jointFlags;        // bit0 limit, bit1 motor
-    m3Vec3* jointBreak;         // X = max force, y = max torque, 0 = off
-    m3Vec3* jointSpring;        // X = hertz, y = damping ratio (flags bit 3)
-    float* jointTargetScalar;   // revolute angle or prismatic translation
-    m3Quat* jointTargetQ;       // spherical rotation drive target
-    m3Vec3* jointSpringImpulse; // warm payload: x scalar rows, xyz spherical
-    m3Vec3* jointMotor;         // x = motorSpeed, y = maxMotorTorque, z unused
-    m3Vec3* jointLimits;        // x = lower angle, y = upper angle, z unused
-    int32_t* bodyJointHead;
-    int32_t* jointNextA; // next joint in body A's list
-    int32_t* jointNextB; // next joint in body B's list
-    int32_t jointCapacity;
+} m3WaterVolumes;
 
+// Event streams: transient observers, never snapshotted.
+typedef struct m3Events
+{
     // Contact events (transient observers, never snapshotted;
     // cleared on step and on restore).
     m3HitEvent* hitEvents; // 8-5 streams, transient observers
@@ -872,10 +900,6 @@ typedef struct m3World
     int32_t hitEventsDropped;
     m3BodyMoveEvent* moveEvents;
     int32_t moveEventCount;
-    m3JointBreakEvent* jointBreakEvents;
-    int32_t jointBreakEventCount;
-    m3PreSolveFn* preSolveFn; // host wiring, never state (like the task hooks)
-    void* preSolveContext;
     m3ContactEvent* beginEvents;
     m3ContactEvent* endEvents;
     m3ContactEvent* sensorBeginEvents;
@@ -891,11 +915,12 @@ typedef struct m3World
     int32_t fragmentDropped;
     int32_t sensorBeginEventCount;
     int32_t sensorEndEventCount;
+} m3Events;
 
-    // Per-step scratch (lifetime 2: never snapshotted).
-    m3Stack scratch;
-    m3real lastInvH; // last step's substep invH: readback scale,
-                     // transient (restore zeroes it, documented)
+// The journal cursor over a caller-owned buffer.
+typedef struct m3Recorder
+{
+    // transient (restore zeroes it, documented)
 
     // Journal cursor over a caller-owned buffer.
     uint8_t* journalBuffer;
@@ -903,7 +928,53 @@ typedef struct m3World
     int32_t journalCursor;
     int32_t journalActive;
     int32_t journalOverflow;
+} m3Recorder;
 
+// The world: global state and knobs, then one block per subsystem. Every
+// array is described once in the state table (world_state.c).
+typedef struct m3World
+{
+    // World-global state (snapshot header material, task 6).
+    m3Vec3 gravity;
+    // Tuning knobs: STATE, not config. They journal, they
+    // snapshot (v33), and they fold into the hash only off their
+    // defaults, so two worlds that only ever used defaults keep
+    // their old hashes. The config hash stays version + solver rev
+    // + precision + FP policy: knobs must be REPLAYABLE, and a
+    // config-hash knob would refuse the journal instead.
+    float contactHertz;
+    float contactDampingRatio;
+    float contactPushMaxSpeed;
+    float restitutionThreshold;
+    float maximumLinearSpeed;
+    float maximumAngularSpeed; // rad/s spin cap
+    uint8_t sleepEnabled;
+    uint8_t continuousEnabled;
+    float hitEventThreshold; // approach speed gate for hit events
+    // Wind: a deterministic field. The gust phase
+    // ACCUMULATES as state so a rollback resumes the same wave;
+    // speed zero means no wind and nothing folds into the hash.
+    m3Vec3 windDir;
+    float windSpeed;
+    float windGustHertz;
+    float windGustScale;
+    float windPhase;
+    uint64_t stepCount;
+    int32_t workerCount;
+    m3EnqueueTaskFn* enqueueTask; // host threading hooks (never state)
+    m3FinishTaskFn* finishTask;
+    void* userTaskContext;
+    uint16_t generation;  // this world slot's generation
+    uint16_t worldIndex0; // 0-based slot in the world table
+    // D1: persistent bytes this world holds (arrays at create plus
+    // count-derived content while it lives) and the step scratch
+    // capacity; the scratch PEAK already rides m3Counters.
+    int64_t memoryBytes;
+    m3PreSolveFn* preSolveFn; // host wiring, never state (like the task hooks)
+    void* preSolveContext;
+    // Per-step scratch (lifetime 2: never snapshotted).
+    m3Stack scratch;
+    m3real lastInvH; // last step's substep invH: readback scale,
     // Observer tail: profile and step statistics. NEVER
     // snapshot blocks, NEVER hash inputs; the walker and the hash
     // enumerate arrays explicitly and skip this region by design.
@@ -913,447 +984,22 @@ typedef struct m3World
     int32_t lastScratchPeak; // bytes, last completed step
     volatile long long
         misuseCount; // cumulative refusals; atomic access only (m3Refuse, m3MisuseCount)
+
+    m3Bodies bodies;
+    m3Shapes shapes;
+    m3Hulls hulls;
+    m3Meshes meshes;
+    m3HeightFields heightFields;
+    m3Voxels voxels;
+    m3Broadphase broadphase;
+    m3Contacts contacts;
+    m3Joints joints;
+    m3Characters characters;
+    m3Vehicles vehicles;
+    m3SoftBodies softBodies;
+    m3WaterVolumes water;
+    m3Events events;
+    m3Recorder recorder;
 } m3World;
-
-// Registry lookup: NULL for a stale or null id.
-m3World* m3WorldFromId(m3WorldId worldId);
-
-// Registry lookup by slot only (no generation check): body and shape
-// ids carry their own generation, so their world reference resolves by
-// slot, the Maul2D FromIndex0 pattern.
-m3World* m3WorldFromIndex0(uint16_t index0);
-
-// Slot lookup with generation check: -1 for a stale or foreign id.
-int32_t m3BodySlot(const m3World* world, m3BodyId bodyId);
-void m3ApplyForceInternal(m3World* world, int32_t index, m3Vec3 force);
-void m3SetTransformInternal(m3World* world, int32_t index, m3Transform pose);
-void m3SetTargetTransformInternal(m3World* world, int32_t index, m3Transform pose);
-void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type);
-void m3SetEnabledInternal(m3World* world, int32_t index, int enabled);
-void m3SetMotionLocksInternal(m3World* world, int32_t index, uint8_t locks);
-void m3SetSleepControlsInternal(m3World* world, int32_t index, float threshold, int canSleep);
-void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
-void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3]);
-
-// Monotonic milliseconds (core.c): the profile clock. Observer only.
-// Ray against one shape, in world space; used by the ray queries.
-m3RayHit m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 translation);
-
-// Tuning defaults: the reference values, shared by the def,
-// the solver reads, and the off-default hash folds.
-#define M3_CONTACT_HERTZ_DEFAULT          30.0f
-#define M3_CONTACT_DAMPING_RATIO_DEFAULT  10.0f
-#define M3_CONTACT_PUSH_MAX_SPEED_DEFAULT 3.0f
-#define M3_RESTITUTION_THRESHOLD_DEFAULT  1.0f
-#define M3_MAX_LINEAR_SPEED_DEFAULT       400.0f
-// The angular twin keeps the linear cap's philosophy: a
-// catastrophe guard far above legal tumbling, not the reference's
-// aggressive dt-derived clamp. Hosts wanting the tight reference
-// behavior set a low cap and flag their wheels.
-#define M3_MAX_ANGULAR_SPEED_DEFAULT   800.0f
-#define M3_HIT_EVENT_THRESHOLD_DEFAULT 1.0f
-
-// bodyLocks bit 6: this body bypasses the angular speed cap (the
-// reference allowFastRotation escape hatch). Bits 0..5 stay the
-// motion locks; the byte already snapshots and hashes off-default
-// as one block, so the flag rides for free.
-#define M3_LOCKS_ALLOW_FAST_ROTATION 0x40u
-
-void m3SetHitEventThresholdInternal(m3World* world, float value);
-void m3EnableShapeHitEventsInternal(m3World* world, int32_t slot, int32_t on);
-void m3EnableShapePreSolveInternal(m3World* world, int32_t slot, int32_t on);
-// 8-6 emits through this; capacity jointCapacity, cannot overflow.
-void m3AppendJointBreakEvent(m3World* world, m3JointId joint);
-
-void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float lower, float upper);
-void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float speed, float effort);
-void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float target, float hertz,
-                             float zeta, float maxEffort);
-void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Quat rotation);
-void m3JointSetCollideInternal(m3World* world, int32_t j, int32_t on);
-void m3JointSetBreakInternal(m3World* world, int32_t j, float maxForce, float maxTorque);
-// Reaction magnitudes from the stored warm rows, the break law's
-// input and the readback's source (per-type assembly, documented
-// on the public API).
-void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3real* outForce,
-                               m3real* outTorque);
-void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta);
-void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q);
-
-// The compound gate: THE one way to read where a shape sits
-// in the world. Bodies still move; shapes may ride at an offset.
-// Identity short-circuits through the flag so default scenes pay a
-// branch and nothing else.
-static inline m3Transform m3ShapeWorldTransform(const m3World* world, int32_t shape)
-{
-    int32_t body = world->shapeBody[shape];
-    m3Transform xf = world->transforms[body];
-    if (world->shapeHasOffset[shape] != 0)
-    {
-        m3Vec3 r = m3RotateVec3(xf.q, world->shapeLocalPos[shape]);
-        xf.p.x += (double)r.x;
-        xf.p.y += (double)r.y;
-        xf.p.z += (double)r.z;
-        xf.q = m3MulQuat(xf.q, world->shapeLocalRot[shape]);
-    }
-    return xf;
-}
-
-void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
-void m3SetShapeFrictionInternal(m3World* world, int32_t slot, float value);
-void m3SetShapeRestitutionInternal(m3World* world, int32_t slot, float value);
-void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value);
-void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_t updateMass);
-bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
-// The 17-2 material wall lives in the internal (replay hands it raw
-// bytes): count 1..8, finite entries, nonnegative frictions and
-// resistances, every triangle byte < count.
-bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
-                                const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                                const uint8_t* triangleMaterials);
-void m3RebuildBroadphaseInternal(m3World* world);
-int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def);
-void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot);
-void m3SetContactTuningInternal(m3World* world, float hertz, float dampingRatio, float pushSpeed);
-void m3SetRestitutionThresholdInternal(m3World* world, float value);
-void m3SetMaximumLinearSpeedInternal(m3World* world, float value);
-void m3SetMaximumAngularSpeedInternal(m3World* world, float value);
-void m3SetAllowFastRotationInternal(m3World* world, int32_t index, int32_t allow);
-void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name);
-bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def);
-int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, m3real radius);
-void m3EnableSleepingInternal(m3World* world, int32_t on);
-void m3EnableContinuousInternal(m3World* world, int32_t on);
-#define M3_SLEEP_VELOCITY_DEFAULT 0.05f
-void m3ApplyTorqueInternal(m3World* world, int32_t index, m3Vec3 torque);
-void m3ApplyLinearImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse);
-void m3ApplyAngularImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse);
-void m3ApplyForceAtPointInternal(m3World* world, int32_t index, m3Vec3 force, m3Pos3 point);
-void m3ApplyImpulseAtPointInternal(m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
-
-// The filter rule, one function for pairs and queries alike.
-static inline int m3FilterPass(uint64_t catA, uint64_t maskA, uint64_t catB, uint64_t maskB)
-{
-    return (catA & maskB) != 0 && (catB & maskA) != 0;
-}
-
-// Internal mutation functions: the ONLY paths that change state. The
-// public API validates, journals, then calls these; replay calls them
-// directly, so a replayed world takes the identical code path.
-int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def);
-void m3DestroyBodyInternal(m3World* world, int32_t index);
-void m3SetLinearVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity);
-void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity);
-
-// Analytic box hull (canonical vertex and face order) and the intern
-// machinery. Interning dedupes by content in ascending slot order.
-void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents);
-
-// Half-edge adjacency from the face loops (twins at 2k and 2k+1 by
-// construction, the invariant the Gauss-map edge query leans on).
-// One law for every hull source: the box builder and QuickHull both
-// finish through this.
-void m3HullBuildHalfEdges(m3HullData* hull);
-
-// QuickHull, adapted from the reference hull.c (Erin Catto,
-// with portions contributed by Dirk Gregorius): builds the convex
-// hull of up to M3_HULL_MAX_INPUT points into the fixed m3HullData
-// block, faces merged coplanar, unit-density mass properties
-// integrated. Returns false loudly on degenerate input (fewer than
-// four points, coplanar clouds, non-finite coordinates) or if the
-// result exceeds the fixed caps.
-bool m3ComputeHull(const m3Vec3* points, int32_t count, m3HullData* out);
-int32_t m3InternHull(m3World* world, const m3HullData* data); // -1 = pool exhausted
-void m3ReleaseHull(m3World* world, int32_t hullIndex);
-int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
-                              const m3ShapeGeom* geom, const m3ShapeDef* def,
-                              const m3HullData* prebuilt, const m3MeshData* meshPrebuilt,
-                              const m3VoxelChunkData* voxelPrebuilt,
-                              const m3HeightFieldData* hfPrebuilt);
-void m3DestroyShapeInternal(m3World* world, int32_t index);
-void m3RecomputeMass(m3World* world, int32_t bodyIndex);
-
-// Hostile-input guards: every def field that reaches
-// simulation state must be finite. NaN comparisons are false and
-// inf minus inf is NaN, so the x - x == 0 form refuses NaN and both
-// infinities in one branchless test, no libm, no macro promotion.
-static inline bool m3FiniteF(m3real x)
-{
-    return x - x == 0.0f; // NOLINT(misc-redundant-expression): the finite test
-}
-static inline bool m3FiniteD(double x)
-{
-    return x - x == 0.0; // NOLINT(misc-redundant-expression): the finite test
-}
-static inline bool m3FiniteV3(m3Vec3 v)
-{
-    return m3FiniteF(v.x) && m3FiniteF(v.y) && m3FiniteF(v.z);
-}
-static inline bool m3FinitePos3(m3Pos3 p)
-{
-    return m3FiniteD(p.x) && m3FiniteD(p.y) && m3FiniteD(p.z);
-}
-static inline bool m3FiniteQuat(m3Quat q)
-{
-    return m3FiniteF(q.x) && m3FiniteF(q.y) && m3FiniteF(q.z) && m3FiniteF(q.w);
-}
-
-// The gear's spin readback: a body's rotation seen in its
-// own gear frame, twisted about that frame's z (the gear axis).
-// Shared by the create bake and the solver's drift measurement so
-// the two can never disagree.
-static inline m3real m3GearSpin(m3Quat q, m3Quat frame)
-{
-    m3Quat conjF = {-frame.x, -frame.y, -frame.z, frame.w};
-    m3Quat inFrame = m3MulQuat(conjF, m3MulQuat(q, frame));
-    m3real twist =
-        inFrame.w < 0.0f ? m3Atan2(-inFrame.z, -inFrame.w) : m3Atan2(inFrame.z, inFrame.w);
-    return 2.0f * twist;
-}
-
-// Wrap to (-pi, pi]: spin differences cross the seam every half
-// turn and the drift correction must chase the SHORT way.
-static inline m3real m3WrapPi(m3real a)
-{
-    while (a > M3_PI)
-    {
-        a -= 2.0f * M3_PI;
-    }
-    while (a < -M3_PI)
-    {
-        a += 2.0f * M3_PI;
-    }
-    return a;
-}
-
-// Broadphase v1 (the swappable seam): fills pairKeys in canonical
-// ascending key order from fat AABBs; the dynamic tree replaces the
-// scan in 2b behind this same contract.
-m3Result m3UpdatePairs(m3World* world);
-void m3FreezeDiscoverPairs(m3World* world, int32_t body);
-
-// The 2a brute-force scan, kept as the referee: on any scene the tree
-// path must produce the identical pair list (a test gate).
-m3Result m3UpdatePairsBruteForce(m3World* world);
-
-// Fat world bounds of a sphere shape (double, margin included).
-void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi[3]);
-int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId);
-
-// Fracture: after a clearing edit, flood fill the chunk in
-// canonical order; islands with no voxel in the y = 0 base layer
-// are removed from the grid (part of the SAME state transition, so
-// replay and rollback re-derive identical grids) and emitted as
-// fragment events with their recipes.
-#define M3_FRAGMENT_EVENT_CAP  256
-#define M3_FRAGMENT_RECIPE_CAP 8192
-void m3VoxelFractureSweep(m3World* world, int32_t shape);
-
-// Seam welding. Links derive from EXACT transforms: two
-// chunks weld when both bodies carry the bit-exact identity
-// rotation, cell sizes match, and world positions differ by
-// exactly one chunk extent along one axis (grid-laid level
-// geometry; rotated assemblies still collide, just without seam
-// suppression, documented in the public header). Coverage reads
-// the box list of the slot and the GRIDS of the slot and its
-// welded neighbors; both are pure functions of world state and
-// rebuild wherever content lands.
-void m3VoxelRebuildLinks(m3World* world);
-void m3VoxelCoverageBuild(m3World* world, int32_t slot);
-void m3VoxelCoverageRefreshAround(m3World* world, int32_t slot);
-void m3VoxelBoundsHull(m3Vec3 lo, m3Vec3 hi, m3HullData* out);
-
-// Character internals: create/destroy/move without journal
-// (replay drives these; public wrappers validate and record).
-int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def);
-void m3DestroyCharacterInternal(m3World* world, int32_t slot);
-void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation);
-bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius);
-// Re-evaluate grounding in place (no displacement): the voxel edit
-// path calls this so a carved floor drops its tenants the same
-// step.
-void m3CharacterRefreshGrounding(m3World* world, int32_t slot);
-m3RayHit m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation);
-int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId);
-m3RayHit m3CastConvexClosestEx(m3World* world, m3Pos3 base, const m3Vec3* points,
-                               int32_t pointCount, m3real radius, m3Vec3 translation,
-                               int32_t ignoreBody);
-
-// Voxel edit internals: apply without journaling (replay
-// drives these); the public entries validate, journal, then call.
-bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
-                        uint16_t payload);
-bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z);
-int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[3],
-                                const int32_t hi[3]);
-bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
-                            uint8_t fill);
-bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3* outNormal,
-                   m3real* outPlane);
-
-// Narrowphase v1: rebuild manifolds for the current pairs in pair
-// order, carrying warm-start impulses forward by feature id from the
-// PREVIOUS step's stash (the caller copies keys and manifolds to step
-// scratch BEFORE m3UpdatePairs overwrites them; oldKeys are sorted).
-m3Result m3UpdateContacts(m3World* world, const uint64_t* oldKeys, const m3Manifold* oldManifolds,
-                          int32_t oldCount);
-
-// The narrowphase over one pair range: every pair writes only its own
-// manifold slot, so any partition of [0, pairCount) is bit-identical
-// to the serial run (the parallel contract).
-void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uint64_t* oldKeys,
-                           const m3Manifold* oldManifolds, int32_t oldCount);
-
-// Deterministic tangent basis: ONE fixed rule (the world axis with the
-// smallest absolute normal component, ties broken x before y before
-// z), because the friction rows are order-sensitive downstream.
-void m3MakeTangentBasis(m3Vec3 normal, m3Vec3* t1, m3Vec3* t2);
-
-// GJK distance, adapted from the reference distance.c: convex
-// proxies, a warm-startable simplex cache, results in frame A. The
-// SAT manifolds and the TOI build on this kernel.
-#define M3_MAX_GJK_ITERATIONS 32
-
-typedef struct m3DistanceProxy
-{
-    const m3Vec3* points;
-    int32_t count;
-    m3real radius;
-} m3DistanceProxy;
-
-typedef struct m3SimplexCache
-{
-    m3real metric;
-    uint16_t count;
-    uint8_t indexA[4];
-    uint8_t indexB[4];
-} m3SimplexCache;
-
-typedef struct m3DistanceInput
-{
-    m3DistanceProxy proxyA;
-    m3DistanceProxy proxyB;
-    m3Quat q; // rotation of B in A's frame
-    m3Vec3 p; // position of B in A's frame (caller localizes doubles)
-    bool useRadii;
-} m3DistanceInput;
-
-typedef struct m3DistanceOutput
-{
-    m3Vec3 pointA; // frame A
-    m3Vec3 pointB;
-    m3Vec3 normal;   // A toward B (zero on overlap)
-    m3real distance; // zero on overlap
-    int32_t iterations;
-} m3DistanceOutput;
-
-m3DistanceOutput m3ShapeDistance(const m3DistanceInput* input, m3SimplexCache* cache);
-
-// Sweep of one body's COM and rotation across a step, in a float
-// frame the caller re-centered (the reference precision trick: TOI
-// runs relative to the fast body's begin COM so doubles never enter
-// the kernel).
-typedef struct m3Sweep
-{
-    m3Vec3 localCenter; // COM in the body frame
-    m3Vec3 c1;          // begin COM, re-centered
-    m3Vec3 c2;          // end COM, re-centered
-    m3Quat q1;
-    m3Quat q2;
-} m3Sweep;
-
-m3Transform m3GetSweepTransform(const m3Sweep* sweep, m3real time);
-
-typedef struct m3TOIInput
-{
-    m3DistanceProxy proxyA; // the target shape
-    m3DistanceProxy proxyB; // the fast shape
-    m3Sweep sweepA;
-    m3Sweep sweepB;
-    m3real maxFraction;
-} m3TOIInput;
-
-typedef enum m3TOIState
-{
-    m3_toiStateUnknown = 0,
-    m3_toiStateFailed,
-    m3_toiStateOverlapped,
-    m3_toiStateHit,
-    m3_toiStateSeparated,
-} m3TOIState;
-
-typedef struct m3TOIOutput
-{
-    m3TOIState state;
-    m3real fraction;
-    m3Vec3 normal; // A toward B at the hit (valid on hit only)
-} m3TOIOutput;
-
-// Time of impact by conservative advancement with root finding
-//, adapted from the reference distance.c: separation
-// functions built from the GJK simplex cache (vertices, edge pairs,
-// faces), deepest-point push-back, mixed false-position and
-// bisection roots. Both sweeps participate: dynamic versus dynamic
-// is a first-class citizen.
-m3TOIOutput m3TimeOfImpact(const m3TOIInput* input);
-
-// GJK proxy for one shape in its local frame (spheres and capsules
-// borrow the caller's scratch for their point storage).
-m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scratch[2]);
-
-// Hull-versus-hull SAT: face queries both ways, the Gauss-map
-// edge query, face clipping or the edge closest-point contact. B is
-// given in A's frame; the manifold is in A's frame with the A-to-B
-// normal. Reduction reuses the deepest-four canonical rule.
-m3Manifold m3CollideHulls(const m3HullData* hullA, const m3HullData* hullB, m3Quat q, m3Vec3 p);
-
-// Pure collide kernels (world-independent, tested in isolation).
-// Normals point from A to B. d is the center offset B minus A in
-// floats (exact enough near contact).
-m3Manifold m3CollideSpheres(m3Vec3 d, m3real radiusA, m3real radiusB);
-// Plane (A) versus sphere (B): dist is the signed distance of the
-// sphere center above the plane, computed in double by the caller.
-m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, m3real dist, m3real radius);
-
-// The step body: the journal replays through this exact path.
-// The caster's float budget (4-7 red team): a translation
-// component beyond this squares past FLT_MAX inside the kernels
-// and mints NaN. Every cast path refuses longer translations with
-// a documented miss; the character treats them as hostile no-ops.
-#define M3_CAST_LIMIT 1.0e18f
-
-void m3StepInternal(m3World* world, float dt, int32_t substeps);
-m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body);
-void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* rot0);
-int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId);
-int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def);
-void m3DestroyVehicleInternal(m3World* world, int32_t slot);
-void m3VehicleApplySuspension(m3World* world, float dt);
-void m3VehicleCommandsInternal(m3World* world, int32_t slot, m3real throttle, m3real steer,
-                               m3real brake);
-void m3VehicleTankCommandsInternal(m3World* world, int32_t slot, m3real left, m3real right,
-                                   m3real brake);
-bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3DrivetrainDef* def);
-bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear);
-int32_t m3SoftBodySlot(const m3World* world, m3SoftBodyId softId);
-int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def);
-int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
-                                    int32_t pointCount, const uint16_t* tets, int32_t tetCount);
-void m3DestroySoftBodyInternal(m3World* world, int32_t slot);
-void m3SoftBodyPinInternal(m3World* world, int32_t slot, int32_t particle);
-void m3SoftBodyPass(m3World* world, float dt, int32_t substeps);
-void m3SoftBodyAnchorInternal(m3World* world, int32_t slot, int32_t particle, int32_t body);
-void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particleA, int32_t slotB,
-                                  int32_t particleB);
-void m3SetWindInternal(m3World* world, m3Vec3 dir, float speed, float gustHertz, float gustScale);
-void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
-m3RayHit m3RayClosestInternalEx(m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                int32_t ignoreBody);
-m3RayHit m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation, int32_t ignoreBody,
-                              m3QueryFilter filter);
-
-int32_t m3JointSlot(const m3World* world, m3JointId jointId);
-int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB);
-void m3DestroyJointInternal(m3World* world, int32_t index);
 
 #endif // MAUL3D_SRC_WORLD_INTERNAL_H

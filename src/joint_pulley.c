@@ -23,8 +23,8 @@ static void PreparePulley(m3World* world, m3JointConstraint* c, const m3JointFra
     // refreshes lengths from the substep deltas and builds
     // the axial mass fresh (the distance lesson). Slot map:
     // jointMotor.z = ratio, jointLimits.z = the constant.
-    m3Pos3 gA = world->jointGroundA[j];
-    m3Pos3 gB = world->jointGroundB[j];
+    m3Pos3 gA = world->joints.jointGroundA[j];
+    m3Pos3 gB = world->joints.jointGroundB[j];
     c->perpAxisX = (m3Vec3){(m3real)(xfA->p.x + (double)rlcA.x + (double)c->rA.x - gA.x),
                             (m3real)(xfA->p.y + (double)rlcA.y + (double)c->rA.y - gA.y),
                             (m3real)(xfA->p.z + (double)rlcA.z + (double)c->rA.z - gA.z)};
@@ -43,9 +43,9 @@ static void PreparePulley(m3World* world, m3JointConstraint* c, const m3JointFra
     {
         c->swingAxis = m3MulSV3(1.0f / sqrtf(l2sq), c->perpAxisY);
     }
-    c->motorSpeed = world->jointMotor[j].z;
-    c->restLength = world->jointLimits[j].z;
-    c->motorImpulse = world->jointPerpImpulse[j].z;
+    c->motorSpeed = world->joints.jointMotor[j].z;
+    c->restLength = world->joints.jointLimits[j].z;
+    c->motorImpulse = world->joints.jointPerpImpulse[j].z;
 }
 
 static void WarmStartPulley(const m3World* world, const m3JointConstraint* c, m3JointWarmContext* w)
@@ -56,14 +56,14 @@ static void WarmStartPulley(const m3World* world, const m3JointConstraint* c, m3
     // on A and ratio times along axis2 on B, self-applied.
     m3Vec3 pA = m3MulSV3(c->motorImpulse, c->rotationAxis);
     m3Vec3 pB = m3MulSV3(c->motorImpulse * c->motorSpeed, c->swingAxis);
-    world->linearVelocities[c->bodyA] =
-        m3Add3(world->linearVelocities[c->bodyA], m3MulSV3(c->invMassA, pA));
-    world->angularVelocities[c->bodyA] =
-        m3Add3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, m3Cross3(rA, pA)));
-    world->linearVelocities[c->bodyB] =
-        m3Add3(world->linearVelocities[c->bodyB], m3MulSV3(c->invMassB, pB));
-    world->angularVelocities[c->bodyB] =
-        m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, m3Cross3(rB, pB)));
+    world->bodies.linearVelocities[c->bodyA] =
+        m3Add3(world->bodies.linearVelocities[c->bodyA], m3MulSV3(c->invMassA, pA));
+    world->bodies.angularVelocities[c->bodyA] =
+        m3Add3(world->bodies.angularVelocities[c->bodyA], m3MulMV3(c->invIA, m3Cross3(rA, pA)));
+    world->bodies.linearVelocities[c->bodyB] =
+        m3Add3(world->bodies.linearVelocities[c->bodyB], m3MulSV3(c->invMassB, pB));
+    world->bodies.angularVelocities[c->bodyB] =
+        m3Add3(world->bodies.angularVelocities[c->bodyB], m3MulMV3(c->invIB, m3Cross3(rB, pB)));
 }
 
 static void SolvePulley(m3World* world, m3JointConstraint* c, const m3JointSolveContext* s)
@@ -124,10 +124,10 @@ static void SolvePulley(m3World* world, m3JointConstraint* c, const m3JointSolve
     wA = m3Add3(wA, m3MulMV3(c->invIA, m3Cross3(rA, pA)));
     vB = m3Add3(vB, m3MulSV3(c->invMassB, pB));
     wB = m3Add3(wB, m3MulMV3(c->invIB, m3Cross3(rB, pB)));
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

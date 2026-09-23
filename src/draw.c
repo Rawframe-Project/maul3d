@@ -8,6 +8,10 @@
 
 #include "maul3d/draw.h"
 
+#include "broad_phase.h"
+#include "manifold.h"
+#include "shape.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stddef.h>
@@ -70,12 +74,12 @@ static void Circle(const m3DrawContext* ctx, const m3Transform* xf, m3Vec3 cente
 
 static uint32_t ShapeColor(const m3World* world, int32_t shape, const m3DebugDraw* draw)
 {
-    if (world->shapeSensor[shape] != 0)
+    if (world->shapes.shapeSensor[shape] != 0)
     {
         return M3_DRAW_COLOR_SENSOR;
     }
-    int32_t body = world->shapeBody[shape];
-    uint8_t type = world->types[body];
+    int32_t body = world->shapes.shapeBody[shape];
+    uint8_t type = world->bodies.types[body];
     if (type == (uint8_t)m3_staticBody)
     {
         return M3_DRAW_COLOR_STATIC;
@@ -84,7 +88,7 @@ static uint32_t ShapeColor(const m3World* world, int32_t shape, const m3DebugDra
     {
         return M3_DRAW_COLOR_KINEMATIC;
     }
-    if (draw->drawSleepTint && world->awake[body] == 0)
+    if (draw->drawSleepTint && world->bodies.awake[body] == 0)
     {
         return M3_DRAW_COLOR_SLEEP;
     }
@@ -97,12 +101,12 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS;
     uint32_t color = ShapeColor(world, shape, ctx->draw);
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
 
     if (type == (uint8_t)m3_sphereShape)
     {
-        m3Vec3 c = world->shapeGeom[shape].v;
-        m3real r = world->shapeGeom[shape].s;
+        m3Vec3 c = world->shapes.shapeGeom[shape].v;
+        m3real r = world->shapes.shapeGeom[shape].s;
         Circle(ctx, xf, c, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Vec3){0.0f, 1.0f, 0.0f}, r, color);
         Circle(ctx, xf, c, (m3Vec3){0.0f, 1.0f, 0.0f}, (m3Vec3){0.0f, 0.0f, 1.0f}, r, color);
         Circle(ctx, xf, c, (m3Vec3){0.0f, 0.0f, 1.0f}, (m3Vec3){1.0f, 0.0f, 0.0f}, r, color);
@@ -110,9 +114,9 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_capsuleShape)
     {
-        m3Vec3 p1 = world->shapeGeom[shape].v;
-        m3Vec3 p2 = world->shapeGeom[shape].v2;
-        m3real r = world->shapeGeom[shape].s;
+        m3Vec3 p1 = world->shapes.shapeGeom[shape].v;
+        m3Vec3 p2 = world->shapes.shapeGeom[shape].v2;
+        m3real r = world->shapes.shapeGeom[shape].s;
         m3Vec3 axis = m3Normalize3(m3Sub3(p2, p1));
         m3Vec3 t1;
         m3Vec3 t2;
@@ -130,7 +134,7 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         for (int32_t e = 0; e < hull->edgeCount; e += 2)
         {
             m3Vec3 a = hull->vertices[hull->edges[e].origin];
@@ -141,7 +145,7 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_meshShape)
     {
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         for (int32_t t = 0; t < mesh->triangleCount; ++t)
         {
             m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
@@ -155,7 +159,8 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_heightFieldShape)
     {
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         for (int32_t cz = 0; cz + 1 < hf->nz; ++cz)
         {
             for (int32_t cx = 0; cx + 1 < hf->nx; ++cx)
@@ -175,8 +180,9 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     if (type == (uint8_t)m3_voxelShape)
     {
         // Merged-box wireframe: what the collision actually sees.
-        const m3VoxelSurface* surface = &world->voxelSurface[world->shapeVoxelIndex[shape]];
-        m3real cell = world->voxelData[world->shapeVoxelIndex[shape]].cellSize;
+        const m3VoxelSurface* surface =
+            &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]];
+        m3real cell = world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
         static const int32_t boxEdges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
                                                 {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
         for (int32_t b = 0; b < surface->boxCount; ++b)
@@ -201,8 +207,8 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     {
         // An infinite plane draws as a cross patch and a normal
         // whisker at the projection of the body origin.
-        m3Vec3 n = world->shapeGeom[shape].v;
-        m3real offset = world->shapeGeom[shape].s;
+        m3Vec3 n = world->shapes.shapeGeom[shape].v;
+        m3real offset = world->shapes.shapeGeom[shape].s;
         m3Vec3 onPlane = m3MulSV3(offset, n);
         m3Vec3 t1;
         m3Vec3 t2;
@@ -228,10 +234,10 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
 
     if (draw->drawShapes)
     {
-        int32_t maxShape = world->shapePool.maxIndex;
+        int32_t maxShape = world->shapes.shapePool.maxIndex;
         for (int32_t s = 0; s < maxShape; ++s)
         {
-            if (world->shapePool.alive[s] != 0)
+            if (world->shapes.shapePool.alive[s] != 0)
             {
                 DrawShape(&ctx, s);
             }
@@ -240,10 +246,11 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
 
     if (draw->drawAabbs)
     {
-        int32_t maxShape = world->shapePool.maxIndex;
+        int32_t maxShape = world->shapes.shapePool.maxIndex;
         for (int32_t s = 0; s < maxShape; ++s)
         {
-            if (world->shapePool.alive[s] == 0 || world->shapeType[s] == (uint8_t)m3_planeShape)
+            if (world->shapes.shapePool.alive[s] == 0 ||
+                world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
             {
                 continue; // planes have no finite bounds
             }
@@ -268,17 +275,17 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
 
     if (draw->drawContacts)
     {
-        for (int32_t i = 0; i < world->pairCount; ++i)
+        for (int32_t i = 0; i < world->contacts.pairCount; ++i)
         {
-            const m3Manifold* manifold = &world->manifolds[i];
+            const m3Manifold* manifold = &world->contacts.manifolds[i];
             if (manifold->pointCount == 0)
             {
                 continue;
             }
-            uint64_t key = world->pairKeys[i];
-            int32_t bodyA = world->shapeBody[(int32_t)(key >> 32)];
-            const m3Transform* xfA = &world->transforms[bodyA];
-            m3Vec3 rlcA = m3RotateVec3(xfA->q, world->localCenters[bodyA]);
+            uint64_t key = world->contacts.pairKeys[i];
+            int32_t bodyA = world->shapes.shapeBody[(int32_t)(key >> 32)];
+            const m3Transform* xfA = &world->bodies.transforms[bodyA];
+            m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[bodyA]);
             for (int32_t k = 0; k < manifold->pointCount; ++k)
             {
                 // anchorA is COM-relative in world orientation.
@@ -302,17 +309,17 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
 
     if (draw->drawJoints)
     {
-        int32_t maxJoint = world->jointPool.maxIndex;
+        int32_t maxJoint = world->joints.jointPool.maxIndex;
         for (int32_t j = 0; j < maxJoint; ++j)
         {
-            if (world->jointPool.alive[j] == 0)
+            if (world->joints.jointPool.alive[j] == 0)
             {
                 continue;
             }
-            const m3Transform* xfA = &world->transforms[world->jointBodyA[j]];
-            const m3Transform* xfB = &world->transforms[world->jointBodyB[j]];
-            m3Pos3 a = ToWorld(xfA, world->jointLocalA[j]);
-            m3Pos3 b = ToWorld(xfB, world->jointLocalB[j]);
+            const m3Transform* xfA = &world->bodies.transforms[world->joints.jointBodyA[j]];
+            const m3Transform* xfB = &world->bodies.transforms[world->joints.jointBodyB[j]];
+            m3Pos3 a = ToWorld(xfA, world->joints.jointLocalA[j]);
+            m3Pos3 b = ToWorld(xfB, world->joints.jointLocalB[j]);
             Point(&ctx, a, 5.0f, M3_DRAW_COLOR_JOINT);
             Point(&ctx, b, 5.0f, M3_DRAW_COLOR_JOINT);
             Segment(&ctx, a, b, M3_DRAW_COLOR_JOINT);
@@ -475,22 +482,23 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     m3DebugDraw tintProbe;
     tintProbe.drawSleepTint = ctx->draw->drawSleepTint;
     uint32_t color = ShapeColor(world, shape, &tintProbe);
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
 
     if (type == (uint8_t)m3_sphereShape)
     {
-        SolidSphere(ctx, xf, world->shapeGeom[shape].v, world->shapeGeom[shape].s, color);
+        SolidSphere(ctx, xf, world->shapes.shapeGeom[shape].v, world->shapes.shapeGeom[shape].s,
+                    color);
         return;
     }
     if (type == (uint8_t)m3_capsuleShape)
     {
-        SolidCapsule(ctx, xf, world->shapeGeom[shape].v, world->shapeGeom[shape].v2,
-                     world->shapeGeom[shape].s, color);
+        SolidCapsule(ctx, xf, world->shapes.shapeGeom[shape].v, world->shapes.shapeGeom[shape].v2,
+                     world->shapes.shapeGeom[shape].s, color);
         return;
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         for (int32_t f = 0; f < hull->faceCount; ++f)
         {
             int32_t start = hull->faceVertStart[f];
@@ -506,7 +514,7 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_meshShape)
     {
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         for (int32_t t = 0; t < mesh->triangleCount; ++t)
         {
             SolidTri(ctx, xf, mesh->vertices[mesh->indices[3 * t + 0]],
@@ -517,7 +525,8 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_heightFieldShape)
     {
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         for (int32_t cz = 0; cz + 1 < hf->nz; ++cz)
         {
             for (int32_t cx = 0; cx + 1 < hf->nx; ++cx)
@@ -532,8 +541,9 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_voxelShape)
     {
-        const m3VoxelSurface* surface = &world->voxelSurface[world->shapeVoxelIndex[shape]];
-        m3real cell = world->voxelData[world->shapeVoxelIndex[shape]].cellSize;
+        const m3VoxelSurface* surface =
+            &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]];
+        m3real cell = world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
         for (int32_t b = 0; b < surface->boxCount; ++b)
         {
             m3Vec3 lo;
@@ -555,10 +565,10 @@ void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw)
         return;
     }
     m3SolidContext ctx = {draw, world};
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0)
+        if (world->shapes.shapePool.alive[s] != 0)
         {
             DrawShapeSolid(&ctx, s);
         }
@@ -596,37 +606,39 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
     // same roots, so twins draw the same stream.
     static const uint32_t palette[8] = {0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x95E86E,
                                         0xB48BFF, 0xFF9F68, 0x6BC5FF, 0xF078B0};
-    int32_t maxBody = world->bodyPool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     if (draw->drawIslands && draw->DrawPoint != NULL)
     {
         for (int32_t i = 0; i < maxBody; ++i)
         {
-            if (world->bodyPool.alive[i] == 0 || world->types[i] != (uint8_t)m3_dynamicBody ||
-                world->bodyEnabled[i] == 0 || world->bodyIsland[i] < 0)
+            if (world->bodies.bodyPool.alive[i] == 0 ||
+                world->bodies.types[i] != (uint8_t)m3_dynamicBody ||
+                world->bodies.bodyEnabled[i] == 0 || world->bodies.bodyIsland[i] < 0)
             {
                 continue;
             }
-            m3Vec3 rc = m3RotateVec3(world->transforms[i].q, world->localCenters[i]);
-            m3Pos3 com = {world->transforms[i].p.x + (double)rc.x,
-                          world->transforms[i].p.y + (double)rc.y,
-                          world->transforms[i].p.z + (double)rc.z};
-            draw->DrawPoint(com, 0.15f, palette[world->bodyIsland[i] & 7], draw->context);
+            m3Vec3 rc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
+            m3Pos3 com = {world->bodies.transforms[i].p.x + (double)rc.x,
+                          world->bodies.transforms[i].p.y + (double)rc.y,
+                          world->bodies.transforms[i].p.z + (double)rc.z};
+            draw->DrawPoint(com, 0.15f, palette[world->bodies.bodyIsland[i] & 7], draw->context);
         }
     }
     if (draw->drawMassAxes && draw->DrawSegment != NULL)
     {
         for (int32_t i = 0; i < maxBody; ++i)
         {
-            if (world->bodyPool.alive[i] == 0 || world->types[i] != (uint8_t)m3_dynamicBody ||
-                world->bodyEnabled[i] == 0)
+            if (world->bodies.bodyPool.alive[i] == 0 ||
+                world->bodies.types[i] != (uint8_t)m3_dynamicBody ||
+                world->bodies.bodyEnabled[i] == 0)
             {
                 continue;
             }
-            m3Quat q = world->transforms[i].q;
-            m3Vec3 rc = m3RotateVec3(q, world->localCenters[i]);
-            m3Pos3 o = {world->transforms[i].p.x + (double)rc.x,
-                        world->transforms[i].p.y + (double)rc.y,
-                        world->transforms[i].p.z + (double)rc.z};
+            m3Quat q = world->bodies.transforms[i].q;
+            m3Vec3 rc = m3RotateVec3(q, world->bodies.localCenters[i]);
+            m3Pos3 o = {world->bodies.transforms[i].p.x + (double)rc.x,
+                        world->bodies.transforms[i].p.y + (double)rc.y,
+                        world->bodies.transforms[i].p.z + (double)rc.z};
             static const m3Vec3 axes[3] = {
                 {0.5f, 0.0f, 0.0f}, {0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.5f}};
             static const uint32_t axisColors[3] = {0xFF3333, 0x33FF33, 0x3366FF};
@@ -640,9 +652,9 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
     }
     if (draw->drawTreeBoxes && draw->DrawSegment != NULL)
     {
-        for (int32_t n = 0; n < world->tree.capacity; ++n)
+        for (int32_t n = 0; n < world->broadphase.tree.capacity; ++n)
         {
-            const m3TreeNode* node = &world->tree.nodes[n];
+            const m3TreeNode* node = &world->broadphase.tree.nodes[n];
             if (node->height <= 0)
             {
                 continue; // free slots and leaves: the base walk

@@ -23,4 +23,8 @@ m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h);
 // Solves the 3x3 system J x = b by Cramer's rule; a singular J gives zero.
 m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b);
 
+void m3StepInternal(m3World* world, float dt, int32_t substeps);
+
+m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body);
+
 #endif // MAUL3D_SRC_SOLVER_H

@@ -14,11 +14,19 @@
 // with hulls in 2b.
 
 #include "solver.h"
+#include "body.h"
+#include "broad_phase.h"
+#include "character.h"
 #include "contact_solver.h"
 #include "continuous.h"
 #include "island.h"
+#include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
+#include "narrowphase.h"
+#include "softbody.h"
+#include "vehicle.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -45,12 +53,12 @@ m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h)
 // slice.
 m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body)
 {
-    if (world->types[body] != (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[body] != (uint8_t)m3_dynamicBody)
     {
         return m3MakeZeroMat3();
     }
-    m3Quat q = world->transforms[body].q;
-    m3Mat3 il = world->invInertiaLocal[body];
+    m3Quat q = world->bodies.transforms[body].q;
+    m3Mat3 il = world->bodies.invInertiaLocal[body];
     m3Mat3 r;
     r.cx = m3RotateVec3(q, m3MulMV3(il, m3InvRotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f})));
     r.cy = m3RotateVec3(q, m3MulMV3(il, m3InvRotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f})));
@@ -86,7 +94,7 @@ m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b)
 // the branch itself is deterministic.
 static m3Vec3 GyroscopicOmega(const m3World* world, int32_t body, m3Vec3 w, m3real h)
 {
-    const m3Mat3* inertia = &world->inertiaLocal[body];
+    const m3Mat3* inertia = &world->bodies.inertiaLocal[body];
     const m3real i00 = inertia->cx.x;
     const m3real i01 = inertia->cy.x;
     const m3real i02 = inertia->cz.x;
@@ -98,7 +106,7 @@ static m3Vec3 GyroscopicOmega(const m3World* world, int32_t body, m3Vec3 w, m3re
         return w; // isotropic (or massless): the term vanishes
     }
 
-    m3Quat q = world->transforms[body].q;
+    m3Quat q = world->bodies.transforms[body].q;
     m3Vec3 omega1 = m3InvRotateVec3(q, w);
     m3Vec3 omega2 = omega1;
 
@@ -158,13 +166,15 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // overwrites them; the warm-start carry and the event walk read
     // the stash. The buffers belong to the world, so this never
     // allocates and an early return cannot leak.
-    int32_t oldCount = world->pairCount;
-    const uint64_t* oldKeys = world->stashPairKeys;
-    const m3Manifold* oldManifolds = world->stashManifolds;
+    int32_t oldCount = world->contacts.pairCount;
+    const uint64_t* oldKeys = world->contacts.stashPairKeys;
+    const m3Manifold* oldManifolds = world->contacts.stashManifolds;
     if (oldCount > 0)
     {
-        memcpy(world->stashPairKeys, world->pairKeys, (size_t)oldCount * sizeof(uint64_t));
-        memcpy(world->stashManifolds, world->manifolds, (size_t)oldCount * sizeof(m3Manifold));
+        memcpy(world->contacts.stashPairKeys, world->contacts.pairKeys,
+               (size_t)oldCount * sizeof(uint64_t));
+        memcpy(world->contacts.stashManifolds, world->contacts.manifolds,
+               (size_t)oldCount * sizeof(m3Manifold));
     }
 
     // The suspension pass: vehicle impulses land here so the
@@ -192,23 +202,24 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // lists (both sorted). Serial and after the parallel narrowphase
     // on purpose: appends must happen in pair order, bit-stably.
     t0 = m3NowMs();
-    world->beginEventCount = 0;
-    world->endEventCount = 0;
-    world->sensorBeginEventCount = 0;
-    world->sensorEndEventCount = 0;
-    world->fragmentEventCount = 0;
-    world->fragmentRecipeCount = 0;
-    world->fragmentDropped = 0;
-    world->hitEventCount = 0;
-    world->hitEventsDropped = 0;
-    world->moveEventCount = 0;
-    world->jointBreakEventCount = 0;
+    world->events.beginEventCount = 0;
+    world->events.endEventCount = 0;
+    world->events.sensorBeginEventCount = 0;
+    world->events.sensorEndEventCount = 0;
+    world->events.fragmentEventCount = 0;
+    world->events.fragmentRecipeCount = 0;
+    world->events.fragmentDropped = 0;
+    world->events.hitEventCount = 0;
+    world->events.hitEventsDropped = 0;
+    world->events.moveEventCount = 0;
+    world->joints.jointBreakEventCount = 0;
     {
         int32_t iNew = 0;
         int32_t iOld = 0;
-        while (iNew < world->pairCount || iOld < oldCount)
+        while (iNew < world->contacts.pairCount || iOld < oldCount)
         {
-            uint64_t keyNew = iNew < world->pairCount ? world->pairKeys[iNew] : UINT64_MAX;
+            uint64_t keyNew =
+                iNew < world->contacts.pairCount ? world->contacts.pairKeys[iNew] : UINT64_MAX;
             uint64_t keyOld = iOld < oldCount ? oldKeys[iOld] : UINT64_MAX;
             int touchNew = 0;
             int touchOld = 0;
@@ -216,7 +227,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             if (keyNew < keyOld)
             {
                 key = keyNew;
-                touchNew = world->manifolds[iNew].pointCount > 0;
+                touchNew = world->contacts.manifolds[iNew].pointCount > 0;
                 iNew += 1;
             }
             else if (keyOld < keyNew)
@@ -228,7 +239,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             else
             {
                 key = keyNew;
-                touchNew = world->manifolds[iNew].pointCount > 0;
+                touchNew = world->contacts.manifolds[iNew].pointCount > 0;
                 touchOld = oldManifolds[iOld].pointCount > 0;
                 iNew += 1;
                 iOld += 1;
@@ -241,34 +252,36 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             int32_t sB = (int32_t)(key & 0xFFFFFFFFu);
             // A vanished pair whose shape died emits nothing: the id
             // would be stale (documented on the API).
-            if (world->shapePool.alive[sA] == 0 || world->shapePool.alive[sB] == 0)
+            if (world->shapes.shapePool.alive[sA] == 0 || world->shapes.shapePool.alive[sB] == 0)
             {
                 continue;
             }
             m3ContactEvent event;
             event.shapeA =
-                (m3ShapeId){sA + 1, world->worldIndex0, world->shapePool.generations[sA]};
+                (m3ShapeId){sA + 1, world->worldIndex0, world->shapes.shapePool.generations[sA]};
             event.shapeB =
-                (m3ShapeId){sB + 1, world->worldIndex0, world->shapePool.generations[sB]};
-            int sensorPair = world->shapeSensor[sA] != 0 || world->shapeSensor[sB] != 0;
+                (m3ShapeId){sB + 1, world->worldIndex0, world->shapes.shapePool.generations[sB]};
+            int sensorPair =
+                world->shapes.shapeSensor[sA] != 0 || world->shapes.shapeSensor[sB] != 0;
             if (sensorPair)
             {
-                if (touchNew && world->sensorBeginEventCount < world->pairCapacity)
+                if (touchNew && world->events.sensorBeginEventCount < world->contacts.pairCapacity)
                 {
-                    world->sensorBeginEvents[world->sensorBeginEventCount++] = event;
+                    world->events.sensorBeginEvents[world->events.sensorBeginEventCount++] = event;
                 }
-                else if (touchOld && world->sensorEndEventCount < world->pairCapacity)
+                else if (touchOld &&
+                         world->events.sensorEndEventCount < world->contacts.pairCapacity)
                 {
-                    world->sensorEndEvents[world->sensorEndEventCount++] = event;
+                    world->events.sensorEndEvents[world->events.sensorEndEventCount++] = event;
                 }
             }
-            else if (touchNew && world->beginEventCount < world->pairCapacity)
+            else if (touchNew && world->events.beginEventCount < world->contacts.pairCapacity)
             {
-                world->beginEvents[world->beginEventCount++] = event;
+                world->events.beginEvents[world->events.beginEventCount++] = event;
             }
-            else if (touchOld && world->endEventCount < world->pairCapacity)
+            else if (touchOld && world->events.endEventCount < world->contacts.pairCapacity)
             {
-                world->endEvents[world->endEventCount++] = event;
+                world->events.endEvents[world->events.endEventCount++] = event;
             }
         }
     }
@@ -288,9 +301,10 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // cell grows on the same tick; the reactive NULL returns below
     // are loud backstops an honest run can no longer reach.
     {
-        int64_t need = 64 * 1024 + 128 * (int64_t)world->bodyPool.maxIndex +
-                       64 * (int64_t)world->shapePool.maxIndex + 1024 * (int64_t)world->pairCount +
-                       1024 * (int64_t)world->jointPool.maxIndex;
+        int64_t need = 64 * 1024 + 128 * (int64_t)world->bodies.bodyPool.maxIndex +
+                       64 * (int64_t)world->shapes.shapePool.maxIndex +
+                       1024 * (int64_t)world->contacts.pairCount +
+                       1024 * (int64_t)world->joints.jointPool.maxIndex;
         if (need > (int64_t)world->scratch.capacity && world->scratch.capacity < (1 << 28))
         {
             int32_t grown = world->scratch.capacity;
@@ -308,7 +322,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // continuous pass needs. The scan reads transforms but
     // never moves them, so capturing here equals capturing before
     // it, and now the capture lives under the fresh-count budget.
-    int32_t sweepMax = world->bodyPool.maxIndex;
+    int32_t sweepMax = world->bodies.bodyPool.maxIndex;
     m3Pos3* com0 =
         (m3Pos3*)m3StackAlloc(&world->scratch, sweepMax > 0 ? sweepMax * (int32_t)sizeof(m3Pos3)
                                                             : (int32_t)sizeof(m3Pos3));
@@ -321,15 +335,15 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
     for (int32_t i = 0; i < sweepMax; ++i)
     {
-        if (world->bodyPool.alive[i] == 0)
+        if (world->bodies.bodyPool.alive[i] == 0)
         {
             continue;
         }
-        m3Vec3 rlc = m3RotateVec3(world->transforms[i].q, world->localCenters[i]);
-        com0[i].x = world->transforms[i].p.x + (double)rlc.x;
-        com0[i].y = world->transforms[i].p.y + (double)rlc.y;
-        com0[i].z = world->transforms[i].p.z + (double)rlc.z;
-        rot0[i] = world->transforms[i].q;
+        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
+        com0[i].x = world->bodies.transforms[i].p.x + (double)rlc.x;
+        com0[i].y = world->bodies.transforms[i].p.y + (double)rlc.y;
+        com0[i].z = world->bodies.transforms[i].p.z + (double)rlc.z;
+        rot0[i] = world->bodies.transforms[i].q;
     }
 
     // Islands and wake propagation BEFORE the solve: a sleeping body
@@ -341,10 +355,10 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
 
     // Solver scratch: constraints plus per-body delta accumulators.
-    int32_t maxBody = world->bodyPool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     m3ContactConstraint* constraints = (m3ContactConstraint*)m3StackAlloc(
-        &world->scratch, world->pairCount > 0
-                             ? world->pairCount * (int32_t)sizeof(m3ContactConstraint)
+        &world->scratch, world->contacts.pairCount > 0
+                             ? world->contacts.pairCount * (int32_t)sizeof(m3ContactConstraint)
                              : (int32_t)sizeof(m3ContactConstraint));
     m3Vec3* deltaPos = (m3Vec3*)m3StackAlloc(
         &world->scratch, maxBody > 0 ? maxBody * (int32_t)sizeof(m3Vec3) : (int32_t)sizeof(m3Vec3));
@@ -381,7 +395,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         }
     }
 
-    int32_t maxJointSlots = world->jointPool.maxIndex;
+    int32_t maxJointSlots = world->joints.jointPool.maxIndex;
     m3JointConstraint* jointConstraints = (m3JointConstraint*)m3StackAlloc(
         &world->scratch, maxJointSlots > 0 ? maxJointSlots * (int32_t)sizeof(m3JointConstraint)
                                            : (int32_t)sizeof(m3JointConstraint));
@@ -407,34 +421,36 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
     for (int32_t i = 0; i < maxBody; ++i)
     {
-        if (world->bodyPool.alive[i] == 0 || world->bodyEnabled[i] == 0)
+        if (world->bodies.bodyPool.alive[i] == 0 || world->bodies.bodyEnabled[i] == 0)
         {
             continue; // disabled bodies vanish from the step
         }
-        uint8_t type = world->types[i];
+        uint8_t type = world->bodies.types[i];
         if (type == (uint8_t)m3_kinematicBody ||
-            (type == (uint8_t)m3_dynamicBody && world->awake[i] != 0))
+            (type == (uint8_t)m3_dynamicBody && world->bodies.awake[i] != 0))
         {
             movers[moverCount] = i;
             moverCount += 1;
         }
         // The kinematic servo: choose velocities so this
         // step lands the body ON its target, then clear the order.
-        if (type == (uint8_t)m3_kinematicBody && world->bodyHasTarget[i] != 0)
+        if (type == (uint8_t)m3_kinematicBody && world->bodies.bodyHasTarget[i] != 0)
         {
             m3real servoInvDt = 1.0f / dt;
-            const m3Transform* now = &world->transforms[i];
-            const m3Transform* want = &world->bodyTarget[i];
-            world->linearVelocities[i] = (m3Vec3){(m3real)(want->p.x - now->p.x) * servoInvDt,
-                                                  (m3real)(want->p.y - now->p.y) * servoInvDt,
-                                                  (m3real)(want->p.z - now->p.z) * servoInvDt};
+            const m3Transform* now = &world->bodies.transforms[i];
+            const m3Transform* want = &world->bodies.bodyTarget[i];
+            world->bodies.linearVelocities[i] =
+                (m3Vec3){(m3real)(want->p.x - now->p.x) * servoInvDt,
+                         (m3real)(want->p.y - now->p.y) * servoInvDt,
+                         (m3real)(want->p.z - now->p.z) * servoInvDt};
             m3Quat dq = m3MulQuat(want->q, (m3Quat){-now->q.x, -now->q.y, -now->q.z, now->q.w});
             if (dq.w < 0.0f)
             {
                 dq = (m3Quat){-dq.x, -dq.y, -dq.z, -dq.w};
             }
-            world->angularVelocities[i] = m3MulSV3(2.0f * servoInvDt, (m3Vec3){dq.x, dq.y, dq.z});
-            world->bodyHasTarget[i] = 0;
+            world->bodies.angularVelocities[i] =
+                m3MulSV3(2.0f * servoInvDt, (m3Vec3){dq.x, dq.y, dq.z});
+            world->bodies.bodyHasTarget[i] = 0;
         }
     }
 
@@ -443,9 +459,9 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // step-start pose (the classic field-force approximation). No
     // volumes = no allocation, no arithmetic, the pre-18 bits.
     int32_t waterAlive = 0;
-    for (int32_t k = 0; k < world->waterPool.maxIndex; ++k)
+    for (int32_t k = 0; k < world->water.waterPool.maxIndex; ++k)
     {
-        waterAlive += world->waterPool.alive[k];
+        waterAlive += world->water.waterPool.alive[k];
     }
     m3Vec3* buoyForce = NULL;
     m3Vec3* buoyTorque = NULL;
@@ -475,17 +491,17 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             buoyFlow[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
             buoyLin[m] = 0.0f;
             buoyAng[m] = 0.0f;
-            if (world->types[i] != (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
             {
                 continue;
             }
-            m3Vec3 rlc = m3RotateVec3(world->transforms[i].q, world->localCenters[i]);
-            double comX = world->transforms[i].p.x + (double)rlc.x;
-            double comY = world->transforms[i].p.y + (double)rlc.y;
-            double comZ = world->transforms[i].p.z + (double)rlc.z;
+            m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
+            double comX = world->bodies.transforms[i].p.x + (double)rlc.x;
+            double comY = world->bodies.transforms[i].p.y + (double)rlc.y;
+            double comZ = world->bodies.transforms[i].p.z + (double)rlc.z;
             float fracSum = 0.0f;
-            for (int32_t shape = world->bodyShapeHead[i]; shape >= 0;
-                 shape = world->shapeNext[shape])
+            for (int32_t shape = world->bodies.bodyShapeHead[i]; shape >= 0;
+                 shape = world->shapes.shapeNext[shape])
             {
                 double slo[3];
                 double shi[3];
@@ -495,20 +511,26 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                 {
                     continue; // a plane's infinite box never swims
                 }
-                for (int32_t k = 0; k < world->waterPool.maxIndex; ++k)
+                for (int32_t k = 0; k < world->water.waterPool.maxIndex; ++k)
                 {
-                    if (world->waterPool.alive[k] == 0)
+                    if (world->water.waterPool.alive[k] == 0)
                     {
                         continue;
                     }
                     double clo[3];
                     double chi[3];
-                    clo[0] = slo[0] > world->waterLo[k].x ? slo[0] : world->waterLo[k].x;
-                    clo[1] = slo[1] > world->waterLo[k].y ? slo[1] : world->waterLo[k].y;
-                    clo[2] = slo[2] > world->waterLo[k].z ? slo[2] : world->waterLo[k].z;
-                    chi[0] = shi[0] < world->waterHi[k].x ? shi[0] : world->waterHi[k].x;
-                    chi[1] = shi[1] < world->waterHi[k].y ? shi[1] : world->waterHi[k].y;
-                    chi[2] = shi[2] < world->waterHi[k].z ? shi[2] : world->waterHi[k].z;
+                    clo[0] =
+                        slo[0] > world->water.waterLo[k].x ? slo[0] : world->water.waterLo[k].x;
+                    clo[1] =
+                        slo[1] > world->water.waterLo[k].y ? slo[1] : world->water.waterLo[k].y;
+                    clo[2] =
+                        slo[2] > world->water.waterLo[k].z ? slo[2] : world->water.waterLo[k].z;
+                    chi[0] =
+                        shi[0] < world->water.waterHi[k].x ? shi[0] : world->water.waterHi[k].x;
+                    chi[1] =
+                        shi[1] < world->water.waterHi[k].y ? shi[1] : world->water.waterHi[k].y;
+                    chi[2] =
+                        shi[2] < world->water.waterHi[k].z ? shi[2] : world->water.waterHi[k].z;
                     if (chi[0] <= clo[0] || chi[1] <= clo[1] || chi[2] <= clo[2])
                     {
                         continue;
@@ -519,15 +541,16 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                     // Buoyant force opposes gravity, applied at the
                     // clipped box centroid: a half-submerged crate
                     // rights itself, an off-center bite spins it.
-                    m3Vec3 f = m3MulSV3(-(float)subVol * world->waterDensity[k], world->gravity);
+                    m3Vec3 f =
+                        m3MulSV3(-(float)subVol * world->water.waterDensity[k], world->gravity);
                     m3Vec3 r = {(float)(0.5 * (clo[0] + chi[0]) - comX),
                                 (float)(0.5 * (clo[1] + chi[1]) - comY),
                                 (float)(0.5 * (clo[2] + chi[2]) - comZ)};
                     buoyForce[m] = m3Add3(buoyForce[m], f);
                     buoyTorque[m] = m3Add3(buoyTorque[m], m3Cross3(r, f));
-                    buoyFlow[m] = m3Add3(buoyFlow[m], m3MulSV3(frac, world->waterFlow[k]));
-                    buoyLin[m] += world->waterLinDrag[k] * frac;
-                    buoyAng[m] += world->waterAngDrag[k] * frac;
+                    buoyFlow[m] = m3Add3(buoyFlow[m], m3MulSV3(frac, world->water.waterFlow[k]));
+                    buoyLin[m] += world->water.waterLinDrag[k] * frac;
+                    buoyAng[m] += world->water.waterAngDrag[k] * frac;
                     fracSum += frac;
                 }
             }
@@ -544,22 +567,22 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         for (int32_t m = 0; m < moverCount; ++m)
         {
             int32_t i = movers[m];
-            if (world->types[i] != (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
             {
                 continue; // kinematics ride the list for positions only
             }
-            m3Vec3 v = world->linearVelocities[i];
-            m3Vec3 w = world->angularVelocities[i];
-            v = m3Add3(v, m3MulSV3(h * world->gravityScales[i], world->gravity));
+            m3Vec3 v = world->bodies.linearVelocities[i];
+            m3Vec3 w = world->bodies.angularVelocities[i];
+            v = m3Add3(v, m3MulSV3(h * world->bodies.gravityScales[i], world->gravity));
             // Host forces and torques integrate beside
             // gravity, every substep, so a force held for one step
             // delivers exactly force times dt.
-            v = m3Add3(v, m3MulSV3(h * world->invMass[i], world->bodyForce[i]));
-            if (world->bodyTorque[i].x != 0.0f || world->bodyTorque[i].y != 0.0f ||
-                world->bodyTorque[i].z != 0.0f)
+            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], world->bodies.bodyForce[i]));
+            if (world->bodies.bodyTorque[i].x != 0.0f || world->bodies.bodyTorque[i].y != 0.0f ||
+                world->bodies.bodyTorque[i].z != 0.0f)
             {
-                w = m3Add3(
-                    w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), world->bodyTorque[i])));
+                w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i),
+                                                   world->bodies.bodyTorque[i])));
             }
             if (waterAlive > 0 && (buoyLin[m] > 0.0f || buoyForce[m].y != 0.0f ||
                                    buoyForce[m].x != 0.0f || buoyForce[m].z != 0.0f))
@@ -568,14 +591,14 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                 // about the submerged centroid, then drag pulls the
                 // RELATIVE velocity toward the flow (the damping
                 // recipe, recentered on the current).
-                v = m3Add3(v, m3MulSV3(h * world->invMass[i], buoyForce[m]));
+                v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], buoyForce[m]));
                 w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), buoyTorque[m])));
                 m3Vec3 rel = m3Sub3(v, buoyFlow[m]);
                 v = m3Add3(buoyFlow[m], m3MulSV3(1.0f / (1.0f + h * buoyLin[m]), rel));
                 w = m3MulSV3(1.0f / (1.0f + h * buoyAng[m]), w);
             }
-            v = m3MulSV3(1.0f / (1.0f + h * world->linearDamping[i]), v);
-            w = m3MulSV3(1.0f / (1.0f + h * world->angularDamping[i]), w);
+            v = m3MulSV3(1.0f / (1.0f + h * world->bodies.linearDamping[i]), v);
+            w = m3MulSV3(1.0f / (1.0f + h * world->bodies.angularDamping[i]), w);
             w = GyroscopicOmega(world, i, w, h);
             // Hard linear speed cap, the reference clamp.
             m3real v2 = m3Dot3(v, v);
@@ -589,7 +612,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             // default cap is a catastrophe guard like the 400 m/s
             // linear one, far above legal tumbling, so scenes that
             // never touch the knob keep their bits.
-            if ((world->bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
+            if ((world->bodies.bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
             {
                 m3real w2 = m3Dot3(w, w);
                 m3real wcap = world->maximumAngularSpeed;
@@ -598,8 +621,8 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                     w = m3MulSV3(wcap / sqrtf(w2), w);
                 }
             }
-            world->linearVelocities[i] = v;
-            world->angularVelocities[i] = w;
+            world->bodies.linearVelocities[i] = v;
+            world->bodies.angularVelocities[i] = w;
         }
 
         m3WarmStartJoints(world, jointConstraints, jointCount, deltaRot);
@@ -612,9 +635,9 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         for (int32_t m = 0; m < moverCount; ++m)
         {
             int32_t i = movers[m];
-            m3Vec3 v = world->linearVelocities[i];
-            m3Vec3 w = world->angularVelocities[i];
-            uint8_t locks = world->bodyLocks[i];
+            m3Vec3 v = world->bodies.linearVelocities[i];
+            m3Vec3 w = world->bodies.angularVelocities[i];
+            uint8_t locks = world->bodies.bodyLocks[i];
             if (locks != 0)
             {
                 // Motion locks: locked components re-zero
@@ -632,23 +655,23 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                     w.y = 0.0f;
                 if (locks & 32u)
                     w.z = 0.0f;
-                world->linearVelocities[i] = v;
-                world->angularVelocities[i] = w;
+                world->bodies.linearVelocities[i] = v;
+                world->bodies.angularVelocities[i] = w;
             }
             // Rigid bodies rotate about the center of mass: advance
             // the COM, spin, then place the origin back. A centered
             // body (lc zero) reduces to the plain origin update.
-            m3Vec3 lc = world->localCenters[i];
-            m3Vec3 rlcOld = m3RotateVec3(world->transforms[i].q, lc);
-            double cx = world->transforms[i].p.x + (double)rlcOld.x + (double)(h * v.x);
-            double cy = world->transforms[i].p.y + (double)rlcOld.y + (double)(h * v.y);
-            double cz = world->transforms[i].p.z + (double)rlcOld.z + (double)(h * v.z);
+            m3Vec3 lc = world->bodies.localCenters[i];
+            m3Vec3 rlcOld = m3RotateVec3(world->bodies.transforms[i].q, lc);
+            double cx = world->bodies.transforms[i].p.x + (double)rlcOld.x + (double)(h * v.x);
+            double cy = world->bodies.transforms[i].p.y + (double)rlcOld.y + (double)(h * v.y);
+            double cz = world->bodies.transforms[i].p.z + (double)rlcOld.z + (double)(h * v.z);
             m3Vec3 dw = m3MulSV3(h, w);
-            world->transforms[i].q = m3IntegrateRotation(world->transforms[i].q, dw);
-            m3Vec3 rlcNew = m3RotateVec3(world->transforms[i].q, lc);
-            world->transforms[i].p.x = cx - (double)rlcNew.x;
-            world->transforms[i].p.y = cy - (double)rlcNew.y;
-            world->transforms[i].p.z = cz - (double)rlcNew.z;
+            world->bodies.transforms[i].q = m3IntegrateRotation(world->bodies.transforms[i].q, dw);
+            m3Vec3 rlcNew = m3RotateVec3(world->bodies.transforms[i].q, lc);
+            world->bodies.transforms[i].p.x = cx - (double)rlcNew.x;
+            world->bodies.transforms[i].p.y = cy - (double)rlcNew.y;
+            world->bodies.transforms[i].p.z = cz - (double)rlcNew.z;
             deltaPos[i] = m3Add3(deltaPos[i], m3MulSV3(h, v));
             deltaRot[i] = m3IntegrateRotation(deltaRot[i], dw);
         }
@@ -662,8 +685,8 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // step. Only movers could carry one (application wakes).
     for (int32_t m = 0; m < moverCount; ++m)
     {
-        world->bodyForce[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodyTorque[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.bodyForce[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.bodyTorque[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
     }
 
     m3Restitution(world, constraints, constraintCount);
@@ -687,15 +710,15 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // order, a pure function of state (like fragmentation: derived
     // transitions never need their own journal op).
     {
-        int32_t maxJoint = world->jointPool.maxIndex;
+        int32_t maxJoint = world->joints.jointPool.maxIndex;
         for (int32_t j = 0; j < maxJoint; ++j)
         {
-            if (world->jointPool.alive[j] == 0)
+            if (world->joints.jointPool.alive[j] == 0)
             {
                 continue;
             }
-            m3real maxForce = world->jointBreak[j].x;
-            m3real maxTorque = world->jointBreak[j].y;
+            m3real maxForce = world->joints.jointBreak[j].x;
+            m3real maxTorque = world->joints.jointBreak[j].y;
             if (maxForce == 0.0f && maxTorque == 0.0f)
             {
                 continue;
@@ -705,7 +728,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             m3JointReactionMagnitudes(world, j, invH, &force, &torque);
             if ((maxForce > 0.0f && force > maxForce) || (maxTorque > 0.0f && torque > maxTorque))
             {
-                m3JointId id = {j + 1, world->worldIndex0, world->jointPool.generations[j]};
+                m3JointId id = {j + 1, world->worldIndex0, world->joints.jointPool.generations[j]};
                 m3AppendJointBreakEvent(world, id);
                 m3DestroyJointInternal(world, j);
             }
@@ -726,15 +749,15 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     int32_t islands = 0;
     for (int32_t i = 0; i < maxBody; ++i)
     {
-        if (world->bodyPool.alive[i] != 0 && world->types[i] == (uint8_t)m3_dynamicBody &&
-            world->awake[i] != 0)
+        if (world->bodies.bodyPool.alive[i] != 0 &&
+            world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] != 0)
         {
             int32_t root = i;
             while (islandParent[root] != root)
             {
                 root = islandParent[root];
             }
-            world->bodyIsland[i] = root;
+            world->bodies.bodyIsland[i] = root;
             if (root == i)
             {
                 islands += 1;
@@ -755,10 +778,11 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     for (int32_t m = 0; m < moverCount; ++m)
     {
         int32_t i = movers[m];
-        m3BodyMoveEvent* e = &world->moveEvents[world->moveEventCount++];
-        e->body = (m3BodyId){i + 1, world->worldIndex0, world->bodyPool.generations[i]};
-        e->transform = world->transforms[i];
-        e->fellAsleep = world->types[i] == (uint8_t)m3_dynamicBody && world->awake[i] == 0;
+        m3BodyMoveEvent* e = &world->events.moveEvents[world->events.moveEventCount++];
+        e->body = (m3BodyId){i + 1, world->worldIndex0, world->bodies.bodyPool.generations[i]};
+        e->transform = world->bodies.transforms[i];
+        e->fellAsleep =
+            world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] == 0;
     }
     t0 = m3NowMs();
     m3CharacterCarryRiders(world, com0, rot0);
@@ -784,9 +808,9 @@ void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    world->stepVetoCount = 0;
+    world->contacts.stepVetoCount = 0;
     m3StepInternal(world, dt, substeps);
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         // Recording moved BEHIND the execution: nothing can
         // journal during a step, so callback-less streams are
@@ -794,10 +818,10 @@ void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
         // contacts writes those keys first. A bare replay (no
         // callback installed) then applies the recorded vetoes and
         // lands on the recorded bits: the tape is self-sufficient.
-        if (world->stepVetoCount > 0)
+        if (world->contacts.stepVetoCount > 0)
         {
-            m3JournalRecord(world, m3_opStepVetoes, world->stepVetoKeys,
-                            world->stepVetoCount * (int32_t)sizeof(uint64_t));
+            m3JournalRecord(world, m3_opStepVetoes, world->contacts.stepVetoKeys,
+                            world->contacts.stepVetoCount * (int32_t)sizeof(uint64_t));
         }
         struct
         {

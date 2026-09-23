@@ -6,6 +6,9 @@
 
 #include "continuous.h"
 
+#include "distance.h"
+#include "manifold.h"
+#include "shape.h"
 #include "solver.h"
 #include "world_internal.h"
 
@@ -41,15 +44,15 @@ static m3Sweep MakeRelativeSweep(const m3World* world, int32_t body, const m3Pos
                                  const m3Quat* rot0, m3Pos3 base)
 {
     m3Sweep sweep;
-    sweep.localCenter = world->localCenters[body];
+    sweep.localCenter = world->bodies.localCenters[body];
     sweep.c1 = (m3Vec3){(m3real)(com0[body].x - base.x), (m3real)(com0[body].y - base.y),
                         (m3real)(com0[body].z - base.z)};
-    m3Vec3 rlc = m3RotateVec3(world->transforms[body].q, world->localCenters[body]);
-    sweep.c2 = (m3Vec3){(m3real)(world->transforms[body].p.x + (double)rlc.x - base.x),
-                        (m3real)(world->transforms[body].p.y + (double)rlc.y - base.y),
-                        (m3real)(world->transforms[body].p.z + (double)rlc.z - base.z)};
+    m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[body].q, world->bodies.localCenters[body]);
+    sweep.c2 = (m3Vec3){(m3real)(world->bodies.transforms[body].p.x + (double)rlc.x - base.x),
+                        (m3real)(world->bodies.transforms[body].p.y + (double)rlc.y - base.y),
+                        (m3real)(world->bodies.transforms[body].p.z + (double)rlc.z - base.z)};
     sweep.q1 = rot0[body];
-    sweep.q2 = world->transforms[body].q;
+    sweep.q2 = world->bodies.transforms[body].q;
     return sweep;
 }
 
@@ -61,24 +64,24 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
     {
         return true;
     }
-    int32_t body = world->shapeBody[shape];
+    int32_t body = world->shapes.shapeBody[shape];
     if (body == ctx->fastBody)
     {
         return true;
     }
-    if (world->bodyEnabled[body] == 0)
+    if (world->bodies.bodyEnabled[body] == 0)
     {
         return true; // disabled bodies never block the fast mover
     }
-    if (world->bulletFlags[body] != 0)
+    if (world->bodies.bulletFlags[body] != 0)
     {
         return true; // bullet versus bullet: skip (documented)
     }
-    if (world->shapeSensor[shape] != 0)
+    if (world->shapes.shapeSensor[shape] != 0)
     {
         return true; // sensors never stop anything
     }
-    if (world->shapeType[shape] == (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
     {
         // Voxel TOI: sweep the fast shape against candidate
         // merged boxes in the CHUNK frame (the correct-frame
@@ -89,26 +92,27 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
         // length behind a thin welded wall). A seam-grazing sweep
         // at worst stops a hair early and hands the rest of the
         // step to the welded contact solver.
-        int32_t slot = world->shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxelSurface[slot];
-        m3real cell = world->voxelData[slot].cellSize;
+        int32_t slot = world->shapes.shapeVoxelIndex[shape];
+        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+        m3real cell = world->voxels.voxelData[slot].cellSize;
         m3Sweep chunkSweep = MakeRelativeSweep(world, body, ctx->com0, ctx->rot0, ctx->base);
         m3Vec3 scratchFast[2];
         m3DistanceProxy fastProxy = m3MakeShapeProxy(world, ctx->fastShape, scratchFast);
 
-        const m3Transform* xfV = &world->transforms[body];
+        const m3Transform* xfV = &world->bodies.transforms[body];
         m3Vec3 c1 =
             m3InvRotateVec3(xfV->q, (m3Vec3){(m3real)(ctx->com0[ctx->fastBody].x - xfV->p.x),
                                              (m3real)(ctx->com0[ctx->fastBody].y - xfV->p.y),
                                              (m3real)(ctx->com0[ctx->fastBody].z - xfV->p.z)});
-        m3Vec3 rlc =
-            m3RotateVec3(world->transforms[ctx->fastBody].q, world->localCenters[ctx->fastBody]);
+        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[ctx->fastBody].q,
+                                  world->bodies.localCenters[ctx->fastBody]);
         m3Vec3 c2 = m3InvRotateVec3(
             xfV->q,
-            (m3Vec3){(m3real)(world->transforms[ctx->fastBody].p.x + (double)rlc.x - xfV->p.x),
-                     (m3real)(world->transforms[ctx->fastBody].p.y + (double)rlc.y - xfV->p.y),
-                     (m3real)(world->transforms[ctx->fastBody].p.z + (double)rlc.z - xfV->p.z)});
-        m3real pad = world->maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
+            (m3Vec3){
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.x + (double)rlc.x - xfV->p.x),
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.y + (double)rlc.y - xfV->p.y),
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.z + (double)rlc.z - xfV->p.z)});
+        m3real pad = world->bodies.maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
         m3Vec3 lo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
         m3Vec3 hi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 
@@ -143,38 +147,39 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
         }
         return true;
     }
-    if (world->shapeType[shape] == (uint8_t)m3_meshShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_meshShape)
     {
         // Mesh TOI: sweep the fast shape against every
         // candidate triangle. Each triangle is a three-point static
         // proxy in the mesh body's frame; the shared kernel does the
         // rest. Ascending triangle order, bounded candidates.
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         m3Sweep meshSweep = MakeRelativeSweep(world, body, ctx->com0, ctx->rot0, ctx->base);
         m3Vec3 scratchFast[2];
         m3DistanceProxy fastProxy = m3MakeShapeProxy(world, ctx->fastShape, scratchFast);
 
         // The swept bounds of the fast body in mesh-local space, a
         // conservative box from the relative sweep endpoints.
-        const m3Transform* xfM = &world->transforms[body];
+        const m3Transform* xfM = &world->bodies.transforms[body];
         m3Vec3 c1 =
             m3InvRotateVec3(xfM->q, (m3Vec3){(m3real)(ctx->com0[ctx->fastBody].x - xfM->p.x),
                                              (m3real)(ctx->com0[ctx->fastBody].y - xfM->p.y),
                                              (m3real)(ctx->com0[ctx->fastBody].z - xfM->p.z)});
-        m3Vec3 rlc =
-            m3RotateVec3(world->transforms[ctx->fastBody].q, world->localCenters[ctx->fastBody]);
+        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[ctx->fastBody].q,
+                                  world->bodies.localCenters[ctx->fastBody]);
         m3Vec3 c2 = m3InvRotateVec3(
             xfM->q,
-            (m3Vec3){(m3real)(world->transforms[ctx->fastBody].p.x + (double)rlc.x - xfM->p.x),
-                     (m3real)(world->transforms[ctx->fastBody].p.y + (double)rlc.y - xfM->p.y),
-                     (m3real)(world->transforms[ctx->fastBody].p.z + (double)rlc.z - xfM->p.z)});
-        m3real pad = world->maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
+            (m3Vec3){
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.x + (double)rlc.x - xfM->p.x),
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.y + (double)rlc.y - xfM->p.y),
+                (m3real)(world->bodies.transforms[ctx->fastBody].p.z + (double)rlc.z - xfM->p.z)});
+        m3real pad = world->bodies.maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
         m3Vec3 lo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
         m3Vec3 hi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount =
-            m3MeshBvhGather(&world->meshBvh[world->shapeMeshIndex[shape]], lo, hi, gather);
+        int32_t gatherCount = m3MeshBvhGather(
+            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo, hi, gather);
         int32_t budget = 64;
         for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
         {
@@ -209,15 +214,16 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
         }
         return true;
     }
-    if (world->types[body] != (uint8_t)m3_staticBody && world->bulletFlags[ctx->fastBody] == 0)
+    if (world->bodies.types[body] != (uint8_t)m3_staticBody &&
+        world->bodies.bulletFlags[ctx->fastBody] == 0)
     {
         return true; // only bullets sweep against dynamics and kinematics
     }
     {
         // Filters: the continuous phase obeys the same rule
         // as the discrete pair scan.
-        int32_t gi = world->shapeGroup[shape];
-        int32_t gj = world->shapeGroup[ctx->fastShape];
+        int32_t gi = world->shapes.shapeGroup[shape];
+        int32_t gj = world->shapes.shapeGroup[ctx->fastShape];
         if (gi != 0 && gi == gj)
         {
             if (gi < 0)
@@ -225,9 +231,9 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
                 return true;
             }
         }
-        else if (!m3FilterPass(world->shapeCategory[shape], world->shapeMask[shape],
-                               world->shapeCategory[ctx->fastShape],
-                               world->shapeMask[ctx->fastShape]))
+        else if (!m3FilterPass(world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape],
+                               world->shapes.shapeCategory[ctx->fastShape],
+                               world->shapes.shapeMask[ctx->fastShape]))
         {
             return true;
         }
@@ -255,9 +261,9 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
 static void ContinuousVersusPlane(const m3World* world, m3ContinuousContext* ctx,
                                   int32_t planeShape)
 {
-    m3Vec3 n = world->shapeGeom[planeShape].v;
+    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
     m3real offset =
-        world->shapeGeom[planeShape].s -
+        world->shapes.shapeGeom[planeShape].s -
         (m3real)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, ctx->fastShape, scratch);
@@ -270,8 +276,8 @@ static void ContinuousVersusPlane(const m3World* world, m3ContinuousContext* ctx
     m3Vec3 travel = m3Sub3(ctx->fastSweep.c2, ctx->fastSweep.c1);
     m3Quat dq = m3MulQuat(ctx->fastSweep.q2, (m3Quat){-ctx->fastSweep.q1.x, -ctx->fastSweep.q1.y,
                                                       -ctx->fastSweep.q1.z, ctx->fastSweep.q1.w});
-    m3real arc =
-        2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) * world->maxExtents[ctx->fastBody];
+    m3real arc = 2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) *
+                 world->bodies.maxExtents[ctx->fastBody];
     m3real rate = sqrtf(m3Dot3(travel, travel)) + arc;
     if (!(rate > 0.0f))
     {
@@ -323,26 +329,28 @@ static void ContinuousVersusPlane(const m3World* world, m3ContinuousContext* ctx
 
 void m3SolveContinuousPhase(m3World* world, const m3Pos3* com0, const m3Quat* rot0)
 {
-    int32_t maxBody = world->bodyPool.maxIndex;
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t i = 0; i < maxBody; ++i)
     {
-        if (world->bodyPool.alive[i] == 0 || world->types[i] != (uint8_t)m3_dynamicBody)
+        if (world->bodies.bodyPool.alive[i] == 0 ||
+            world->bodies.types[i] != (uint8_t)m3_dynamicBody)
         {
             continue;
         }
         // Fast test: displacement plus rotation arc versus the
         // thinnest extent (the reference safety factor of one half).
-        m3Vec3 rlc = m3RotateVec3(world->transforms[i].q, world->localCenters[i]);
-        double cx = world->transforms[i].p.x + (double)rlc.x;
-        double cy = world->transforms[i].p.y + (double)rlc.y;
-        double cz = world->transforms[i].p.z + (double)rlc.z;
+        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
+        double cx = world->bodies.transforms[i].p.x + (double)rlc.x;
+        double cy = world->bodies.transforms[i].p.y + (double)rlc.y;
+        double cz = world->bodies.transforms[i].p.z + (double)rlc.z;
         m3Vec3 dc = {(m3real)(cx - com0[i].x), (m3real)(cy - com0[i].y), (m3real)(cz - com0[i].z)};
         m3Quat q0 = rot0[i];
-        m3Quat dq = m3MulQuat(world->transforms[i].q, (m3Quat){-q0.x, -q0.y, -q0.z, q0.w});
-        m3real arc = 2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) * world->maxExtents[i];
+        m3Quat dq = m3MulQuat(world->bodies.transforms[i].q, (m3Quat){-q0.x, -q0.y, -q0.z, q0.w});
+        m3real arc =
+            2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) * world->bodies.maxExtents[i];
         m3real maxMotion = sqrtf(m3Dot3(dc, dc)) + arc;
-        if (!(maxMotion > 0.5f * world->minExtents[i]))
+        if (!(maxMotion > 0.5f * world->bodies.minExtents[i]))
         {
             continue;
         }
@@ -356,16 +364,16 @@ void m3SolveContinuousPhase(m3World* world, const m3Pos3* com0, const m3Quat* ro
         ctx.fraction = 1.0f;
         ctx.fastSweep = MakeRelativeSweep(world, i, com0, rot0, ctx.base);
 
-        for (int32_t s = world->bodyShapeHead[i]; s != -1; s = world->shapeNext[s])
+        for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
         {
-            if (world->shapeSensor[s] != 0)
+            if (world->shapes.shapeSensor[s] != 0)
             {
                 continue; // a sensor on a fast body blocks nothing
             }
             ctx.fastShape = s;
             // Swept candidate box: both COM endpoints padded by the
             // body's max extent (a coarse superset; the TOI filters).
-            double pad = (double)(world->maxExtents[i] + M3_AABB_MARGIN);
+            double pad = (double)(world->bodies.maxExtents[i] + M3_AABB_MARGIN);
             double lo[3];
             double hi[3];
             lo[0] = (com0[i].x < cx ? com0[i].x : cx) - pad;
@@ -374,12 +382,13 @@ void m3SolveContinuousPhase(m3World* world, const m3Pos3* com0, const m3Quat* ro
             hi[0] = (com0[i].x > cx ? com0[i].x : cx) + pad;
             hi[1] = (com0[i].y > cy ? com0[i].y : cy) + pad;
             hi[2] = (com0[i].z > cz ? com0[i].z : cz) + pad;
-            m3TreeQuery(&world->tree, lo, hi, ContinuousQueryCallback, &ctx);
+            m3TreeQuery(&world->broadphase.tree, lo, hi, ContinuousQueryCallback, &ctx);
 
             // Planes take the dedicated pass (never in the tree).
             for (int32_t p = 0; p < maxShape; ++p)
             {
-                if (world->shapePool.alive[p] != 0 && world->shapeType[p] == (uint8_t)m3_planeShape)
+                if (world->shapes.shapePool.alive[p] != 0 &&
+                    world->shapes.shapeType[p] == (uint8_t)m3_planeShape)
                 {
                     ContinuousVersusPlane(world, &ctx, p);
                 }
@@ -391,10 +400,10 @@ void m3SolveContinuousPhase(m3World* world, const m3Pos3* com0, const m3Quat* ro
             // Pull the body back to the impact pose. Velocity stays:
             // next step's speculative contact turns it into impulse.
             m3Transform xf = m3GetSweepTransform(&ctx.fastSweep, ctx.fraction);
-            world->transforms[i].q = xf.q;
-            world->transforms[i].p.x = ctx.base.x + xf.p.x;
-            world->transforms[i].p.y = ctx.base.y + xf.p.y;
-            world->transforms[i].p.z = ctx.base.z + xf.p.z;
+            world->bodies.transforms[i].q = xf.q;
+            world->bodies.transforms[i].p.x = ctx.base.x + xf.p.x;
+            world->bodies.transforms[i].p.y = ctx.base.y + xf.p.y;
+            world->bodies.transforms[i].p.z = ctx.base.z + xf.p.z;
         }
     }
 }

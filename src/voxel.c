@@ -13,7 +13,12 @@
 // makes the sphere kernel in manifold.c an exact clamp instead of
 // an iteration.
 
+#include "voxel.h"
+#include "character.h"
+#include "hull.h"
 #include "journal.h"
+#include "shape.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -218,21 +223,21 @@ typedef struct m3VoxelWakeContext
 static bool VoxelWakeCallback(int32_t shape, void* userContext)
 {
     m3World* world = ((m3VoxelWakeContext*)userContext)->world;
-    int32_t body = world->shapeBody[shape];
-    if (world->types[body] == (uint8_t)m3_dynamicBody)
+    int32_t body = world->shapes.shapeBody[shape];
+    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
     {
-        world->awake[body] = 1;
-        world->sleepTimes[body] = 0.0f;
+        world->bodies.awake[body] = 1;
+        world->bodies.sleepTimes[body] = 0.0f;
     }
     return true;
 }
 
 static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], const int32_t hi[3])
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3real cell = world->voxelData[slot].cellSize;
-    int32_t body = world->shapeBody[shape];
-    const m3Transform* xf = &world->transforms[body];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3real cell = world->voxels.voxelData[slot].cellSize;
+    int32_t body = world->shapes.shapeBody[shape];
+    const m3Transform* xf = &world->bodies.transforms[body];
     // The region's eight corners in the chunk frame, rotated out,
     // padded by the speculative margin so grazing sleepers wake too.
     double wlo[3] = {1.0e30, 1.0e30, 1.0e30};
@@ -256,21 +261,21 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
         whi[k] += (double)M3_AABB_MARGIN;
     }
     m3VoxelWakeContext ctx = {world};
-    m3TreeQuery(&world->tree, wlo, whi, VoxelWakeCallback, &ctx);
+    m3TreeQuery(&world->broadphase.tree, wlo, whi, VoxelWakeCallback, &ctx);
 
     // Characters standing over the edited region lose their ground
     // THIS step if it vanished: the destruction interplay is
     // a contract, not a next-frame coincidence.
-    for (int32_t c = 0; c < world->charPool.maxIndex; ++c)
+    for (int32_t c = 0; c < world->characters.charPool.maxIndex; ++c)
     {
-        if (world->charPool.alive[c] == 0 || world->charGrounded[c] == 0)
+        if (world->characters.charPool.alive[c] == 0 || world->characters.charGrounded[c] == 0)
         {
             continue;
         }
-        const m3Pos3* p = &world->transforms[world->charBody[c]].p;
-        m3real reachDown =
-            world->charHalfHeight[c] + world->charRadius[c] + world->charSnap[c] + M3_AABB_MARGIN;
-        m3real reachSide = world->charRadius[c] + M3_AABB_MARGIN;
+        const m3Pos3* p = &world->bodies.transforms[world->characters.charBody[c]].p;
+        m3real reachDown = world->characters.charHalfHeight[c] + world->characters.charRadius[c] +
+                           world->characters.charSnap[c] + M3_AABB_MARGIN;
+        m3real reachSide = world->characters.charRadius[c] + M3_AABB_MARGIN;
         if (p->x + (double)reachSide < wlo[0] || p->x - (double)reachSide > whi[0] ||
             p->z + (double)reachSide < wlo[2] || p->z - (double)reachSide > whi[2] ||
             p->y - (double)reachDown > whi[1] || p->y + (double)reachDown < wlo[1])
@@ -285,29 +290,29 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
     // the sleeper floating on vanished floor. Any wheel ray
     // overlapping the region wakes the chassis; the next
     // suspension pass reads the new surface the same step.
-    for (int32_t v = 0; v < world->vehPool.maxIndex; ++v)
+    for (int32_t v = 0; v < world->vehicles.vehPool.maxIndex; ++v)
     {
-        if (world->vehPool.alive[v] == 0)
+        if (world->vehicles.vehPool.alive[v] == 0)
         {
             continue;
         }
-        int32_t chassis = world->vehChassis[v];
-        if (chassis < 0 || world->bodyPool.alive[chassis] == 0 ||
-            world->bodyPool.generations[chassis] != world->vehChassisGen[v] ||
-            world->awake[chassis] != 0)
+        int32_t chassis = world->vehicles.vehChassis[v];
+        if (chassis < 0 || world->bodies.bodyPool.alive[chassis] == 0 ||
+            world->bodies.bodyPool.generations[chassis] != world->vehicles.vehChassisGen[v] ||
+            world->bodies.awake[chassis] != 0)
         {
             continue;
         }
-        const m3Transform* cxf = &world->transforms[chassis];
-        for (int32_t w = 0; w < world->vehWheelCount[v]; ++w)
+        const m3Transform* cxf = &world->bodies.transforms[chassis];
+        for (int32_t w = 0; w < world->vehicles.vehWheelCount[v]; ++w)
         {
             int32_t k = v * M3_VEHICLE_MAX_WHEELS + w;
-            m3Vec3 anchorR = m3RotateVec3(cxf->q, world->vehWheelAnchor[k]);
+            m3Vec3 anchorR = m3RotateVec3(cxf->q, world->vehicles.vehWheelAnchor[k]);
             double ax = cxf->p.x + (double)anchorR.x;
             double ay = cxf->p.y + (double)anchorR.y;
             double az = cxf->p.z + (double)anchorR.z;
-            m3Vec3 dir = m3RotateVec3(cxf->q, world->vehWheelDir[k]);
-            m3real reach = world->vehWheelRest[k] + world->vehWheelRadius[k];
+            m3Vec3 dir = m3RotateVec3(cxf->q, world->vehicles.vehWheelDir[k]);
+            m3real reach = world->vehicles.vehWheelRest[k] + world->vehicles.vehWheelRadius[k];
             double ex = ax + (double)(dir.x * reach);
             double ey = ay + (double)(dir.y * reach);
             double ez = az + (double)(dir.z * reach);
@@ -319,8 +324,8 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
             if (slo[0] <= whi[0] && shi[0] >= wlo[0] && slo[1] <= whi[1] && shi[1] >= wlo[1] &&
                 slo[2] <= whi[2] && shi[2] >= wlo[2])
             {
-                world->awake[chassis] = 1;
-                world->sleepTimes[chassis] = 0.0f;
+                world->bodies.awake[chassis] = 1;
+                world->bodies.sleepTimes[chassis] = 0.0f;
                 break;
             }
         }
@@ -335,8 +340,8 @@ static bool VoxelCoordsValid(int32_t x, int32_t y, int32_t z)
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload)
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
     bool wasFilled = m3VoxelGet(chunk, x, y, z);
     chunk->occupancy[v >> 3] |= (uint8_t)(1u << (v & 7));
@@ -349,7 +354,7 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
         // set falls through (the surface is a pure function of
         // occupancy and cell size, never of payload). No fracture
         // sweep here: adding a voxel can only CONNECT islands.
-        m3VoxelSurfaceBuild(&world->voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
         m3VoxelCoverageRefreshAround(world, slot);
     }
     int32_t lo[3] = {x, y, z};
@@ -359,8 +364,8 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
 
 bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z)
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
     if (m3VoxelGet(chunk, x, y, z))
     {
@@ -368,7 +373,7 @@ bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, i
         chunk->payload[v] = 0;
         chunk->fill[v] = 0;
         chunk->filledCount -= 1;
-        m3VoxelSurfaceBuild(&world->voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -380,8 +385,8 @@ bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, i
 int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[3],
                                 const int32_t hi[3])
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     int32_t cleared = 0;
     for (int32_t z = lo[2]; z <= hi[2]; ++z)
     {
@@ -403,7 +408,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -414,8 +419,8 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
 bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                             uint8_t fill)
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     if (!m3VoxelGet(chunk, x, y, z))
     {
         return false; // fill describes an occupied voxel, nothing else
@@ -434,8 +439,8 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     // inside the sphere (center in the CHUNK frame), then ONE
     // surface rebuild and ONE fracture sweep for the whole bite,
     // the ClearBox economy. Cell (x,y,z) spans [x, x+1) * cellSize.
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     m3real cell = chunk->cellSize;
     int32_t lo[3];
     int32_t hi[3];
@@ -479,7 +484,7 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -492,7 +497,7 @@ static m3World* ResolveVoxelShape(m3ShapeId shapeId, int32_t* shapeOut)
 {
     m3World* world = m3WorldFromIndex0(shapeId.world0);
     int32_t shape = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
-    if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
         m3Refuse(world, m3_errorInvalid);
         return NULL; // stale, foreign, or not a voxel chunk: contract
@@ -510,7 +515,7 @@ bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, u
         m3Refuse(world, m3_errorInvalid);
         return false;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -539,7 +544,7 @@ bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z)
         m3Refuse(world, m3_errorInvalid);
         return false;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -565,13 +570,13 @@ bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, ui
         m3Refuse(world, m3_errorInvalid);
         return false; // fill zero is a clear in disguise: refused
     }
-    int32_t slot = world->shapeVoxelIndex[shape];
-    if (!m3VoxelGet(&world->voxelData[slot], x, y, z))
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    if (!m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
         return false;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -607,7 +612,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
             return -1; // bad region: contract, loud
         }
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -635,8 +640,8 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
 // labels and event order are pure functions of the grid.
 void m3VoxelFractureSweep(m3World* world, int32_t shape)
 {
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxelData[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     if (chunk->filledCount == 0)
     {
         return;
@@ -745,26 +750,26 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             com = m3MulSV3(1.0f / (m3real)count, comEq);
         }
 
-        if (world->fragmentEventCount >= M3_FRAGMENT_EVENT_CAP)
+        if (world->events.fragmentEventCount >= M3_FRAGMENT_EVENT_CAP)
         {
-            world->fragmentDropped += 1; // loud: the state moved, the
-                                         // event did not fit
+            world->events.fragmentDropped += 1; // loud: the state moved, the
+                                                // event did not fit
             continue;
         }
-        m3FragmentEvent* ev = &world->fragmentEvents[world->fragmentEventCount];
+        m3FragmentEvent* ev = &world->events.fragmentEvents[world->events.fragmentEventCount];
         memset(ev, 0, sizeof(*ev));
         ev->chunkShape =
-            (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+            (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
         ev->voxelCount = count;
-        if (world->fragmentRecipeCount + count <= M3_FRAGMENT_RECIPE_CAP)
+        if (world->events.fragmentRecipeCount + count <= M3_FRAGMENT_RECIPE_CAP)
         {
-            ev->recipeStart = world->fragmentRecipeCount;
+            ev->recipeStart = world->events.fragmentRecipeCount;
             ev->recipeCount = count;
             for (int32_t k = 0; k < count; ++k)
             {
-                world->fragmentRecipe[world->fragmentRecipeCount + k] = island[k];
+                world->events.fragmentRecipe[world->events.fragmentRecipeCount + k] = island[k];
             }
-            world->fragmentRecipeCount += count;
+            world->events.fragmentRecipeCount += count;
         }
         else
         {
@@ -773,8 +778,8 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             ev->recipeCount = 0;
         }
         ev->comChunk = com;
-        int32_t body = world->shapeBody[shape];
-        const m3Transform* xf = &world->transforms[body];
+        int32_t body = world->shapes.shapeBody[shape];
+        const m3Transform* xf = &world->bodies.transforms[body];
         m3Vec3 r = m3RotateVec3(xf->q, com);
         ev->comWorld =
             (m3Pos3){xf->p.x + (double)r.x, xf->p.y + (double)r.y, xf->p.z + (double)r.z};
@@ -784,13 +789,13 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             ev->boundsLo[k] = lo[k];
             ev->boundsHi[k] = hi[k];
         }
-        world->fragmentEventCount += 1;
+        world->events.fragmentEventCount += 1;
     }
 
     if (removedAny)
     {
         // The surface follows the grid, always (the derived law).
-        m3VoxelSurfaceBuild(&world->voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
         m3VoxelCoverageRefreshAround(world, slot);
     }
 }
@@ -804,7 +809,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
 bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3* outNormal,
                    m3real* outPlane)
 {
-    const m3VoxelChunkData* chunk = &world->voxelData[slot];
+    const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     m3real cell = chunk->cellSize;
     int32_t sx = (int32_t)(localPoint.x / cell);
     int32_t sy = (int32_t)(localPoint.y / cell);
@@ -841,7 +846,7 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
             {
                 // The chunk boundary: an exit unless a welded
                 // neighbor continues the solid there.
-                int32_t link = world->voxelNeighbors[slot * 6 + n];
+                int32_t link = world->voxels.voxelNeighbors[slot * 6 + n];
                 if (link < 0)
                 {
                     exit = true;
@@ -851,7 +856,7 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
                     int32_t mx = (nx + M3_VOXEL_DIM) % M3_VOXEL_DIM;
                     int32_t my = (ny + M3_VOXEL_DIM) % M3_VOXEL_DIM;
                     int32_t mz = (nz + M3_VOXEL_DIM) % M3_VOXEL_DIM;
-                    exit = !m3VoxelGet(&world->voxelData[link], mx, my, mz);
+                    exit = !m3VoxelGet(&world->voxels.voxelData[link], mx, my, mz);
                 }
             }
             else if (!m3VoxelGet(chunk, nx, ny, nz))
@@ -902,36 +907,36 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
 
 void m3VoxelRebuildLinks(m3World* world)
 {
-    int32_t cap = world->voxelCapacity;
+    int32_t cap = world->voxels.voxelCapacity;
     for (int32_t i = 0; i < cap * 6; ++i)
     {
-        world->voxelNeighbors[i] = -1;
+        world->voxels.voxelNeighbors[i] = -1;
     }
     static const m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
-    int32_t maxSlot = world->voxelPool.maxIndex;
+    int32_t maxSlot = world->voxels.voxelPool.maxIndex;
     for (int32_t a = 0; a < maxSlot; ++a)
     {
-        if (world->voxelPool.alive[a] == 0)
+        if (world->voxels.voxelPool.alive[a] == 0)
         {
             continue;
         }
-        int32_t bodyA = world->shapeBody[world->voxelShape[a]];
-        const m3Transform* xfA = &world->transforms[bodyA];
+        int32_t bodyA = world->shapes.shapeBody[world->voxels.voxelShape[a]];
+        const m3Transform* xfA = &world->bodies.transforms[bodyA];
         // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bitwise identity
         if (memcmp(&xfA->q, &identity, sizeof(m3Quat)) != 0)
         {
             continue; // the welding contract wants grid alignment
         }
-        double extentA = (double)((m3real)M3_VOXEL_DIM * world->voxelData[a].cellSize);
+        double extentA = (double)((m3real)M3_VOXEL_DIM * world->voxels.voxelData[a].cellSize);
         for (int32_t b = 0; b < maxSlot; ++b)
         {
-            if (b == a || world->voxelPool.alive[b] == 0 ||
-                world->voxelData[b].cellSize != world->voxelData[a].cellSize)
+            if (b == a || world->voxels.voxelPool.alive[b] == 0 ||
+                world->voxels.voxelData[b].cellSize != world->voxels.voxelData[a].cellSize)
             {
                 continue;
             }
-            int32_t bodyB = world->shapeBody[world->voxelShape[b]];
-            const m3Transform* xfB = &world->transforms[bodyB];
+            int32_t bodyB = world->shapes.shapeBody[world->voxels.voxelShape[b]];
+            const m3Transform* xfB = &world->bodies.transforms[bodyB];
             // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bitwise identity
             if (memcmp(&xfB->q, &identity, sizeof(m3Quat)) != 0)
             {
@@ -943,27 +948,27 @@ void m3VoxelRebuildLinks(m3World* world)
             // Exact adjacency on exactly one axis (the contract).
             if (dy == 0.0 && dz == 0.0 && dx == extentA)
             {
-                world->voxelNeighbors[a * 6 + 1] = b; // +x
+                world->voxels.voxelNeighbors[a * 6 + 1] = b; // +x
             }
             else if (dy == 0.0 && dz == 0.0 && dx == -extentA)
             {
-                world->voxelNeighbors[a * 6 + 0] = b; // -x
+                world->voxels.voxelNeighbors[a * 6 + 0] = b; // -x
             }
             else if (dx == 0.0 && dz == 0.0 && dy == extentA)
             {
-                world->voxelNeighbors[a * 6 + 3] = b; // +y
+                world->voxels.voxelNeighbors[a * 6 + 3] = b; // +y
             }
             else if (dx == 0.0 && dz == 0.0 && dy == -extentA)
             {
-                world->voxelNeighbors[a * 6 + 2] = b; // -y
+                world->voxels.voxelNeighbors[a * 6 + 2] = b; // -y
             }
             else if (dx == 0.0 && dy == 0.0 && dz == extentA)
             {
-                world->voxelNeighbors[a * 6 + 5] = b; // +z
+                world->voxels.voxelNeighbors[a * 6 + 5] = b; // +z
             }
             else if (dx == 0.0 && dy == 0.0 && dz == -extentA)
             {
-                world->voxelNeighbors[a * 6 + 4] = b; // -z
+                world->voxels.voxelNeighbors[a * 6 + 4] = b; // -z
             }
         }
     }
@@ -981,15 +986,15 @@ static bool VoxelFaceCovered(const m3World* world, int32_t slot, const uint8_t l
     int32_t axis = axisOf[face];
     int32_t sign = signOf[face];
     int32_t layer = sign < 0 ? (int32_t)lo[axis] - 1 : (int32_t)hi[axis] + 1;
-    const m3VoxelChunkData* grid = &world->voxelData[slot];
+    const m3VoxelChunkData* grid = &world->voxels.voxelData[slot];
     if (layer < 0 || layer >= M3_VOXEL_DIM)
     {
-        int32_t neighbor = world->voxelNeighbors[slot * 6 + face];
+        int32_t neighbor = world->voxels.voxelNeighbors[slot * 6 + face];
         if (neighbor < 0)
         {
             return false; // no weld: the face is exposed to the world
         }
-        grid = &world->voxelData[neighbor];
+        grid = &world->voxels.voxelData[neighbor];
         layer = sign < 0 ? M3_VOXEL_DIM - 1 : 0; // the mirrored border
     }
     int32_t u = (axis + 1) % 3;
@@ -1013,7 +1018,7 @@ static bool VoxelFaceCovered(const m3World* world, int32_t slot, const uint8_t l
 
 void m3VoxelCoverageBuild(m3World* world, int32_t slot)
 {
-    m3VoxelSurface* surface = &world->voxelSurface[slot];
+    m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     for (int32_t b = 0; b < surface->boxCount; ++b)
     {
         uint8_t covered = 0;
@@ -1033,7 +1038,7 @@ void m3VoxelCoverageRefreshAround(m3World* world, int32_t slot)
     m3VoxelCoverageBuild(world, slot);
     for (int32_t face = 0; face < 6; ++face)
     {
-        int32_t neighbor = world->voxelNeighbors[slot * 6 + face];
+        int32_t neighbor = world->voxels.voxelNeighbors[slot * 6 + face];
         if (neighbor >= 0)
         {
             // The neighbor's border coverage reads THIS grid.

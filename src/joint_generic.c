@@ -20,24 +20,24 @@ static void PrepareGeneric(m3World* world, m3JointConstraint* c, const m3JointFr
     // The 6-DOF: the joint frame's world basis rides
     // in the three axis slots; impulses ride the slot map
     // documented at the store.
-    c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->jointFrameQB[j]);
+    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
     c->perpAxisX = m3RotateVec3(c->frameQA, (m3Vec3){1.0f, 0.0f, 0.0f});
     c->perpAxisY = m3RotateVec3(c->frameQA, (m3Vec3){0.0f, 1.0f, 0.0f});
     c->rotationAxis = m3RotateVec3(c->frameQA, (m3Vec3){0.0f, 0.0f, 1.0f});
-    c->genModes = world->jointGenericModes[j];
-    c->genLinLower = world->jointGenLinLower[j];
-    c->genLinUpper = world->jointGenLinUpper[j];
-    c->genAngLower = world->jointGenAngLower[j];
-    c->genAngUpper = world->jointGenAngUpper[j];
-    c->perpImpulseX = world->jointPerpImpulse[j].x;
-    c->perpImpulseY = world->jointPerpImpulse[j].y;
-    c->swingImpulse = world->jointPerpImpulse[j].z;
-    c->angularImpulse = world->jointAngularImpulse[j];
-    c->upperImpulse = world->jointLimitImpulse[j].x;
-    c->motorImpulse = world->jointLimitImpulse[j].y;
-    c->motorSpeed = world->jointMotor[j].x;
-    c->maxMotorEffort = world->jointMotor[j].y;
+    c->genModes = world->joints.jointGenericModes[j];
+    c->genLinLower = world->joints.jointGenLinLower[j];
+    c->genLinUpper = world->joints.jointGenLinUpper[j];
+    c->genAngLower = world->joints.jointGenAngLower[j];
+    c->genAngUpper = world->joints.jointGenAngUpper[j];
+    c->perpImpulseX = world->joints.jointPerpImpulse[j].x;
+    c->perpImpulseY = world->joints.jointPerpImpulse[j].y;
+    c->swingImpulse = world->joints.jointPerpImpulse[j].z;
+    c->angularImpulse = world->joints.jointAngularImpulse[j];
+    c->upperImpulse = world->joints.jointLimitImpulse[j].x;
+    c->motorImpulse = world->joints.jointLimitImpulse[j].y;
+    c->motorSpeed = world->joints.jointMotor[j].x;
+    c->maxMotorEffort = world->joints.jointMotor[j].y;
 }
 
 static void WarmStartGeneric(const m3World* world, const m3JointConstraint* c,
@@ -350,10 +350,10 @@ static void SolveGeneric(m3World* world, m3JointConstraint* c, const m3JointSolv
     c->perpImpulseY = linUp[1];
     c->swingImpulse = linUp[2];
     c->angularImpulse = (m3Vec3){angPrim[0], angPrim[1], angPrim[2]};
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

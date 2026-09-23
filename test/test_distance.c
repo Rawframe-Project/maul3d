@@ -8,6 +8,8 @@
 // the same bits. A wrong closest point cannot satisfy the oracle.
 // White box.
 
+#include "distance.h"
+#include "hull.h"
 #include "test_harness.h"
 #include "world_internal.h"
 

@@ -5,7 +5,15 @@
 // shape lists. Same law as bodies: public functions validate and
 // journal, internal functions mutate, replay drives the internals.
 
+#include "shape.h"
+#include "body.h"
+#include "broad_phase.h"
+#include "hull.h"
 #include "journal.h"
+#include "manifold.h"
+#include "quickhull.h"
+#include "voxel.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -14,7 +22,7 @@ int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId)
 {
     int32_t index = shapeId.index1 - 1;
     if (world == NULL || shapeId.world0 != world->worldIndex0 ||
-        !m3IdPoolValid(&world->shapePool, index, shapeId.generation))
+        !m3IdPoolValid(&world->shapes.shapePool, index, shapeId.generation))
     {
         return -1;
     }
@@ -79,12 +87,12 @@ static m3Mat3 InvertSymmetric(m3Mat3 m)
 // short-circuit: default scenes never enter the rotation.
 static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat3* inertia)
 {
-    if (world->shapeHasOffset[s] == 0)
+    if (world->shapes.shapeHasOffset[s] == 0)
     {
         return;
     }
-    m3Quat q = world->shapeLocalRot[s];
-    *com = m3Add3(world->shapeLocalPos[s], m3RotateVec3(q, *com));
+    m3Quat q = world->shapes.shapeLocalRot[s];
+    *com = m3Add3(world->shapes.shapeLocalPos[s], m3RotateVec3(q, *com));
     m3Mat3 r;
     r.cx = m3RotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f});
     r.cy = m3RotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f});
@@ -115,14 +123,14 @@ static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat
 static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
                           m3Mat3* inertiaOut)
 {
-    uint8_t type = world->shapeType[s];
+    uint8_t type = world->shapes.shapeType[s];
     if (type == (uint8_t)m3_sphereShape)
     {
-        float r = world->shapeGeom[s].s;
-        float m = world->shapeDensity[s] * (4.0f / 3.0f) * M3_PI * r * r * r;
+        float r = world->shapes.shapeGeom[s].s;
+        float m = world->shapes.shapeDensity[s] * (4.0f / 3.0f) * M3_PI * r * r * r;
         float ic = 0.4f * m * r * r;
         *massOut = m;
-        *comOut = world->shapeGeom[s].v;
+        *comOut = world->shapes.shapeGeom[s].v;
         *inertiaOut = m3MakeZeroMat3();
         inertiaOut->cx.x = ic;
         inertiaOut->cy.y = ic;
@@ -137,9 +145,9 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         // because t1(x)t1 + t2(x)t2 = Identity - u(x)u for any
         // orthonormal basis {t1, u, t2}. No basis matrix needed and
         // the result is exactly symmetric.
-        m3Vec3 p1 = world->shapeGeom[s].v;
-        m3Vec3 p2 = world->shapeGeom[s].v2;
-        float r = world->shapeGeom[s].s;
+        m3Vec3 p1 = world->shapes.shapeGeom[s].v;
+        m3Vec3 p2 = world->shapes.shapeGeom[s].v2;
+        float r = world->shapes.shapeGeom[s].s;
         m3Vec3 axis = m3Sub3(p2, p1);
         float length = sqrtf(m3Dot3(axis, axis));
         // The create walls demand length > 0, but a mutated snapshot
@@ -148,7 +156,7 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         // term below vanishes and the isotropic (sphere) inertia is
         // exactly right, so any unit stand-in axis is correct.
         m3Vec3 u = length > 0.0f ? m3MulSV3(1.0f / length, axis) : (m3Vec3){1.0f, 0.0f, 0.0f};
-        float density = world->shapeDensity[s];
+        float density = world->shapes.shapeDensity[s];
         float mCyl = density * M3_PI * r * r * length;
         float mSph = density * (4.0f / 3.0f) * M3_PI * r * r * r;
         float axial = 0.5f * mCyl * r * r + 0.4f * mSph * r * r;
@@ -166,8 +174,8 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[s]];
-        float density = world->shapeDensity[s];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s]];
+        float density = world->shapes.shapeDensity[s];
         *massOut = density * hull->unitMass;
         *comOut = hull->unitCom;
         m3Mat3 ic = hull->unitInertiaCom;
@@ -182,14 +190,14 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
 
 void m3RecomputeMass(m3World* world, int32_t bodyIndex)
 {
-    if (world->types[bodyIndex] != (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[bodyIndex] != (uint8_t)m3_dynamicBody)
     {
-        world->invMass[bodyIndex] = 0.0f;
-        world->invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->inertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->minExtents[bodyIndex] = 1.0e30f;
-        world->maxExtents[bodyIndex] = 0.0f;
+        world->bodies.invMass[bodyIndex] = 0.0f;
+        world->bodies.invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
+        world->bodies.inertiaLocal[bodyIndex] = m3MakeZeroMat3();
+        world->bodies.localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.minExtents[bodyIndex] = 1.0e30f;
+        world->bodies.maxExtents[bodyIndex] = 0.0f;
         return;
     }
     // Two passes: first total mass and the mass
@@ -198,7 +206,8 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     // big-minus-big cancellation can occur.
     float mass = 0.0f;
     m3Vec3 center = {0.0f, 0.0f, 0.0f};
-    for (int32_t s = world->bodyShapeHead[bodyIndex]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+         s = world->shapes.shapeNext[s])
     {
         float m;
         m3Vec3 c;
@@ -215,18 +224,19 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     {
         // Shapeless dynamic body: unit mass, zero inertia (the
         // reference convention).
-        world->invMass[bodyIndex] = 1.0f;
-        world->invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->inertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->minExtents[bodyIndex] = 1.0e30f;
-        world->maxExtents[bodyIndex] = 0.0f;
+        world->bodies.invMass[bodyIndex] = 1.0f;
+        world->bodies.invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
+        world->bodies.inertiaLocal[bodyIndex] = m3MakeZeroMat3();
+        world->bodies.localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.minExtents[bodyIndex] = 1.0e30f;
+        world->bodies.maxExtents[bodyIndex] = 0.0f;
         return;
     }
     center = m3MulSV3(1.0f / mass, center);
 
     m3Mat3 inertia = m3MakeZeroMat3();
-    for (int32_t s = world->bodyShapeHead[bodyIndex]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+         s = world->shapes.shapeNext[s])
     {
         float m;
         m3Vec3 c;
@@ -250,9 +260,9 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
         inertia.cz.y += ic.cz.y - m * d.y * d.z;
         inertia.cy.z += ic.cy.z - m * d.y * d.z;
     }
-    world->invMass[bodyIndex] = 1.0f / mass;
-    world->inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
-    world->invInertiaLocal[bodyIndex] = InvertSymmetric(inertia);
+    world->bodies.invMass[bodyIndex] = 1.0f / mass;
+    world->bodies.inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
+    world->bodies.invInertiaLocal[bodyIndex] = InvertSymmetric(inertia);
 
     // Extents drive continuous collision: minExtent is the
     // thinnest measure any shape brings (motion past half of it in
@@ -260,27 +270,28 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     // arc in the sweep advance.
     float minExtent = 1.0e30f;
     float maxExtent = 0.0f;
-    for (int32_t s2 = world->bodyShapeHead[bodyIndex]; s2 != -1; s2 = world->shapeNext[s2])
+    for (int32_t s2 = world->bodies.bodyShapeHead[bodyIndex]; s2 != -1;
+         s2 = world->shapes.shapeNext[s2])
     {
-        uint8_t type = world->shapeType[s2];
+        uint8_t type = world->shapes.shapeType[s2];
         if (type == (uint8_t)m3_sphereShape)
         {
-            float r = world->shapeGeom[s2].s;
-            m3Vec3 d = m3Sub3(world->shapeGeom[s2].v, center);
+            float r = world->shapes.shapeGeom[s2].s;
+            m3Vec3 d = m3Sub3(world->shapes.shapeGeom[s2].v, center);
             minExtent = m3MinF(minExtent, r);
             maxExtent = m3MaxF(maxExtent, sqrtf(m3Dot3(d, d)) + r);
         }
         else if (type == (uint8_t)m3_capsuleShape)
         {
-            float r = world->shapeGeom[s2].s;
-            m3Vec3 d1 = m3Sub3(world->shapeGeom[s2].v, center);
-            m3Vec3 d2 = m3Sub3(world->shapeGeom[s2].v2, center);
+            float r = world->shapes.shapeGeom[s2].s;
+            m3Vec3 d1 = m3Sub3(world->shapes.shapeGeom[s2].v, center);
+            m3Vec3 d2 = m3Sub3(world->shapes.shapeGeom[s2].v2, center);
             minExtent = m3MinF(minExtent, r);
             maxExtent = m3MaxF(maxExtent, sqrtf(m3MaxF(m3Dot3(d1, d1), m3Dot3(d2, d2))) + r);
         }
         else if (type == (uint8_t)m3_hullShape)
         {
-            const m3HullData* hull = &world->hullData[world->shapeHullIndex[s2]];
+            const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s2]];
             for (int32_t f = 0; f < hull->faceCount; ++f)
             {
                 float dist = hull->faceOffsets[f] - m3Dot3(hull->faceNormals[f], center);
@@ -293,9 +304,9 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
             }
         }
     }
-    world->minExtents[bodyIndex] = minExtent;
-    world->maxExtents[bodyIndex] = maxExtent;
-    world->localCenters[bodyIndex] = center;
+    world->bodies.minExtents[bodyIndex] = minExtent;
+    world->bodies.maxExtents[bodyIndex] = maxExtent;
+    world->bodies.localCenters[bodyIndex] = center;
 }
 
 // Edge convexity for the welding filter: for every triangle edge,
@@ -473,39 +484,40 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
             return -1; // no other type rides the plain-geom door
         }
     }
-    int32_t index = m3IdPoolAlloc(&world->shapePool);
+    int32_t index = m3IdPoolAlloc(&world->shapes.shapePool);
     if (index < 0)
     {
         return -1;
     }
-    world->shapeBody[index] = bodyIndex;
-    world->shapeType[index] = type;
-    world->shapeGeom[index] = *geom;
-    world->shapeDensity[index] = def->density;
-    world->shapeFriction[index] = def->friction;
-    world->shapeRestitution[index] = def->restitution;
-    world->shapeRollingResistance[index] = def->rollingResistance;
-    world->shapeCategory[index] = def->categoryBits;
-    world->shapeMask[index] = def->maskBits;
-    world->shapeGroup[index] = def->groupIndex;
-    world->shapeUserData[index] = def->userData;
-    world->shapeSensor[index] = def->isSensor ? 1 : 0;
-    world->shapeHitEvents[index] = def->enableHitEvents ? 1 : 0;
-    world->shapePreSolve[index] = def->enablePreSolveEvents ? 1 : 0;
-    world->shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapeLocalPos[index] = def->localPosition;
-    world->shapeLocalRot[index] = def->localRotation;
-    world->shapeHasOffset[index] = (def->localPosition.x != 0.0f || def->localPosition.y != 0.0f ||
-                                    def->localPosition.z != 0.0f || def->localRotation.x != 0.0f ||
-                                    def->localRotation.y != 0.0f || def->localRotation.z != 0.0f ||
-                                    def->localRotation.w != 1.0f)
-                                       ? 1
-                                       : 0;
+    world->shapes.shapeBody[index] = bodyIndex;
+    world->shapes.shapeType[index] = type;
+    world->shapes.shapeGeom[index] = *geom;
+    world->shapes.shapeDensity[index] = def->density;
+    world->shapes.shapeFriction[index] = def->friction;
+    world->shapes.shapeRestitution[index] = def->restitution;
+    world->shapes.shapeRollingResistance[index] = def->rollingResistance;
+    world->shapes.shapeCategory[index] = def->categoryBits;
+    world->shapes.shapeMask[index] = def->maskBits;
+    world->shapes.shapeGroup[index] = def->groupIndex;
+    world->shapes.shapeUserData[index] = def->userData;
+    world->shapes.shapeSensor[index] = def->isSensor ? 1 : 0;
+    world->shapes.shapeHitEvents[index] = def->enableHitEvents ? 1 : 0;
+    world->shapes.shapePreSolve[index] = def->enablePreSolveEvents ? 1 : 0;
+    world->shapes.shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->shapes.shapeLocalPos[index] = def->localPosition;
+    world->shapes.shapeLocalRot[index] = def->localRotation;
+    world->shapes.shapeHasOffset[index] =
+        (def->localPosition.x != 0.0f || def->localPosition.y != 0.0f ||
+         def->localPosition.z != 0.0f || def->localRotation.x != 0.0f ||
+         def->localRotation.y != 0.0f || def->localRotation.z != 0.0f ||
+         def->localRotation.w != 1.0f)
+            ? 1
+            : 0;
     // Push onto the body's list head (canonical: creation order is
     // recoverable because replay recreates in the same order).
-    world->shapeNext[index] = world->bodyShapeHead[bodyIndex];
-    world->bodyShapeHead[bodyIndex] = index;
-    world->shapeHullIndex[index] = -1;
+    world->shapes.shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
+    world->bodies.bodyShapeHead[bodyIndex] = index;
+    world->shapes.shapeHullIndex[index] = -1;
     if (type == (uint8_t)m3_hullShape)
     {
         // Boxes rebuild from geom.v (the journaled half extents);
@@ -516,74 +528,76 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
         {
             m3BuildBoxHull(&data, geom->v);
         }
-        world->shapeHullIndex[index] = m3InternHull(world, prebuilt != NULL ? prebuilt : &data);
-        if (world->shapeHullIndex[index] < 0)
+        world->shapes.shapeHullIndex[index] =
+            m3InternHull(world, prebuilt != NULL ? prebuilt : &data);
+        if (world->shapes.shapeHullIndex[index] < 0)
         {
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeNext[index] = -1;
-            world->shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapePool, index);
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeNext[index] = -1;
+            world->shapes.shapeBody[index] = -1;
+            m3IdPoolFree(&world->shapes.shapePool, index);
             return -1;
         }
     }
-    world->shapeMeshIndex[index] = -1;
+    world->shapes.shapeMeshIndex[index] = -1;
     if (type == (uint8_t)m3_meshShape)
     {
         // No content dedupe: meshes are big and user-authored; each
         // create claims a fresh slot.
-        int32_t meshIndex = m3IdPoolAlloc(&world->meshPool);
+        int32_t meshIndex = m3IdPoolAlloc(&world->meshes.meshPool);
         if (meshIndex < 0)
         {
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeNext[index] = -1;
-            world->shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapePool, index);
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeNext[index] = -1;
+            world->shapes.shapeBody[index] = -1;
+            m3IdPoolFree(&world->shapes.shapePool, index);
             return -1; // mesh slots exhausted: loud at the caller
         }
-        world->meshData[meshIndex] = *meshPrebuilt;
-        m3BakeMeshEdgeFlags(&world->meshData[meshIndex]);
-        m3MeshBvhBuild(&world->meshBvh[meshIndex], &world->meshData[meshIndex]);
-        world->meshRefCounts[meshIndex] = 1;
-        world->shapeMeshIndex[index] = meshIndex;
+        world->meshes.meshData[meshIndex] = *meshPrebuilt;
+        m3BakeMeshEdgeFlags(&world->meshes.meshData[meshIndex]);
+        m3MeshBvhBuild(&world->meshes.meshBvh[meshIndex], &world->meshes.meshData[meshIndex]);
+        world->meshes.meshRefCounts[meshIndex] = 1;
+        world->shapes.shapeMeshIndex[index] = meshIndex;
     }
-    world->shapeHfIndex[index] = -1;
+    world->shapes.shapeHfIndex[index] = -1;
     if (type == (uint8_t)m3_heightFieldShape)
     {
         // The mesh-slot pattern: fresh slot, the count-derived
         // content TAKEN OVER from the caller's staging struct (the
         // pointer moves, no copy of the sample block).
-        int32_t hfIndex = m3IdPoolAlloc(&world->hfPool);
+        int32_t hfIndex = m3IdPoolAlloc(&world->heightFields.hfPool);
         if (hfIndex < 0)
         {
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeNext[index] = -1;
-            world->shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapePool, index);
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeNext[index] = -1;
+            world->shapes.shapeBody[index] = -1;
+            m3IdPoolFree(&world->shapes.shapePool, index);
             return -1; // heightfield slots exhausted: loud
         }
-        world->hfData[hfIndex] = *hfPrebuilt;
-        world->hfRefCounts[hfIndex] = 1;
-        world->shapeHfIndex[index] = hfIndex;
+        world->heightFields.hfData[hfIndex] = *hfPrebuilt;
+        world->heightFields.hfRefCounts[hfIndex] = 1;
+        world->shapes.shapeHfIndex[index] = hfIndex;
     }
-    world->shapeVoxelIndex[index] = -1;
+    world->shapes.shapeVoxelIndex[index] = -1;
     if (type == (uint8_t)m3_voxelShape)
     {
         // The mesh-slot pattern: fresh slot, state block copied in,
         // the DERIVED surface built from it (the BVH law).
-        int32_t voxelIndex = m3IdPoolAlloc(&world->voxelPool);
+        int32_t voxelIndex = m3IdPoolAlloc(&world->voxels.voxelPool);
         if (voxelIndex < 0)
         {
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeNext[index] = -1;
-            world->shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapePool, index);
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeNext[index] = -1;
+            world->shapes.shapeBody[index] = -1;
+            m3IdPoolFree(&world->shapes.shapePool, index);
             return -1; // voxel slots exhausted: loud at the caller
         }
-        world->voxelData[voxelIndex] = *voxelPrebuilt;
-        m3VoxelSurfaceBuild(&world->voxelSurface[voxelIndex], &world->voxelData[voxelIndex]);
-        world->voxelRefCounts[voxelIndex] = 1;
-        world->shapeVoxelIndex[index] = voxelIndex;
-        world->voxelShape[voxelIndex] = index;
+        world->voxels.voxelData[voxelIndex] = *voxelPrebuilt;
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[voxelIndex],
+                            &world->voxels.voxelData[voxelIndex]);
+        world->voxels.voxelRefCounts[voxelIndex] = 1;
+        world->shapes.shapeVoxelIndex[index] = voxelIndex;
+        world->voxels.voxelShape[voxelIndex] = index;
         // A new chunk can weld to existing ones and change THEIR
         // border coverage too: rebuild links, refresh the seam.
         m3VoxelRebuildLinks(world);
@@ -596,29 +610,30 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
         double lo[3];
         double hi[3];
         m3ShapeFatAabb(world, index, lo, hi);
-        world->proxyIds[index] = m3TreeInsert(&world->tree, lo, hi, index);
-        if (world->proxyIds[index] == M3_TREE_NULL)
+        world->broadphase.proxyIds[index] = m3TreeInsert(&world->broadphase.tree, lo, hi, index);
+        if (world->broadphase.proxyIds[index] == M3_TREE_NULL)
         {
             // Tree pool exhausted: undo loudly, never a half-created
             // shape.
-            m3ReleaseHull(world, world->shapeHullIndex[index]);
-            world->shapeHullIndex[index] = -1;
-            if (world->shapeHfIndex[index] >= 0)
+            m3ReleaseHull(world, world->shapes.shapeHullIndex[index]);
+            world->shapes.shapeHullIndex[index] = -1;
+            if (world->shapes.shapeHfIndex[index] >= 0)
             {
-                m3HeightFieldDataFree(&world->hfData[world->shapeHfIndex[index]]);
-                m3IdPoolFree(&world->hfPool, world->shapeHfIndex[index]);
-                world->shapeHfIndex[index] = -1;
+                m3HeightFieldDataFree(
+                    &world->heightFields.hfData[world->shapes.shapeHfIndex[index]]);
+                m3IdPoolFree(&world->heightFields.hfPool, world->shapes.shapeHfIndex[index]);
+                world->shapes.shapeHfIndex[index] = -1;
             }
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeNext[index] = -1;
-            world->shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapePool, index);
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeNext[index] = -1;
+            world->shapes.shapeBody[index] = -1;
+            m3IdPoolFree(&world->shapes.shapePool, index);
             return -1;
         }
     }
     else
     {
-        world->proxyIds[index] = M3_TREE_NULL;
+        world->broadphase.proxyIds[index] = M3_TREE_NULL;
     }
     m3RecomputeMass(world, bodyIndex);
     return index;
@@ -626,92 +641,93 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
 
 void m3DestroyShapeInternal(m3World* world, int32_t index)
 {
-    int32_t bodyIndex = world->shapeBody[index];
+    int32_t bodyIndex = world->shapes.shapeBody[index];
     // Unlink from the body's list.
-    int32_t* cursor = &world->bodyShapeHead[bodyIndex];
+    int32_t* cursor = &world->bodies.bodyShapeHead[bodyIndex];
     while (*cursor != -1)
     {
         if (*cursor == index)
         {
-            *cursor = world->shapeNext[index];
+            *cursor = world->shapes.shapeNext[index];
             break;
         }
-        cursor = &world->shapeNext[*cursor];
+        cursor = &world->shapes.shapeNext[*cursor];
     }
-    world->shapeBody[index] = -1;
-    world->shapeType[index] = 0;
-    world->shapeGeom[index] = (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
-    world->shapeDensity[index] = 0.0f;
-    world->shapeFriction[index] = 0.0f;
-    world->shapeRestitution[index] = 0.0f;
-    world->shapeRollingResistance[index] = 0.0f;
-    world->shapeCategory[index] = 0;
-    world->shapeMask[index] = 0;
-    world->shapeGroup[index] = 0;
-    world->shapeUserData[index] = 0;
-    world->shapeSensor[index] = 0;
-    world->shapeHitEvents[index] = 0;
-    world->shapePreSolve[index] = 0;
-    world->shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapeLocalPos[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapeLocalRot[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
-    world->shapeHasOffset[index] = 0;
-    world->shapeNext[index] = -1;
-    if (world->proxyIds[index] != M3_TREE_NULL)
+    world->shapes.shapeBody[index] = -1;
+    world->shapes.shapeType[index] = 0;
+    world->shapes.shapeGeom[index] =
+        (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
+    world->shapes.shapeDensity[index] = 0.0f;
+    world->shapes.shapeFriction[index] = 0.0f;
+    world->shapes.shapeRestitution[index] = 0.0f;
+    world->shapes.shapeRollingResistance[index] = 0.0f;
+    world->shapes.shapeCategory[index] = 0;
+    world->shapes.shapeMask[index] = 0;
+    world->shapes.shapeGroup[index] = 0;
+    world->shapes.shapeUserData[index] = 0;
+    world->shapes.shapeSensor[index] = 0;
+    world->shapes.shapeHitEvents[index] = 0;
+    world->shapes.shapePreSolve[index] = 0;
+    world->shapes.shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->shapes.shapeLocalPos[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->shapes.shapeLocalRot[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+    world->shapes.shapeHasOffset[index] = 0;
+    world->shapes.shapeNext[index] = -1;
+    if (world->broadphase.proxyIds[index] != M3_TREE_NULL)
     {
-        m3TreeRemove(&world->tree, world->proxyIds[index]);
-        world->proxyIds[index] = M3_TREE_NULL;
+        m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[index]);
+        world->broadphase.proxyIds[index] = M3_TREE_NULL;
     }
-    m3ReleaseHull(world, world->shapeHullIndex[index]);
-    world->shapeHullIndex[index] = -1;
-    if (world->shapeMeshIndex[index] >= 0)
+    m3ReleaseHull(world, world->shapes.shapeHullIndex[index]);
+    world->shapes.shapeHullIndex[index] = -1;
+    if (world->shapes.shapeMeshIndex[index] >= 0)
     {
-        int32_t meshIndex = world->shapeMeshIndex[index];
-        world->meshRefCounts[meshIndex] -= 1;
-        if (world->meshRefCounts[meshIndex] == 0)
+        int32_t meshIndex = world->shapes.shapeMeshIndex[index];
+        world->meshes.meshRefCounts[meshIndex] -= 1;
+        if (world->meshes.meshRefCounts[meshIndex] == 0)
         {
-            m3MeshDataFree(&world->meshData[meshIndex]);
-            m3MeshBvhFree(&world->meshBvh[meshIndex]);
-            m3IdPoolFree(&world->meshPool, meshIndex);
+            m3MeshDataFree(&world->meshes.meshData[meshIndex]);
+            m3MeshBvhFree(&world->meshes.meshBvh[meshIndex]);
+            m3IdPoolFree(&world->meshes.meshPool, meshIndex);
         }
-        world->shapeMeshIndex[index] = -1;
+        world->shapes.shapeMeshIndex[index] = -1;
     }
-    if (world->shapeHfIndex[index] >= 0)
+    if (world->shapes.shapeHfIndex[index] >= 0)
     {
-        int32_t hfIndex = world->shapeHfIndex[index];
-        world->hfRefCounts[hfIndex] -= 1;
-        if (world->hfRefCounts[hfIndex] == 0)
+        int32_t hfIndex = world->shapes.shapeHfIndex[index];
+        world->heightFields.hfRefCounts[hfIndex] -= 1;
+        if (world->heightFields.hfRefCounts[hfIndex] == 0)
         {
-            m3HeightFieldDataFree(&world->hfData[hfIndex]);
-            m3IdPoolFree(&world->hfPool, hfIndex);
+            m3HeightFieldDataFree(&world->heightFields.hfData[hfIndex]);
+            m3IdPoolFree(&world->heightFields.hfPool, hfIndex);
         }
-        world->shapeHfIndex[index] = -1;
+        world->shapes.shapeHfIndex[index] = -1;
     }
-    if (world->shapeVoxelIndex[index] >= 0)
+    if (world->shapes.shapeVoxelIndex[index] >= 0)
     {
-        int32_t voxelIndex = world->shapeVoxelIndex[index];
-        world->voxelRefCounts[voxelIndex] -= 1;
-        if (world->voxelRefCounts[voxelIndex] == 0)
+        int32_t voxelIndex = world->shapes.shapeVoxelIndex[index];
+        world->voxels.voxelRefCounts[voxelIndex] -= 1;
+        if (world->voxels.voxelRefCounts[voxelIndex] == 0)
         {
-            memset(&world->voxelData[voxelIndex], 0, sizeof(m3VoxelChunkData));
-            m3MeshBvhFree(&world->voxelSurface[voxelIndex].bvh);
-            memset(&world->voxelSurface[voxelIndex], 0, sizeof(m3VoxelSurface));
-            world->voxelShape[voxelIndex] = -1;
-            m3IdPoolFree(&world->voxelPool, voxelIndex);
+            memset(&world->voxels.voxelData[voxelIndex], 0, sizeof(m3VoxelChunkData));
+            m3MeshBvhFree(&world->voxels.voxelSurface[voxelIndex].bvh);
+            memset(&world->voxels.voxelSurface[voxelIndex], 0, sizeof(m3VoxelSurface));
+            world->voxels.voxelShape[voxelIndex] = -1;
+            m3IdPoolFree(&world->voxels.voxelPool, voxelIndex);
             // A vanished chunk un-welds its neighbors: their border
             // faces just became exposed.
             m3VoxelRebuildLinks(world);
-            for (int32_t v = 0; v < world->voxelPool.maxIndex; ++v)
+            for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
             {
-                if (world->voxelPool.alive[v] != 0)
+                if (world->voxels.voxelPool.alive[v] != 0)
                 {
                     m3VoxelCoverageBuild(world, v);
                 }
             }
         }
-        world->shapeVoxelIndex[index] = -1;
+        world->shapes.shapeVoxelIndex[index] = -1;
     }
-    m3IdPoolFree(&world->shapePool, index);
+    m3IdPoolFree(&world->shapes.shapePool, index);
     m3RecomputeMass(world, bodyIndex);
 }
 
@@ -750,8 +766,8 @@ static m3ShapeId CreateShapeCommon(m3BodyId bodyId, const m3ShapeDef* def, uint8
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
-    if (world->journalActive != 0)
+    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         m3CreateShapeOp record;
         memset(&record, 0, sizeof(record));
@@ -797,7 +813,7 @@ m3ShapeId m3CreatePlaneShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Pla
     }
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || world->types[bodyIndex] != (uint8_t)m3_staticBody)
+    if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
         // A plane on a dynamic body is refused loudly: an infinite
         // shape has no mass.
@@ -881,7 +897,7 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     // The validation wall: both doors pass through here.
     // Only geometry that LIVES in m3ShapeGeom swaps (sphere and
     // capsule, conversions included); interned slabs are immutable.
-    uint8_t current = world->shapeType[slot];
+    uint8_t current = world->shapes.shapeType[slot];
     if (current != (uint8_t)m3_sphereShape && current != (uint8_t)m3_capsuleShape)
     {
         return false;
@@ -915,10 +931,10 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     double oldLo[3];
     double oldHi[3];
     m3ShapeFatAabb(world, slot, oldLo, oldHi);
-    world->shapeType[slot] = type;
+    world->shapes.shapeType[slot] = type;
     m3ShapeGeom fresh = *geom;
     fresh.s2 = 0.0f;
-    world->shapeGeom[slot] = fresh;
+    world->shapes.shapeGeom[slot] = fresh;
     double newLo[3];
     double newHi[3];
     m3ShapeFatAabb(world, slot, newLo, newHi);
@@ -928,11 +944,11 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     double hi[3] = {newHi[0] > oldHi[0] ? newHi[0] : oldHi[0],
                     newHi[1] > oldHi[1] ? newHi[1] : oldHi[1],
                     newHi[2] > oldHi[2] ? newHi[2] : oldHi[2]};
-    int32_t body = world->shapeBody[slot];
+    int32_t body = world->shapes.shapeBody[slot];
     m3RecomputeMass(world, body);
     m3WakeRegionAabb(world, lo, hi);
-    world->awake[body] = 1;
-    world->sleepTimes[body] = 0.0f;
+    world->bodies.awake[body] = 1;
+    world->bodies.sleepTimes[body] = 0.0f;
     return true;
 }
 
@@ -944,8 +960,9 @@ static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeo
         return false;
     }
     int32_t slot = shapeId.index1 - 1;
-    if (slot < 0 || slot >= world->shapePool.maxIndex || world->shapePool.alive[slot] == 0 ||
-        world->shapePool.generations[slot] != shapeId.generation)
+    if (slot < 0 || slot >= world->shapes.shapePool.maxIndex ||
+        world->shapes.shapePool.alive[slot] == 0 ||
+        world->shapes.shapePool.generations[slot] != shapeId.generation)
     {
         return false;
     }
@@ -953,7 +970,7 @@ static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeo
     {
         return false; // refused swaps journal nothing
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -964,7 +981,7 @@ static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeo
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.type = type;
-        record.geom = world->shapeGeom[slot];
+        record.geom = world->shapes.shapeGeom[slot];
         m3JournalRecord(world, m3_opSetShapeGeom, &record, (int32_t)sizeof(record));
     }
     return true;
@@ -1039,8 +1056,8 @@ m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
-    if (world->journalActive != 0)
+    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         m3CreateHullShapeOp record;
         memset(&record, 0, sizeof(record));
@@ -1060,7 +1077,7 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE ||
-        world->types[bodyIndex] != (uint8_t)m3_staticBody)
+        world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
         m3Refuse(world, m3_errorInvalid);
         // Meshes are static world geometry: a dynamic mesh body is
@@ -1112,8 +1129,8 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
-    if (world->journalActive != 0)
+    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         // Exact-size payload: header, then the raw vertex and index
         // arrays (the recipe; replay rebuilds and verifies the id).
@@ -1210,7 +1227,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE || heights == NULL ||
-        world->types[bodyIndex] != (uint8_t)m3_staticBody)
+        world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId; // static bodies only, like meshes
@@ -1273,8 +1290,8 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
-    if (world->journalActive != 0)
+    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         // Variable payload: the fixed head, then the raw samples.
         int32_t sampleBytes = nx * nz * (int32_t)sizeof(float);
@@ -1314,7 +1331,7 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
         m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
-    if (world->types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
+    if (world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
     {
         m3Refuse(world, m3_errorInvalid);
         // Voxel chunks are static level geometry, and sensors are
@@ -1345,8 +1362,8 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
-    if (world->journalActive != 0)
+    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         // Header + the packed grid (bitset and payload): the exact
         // recipe, so replay rebuilds the identical chunk and surface.
@@ -1366,7 +1383,8 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
                            sizeof(((m3VoxelChunkData*)0)->payload) +
                            sizeof(((m3VoxelChunkData*)0)->fill)];
         memcpy(payloadBuf, &record, sizeof(record));
-        const m3VoxelChunkData* stored = &world->voxelData[world->shapeVoxelIndex[index]];
+        const m3VoxelChunkData* stored =
+            &world->voxels.voxelData[world->shapes.shapeVoxelIndex[index]];
         memcpy(payloadBuf + sizeof(record), stored->occupancy, sizeof(stored->occupancy));
         memcpy(payloadBuf + sizeof(record) + sizeof(stored->occupancy), stored->payload,
                sizeof(stored->payload));
@@ -1405,8 +1423,8 @@ m3BodyId m3Shape_GetBody(m3ShapeId shapeId)
         m3Refuse(world, m3_errorInvalid);
         return null;
     }
-    int32_t body = world->shapeBody[slot];
-    m3BodyId id = {body + 1, world->worldIndex0, world->bodyPool.generations[body]};
+    int32_t body = world->shapes.shapeBody[slot];
+    m3BodyId id = {body + 1, world->worldIndex0, world->bodies.bodyPool.generations[body]};
     return id;
 }
 
@@ -1419,14 +1437,14 @@ void m3DestroyShape(m3ShapeId shapeId)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opDestroyShape, &shapeId, (int32_t)sizeof(shapeId));
     }
-    int32_t bodyIndex = world->shapeBody[index];
+    int32_t bodyIndex = world->shapes.shapeBody[index];
     m3DestroyShapeInternal(world, index);
     m3RecomputeMass(world, bodyIndex);
-    if (world->types[bodyIndex] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[bodyIndex] == (uint8_t)m3_dynamicBody)
     {
         m3SetAwakeInternal(world, bodyIndex, 1);
     }
@@ -1436,25 +1454,25 @@ void m3DestroyShape(m3ShapeId shapeId)
 
 void m3SetShapeFrictionInternal(m3World* world, int32_t slot, float value)
 {
-    world->shapeFriction[slot] = value;
+    world->shapes.shapeFriction[slot] = value;
 }
 
 void m3SetShapeRestitutionInternal(m3World* world, int32_t slot, float value)
 {
-    world->shapeRestitution[slot] = value;
+    world->shapes.shapeRestitution[slot] = value;
 }
 
 void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value)
 {
-    world->shapeRollingResistance[slot] = value;
+    world->shapes.shapeRollingResistance[slot] = value;
 }
 
 void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_t updateMass)
 {
-    world->shapeDensity[slot] = value;
+    world->shapes.shapeDensity[slot] = value;
     if (updateMass != 0)
     {
-        m3RecomputeMass(world, world->shapeBody[slot]);
+        m3RecomputeMass(world, world->shapes.shapeBody[slot]);
     }
 }
 
@@ -1480,7 +1498,7 @@ static void ShapeScalarOp(m3ShapeId shapeId, int32_t op, float value)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -1520,7 +1538,7 @@ float m3Shape_GetFriction(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapeFriction[slot] : 0.0f;
+    return world != NULL ? world->shapes.shapeFriction[slot] : 0.0f;
 }
 
 void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution)
@@ -1537,7 +1555,7 @@ float m3Shape_GetRestitution(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapeRestitution[slot] : 0.0f;
+    return world != NULL ? world->shapes.shapeRestitution[slot] : 0.0f;
 }
 
 void m3Shape_SetRollingResistance(m3ShapeId shapeId, float value)
@@ -1554,7 +1572,7 @@ float m3Shape_GetRollingResistance(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapeRollingResistance[slot] : 0.0f;
+    return world != NULL ? world->shapes.shapeRollingResistance[slot] : 0.0f;
 }
 
 void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass)
@@ -1566,7 +1584,7 @@ void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -1587,17 +1605,17 @@ float m3Shape_GetDensity(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapeDensity[slot] : 0.0f;
+    return world != NULL ? world->shapes.shapeDensity[slot] : 0.0f;
 }
 
 void m3EnableShapeHitEventsInternal(m3World* world, int32_t slot, int32_t on)
 {
-    world->shapeHitEvents[slot] = on != 0 ? 1 : 0;
+    world->shapes.shapeHitEvents[slot] = on != 0 ? 1 : 0;
 }
 
 void m3EnableShapePreSolveInternal(m3World* world, int32_t slot, int32_t on)
 {
-    world->shapePreSolve[slot] = on != 0 ? 1 : 0;
+    world->shapes.shapePreSolve[slot] = on != 0 ? 1 : 0;
 }
 
 static void ShapeFlagOp(m3ShapeId shapeId, int32_t op, bool flag)
@@ -1608,7 +1626,7 @@ static void ShapeFlagOp(m3ShapeId shapeId, int32_t op, bool flag)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -1639,7 +1657,7 @@ bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL && world->shapeHitEvents[slot] != 0;
+    return world != NULL && world->shapes.shapeHitEvents[slot] != 0;
 }
 
 void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag)
@@ -1651,7 +1669,7 @@ bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL && world->shapePreSolve[slot] != 0;
+    return world != NULL && world->shapes.shapePreSolve[slot] != 0;
 }
 
 bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
@@ -1665,7 +1683,7 @@ bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
     {
         return false;
     }
-    m3MeshData* mesh = &world->meshData[meshIndex];
+    m3MeshData* mesh = &world->meshes.meshData[meshIndex];
     if (mesh->triangleCount <= 0)
     {
         return false;
@@ -1700,20 +1718,20 @@ void m3Shape_SetMeshMaterials(m3ShapeId shapeId, const m3MeshSurfaceMaterial* ma
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);
     if (world == NULL || materials == NULL || triangleMaterials == NULL ||
-        world->shapeType[slot] != (uint8_t)m3_meshShape)
+        world->shapes.shapeType[slot] != (uint8_t)m3_meshShape)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    int32_t meshIndex = world->shapeMeshIndex[slot];
+    int32_t meshIndex = world->shapes.shapeMeshIndex[slot];
     if (!m3SetMeshMaterialsInternal(world, meshIndex, materials, materialCount, triangleMaterials))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // refused: nothing journals
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
-        int32_t triCount = world->meshData[meshIndex].triangleCount;
+        int32_t triCount = world->meshes.meshData[meshIndex].triangleCount;
         int32_t bytes = (int32_t)sizeof(m3SetMeshMaterialsOp) + triCount;
         uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
         if (payload == NULL)
@@ -1735,9 +1753,9 @@ void m3Shape_SetMeshMaterials(m3ShapeId shapeId, const m3MeshSurfaceMaterial* ma
 
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v)
 {
-    world->shapeSurfaceVel[slot] = v;
-    int32_t body = world->shapeBody[slot];
-    if (world->types[body] == (uint8_t)m3_dynamicBody)
+    world->shapes.shapeSurfaceVel[slot] = v;
+    int32_t body = world->shapes.shapeBody[slot];
+    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
     {
         m3SetAwakeInternal(world, body, 1);
     }
@@ -1752,7 +1770,7 @@ void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {

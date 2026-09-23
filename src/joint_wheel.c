@@ -23,8 +23,8 @@ static void PrepareWheel(m3World* world, m3JointConstraint* c, const m3JointFram
     // (the prismatic half), frame y the fore-aft lock. The
     // spare spherical slots carry the extra axes: swingAxis
     // = suspension world, twistJacobian = fore-aft world.
-    c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->jointFrameQB[j]);
+    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
     m3Vec3 axis = m3RotateVec3(c->frameQA, (m3Vec3){0.0f, 0.0f, 1.0f});
     c->rotationAxis = axis;
     m3Vec3 sum = m3Add3(m3MulMV3(c->invIA, axis), m3MulMV3(c->invIB, axis));
@@ -36,15 +36,15 @@ static void PrepareWheel(m3World* world, m3JointConstraint* c, const m3JointFram
     m3Quat relQ = m3MulQuat(conjA, c->frameQB);
     c->perpAxisX = m3JointPerpColumn(c->frameQA, relQ, (m3Vec3){1.0f, 0.0f, 0.0f});
     c->perpAxisY = m3JointPerpColumn(c->frameQA, relQ, (m3Vec3){0.0f, 1.0f, 0.0f});
-    c->perpImpulseX = world->jointPerpImpulse[j].x;
-    c->perpImpulseY = world->jointPerpImpulse[j].y;
-    c->motorImpulse = world->jointPerpImpulse[j].z;
-    c->lowerImpulse = world->jointLimitImpulse[j].x;
-    c->upperImpulse = world->jointLimitImpulse[j].y;
-    c->motorSpeed = world->jointMotor[j].x;
-    c->maxMotorEffort = world->jointMotor[j].y;
-    c->lowerLimit = world->jointLimits[j].x;
-    c->upperLimit = world->jointLimits[j].y;
+    c->perpImpulseX = world->joints.jointPerpImpulse[j].x;
+    c->perpImpulseY = world->joints.jointPerpImpulse[j].y;
+    c->motorImpulse = world->joints.jointPerpImpulse[j].z;
+    c->lowerImpulse = world->joints.jointLimitImpulse[j].x;
+    c->upperImpulse = world->joints.jointLimitImpulse[j].y;
+    c->motorSpeed = world->joints.jointMotor[j].x;
+    c->maxMotorEffort = world->joints.jointMotor[j].y;
+    c->lowerLimit = world->joints.jointLimits[j].x;
+    c->upperLimit = world->joints.jointLimits[j].y;
     if ((c->flags & M3_JOINT_STEER) != 0)
     {
         // Steering: the wheel slot map. The strut
@@ -53,9 +53,10 @@ static void PrepareWheel(m3World* world, m3JointConstraint* c, const m3JointFram
         // angle rides jointMotor.z, and the warm impulse
         // rides jointSpringImpulse.y beside the suspension
         // spring's x.
-        c->steerSoft = m3MakeSoft(world->jointTargetQ[j].x, world->jointTargetQ[j].y, h);
-        c->steerTarget = world->jointMotor[j].z;
-        c->steerBudget = world->jointTargetQ[j].z;
+        c->steerSoft =
+            m3MakeSoft(world->joints.jointTargetQ[j].x, world->joints.jointTargetQ[j].y, h);
+        c->steerTarget = world->joints.jointMotor[j].z;
+        c->steerBudget = world->joints.jointTargetQ[j].z;
     }
 }
 
@@ -376,10 +377,10 @@ static void SolveWheel(m3World* world, m3JointConstraint* c, const m3JointSolveC
 
     // The wheel has no free point constraint either: write
     // back and continue.
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

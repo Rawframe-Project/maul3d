@@ -5,7 +5,11 @@
 // the speculative band, the fixed tangent basis rule, and the
 // warm-start carry through a full stash-scan-rebuild cycle. White box.
 
+#include "broad_phase.h"
+#include "manifold.h"
+#include "narrowphase.h"
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stdio.h>
@@ -97,36 +101,38 @@ static void TestWarmStartCarry(void)
 
     CHECK(m3UpdatePairs(w) == m3_success, "pairs");
     CHECK(m3UpdateContacts(w, NULL, NULL, 0) == m3_success, "first contact build");
-    CHECK(w->pairCount == 1 && w->manifolds[0].pointCount == 1, "one plane contact");
-    CHECK((w->manifolds[0].points[0].flags & 1) == 0, "a fresh contact is not persisted");
+    CHECK(w->contacts.pairCount == 1 && w->contacts.manifolds[0].pointCount == 1,
+          "one plane contact");
+    CHECK((w->contacts.manifolds[0].points[0].flags & 1) == 0, "a fresh contact is not persisted");
 
     // Inject a solved impulse, then run the full stash-scan-rebuild
     // cycle the step will use (stash BEFORE the pair scan overwrites).
-    w->manifolds[0].points[0].normalImpulse = 3.5f;
+    w->contacts.manifolds[0].points[0].normalImpulse = 3.5f;
     uint64_t stashKeys[4];
     m3Manifold stashManifolds[4];
-    int32_t stashCount = w->pairCount;
-    memcpy(stashKeys, w->pairKeys, (size_t)stashCount * sizeof(uint64_t));
-    memcpy(stashManifolds, w->manifolds, (size_t)stashCount * sizeof(m3Manifold));
+    int32_t stashCount = w->contacts.pairCount;
+    memcpy(stashKeys, w->contacts.pairKeys, (size_t)stashCount * sizeof(uint64_t));
+    memcpy(stashManifolds, w->contacts.manifolds, (size_t)stashCount * sizeof(m3Manifold));
     CHECK(m3UpdatePairs(w) == m3_success, "rescan");
     CHECK(m3UpdateContacts(w, stashKeys, stashManifolds, stashCount) == m3_success, "rebuild");
-    CHECK(NearF(w->manifolds[0].points[0].normalImpulse, 3.5f, 1.0e-6f),
+    CHECK(NearF(w->contacts.manifolds[0].points[0].normalImpulse, 3.5f, 1.0e-6f),
           "the warm-start impulse carries by feature id");
-    CHECK((w->manifolds[0].points[0].flags & 1) == 1, "the carried point is marked persisted");
+    CHECK((w->contacts.manifolds[0].points[0].flags & 1) == 1,
+          "the carried point is marked persisted");
 
     // Separate the pair: the contact and its impulse vanish.
     m3Body_SetLinearVelocity(ball, (m3Vec3){0.0f, 0.0f, 0.0f});
-    w->transforms[ball.index1 - 1].p.y = 10.0;
-    stashCount = w->pairCount;
-    memcpy(stashKeys, w->pairKeys, (size_t)stashCount * sizeof(uint64_t));
-    memcpy(stashManifolds, w->manifolds, (size_t)stashCount * sizeof(m3Manifold));
+    w->bodies.transforms[ball.index1 - 1].p.y = 10.0;
+    stashCount = w->contacts.pairCount;
+    memcpy(stashKeys, w->contacts.pairKeys, (size_t)stashCount * sizeof(uint64_t));
+    memcpy(stashManifolds, w->contacts.manifolds, (size_t)stashCount * sizeof(m3Manifold));
     CHECK(m3UpdatePairs(w) == m3_success, "rescan after separation");
     CHECK(m3UpdateContacts(w, stashKeys, stashManifolds, stashCount) == m3_success,
           "rebuild after separation");
     int32_t contacts = 0;
-    for (int32_t i = 0; i < w->pairCount; ++i)
+    for (int32_t i = 0; i < w->contacts.pairCount; ++i)
     {
-        contacts += w->manifolds[i].pointCount;
+        contacts += w->contacts.manifolds[i].pointCount;
     }
     CHECK(contacts == 0, "a separated pair carries nothing");
 

@@ -7,7 +7,14 @@
 // resolution from a body id goes by slot (m3WorldFromIndex0): the body
 // id carries its own generation, the world slot does not need one.
 
+#include "body.h"
+#include "broad_phase.h"
+#include "joint.h"
 #include "journal.h"
+#include "shape.h"
+#include "solver.h"
+#include "vehicle.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -16,7 +23,7 @@ int32_t m3BodySlot(const m3World* world, m3BodyId bodyId)
 {
     int32_t index = bodyId.index1 - 1;
     if (world == NULL || bodyId.world0 != world->worldIndex0 ||
-        !m3IdPoolValid(&world->bodyPool, index, bodyId.generation))
+        !m3IdPoolValid(&world->bodies.bodyPool, index, bodyId.generation))
     {
         return -1;
     }
@@ -67,107 +74,110 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     {
         return -1;
     }
-    int32_t index = m3IdPoolAlloc(&world->bodyPool);
+    int32_t index = m3IdPoolAlloc(&world->bodies.bodyPool);
     if (index < 0)
     {
         return -1; // pool exhausted: the caller fails loudly
     }
-    world->transforms[index].p = def->position;
-    world->transforms[index].q = m3NormalizeQuat(def->rotation);
-    world->linearVelocities[index] = def->linearVelocity;
-    world->angularVelocities[index] = def->angularVelocity;
+    world->bodies.transforms[index].p = def->position;
+    world->bodies.transforms[index].q = m3NormalizeQuat(def->rotation);
+    world->bodies.linearVelocities[index] = def->linearVelocity;
+    world->bodies.angularVelocities[index] = def->angularVelocity;
     // A shapeless dynamic body has unit mass and zero inertia; its
     // shapes replace this when they are added.
-    world->invMass[index] = def->type == m3_dynamicBody ? 1.0f : 0.0f;
-    world->invInertiaLocal[index] = m3MakeZeroMat3();
-    world->inertiaLocal[index] = m3MakeZeroMat3();
-    world->bulletFlags[index] = 0;
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
-    world->minExtents[index] = 1.0e30f;
-    world->maxExtents[index] = 0.0f;
-    world->localCenters[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->gravityScales[index] = def->gravityScale;
-    world->linearDamping[index] = def->linearDamping;
-    world->angularDamping[index] = def->angularDamping;
-    world->types[index] = (uint8_t)def->type;
-    world->bulletFlags[index] = def->isBullet ? 1 : 0;
-    world->userData[index] = def->userData;
-    world->bodyEnabled[index] = 1;
-    world->bodyLocks[index] = 0;
-    world->bodyIsland[index] = -1; // observer label
-    memset(world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0, M3_BODY_NAME_CAPACITY);
-    world->bodySleepThreshold[index] = M3_SLEEP_VELOCITY_DEFAULT;
-    world->bodyCanSleep[index] = 1;
-    world->bodyHasTarget[index] = 0;
-    world->bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
-    world->bodyShapeHead[index] = -1;
+    world->bodies.invMass[index] = def->type == m3_dynamicBody ? 1.0f : 0.0f;
+    world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
+    world->bodies.inertiaLocal[index] = m3MakeZeroMat3();
+    world->bodies.bulletFlags[index] = 0;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.minExtents[index] = 1.0e30f;
+    world->bodies.maxExtents[index] = 0.0f;
+    world->bodies.localCenters[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.gravityScales[index] = def->gravityScale;
+    world->bodies.linearDamping[index] = def->linearDamping;
+    world->bodies.angularDamping[index] = def->angularDamping;
+    world->bodies.types[index] = (uint8_t)def->type;
+    world->bodies.bulletFlags[index] = def->isBullet ? 1 : 0;
+    world->bodies.userData[index] = def->userData;
+    world->bodies.bodyEnabled[index] = 1;
+    world->bodies.bodyLocks[index] = 0;
+    world->bodies.bodyIsland[index] = -1; // observer label
+    memset(world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0,
+           M3_BODY_NAME_CAPACITY);
+    world->bodies.bodySleepThreshold[index] = M3_SLEEP_VELOCITY_DEFAULT;
+    world->bodies.bodyCanSleep[index] = 1;
+    world->bodies.bodyHasTarget[index] = 0;
+    world->bodies.bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    world->bodies.bodyShapeHead[index] = -1;
     return index;
 }
 
 void m3DestroyBodyInternal(m3World* world, int32_t index)
 {
     // Destroy attached joints first (the cascade, like shapes).
-    while (world->bodyJointHead[index] != -1)
+    while (world->joints.bodyJointHead[index] != -1)
     {
-        m3DestroyJointInternal(world, world->bodyJointHead[index]);
+        m3DestroyJointInternal(world, world->joints.bodyJointHead[index]);
     }
     // Cascade: a body takes its shapes with it (each destroy unlinks
     // the list head, so this drains deterministically).
-    while (world->bodyShapeHead[index] != -1)
+    while (world->bodies.bodyShapeHead[index] != -1)
     {
-        m3DestroyShapeInternal(world, world->bodyShapeHead[index]);
+        m3DestroyShapeInternal(world, world->bodies.bodyShapeHead[index]);
     }
     // Zero the slot so recycled state can never leak into a new body
     // or into the snapshot bytes.
-    world->transforms[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
-    world->linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->invMass[index] = 0.0f;
-    world->invInertiaLocal[index] = m3MakeZeroMat3();
-    world->inertiaLocal[index] = m3MakeZeroMat3();
-    world->bulletFlags[index] = 0;
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
-    world->minExtents[index] = 1.0e30f;
-    world->maxExtents[index] = 0.0f;
-    world->localCenters[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->gravityScales[index] = 0.0f;
-    world->linearDamping[index] = 0.0f;
-    world->angularDamping[index] = 0.0f;
-    world->types[index] = 0;
-    world->userData[index] = 0;
-    world->bodyForce[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->bodyTorque[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->bodyEnabled[index] = 0;
-    world->bodyLocks[index] = 0;
-    world->bodyIsland[index] = -1; // observer label
-    memset(world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0, M3_BODY_NAME_CAPACITY);
-    world->bodySleepThreshold[index] = 0.0f;
-    world->bodyCanSleep[index] = 0;
-    world->bodyHasTarget[index] = 0;
-    world->bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    world->bodies.transforms[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.invMass[index] = 0.0f;
+    world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
+    world->bodies.inertiaLocal[index] = m3MakeZeroMat3();
+    world->bodies.bulletFlags[index] = 0;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.minExtents[index] = 1.0e30f;
+    world->bodies.maxExtents[index] = 0.0f;
+    world->bodies.localCenters[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.gravityScales[index] = 0.0f;
+    world->bodies.linearDamping[index] = 0.0f;
+    world->bodies.angularDamping[index] = 0.0f;
+    world->bodies.types[index] = 0;
+    world->bodies.userData[index] = 0;
+    world->bodies.bodyForce[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.bodyTorque[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.bodyEnabled[index] = 0;
+    world->bodies.bodyLocks[index] = 0;
+    world->bodies.bodyIsland[index] = -1; // observer label
+    memset(world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0,
+           M3_BODY_NAME_CAPACITY);
+    world->bodies.bodySleepThreshold[index] = 0.0f;
+    world->bodies.bodyCanSleep[index] = 0;
+    world->bodies.bodyHasTarget[index] = 0;
+    world->bodies.bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
     // Characters standing on this body lose their ground reference
     // NOW: the generation guard would catch a recycled slot,
     // but a cleared reference never even asks.
-    for (int32_t c = 0; c < world->charPool.maxIndex; ++c)
+    for (int32_t c = 0; c < world->characters.charPool.maxIndex; ++c)
     {
-        if (world->charPool.alive[c] != 0 && world->charGroundBody[c] == index)
+        if (world->characters.charPool.alive[c] != 0 &&
+            world->characters.charGroundBody[c] == index)
         {
-            world->charGroundBody[c] = -1;
-            world->charGroundGen[c] = 0;
+            world->characters.charGroundBody[c] = -1;
+            world->characters.charGroundGen[c] = 0;
         }
     }
     // A chassis takes its vehicle with it: the cascade rule,
     // same as shapes and joints, in ascending slot order.
-    for (int32_t v = 0; v < world->vehPool.maxIndex; ++v)
+    for (int32_t v = 0; v < world->vehicles.vehPool.maxIndex; ++v)
     {
-        if (world->vehPool.alive[v] != 0 && world->vehChassis[v] == index)
+        if (world->vehicles.vehPool.alive[v] != 0 && world->vehicles.vehChassis[v] == index)
         {
             m3DestroyVehicleInternal(world, v);
         }
     }
-    m3IdPoolFree(&world->bodyPool, index);
+    m3IdPoolFree(&world->bodies.bodyPool, index);
 }
 
 // Runtime control internals: replay and the wrappers share
@@ -178,21 +188,21 @@ void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3])
     // overlaps the region (the voxel-edit wake idea without the
     // tree: position plus max extent is a fair, deterministic
     // over-approximation). Serial, ascending slots: canonical.
-    int32_t maxBody = world->bodyPool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     for (int32_t b = 0; b < maxBody; ++b)
     {
-        if (world->bodyPool.alive[b] == 0 || world->types[b] != (uint8_t)m3_dynamicBody ||
-            world->awake[b] != 0)
+        if (world->bodies.bodyPool.alive[b] == 0 ||
+            world->bodies.types[b] != (uint8_t)m3_dynamicBody || world->bodies.awake[b] != 0)
         {
             continue;
         }
-        double r = (double)world->maxExtents[b] + (double)M3_AABB_MARGIN;
-        const m3Pos3* pp = &world->transforms[b].p;
+        double r = (double)world->bodies.maxExtents[b] + (double)M3_AABB_MARGIN;
+        const m3Pos3* pp = &world->bodies.transforms[b].p;
         if (pp->x - r <= hi[0] && pp->x + r >= lo[0] && pp->y - r <= hi[1] && pp->y + r >= lo[1] &&
             pp->z - r <= hi[2] && pp->z + r >= lo[2])
         {
-            world->awake[b] = 1;
-            world->sleepTimes[b] = 0.0f;
+            world->bodies.awake[b] = 1;
+            world->bodies.sleepTimes[b] = 0.0f;
         }
     }
 }
@@ -200,13 +210,13 @@ void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3])
 static void BodyRegion(m3World* world, int32_t index, double lo[3], double hi[3])
 {
     // A generous body region: position plus max extent plus margin.
-    double r = (double)world->maxExtents[index] + 4.0 * (double)M3_AABB_MARGIN;
-    lo[0] = world->transforms[index].p.x - r;
-    lo[1] = world->transforms[index].p.y - r;
-    lo[2] = world->transforms[index].p.z - r;
-    hi[0] = world->transforms[index].p.x + r;
-    hi[1] = world->transforms[index].p.y + r;
-    hi[2] = world->transforms[index].p.z + r;
+    double r = (double)world->bodies.maxExtents[index] + 4.0 * (double)M3_AABB_MARGIN;
+    lo[0] = world->bodies.transforms[index].p.x - r;
+    lo[1] = world->bodies.transforms[index].p.y - r;
+    lo[2] = world->bodies.transforms[index].p.z - r;
+    hi[0] = world->bodies.transforms[index].p.x + r;
+    hi[1] = world->bodies.transforms[index].p.y + r;
+    hi[2] = world->bodies.transforms[index].p.z + r;
 }
 
 void m3SetTransformInternal(m3World* world, int32_t index, m3Transform pose)
@@ -215,24 +225,24 @@ void m3SetTransformInternal(m3World* world, int32_t index, m3Transform pose)
     double hi[3];
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi); // the vacated neighborhood
-    world->transforms[index] = pose;
+    world->bodies.transforms[index] = pose;
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi); // the arrival neighborhood
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m3SetTargetTransformInternal(m3World* world, int32_t index, m3Transform pose)
 {
-    world->bodyHasTarget[index] = 1;
-    world->bodyTarget[index] = pose;
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.bodyHasTarget[index] = 1;
+    world->bodies.bodyTarget[index] = pose;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
 {
-    if (world->types[index] == type)
+    if (world->bodies.types[index] == type)
     {
         return;
     }
@@ -240,13 +250,13 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
     double hi[3];
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi);
-    world->types[index] = type;
+    world->bodies.types[index] = type;
     if (type == (uint8_t)m3_staticBody)
     {
-        world->linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->invMass[index] = 0.0f;
-        world->invInertiaLocal[index] = m3MakeZeroMat3();
+        world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.invMass[index] = 0.0f;
+        world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
     }
     else
     {
@@ -258,30 +268,30 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
         }
         else
         {
-            world->invMass[index] = 0.0f;
-            world->invInertiaLocal[index] = m3MakeZeroMat3();
+            world->bodies.invMass[index] = 0.0f;
+            world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
         }
     }
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m3SetEnabledInternal(m3World* world, int32_t index, int enabled)
 {
     uint8_t want = enabled ? 1 : 0;
-    if (world->bodyEnabled[index] == want)
+    if (world->bodies.bodyEnabled[index] == want)
     {
         return;
     }
-    world->bodyEnabled[index] = want;
+    world->bodies.bodyEnabled[index] = want;
     double lo[3];
     double hi[3];
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi);
     if (want)
     {
-        world->awake[index] = 1;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.awake[index] = 1;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 }
 
@@ -289,10 +299,11 @@ void m3SetMotionLocksInternal(m3World* world, int32_t index, uint8_t locks)
 {
     // Bit 6 is allowFastRotation, owned by its own op; a
     // locks write must not clobber it.
-    world->bodyLocks[index] =
-        (uint8_t)((world->bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) | (locks & 0x3Fu));
-    m3Vec3* v = &world->linearVelocities[index];
-    m3Vec3* w = &world->angularVelocities[index];
+    world->bodies.bodyLocks[index] =
+        (uint8_t)((world->bodies.bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) |
+                  (locks & 0x3Fu));
+    m3Vec3* v = &world->bodies.linearVelocities[index];
+    m3Vec3* w = &world->bodies.angularVelocities[index];
     if (locks & 1u)
         v->x = 0.0f;
     if (locks & 2u)
@@ -309,12 +320,13 @@ void m3SetMotionLocksInternal(m3World* world, int32_t index, uint8_t locks)
 
 void m3SetSleepControlsInternal(m3World* world, int32_t index, float threshold, int canSleep)
 {
-    world->bodySleepThreshold[index] = threshold > 0.0f ? threshold : M3_SLEEP_VELOCITY_DEFAULT;
-    world->bodyCanSleep[index] = canSleep ? 1 : 0;
+    world->bodies.bodySleepThreshold[index] =
+        threshold > 0.0f ? threshold : M3_SLEEP_VELOCITY_DEFAULT;
+    world->bodies.bodyCanSleep[index] = canSleep ? 1 : 0;
     if (!canSleep)
     {
-        world->awake[index] = 1;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.awake[index] = 1;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 }
 
@@ -322,14 +334,14 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
 {
     if (awake)
     {
-        world->awake[index] = 1;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.awake[index] = 1;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
     else
     {
-        world->awake[index] = 0;
-        world->linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.awake[index] = 0;
+        world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
         // Every freeze, API-forced ones included, records its
         // cold pairs or the frozen buffer stops being a pure
         // function of the sleeping state.
@@ -341,41 +353,42 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
 // public wrappers share exactly one application path.
 static int ForceTargetValid(m3World* world, int32_t index)
 {
-    return world->types[index] == (uint8_t)m3_dynamicBody && world->invMass[index] > 0.0f;
+    return world->bodies.types[index] == (uint8_t)m3_dynamicBody &&
+           world->bodies.invMass[index] > 0.0f;
 }
 
 static void ForceWake(m3World* world, int32_t index, m3Vec3 a, m3Vec3 b)
 {
     if (a.x != 0.0f || a.y != 0.0f || a.z != 0.0f || b.x != 0.0f || b.y != 0.0f || b.z != 0.0f)
     {
-        world->awake[index] = 1;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.awake[index] = 1;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 }
 
 void m3ApplyForceInternal(m3World* world, int32_t index, m3Vec3 force)
 {
-    world->bodyForce[index] = m3Add3(world->bodyForce[index], force);
+    world->bodies.bodyForce[index] = m3Add3(world->bodies.bodyForce[index], force);
     ForceWake(world, index, force, (m3Vec3){0.0f, 0.0f, 0.0f});
 }
 
 void m3ApplyTorqueInternal(m3World* world, int32_t index, m3Vec3 torque)
 {
-    world->bodyTorque[index] = m3Add3(world->bodyTorque[index], torque);
+    world->bodies.bodyTorque[index] = m3Add3(world->bodies.bodyTorque[index], torque);
     ForceWake(world, index, torque, (m3Vec3){0.0f, 0.0f, 0.0f});
 }
 
 void m3ApplyLinearImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse)
 {
-    world->linearVelocities[index] =
-        m3Add3(world->linearVelocities[index], m3MulSV3(world->invMass[index], impulse));
+    world->bodies.linearVelocities[index] = m3Add3(world->bodies.linearVelocities[index],
+                                                   m3MulSV3(world->bodies.invMass[index], impulse));
     ForceWake(world, index, impulse, (m3Vec3){0.0f, 0.0f, 0.0f});
 }
 
 void m3ApplyAngularImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse)
 {
-    world->angularVelocities[index] =
-        m3Add3(world->angularVelocities[index], m3MulMV3(m3WorldInvInertia(world, index), impulse));
+    world->bodies.angularVelocities[index] = m3Add3(
+        world->bodies.angularVelocities[index], m3MulMV3(m3WorldInvInertia(world, index), impulse));
     ForceWake(world, index, impulse, (m3Vec3){0.0f, 0.0f, 0.0f});
 }
 
@@ -383,26 +396,26 @@ void m3ApplyAngularImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse
 // the COM adds no spin, wherever the body origin sits.
 static m3Vec3 ForceArm(const m3World* world, int32_t index, m3Pos3 point)
 {
-    m3Vec3 rlc = m3RotateVec3(world->transforms[index].q, world->localCenters[index]);
-    return (m3Vec3){(m3real)(point.x - world->transforms[index].p.x) - rlc.x,
-                    (m3real)(point.y - world->transforms[index].p.y) - rlc.y,
-                    (m3real)(point.z - world->transforms[index].p.z) - rlc.z};
+    m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[index].q, world->bodies.localCenters[index]);
+    return (m3Vec3){(m3real)(point.x - world->bodies.transforms[index].p.x) - rlc.x,
+                    (m3real)(point.y - world->bodies.transforms[index].p.y) - rlc.y,
+                    (m3real)(point.z - world->bodies.transforms[index].p.z) - rlc.z};
 }
 
 void m3ApplyForceAtPointInternal(m3World* world, int32_t index, m3Vec3 force, m3Pos3 point)
 {
-    world->bodyForce[index] = m3Add3(world->bodyForce[index], force);
-    world->bodyTorque[index] =
-        m3Add3(world->bodyTorque[index], m3Cross3(ForceArm(world, index, point), force));
+    world->bodies.bodyForce[index] = m3Add3(world->bodies.bodyForce[index], force);
+    world->bodies.bodyTorque[index] =
+        m3Add3(world->bodies.bodyTorque[index], m3Cross3(ForceArm(world, index, point), force));
     ForceWake(world, index, force, (m3Vec3){0.0f, 0.0f, 0.0f});
 }
 
 void m3ApplyImpulseAtPointInternal(m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point)
 {
-    world->linearVelocities[index] =
-        m3Add3(world->linearVelocities[index], m3MulSV3(world->invMass[index], impulse));
-    world->angularVelocities[index] =
-        m3Add3(world->angularVelocities[index],
+    world->bodies.linearVelocities[index] = m3Add3(world->bodies.linearVelocities[index],
+                                                   m3MulSV3(world->bodies.invMass[index], impulse));
+    world->bodies.angularVelocities[index] =
+        m3Add3(world->bodies.angularVelocities[index],
                m3MulMV3(m3WorldInvInertia(world, index),
                         m3Cross3(ForceArm(world, index, point), impulse)));
     ForceWake(world, index, impulse, (m3Vec3){0.0f, 0.0f, 0.0f});
@@ -410,16 +423,16 @@ void m3ApplyImpulseAtPointInternal(m3World* world, int32_t index, m3Vec3 impulse
 
 void m3SetLinearVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity)
 {
-    world->awake[index] = 1; // a commanded velocity always wakes
-    world->sleepTimes[index] = 0.0f;
-    world->linearVelocities[index] = velocity;
+    world->bodies.awake[index] = 1; // a commanded velocity always wakes
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.linearVelocities[index] = velocity;
 }
 
 void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity)
 {
-    world->awake[index] = 1;
-    world->sleepTimes[index] = 0.0f;
-    world->angularVelocities[index] = velocity;
+    world->bodies.awake[index] = 1;
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.angularVelocities[index] = velocity;
 }
 
 m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
@@ -454,8 +467,8 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullBodyId;
     }
-    m3BodyId id = {index + 1, world->worldIndex0, world->bodyPool.generations[index]};
-    if (world->journalActive != 0)
+    m3BodyId id = {index + 1, world->worldIndex0, world->bodies.bodyPool.generations[index]};
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -478,7 +491,7 @@ void m3DestroyBody(m3BodyId bodyId)
     {
         return; // stale or foreign id: contract, not invariant
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opDestroyBody, &bodyId, (int32_t)sizeof(bodyId));
     }
@@ -495,42 +508,42 @@ m3Pos3 m3Body_GetPosition(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->transforms[index].p : (m3Pos3){0.0, 0.0, 0.0};
+    return world != NULL ? world->bodies.transforms[index].p : (m3Pos3){0.0, 0.0, 0.0};
 }
 
 m3Quat m3Body_GetRotation(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->transforms[index].q : m3MakeIdentityQuat();
+    return world != NULL ? world->bodies.transforms[index].q : m3MakeIdentityQuat();
 }
 
 m3Vec3 m3Body_GetLinearVelocity(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->linearVelocities[index] : (m3Vec3){0.0f, 0.0f, 0.0f};
+    return world != NULL ? world->bodies.linearVelocities[index] : (m3Vec3){0.0f, 0.0f, 0.0f};
 }
 
 m3Vec3 m3Body_GetAngularVelocity(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->angularVelocities[index] : (m3Vec3){0.0f, 0.0f, 0.0f};
+    return world != NULL ? world->bodies.angularVelocities[index] : (m3Vec3){0.0f, 0.0f, 0.0f};
 }
 
 uint64_t m3Body_GetUserData(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->userData[index] : 0;
+    return world != NULL ? world->bodies.userData[index] : 0;
 }
 
 m3BodyType m3Body_GetType(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? (m3BodyType)world->types[index] : m3_staticBody;
+    return world != NULL ? (m3BodyType)world->bodies.types[index] : m3_staticBody;
 }
 
 // The shared force and impulse wrapper: resolve, refuse hostiles and
@@ -549,7 +562,7 @@ void m3Body_SetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation)
         return;
     }
     m3Transform pose = {position, rotation};
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -570,14 +583,14 @@ void m3Body_SetTargetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation
     m3World* world = ResolveBody(bodyId, &index);
     m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
                 rotation.w * rotation.w;
-    if (world == NULL || world->types[index] != (uint8_t)m3_kinematicBody ||
+    if (world == NULL || world->bodies.types[index] != (uint8_t)m3_kinematicBody ||
         !m3FinitePos3(position) || !m3FiniteQuat(rotation) || !(qq > 0.98f) || !(qq < 1.02f))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // kinematic bodies only: the servo contract
     }
     m3Transform pose = {position, rotation};
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -602,7 +615,7 @@ void m3Body_SetType(m3BodyId bodyId, m3BodyType type)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -625,7 +638,7 @@ void m3Body_SetEnabled(m3BodyId bodyId, bool enabled)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -644,7 +657,7 @@ bool m3Body_IsEnabled(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL && world->bodyEnabled[index] != 0;
+    return world != NULL && world->bodies.bodyEnabled[index] != 0;
 }
 
 void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks)
@@ -656,7 +669,7 @@ void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks)
         m3Refuse(world, m3_errorInvalid);
         return; // only the six lock bits exist
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -675,19 +688,19 @@ uint32_t m3Body_GetMotionLocks(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? (uint32_t)(world->bodyLocks[index] & 0x3Fu) : 0u;
+    return world != NULL ? (uint32_t)(world->bodies.bodyLocks[index] & 0x3Fu) : 0u;
 }
 
 void m3SetAllowFastRotationInternal(m3World* world, int32_t index, int32_t allow)
 {
     if (allow != 0)
     {
-        world->bodyLocks[index] |= (uint8_t)M3_LOCKS_ALLOW_FAST_ROTATION;
+        world->bodies.bodyLocks[index] |= (uint8_t)M3_LOCKS_ALLOW_FAST_ROTATION;
     }
     else
     {
-        world->bodyLocks[index] =
-            (uint8_t)(world->bodyLocks[index] & ~M3_LOCKS_ALLOW_FAST_ROTATION);
+        world->bodies.bodyLocks[index] =
+            (uint8_t)(world->bodies.bodyLocks[index] & ~M3_LOCKS_ALLOW_FAST_ROTATION);
     }
 }
 
@@ -699,7 +712,7 @@ void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -718,12 +731,12 @@ bool m3Body_GetAllowFastRotation(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL && (world->bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) != 0;
+    return world != NULL && (world->bodies.bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) != 0;
 }
 
 void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name)
 {
-    char* slot = world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY;
+    char* slot = world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY;
     memset(slot, 0, M3_BODY_NAME_CAPACITY);
     if (name != NULL)
     {
@@ -744,7 +757,7 @@ void m3Body_SetName(m3BodyId bodyId, const char* name)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -769,7 +782,7 @@ const char* m3Body_GetName(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL ? world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY : "";
+    return world != NULL ? world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY : "";
 }
 
 void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep)
@@ -781,7 +794,7 @@ void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -802,19 +815,19 @@ bool m3Body_IsAwake(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    return world != NULL && world->awake[index] != 0;
+    return world != NULL && world->bodies.awake[index] != 0;
 }
 
 void m3Body_SetAwake(m3BodyId bodyId, bool awake)
 {
     int32_t index;
     m3World* world = ResolveBody(bodyId, &index);
-    if (world == NULL || world->types[index] != (uint8_t)m3_dynamicBody)
+    if (world == NULL || world->bodies.types[index] != (uint8_t)m3_dynamicBody)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -838,7 +851,7 @@ void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -862,7 +875,7 @@ void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -886,7 +899,7 @@ void m3Body_ApplyLinearImpulse(m3BodyId bodyId, m3Vec3 impulse)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -910,7 +923,7 @@ void m3Body_ApplyAngularImpulse(m3BodyId bodyId, m3Vec3 impulse)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -935,7 +948,7 @@ void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -962,7 +975,7 @@ void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 po
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -992,7 +1005,7 @@ void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
         m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -1020,7 +1033,7 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
         m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {

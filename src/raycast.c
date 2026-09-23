@@ -10,6 +10,9 @@
 // performance refinement that joins the BVH work when profiles ask.
 // Front faces only, everywhere: winding is a contract.
 
+#include "raycast.h"
+#include "shape.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <float.h>
@@ -375,17 +378,17 @@ typedef struct m3RayCastContext
 static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
 {
     m3World* world = ctx->world;
-    int32_t body = world->shapeBody[shape];
+    int32_t body = world->shapes.shapeBody[shape];
     if (body == ctx->ignoreBody)
     {
         return; // the caller's own body never blocks its ray
     }
-    if (world->bodyEnabled[body] == 0)
+    if (world->bodies.bodyEnabled[body] == 0)
     {
         return; // disabled bodies are invisible to rays
     }
-    if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits, world->shapeCategory[shape],
-                      world->shapeMask[shape]))
+    if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
+                      world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]))
     {
         return; // filtered out
     }
@@ -399,38 +402,39 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     m3Vec3 d = m3InvRotateVec3(xf->q, ctx->translation);
 
     m3RayLocalHit local = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_sphereShape)
     {
-        local = RaySphere(o, d, world->shapeGeom[shape].v, world->shapeGeom[shape].s);
+        local = RaySphere(o, d, world->shapes.shapeGeom[shape].v, world->shapes.shapeGeom[shape].s);
     }
     else if (type == (uint8_t)m3_capsuleShape)
     {
-        local = RayCapsule(o, d, world->shapeGeom[shape].v, world->shapeGeom[shape].v2,
-                           world->shapeGeom[shape].s);
+        local = RayCapsule(o, d, world->shapes.shapeGeom[shape].v,
+                           world->shapes.shapeGeom[shape].v2, world->shapes.shapeGeom[shape].s);
     }
     else if (type == (uint8_t)m3_hullShape)
     {
-        local = RayHull(o, d, &world->hullData[world->shapeHullIndex[shape]]);
+        local = RayHull(o, d, &world->hulls.hullData[world->shapes.shapeHullIndex[shape]]);
     }
     else if (type == (uint8_t)m3_meshShape)
     {
-        local = RayMesh(o, d, &world->meshData[world->shapeMeshIndex[shape]],
-                        &world->meshBvh[world->shapeMeshIndex[shape]]);
+        local = RayMesh(o, d, &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]],
+                        &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]]);
     }
     else if (type == (uint8_t)m3_heightFieldShape)
     {
-        local = RayHeightField(o, d, &world->hfData[world->shapeHfIndex[shape]]);
+        local =
+            RayHeightField(o, d, &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]]);
     }
     else if (type == (uint8_t)m3_voxelShape)
     {
-        local = RayVoxel(o, d, &world->voxelSurface[world->shapeVoxelIndex[shape]],
-                         world->voxelData[world->shapeVoxelIndex[shape]].cellSize);
+        local = RayVoxel(o, d, &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]],
+                         world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize);
     }
     else if (type == (uint8_t)m3_planeShape)
     {
-        m3Vec3 n = world->shapeGeom[shape].v;
-        m3real dist = m3Dot3(n, o) - world->shapeGeom[shape].s;
+        m3Vec3 n = world->shapes.shapeGeom[shape].v;
+        m3real dist = m3Dot3(n, o) - world->shapes.shapeGeom[shape].s;
         m3real denom = m3Dot3(n, d);
         if (dist >= 0.0f && denom < 0.0f)
         {
@@ -460,7 +464,7 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     ctx->best.point.y = ctx->origin.y + (double)(local.fraction * ctx->translation.y);
     ctx->best.point.z = ctx->origin.z + (double)(local.fraction * ctx->translation.z);
     ctx->best.shape =
-        (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+        (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
     ctx->bestShape = shape;
 }
 
@@ -525,12 +529,13 @@ m3RayHit m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
     hi[0] = origin.x > ex ? origin.x : ex;
     hi[1] = origin.y > ey ? origin.y : ey;
     hi[2] = origin.z > ez ? origin.z : ez;
-    m3TreeQuery(&world->tree, lo, hi, RayQueryCallback, &ctx);
+    m3TreeQuery(&world->broadphase.tree, lo, hi, RayQueryCallback, &ctx);
 
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape)
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
         {
             RayTestShape(&ctx, s);
         }

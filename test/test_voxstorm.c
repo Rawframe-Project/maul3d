@@ -11,6 +11,8 @@
 // sanitizer cells run all of it with teeth.
 
 #include "test_harness.h"
+#include "voxel.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stdio.h>
@@ -36,7 +38,7 @@ static m3WorldId StormWorld(int32_t voxelCap)
 static const m3VoxelSurface* SurfaceOf(m3WorldId worldId, m3ShapeId shape)
 {
     m3World* world = m3WorldFromId(worldId);
-    return &world->voxelSurface[world->shapeVoxelIndex[shape.index1 - 1]];
+    return &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape.index1 - 1]];
 }
 
 static void TestNegativeAndEdgeCoordinates(void)
@@ -120,7 +122,8 @@ static void TestAnchorConventionPinned(void)
     m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
     CHECK(m3Shape_IsValid(chunkShape), "the floating platform survives creation");
     m3World* wp = m3WorldFromId(world);
-    const m3VoxelChunkData* chunk = &wp->voxelData[wp->shapeVoxelIndex[chunkShape.index1 - 1]];
+    const m3VoxelChunkData* chunk =
+        &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
     CHECK(chunk->filledCount == 5, "all five voxels stand before any edit");
 
     // Clearing an EMPTY voxel is a no-op: no occupancy change, no
@@ -161,7 +164,7 @@ static void TestFractureStorms(void)
     CHECK(events[0].voxelCount == 4096 - 256, "the island is the whole upper block");
     CHECK(events[0].recipeStart >= 0, "a 3840-voxel recipe still fits the buffer");
     m3World* wp = m3WorldFromId(world);
-    CHECK(wp->voxelData[wp->shapeVoxelIndex[full.index1 - 1]].filledCount == 0,
+    CHECK(wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[full.index1 - 1]].filledCount == 0,
           "the storm empties the grid");
     CHECK(m3World_FragmentEventsDropped(world) == 0, "storm one drops nothing");
     m3DestroyWorld(world);
@@ -194,7 +197,7 @@ static void TestFractureStorms(void)
     CHECK(m3World_FragmentEventsDropped(world2) == 448 - M3_FRAGMENT_EVENT_CAP,
           "the surplus is counted loudly");
     m3World* wp2 = m3WorldFromId(world2);
-    CHECK(wp2->voxelData[wp2->shapeVoxelIndex[cloud.index1 - 1]].filledCount == 0,
+    CHECK(wp2->voxels.voxelData[wp2->shapes.shapeVoxelIndex[cloud.index1 - 1]].filledCount == 0,
           "EVERY stud left the grid: the removal never truncates");
     CHECK(events[0].voxelCount == 1 && events[0].boundsLo[1] == 2,
           "the first event is the lowest canonical seed");
@@ -360,15 +363,15 @@ static uint64_t RunEditStorm(void)
     // the incremental state and derived data must equal a
     // from-scratch rebuild, byte for byte.
     m3World* wp = m3WorldFromId(world);
-    int32_t slot = wp->shapeVoxelIndex[chunkShape.index1 - 1];
-    const m3VoxelChunkData* chunk = &wp->voxelData[slot];
+    int32_t slot = wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1];
+    const m3VoxelChunkData* chunk = &wp->voxels.voxelData[slot];
     CHECK(chunk->filledCount == PopCount(chunk), "filled count equals the popcount");
     // Build takes ownership (it frees the
     // previous tree), so the scratch surface must start zeroed.
     m3VoxelSurface* fresh = (m3VoxelSurface*)calloc(1, sizeof(m3VoxelSurface));
     m3VoxelSurfaceBuild(fresh, chunk);
-    CHECK(memcmp(fresh->boxLo, wp->voxelSurface[slot].boxLo, sizeof(fresh->boxLo)) == 0 &&
-              fresh->boxCount == wp->voxelSurface[slot].boxCount,
+    CHECK(memcmp(fresh->boxLo, wp->voxels.voxelSurface[slot].boxLo, sizeof(fresh->boxLo)) == 0 &&
+              fresh->boxCount == wp->voxels.voxelSurface[slot].boxCount,
           "the incremental surface equals the from-scratch build");
     m3MeshBvhFree(&fresh->bvh);
     free(fresh);

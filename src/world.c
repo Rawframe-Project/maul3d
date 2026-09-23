@@ -7,6 +7,8 @@
 // described once in the state table (world_state.c), and a journal whose replay goes through the
 // same internal functions the public API uses.
 
+#include "world.h"
+#include "body.h"
 #include "journal.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -65,33 +67,35 @@ m3WorldDef m3DefaultWorldDef(void)
 static void FreeWorldStorage(m3World* world)
 {
     // Per-slot content first, while the arrays that hold it still exist.
-    for (int32_t hf = 0; world->hfData != NULL && hf < world->shapeCapacity; ++hf)
+    for (int32_t hf = 0; world->heightFields.hfData != NULL && hf < world->shapes.shapeCapacity;
+         ++hf)
     {
-        m3HeightFieldDataFree(&world->hfData[hf]);
+        m3HeightFieldDataFree(&world->heightFields.hfData[hf]);
     }
-    for (int32_t m = 0;
-         world->meshData != NULL && world->meshBvh != NULL && m < world->meshCapacity; ++m)
+    for (int32_t m = 0; world->meshes.meshData != NULL && world->meshes.meshBvh != NULL &&
+                        m < world->meshes.meshCapacity;
+         ++m)
     {
-        m3MeshDataFree(&world->meshData[m]);
-        m3MeshBvhFree(&world->meshBvh[m]);
+        m3MeshDataFree(&world->meshes.meshData[m]);
+        m3MeshBvhFree(&world->meshes.meshBvh[m]);
     }
-    for (int32_t v = 0; world->voxelSurface != NULL && v < world->voxelCapacity; ++v)
+    for (int32_t v = 0; world->voxels.voxelSurface != NULL && v < world->voxels.voxelCapacity; ++v)
     {
-        m3MeshBvhFree(&world->voxelSurface[v].bvh);
+        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
     }
     m3StateFree(world);
-    m3IdPoolDestroy(&world->bodyPool);
-    m3IdPoolDestroy(&world->shapePool);
-    m3IdPoolDestroy(&world->hullPool);
-    m3IdPoolDestroy(&world->jointPool);
-    m3IdPoolDestroy(&world->hfPool);
-    m3IdPoolDestroy(&world->waterPool);
-    m3IdPoolDestroy(&world->charPool);
-    m3IdPoolDestroy(&world->vehPool);
-    m3IdPoolDestroy(&world->softPool);
-    m3IdPoolDestroy(&world->meshPool);
-    m3IdPoolDestroy(&world->voxelPool);
-    m3TreeDestroy(&world->tree);
+    m3IdPoolDestroy(&world->bodies.bodyPool);
+    m3IdPoolDestroy(&world->shapes.shapePool);
+    m3IdPoolDestroy(&world->hulls.hullPool);
+    m3IdPoolDestroy(&world->joints.jointPool);
+    m3IdPoolDestroy(&world->heightFields.hfPool);
+    m3IdPoolDestroy(&world->water.waterPool);
+    m3IdPoolDestroy(&world->characters.charPool);
+    m3IdPoolDestroy(&world->vehicles.vehPool);
+    m3IdPoolDestroy(&world->softBodies.softPool);
+    m3IdPoolDestroy(&world->meshes.meshPool);
+    m3IdPoolDestroy(&world->voxels.voxelPool);
+    m3TreeDestroy(&world->broadphase.tree);
     m3StackDestroy(&world->scratch);
     m3Free(world);
 }
@@ -162,107 +166,107 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     world->windGustHertz = 0.0f;
     world->windGustScale = 0.0f;
     world->windPhase = 0.0f;
-    world->bodyCapacity = cap;
-    world->shapeCapacity = def->shapeCapacity;
-    world->meshCapacity = def->meshCapacity;
-    world->voxelCapacity = def->voxelCapacity;
-    world->characterCapacity = def->characterCapacity;
-    world->vehicleCapacity = def->vehicleCapacity;
-    world->softBodyCapacity = def->softBodyCapacity;
-    world->jointCapacity = def->jointCapacity;
+    world->bodies.bodyCapacity = cap;
+    world->shapes.shapeCapacity = def->shapeCapacity;
+    world->meshes.meshCapacity = def->meshCapacity;
+    world->voxels.voxelCapacity = def->voxelCapacity;
+    world->characters.characterCapacity = def->characterCapacity;
+    world->vehicles.vehicleCapacity = def->vehicleCapacity;
+    world->softBodies.softBodyCapacity = def->softBodyCapacity;
+    world->joints.jointCapacity = def->jointCapacity;
     world->workerCount = def->workerCount;
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
     world->generation = s_worldGenerations[slot];
     world->worldIndex0 = (uint16_t)slot;
-    world->pairCapacity = 8 * def->shapeCapacity;
+    world->contacts.pairCapacity = 8 * def->shapeCapacity;
     if (!m3StateAllocate(world))
     {
         goto allocFailed;
     }
-    world->bodyPool = m3IdPoolCreate(cap);
+    world->bodies.bodyPool = m3IdPoolCreate(cap);
 
     for (int32_t i = 0; i < cap; ++i)
     {
-        world->bodyIsland[i] = -1; // observer label, no island yet
-        world->bodyShapeHead[i] = -1;
+        world->bodies.bodyIsland[i] = -1; // observer label, no island yet
+        world->bodies.bodyShapeHead[i] = -1;
     }
 
     int32_t shapeCap = def->shapeCapacity;
-    world->shapePool = m3IdPoolCreate(shapeCap);
+    world->shapes.shapePool = m3IdPoolCreate(shapeCap);
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->shapeBody[i] = -1;
-        world->shapeNext[i] = -1;
+        world->shapes.shapeBody[i] = -1;
+        world->shapes.shapeNext[i] = -1;
     }
 
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->shapeHullIndex[i] = -1;
+        world->shapes.shapeHullIndex[i] = -1;
     }
-    world->hullPool = m3IdPoolCreate(shapeCap);
-    world->jointPool = m3IdPoolCreate(def->jointCapacity);
-    world->hfPool = m3IdPoolCreate(def->shapeCapacity);
+    world->hulls.hullPool = m3IdPoolCreate(shapeCap);
+    world->joints.jointPool = m3IdPoolCreate(def->jointCapacity);
+    world->heightFields.hfPool = m3IdPoolCreate(def->shapeCapacity);
     for (int32_t hf = 0; hf < def->shapeCapacity; ++hf)
     {
-        world->shapeHfIndex[hf] = -1;
+        world->shapes.shapeHfIndex[hf] = -1;
     }
-    world->waterPool = m3IdPoolCreate(M3_MAX_WATER_VOLUMES);
-    world->charPool = m3IdPoolCreate(def->characterCapacity);
-    world->vehPool = m3IdPoolCreate(def->vehicleCapacity);
-    world->softPool = m3IdPoolCreate(def->softBodyCapacity);
+    world->water.waterPool = m3IdPoolCreate(M3_MAX_WATER_VOLUMES);
+    world->characters.charPool = m3IdPoolCreate(def->characterCapacity);
+    world->vehicles.vehPool = m3IdPoolCreate(def->vehicleCapacity);
+    world->softBodies.softPool = m3IdPoolCreate(def->softBodyCapacity);
     for (int32_t v = 0; v < def->vehicleCapacity; ++v)
     {
-        world->vehChassis[v] = -1;
+        world->vehicles.vehChassis[v] = -1;
     }
     for (int32_t i = 0; i < def->characterCapacity; ++i)
     {
-        world->charBody[i] = -1;
+        world->characters.charBody[i] = -1;
     }
     for (int32_t i = 0; i < def->jointCapacity; ++i)
     {
-        world->jointBodyA[i] = -1;
-        world->jointBodyB[i] = -1;
-        world->jointNextA[i] = -1;
-        world->jointNextB[i] = -1;
+        world->joints.jointBodyA[i] = -1;
+        world->joints.jointBodyB[i] = -1;
+        world->joints.jointNextA[i] = -1;
+        world->joints.jointNextB[i] = -1;
     }
     for (int32_t i = 0; i < cap; ++i)
     {
-        world->bodyJointHead[i] = -1;
+        world->joints.bodyJointHead[i] = -1;
     }
-    world->meshPool = m3IdPoolCreate(def->meshCapacity);
-    world->voxelPool = m3IdPoolCreate(def->voxelCapacity);
+    world->meshes.meshPool = m3IdPoolCreate(def->meshCapacity);
+    world->voxels.voxelPool = m3IdPoolCreate(def->voxelCapacity);
     for (int32_t i = 0; i < def->voxelCapacity; ++i)
     {
-        world->voxelShape[i] = -1;
+        world->voxels.voxelShape[i] = -1;
     }
     for (int32_t i = 0; i < def->voxelCapacity * 6; ++i)
     {
-        world->voxelNeighbors[i] = -1;
+        world->voxels.voxelNeighbors[i] = -1;
     }
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->shapeVoxelIndex[i] = -1;
+        world->shapes.shapeVoxelIndex[i] = -1;
     }
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->shapeMeshIndex[i] = -1;
+        world->shapes.shapeMeshIndex[i] = -1;
     }
 
-    world->tree = m3TreeCreate(2 * shapeCap);
+    world->broadphase.tree = m3TreeCreate(2 * shapeCap);
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->proxyIds[i] = M3_TREE_NULL;
+        world->broadphase.proxyIds[i] = M3_TREE_NULL;
     }
 
-    world->hitEventCount = 0;
-    world->hitEventsDropped = 0;
-    world->moveEventCount = 0;
-    world->jointBreakEventCount = 0;
-    world->beginEventCount = 0;
-    world->endEventCount = 0;
-    world->pairCount = 0;
+    world->events.hitEventCount = 0;
+    world->events.hitEventsDropped = 0;
+    world->events.moveEventCount = 0;
+    world->joints.jointBreakEventCount = 0;
+    world->events.beginEventCount = 0;
+    world->events.endEventCount = 0;
+    world->contacts.pairCount = 0;
 
     // Step scratch: grows between steps on m3_errorCapacity, never
     // mid-step. 256 KiB is generous for the 2a sphere world.
@@ -293,12 +297,13 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
 
     // The pools, the tree and the scratch report a refusal as zero
     // capacity rather than jumping, so check them once here.
-    if (world->bodyPool.capacity == 0 || world->shapePool.capacity == 0 ||
-        world->hullPool.capacity == 0 || world->jointPool.capacity == 0 ||
-        world->hfPool.capacity == 0 || world->waterPool.capacity == 0 ||
-        world->charPool.capacity == 0 || world->vehPool.capacity == 0 ||
-        world->softPool.capacity == 0 || world->meshPool.capacity == 0 ||
-        world->voxelPool.capacity == 0 || world->tree.capacity == 0 || world->scratch.capacity == 0)
+    if (world->bodies.bodyPool.capacity == 0 || world->shapes.shapePool.capacity == 0 ||
+        world->hulls.hullPool.capacity == 0 || world->joints.jointPool.capacity == 0 ||
+        world->heightFields.hfPool.capacity == 0 || world->water.waterPool.capacity == 0 ||
+        world->characters.charPool.capacity == 0 || world->vehicles.vehPool.capacity == 0 ||
+        world->softBodies.softPool.capacity == 0 || world->meshes.meshPool.capacity == 0 ||
+        world->voxels.voxelPool.capacity == 0 || world->broadphase.tree.capacity == 0 ||
+        world->scratch.capacity == 0)
     {
         goto allocFailed;
     }
@@ -372,11 +377,11 @@ void m3EnableSleepingInternal(m3World* world, int32_t on)
     {
         // The reference wakes every sleeping set when sleeping turns
         // off; nothing may keep napping through the new regime.
-        int32_t maxBody = world->bodyPool.maxIndex;
+        int32_t maxBody = world->bodies.bodyPool.maxIndex;
         for (int32_t i = 0; i < maxBody; ++i)
         {
-            if (world->bodyPool.alive[i] != 0 && world->awake[i] == 0 &&
-                world->types[i] == (uint8_t)m3_dynamicBody)
+            if (world->bodies.bodyPool.alive[i] != 0 && world->bodies.awake[i] == 0 &&
+                world->bodies.types[i] == (uint8_t)m3_dynamicBody)
             {
                 m3SetAwakeInternal(world, i, 1);
             }
@@ -397,7 +402,7 @@ void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opSetGravity, &gravity, (int32_t)sizeof(gravity));
     }
@@ -421,7 +426,7 @@ void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -446,7 +451,7 @@ void m3World_SetRestitutionThreshold(m3WorldId worldId, float value)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opSetRestitutionThreshold, &value, (int32_t)sizeof(value));
     }
@@ -461,7 +466,7 @@ void m3World_SetMaximumLinearSpeed(m3WorldId worldId, float value)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opSetMaximumLinearSpeed, &value, (int32_t)sizeof(value));
     }
@@ -476,7 +481,7 @@ void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opSetMaximumAngularSpeed, &value, (int32_t)sizeof(value));
     }
@@ -503,23 +508,23 @@ m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId)
     usage.persistentBytes = world->memoryBytes;
     // Count-derived content, summed live so it cannot drift: mesh
     // payloads plus their derived BVHs, and heightfield samples.
-    for (int32_t m = 0; m < world->meshPool.maxIndex; ++m)
+    for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
     {
-        if (world->meshPool.alive[m] == 0)
+        if (world->meshes.meshPool.alive[m] == 0)
         {
             continue;
         }
-        const m3MeshData* mesh = &world->meshData[m];
+        const m3MeshData* mesh = &world->meshes.meshData[m];
         usage.contentBytes += (int64_t)mesh->vertexCount * (int64_t)sizeof(m3Vec3);
         usage.contentBytes += 3LL * mesh->triangleCount * (int64_t)sizeof(uint16_t);
         usage.contentBytes += 2LL * mesh->triangleCount; // edge flags + materials
-        const m3MeshBvh* bvh = &world->meshBvh[m];
+        const m3MeshBvh* bvh = &world->meshes.meshBvh[m];
         usage.contentBytes += (int64_t)bvh->nodeCount * (int64_t)sizeof(m3MeshBvhNode);
         usage.contentBytes += (int64_t)mesh->triangleCount * (int64_t)sizeof(uint16_t); // order
     }
-    for (int32_t h = 0; h < world->shapeCapacity; ++h)
+    for (int32_t h = 0; h < world->shapes.shapeCapacity; ++h)
     {
-        const m3HeightFieldData* hf = &world->hfData[h];
+        const m3HeightFieldData* hf = &world->heightFields.hfData[h];
         usage.contentBytes += (int64_t)hf->nx * (int64_t)hf->nz * (int64_t)sizeof(float);
     }
     usage.scratchCapacity = world->scratch.capacity;
@@ -537,22 +542,22 @@ m3Counters m3World_GetCounters(m3WorldId worldId)
         m3Refuse(world, m3_errorInvalid);
         return counters;
     }
-    counters.bodyCount = PoolLive(&world->bodyPool);
-    counters.shapeCount = PoolLive(&world->shapePool);
-    counters.jointCount = PoolLive(&world->jointPool);
-    counters.contactCount = world->pairCount;
-    counters.characterCount = PoolLive(&world->charPool);
-    counters.vehicleCount = PoolLive(&world->vehPool);
-    counters.softBodyCount = PoolLive(&world->softPool);
-    counters.voxelChunkCount = PoolLive(&world->voxelPool);
-    counters.hullCount = PoolLive(&world->hullPool);
-    counters.meshCount = PoolLive(&world->meshPool);
+    counters.bodyCount = PoolLive(&world->bodies.bodyPool);
+    counters.shapeCount = PoolLive(&world->shapes.shapePool);
+    counters.jointCount = PoolLive(&world->joints.jointPool);
+    counters.contactCount = world->contacts.pairCount;
+    counters.characterCount = PoolLive(&world->characters.charPool);
+    counters.vehicleCount = PoolLive(&world->vehicles.vehPool);
+    counters.softBodyCount = PoolLive(&world->softBodies.softPool);
+    counters.voxelChunkCount = PoolLive(&world->voxels.voxelPool);
+    counters.hullCount = PoolLive(&world->hulls.hullPool);
+    counters.meshCount = PoolLive(&world->meshes.meshPool);
     int32_t awake = 0;
-    int32_t maxBody = world->bodyPool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     for (int32_t i = 0; i < maxBody; ++i)
     {
-        if (world->bodyPool.alive[i] != 0 && world->types[i] == (uint8_t)m3_dynamicBody &&
-            world->awake[i] != 0)
+        if (world->bodies.bodyPool.alive[i] != 0 &&
+            world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] != 0)
         {
             awake += 1;
         }
@@ -560,8 +565,9 @@ m3Counters m3World_GetCounters(m3WorldId worldId)
     counters.awakeCount = awake;
     counters.islandCount = world->lastIslandCount;
     counters.colorCount = world->lastColorCount;
-    counters.treeHeight =
-        world->tree.root != M3_TREE_NULL ? world->tree.nodes[world->tree.root].height : 0;
+    counters.treeHeight = world->broadphase.tree.root != M3_TREE_NULL
+                              ? world->broadphase.tree.nodes[world->broadphase.tree.root].height
+                              : 0;
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
     counters.snapshotBytes = m3World_SnapshotSize(worldId);
@@ -590,7 +596,7 @@ void m3World_EnableSleeping(m3WorldId worldId, bool flag)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         int32_t on = flag ? 1 : 0;
         m3JournalRecord(world, m3_opEnableSleeping, &on, (int32_t)sizeof(on));
@@ -612,7 +618,7 @@ void m3World_EnableContinuous(m3WorldId worldId, bool flag)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         int32_t on = flag ? 1 : 0;
         m3JournalRecord(world, m3_opEnableContinuous, &on, (int32_t)sizeof(on));
@@ -641,7 +647,7 @@ void m3World_SetHitEventThreshold(m3WorldId worldId, float value)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opSetHitEventThreshold, &value, (int32_t)sizeof(value));
     }
@@ -656,14 +662,14 @@ const m3HitEvent* m3World_HitEvents(m3WorldId worldId, int32_t* count)
         *count = 0;
         return NULL;
     }
-    *count = world->hitEventCount;
-    return world->hitEvents;
+    *count = world->events.hitEventCount;
+    return world->events.hitEvents;
 }
 
 int32_t m3World_HitEventsDropped(m3WorldId worldId)
 {
     m3World* world = m3WorldFromId(worldId);
-    return world != NULL ? world->hitEventsDropped : 0;
+    return world != NULL ? world->events.hitEventsDropped : 0;
 }
 
 const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count)
@@ -674,8 +680,8 @@ const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count)
         *count = 0;
         return NULL;
     }
-    *count = world->moveEventCount;
-    return world->moveEvents;
+    *count = world->events.moveEventCount;
+    return world->events.moveEvents;
 }
 
 const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* count)
@@ -686,8 +692,8 @@ const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* co
         *count = 0;
         return NULL;
     }
-    *count = world->jointBreakEventCount;
-    return world->jointBreakEvents;
+    *count = world->joints.jointBreakEventCount;
+    return world->joints.jointBreakEvents;
 }
 
 void m3SetWindInternal(m3World* world, m3Vec3 dir, float speed, float gustHertz, float gustScale)
@@ -717,7 +723,7 @@ void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gus
             return; // a blowing wind demands a near-unit direction
         }
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -739,8 +745,8 @@ void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gus
 void m3AppendJointBreakEvent(m3World* world, m3JointId joint)
 {
     // Capacity is jointCapacity: at most every joint breaks once.
-    world->jointBreakEvents[world->jointBreakEventCount].joint = joint;
-    world->jointBreakEventCount += 1;
+    world->joints.jointBreakEvents[world->joints.jointBreakEventCount].joint = joint;
+    world->joints.jointBreakEventCount += 1;
 }
 
 void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* context)
@@ -763,11 +769,11 @@ void m3RebuildBroadphaseInternal(m3World* world)
     // list), carrying their CURRENT fat bounds: fatness is state,
     // and preserving it keeps every downstream pair decision
     // exactly where it was.
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     int32_t count = 0;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->proxyIds[s] >= 0)
+        if (world->shapes.shapePool.alive[s] != 0 && world->broadphase.proxyIds[s] >= 0)
         {
             count += 1;
         }
@@ -791,11 +797,11 @@ void m3RebuildBroadphaseInternal(m3World* world)
     int32_t n = 0;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] == 0 || world->proxyIds[s] < 0)
+        if (world->shapes.shapePool.alive[s] == 0 || world->broadphase.proxyIds[s] < 0)
         {
             continue;
         }
-        const m3TreeNode* leaf = &world->tree.nodes[world->proxyIds[s]];
+        const m3TreeNode* leaf = &world->broadphase.tree.nodes[world->broadphase.proxyIds[s]];
         for (int32_t k = 0; k < 3; ++k)
         {
             los[n][k] = leaf->lo[k];
@@ -804,11 +810,11 @@ void m3RebuildBroadphaseInternal(m3World* world)
         uds[n] = s;
         n += 1;
     }
-    if (m3TreeRebuild(&world->tree, los, his, uds, n, outNodes))
+    if (m3TreeRebuild(&world->broadphase.tree, los, his, uds, n, outNodes))
     {
         for (int32_t i = 0; i < n; ++i)
         {
-            world->proxyIds[uds[i]] = outNodes[i];
+            world->broadphase.proxyIds[uds[i]] = outNodes[i];
         }
     }
     m3Free(los);
@@ -825,7 +831,7 @@ void m3World_RebuildBroadphase(m3WorldId worldId)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         int32_t zero = 0;
         m3JournalRecord(world, m3_opRebuildBroadphase, &zero, 4);
@@ -850,8 +856,8 @@ m3WaterVolumeDef m3DefaultWaterVolumeDef(void)
 static bool WakeInBoxFn(int32_t shape, void* context)
 {
     m3World* world = (m3World*)context;
-    int32_t body = world->shapeBody[shape];
-    if (world->types[body] == (uint8_t)m3_dynamicBody)
+    int32_t body = world->shapes.shapeBody[shape];
+    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
     {
         m3SetAwakeInternal(world, body, 1);
     }
@@ -862,9 +868,11 @@ static void WakeAroundWater(m3World* world, int32_t slot)
 {
     // The tide moves things: sleepers touching the volume wake on
     // create AND destroy (without water under it, a sleeper falls).
-    double lo[3] = {world->waterLo[slot].x, world->waterLo[slot].y, world->waterLo[slot].z};
-    double hi[3] = {world->waterHi[slot].x, world->waterHi[slot].y, world->waterHi[slot].z};
-    m3TreeQuery(&world->tree, lo, hi, WakeInBoxFn, world);
+    double lo[3] = {world->water.waterLo[slot].x, world->water.waterLo[slot].y,
+                    world->water.waterLo[slot].z};
+    double hi[3] = {world->water.waterHi[slot].x, world->water.waterHi[slot].y,
+                    world->water.waterHi[slot].z};
+    m3TreeQuery(&world->broadphase.tree, lo, hi, WakeInBoxFn, world);
 }
 
 int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
@@ -878,17 +886,17 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
     {
         return -1;
     }
-    int32_t slot = m3IdPoolAlloc(&world->waterPool);
+    int32_t slot = m3IdPoolAlloc(&world->water.waterPool);
     if (slot < 0)
     {
         return -1; // all 8 slots taken: loud at the caller
     }
-    world->waterLo[slot] = def->lo;
-    world->waterHi[slot] = def->hi;
-    world->waterDensity[slot] = def->density;
-    world->waterLinDrag[slot] = def->linearDrag;
-    world->waterAngDrag[slot] = def->angularDrag;
-    world->waterFlow[slot] = def->flow;
+    world->water.waterLo[slot] = def->lo;
+    world->water.waterHi[slot] = def->hi;
+    world->water.waterDensity[slot] = def->density;
+    world->water.waterLinDrag[slot] = def->linearDrag;
+    world->water.waterAngDrag[slot] = def->angularDrag;
+    world->water.waterFlow[slot] = def->flow;
     WakeAroundWater(world, slot);
     return slot;
 }
@@ -896,13 +904,13 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
 void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot)
 {
     WakeAroundWater(world, slot);
-    world->waterLo[slot] = (m3Pos3){0.0, 0.0, 0.0};
-    world->waterHi[slot] = (m3Pos3){0.0, 0.0, 0.0};
-    world->waterDensity[slot] = 0.0f;
-    world->waterLinDrag[slot] = 0.0f;
-    world->waterAngDrag[slot] = 0.0f;
-    world->waterFlow[slot] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    m3IdPoolFree(&world->waterPool, slot);
+    world->water.waterLo[slot] = (m3Pos3){0.0, 0.0, 0.0};
+    world->water.waterHi[slot] = (m3Pos3){0.0, 0.0, 0.0};
+    world->water.waterDensity[slot] = 0.0f;
+    world->water.waterLinDrag[slot] = 0.0f;
+    world->water.waterAngDrag[slot] = 0.0f;
+    world->water.waterFlow[slot] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3IdPoolFree(&world->water.waterPool, slot);
 }
 
 m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* def)
@@ -920,8 +928,8 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
         m3Refuse(world, m3_errorCapacity);
         return null;
     }
-    m3WaterVolumeId id = {slot + 1, world->worldIndex0, world->waterPool.generations[slot]};
-    if (world->journalActive != 0)
+    m3WaterVolumeId id = {slot + 1, world->worldIndex0, world->water.waterPool.generations[slot]};
+    if (world->recorder.journalActive != 0)
     {
         struct
         {
@@ -940,7 +948,7 @@ static int32_t WaterSlot(const m3World* world, m3WaterVolumeId id)
 {
     int32_t index = id.index1 - 1;
     if (world == NULL || id.world0 != world->worldIndex0 ||
-        !m3IdPoolValid(&world->waterPool, index, id.generation))
+        !m3IdPoolValid(&world->water.waterPool, index, id.generation))
     {
         return -1;
     }
@@ -962,7 +970,7 @@ void m3DestroyWaterVolume(m3WaterVolumeId id)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opDestroyWaterVolume, &id, (int32_t)sizeof(id));
     }
@@ -971,23 +979,23 @@ void m3DestroyWaterVolume(m3WaterVolumeId id)
 
 void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes)
 {
-    if (world->journalActive == 0)
+    if (world->recorder.journalActive == 0)
     {
         return;
     }
     int32_t need = 8 + bytes;
-    if (world->journalCursor + need > world->journalCapacity)
+    if (world->recorder.journalCursor + need > world->recorder.journalCapacity)
     {
         // Loud overflow: latch, stop recording, End reports -1.
-        world->journalOverflow = 1;
-        world->journalActive = 0;
+        world->recorder.journalOverflow = 1;
+        world->recorder.journalActive = 0;
         return;
     }
-    uint8_t* out = world->journalBuffer + world->journalCursor;
+    uint8_t* out = world->recorder.journalBuffer + world->recorder.journalCursor;
     memcpy(out, &op, 4);
     memcpy(out + 4, &bytes, 4);
     memcpy(out + 8, payload, (size_t)bytes);
-    world->journalCursor += need;
+    world->recorder.journalCursor += need;
 }
 
 void m3JournalAbandon(m3World* world)
@@ -995,23 +1003,23 @@ void m3JournalAbandon(m3World* world)
     // The op could not be encoded (no memory for its payload). A tape
     // missing an op would replay a different world, so the recording
     // fails the same loud way an overflow does.
-    world->journalOverflow = 1;
-    world->journalActive = 0;
+    world->recorder.journalOverflow = 1;
+    world->recorder.journalActive = 0;
 }
 
 bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || buffer == NULL || capacity < 8 || world->journalActive != 0)
+    if (world == NULL || buffer == NULL || capacity < 8 || world->recorder.journalActive != 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return false; // contract, not invariant
     }
-    world->journalBuffer = (uint8_t*)buffer;
-    world->journalCapacity = capacity;
-    world->journalCursor = 0;
-    world->journalActive = 1;
-    world->journalOverflow = 0;
+    world->recorder.journalBuffer = (uint8_t*)buffer;
+    world->recorder.journalCapacity = capacity;
+    world->recorder.journalCursor = 0;
+    world->recorder.journalActive = 1;
+    world->recorder.journalOverflow = 0;
     return true;
 }
 
@@ -1023,12 +1031,12 @@ int32_t m3World_JournalEnd(m3WorldId worldId)
         m3Refuse(world, m3_errorInvalid);
         return -1; // contract, not invariant
     }
-    int32_t bytes = world->journalOverflow != 0 ? -1 : world->journalCursor;
-    world->journalBuffer = NULL;
-    world->journalCapacity = 0;
-    world->journalCursor = 0;
-    world->journalActive = 0;
-    world->journalOverflow = 0;
+    int32_t bytes = world->recorder.journalOverflow != 0 ? -1 : world->recorder.journalCursor;
+    world->recorder.journalBuffer = NULL;
+    world->recorder.journalCapacity = 0;
+    world->recorder.journalCursor = 0;
+    world->recorder.journalActive = 0;
+    world->recorder.journalOverflow = 0;
     return bytes;
 }
 
@@ -1043,8 +1051,8 @@ const m3ContactEvent* m3World_SensorBeginEvents(m3WorldId worldId, int32_t* coun
         }
         return NULL;
     }
-    *count = world->sensorBeginEventCount;
-    return world->sensorBeginEvents;
+    *count = world->events.sensorBeginEventCount;
+    return world->events.sensorBeginEvents;
 }
 
 const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count)
@@ -1058,8 +1066,8 @@ const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count)
         }
         return NULL;
     }
-    *count = world->sensorEndEventCount;
-    return world->sensorEndEvents;
+    *count = world->events.sensorEndEventCount;
+    return world->events.sensorEndEvents;
 }
 
 const m3FragmentEvent* m3World_FragmentEvents(m3WorldId worldId, int32_t* count)
@@ -1075,9 +1083,9 @@ const m3FragmentEvent* m3World_FragmentEvents(m3WorldId worldId, int32_t* count)
     }
     if (count != NULL)
     {
-        *count = world->fragmentEventCount;
+        *count = world->events.fragmentEventCount;
     }
-    return world->fragmentEvents;
+    return world->events.fragmentEvents;
 }
 
 const uint16_t* m3World_FragmentRecipe(m3WorldId worldId, int32_t* count)
@@ -1093,15 +1101,15 @@ const uint16_t* m3World_FragmentRecipe(m3WorldId worldId, int32_t* count)
     }
     if (count != NULL)
     {
-        *count = world->fragmentRecipeCount;
+        *count = world->events.fragmentRecipeCount;
     }
-    return world->fragmentRecipe;
+    return world->events.fragmentRecipe;
 }
 
 int32_t m3World_FragmentEventsDropped(m3WorldId worldId)
 {
     m3World* world = m3WorldFromId(worldId);
-    return world != NULL ? world->fragmentDropped : 0;
+    return world != NULL ? world->events.fragmentDropped : 0;
 }
 
 const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* count)
@@ -1115,8 +1123,8 @@ const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* cou
         }
         return NULL;
     }
-    *count = world->beginEventCount;
-    return world->beginEvents;
+    *count = world->events.beginEventCount;
+    return world->events.beginEvents;
 }
 
 const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count)
@@ -1130,8 +1138,8 @@ const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count
         }
         return NULL;
     }
-    *count = world->endEventCount;
-    return world->endEvents;
+    *count = world->events.endEventCount;
+    return world->events.endEvents;
 }
 
 bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size)

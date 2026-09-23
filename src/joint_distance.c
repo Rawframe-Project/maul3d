@@ -31,16 +31,16 @@ static void PrepareDistance(m3World* world, m3JointConstraint* c, const m3JointF
     m3real k = c->invMassA + c->invMassB + m3Dot3(crossA, m3MulMV3(c->invIA, crossA)) +
                m3Dot3(crossB, m3MulMV3(c->invIB, crossB));
     c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
-    c->motorImpulse = world->jointPerpImpulse[j].z; // the spring
-    c->lowerImpulse = world->jointLimitImpulse[j].x;
-    c->upperImpulse = world->jointLimitImpulse[j].y;
-    c->lowerLimit = world->jointLimits[j].x;
-    c->upperLimit = world->jointLimits[j].y;
-    m3real rest = world->jointLimits[j].z; // coneAngle reuse:
-                                           // the documented
-                                           // rest length
-    c->restLength = rest > 0.0f ? rest : world->jointLimits[j].y;
-    c->springSoft = m3MakeSoft(world->jointMotor[j].x, world->jointMotor[j].y, h);
+    c->motorImpulse = world->joints.jointPerpImpulse[j].z; // the spring
+    c->lowerImpulse = world->joints.jointLimitImpulse[j].x;
+    c->upperImpulse = world->joints.jointLimitImpulse[j].y;
+    c->lowerLimit = world->joints.jointLimits[j].x;
+    c->upperLimit = world->joints.jointLimits[j].y;
+    m3real rest = world->joints.jointLimits[j].z; // coneAngle reuse:
+                                                  // the documented
+                                                  // rest length
+    c->restLength = rest > 0.0f ? rest : world->joints.jointLimits[j].y;
+    c->springSoft = m3MakeSoft(world->joints.jointMotor[j].x, world->joints.jointMotor[j].y, h);
 }
 
 static void WarmStartDistance(const m3World* world, const m3JointConstraint* c,
@@ -157,10 +157,10 @@ static void SolveDistance(m3World* world, m3JointConstraint* c, const m3JointSol
         vB = m3Sub3(vB, m3MulSV3(c->invMassB * applied, axis));
         wB = m3Sub3(wB, m3MulMV3(c->invIB, m3MulSV3(applied, crossB)));
     }
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     return;
 }
 

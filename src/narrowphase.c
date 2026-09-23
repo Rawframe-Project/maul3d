@@ -6,7 +6,10 @@
 // impulses by feature id. Pairs are rebuilt in pair order and each
 // writes only its own manifold, so any split of the range is safe.
 
+#include "narrowphase.h"
+#include "distance.h"
 #include "manifold.h"
+#include "shape.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -15,11 +18,11 @@ typedef void m3CollidePairFn(m3World* world, m3Manifold* fresh, int32_t shapeA, 
 
 static void CollideVoxelPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     memset(fresh, 0, sizeof(*fresh));
     int32_t voxelShape = typeA == (uint8_t)m3_voxelShape ? shapeA : shapeB;
     int32_t otherShape = voxelShape == shapeA ? shapeB : shapeA;
-    uint8_t ot = world->shapeType[otherShape];
+    uint8_t ot = world->shapes.shapeType[otherShape];
     if (ot == (uint8_t)m3_sphereShape || ot == (uint8_t)m3_capsuleShape ||
         ot == (uint8_t)m3_hullShape)
     {
@@ -30,11 +33,11 @@ static void CollideVoxelPair(m3World* world, m3Manifold* fresh, int32_t shapeA, 
 static void CollideHeightFieldPair(m3World* world, m3Manifold* fresh, int32_t shapeA,
                                    int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     memset(fresh, 0, sizeof(*fresh));
     int32_t hfShape = typeA == (uint8_t)m3_heightFieldShape ? shapeA : shapeB;
     int32_t otherShape = hfShape == shapeA ? shapeB : shapeA;
-    uint8_t ot = world->shapeType[otherShape];
+    uint8_t ot = world->shapes.shapeType[otherShape];
     if (ot == (uint8_t)m3_sphereShape || ot == (uint8_t)m3_capsuleShape ||
         ot == (uint8_t)m3_hullShape)
     {
@@ -44,11 +47,11 @@ static void CollideHeightFieldPair(m3World* world, m3Manifold* fresh, int32_t sh
 
 static void CollideMeshPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     memset(fresh, 0, sizeof(*fresh));
     int32_t meshShape = typeA == (uint8_t)m3_meshShape ? shapeA : shapeB;
     int32_t otherShape = meshShape == shapeA ? shapeB : shapeA;
-    if (world->shapeType[otherShape] != (uint8_t)m3_planeShape)
+    if (world->shapes.shapeType[otherShape] != (uint8_t)m3_planeShape)
     {
         // Sphere, capsule, and hull all ride the welded
         // per-triangle pipeline (2b-9a through 2b-9c).
@@ -58,7 +61,7 @@ static void CollideMeshPair(m3World* world, m3Manifold* fresh, int32_t shapeA, i
 
 static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     // Plane versus hull: every hull vertex below the
     // margin becomes a candidate; the four deepest survive
     // (ties break on the lower vertex index) and emit in
@@ -68,13 +71,13 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
     memset(fresh, 0, sizeof(*fresh));
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t hullShape = planeShape == shapeA ? shapeB : shapeA;
-    const m3HullData* hull = &world->hullData[world->shapeHullIndex[hullShape]];
-    int32_t planeBody = world->shapeBody[planeShape];
-    int32_t hullBody = world->shapeBody[hullShape];
+    const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[hullShape]];
+    int32_t planeBody = world->shapes.shapeBody[planeShape];
+    int32_t hullBody = world->shapes.shapeBody[hullShape];
     m3Transform xfS = m3ShapeWorldTransform(world, hullShape);
     const m3Transform* xf = &xfS;
-    m3Vec3 n = world->shapeGeom[planeShape].v;
-    m3real offset = world->shapeGeom[planeShape].s;
+    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    m3real offset = world->shapes.shapeGeom[planeShape].s;
 
     int32_t candIndex[M3_HULL_MAX_VERTS];
     m3real candSep[M3_HULL_MAX_VERTS];
@@ -168,8 +171,8 @@ static void CollideHullHullPair(m3World* world, m3Manifold* fresh, int32_t shape
     // Hull versus hull: the SAT runs in A's frame on a
     // float relative pose (doubles localized here), then the
     // manifold rotates out to world with COM-relative anchors.
-    int32_t bodyA = world->shapeBody[shapeA];
-    int32_t bodyB = world->shapeBody[shapeB];
+    int32_t bodyA = world->shapes.shapeBody[shapeA];
+    int32_t bodyB = world->shapes.shapeBody[shapeB];
     m3Transform xfAv = m3ShapeWorldTransform(world, shapeA);
     m3Transform xfBv = m3ShapeWorldTransform(world, shapeB);
     const m3Transform* xfA = &xfAv;
@@ -179,8 +182,9 @@ static void CollideHullHullPair(m3World* world, m3Manifold* fresh, int32_t shape
     m3Vec3 dp = {(m3real)(xfB->p.x - xfA->p.x), (m3real)(xfB->p.y - xfA->p.y),
                  (m3real)(xfB->p.z - xfA->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfA->q, dp);
-    *fresh = m3CollideHulls(&world->hullData[world->shapeHullIndex[shapeA]],
-                            &world->hullData[world->shapeHullIndex[shapeB]], qRel, pRel);
+    *fresh =
+        m3CollideHulls(&world->hulls.hullData[world->shapes.shapeHullIndex[shapeA]],
+                       &world->hulls.hullData[world->shapes.shapeHullIndex[shapeB]], qRel, pRel);
     if (fresh->pointCount > 0)
     {
         fresh->normal = m3RotateVec3(xfA->q, fresh->normal);
@@ -205,7 +209,7 @@ static void CollideHullHullPair(m3World* world, m3Manifold* fresh, int32_t shape
 static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t shapeA,
                                     int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     // Plane versus capsule: the two cap centers are the only
     // candidates. Both inside the margin means the capsule
     // lies flat and gets the two-point manifold that keeps it
@@ -214,14 +218,14 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
     memset(fresh, 0, sizeof(*fresh));
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t capShape = planeShape == shapeA ? shapeB : shapeA;
-    int32_t planeBody = world->shapeBody[planeShape];
-    int32_t capBody = world->shapeBody[capShape];
+    int32_t planeBody = world->shapes.shapeBody[planeShape];
+    int32_t capBody = world->shapes.shapeBody[capShape];
     m3Transform xfS = m3ShapeWorldTransform(world, capShape);
     const m3Transform* xf = &xfS;
-    m3Vec3 n = world->shapeGeom[planeShape].v;
-    m3real offset = world->shapeGeom[planeShape].s;
-    m3real radius = world->shapeGeom[capShape].s;
-    m3Vec3 caps[2] = {world->shapeGeom[capShape].v, world->shapeGeom[capShape].v2};
+    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    m3real offset = world->shapes.shapeGeom[planeShape].s;
+    m3real radius = world->shapes.shapeGeom[capShape].s;
+    m3Vec3 caps[2] = {world->shapes.shapeGeom[capShape].v, world->shapes.shapeGeom[capShape].v2};
     int32_t count = 0;
     for (int32_t k = 0; k < 2; ++k)
     {
@@ -265,7 +269,7 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
 static void CollideHullCapsulePair(m3World* world, m3Manifold* fresh, int32_t shapeA,
                                    int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     // Capsule versus hull: the segment SAT at every depth,
     // never GJK. GJK's one witness cannot hold a lying
     // capsule (it wobbles off the single point), and a deep
@@ -276,8 +280,8 @@ static void CollideHullCapsulePair(m3World* world, m3Manifold* fresh, int32_t sh
     memset(fresh, 0, sizeof(*fresh));
     int32_t hullShape = typeA == (uint8_t)m3_hullShape ? shapeA : shapeB;
     int32_t capShape = hullShape == shapeA ? shapeB : shapeA;
-    int32_t hullBody = world->shapeBody[hullShape];
-    int32_t capBody = world->shapeBody[capShape];
+    int32_t hullBody = world->shapes.shapeBody[hullShape];
+    int32_t capBody = world->shapes.shapeBody[capShape];
     m3Transform xfHv = m3ShapeWorldTransform(world, hullShape);
     m3Transform xfCv = m3ShapeWorldTransform(world, capShape);
     const m3Transform* xfH = &xfHv;
@@ -287,10 +291,10 @@ static void CollideHullCapsulePair(m3World* world, m3Manifold* fresh, int32_t sh
     m3Vec3 dp = {(m3real)(xfC->p.x - xfH->p.x), (m3real)(xfC->p.y - xfH->p.y),
                  (m3real)(xfC->p.z - xfH->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfH->q, dp);
-    m3Vec3 s1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[capShape].v), pRel);
-    m3Vec3 s2 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[capShape].v2), pRel);
-    const m3HullData* hull = &world->hullData[world->shapeHullIndex[hullShape]];
-    m3Manifold local = m3CollideSegmentHull(hull, s1, s2, world->shapeGeom[capShape].s);
+    m3Vec3 s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[capShape].v), pRel);
+    m3Vec3 s2 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[capShape].v2), pRel);
+    const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[hullShape]];
+    m3Manifold local = m3CollideSegmentHull(hull, s1, s2, world->shapes.shapeGeom[capShape].s);
     if (local.pointCount > 0)
     {
         m3Vec3 nWorld = m3RotateVec3(xfH->q, local.normal); // hull toward capsule
@@ -314,8 +318,8 @@ static void CollideHullCapsulePair(m3World* world, m3Manifold* fresh, int32_t sh
 
 static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
-    uint8_t typeB = world->shapeType[shapeB];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
+    uint8_t typeB = world->shapes.shapeType[shapeB];
     int hullPair = typeA == (uint8_t)m3_hullShape || typeB == (uint8_t)m3_hullShape;
     // The remaining convex pairs (hull-sphere, capsule-sphere,
     // capsule-capsule): GJK on the cores in A's frame, radii
@@ -324,8 +328,8 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
     // EPA never became necessary (hull-hull and capsule-hull
     // deep pairs go through their SATs).
     memset(fresh, 0, sizeof(*fresh));
-    int32_t bodyA = world->shapeBody[shapeA];
-    int32_t bodyB = world->shapeBody[shapeB];
+    int32_t bodyA = world->shapes.shapeBody[shapeA];
+    int32_t bodyB = world->shapes.shapeBody[shapeB];
     m3Transform xfAv = m3ShapeWorldTransform(world, shapeA);
     m3Transform xfBv = m3ShapeWorldTransform(world, shapeB);
     const m3Transform* xfA = &xfAv;
@@ -364,7 +368,7 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
             // face is the exact minimum translation.
             int hullIsA = typeA == (uint8_t)m3_hullShape;
             const m3HullData* hull =
-                &world->hullData[world->shapeHullIndex[hullIsA ? shapeA : shapeB]];
+                &world->hulls.hullData[world->shapes.shapeHullIndex[hullIsA ? shapeA : shapeB]];
             const m3DistanceProxy* round = hullIsA ? &input.proxyB : &input.proxyA;
             m3Vec3 core = hullIsA ? m3Add3(m3RotateVec3(input.q, round->points[0]), input.p)
                                   : m3InvRotateVec3(input.q, m3Sub3(round->points[0], input.p));
@@ -460,25 +464,25 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
 static void CollidePlaneSpherePair(m3World* world, m3Manifold* fresh, int32_t shapeA,
                                    int32_t shapeB)
 {
-    uint8_t typeA = world->shapeType[shapeA];
+    uint8_t typeA = world->shapes.shapeType[shapeA];
     // Canonical orientation: the plane plays A. If the sphere
     // has the lower index the manifold flips on the way out.
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t sphereShape = planeShape == shapeA ? shapeB : shapeA;
-    m3Vec3 n = world->shapeGeom[planeShape].v;
-    m3real offset = world->shapeGeom[planeShape].s;
+    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    m3real offset = world->shapes.shapeGeom[planeShape].s;
     double cx;
     double cy;
     double cz;
     m3SphereWorldCenter(world, sphereShape, &cx, &cy, &cz);
     double distD = (double)n.x * cx + (double)n.y * cy + (double)n.z * cz - (double)offset;
-    *fresh = m3CollidePlaneSphere(n, (m3real)distD, world->shapeGeom[sphereShape].s);
+    *fresh = m3CollidePlaneSphere(n, (m3real)distD, world->shapes.shapeGeom[sphereShape].s);
     if (fresh->pointCount > 0)
     {
         // anchorA: from the plane BODY's origin to the contact
         // point (the sphere's deepest point projected).
-        int32_t planeBody = world->shapeBody[planeShape];
-        int32_t ballBody = world->shapeBody[sphereShape];
+        int32_t planeBody = world->shapes.shapeBody[planeShape];
+        int32_t ballBody = world->shapes.shapeBody[sphereShape];
         double px = cx - (double)(fresh->normal.x * (m3real)distD);
         double py = cy - (double)(fresh->normal.y * (m3real)distD);
         double pz = cz - (double)(fresh->normal.z * (m3real)distD);
@@ -509,15 +513,18 @@ static void CollideSphereSpherePair(m3World* world, m3Manifold* fresh, int32_t s
     m3SphereWorldCenter(world, shapeA, &ax, &ay, &az);
     m3SphereWorldCenter(world, shapeB, &bx, &by, &bz);
     m3Vec3 d = {(m3real)(bx - ax), (m3real)(by - ay), (m3real)(bz - az)};
-    *fresh = m3CollideSpheres(d, world->shapeGeom[shapeA].s, world->shapeGeom[shapeB].s);
+    *fresh =
+        m3CollideSpheres(d, world->shapes.shapeGeom[shapeA].s, world->shapes.shapeGeom[shapeB].s);
     if (fresh->pointCount > 0)
     {
         // Kernel anchors are from the sphere CENTERS; re-base
         // them to each body's COM.
-        fresh->points[0].anchorA = m3Add3(
-            m3AnchorFromCom(world, world->shapeBody[shapeA], ax, ay, az), fresh->points[0].anchorA);
-        fresh->points[0].anchorB = m3Add3(
-            m3AnchorFromCom(world, world->shapeBody[shapeB], bx, by, bz), fresh->points[0].anchorB);
+        fresh->points[0].anchorA =
+            m3Add3(m3AnchorFromCom(world, world->shapes.shapeBody[shapeA], ax, ay, az),
+                   fresh->points[0].anchorA);
+        fresh->points[0].anchorB =
+            m3Add3(m3AnchorFromCom(world, world->shapes.shapeBody[shapeB], bx, by, bz),
+                   fresh->points[0].anchorB);
     }
 }
 
@@ -557,13 +564,13 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
     // writes ONLY manifolds[i]: the range is safe under any split.
     for (int32_t i = start; i < end; ++i)
     {
-        uint64_t key = world->pairKeys[i];
+        uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
 
         m3Manifold fresh;
-        uint8_t typeA = world->shapeType[shapeA];
-        uint8_t typeB = world->shapeType[shapeB];
+        uint8_t typeA = world->shapes.shapeType[shapeA];
+        uint8_t typeB = world->shapes.shapeType[shapeB];
         s_colliders[typeA][typeB](world, &fresh, shapeA, shapeB);
 
         // Warm-start carry: find the old manifold for this key and
@@ -607,7 +614,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
                 }
             }
         }
-        world->manifolds[i] = fresh;
+        world->contacts.manifolds[i] = fresh;
     }
 }
 
@@ -630,16 +637,16 @@ static void ContactTask(int32_t startIndex, int32_t endIndex, void* taskContext)
 m3Result m3UpdateContacts(m3World* world, const uint64_t* oldKeys, const m3Manifold* oldManifolds,
                           int32_t oldCount)
 {
-    if (world->enqueueTask != NULL && world->pairCount > 1)
+    if (world->enqueueTask != NULL && world->contacts.pairCount > 1)
     {
         m3ContactTaskContext ctx = {world, oldKeys, oldManifolds, oldCount};
-        void* task =
-            world->enqueueTask(ContactTask, world->pairCount, 16, &ctx, world->userTaskContext);
+        void* task = world->enqueueTask(ContactTask, world->contacts.pairCount, 16, &ctx,
+                                        world->userTaskContext);
         world->finishTask(task, world->userTaskContext);
     }
     else
     {
-        m3UpdateContactsRange(world, 0, world->pairCount, oldKeys, oldManifolds, oldCount);
+        m3UpdateContactsRange(world, 0, world->contacts.pairCount, oldKeys, oldManifolds, oldCount);
     }
     return m3_success;
 }

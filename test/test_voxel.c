@@ -9,6 +9,8 @@
 // refusals are loud.
 
 #include "test_harness.h"
+#include "voxel.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stddef.h>
@@ -44,7 +46,7 @@ static void FillSlab(uint8_t* voxels, int32_t yTop)
 static const m3VoxelSurface* SurfaceOf(m3WorldId worldId, m3ShapeId shape)
 {
     m3World* world = m3WorldFromId(worldId);
-    return &world->voxelSurface[world->shapeVoxelIndex[shape.index1 - 1]];
+    return &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape.index1 - 1]];
 }
 
 // Content equality for the pointer-based BVH: derived data
@@ -117,7 +119,8 @@ static void TestGreedyMergeAnalytics(void)
     CHECK(m3Shape_IsValid(two), "the two-voxel chunk creates");
     CHECK(SurfaceOf(w2, two)->boxCount == 2, "two isolated voxels are two boxes");
     m3World* wp = m3WorldFromId(w2);
-    const m3VoxelChunkData* chunk = &wp->voxelData[wp->shapeVoxelIndex[two.index1 - 1]];
+    const m3VoxelChunkData* chunk =
+        &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[two.index1 - 1]];
     CHECK(chunk->payload[0] == 7 && chunk->payload[far] == 9, "payload is carried as state");
     CHECK(chunk->filledCount == 2, "the filled count is exact");
     m3DestroyWorld(w2);
@@ -226,8 +229,8 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     m3World* wp = m3WorldFromId(world);
     // The scrub must FREE the embedded tree first (the build owns it):
     // a raw memset wipes live pointers and LSAN reports the leak.
-    m3MeshBvhFree(&wp->voxelSurface[wp->shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
-    memset(&wp->voxelSurface[wp->shapeVoxelIndex[chunkShape.index1 - 1]], 0,
+    m3MeshBvhFree(&wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
+    memset(&wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]], 0,
            sizeof(m3VoxelSurface));
     for (int32_t i = 0; i < 30; ++i)
     {
@@ -354,13 +357,13 @@ static void TestEditsCarveAndWake(void)
     CHECK(p.y > 4.45 && p.y < 4.55, "the crate rests on the intact floor");
     m3World* wp = m3WorldFromId(world);
     int32_t crateSlot = crate.index1 - 1;
-    CHECK(wp->awake[crateSlot] == 0, "the crate fell asleep");
+    CHECK(wp->bodies.awake[crateSlot] == 0, "the crate fell asleep");
 
     // Carve a 4x1x4 pocket in the top layer under the crate.
     int32_t lo[3] = {6, 3, 6};
     int32_t hi[3] = {9, 3, 9};
     CHECK(m3VoxelChunk_ClearBox(chunkShape, lo, hi) == 16, "the carve clears sixteen voxels");
-    CHECK(wp->awake[crateSlot] == 1, "the vanishing floor wakes the sleeper");
+    CHECK(wp->bodies.awake[crateSlot] == 1, "the vanishing floor wakes the sleeper");
 
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -374,7 +377,8 @@ static void TestEditsCarveAndWake(void)
     int32_t before = SurfaceOf(world, chunkShape)->boxCount;
     CHECK(m3VoxelChunk_SetVoxel(chunkShape, 6, 3, 6, 42), "a refill lands");
     CHECK(SurfaceOf(world, chunkShape)->boxCount == before + 1, "the refill adds one box");
-    const m3VoxelChunkData* chunk = &wp->voxelData[wp->shapeVoxelIndex[chunkShape.index1 - 1]];
+    const m3VoxelChunkData* chunk =
+        &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
     CHECK(chunk->payload[6 + M3_VOXEL_DIM * (3 + M3_VOXEL_DIM * 6)] == 42,
           "the refill carries its payload");
 
@@ -536,7 +540,8 @@ static void TestFractureBridge(void)
     m3ShapeId bridge = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
     CHECK(m3Shape_IsValid(bridge), "the bridge creates");
     m3World* wp = m3WorldFromId(world);
-    const m3VoxelChunkData* chunk = &wp->voxelData[wp->shapeVoxelIndex[bridge.index1 - 1]];
+    const m3VoxelChunkData* chunk =
+        &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[bridge.index1 - 1]];
     CHECK(chunk->filledCount == 28, "the bridge is twenty-eight voxels");
 
     // Cut the left joint: still anchored through the right pillar.
@@ -690,7 +695,7 @@ static void TestEscapeStopsAtWeldedBorder(void)
     m3ShapeId chunkA = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, voxels, NULL, 1.0f);
 
     m3World* w = m3WorldFromId(world);
-    int32_t slot = w->shapeVoxelIndex[chunkA.index1 - 1];
+    int32_t slot = w->shapes.shapeVoxelIndex[chunkA.index1 - 1];
     m3Vec3 normal = {0.0f, 0.0f, 0.0f};
     m3real plane = 0.0f;
     bool found = m3VoxelEscape(w, slot, (m3Vec3){0.5f, 0.5f, 0.5f}, &normal, &plane);
@@ -833,7 +838,8 @@ static void TestVoxelMeetsHeightfield(void)
         m3Pos3 p = m3Body_GetPosition(ball);
         CHECK(p.y > 0.35 && p.y < 0.45, "the ball rests on the field at the wall base");
         m3World* wp = m3WorldFromId(world);
-        CHECK(wp->awake[ball.index1 - 1] == 0, "the junction rest is stable enough to sleep");
+        CHECK(wp->bodies.awake[ball.index1 - 1] == 0,
+              "the junction rest is stable enough to sleep");
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
     }

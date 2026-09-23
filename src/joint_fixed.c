@@ -20,9 +20,9 @@ static void PrepareFixed(m3World* world, m3JointConstraint* c, const m3JointFram
     // the stored frames; the rotation lock drives the live
     // relative rotation back to identity between them, and
     // the shared point block below handles translation.
-    c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->jointFrameQB[j]);
-    c->angularImpulse = world->jointAngularImpulse[j];
+    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
+    c->angularImpulse = world->joints.jointAngularImpulse[j];
 }
 
 static void SolveFixed(m3World* world, m3JointConstraint* c, const m3JointSolveContext* s)

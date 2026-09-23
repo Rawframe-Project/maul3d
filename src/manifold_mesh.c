@@ -6,7 +6,10 @@
 // shared edges and vertices once, and its heightfield and voxel-surface
 // front ends.
 
+#include "distance.h"
 #include "manifold.h"
+#include "shape.h"
+#include "voxel.h"
 #include "world_internal.h"
 
 #include <float.h>
@@ -825,13 +828,13 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
                             const m3MeshBvh* bvh, int32_t meshShape, int32_t otherShape,
                             int meshIsA)
 {
-    int32_t meshBody = world->shapeBody[meshShape];
-    int32_t otherBody = world->shapeBody[otherShape];
+    int32_t meshBody = world->shapes.shapeBody[meshShape];
+    int32_t otherBody = world->shapes.shapeBody[otherShape];
     m3Transform xfMv = m3ShapeWorldTransform(world, meshShape);
     m3Transform xfOv = m3ShapeWorldTransform(world, otherShape);
     const m3Transform* xfM = &xfMv;
     const m3Transform* xfO = &xfOv;
-    uint8_t otherType = world->shapeType[otherShape];
+    uint8_t otherType = world->shapes.shapeType[otherShape];
 
     // Localize the convex shape into the mesh frame (doubles here).
     m3Quat conjM = {-xfM->q.x, -xfM->q.y, -xfM->q.z, xfM->q.w};
@@ -840,7 +843,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
                  (m3real)(xfO->p.z - xfM->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfM->q, dp);
 
-    m3real radius = world->shapeGeom[otherShape].s;
+    m3real radius = world->shapes.shapeGeom[otherShape].s;
     m3Vec3 s1 = {0.0f, 0.0f, 0.0f};
     m3Vec3 s2 = {0.0f, 0.0f, 0.0f};
     m3Vec3 boundLo;
@@ -852,7 +855,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     {
         // The hull kernel runs in the HULL frame: triangles transform
         // in, results transform back out with qRel/pRel.
-        hull = &world->hullData[world->shapeHullIndex[otherShape]];
+        hull = &world->hulls.hullData[world->shapes.shapeHullIndex[otherShape]];
         qHull = (m3Quat){-qRel.x, -qRel.y, -qRel.z, qRel.w};
         pHull = m3Neg3(m3InvRotateVec3(qRel, pRel));
         boundLo = (m3Vec3){3.4e38f, 3.4e38f, 3.4e38f};
@@ -871,14 +874,14 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     }
     else if (otherType == (uint8_t)m3_sphereShape)
     {
-        s1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
+        s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
         boundLo = s1;
         boundHi = s1;
     }
     else
     {
-        s1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
-        s2 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v2), pRel);
+        s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
+        s2 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v2), pRel);
         boundLo.x = m3MinF(s1.x, s2.x);
         boundLo.y = m3MinF(s1.y, s2.y);
         boundLo.z = m3MinF(s1.z, s2.z);
@@ -1220,9 +1223,9 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
 void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, int32_t otherShape,
                          int meshIsA)
 {
-    int32_t meshIndex = world->shapeMeshIndex[meshShape];
-    CollideMeshCore(world, fresh, &world->meshData[meshIndex], &world->meshBvh[meshIndex],
-                    meshShape, otherShape, meshIsA);
+    int32_t meshIndex = world->shapes.shapeMeshIndex[meshShape];
+    CollideMeshCore(world, fresh, &world->meshes.meshData[meshIndex],
+                    &world->meshes.meshBvh[meshIndex], meshShape, otherShape, meshIsA);
 }
 
 // Native heightfield versus convex: clip the convex's reach
@@ -1236,7 +1239,7 @@ void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, i
 void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfShape,
                                 int32_t otherShape, int hfIsA)
 {
-    const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[hfShape]];
+    const m3HeightFieldData* hf = &world->heightFields.hfData[world->shapes.shapeHfIndex[hfShape]];
     m3Transform xfHv = m3ShapeWorldTransform(world, hfShape);
     m3Transform xfOv = m3ShapeWorldTransform(world, otherShape);
     m3Quat conjH = {-xfHv.q.x, -xfHv.q.y, -xfHv.q.z, xfHv.q.w};
@@ -1247,13 +1250,13 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
 
     // The convex's bounds in the heightfield frame (the core's own
     // recipe, repeated here only to pick the window).
-    uint8_t otherType = world->shapeType[otherShape];
-    m3real radius = world->shapeGeom[otherShape].s;
+    uint8_t otherType = world->shapes.shapeType[otherShape];
+    m3real radius = world->shapes.shapeGeom[otherShape].s;
     m3Vec3 boundLo;
     m3Vec3 boundHi;
     if (otherType == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[otherShape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[otherShape]];
         boundLo = (m3Vec3){3.4e38f, 3.4e38f, 3.4e38f};
         boundHi = (m3Vec3){-3.4e38f, -3.4e38f, -3.4e38f};
         for (int32_t v = 0; v < hull->vertexCount; ++v)
@@ -1270,14 +1273,14 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
     }
     else if (otherType == (uint8_t)m3_sphereShape)
     {
-        m3Vec3 c = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
+        m3Vec3 c = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
         boundLo = c;
         boundHi = c;
     }
     else
     {
-        m3Vec3 c1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
-        m3Vec3 c2 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v2), pRel);
+        m3Vec3 c1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
+        m3Vec3 c2 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v2), pRel);
         boundLo.x = m3MinF(c1.x, c2.x);
         boundLo.y = m3MinF(c1.y, c2.y);
         boundLo.z = m3MinF(c1.z, c2.z);
@@ -1385,17 +1388,17 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
 void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape, int32_t otherShape,
                           int voxelIsA)
 {
-    int32_t slot = world->shapeVoxelIndex[voxelShape];
-    const m3VoxelChunkData* chunk = &world->voxelData[slot];
-    const m3VoxelSurface* surface = &world->voxelSurface[slot];
+    int32_t slot = world->shapes.shapeVoxelIndex[voxelShape];
+    const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
+    const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     m3real cell = chunk->cellSize;
-    int32_t voxelBody = world->shapeBody[voxelShape];
-    int32_t otherBody = world->shapeBody[otherShape];
+    int32_t voxelBody = world->shapes.shapeBody[voxelShape];
+    int32_t otherBody = world->shapes.shapeBody[otherShape];
     m3Transform xfVv = m3ShapeWorldTransform(world, voxelShape);
     m3Transform xfOv = m3ShapeWorldTransform(world, otherShape);
     const m3Transform* xfV = &xfVv;
     const m3Transform* xfO = &xfOv;
-    uint8_t otherType = world->shapeType[otherShape];
+    uint8_t otherType = world->shapes.shapeType[otherShape];
 
     m3Quat conjV = {-xfV->q.x, -xfV->q.y, -xfV->q.z, xfV->q.w};
     m3Quat qRel = m3MulQuat(conjV, xfO->q);
@@ -1403,7 +1406,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
                  (m3real)(xfO->p.z - xfV->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfV->q, dp);
 
-    m3real radius = world->shapeGeom[otherShape].s;
+    m3real radius = world->shapes.shapeGeom[otherShape].s;
     m3Vec3 s1 = {0.0f, 0.0f, 0.0f};
     m3Vec3 s2 = {0.0f, 0.0f, 0.0f};
     m3Vec3 boundLo;
@@ -1412,7 +1415,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
     const m3HullData* otherHull = NULL;
     if (otherType == (uint8_t)m3_hullShape)
     {
-        otherHull = &world->hullData[world->shapeHullIndex[otherShape]];
+        otherHull = &world->hulls.hullData[world->shapes.shapeHullIndex[otherShape]];
         boundLo = (m3Vec3){3.4e38f, 3.4e38f, 3.4e38f};
         boundHi = (m3Vec3){-3.4e38f, -3.4e38f, -3.4e38f};
         for (int32_t v = 0; v < otherHull->vertexCount; ++v)
@@ -1430,14 +1433,14 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
     }
     else if (otherType == (uint8_t)m3_sphereShape)
     {
-        s1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
+        s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
         boundLo = s1;
         boundHi = s1;
     }
     else
     {
-        s1 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v), pRel);
-        s2 = m3Add3(m3RotateVec3(qRel, world->shapeGeom[otherShape].v2), pRel);
+        s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v), pRel);
+        s2 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[otherShape].v2), pRel);
         boundLo.x = m3MinF(s1.x, s2.x);
         boundLo.y = m3MinF(s1.y, s2.y);
         boundLo.z = m3MinF(s1.z, s2.z);

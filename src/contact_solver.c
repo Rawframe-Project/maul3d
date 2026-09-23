@@ -6,6 +6,7 @@
 
 #include "contact_solver.h"
 
+#include "manifold.h"
 #include "solver.h"
 #include "world_internal.h"
 
@@ -14,27 +15,27 @@
 
 static m3Vec3 VelocityAt(const m3World* world, int32_t body, m3Vec3 arm)
 {
-    m3Vec3 v = world->linearVelocities[body];
-    m3Vec3 w = world->angularVelocities[body];
+    m3Vec3 v = world->bodies.linearVelocities[body];
+    m3Vec3 w = world->bodies.angularVelocities[body];
     return m3Add3(v, m3Cross3(w, arm));
 }
 
 static void ApplyImpulse(m3World* world, const m3ContactConstraint* c, m3Vec3 impulse, m3Vec3 rsA,
                          m3Vec3 rsB)
 {
-    if (world->types[c->bodyA] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody)
     {
-        world->linearVelocities[c->bodyA] =
-            m3Sub3(world->linearVelocities[c->bodyA], m3MulSV3(c->invMassA, impulse));
-        world->angularVelocities[c->bodyA] =
-            m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, m3Cross3(rsA, impulse)));
+        world->bodies.linearVelocities[c->bodyA] =
+            m3Sub3(world->bodies.linearVelocities[c->bodyA], m3MulSV3(c->invMassA, impulse));
+        world->bodies.angularVelocities[c->bodyA] = m3Sub3(
+            world->bodies.angularVelocities[c->bodyA], m3MulMV3(c->invIA, m3Cross3(rsA, impulse)));
     }
-    if (world->types[c->bodyB] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody)
     {
-        world->linearVelocities[c->bodyB] =
-            m3Add3(world->linearVelocities[c->bodyB], m3MulSV3(c->invMassB, impulse));
-        world->angularVelocities[c->bodyB] =
-            m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, m3Cross3(rsB, impulse)));
+        world->bodies.linearVelocities[c->bodyB] =
+            m3Add3(world->bodies.linearVelocities[c->bodyB], m3MulSV3(c->invMassB, impulse));
+        world->bodies.angularVelocities[c->bodyB] = m3Add3(
+            world->bodies.angularVelocities[c->bodyB], m3MulMV3(c->invIB, m3Cross3(rsB, impulse)));
     }
 }
 
@@ -53,46 +54,48 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
     m3Softness staticSoft = m3MakeSoft(2.0f * world->contactHertz, world->contactDampingRatio, h);
 
     int32_t count = 0;
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        const m3Manifold* manifold = &world->manifolds[i];
+        const m3Manifold* manifold = &world->contacts.manifolds[i];
         if (manifold->pointCount == 0)
         {
             continue;
         }
-        uint64_t key = world->pairKeys[i];
+        uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        int32_t bodyA = world->shapeBody[shapeA];
-        int32_t bodyB = world->shapeBody[shapeB];
-        int awakeDynA = world->types[bodyA] == (uint8_t)m3_dynamicBody && world->awake[bodyA] != 0;
-        int awakeDynB = world->types[bodyB] == (uint8_t)m3_dynamicBody && world->awake[bodyB] != 0;
+        int32_t bodyA = world->shapes.shapeBody[shapeA];
+        int32_t bodyB = world->shapes.shapeBody[shapeB];
+        int awakeDynA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody &&
+                        world->bodies.awake[bodyA] != 0;
+        int awakeDynB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody &&
+                        world->bodies.awake[bodyB] != 0;
         if (!awakeDynA && !awakeDynB)
         {
             continue; // both sides frozen or immovable: impulses stay put
         }
-        if (world->shapeSensor[shapeA] != 0 || world->shapeSensor[shapeB] != 0)
+        if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
         {
             continue; // sensors detect, they never respond
         }
-        if (world->replayVetoCount > 0)
+        if (world->contacts.replayVetoCount > 0)
         {
             // A recorded veto set owns this step: the keys are
             // canonical ascending, the pairs arrive in the same
             // order, and the callback (if any) stays silent so the
             // tape's truth cannot be second-guessed.
             int32_t lo = 0;
-            int32_t hi = world->replayVetoCount - 1;
+            int32_t hi = world->contacts.replayVetoCount - 1;
             int vetoed = 0;
             while (lo <= hi)
             {
                 int32_t mid = (lo + hi) / 2;
-                if (world->replayVetoKeys[mid] == key)
+                if (world->contacts.replayVetoKeys[mid] == key)
                 {
                     vetoed = 1;
                     break;
                 }
-                if (world->replayVetoKeys[mid] < key)
+                if (world->contacts.replayVetoKeys[mid] < key)
                 {
                     lo = mid + 1;
                 }
@@ -106,8 +109,8 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
                 continue;
             }
         }
-        else if (world->preSolveFn != NULL &&
-                 (world->shapePreSolve[shapeA] != 0 || world->shapePreSolve[shapeB] != 0))
+        else if (world->preSolveFn != NULL && (world->shapes.shapePreSolve[shapeA] != 0 ||
+                                               world->shapes.shapePreSolve[shapeB] != 0))
         {
             // The pre-solve veto: serial, canonical pair order.
             // The LOUD contract lives on the API: the callback must
@@ -120,24 +123,28 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
                     deep = k;
                 }
             }
-            m3Vec3 lcB = m3RotateVec3(world->transforms[bodyB].q, world->localCenters[bodyB]);
+            m3Vec3 lcB =
+                m3RotateVec3(world->bodies.transforms[bodyB].q, world->bodies.localCenters[bodyB]);
             m3Pos3 point;
-            point.x = world->transforms[bodyB].p.x + (double)lcB.x +
+            point.x = world->bodies.transforms[bodyB].p.x + (double)lcB.x +
                       (double)manifold->points[deep].anchorB.x;
-            point.y = world->transforms[bodyB].p.y + (double)lcB.y +
+            point.y = world->bodies.transforms[bodyB].p.y + (double)lcB.y +
                       (double)manifold->points[deep].anchorB.y;
-            point.z = world->transforms[bodyB].p.z + (double)lcB.z +
+            point.z = world->bodies.transforms[bodyB].p.z + (double)lcB.z +
                       (double)manifold->points[deep].anchorB.z;
-            m3ShapeId idA = {shapeA + 1, world->worldIndex0, world->shapePool.generations[shapeA]};
-            m3ShapeId idB = {shapeB + 1, world->worldIndex0, world->shapePool.generations[shapeB]};
+            m3ShapeId idA = {shapeA + 1, world->worldIndex0,
+                             world->shapes.shapePool.generations[shapeA]};
+            m3ShapeId idB = {shapeB + 1, world->worldIndex0,
+                             world->shapes.shapePool.generations[shapeB]};
             if (!world->preSolveFn(idA, idB, point, manifold->normal, world->preSolveContext))
             {
                 // Vetoed: no constraint this step. The key joins the
                 // journal annex so a bare replay repeats the
                 // decision; collection order = pair order = sorted.
-                if (world->journalActive != 0 && world->stepVetoCount < world->pairCapacity)
+                if (world->recorder.journalActive != 0 &&
+                    world->contacts.stepVetoCount < world->contacts.pairCapacity)
                 {
-                    world->stepVetoKeys[world->stepVetoCount++] = key;
+                    world->contacts.stepVetoKeys[world->contacts.stepVetoCount++] = key;
                 }
                 continue;
             }
@@ -152,8 +159,12 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
         c->pointCount = manifold->pointCount;
         c->normal = manifold->normal;
         m3MakeTangentBasis(c->normal, &c->t1, &c->t2);
-        c->invMassA = world->types[bodyA] == (uint8_t)m3_dynamicBody ? world->invMass[bodyA] : 0.0f;
-        c->invMassB = world->types[bodyB] == (uint8_t)m3_dynamicBody ? world->invMass[bodyB] : 0.0f;
+        c->invMassA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody
+                          ? world->bodies.invMass[bodyA]
+                          : 0.0f;
+        c->invMassB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody
+                          ? world->bodies.invMass[bodyB]
+                          : 0.0f;
         c->invIA = m3WorldInvInertia(world, bodyA);
         c->invIB = m3WorldInvInertia(world, bodyB);
         // Reference mixing: friction geometric, restitution maximum,
@@ -164,17 +175,17 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
         // point's flags (points are id-canonical, so the pick is
         // deterministic), and the whole manifold wears one material
         // (the welded points share a face by construction).
-        float fricA = world->shapeFriction[shapeA];
-        float fricB = world->shapeFriction[shapeB];
-        float restA = world->shapeRestitution[shapeA];
-        float restB = world->shapeRestitution[shapeB];
-        float rollA = world->shapeRollingResistance[shapeA];
-        float rollB = world->shapeRollingResistance[shapeB];
-        m3Vec3 surfA = world->shapeSurfaceVel[shapeA];
-        m3Vec3 surfB = world->shapeSurfaceVel[shapeB];
-        if (world->shapeType[shapeA] == (uint8_t)m3_meshShape)
+        float fricA = world->shapes.shapeFriction[shapeA];
+        float fricB = world->shapes.shapeFriction[shapeB];
+        float restA = world->shapes.shapeRestitution[shapeA];
+        float restB = world->shapes.shapeRestitution[shapeB];
+        float rollA = world->shapes.shapeRollingResistance[shapeA];
+        float rollB = world->shapes.shapeRollingResistance[shapeB];
+        m3Vec3 surfA = world->shapes.shapeSurfaceVel[shapeA];
+        m3Vec3 surfB = world->shapes.shapeSurfaceVel[shapeB];
+        if (world->shapes.shapeType[shapeA] == (uint8_t)m3_meshShape)
         {
-            const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shapeA]];
+            const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shapeA]];
             if (mesh->materialCount > 0)
             {
                 // Group 0 catches out-of-range bits from a hostile
@@ -189,9 +200,9 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
                 surfA = m->surfaceVelocity;
             }
         }
-        if (world->shapeType[shapeB] == (uint8_t)m3_meshShape)
+        if (world->shapes.shapeType[shapeB] == (uint8_t)m3_meshShape)
         {
-            const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shapeB]];
+            const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shapeB]];
             if (mesh->materialCount > 0)
             {
                 int32_t mi = manifold->points[0].flags >> 12;
@@ -205,8 +216,8 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
         }
         c->friction = sqrtf(fricA * fricB);
         c->restitution = m3MaxF(restA, restB);
-        c->rollingResistance =
-            m3MaxF(rollA, rollB) * m3MaxF(world->maxExtents[bodyA], world->maxExtents[bodyB]);
+        c->rollingResistance = m3MaxF(rollA, rollB) * m3MaxF(world->bodies.maxExtents[bodyA],
+                                                             world->bodies.maxExtents[bodyB]);
         c->rollingImpulse = manifold->rollingImpulse; // reference warm start
         if (c->rollingResistance > 0.0f)
         {
@@ -294,7 +305,7 @@ int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3re
     }
     // The pending recorded vetoes applied to exactly this prepare;
     // consume them so the next step decides for itself.
-    world->replayVetoCount = 0;
+    world->contacts.replayVetoCount = 0;
     return count;
 }
 
@@ -309,15 +320,15 @@ static void WarmStartOne(m3World* world, m3ContactConstraint* c)
     ApplyImpulse(world, c, f, c->originA, c->originB);
     // Twist and rolling are pure angular rows.
     m3Vec3 tw = m3Add3(m3MulSV3(c->twistImpulse, c->normal), c->rollingImpulse);
-    if (world->types[c->bodyA] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody)
     {
-        world->angularVelocities[c->bodyA] =
-            m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, tw));
+        world->bodies.angularVelocities[c->bodyA] =
+            m3Sub3(world->bodies.angularVelocities[c->bodyA], m3MulMV3(c->invIA, tw));
     }
-    if (world->types[c->bodyB] == (uint8_t)m3_dynamicBody)
+    if (world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody)
     {
-        world->angularVelocities[c->bodyB] =
-            m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, tw));
+        world->bodies.angularVelocities[c->bodyB] =
+            m3Add3(world->bodies.angularVelocities[c->bodyB], m3MulMV3(c->invIB, tw));
     }
 }
 static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3* deltaPos,
@@ -381,8 +392,8 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
         // normal, budgeted by the lever-arm-weighted normal sum
         // (a single-point manifold has no twist authority).
         {
-            m3Vec3 wRel =
-                m3Sub3(world->angularVelocities[c->bodyB], world->angularVelocities[c->bodyA]);
+            m3Vec3 wRel = m3Sub3(world->bodies.angularVelocities[c->bodyB],
+                                 world->bodies.angularVelocities[c->bodyA]);
             m3real twistSpeed = m3Dot3(c->normal, wRel);
             m3real maxTwist = c->friction * twistLimit;
             m3real delta = -c->twistMass * twistSpeed;
@@ -399,15 +410,15 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
             delta = newTwist - oldTwist;
             c->twistImpulse = newTwist;
             m3Vec3 tw = m3MulSV3(delta, c->normal);
-            if (world->types[c->bodyA] == (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody)
             {
-                world->angularVelocities[c->bodyA] =
-                    m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, tw));
+                world->bodies.angularVelocities[c->bodyA] =
+                    m3Sub3(world->bodies.angularVelocities[c->bodyA], m3MulMV3(c->invIA, tw));
             }
-            if (world->types[c->bodyB] == (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody)
             {
-                world->angularVelocities[c->bodyB] =
-                    m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, tw));
+                world->bodies.angularVelocities[c->bodyB] =
+                    m3Add3(world->bodies.angularVelocities[c->bodyB], m3MulMV3(c->invIB, tw));
             }
         }
 
@@ -420,8 +431,8 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
         // never sleeps.
         if (c->rollingResistance > 0.0f)
         {
-            m3Vec3 wRel =
-                m3Sub3(world->angularVelocities[c->bodyB], world->angularVelocities[c->bodyA]);
+            m3Vec3 wRel = m3Sub3(world->bodies.angularVelocities[c->bodyB],
+                                 world->bodies.angularVelocities[c->bodyA]);
             m3Vec3 delta = m3MulSV3(-1.0f, m3Solve3(&c->rollingK, wRel));
             m3Vec3 accum = m3Add3(c->rollingImpulse, delta);
             m3real maxRoll = c->rollingResistance * passNormal; // pass-local
@@ -435,15 +446,15 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
             // Guarded like every contact write-back: a static body shared
             // across graph colors must never be written, even with an
             // unchanged value (concurrent identical writes still race).
-            if (world->types[c->bodyA] == (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody)
             {
-                world->angularVelocities[c->bodyA] =
-                    m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, delta));
+                world->bodies.angularVelocities[c->bodyA] =
+                    m3Sub3(world->bodies.angularVelocities[c->bodyA], m3MulMV3(c->invIA, delta));
             }
-            if (world->types[c->bodyB] == (uint8_t)m3_dynamicBody)
+            if (world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody)
             {
-                world->angularVelocities[c->bodyB] =
-                    m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, delta));
+                world->bodies.angularVelocities[c->bodyB] =
+                    m3Add3(world->bodies.angularVelocities[c->bodyB], m3MulMV3(c->invIB, delta));
             }
         }
 
@@ -478,7 +489,7 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
 int m3BuildColoring(m3World* world, m3ContactConstraint* constraints, int32_t count,
                     m3SolverColoring* out)
 {
-    int32_t maxBody = world->bodyPool.maxIndex;
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     out->colors = (uint8_t*)m3StackAlloc(&world->scratch, count > 0 ? count : 1);
     uint32_t* bodyMasks = (uint32_t*)m3StackAlloc(
         &world->scratch, maxBody > 0 ? maxBody * (int32_t)sizeof(uint32_t) : 4);
@@ -495,8 +506,10 @@ int m3BuildColoring(m3World* world, m3ContactConstraint* constraints, int32_t co
     for (int32_t i = 0; i < count; ++i)
     {
         m3ContactConstraint* c = &constraints[i];
-        int dynA = world->types[c->bodyA] == (uint8_t)m3_dynamicBody && world->awake[c->bodyA];
-        int dynB = world->types[c->bodyB] == (uint8_t)m3_dynamicBody && world->awake[c->bodyB];
+        int dynA = world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody &&
+                   world->bodies.awake[c->bodyA];
+        int dynB = world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody &&
+                   world->bodies.awake[c->bodyB];
         uint32_t mask = (dynA ? bodyMasks[c->bodyA] : 0u) | (dynB ? bodyMasks[c->bodyB] : 0u);
         int32_t color = M3_GRAPH_COLORS; // overflow unless a bit frees up
         for (int32_t bit = 0; bit < M3_GRAPH_COLORS; ++bit)
@@ -637,7 +650,7 @@ void m3StoreContactImpulses(m3World* world, m3ContactConstraint* constraints, in
     for (int32_t i = 0; i < count; ++i)
     {
         m3ContactConstraint* c = constraints + i;
-        m3Manifold* manifold = &world->manifolds[c->manifoldIndex];
+        m3Manifold* manifold = &world->contacts.manifolds[c->manifoldIndex];
         for (int32_t k = 0; k < c->pointCount; ++k)
         {
             manifold->points[k].normalImpulse = c->points[k].normalImpulse;
@@ -646,10 +659,10 @@ void m3StoreContactImpulses(m3World* world, m3ContactConstraint* constraints, in
         // Hit events (8-5, the reference recipe): at most one per
         // contact, for the fastest-approaching point, only when a
         // side opted in and the impact actually fired.
-        uint64_t key = world->pairKeys[c->manifoldIndex];
+        uint64_t key = world->contacts.pairKeys[c->manifoldIndex];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        if (world->shapeHitEvents[shapeA] != 0 || world->shapeHitEvents[shapeB] != 0)
+        if (world->shapes.shapeHitEvents[shapeA] != 0 || world->shapes.shapeHitEvents[shapeB] != 0)
         {
             int32_t best = -1;
             for (int32_t k = 0; k < c->pointCount; ++k)
@@ -663,27 +676,27 @@ void m3StoreContactImpulses(m3World* world, m3ContactConstraint* constraints, in
             }
             if (best >= 0)
             {
-                if (world->hitEventCount < world->pairCapacity)
+                if (world->events.hitEventCount < world->contacts.pairCapacity)
                 {
-                    m3HitEvent* e = &world->hitEvents[world->hitEventCount++];
+                    m3HitEvent* e = &world->events.hitEvents[world->events.hitEventCount++];
                     e->shapeA = (m3ShapeId){shapeA + 1, world->worldIndex0,
-                                            world->shapePool.generations[shapeA]};
+                                            world->shapes.shapePool.generations[shapeA]};
                     e->shapeB = (m3ShapeId){shapeB + 1, world->worldIndex0,
-                                            world->shapePool.generations[shapeB]};
-                    m3Vec3 lcA =
-                        m3RotateVec3(world->transforms[c->bodyA].q, world->localCenters[c->bodyA]);
-                    e->point.x = world->transforms[c->bodyA].p.x + (double)lcA.x +
+                                            world->shapes.shapePool.generations[shapeB]};
+                    m3Vec3 lcA = m3RotateVec3(world->bodies.transforms[c->bodyA].q,
+                                              world->bodies.localCenters[c->bodyA]);
+                    e->point.x = world->bodies.transforms[c->bodyA].p.x + (double)lcA.x +
                                  (double)c->points[best].rA.x;
-                    e->point.y = world->transforms[c->bodyA].p.y + (double)lcA.y +
+                    e->point.y = world->bodies.transforms[c->bodyA].p.y + (double)lcA.y +
                                  (double)c->points[best].rA.y;
-                    e->point.z = world->transforms[c->bodyA].p.z + (double)lcA.z +
+                    e->point.z = world->bodies.transforms[c->bodyA].p.z + (double)lcA.z +
                                  (double)c->points[best].rA.z;
                     e->normal = c->normal;
                     e->approachSpeed = -c->points[best].relativeVelocity;
                 }
                 else
                 {
-                    world->hitEventsDropped += 1;
+                    world->events.hitEventsDropped += 1;
                 }
             }
         }

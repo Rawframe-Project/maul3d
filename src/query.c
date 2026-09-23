@@ -8,7 +8,15 @@
 // then shape index, or plain ascending shape index), so twin worlds
 // answer identically.
 
+#include "query.h"
+#include "body.h"
+#include "distance.h"
 #include "journal.h"
+#include "manifold.h"
+#include "raycast.h"
+#include "shape.h"
+#include "voxel.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <float.h>
@@ -67,12 +75,12 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3RayHit* hit, int32_t shap
 static bool RayAllCallback(int32_t shape, void* userContext)
 {
     m3RayAllContext* ctx = (m3RayAllContext*)userContext;
-    if (ctx->world->bodyEnabled[ctx->world->shapeBody[shape]] == 0)
+    if (ctx->world->bodies.bodyEnabled[ctx->world->shapes.shapeBody[shape]] == 0)
     {
         return true; // disabled bodies vanish from queries
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
-                      ctx->world->shapeCategory[shape], ctx->world->shapeMask[shape]))
+                      ctx->world->shapes.shapeCategory[shape], ctx->world->shapes.shapeMask[shape]))
     {
         return true; // filtered out
     }
@@ -117,13 +125,14 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
     hi[0] = origin.x > ex ? origin.x : ex;
     hi[1] = origin.y > ey ? origin.y : ey;
     hi[2] = origin.z > ez ? origin.z : ez;
-    m3TreeQuery(&world->tree, lo, hi, RayAllCallback, &ctx);
-    int32_t maxShape = world->shapePool.maxIndex;
+    m3TreeQuery(&world->broadphase.tree, lo, hi, RayAllCallback, &ctx);
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape &&
-            m3FilterPass(filter.categoryBits, filter.maskBits, world->shapeCategory[s],
-                         world->shapeMask[s]))
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape &&
+            m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
+                         world->shapes.shapeMask[s]))
         {
             m3RayHit hit = m3RayTestOneShape(world, s, origin, translation);
             if (hit.hit)
@@ -157,28 +166,28 @@ typedef struct m3ShapeCastContext
 static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
 {
     m3World* world = ctx->world;
-    int32_t body = world->shapeBody[shape];
+    int32_t body = world->shapes.shapeBody[shape];
     if (body == ctx->ignoreBody)
     {
         return; // the caster's own body never blocks its cast
     }
-    if (world->bodyEnabled[body] == 0)
+    if (world->bodies.bodyEnabled[body] == 0)
     {
         return; // disabled bodies vanish from queries
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
-                      ctx->world->shapeCategory[shape], ctx->world->shapeMask[shape]))
+                      ctx->world->shapes.shapeCategory[shape], ctx->world->shapes.shapeMask[shape]))
     {
         return; // filtered out
     }
-    if (world->shapeType[shape] == (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
     {
         // Voxel targets: per-box TOI against the merged
         // surface, unextended (queries report true geometry; the
         // seam extension is a contact-only device).
-        int32_t slot = world->shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxelSurface[slot];
-        m3real cell = world->voxelData[slot].cellSize;
+        int32_t slot = world->shapes.shapeVoxelIndex[shape];
+        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+        m3real cell = world->voxels.voxelData[slot].cellSize;
         m3Transform xfVv = m3ShapeWorldTransform(world, shape);
         const m3Transform* xfV = &xfVv;
         m3Sweep chunkSweep;
@@ -235,8 +244,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shape =
-                    (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                              world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             else if (out.state == m3_toiStateOverlapped &&
@@ -246,18 +255,18 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f; // the start-overlapped contract
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shape =
-                    (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                              world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
         }
         return;
     }
-    if (world->shapeType[shape] == (uint8_t)m3_meshShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_meshShape)
     {
         // Mesh targets: per-triangle TOI, ascending, bounded (the
         // same recipe as continuous collision).
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         m3Transform xfMv = m3ShapeWorldTransform(world, shape);
         const m3Transform* xfM = &xfMv;
         m3Sweep meshSweep;
@@ -283,8 +292,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         m3Vec3 bhi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount =
-            m3MeshBvhGather(&world->meshBvh[world->shapeMeshIndex[shape]], blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(
+            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
         int32_t budget = 64;
         for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
         {
@@ -322,8 +331,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shape =
-                    (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                              world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             else if (out.state == m3_toiStateOverlapped &&
@@ -333,8 +342,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f;
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shape =
-                    (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                              world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
         }
@@ -349,9 +358,9 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     input.proxyB.count = ctx->castPointCount;
     input.proxyB.radius = ctx->castRadius;
 
-    const m3Transform* xf = &world->transforms[body];
-    m3Vec3 rlc = m3RotateVec3(xf->q, world->localCenters[body]);
-    input.sweepA.localCenter = world->localCenters[body];
+    const m3Transform* xf = &world->bodies.transforms[body];
+    m3Vec3 rlc = m3RotateVec3(xf->q, world->bodies.localCenters[body]);
+    input.sweepA.localCenter = world->bodies.localCenters[body];
     input.sweepA.c1 = (m3Vec3){(m3real)(xf->p.x + (double)rlc.x - ctx->base.x),
                                (m3real)(xf->p.y + (double)rlc.y - ctx->base.y),
                                (m3real)(xf->p.z + (double)rlc.z - ctx->base.z)};
@@ -375,7 +384,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         ctx->best.fraction = out.fraction;
         ctx->best.normal = out.normal;
         ctx->best.shape =
-            (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+            (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
         ctx->bestShape = shape;
     }
     else if (out.state == m3_toiStateOverlapped)
@@ -386,8 +395,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
             ctx->best.hit = true;
             ctx->best.fraction = 0.0f; // the start-overlapped contract
             ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-            ctx->best.shape =
-                (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+            ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                          world->shapes.shapePool.generations[shape]};
             ctx->bestShape = shape;
         }
     }
@@ -398,22 +407,22 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
 static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
 {
     m3World* world = ctx->world;
-    if (world->shapeBody[shape] == ctx->ignoreBody)
+    if (world->shapes.shapeBody[shape] == ctx->ignoreBody)
     {
         return;
     }
-    if (world->bodyEnabled[world->shapeBody[shape]] == 0)
+    if (world->bodies.bodyEnabled[world->shapes.shapeBody[shape]] == 0)
     {
         return; // disabled bodies vanish from queries
     }
-    if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits, world->shapeCategory[shape],
-                      world->shapeMask[shape]))
+    if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
+                      world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]))
     {
         return; // filtered out
     }
-    m3Vec3 n = world->shapeGeom[shape].v;
+    m3Vec3 n = world->shapes.shapeGeom[shape].v;
     m3real offset =
-        world->shapeGeom[shape].s -
+        world->shapes.shapeGeom[shape].s -
         (m3real)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
     const m3real linearSlop = 0.005f;
     // sep below is measured to the cast shape's SKIN (the radius is
@@ -451,7 +460,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                     ctx->best.fraction = 0.0f;
                     ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
                     ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                                  world->shapePool.generations[shape]};
+                                                  world->shapes.shapePool.generations[shape]};
                     ctx->bestShape = shape;
                 }
             }
@@ -464,8 +473,8 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = t;
                 ctx->best.normal = n;
-                ctx->best.shape =
-                    (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
+                                              world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             return;
@@ -540,12 +549,13 @@ static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3*
     hi[0] = (base.x > ex ? base.x : ex) + (double)extent;
     hi[1] = (base.y > ey ? base.y : ey) + (double)extent;
     hi[2] = (base.z > ez ? base.z : ez) + (double)extent;
-    m3TreeQuery(&world->tree, lo, hi, ShapeCastCallback, &ctx);
+    m3TreeQuery(&world->broadphase.tree, lo, hi, ShapeCastCallback, &ctx);
 
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape)
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
         {
             ShapeCastTestPlane(&ctx, s);
         }
@@ -685,28 +695,28 @@ static int PointInShape(const m3World* world, int32_t shape, m3Pos3 point)
     m3Vec3 local =
         m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(point.x - xf->p.x), (m3real)(point.y - xf->p.y),
                                         (m3real)(point.z - xf->p.z)});
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_sphereShape)
     {
-        m3Vec3 d = m3Sub3(local, world->shapeGeom[shape].v);
-        m3real r = world->shapeGeom[shape].s;
+        m3Vec3 d = m3Sub3(local, world->shapes.shapeGeom[shape].v);
+        m3real r = world->shapes.shapeGeom[shape].s;
         return m3Dot3(d, d) <= r * r;
     }
     if (type == (uint8_t)m3_capsuleShape)
     {
-        m3Vec3 p1 = world->shapeGeom[shape].v;
-        m3Vec3 axis = m3Sub3(world->shapeGeom[shape].v2, p1);
+        m3Vec3 p1 = world->shapes.shapeGeom[shape].v;
+        m3Vec3 axis = m3Sub3(world->shapes.shapeGeom[shape].v2, p1);
         m3real len2 = m3Dot3(axis, axis);
         m3real t = len2 > 0.0f ? m3Dot3(m3Sub3(local, p1), axis) / len2 : 0.0f;
         t = m3MaxF(0.0f, m3MinF(1.0f, t));
         m3Vec3 closest = m3Add3(p1, m3MulSV3(t, axis));
         m3Vec3 d = m3Sub3(local, closest);
-        m3real r = world->shapeGeom[shape].s;
+        m3real r = world->shapes.shapeGeom[shape].s;
         return m3Dot3(d, d) <= r * r;
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         for (int32_t f = 0; f < hull->faceCount; ++f)
         {
             if (m3Dot3(hull->faceNormals[f], local) - hull->faceOffsets[f] > 0.0f)
@@ -719,7 +729,8 @@ static int PointInShape(const m3World* world, int32_t shape, m3Pos3 point)
     if (type == (uint8_t)m3_planeShape)
     {
         // Solid half space: at or below the surface.
-        return m3Dot3(world->shapeGeom[shape].v, local) - world->shapeGeom[shape].s <= 0.0f;
+        return m3Dot3(world->shapes.shapeGeom[shape].v, local) - world->shapes.shapeGeom[shape].s <=
+               0.0f;
     }
     if (type == (uint8_t)m3_voxelShape)
     {
@@ -736,8 +747,8 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     m3Vec3 local =
         m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(point.x - xf->p.x), (m3real)(point.y - xf->p.y),
                                         (m3real)(point.z - xf->p.z)});
-    int32_t slot = world->shapeVoxelIndex[shape];
-    m3real cell = world->voxelData[slot].cellSize;
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    m3real cell = world->voxels.voxelData[slot].cellSize;
     int32_t x = (int32_t)(local.x / cell);
     int32_t y = (int32_t)(local.y / cell);
     int32_t z = (int32_t)(local.z / cell);
@@ -746,7 +757,7 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     {
         return 0;
     }
-    return m3VoxelGet(&world->voxelData[slot], x, y, z) ? 1 : 0;
+    return m3VoxelGet(&world->voxels.voxelData[slot], x, y, z) ? 1 : 0;
 }
 
 m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
@@ -757,12 +768,12 @@ m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
         m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && PointInShape(world, s, point))
+        if (world->shapes.shapePool.alive[s] != 0 && PointInShape(world, s, point))
         {
-            return (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
+            return (m3ShapeId){s + 1, world->worldIndex0, world->shapes.shapePool.generations[s]};
         }
     }
     return m3_nullShapeId;
@@ -807,7 +818,7 @@ static void SelectionSiftDown(m3ShapeId* heap, int32_t size, int32_t i)
 
 static void SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape)
 {
-    m3ShapeId id = {shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+    m3ShapeId id = {shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
     if (sel->size < sel->capacity)
     {
         int32_t i = sel->size++;
@@ -853,7 +864,7 @@ typedef struct m3OverlapContext
 
 static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3real radius)
 {
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_planeShape)
     {
         m3Transform xfS3 = m3ShapeWorldTransform(world, shape);
@@ -861,7 +872,8 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
         m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
                                                        (m3real)(center.y - xf->p.y),
                                                        (m3real)(center.z - xf->p.z)});
-        m3real d = m3Dot3(world->shapeGeom[shape].v, local) - world->shapeGeom[shape].s;
+        m3real d =
+            m3Dot3(world->shapes.shapeGeom[shape].v, local) - world->shapes.shapeGeom[shape].s;
         return d <= radius;
     }
     if (type == (uint8_t)m3_voxelShape)
@@ -873,9 +885,9 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
         m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
                                                        (m3real)(center.y - xf->p.y),
                                                        (m3real)(center.z - xf->p.z)});
-        int32_t slot = world->shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxelSurface[slot];
-        m3real cell = world->voxelData[slot].cellSize;
+        int32_t slot = world->shapes.shapeVoxelIndex[shape];
+        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+        m3real cell = world->voxels.voxelData[slot].cellSize;
         uint16_t gather[M3_MESH_MAX_TRIS];
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
@@ -904,7 +916,8 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
         m3Vec3 localH = m3InvRotateVec3(xfH->q, (m3Vec3){(m3real)(center.x - xfH->p.x),
                                                          (m3real)(center.y - xfH->p.y),
                                                          (m3real)(center.z - xfH->p.z)});
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         m3Vec3 hfTris[512][3];
         int32_t hfCount = m3HeightFieldGather(
             hf, (m3Vec3){localH.x - radius, localH.y - radius, localH.z - radius},
@@ -932,12 +945,12 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
         m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
                                                        (m3real)(center.y - xf->p.y),
                                                        (m3real)(center.z - xf->p.z)});
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         uint16_t gather[M3_MESH_MAX_TRIS];
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
-        int32_t gatherCount =
-            m3MeshBvhGather(&world->meshBvh[world->shapeMeshIndex[shape]], blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(
+            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             int32_t t = gather[g];
@@ -986,12 +999,13 @@ static bool OverlapCallback(int32_t shape, void* userContext)
 {
     {
         m3OverlapContext* fctx = (m3OverlapContext*)userContext;
-        if (fctx->world->bodyEnabled[fctx->world->shapeBody[shape]] == 0)
+        if (fctx->world->bodies.bodyEnabled[fctx->world->shapes.shapeBody[shape]] == 0)
         {
             return true; // disabled bodies vanish from queries
         }
         if (!m3FilterPass(fctx->filter.categoryBits, fctx->filter.maskBits,
-                          fctx->world->shapeCategory[shape], fctx->world->shapeMask[shape]))
+                          fctx->world->shapes.shapeCategory[shape],
+                          fctx->world->shapes.shapeMask[shape]))
         {
             return true; // filtered out
         }
@@ -1009,11 +1023,12 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
                              int32_t capacity)
 {
     ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
-    m3TreeQuery(&world->tree, ctx->lo, ctx->hi, OverlapCallback, ctx);
-    int32_t maxShape = world->shapePool.maxIndex;
+    m3TreeQuery(&world->broadphase.tree, ctx->lo, ctx->hi, OverlapCallback, ctx);
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape)
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
         {
             int include;
             if (ctx->radius >= 0.0f)
@@ -1026,8 +1041,8 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
                 // iff its most-negative corner along the normal does.
                 m3Transform xfS6 = m3ShapeWorldTransform(world, s);
                 const m3Transform* xf = &xfS6;
-                m3Vec3 n = m3RotateVec3(xf->q, world->shapeGeom[s].v); // world normal
-                double off = (double)world->shapeGeom[s].s + (double)n.x * xf->p.x +
+                m3Vec3 n = m3RotateVec3(xf->q, world->shapes.shapeGeom[s].v); // world normal
+                double off = (double)world->shapes.shapeGeom[s].s + (double)n.x * xf->p.x +
                              (double)n.y * xf->p.y + (double)n.z * xf->p.z;
                 double minProj = (n.x >= 0.0f ? ctx->lo[0] : ctx->hi[0]) * (double)n.x +
                                  (n.y >= 0.0f ? ctx->lo[1] : ctx->hi[1]) * (double)n.y +
@@ -1114,8 +1129,8 @@ int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m
 // blast impulse by the area the shape shows to the front.
 static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 direction)
 {
-    uint8_t type = world->shapeType[shape];
-    const m3ShapeGeom* geom = &world->shapeGeom[shape];
+    uint8_t type = world->shapes.shapeType[shape];
+    const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
     if (type == (uint8_t)m3_sphereShape)
     {
         return M3_PI * geom->s * geom->s;
@@ -1130,7 +1145,7 @@ static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dir
     {
         // Fan every face from its first vertex and keep the facing
         // triangles; half the summed cross products is the area.
-        const m3HullData* hull = &world->hullData[world->shapeHullIndex[shape]];
+        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
         m3real area = 0.0f;
         for (int32_t f = 0; f < hull->faceCount; ++f)
         {
@@ -1154,15 +1169,15 @@ static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dir
 // direction anchor when the blast center sits inside the shape.
 static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
 {
-    uint8_t type = world->shapeType[shape];
-    const m3ShapeGeom* geom = &world->shapeGeom[shape];
+    uint8_t type = world->shapes.shapeType[shape];
+    const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
     if (type == (uint8_t)m3_capsuleShape)
     {
         return m3MulSV3(0.5f, m3Add3(geom->v, geom->v2));
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        return world->hullData[world->shapeHullIndex[shape]].center;
+        return world->hulls.hullData[world->shapes.shapeHullIndex[shape]].center;
     }
     return geom->v; // sphere center
 }
@@ -1178,7 +1193,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     m3ExplodeContext* ctx = (m3ExplodeContext*)userContext;
     m3World* world = ctx->world;
     const m3ExplosionDef* def = ctx->def;
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_voxelShape)
     {
         // The carve couples the blast to destruction: one
@@ -1199,14 +1214,14 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     {
         return true; // meshes and planes are static scenery
     }
-    int32_t body = world->shapeBody[shape];
-    if (world->types[body] != (uint8_t)m3_dynamicBody || world->bodyEnabled[body] == 0 ||
-        world->invMass[body] <= 0.0f)
+    int32_t body = world->shapes.shapeBody[shape];
+    if (world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
+        world->bodies.bodyEnabled[body] == 0 || world->bodies.invMass[body] <= 0.0f)
     {
         return true;
     }
-    if (!m3FilterPass(def->filter.categoryBits, def->filter.maskBits, world->shapeCategory[shape],
-                      world->shapeMask[shape]))
+    if (!m3FilterPass(def->filter.categoryBits, def->filter.maskBits,
+                      world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]))
     {
         return true;
     }
@@ -1284,33 +1299,33 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
     double lo[3] = {def->position.x - extent, def->position.y - extent, def->position.z - extent};
     double hi[3] = {def->position.x + extent, def->position.y + extent, def->position.z + extent};
     m3ExplodeContext ctx = {world, def};
-    m3TreeQuery(&world->tree, lo, hi, ExplodeCallback, &ctx);
+    m3TreeQuery(&world->broadphase.tree, lo, hi, ExplodeCallback, &ctx);
     // Soft particles: a canonical linear pass over the pool. Verlet
     // has no velocity to poke, so the push lands as a pending kick
     // the next step integrates exactly once.
     if (def->softPush != 0.0f && def->impulsePerArea != 0.0f)
     {
-        int32_t maxSoft = world->softPool.maxIndex;
+        int32_t maxSoft = world->softBodies.softPool.maxIndex;
         for (int32_t slot = 0; slot < maxSoft; ++slot)
         {
-            if (world->softPool.alive[slot] == 0)
+            if (world->softBodies.softPool.alive[slot] == 0)
             {
                 continue;
             }
-            int32_t count = world->softParticleCount[slot];
+            int32_t count = world->softBodies.softParticleCount[slot];
             int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
-            m3real pr = world->softRadius[slot];
+            m3real pr = world->softBodies.softRadius[slot];
             m3real area = M3_PI * pr * pr;
             for (int32_t i = 0; i < count; ++i)
             {
                 int32_t k = base + i;
-                if (world->softInvMass[k] == 0.0f)
+                if (world->softBodies.softInvMass[k] == 0.0f)
                 {
                     continue;
                 }
-                m3Vec3 d = {(m3real)(world->softPos[k].x - def->position.x),
-                            (m3real)(world->softPos[k].y - def->position.y),
-                            (m3real)(world->softPos[k].z - def->position.z)};
+                m3Vec3 d = {(m3real)(world->softBodies.softPos[k].x - def->position.x),
+                            (m3real)(world->softBodies.softPos[k].y - def->position.y),
+                            (m3real)(world->softBodies.softPos[k].z - def->position.z)};
                 m3real dist = m3Length3(d);
                 m3real surface = dist - pr;
                 if (surface > def->radius + def->falloff)
@@ -1326,8 +1341,9 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
                     scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
                 }
                 m3real magnitude = def->impulsePerArea * def->softPush * area * scale;
-                world->softKick[k] = m3Add3(world->softKick[k],
-                                            m3MulSV3(magnitude * world->softInvMass[k], direction));
+                world->softBodies.softKick[k] =
+                    m3Add3(world->softBodies.softKick[k],
+                           m3MulSV3(magnitude * world->softBodies.softInvMass[k], direction));
             }
         }
     }
@@ -1361,7 +1377,7 @@ void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def)
         m3Refuse(world, m3_errorInvalid);
         return; // hostile fields apply nothing and journal nothing
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opWorldExplode, def, (int32_t)sizeof(*def));
     }
@@ -1371,26 +1387,28 @@ void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def)
 
 static void FillContactData(const m3World* world, int32_t pair, m3ContactData* out)
 {
-    const m3Manifold* manifold = &world->manifolds[pair];
-    uint64_t key = world->pairKeys[pair];
+    const m3Manifold* manifold = &world->contacts.manifolds[pair];
+    uint64_t key = world->contacts.pairKeys[pair];
     int32_t shapeA = (int32_t)(key >> 32);
     int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-    out->shapeA = (m3ShapeId){shapeA + 1, world->worldIndex0, world->shapePool.generations[shapeA]};
-    out->shapeB = (m3ShapeId){shapeB + 1, world->worldIndex0, world->shapePool.generations[shapeB]};
+    out->shapeA =
+        (m3ShapeId){shapeA + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeA]};
+    out->shapeB =
+        (m3ShapeId){shapeB + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeB]};
     out->normal = manifold->normal;
     int32_t count = manifold->pointCount;
     out->pointCount = count;
-    int32_t bodyA = world->shapeBody[shapeA];
-    m3Vec3 rcA = m3RotateVec3(world->transforms[bodyA].q, world->localCenters[bodyA]);
+    int32_t bodyA = world->shapes.shapeBody[shapeA];
+    m3Vec3 rcA = m3RotateVec3(world->bodies.transforms[bodyA].q, world->bodies.localCenters[bodyA]);
     for (int32_t k = 0; k < count; ++k)
     {
-        const m3ManifoldPoint* point = &world->manifolds[pair].points[k];
+        const m3ManifoldPoint* point = &world->contacts.manifolds[pair].points[k];
         // Anchors are measured from body A's center in world axes:
         // COM plus anchor is the world contact point at read time.
         out->points[k] =
-            (m3Pos3){world->transforms[bodyA].p.x + (double)(rcA.x + point->anchorA.x),
-                     world->transforms[bodyA].p.y + (double)(rcA.y + point->anchorA.y),
-                     world->transforms[bodyA].p.z + (double)(rcA.z + point->anchorA.z)};
+            (m3Pos3){world->bodies.transforms[bodyA].p.x + (double)(rcA.x + point->anchorA.x),
+                     world->bodies.transforms[bodyA].p.y + (double)(rcA.y + point->anchorA.y),
+                     world->bodies.transforms[bodyA].p.z + (double)(rcA.z + point->anchorA.z)};
         out->separations[k] = point->separation;
         out->normalImpulses[k] = point->normalImpulse;
     }
@@ -1411,19 +1429,20 @@ int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t ca
         return 0;
     }
     int32_t shape = shapeId.index1 - 1;
-    if (shape < 0 || shape >= world->shapePool.maxIndex || world->shapePool.alive[shape] == 0 ||
-        world->shapePool.generations[shape] != shapeId.generation)
+    if (shape < 0 || shape >= world->shapes.shapePool.maxIndex ||
+        world->shapes.shapePool.alive[shape] == 0 ||
+        world->shapes.shapePool.generations[shape] != shapeId.generation)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t written = 0;
-    for (int32_t i = 0; i < world->pairCount && written < capacity; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount && written < capacity; ++i)
     {
-        uint64_t key = world->pairKeys[i];
+        uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        if ((shapeA == shape || shapeB == shape) && world->manifolds[i].pointCount > 0)
+        if ((shapeA == shape || shapeB == shape) && world->contacts.manifolds[i].pointCount > 0)
         {
             FillContactData(world, i, &out[written]);
             written += 1;
@@ -1447,13 +1466,13 @@ int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capac
         return 0;
     }
     int32_t written = 0;
-    for (int32_t i = 0; i < world->pairCount && written < capacity; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount && written < capacity; ++i)
     {
-        uint64_t key = world->pairKeys[i];
+        uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        if ((world->shapeBody[shapeA] == body || world->shapeBody[shapeB] == body) &&
-            world->manifolds[i].pointCount > 0)
+        if ((world->shapes.shapeBody[shapeA] == body || world->shapes.shapeBody[shapeB] == body) &&
+            world->contacts.manifolds[i].pointCount > 0)
         {
             FillContactData(world, i, &out[written]);
             written += 1;
@@ -1510,7 +1529,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         // asset build, the one gcc the CI matrix does not run).
         return 0;
     }
-    uint8_t type = world->shapeType[shape];
+    uint8_t type = world->shapes.shapeType[shape];
     m3Transform xf = m3ShapeWorldTransform(world, shape);
     m3Vec3 local[64];
     for (int32_t k = 0; k < ctx->pointCount; ++k)
@@ -1525,7 +1544,8 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         m3real best = 0.0f;
         for (int32_t k = 0; k < ctx->pointCount; ++k)
         {
-            m3real d = m3Dot3(world->shapeGeom[shape].v, local[k]) - world->shapeGeom[shape].s;
+            m3real d = m3Dot3(world->shapes.shapeGeom[shape].v, local[k]) -
+                       world->shapes.shapeGeom[shape].s;
             if (k == 0 || d < best)
             {
                 best = d;
@@ -1535,9 +1555,9 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_voxelShape)
     {
-        int32_t slot = world->shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxelSurface[slot];
-        m3real cell = world->voxelData[slot].cellSize;
+        int32_t slot = world->shapes.shapeVoxelIndex[shape];
+        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+        m3real cell = world->voxels.voxelData[slot].cellSize;
         m3Vec3 blo = local[0];
         m3Vec3 bhi = local[0];
         for (int32_t k = 1; k < ctx->pointCount; ++k)
@@ -1575,7 +1595,8 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     {
         // The overlap family sees terrain: cloud box, cell
         // gather, the same reach test per triangle.
-        const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
+        const m3HeightFieldData* hf =
+            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         m3Vec3 hlo = local[0];
         m3Vec3 hhi = local[0];
         for (int32_t k = 1; k < ctx->pointCount; ++k)
@@ -1602,7 +1623,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_meshShape)
     {
-        const m3MeshData* mesh = &world->meshData[world->shapeMeshIndex[shape]];
+        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         m3Vec3 blo = local[0];
         m3Vec3 bhi = local[0];
         for (int32_t k = 1; k < ctx->pointCount; ++k)
@@ -1617,8 +1638,8 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         blo = (m3Vec3){blo.x - ctx->radius, blo.y - ctx->radius, blo.z - ctx->radius};
         bhi = (m3Vec3){bhi.x + ctx->radius, bhi.y + ctx->radius, bhi.z + ctx->radius};
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount =
-            m3MeshBvhGather(&world->meshBvh[world->shapeMeshIndex[shape]], blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(
+            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             int32_t t = gather[g];
@@ -1641,12 +1662,12 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
 static bool ProxyOverlapCallback(int32_t shape, void* userContext)
 {
     m3ProxyOverlapContext* ctx = (m3ProxyOverlapContext*)userContext;
-    if (ctx->world->bodyEnabled[ctx->world->shapeBody[shape]] == 0)
+    if (ctx->world->bodies.bodyEnabled[ctx->world->shapes.shapeBody[shape]] == 0)
     {
         return true;
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
-                      ctx->world->shapeCategory[shape], ctx->world->shapeMask[shape]))
+                      ctx->world->shapes.shapeCategory[shape], ctx->world->shapes.shapeMask[shape]))
     {
         return true;
     }
@@ -1662,14 +1683,15 @@ static int32_t ProxyOverlapGather(m3World* world, m3ProxyOverlapContext* ctx, m3
                                   int32_t capacity)
 {
     ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
-    m3TreeQuery(&world->tree, ctx->lo, ctx->hi, ProxyOverlapCallback, ctx);
-    int32_t maxShape = world->shapePool.maxIndex;
+    m3TreeQuery(&world->broadphase.tree, ctx->lo, ctx->hi, ProxyOverlapCallback, ctx);
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape &&
-            world->bodyEnabled[world->shapeBody[s]] != 0 &&
-            m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits, world->shapeCategory[s],
-                         world->shapeMask[s]) &&
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape &&
+            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
+            m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
+                         world->shapes.shapeCategory[s], world->shapes.shapeMask[s]) &&
             ProxyReachesShape(ctx, s))
         {
             SelectionOffer(&ctx->selection, world, s);
@@ -1872,7 +1894,8 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
 {
     m3MoverCollideCtx* ctx = (m3MoverCollideCtx*)userContext;
     m3World* world = ctx->world;
-    if (world->shapeSensor[shape] != 0 || world->bodyEnabled[world->shapeBody[shape]] == 0)
+    if (world->shapes.shapeSensor[shape] != 0 ||
+        world->bodies.bodyEnabled[world->shapes.shapeBody[shape]] == 0)
     {
         return true; // sensors and disabled bodies are invisible
     }
@@ -1913,7 +1936,8 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
         plane.normal = (m3Vec3){0.0f, 1.0f, 0.0f};
     }
     plane.separation = gap;
-    plane.shape = (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+    plane.shape =
+        (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
     MoverOfferPlane(ctx, plane);
     return true;
 }
@@ -1941,18 +1965,20 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
     double reach = (double)(halfHeight + radius + skin);
     double lo[3] = {center.x - reach, center.y - reach, center.z - reach};
     double hi[3] = {center.x + reach, center.y + reach, center.z + reach};
-    m3TreeQuery(&world->tree, lo, hi, MoverGatherCallback, &ctx);
+    m3TreeQuery(&world->broadphase.tree, lo, hi, MoverGatherCallback, &ctx);
     // The infinite planes never enter the tree: test them directly.
-    int32_t maxShape = world->shapePool.maxIndex;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapePool.alive[s] == 0 || world->shapeType[s] != (uint8_t)m3_planeShape ||
-            world->shapeSensor[s] != 0 || world->bodyEnabled[world->shapeBody[s]] == 0)
+        if (world->shapes.shapePool.alive[s] == 0 ||
+            world->shapes.shapeType[s] != (uint8_t)m3_planeShape ||
+            world->shapes.shapeSensor[s] != 0 ||
+            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] == 0)
         {
             continue;
         }
-        m3Vec3 n = world->shapeGeom[s].v;
-        m3real off = world->shapeGeom[s].s;
+        m3Vec3 n = world->shapes.shapeGeom[s].v;
+        m3real off = world->shapes.shapeGeom[s].s;
         // Closest capsule feature to the half-space.
         m3real dCenter =
             (m3real)((double)n.x * center.x + (double)n.y * center.y + (double)n.z * center.z) -
@@ -1965,7 +1991,8 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
         m3MoverPlane plane;
         plane.normal = n;
         plane.separation = gap;
-        plane.shape = (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
+        plane.shape =
+            (m3ShapeId){s + 1, world->worldIndex0, world->shapes.shapePool.generations[s]};
         MoverOfferPlane(&ctx, plane);
     }
     // Ascending shape order keeps the plane list canonical.

@@ -7,6 +7,8 @@
 // Euler's identity, containment, positive-definite mass, and
 // bit-identical reruns over pseudo-random clouds.
 
+#include "hull.h"
+#include "quickhull.h"
 #include "test_harness.h"
 #include "world_internal.h"
 

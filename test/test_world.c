@@ -6,7 +6,9 @@
 // failure paths. Black box: public headers only.
 
 // White box: pair inspection reads world internals directly.
+#include "broad_phase.h"
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul3d/shape.h"
@@ -215,13 +217,13 @@ static void TestShapes(void)
     CHECK(m3Shape_IsValid(s), "sphere created");
     m3World* w = m3WorldFromIndex0((uint16_t)(world.index1 - 1));
     float expectedMass = 2.0f * (4.0f / 3.0f) * M3_PI * 0.125f;
-    float gotMass = 1.0f / w->invMass[body.index1 - 1];
+    float gotMass = 1.0f / w->bodies.invMass[body.index1 - 1];
     CHECK(gotMass > expectedMass - 1.0e-4f && gotMass < expectedMass + 1.0e-4f,
           "sphere mass is analytic");
     float expectedI = 0.4f * expectedMass * 0.25f;
-    float gotI = 1.0f / w->invInertiaLocal[body.index1 - 1].cx.x;
+    float gotI = 1.0f / w->bodies.invInertiaLocal[body.index1 - 1].cx.x;
     CHECK(gotI > expectedI - 1.0e-4f && gotI < expectedI + 1.0e-4f, "sphere inertia is analytic");
-    m3Mat3 tensor = w->invInertiaLocal[body.index1 - 1];
+    m3Mat3 tensor = w->bodies.invInertiaLocal[body.index1 - 1];
     CHECK(tensor.cy.x == 0.0f && tensor.cz.x == 0.0f && tensor.cz.y == 0.0f,
           "a centered sphere's tensor is diagonal");
 
@@ -239,9 +241,9 @@ static void TestShapes(void)
     m3Sphere offset = {{1.0f, 0.0f, 0.0f}, 0.5f};
     CHECK(m3Shape_IsValid(m3CreateSphereShape(offsetBody, &sd, &offset)),
           "an off-origin dynamic sphere is exact under the tensor");
-    m3Vec3 lc = w->localCenters[offsetBody.index1 - 1];
+    m3Vec3 lc = w->bodies.localCenters[offsetBody.index1 - 1];
     CHECK(lc.x == 1.0f && lc.y == 0.0f && lc.z == 0.0f, "the COM sits at the sphere center");
-    float gotOffsetI = 1.0f / w->invInertiaLocal[offsetBody.index1 - 1].cx.x;
+    float gotOffsetI = 1.0f / w->bodies.invInertiaLocal[offsetBody.index1 - 1].cx.x;
     CHECK(gotOffsetI > expectedI - 1.0e-4f && gotOffsetI < expectedI + 1.0e-4f,
           "inertia about the COM is the centroid value");
     m3DestroyBody(offsetBody);
@@ -256,10 +258,10 @@ static void TestShapes(void)
     CHECK(m3Shape_IsValid(m3CreateSphereShape(twin, &sd, &left)) &&
               m3Shape_IsValid(m3CreateSphereShape(twin, &sd, &right)),
           "the twin-sphere body builds");
-    m3Vec3 tlc = w->localCenters[twin.index1 - 1];
+    m3Vec3 tlc = w->bodies.localCenters[twin.index1 - 1];
     CHECK(tlc.x == 0.0f && tlc.y == 0.0f && tlc.z == 0.0f, "symmetric twins center the COM");
-    float ixx = 1.0f / w->invInertiaLocal[twin.index1 - 1].cx.x;
-    float iyy = 1.0f / w->invInertiaLocal[twin.index1 - 1].cy.y;
+    float ixx = 1.0f / w->bodies.invInertiaLocal[twin.index1 - 1].cx.x;
+    float iyy = 1.0f / w->bodies.invInertiaLocal[twin.index1 - 1].cy.y;
     float exx = 2.0f * expectedI;
     float eyy = 2.0f * (expectedI + expectedMass * 1.0f);
     CHECK(ixx > exx - 1.0e-3f && ixx < exx + 1.0e-3f, "xx skips the parallel axis term");
@@ -278,10 +280,10 @@ static void TestShapes(void)
     m3ShapeId box1 = m3CreateBoxShape(boxBody, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
     CHECK(m3Shape_IsValid(box1), "box created");
     float bm = 2.0f * 8.0f * 0.5f * 0.25f * 1.0f;
-    float gotBm = 1.0f / w->invMass[boxBody.index1 - 1];
+    float gotBm = 1.0f / w->bodies.invMass[boxBody.index1 - 1];
     CHECK(gotBm > bm - 1.0e-4f && gotBm < bm + 1.0e-4f, "box mass is analytic");
     float bIxx = (bm / 3.0f) * (0.25f * 0.25f + 1.0f * 1.0f);
-    float gotBIxx = 1.0f / w->invInertiaLocal[boxBody.index1 - 1].cx.x;
+    float gotBIxx = 1.0f / w->bodies.invInertiaLocal[boxBody.index1 - 1].cx.x;
     CHECK(gotBIxx > bIxx - 1.0e-3f && gotBIxx < bIxx + 1.0e-3f, "box inertia is analytic");
     CHECK(!m3Shape_IsValid(m3CreateBoxShape(boxBody, &xs, (m3Vec3){0.0f, 1.0f, 1.0f})),
           "a degenerate box extent is refused");
@@ -290,16 +292,16 @@ static void TestShapes(void)
     // its own; releasing the twin frees nothing until both die.
     m3BodyId boxBody2 = m3CreateBody(world, &xd);
     m3CreateBoxShape(boxBody2, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
-    int32_t slot1 = w->shapeHullIndex[box1.index1 - 1];
-    CHECK(w->hullRefCounts[slot1] == 2, "identical boxes share one interned hull");
+    int32_t slot1 = w->shapes.shapeHullIndex[box1.index1 - 1];
+    CHECK(w->hulls.hullRefCounts[slot1] == 2, "identical boxes share one interned hull");
     m3BodyId boxBody3 = m3CreateBody(world, &xd);
     m3CreateBoxShape(boxBody3, &xs, (m3Vec3){0.3f, 0.3f, 0.3f});
-    CHECK(w->hullPool.maxIndex == 2, "a different box interns a second hull");
+    CHECK(w->hulls.hullPool.maxIndex == 2, "a different box interns a second hull");
     m3DestroyBody(boxBody2);
-    CHECK(w->hullRefCounts[slot1] == 1, "releasing the twin decrements the refcount");
+    CHECK(w->hulls.hullRefCounts[slot1] == 1, "releasing the twin decrements the refcount");
     m3DestroyBody(boxBody3);
     m3DestroyBody(boxBody);
-    CHECK(w->hullPool.freeCount == 2, "dead hulls return to the pool");
+    CHECK(w->hulls.hullPool.freeCount == 2, "dead hulls return to the pool");
 
     // The cascade: a body takes its shapes with it.
     m3DestroyBody(body);
@@ -337,24 +339,25 @@ static void TestPairs(void)
     m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball); // shape 3 (C), far
 
     CHECK(m3UpdatePairs(w) == m3_success, "the pair scan succeeds");
-    CHECK(w->pairCount == 4, "plane pairs with every sphere, plus the A-B overlap");
+    CHECK(w->contacts.pairCount == 4, "plane pairs with every sphere, plus the A-B overlap");
     uint64_t expected[4] = {
         ((uint64_t)0 << 32) | 1u,
         ((uint64_t)0 << 32) | 2u,
         ((uint64_t)0 << 32) | 3u,
         ((uint64_t)1 << 32) | 2u,
     };
-    CHECK(memcmp(w->pairKeys, expected, sizeof(expected)) == 0,
+    CHECK(memcmp(w->contacts.pairKeys, expected, sizeof(expected)) == 0,
           "pair keys are exact and canonically ordered");
 
     // Snapshot round-trip carries the pairs (v2 format).
     int32_t size = m3World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(m3World_Snapshot(world, snap, size) == size, "v2 snapshot");
-    w->pairCount = 0;
-    memset(w->pairKeys, 0, sizeof(expected));
+    w->contacts.pairCount = 0;
+    memset(w->contacts.pairKeys, 0, sizeof(expected));
     CHECK(m3World_Restore(world, snap, size), "v2 restore");
-    CHECK(w->pairCount == 4 && memcmp(w->pairKeys, expected, sizeof(expected)) == 0,
+    CHECK(w->contacts.pairCount == 4 &&
+              memcmp(w->contacts.pairKeys, expected, sizeof(expected)) == 0,
           "pairs survive the round-trip");
     free(snap);
     m3DestroyWorld(world);
@@ -417,11 +420,11 @@ static void TestTreeReferee(void)
     for (int32_t round = 0; round < 4; ++round)
     {
         CHECK(m3UpdatePairsBruteForce(w) == m3_success, "referee scan");
-        int32_t refCount = w->pairCount;
-        memcpy(refKeys, w->pairKeys, (size_t)refCount * sizeof(uint64_t));
+        int32_t refCount = w->contacts.pairCount;
+        memcpy(refKeys, w->contacts.pairKeys, (size_t)refCount * sizeof(uint64_t));
         CHECK(m3UpdatePairs(w) == m3_success, "tree scan");
-        CHECK(w->pairCount == refCount, "tree and referee agree on the count");
-        CHECK(memcmp(w->pairKeys, refKeys, (size_t)refCount * sizeof(uint64_t)) == 0,
+        CHECK(w->contacts.pairCount == refCount, "tree and referee agree on the count");
+        CHECK(memcmp(w->contacts.pairKeys, refKeys, (size_t)refCount * sizeof(uint64_t)) == 0,
               "tree and referee agree on every key");
 
         if (round == 1)

@@ -9,6 +9,7 @@
 // carries a byte-identical tree), and the degenerate boxes.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include <stdio.h>
@@ -58,13 +59,13 @@ static m3WorldId MakeMeshWorld(m3ShapeId* meshShapeOut)
 static const m3MeshData* MeshOf(m3WorldId worldId, m3ShapeId shape)
 {
     m3World* world = m3WorldFromId(worldId);
-    return &world->meshData[world->shapeMeshIndex[shape.index1 - 1]];
+    return &world->meshes.meshData[world->shapes.shapeMeshIndex[shape.index1 - 1]];
 }
 
 static const m3MeshBvh* BvhOf(m3WorldId worldId, m3ShapeId shape)
 {
     m3World* world = m3WorldFromId(worldId);
-    return &world->meshBvh[world->shapeMeshIndex[shape.index1 - 1]];
+    return &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape.index1 - 1]];
 }
 
 static void TriBox(const m3MeshData* mesh, int32_t t, m3Vec3* lo, m3Vec3* hi)
@@ -227,7 +228,7 @@ static void TestBuildDeterminismAndRestore(void)
 
     // Scrub the live tree to prove restore really rebuilds it.
     m3World* worldA = m3WorldFromId(a);
-    m3MeshBvhFree(&worldA->meshBvh[worldA->shapeMeshIndex[shapeA.index1 - 1]]);
+    m3MeshBvhFree(&worldA->meshes.meshBvh[worldA->shapes.shapeMeshIndex[shapeA.index1 - 1]]);
     CHECK(m3World_Restore(a, snap, bytes), "restore accepts");
     CHECK(BvhSame(BvhOf(a, shapeA), before), "restore rebuilds a byte-identical tree");
 

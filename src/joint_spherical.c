@@ -6,6 +6,7 @@
 
 #include "joint_solver.h"
 
+#include "manifold.h"
 #include "solver.h"
 #include "world_internal.h"
 
@@ -25,8 +26,8 @@ static void PrepareSpherical(m3World* world, m3JointConstraint* c, const m3Joint
     // per the reference: swing axis from the two frame
     // z-axes, the flagged twist Jacobian with its tan(theta
     // over two) term, both masses frozen at prepare.
-    c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->jointFrameQB[j]);
+    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
     m3Vec3 coneAxis = m3RotateVec3(c->frameQA, (m3Vec3){0.0f, 0.0f, 1.0f});
     m3Vec3 twistAxis = m3RotateVec3(c->frameQB, (m3Vec3){0.0f, 0.0f, 1.0f});
     m3Vec3 swing = m3Cross3(coneAxis, twistAxis);
@@ -59,12 +60,12 @@ static void PrepareSpherical(m3World* world, m3JointConstraint* c, const m3Joint
     m3real kTwist = m3Dot3(c->twistJacobian, sumTwist);
     c->twistMass = kTwist > 0.0f ? 1.0f / kTwist : 0.0f;
 
-    c->coneAngle = world->jointLimits[j].z;
-    c->lowerLimit = world->jointLimits[j].x;
-    c->upperLimit = world->jointLimits[j].y;
-    c->lowerImpulse = world->jointLimitImpulse[j].x;
-    c->upperImpulse = world->jointLimitImpulse[j].y;
-    c->swingImpulse = world->jointLimitImpulse[j].z;
+    c->coneAngle = world->joints.jointLimits[j].z;
+    c->lowerLimit = world->joints.jointLimits[j].x;
+    c->upperLimit = world->joints.jointLimits[j].y;
+    c->lowerImpulse = world->joints.jointLimitImpulse[j].x;
+    c->upperImpulse = world->joints.jointLimitImpulse[j].y;
+    c->swingImpulse = world->joints.jointLimitImpulse[j].z;
 }
 
 static void WarmStartSpherical(const m3World* world, const m3JointConstraint* c,
@@ -203,8 +204,8 @@ static void SolveSpherical(m3World* world, m3JointConstraint* c, const m3JointSo
             wB = m3Sub3(wB, m3MulSV3(delta, m3MulMV3(c->invIB, axis)));
         }
 
-        world->angularVelocities[c->bodyA] = wA;
-        world->angularVelocities[c->bodyB] = wB;
+        world->bodies.angularVelocities[c->bodyA] = wA;
+        world->bodies.angularVelocities[c->bodyB] = wB;
         // Fall through to the shared point constraint.
     }
     m3SolveJointPoint(world, c, s, vA, wA, vB, wB);

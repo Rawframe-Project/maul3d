@@ -7,6 +7,7 @@
 #ifndef MAUL3D_SRC_MANIFOLD_H
 #define MAUL3D_SRC_MANIFOLD_H
 
+#include "distance.h"
 #include "world_internal.h"
 
 // Shape types run from m3_sphereShape (0) to m3_heightFieldShape.
@@ -27,5 +28,29 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
                                 int32_t otherShape, int hfIsA);
 void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape, int32_t otherShape,
                           int voxelIsA);
+
+// Deterministic tangent basis: ONE fixed rule (the world axis with the
+// smallest absolute normal component, ties broken x before y before
+// z), because the friction rows are order-sensitive downstream.
+void m3MakeTangentBasis(m3Vec3 normal, m3Vec3* t1, m3Vec3* t2);
+
+// GJK proxy for one shape in its local frame (spheres and capsules
+// borrow the caller's scratch for their point storage).
+m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scratch[2]);
+
+// Hull-versus-hull SAT: face queries both ways, the Gauss-map
+// edge query, face clipping or the edge closest-point contact. B is
+// given in A's frame; the manifold is in A's frame with the A-to-B
+// normal. Reduction reuses the deepest-four canonical rule.
+m3Manifold m3CollideHulls(const m3HullData* hullA, const m3HullData* hullB, m3Quat q, m3Vec3 p);
+
+// Pure collide kernels (world-independent, tested in isolation).
+// Normals point from A to B. d is the center offset B minus A in
+// floats (exact enough near contact).
+m3Manifold m3CollideSpheres(m3Vec3 d, m3real radiusA, m3real radiusB);
+
+// Plane (A) versus sphere (B): dist is the signed distance of the
+// sphere center above the plane, computed in double by the caller.
+m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, m3real dist, m3real radius);
 
 #endif // MAUL3D_SRC_MANIFOLD_H
