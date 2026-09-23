@@ -773,6 +773,78 @@ m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
     return m3_nullShapeId;
 }
 
+// Keeps the `capacity` lowest shape slots offered, ascending, in the
+// caller's result array: a bounded max-heap on the slot while
+// collecting, sorted in place at the end. No cap beyond the caller's
+// capacity, and the kept set does not depend on tree visit order.
+typedef struct m3ShapeSelection
+{
+    m3ShapeId* ids;
+    int32_t capacity;
+    int32_t size;
+} m3ShapeSelection;
+
+static void SelectionSiftDown(m3ShapeId* heap, int32_t size, int32_t i)
+{
+    for (;;)
+    {
+        int32_t largest = i;
+        int32_t left = 2 * i + 1;
+        int32_t right = left + 1;
+        if (left < size && heap[left].index1 > heap[largest].index1)
+        {
+            largest = left;
+        }
+        if (right < size && heap[right].index1 > heap[largest].index1)
+        {
+            largest = right;
+        }
+        if (largest == i)
+        {
+            return;
+        }
+        m3ShapeId swap = heap[i];
+        heap[i] = heap[largest];
+        heap[largest] = swap;
+        i = largest;
+    }
+}
+
+static void SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape)
+{
+    m3ShapeId id = {shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+    if (sel->size < sel->capacity)
+    {
+        int32_t i = sel->size++;
+        sel->ids[i] = id;
+        while (i > 0 && sel->ids[(i - 1) / 2].index1 < sel->ids[i].index1)
+        {
+            m3ShapeId swap = sel->ids[i];
+            sel->ids[i] = sel->ids[(i - 1) / 2];
+            sel->ids[(i - 1) / 2] = swap;
+            i = (i - 1) / 2;
+        }
+    }
+    else if (sel->capacity > 0 && id.index1 < sel->ids[0].index1)
+    {
+        sel->ids[0] = id;
+        SelectionSiftDown(sel->ids, sel->size, 0);
+    }
+}
+
+// Sorts the kept ids ascending and returns how many were written.
+static int32_t SelectionFinish(m3ShapeSelection* sel)
+{
+    for (int32_t end = sel->size - 1; end > 0; --end)
+    {
+        m3ShapeId swap = sel->ids[0];
+        sel->ids[0] = sel->ids[end];
+        sel->ids[end] = swap;
+        SelectionSiftDown(sel->ids, end, 0);
+    }
+    return sel->size;
+}
+
 typedef struct m3OverlapContext
 {
     m3World* world;
@@ -780,9 +852,8 @@ typedef struct m3OverlapContext
     m3real radius; // < 0 = pure AABB gather
     double lo[3];
     double hi[3];
-    int32_t indices[256];
-    int32_t count;
-    m3QueryFilter filter; // 8-1
+    m3ShapeSelection selection;
+    m3QueryFilter filter;
 } m3OverlapContext;
 
 static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3real radius)
@@ -933,24 +1004,21 @@ static bool OverlapCallback(int32_t shape, void* userContext)
         }
     }
     m3OverlapContext* ctx = (m3OverlapContext*)userContext;
-    if (ctx->count >= 256)
-    {
-        return true;
-    }
     if (ctx->radius >= 0.0f && !SphereReachesShape(ctx->world, shape, ctx->center, ctx->radius))
     {
         return true;
     }
-    ctx->indices[ctx->count++] = shape;
+    SelectionOffer(&ctx->selection, ctx->world, shape);
     return true;
 }
 
 static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* shapes,
                              int32_t capacity)
 {
+    ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
     m3TreeQuery(&world->tree, ctx->lo, ctx->hi, OverlapCallback, ctx);
     int32_t maxShape = world->shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape && ctx->count < 256; ++s)
+    for (int32_t s = 0; s < maxShape; ++s)
     {
         if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape)
         {
@@ -975,30 +1043,11 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
             }
             if (include)
             {
-                ctx->indices[ctx->count++] = s;
+                SelectionOffer(&ctx->selection, world, s);
             }
         }
     }
-    // Ascending shape index: the canonical order.
-    for (int32_t a = 0; a < ctx->count; ++a)
-    {
-        for (int32_t b = a + 1; b < ctx->count; ++b)
-        {
-            if (ctx->indices[b] < ctx->indices[a])
-            {
-                int32_t tmp = ctx->indices[a];
-                ctx->indices[a] = ctx->indices[b];
-                ctx->indices[b] = tmp;
-            }
-        }
-    }
-    int32_t written = 0;
-    for (int32_t k = 0; k < ctx->count && written < capacity; ++k)
-    {
-        int32_t s = ctx->indices[k];
-        shapes[written++] = (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
-    }
-    return written;
+    return SelectionFinish(&ctx->selection);
 }
 
 int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
@@ -1427,8 +1476,7 @@ typedef struct m3ProxyOverlapContext
     m3real radius;
     double lo[3];
     double hi[3];
-    int32_t indices[256];
-    int32_t count;
+    m3ShapeSelection selection;
     m3QueryFilter filter;
 } m3ProxyOverlapContext;
 
@@ -1607,24 +1655,21 @@ static bool ProxyOverlapCallback(int32_t shape, void* userContext)
     {
         return true;
     }
-    if (ctx->count >= 256)
-    {
-        return true;
-    }
     if (!ProxyReachesShape(ctx, shape))
     {
         return true;
     }
-    ctx->indices[ctx->count++] = shape;
+    SelectionOffer(&ctx->selection, ctx->world, shape);
     return true;
 }
 
 static int32_t ProxyOverlapGather(m3World* world, m3ProxyOverlapContext* ctx, m3ShapeId* shapes,
                                   int32_t capacity)
 {
+    ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
     m3TreeQuery(&world->tree, ctx->lo, ctx->hi, ProxyOverlapCallback, ctx);
     int32_t maxShape = world->shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape && ctx->count < 256; ++s)
+    for (int32_t s = 0; s < maxShape; ++s)
     {
         if (world->shapePool.alive[s] != 0 && world->shapeType[s] == (uint8_t)m3_planeShape &&
             world->bodyEnabled[world->shapeBody[s]] != 0 &&
@@ -1632,28 +1677,10 @@ static int32_t ProxyOverlapGather(m3World* world, m3ProxyOverlapContext* ctx, m3
                          world->shapeMask[s]) &&
             ProxyReachesShape(ctx, s))
         {
-            ctx->indices[ctx->count++] = s;
+            SelectionOffer(&ctx->selection, world, s);
         }
     }
-    for (int32_t a = 0; a < ctx->count; ++a)
-    {
-        for (int32_t b = a + 1; b < ctx->count; ++b)
-        {
-            if (ctx->indices[b] < ctx->indices[a])
-            {
-                int32_t tmp = ctx->indices[a];
-                ctx->indices[a] = ctx->indices[b];
-                ctx->indices[b] = tmp;
-            }
-        }
-    }
-    int32_t written = 0;
-    for (int32_t k = 0; k < ctx->count && written < capacity; ++k)
-    {
-        int32_t s = ctx->indices[k];
-        shapes[written++] = (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
-    }
-    return written;
+    return SelectionFinish(&ctx->selection);
 }
 
 int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
@@ -1788,20 +1815,108 @@ typedef struct m3MoverCollideCtx
     m3real halfHeight;
     m3real radius;
     m3real skin;
-    m3MoverPlane* planes;
+    m3MoverPlane* planes; // bounded max-heap on the shape slot while collecting
     int32_t capacity;
     int32_t count;
-    int32_t shapes[256];
-    int32_t shapeCount;
 } m3MoverCollideCtx;
+
+static void MoverPlaneSiftDown(m3MoverPlane* heap, int32_t size, int32_t i)
+{
+    for (;;)
+    {
+        int32_t largest = i;
+        int32_t left = 2 * i + 1;
+        int32_t right = left + 1;
+        if (left < size && heap[left].shape.index1 > heap[largest].shape.index1)
+        {
+            largest = left;
+        }
+        if (right < size && heap[right].shape.index1 > heap[largest].shape.index1)
+        {
+            largest = right;
+        }
+        if (largest == i)
+        {
+            return;
+        }
+        m3MoverPlane swap = heap[i];
+        heap[i] = heap[largest];
+        heap[largest] = swap;
+        i = largest;
+    }
+}
+
+// Keeps the planes of the `capacity` lowest shape slots offered.
+static void MoverOfferPlane(m3MoverCollideCtx* ctx, m3MoverPlane plane)
+{
+    if (ctx->count < ctx->capacity)
+    {
+        int32_t i = ctx->count++;
+        ctx->planes[i] = plane;
+        while (i > 0 && ctx->planes[(i - 1) / 2].shape.index1 < ctx->planes[i].shape.index1)
+        {
+            m3MoverPlane swap = ctx->planes[i];
+            ctx->planes[i] = ctx->planes[(i - 1) / 2];
+            ctx->planes[(i - 1) / 2] = swap;
+            i = (i - 1) / 2;
+        }
+    }
+    else if (plane.shape.index1 < ctx->planes[0].shape.index1)
+    {
+        ctx->planes[0] = plane;
+        MoverPlaneSiftDown(ctx->planes, ctx->count, 0);
+    }
+}
 
 static bool MoverGatherCallback(int32_t shape, void* userContext)
 {
     m3MoverCollideCtx* ctx = (m3MoverCollideCtx*)userContext;
-    if (ctx->shapeCount < 256)
+    m3World* world = ctx->world;
+    if (world->shapeSensor[shape] != 0 || world->bodyEnabled[world->shapeBody[shape]] == 0)
     {
-        ctx->shapes[ctx->shapeCount++] = shape;
+        return true; // sensors and disabled bodies are invisible
     }
+    m3Transform xfS = m3ShapeWorldTransform(world, shape);
+    m3Pos3 center = ctx->center;
+    m3Vec3 local =
+        m3InvRotateVec3(xfS.q, (m3Vec3){(m3real)(center.x - xfS.p.x), (m3real)(center.y - xfS.p.y),
+                                        (m3real)(center.z - xfS.p.z)});
+    m3Vec3 axis = m3InvRotateVec3(xfS.q, (m3Vec3){0.0f, 1.0f, 0.0f});
+    m3Vec3 caps[2] = {m3Add3(local, m3MulSV3(ctx->halfHeight, axis)),
+                      m3Sub3(local, m3MulSV3(ctx->halfHeight, axis))};
+    m3Vec3 scratch[2];
+    m3DistanceInput input;
+    memset(&input, 0, sizeof(input));
+    input.proxyA = m3MakeShapeProxy(world, shape, scratch);
+    input.proxyB.points = caps;
+    input.proxyB.count = 2;
+    input.proxyB.radius = 0.0f;
+    input.q = m3MakeIdentityQuat();
+    input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
+    input.useRadii = false;
+    m3SimplexCache cache;
+    cache.count = 0;
+    cache.metric = 0.0f;
+    m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+    m3real gap = out.distance - input.proxyA.radius - ctx->radius;
+    if (gap > ctx->skin)
+    {
+        return true;
+    }
+    m3MoverPlane plane;
+    if (out.distance > 1.0e-6f)
+    {
+        plane.normal = m3RotateVec3(xfS.q, out.normal); // shape toward mover
+    }
+    else
+    {
+        // Deep overlap: GJK gives no direction; push up (the
+        // deterministic fallback a grounded mover wants).
+        plane.normal = (m3Vec3){0.0f, 1.0f, 0.0f};
+    }
+    plane.separation = gap;
+    plane.shape = (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
+    MoverOfferPlane(ctx, plane);
     return true;
 }
 
@@ -1828,72 +1943,9 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
     double lo[3] = {center.x - reach, center.y - reach, center.z - reach};
     double hi[3] = {center.x + reach, center.y + reach, center.z + reach};
     m3TreeQuery(&world->tree, lo, hi, MoverGatherCallback, &ctx);
-    // Ascending shape order keeps the plane list canonical.
-    for (int32_t a = 0; a < ctx.shapeCount; ++a)
-    {
-        for (int32_t b = a + 1; b < ctx.shapeCount; ++b)
-        {
-            if (ctx.shapes[b] < ctx.shapes[a])
-            {
-                int32_t tmp = ctx.shapes[a];
-                ctx.shapes[a] = ctx.shapes[b];
-                ctx.shapes[b] = tmp;
-            }
-        }
-    }
-    for (int32_t k = 0; k < ctx.shapeCount && ctx.count < capacity; ++k)
-    {
-        int32_t shape = ctx.shapes[k];
-        if (world->shapeSensor[shape] != 0 || world->bodyEnabled[world->shapeBody[shape]] == 0)
-        {
-            continue; // sensors and disabled bodies are invisible
-        }
-        m3Transform xfS = m3ShapeWorldTransform(world, shape);
-        m3Vec3 local = m3InvRotateVec3(xfS.q, (m3Vec3){(m3real)(center.x - xfS.p.x),
-                                                       (m3real)(center.y - xfS.p.y),
-                                                       (m3real)(center.z - xfS.p.z)});
-        m3Vec3 axis = m3InvRotateVec3(xfS.q, (m3Vec3){0.0f, 1.0f, 0.0f});
-        m3Vec3 caps[2] = {m3Add3(local, m3MulSV3(halfHeight, axis)),
-                          m3Sub3(local, m3MulSV3(halfHeight, axis))};
-        m3Vec3 scratch[2];
-        m3DistanceInput input;
-        memset(&input, 0, sizeof(input));
-        input.proxyA = m3MakeShapeProxy(world, shape, scratch);
-        input.proxyB.points = caps;
-        input.proxyB.count = 2;
-        input.proxyB.radius = 0.0f;
-        input.q = m3MakeIdentityQuat();
-        input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
-        input.useRadii = false;
-        m3SimplexCache cache;
-        cache.count = 0;
-        cache.metric = 0.0f;
-        m3DistanceOutput out = m3ShapeDistance(&input, &cache);
-        m3real gap = out.distance - input.proxyA.radius - radius;
-        if (gap > skin)
-        {
-            continue;
-        }
-        m3Vec3 n;
-        if (out.distance > 1.0e-6f)
-        {
-            n = m3RotateVec3(xfS.q, out.normal); // shape toward mover
-        }
-        else
-        {
-            // Deep overlap: GJK gives no direction; push up (the
-            // deterministic fallback a grounded mover wants).
-            n = (m3Vec3){0.0f, 1.0f, 0.0f};
-        }
-        ctx.planes[ctx.count].normal = n;
-        ctx.planes[ctx.count].separation = gap;
-        ctx.planes[ctx.count].shape =
-            (m3ShapeId){shape + 1, world->worldIndex0, world->shapePool.generations[shape]};
-        ctx.count += 1;
-    }
     // The infinite planes never enter the tree: test them directly.
     int32_t maxShape = world->shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape && ctx.count < capacity; ++s)
+    for (int32_t s = 0; s < maxShape; ++s)
     {
         if (world->shapePool.alive[s] == 0 || world->shapeType[s] != (uint8_t)m3_planeShape ||
             world->shapeSensor[s] != 0 || world->bodyEnabled[world->shapeBody[s]] == 0)
@@ -1906,17 +1958,24 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
         m3real dCenter =
             (m3real)((double)n.x * center.x + (double)n.y * center.y + (double)n.z * center.z) -
             off;
-        m3real dMin = dCenter - halfHeight * (n.y > 0.0f ? n.y : -n.y) - radius;
-        m3real gap = dMin;
+        m3real gap = dCenter - halfHeight * (n.y > 0.0f ? n.y : -n.y) - radius;
         if (gap > skin)
         {
             continue;
         }
-        ctx.planes[ctx.count].normal = n;
-        ctx.planes[ctx.count].separation = gap;
-        ctx.planes[ctx.count].shape =
-            (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
-        ctx.count += 1;
+        m3MoverPlane plane;
+        plane.normal = n;
+        plane.separation = gap;
+        plane.shape = (m3ShapeId){s + 1, world->worldIndex0, world->shapePool.generations[s]};
+        MoverOfferPlane(&ctx, plane);
+    }
+    // Ascending shape order keeps the plane list canonical.
+    for (int32_t end = ctx.count - 1; end > 0; --end)
+    {
+        m3MoverPlane swap = planes[0];
+        planes[0] = planes[end];
+        planes[end] = swap;
+        MoverPlaneSiftDown(planes, end, 0);
     }
     return ctx.count;
 }

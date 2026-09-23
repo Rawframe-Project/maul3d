@@ -382,7 +382,8 @@ extern "C"
     /// Clamp a desired translation against contact planes (the
     /// reference's iterative accumulator): each iteration pushes
     /// the translation out of every violated plane, push impulses
-    /// stay nonnegative per plane. Pure function, world-free.
+    /// stay nonnegative per plane. Pure function, world-free. Only the
+    /// first 64 planes take part; later planes are ignored.
     M3_API m3Vec3 m3SolvePlanes(m3Vec3 translation, const m3MoverPlane* planes, int32_t count,
                                 int32_t iterations);
 

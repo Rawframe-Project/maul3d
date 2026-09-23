@@ -732,8 +732,63 @@ static void TestGenericCasts(void)
     m3DestroyWorld(world);
 }
 
+static void TestOverlapBeyondTwoHundredFiftySix(void)
+{
+    // 300 static spheres in one box: an overlap query with room for
+    // all of them returns all 300 in ascending order, and a smaller
+    // array keeps exactly the lowest slots, whatever the tree order.
+    enum
+    {
+        BALLS = 300
+    };
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = BALLS + 4;
+    def.shapeCapacity = BALLS + 4;
+    m3WorldId world = m3CreateWorld(&def);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId floorShape = m3CreatePlaneShape(m3CreateBody(world, &gd), &sd, &floor);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.2f};
+    for (int32_t i = 0; i < BALLS; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.position = (m3Pos3){(double)(i % 20), 1.0, (double)(i / 20)};
+        m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &sphere);
+    }
+    static m3ShapeId all[BALLS + 8];
+    int32_t n = m3World_OverlapAabb(world, (m3Pos3){-1.0, 0.5, -1.0}, (m3Pos3){21.0, 1.5, 16.0},
+                                    all, BALLS + 8);
+    bool ascending = true;
+    for (int32_t i = 1; i < n; ++i)
+    {
+        ascending = ascending && all[i - 1].index1 < all[i].index1;
+    }
+    CHECK(n == BALLS && ascending, "all 300 overlaps come back in ascending order");
+
+    m3ShapeId low[10];
+    int32_t k =
+        m3World_OverlapAabb(world, (m3Pos3){-1.0, 0.5, -1.0}, (m3Pos3){21.0, 1.5, 16.0}, low, 10);
+    CHECK(k == 10 && low[0].index1 == all[0].index1 && low[9].index1 == all[9].index1,
+          "a short array keeps the lowest slots");
+
+    // The mover sees the floor plane (the lowest slot, outside the
+    // tree) and the ball above it, merged into one ascending list.
+    m3MoverPlane planes[8];
+    int32_t p = m3World_CollideMover(world, (m3Pos3){0.0, 0.45, 0.0}, 0.2f, 0.3f, 0.05f, planes, 8);
+    bool planesAscending = true;
+    for (int32_t i = 1; i < p; ++i)
+    {
+        planesAscending = planesAscending && planes[i - 1].shape.index1 < planes[i].shape.index1;
+    }
+    CHECK(p >= 2 && planesAscending, "mover planes arrive in ascending shape order");
+    CHECK(planes[0].shape.index1 == floorShape.index1, "the floor plane comes first");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestOverlapBeyondTwoHundredFiftySix();
     TestContactEvents();
     TestRayHitsEveryFamily();
     TestRayClosestOfMany();
