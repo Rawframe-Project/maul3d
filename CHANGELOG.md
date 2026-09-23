@@ -48,3 +48,6 @@ Work toward 0.0.1, the first release of the reworked library.
   limit. The mover's infinite planes are merged into that order as its
   documentation always promised, instead of being appended after the
   other shapes.
+- `m3World_Restore` now also ranges the header's pair count and tree
+  cursors before overwriting anything. A snapshot with a hostile pair
+  count used to be accepted and crashed the next step.

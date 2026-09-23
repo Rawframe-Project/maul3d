@@ -676,6 +676,12 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         return false; // hostile cursors refuse before any write
     }
 #undef M3_POOL_SANE
+    if (header.pairCount < 0 || header.pairCount > world->pairCapacity ||
+        header.treeRoot < M3_TREE_NULL || header.treeRoot >= world->tree.capacity ||
+        header.treeFreeList < M3_TREE_NULL || header.treeFreeList >= world->tree.capacity)
+    {
+        return false; // the pair list and the tree index arrays directly
+    }
     // Two-phase size validation (10-3): the fixed prefix is
     // state-independent, and the variable mesh tail is parsed
     // straight from the buffer BEFORE any byte lands in the world,

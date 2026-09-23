@@ -475,9 +475,37 @@ static void TestCreateWorldOutOfMemory(void)
           "an unrepresentable soft body capacity is refused");
 }
 
+static void TestRestoreRefusesBadCursors(void)
+{
+    // A snapshot whose pair count points past the pair table is
+    // refused before anything is overwritten.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &sphere);
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(m3World_Snapshot(world, snap, size) == size, "snapshot taken");
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    uint64_t before = m3World_Hash(world);
+
+    int32_t hostile = 1 << 30;
+    memcpy(snap + 64, &hostile, sizeof(hostile)); // header pairCount
+    CHECK(!m3World_Restore(world, snap, size), "an out-of-range pair count is refused");
+    CHECK(m3World_Hash(world) == before, "and the world is untouched");
+
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestZoo();
+    TestRestoreRefusesBadCursors();
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
     TestJournalOverflowIsLoud();
