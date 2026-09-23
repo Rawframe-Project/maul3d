@@ -126,6 +126,9 @@ Work toward 0.0.1, the first release of the reworked library.
   strict AVL balance, moves that keep the node id, and a rebuild that
   leaves the old tree intact when it cannot allocate. Every golden
   hash and bench pin is unchanged.
+- GJK distance, time of impact, QuickHull and the hull-versus-hull
+  manifold are rewritten from published sources (docs/references.md).
+  The GJK cache that no caller kept is gone from the API.
 
 ### Removed
 
@@ -237,3 +240,10 @@ Work toward 0.0.1, the first release of the reworked library.
   subtrees; the tree is now strictly balanced, so the stack always
   suffices. A broadphase rebuild that ran out of memory emptied the
   tree while proxies still pointed into it.
+- Contact points on large patches (a cylinder cap on a plane, a hull
+  face on a mesh) kept the four deepest points, which could all sit on
+  one side; the drum stack sank 8 cm and wandered. The four points now
+  spread over the patch and the stack rests exactly.
+- GJK reported a tiny positive distance and a noise normal when the
+  origin fell exactly on a simplex face of deeply overlapping hulls;
+  it now reports the overlap.

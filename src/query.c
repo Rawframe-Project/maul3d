@@ -446,8 +446,7 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache = {0};
-    m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+    m3DistanceOutput out = m3ShapeDistance(&input);
     return out.distance - proxy.radius <= radius;
 }
 

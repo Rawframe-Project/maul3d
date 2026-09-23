@@ -75,6 +75,16 @@ static void TestRuntimeMotorAndLimits(void)
     m3DestroyWorld(world);
 }
 
+static double CenterDistance(m3BodyId a, m3BodyId b)
+{
+    m3Pos3 pa = m3Body_GetPosition(a);
+    m3Pos3 pb = m3Body_GetPosition(b);
+    double dx = pb.x - pa.x;
+    double dy = pb.y - pa.y;
+    double dz = pb.z - pa.z;
+    return sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 static void TestCollideToggle(void)
 {
     // Two overlapped jointed boxes: connected pairs skip contacts
@@ -96,14 +106,16 @@ static void TestCollideToggle(void)
     jd.localAnchorB = (m3Vec3){-0.3f, 0.6f, 0.0f};
     m3JointId link = m3CreateJoint(&jd);
     StepN(world, 60);
-    double gap0 = m3Body_GetPosition(b).x - m3Body_GetPosition(a).x;
+    double gap0 = CenterDistance(a, b);
     CHECK(gap0 < 0.95, "connected boxes overlap in peace");
     CHECK(!m3Joint_GetCollideConnected(link), "the flag reads back off");
     m3Joint_SetCollideConnected(link, true);
     CHECK(m3Joint_GetCollideConnected(link), "the flag reads back on");
     StepN(world, 120);
-    double gap1 = m3Body_GetPosition(b).x - m3Body_GetPosition(a).x;
-    CHECK(gap1 > gap0 + 0.2, "contacts on: the pair pushes apart");
+    // The pair hinges about the joint as it separates, sideways or one
+    // over the other; either way the unit boxes end at least a box apart.
+    double gap1 = CenterDistance(a, b);
+    CHECK(gap1 > gap0 + 0.2 && gap1 > 1.0, "contacts on: the pair pushes apart");
     m3DestroyWorld(world);
 }
 

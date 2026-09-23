@@ -128,8 +128,7 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache = {0};
-    m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+    m3DistanceOutput out = m3ShapeDistance(&input);
     m3real gap = out.distance - input.proxyA.radius - ctx->radius;
     if (gap > ctx->skin)
     {

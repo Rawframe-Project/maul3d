@@ -4,7 +4,7 @@
 // GJK gate: analytic pins plus the separating-axis ORACLE (the Maul2D
 // recipe): for any separated pair the returned normal must TRULY
 // separate the point sets, the projected gap along it must equal the
-// reported distance, and rerunning with the warm cache must reproduce
+// reported distance, and a rerun must reproduce
 // the same bits. A wrong closest point cannot satisfy the oracle.
 // White box.
 
@@ -47,22 +47,19 @@ static void TestAnalytic(void)
     input.proxyB = (m3DistanceProxy){boxData.vertices, boxData.vertexCount, 0.0f};
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){3.0f, 0.0f, 0.0f};
-    m3SimplexCache cache;
-    memset(&cache, 0, sizeof(cache));
-    m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+    m3DistanceOutput out = m3ShapeDistance(&input);
     CHECK(NearF(out.distance, 1.0f, 1.0e-5f), "box-box gap is analytic");
     CHECK(NearF(out.normal.x, 1.0f, 1.0e-5f), "the normal points from A to B");
     CHECK(NearF(out.pointA.x, 1.0f, 1.0e-4f) && NearF(out.pointB.x, 2.0f, 1.0e-4f),
           "witnesses sit on the facing faces");
 
-    // Warm rerun: the cache reproduces the identical bits.
-    m3DistanceOutput warm = m3ShapeDistance(&input, &cache);
-    CHECK(memcmp(&warm.distance, &out.distance, 4) == 0, "the warm cache reproduces the bits");
+    // A rerun reproduces the identical bits.
+    m3DistanceOutput again = m3ShapeDistance(&input);
+    CHECK(memcmp(&again.distance, &out.distance, 4) == 0, "a rerun reproduces the bits");
 
     // Overlap: B at the origin, distance zero, never NaN.
     input.p = (m3Vec3){0.25f, 0.0f, 0.0f};
-    memset(&cache, 0, sizeof(cache));
-    out = m3ShapeDistance(&input, &cache);
+    out = m3ShapeDistance(&input);
     CHECK(out.distance == 0.0f, "an overlapped pair reports zero");
     CHECK(out.pointA.x == out.pointA.x, "and stays finite");
 
@@ -72,8 +69,7 @@ static void TestAnalytic(void)
     input.proxyA = (m3DistanceProxy){point, 1, 0.0f};
     input.proxyB = (m3DistanceProxy){segment, 2, 0.0f};
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
-    memset(&cache, 0, sizeof(cache));
-    out = m3ShapeDistance(&input, &cache);
+    out = m3ShapeDistance(&input);
     CHECK(NearF(out.distance, 3.0f, 1.0e-5f), "point-segment distance is analytic");
 
     // Sphere proxies: two points with radii, useRadii on.
@@ -83,8 +79,7 @@ static void TestAnalytic(void)
     input.proxyB = (m3DistanceProxy){pb, 1, 0.25f};
     input.p = (m3Vec3){2.0f, 0.0f, 0.0f};
     input.useRadii = true;
-    memset(&cache, 0, sizeof(cache));
-    out = m3ShapeDistance(&input, &cache);
+    out = m3ShapeDistance(&input);
     CHECK(NearF(out.distance, 1.25f, 1.0e-5f), "radii subtract from the core distance");
     input.useRadii = false;
 }
@@ -109,9 +104,7 @@ static void TestOracle(void)
         input.proxyB = (m3DistanceProxy){boxData.vertices, boxData.vertexCount, 0.0f};
         input.q = q;
         input.p = p;
-        m3SimplexCache cache;
-        memset(&cache, 0, sizeof(cache));
-        m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+        m3DistanceOutput out = m3ShapeDistance(&input);
 
         if (out.distance > 1.0e-4f)
         {

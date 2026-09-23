@@ -243,8 +243,7 @@ static void CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3r
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache = {0};
-    m3DistanceOutput dOut = m3ShapeDistance(&input, &cache);
+    m3DistanceOutput dOut = m3ShapeDistance(&input);
 
     if (dOut.distance > radius + M3_SPECULATIVE_DISTANCE)
     {
@@ -279,11 +278,7 @@ static void CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3r
         }
         // Single closest point; the feature comes from the simplex
         // cache exactly like the sphere path (triangle side = A).
-        int32_t mask = 0;
-        for (int32_t i = 0; i < (int32_t)cache.count && i < 3; ++i)
-        {
-            mask |= 1 << cache.indexA[i];
-        }
+        int32_t mask = (int32_t)(dOut.featureA & 7u);
         out->normal = delta;
         out->dist2 = dOut.distance * dOut.distance;
         out->feature = mask == 0 ? 7 : mask;
@@ -417,58 +412,30 @@ static int32_t MeshClipPolygon(m3MeshClipVertex* out, const m3MeshClipVertex* in
     return outCount;
 }
 
-// Keep the deepest four clip points (ties to the lower slot) in
-// ascending slot order, the canonical reduction the box paths use.
-static void KeepDeepestClip(m3TriManifold* out, const m3MeshClipVertex* points, int32_t count)
+// The clip points within the speculative distance, reduced to four
+// spread over the patch in ascending slot order.
+static void KeepClipPoints(m3TriManifold* out, const m3MeshClipVertex* points, int32_t count)
 {
-    int32_t kept[4];
-    int32_t keptCount = 0;
-    uint8_t used[M3_MESH_CLIP_CAP];
-    memset(used, 0, sizeof(used));
-    int32_t want = count < 4 ? count : 4;
-    for (int32_t k = 0; k < want; ++k)
+    m3Vec3 position[M3_MESH_CLIP_CAP];
+    m3real separation[M3_MESH_CLIP_CAP];
+    int32_t n = 0;
+    for (int32_t c = 0; c < count; ++c)
     {
-        int32_t best = -1;
-        for (int32_t c = 0; c < count; ++c)
+        if (points[c].separation <= M3_SPECULATIVE_DISTANCE)
         {
-            if (used[c])
-            {
-                continue;
-            }
-            if (best < 0 || points[c].separation < points[best].separation)
-            {
-                best = c;
-            }
-        }
-        used[best] = 1;
-        kept[keptCount++] = best;
-    }
-    for (int32_t a = 0; a < keptCount; ++a)
-    {
-        for (int32_t b = a + 1; b < keptCount; ++b)
-        {
-            if (kept[b] < kept[a])
-            {
-                int32_t tmp = kept[a];
-                kept[a] = kept[b];
-                kept[b] = tmp;
-            }
+            position[n] = points[c].position;
+            separation[n] = points[c].separation;
+            n += 1;
         }
     }
-    out->pointCount = 0;
-    for (int32_t k = 0; k < keptCount; ++k)
+    int32_t kept[M3_MANIFOLD_MAX_POINTS];
+    out->pointCount = m3ReduceContactPoints(position, separation, n, out->normal, kept);
+    for (int32_t k = 0; k < out->pointCount; ++k)
     {
         int32_t c = kept[k];
-        if (points[c].separation > M3_SPECULATIVE_DISTANCE)
-        {
-            continue;
-        }
-        int32_t slot = out->pointCount;
-        out->point[slot] =
-            m3Sub3(points[c].position, m3MulSV3(0.5f * points[c].separation, out->normal));
-        out->separation[slot] = points[c].separation;
-        out->localId[slot] = (uint16_t)slot;
-        out->pointCount += 1;
+        out->point[k] = m3Sub3(position[c], m3MulSV3(0.5f * separation[c], out->normal));
+        out->separation[k] = separation[c];
+        out->localId[k] = (uint16_t)k;
     }
 }
 
@@ -616,7 +583,7 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
         {
             out->normal = m3Neg3(hullFaceN); // triangle toward hull
             out->feature = M3_TRI_FEATURE_HULL_FACE;
-            KeepDeepestClip(out, input, count);
+            KeepClipPoints(out, input, count);
             clippedSep = 3.4e38f;
             for (int32_t k = 0; k < out->pointCount; ++k)
             {
@@ -684,7 +651,7 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
         {
             out->normal = triN;
             out->feature = 7;
-            KeepDeepestClip(out, input, count);
+            KeepClipPoints(out, input, count);
             clippedSep = 3.4e38f;
             for (int32_t k = 0; k < out->pointCount; ++k)
             {
@@ -746,15 +713,10 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
         input.q = m3MakeIdentityQuat();
         input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
         input.useRadii = false;
-        m3SimplexCache cache = {0};
-        m3DistanceOutput dOut = m3ShapeDistance(&input, &cache);
+        m3DistanceOutput dOut = m3ShapeDistance(&input);
         if (dOut.distance > 0.0f && dOut.distance <= M3_SPECULATIVE_DISTANCE)
         {
-            int32_t mask = 0;
-            for (int32_t i = 0; i < (int32_t)cache.count && i < 3; ++i)
-            {
-                mask |= 1 << cache.indexA[i];
-            }
+            int32_t mask = (int32_t)(dOut.featureA & 7u);
             out->pointCount = 1;
             out->normal = dOut.normal;
             out->feature = mask == 0 ? 7 : mask;
@@ -1126,8 +1088,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     }
     m3Vec3 repNormal = faceAccepted[repIndex].local.normal;
 
-    // Gather cluster points, keep the deepest four (ties by triangle
-    // then local id: the canonical rule).
+    // Gather the cluster's points.
     enum
     {
         GATHER_CAP = 2 * M3_MESH_CANDIDATE_CAP
@@ -1158,29 +1119,10 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
             gCount += 1;
         }
     }
+    // Four points spread over the cluster, then in ascending id, the
+    // canonical point order.
     int32_t kept[M3_MANIFOLD_MAX_POINTS];
-    int32_t keptCount = 0;
-    uint8_t used[GATHER_CAP];
-    memset(used, 0, sizeof(used));
-    int32_t want = gCount < M3_MANIFOLD_MAX_POINTS ? gCount : M3_MANIFOLD_MAX_POINTS;
-    for (int32_t k = 0; k < want; ++k)
-    {
-        int32_t best = -1;
-        for (int32_t c = 0; c < gCount; ++c)
-        {
-            if (used[c])
-            {
-                continue;
-            }
-            if (best < 0 || gSep[c] < gSep[best] || (gSep[c] == gSep[best] && gId[c] < gId[best]))
-            {
-                best = c;
-            }
-        }
-        used[best] = 1;
-        kept[keptCount++] = best;
-    }
-    // Ascending id among the kept (canonical point order).
+    int32_t keptCount = m3ReduceContactPoints(gPoint, gSep, gCount, repNormal, kept);
     for (int32_t a = 0; a < keptCount; ++a)
     {
         for (int32_t b = a + 1; b < keptCount; ++b)

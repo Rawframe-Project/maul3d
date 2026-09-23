@@ -62,12 +62,10 @@ static void CollideMeshPair(m3World* world, m3Manifold* fresh, int32_t shapeA, i
 static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
     uint8_t typeA = world->shapes.shapeType[shapeA];
-    // Plane versus hull: every hull vertex below the
-    // margin becomes a candidate; the four deepest survive
-    // (ties break on the lower vertex index) and emit in
-    // ascending vertex order, the canonical point order.
-    // Feature id = vertex index, so the carry follows each
-    // corner across rebuilds.
+    // Plane versus hull: every hull vertex below the margin is a
+    // candidate, four of them spread over the patch survive, in
+    // ascending vertex order. Feature id = vertex index, so the
+    // carry follows each corner across rebuilds.
     memset(fresh, 0, sizeof(*fresh));
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t hullShape = planeShape == shapeA ? shapeB : shapeA;
@@ -100,45 +98,16 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
             candCount += 1;
         }
     }
-    // Keep the four deepest (selection by min separation, ties
-    // to the lower vertex index), then emit in ascending
-    // vertex-index order.
+    // Four candidates spread over the patch, in ascending vertex order.
+    m3Vec3 candP[M3_HULL_MAX_VERTS];
+    for (int32_t c = 0; c < candCount; ++c)
+    {
+        candP[c] =
+            (m3Vec3){(m3real)(candW[c][0] - candW[0][0]), (m3real)(candW[c][1] - candW[0][1]),
+                     (m3real)(candW[c][2] - candW[0][2])};
+    }
     int32_t kept[M3_MANIFOLD_MAX_POINTS];
-    int32_t keptCount = 0;
-    uint8_t used[M3_HULL_MAX_VERTS];
-    memset(used, 0, sizeof(used));
-    int32_t want = candCount < M3_MANIFOLD_MAX_POINTS ? candCount : M3_MANIFOLD_MAX_POINTS;
-    for (int32_t k = 0; k < want; ++k)
-    {
-        int32_t best = -1;
-        for (int32_t c = 0; c < candCount; ++c)
-        {
-            if (used[c])
-            {
-                continue;
-            }
-            if (best < 0 || candSep[c] < candSep[best] ||
-                (candSep[c] == candSep[best] && candIndex[c] < candIndex[best]))
-            {
-                best = c;
-            }
-        }
-        used[best] = 1;
-        kept[keptCount++] = best;
-    }
-    // Ascending vertex index among the kept (canonical).
-    for (int32_t a = 0; a < keptCount; ++a)
-    {
-        for (int32_t b = a + 1; b < keptCount; ++b)
-        {
-            if (candIndex[kept[b]] < candIndex[kept[a]])
-            {
-                int32_t tmp = kept[a];
-                kept[a] = kept[b];
-                kept[b] = tmp;
-            }
-        }
-    }
+    int32_t keptCount = m3ReduceContactPoints(candP, candSep, candCount, n, kept);
     fresh->normal = n; // plane (A) toward hull (B)
     fresh->pointCount = keptCount;
     for (int32_t k = 0; k < keptCount; ++k)
@@ -346,8 +315,7 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
     input.proxyA = m3MakeShapeProxy(world, shapeA, pointsA);
     input.proxyB = m3MakeShapeProxy(world, shapeB, pointsB);
     input.useRadii = false;
-    m3SimplexCache cache = {0};
-    m3DistanceOutput out = m3ShapeDistance(&input, &cache);
+    m3DistanceOutput out = m3ShapeDistance(&input);
     m3real rA = input.proxyA.radius;
     m3real rB = input.proxyB.radius;
     m3real sep = out.distance - rA - rB;

@@ -145,6 +145,11 @@ static void TestCapsStackAndReplay(void)
         double lowY = m3Body_GetPosition(lower).y;
         CHECK(topY > lowY + 0.5, "the flat caps hold the stack");
         CHECK(topY > 1.0 && topY < 1.5, "the upper drum settled where it should");
+        // Resting on a sixteen-sided cap: the contact points must span
+        // the cap, not cluster on one side of it, or the drum rocks and
+        // sinks.
+        CHECK(lowY > 0.395 && lowY < 0.405, "the lower drum rests flat on its cap");
+        CHECK(topY > 1.19 && topY < 1.205, "the upper drum rests flat on the lower one");
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
