@@ -97,7 +97,7 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
     world->characters.charBody[slot] = body;
     world->characters.charRadius[slot] = def->radius;
     world->characters.charHalfHeight[slot] = def->halfHeight;
-    world->characters.charCosSlope[slot] = cosf(def->maxSlopeAngle);
+    world->characters.charCosSlope[slot] = m3ComputeCosSin(def->maxSlopeAngle).c;
     world->characters.charSnap[slot] = def->snapDistance;
     world->characters.charSkin[slot] = def->skin;
     world->characters.charStepHeight[slot] = def->stepHeight;

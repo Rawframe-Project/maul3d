@@ -475,8 +475,8 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 m3real a = world->vehicles.vehSteer[slot] * world->vehicles.vehMaxSteer[slot];
                 m3real half = 0.5f * a;
                 m3Vec3 up = m3MulSV3(-1.0f, world->vehicles.vehWheelDir[k]);
-                m3real sn = sinf(half);
-                m3Quat qa = {up.x * sn, up.y * sn, up.z * sn, cosf(half)};
+                m3CosSin halfCs = m3ComputeCosSin(half);
+                m3Quat qa = {up.x * halfCs.s, up.y * halfCs.s, up.z * halfCs.s, halfCs.c};
                 fLocal = m3RotateVec3(qa, fLocal);
             }
             m3Vec3 fWorld = m3RotateVec3(xf->q, fLocal);
@@ -653,8 +653,8 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             }
             m3real wheelbase = xMax - xMin > 0.1f ? xMax - xMin : 0.1f;
             m3real steerA = world->vehicles.vehSteer[slot] * world->vehicles.vehMaxSteer[slot];
-            m3real cs = cosf(steerA);
-            m3real tanSteer = cs > 0.1f ? sinf(steerA) / cs : 0.0f;
+            m3CosSin steerCs = m3ComputeCosSin(steerA);
+            m3real tanSteer = steerCs.c > 0.1f ? steerCs.s / steerCs.c : 0.0f;
             m3real v = m3Dot3(world->bodies.linearVelocities[chassis], fwd);
             m3real latOverG = v * (v * tanSteer / wheelbase) / gMag;
             m3real sTarget = latOverG / sqrtf(1.0f + latOverG * latOverG);

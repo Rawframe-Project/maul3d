@@ -45,29 +45,36 @@ static void TestVectors(void)
 static void TestTrig(void)
 {
     CHECK(m3Atan2(0.0f, 0.0f) == 0.0f, "atan2(0,0) is zero, never NaN");
-    CHECK(NearF(m3Atan2(1.0f, 1.0f), 0.25f * M3_PI, 1.0e-4f), "atan2(1,1) near pi/4");
-    CHECK(NearF(m3Atan2(1.0f, 0.0f), 0.5f * M3_PI, 1.0e-4f), "atan2(1,0) near pi/2");
-    CHECK(NearF(m3Atan2(-1.0f, 0.0f), -0.5f * M3_PI, 1.0e-4f), "atan2(-1,0) near -pi/2");
+    CHECK(NearF(m3Atan2(1.0f, 1.0f), 0.25f * M3_PI, 1.0e-6f), "atan2(1,1) near pi/4");
+    CHECK(NearF(m3Atan2(1.0f, 0.0f), 0.5f * M3_PI, 1.0e-6f), "atan2(1,0) near pi/2");
+    CHECK(NearF(m3Atan2(-1.0f, 0.0f), -0.5f * M3_PI, 1.0e-6f), "atan2(-1,0) near -pi/2");
 
-    // Bhaskara accuracy band (about 0.002 worst case) and the built-in
-    // renormalization: c*c + s*s lands within float rounding of one.
-    for (int32_t i = -8; i <= 8; ++i)
+    // The series are exact to below float resolution; what remains is the
+    // rounding of the angle and of the result. The pair is renormalized:
+    // c*c + s*s lands within float rounding of one.
+    double maxErr = 0.0;
+    for (int32_t i = -4000; i <= 4000; ++i)
     {
-        m3real angle = 0.25f * M3_PI * (m3real)i;
+        m3real angle = 0.001f * M3_PI * (m3real)i;
         m3CosSin cs = m3ComputeCosSin(angle);
-        CHECK(NearF(cs.c, cosf(angle), 3.0e-3f), "cosine within the Bhaskara band");
-        CHECK(NearF(cs.s, sinf(angle), 3.0e-3f), "sine within the Bhaskara band");
+        double ec = fabs((double)cs.c - cos((double)angle));
+        double es = fabs((double)cs.s - sin((double)angle));
+        maxErr = ec > maxErr ? ec : maxErr;
+        maxErr = es > maxErr ? es : maxErr;
         CHECK(NearF(cs.c * cs.c + cs.s * cs.s, 1.0f, 2.0e-6f), "renormalized to the unit circle");
+        double ea = fabs((double)m3Atan2(cs.s, cs.c) - atan2((double)cs.s, (double)cs.c));
+        maxErr = ea > maxErr ? ea : maxErr;
     }
+    CHECK(maxErr < 1.0e-6, "cosine, sine and atan2 within 1e-6");
 }
 
 static void TestQuaternions(void)
 {
-    // Rotate x by 90 degrees about z: lands on y (within trig band).
+    // Rotate x by 90 degrees about z: lands on y.
     m3CosSin half = m3ComputeCosSin(0.25f * M3_PI);
     m3Quat q = {0.0f, 0.0f, half.s, half.c};
     m3Vec3 v = m3RotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f});
-    CHECK(NearF(v.x, 0.0f, 5.0e-3f) && NearF(v.y, 1.0f, 5.0e-3f) && NearF(v.z, 0.0f, 5.0e-3f),
+    CHECK(NearF(v.x, 0.0f, 1.0e-6f) && NearF(v.y, 1.0f, 1.0e-6f) && NearF(v.z, 0.0f, 1.0e-6f),
           "quarter turn about z maps x to y");
 
     // Round trip: rotate then inverse rotate is the identity.

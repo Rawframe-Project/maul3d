@@ -941,9 +941,9 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             m3real windDrag = 0.0f;
             if (world->windSpeed > 0.0f)
             {
-                m3real gust = 1.0f + world->windGustScale * sinf(world->windPhase);
+                m3real gust = 1.0f + world->windGustScale * m3ComputeCosSin(world->windPhase).s;
                 windVel = m3MulSV3(world->windSpeed * gust, world->windDir);
-                windDrag = 0.5f; // documented fixed coefficient (v1)
+                windDrag = 0.5f; // documented fixed coefficient
             }
             for (int32_t i = 0; i < count; ++i)
             {

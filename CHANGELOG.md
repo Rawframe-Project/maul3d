@@ -109,6 +109,11 @@ Work toward 0.0.1, the first release of the reworked library.
   revision stories, format versions, the 40-line changelog on
   M3_SOLVER_REV); tools/check_comments.py enforces the conventions.md
   rule in CI next to the length rules.
+- m3ComputeCosSin and m3Atan2 are the engine's own: sine and cosine
+  from a two-part pi/2 reduction and Taylor series, atan2 from an
+  argument-halving identity and a Taylor series, accurate to about
+  4e-7 instead of the previous 2e-3. docs/references.md lists the
+  published sources behind the algorithms.
 
 ### Removed
 
@@ -191,3 +196,6 @@ Work toward 0.0.1, the first release of the reworked library.
   byte lands. A snapshot from another build or world shape now refuses
   with m3_errorConfig, and the tail checks record a reason instead of
   returning silently. The world hash moved to src/world_hash.c.
+- The character's slope cosine, vehicle steering and the soft-body
+  wind gust called libm's cosf and sinf, which are not required to
+  agree bit for bit across platforms; they now use m3ComputeCosSin.

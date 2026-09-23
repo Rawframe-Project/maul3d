@@ -146,9 +146,8 @@ library version and are refused by any other.
 
 ## Acknowledgments
 
-The solver stage structure, joint formulations, several collision
-kernels and the trigonometric approximations were adapted from the
-Box2D and Box3D projects by Erin Catto. Each adaptation is noted in
+The solver stage structure, joint formulations and several collision
+kernels were adapted from the Box2D and Box3D projects by Erin Catto. Each adaptation is noted in
 its source file, and the license is reproduced in
 [THIRD_PARTY.md](THIRD_PARTY.md).
 
