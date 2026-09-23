@@ -8,6 +8,7 @@
 // then shape index, or plain ascending shape index), so twin worlds
 // answer identically.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <float.h>

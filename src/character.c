@@ -10,6 +10,7 @@
 
 #include "maul3d/character.h"
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

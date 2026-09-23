@@ -13,6 +13,7 @@
 // torque is exactly zero, so the implicit gyroscopic solve arrives
 // with hulls in 2b.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

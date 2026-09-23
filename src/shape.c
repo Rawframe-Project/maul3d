@@ -5,6 +5,7 @@
 // shape lists. Same law as bodies: public functions validate and
 // journal, internal functions mutate, replay drives the internals.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

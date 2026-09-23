@@ -13,6 +13,7 @@
 // makes the sphere kernel in manifold.c an exact clamp instead of
 // an iteration.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

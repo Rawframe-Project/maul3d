@@ -65,6 +65,13 @@ Work toward 0.0.1, the first release of the reworked library.
 - The public `maul3d/math.h` header is now `maul3d/core_math.h`, so it
   can never shadow the C library's `math.h` when `include/maul3d`
   lands on an include path.
+- Every world array is described once in a state table
+  (src/world_state.c) that drives allocation, release, the snapshot
+  walk and the memory footprint, as in Maul2D; journal replay
+  dispatches through a command table of per-op apply functions
+  (src/journal_replay.c) instead of a 1,660-line switch. world.c
+  shrank from 3,300 to 1,170 lines. Snapshot bytes and hashes are
+  unchanged.
 
 ### Removed
 
@@ -135,3 +142,7 @@ Work toward 0.0.1, the first release of the reworked library.
   m3World_Step refuses an infinite dt; m3Character_SetStance records a
   reason for hostile dimensions (a veto for lack of headroom still is
   not misuse).
+- World creation that runs out of memory, a replay that fails part
+  way, and a replay whose safety snapshot cannot be taken now record a
+  reason (m3_errorCapacity or m3_errorInvalid) instead of returning
+  silently.

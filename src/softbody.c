@@ -12,6 +12,7 @@
 
 #include "maul3d/softbody.h"
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <math.h>

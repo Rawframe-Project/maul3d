@@ -6,6 +6,7 @@
 // drives the internals and verifies minted ids. The warm-start
 // impulse lives in the persistent arena and rides the snapshot.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

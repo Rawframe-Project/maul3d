@@ -7,6 +7,7 @@
 // resolution from a body id goes by slot (m3WorldFromIndex0): the body
 // id carries its own generation, the world slot does not need one.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <string.h>

@@ -50,6 +50,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/dynamic_tree.c
     src/hull.c
     src/joint.c
+    src/journal_replay.c
     src/manifold.c
     src/math_functions.c
     src/mesh_bvh.c
@@ -63,7 +64,8 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/solver.c
     src/vehicle.c
     src/voxel.c
-    src/world.c)
+    src/world.c
+    src/world_state.c)
 maul_configure_library(maul3d)
 
 if(MAUL3D_BUILD_TESTS)

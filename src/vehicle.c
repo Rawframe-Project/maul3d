@@ -11,6 +11,7 @@
 
 #include "maul3d/vehicle.h"
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include <math.h>
