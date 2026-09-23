@@ -117,3 +117,9 @@ Work toward 0.0.1, the first release of the reworked library.
   contraction was not reliably off there. Every source now turns it
   off with `#pragma fp_contract(off)` under MSVC, and the switch is
   only passed where the compiler knows it.
+- Reads and writes through a stale body, shape, joint or voxel-chunk
+  id now record m3_errorInvalid and count as misuse against the id's
+  world, as Maul2D does; shape creation and m3CreateJoint record a
+  reason on every refusal path (several returned null silently,
+  including a plane on a dynamic body); a valid generic joint no
+  longer leaves m3_errorInvalid behind.

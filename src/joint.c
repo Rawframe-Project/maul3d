@@ -384,9 +384,12 @@ void m3DestroyJointInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->jointPool, index);
 }
 
-m3JointId m3CreateJoint(const m3JointDef* def)
+// The whole def contract in one place: known type, real axes where
+// the type needs them, the generic and distance rules, and finite,
+// ordered fields. m3CreateJoint refuses once when this fails.
+static bool JointDefIsValid(const m3JointDef* def)
 {
-    if (def == NULL || def->internalValue != M3_JOINT_COOKIE ||
+    if (def->internalValue != M3_JOINT_COOKIE ||
         (def->type != (int32_t)m3_sphericalJoint && def->type != (int32_t)m3_revoluteJoint &&
          def->type != (int32_t)m3_prismaticJoint && def->type != (int32_t)m3_fixedJoint &&
          def->type != (int32_t)m3_distanceJoint && def->type != (int32_t)m3_genericJoint &&
@@ -394,20 +397,17 @@ m3JointId m3CreateJoint(const m3JointDef* def)
          def->type != (int32_t)m3_parallelJoint && def->type != (int32_t)m3_motorJoint &&
          def->type != (int32_t)m3_gearJoint && def->type != (int32_t)m3_pulleyJoint))
     {
-        m3Refuse(NULL, m3_errorInvalid);
-        return m3_nullJointId;
+        return false;
     }
     if ((def->type == (int32_t)m3_revoluteJoint || def->type == (int32_t)m3_prismaticJoint ||
          def->type == (int32_t)m3_wheelJoint || def->type == (int32_t)m3_parallelJoint) &&
         (!(m3Dot3(def->localAxisA, def->localAxisA) > 0.0f) ||
          !(m3Dot3(def->localAxisB, def->localAxisB) > 0.0f)))
     {
-        m3Refuse(NULL, m3_errorInvalid);
-        return m3_nullJointId; // a hinge, slider, or wheel needs real axes
+        return false; // a hinge, slider, or wheel needs real axes
     }
     if (def->type == (int32_t)m3_genericJoint)
     {
-        m3Refuse(NULL, m3_errorInvalid);
         // The generic contract: sane modes, finite ordered
         // limits where used, one motor on a movable axis, and the
         // v1 angular-limit rule.
@@ -418,13 +418,13 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         {
             if (def->genericLinear[k] > 2 || def->genericAngular[k] > 2)
             {
-                return m3_nullJointId;
+                return false;
             }
             if (def->genericLinear[k] == (uint8_t)m3_axisLimited &&
                 (!m3FiniteF(def->genericLinearLower[k]) || !m3FiniteF(def->genericLinearUpper[k]) ||
                  def->genericLinearLower[k] > def->genericLinearUpper[k]))
             {
-                return m3_nullJointId;
+                return false;
             }
             if (def->genericAngular[k] == (uint8_t)m3_axisLimited)
             {
@@ -433,7 +433,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
                     !m3FiniteF(def->genericAngularUpper[k]) ||
                     def->genericAngularLower[k] > def->genericAngularUpper[k])
                 {
-                    return m3_nullJointId;
+                    return false;
                 }
             }
             else if (def->genericAngular[k] == (uint8_t)m3_axisLocked)
@@ -447,28 +447,28 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         }
         if (limitedAngular > 1 || (limitedAngular == 1 && lockedAngular != 2 && freeAngular != 2))
         {
-            return m3_nullJointId; // the v1 angular rule, documented
+            return false; // the v1 angular rule, documented
         }
         if (def->genericMotorAxis != 255)
         {
             if (def->genericMotorAxis > 5 || !m3FiniteF(def->motorSpeed) ||
                 !m3FiniteF(def->maxMotorEffort) || def->maxMotorEffort < 0.0f)
             {
-                return m3_nullJointId;
+                return false;
             }
             uint8_t mode = def->genericMotorAxis < 3
                                ? def->genericLinear[def->genericMotorAxis]
                                : def->genericAngular[def->genericMotorAxis - 3];
             if (mode == (uint8_t)m3_axisLocked)
             {
-                return m3_nullJointId; // a motor on a locked axis is a
-                                       // contradiction, not a request
+                return false; // a motor on a locked axis is a
+                              // contradiction, not a request
             }
         }
         if (!(m3Dot3(def->localAxisA, def->localAxisA) > 0.0f) ||
             !(m3Dot3(def->localAxisB, def->localAxisB) > 0.0f))
         {
-            return m3_nullJointId; // the joint frame needs real axes
+            return false; // the joint frame needs real axes
         }
     }
     if (def->type == (int32_t)m3_distanceJoint &&
@@ -479,7 +479,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
     {
         // The distance contract: an explicit range (rod = equal
         // bounds), and a spring only with a real hertz.
-        return m3_nullJointId;
+        return false;
     }
     // Hostile-input wall: finite fields only, ordered limits
     // only, and a cone that is a cone.
@@ -490,10 +490,24 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         def->maxMotorEffort < 0.0f || (def->enableLimit && def->lowerLimit > def->upperLimit) ||
         (def->enableCone && def->coneAngle < 0.0f))
     {
+        return false;
+    }
+    return true;
+}
+
+m3JointId m3CreateJoint(const m3JointDef* def)
+{
+    if (def == NULL)
+    {
         m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId;
     }
     m3World* world = m3WorldFromIndex0(def->bodyA.world0);
+    if (!JointDefIsValid(def))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return m3_nullJointId;
+    }
     if (world == NULL || def->bodyB.world0 != def->bodyA.world0)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -725,13 +739,10 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
 static m3World* ResolveJoint(m3JointId jointId, int32_t* outSlot)
 {
     m3World* world = m3WorldFromIndex0(jointId.world0);
-    if (world == NULL)
-    {
-        return NULL;
-    }
-    int32_t slot = m3JointSlot(world, jointId);
+    int32_t slot = world != NULL ? m3JointSlot(world, jointId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return NULL;
     }
     *outSlot = slot;
@@ -901,7 +912,6 @@ void m3Joint_SetCollideConnected(m3JointId jointId, bool collide)
     m3World* world = ResolveJoint(jointId, &slot);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)

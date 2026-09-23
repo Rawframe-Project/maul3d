@@ -493,6 +493,7 @@ static m3World* ResolveVoxelShape(m3ShapeId shapeId, int32_t* shapeOut)
     int32_t shape = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (shape < 0 || world->shapeType[shape] != (uint8_t)m3_voxelShape)
     {
+        m3Refuse(world, m3_errorInvalid);
         return NULL; // stale, foreign, or not a voxel chunk: contract
     }
     *shapeOut = shape;

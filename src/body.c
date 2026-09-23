@@ -29,7 +29,12 @@ static m3World* ResolveBody(m3BodyId bodyId, int32_t* indexOut)
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     int32_t index = world != NULL ? m3BodySlot(world, bodyId) : -1;
     *indexOut = index;
-    return index >= 0 ? world : NULL;
+    if (index < 0)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return NULL;
+    }
+    return world;
 }
 
 m3BodyDef m3DefaultBodyDef(void)
@@ -470,7 +475,6 @@ void m3DestroyBody(m3BodyId bodyId)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (world->journalActive != 0)
@@ -482,8 +486,8 @@ void m3DestroyBody(m3BodyId bodyId)
 
 bool m3Body_IsValid(m3BodyId bodyId)
 {
-    int32_t index;
-    return ResolveBody(bodyId, &index) != NULL;
+    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    return world != NULL && m3BodySlot(world, bodyId) >= 0;
 }
 
 m3Pos3 m3Body_GetPosition(m3BodyId bodyId)
@@ -618,7 +622,6 @@ void m3Body_SetEnabled(m3BodyId bodyId, bool enabled)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -693,7 +696,6 @@ void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -739,7 +741,6 @@ void m3Body_SetName(m3BodyId bodyId, const char* name)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -983,7 +984,6 @@ void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (!m3FiniteV3(velocity))
@@ -1012,7 +1012,6 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (!m3FiniteV3(velocity))

@@ -563,7 +563,7 @@ m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfE
         !m3FiniteQuat(rotation) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !(qq > 0.98f) || !(qq < 1.02f))
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3Refuse(m3WorldFromId(worldId), m3_errorInvalid);
         return miss; // hostile input: the cast quietly misses, loudly
                      // documented (the query contract has no id to
                      // refuse with)
@@ -599,7 +599,7 @@ m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3*
     if (points == NULL || count < 2 || count > M3_HULL_MAX_VERTS || !m3FinitePos3(base) ||
         !m3FiniteV3(translation))
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3Refuse(m3WorldFromId(worldId), m3_errorInvalid);
         return miss; // a one-point skinless cast is a ray: use rays
     }
     for (int32_t k = 0; k < count; ++k)
@@ -1744,7 +1744,7 @@ int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3Refuse(m3WorldFromId(worldId), m3_errorInvalid);
         return 0;
     }
     m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
@@ -1765,7 +1765,7 @@ int32_t m3World_OverlapBoxEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtent
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3Refuse(m3WorldFromId(worldId), m3_errorInvalid);
         return 0;
     }
     m3Vec3 corners[8];

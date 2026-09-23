@@ -1072,7 +1072,10 @@ static void TestGenericAsSpherical(void)
     m3CreateSphereShape(bob, &sd, &ball);
     m3JointDef jd = GenericBase(anchor, bob);
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
+    uint64_t misuse = m3World_GetCounters(world).misuse;
     CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "the generic ball creates");
+    CHECK(m3World_GetCounters(world).misuse == misuse,
+          "and a valid def is never counted as misuse");
     double maxSpeed2 = 0.0;
     double maxPinDrift2 = 0.0;
     for (int32_t i = 0; i < 480; ++i)

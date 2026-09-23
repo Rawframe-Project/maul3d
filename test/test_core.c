@@ -11,6 +11,7 @@
 
 #include "maul3d/body.h"
 #include "maul3d/core_math.h"
+#include "maul3d/shape.h"
 #include "maul3d/world.h"
 
 #include <math.h>
@@ -132,6 +133,14 @@ static void TestEveryRefusalHasAReason(void)
     m3DestroyBody(b);
     CHECK(!m3Body_IsValid(b), "a validity query on a stale id answers false");
     CHECK(m3World_GetCounters(world).misuse == misuse + 1, "without counting as misuse");
+    (void)m3Body_GetPosition(b);
+    CHECK(m3LastResult() == m3_errorInvalid, "reading through a stale id is refused");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 2, "and counts once, against its world");
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = -1.0f;
+    CHECK(m3CreateBoxShape(a, &sd, (m3Vec3){0.5f, 0.5f, 0.5f}).index1 == 0,
+          "a negative density is refused");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 3, "and counts as misuse");
 
     m3DestroyWorld(world);
     m3World_Step(world, 1.0f / 60.0f, 4);
