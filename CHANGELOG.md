@@ -8,9 +8,15 @@ snapshot and journal formats.
 
 ## [Unreleased]
 
-## [0.0.1]
+Work toward 0.0.1, the first release of the reworked library.
 
 ### Changed
 
 - The version history restarts at 0.0.1. Earlier numbered releases
-  were withdrawn; this is the first version of the reworked library.
+  were withdrawn.
+
+### Fixed
+
+- A step that stalled on a full pair table or starved scratch leaked
+  the previous step's pair and manifold stash. The stash now lives in
+  the world, sized once at creation, so a step never allocates.

@@ -3684,28 +3684,17 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         world->scratch = m3StackCreate(bigger);
     }
 
-    // Stash the previous pairs and manifolds BEFORE the scan
-    // overwrites them (the warm-start carry reads this). On the
-    // HEAP on purpose (V-LAYOUT): the stash predates the scan, so
-    // scratch sizing here could only use the stale pair count, and
-    // a stale-count budget is exactly the lag that let stall ticks
-    // depend on struct sizes. Freed after the event walk; the
-    // alloc/free pair nets zero for the soak law.
+    // Stash the previous pairs and manifolds before the scan
+    // overwrites them; the warm-start carry and the event walk read
+    // the stash. The buffers belong to the world, so this never
+    // allocates and an early return cannot leak.
     int32_t oldCount = world->pairCount;
-    uint64_t* oldKeys = NULL;
-    m3Manifold* oldManifolds = NULL;
+    const uint64_t* oldKeys = world->stashPairKeys;
+    const m3Manifold* oldManifolds = world->stashManifolds;
     if (oldCount > 0)
     {
-        oldKeys = (uint64_t*)m3AllocZeroed(oldCount * (int32_t)sizeof(uint64_t));
-        oldManifolds = (m3Manifold*)m3AllocZeroed(oldCount * (int32_t)sizeof(m3Manifold));
-        if (oldKeys == NULL || oldManifolds == NULL)
-        {
-            m3Free(oldKeys);
-            m3Free(oldManifolds);
-            return; // out of memory: refuse the step loudly
-        }
-        memcpy(oldKeys, world->pairKeys, (size_t)oldCount * sizeof(uint64_t));
-        memcpy(oldManifolds, world->manifolds, (size_t)oldCount * sizeof(m3Manifold));
+        memcpy(world->stashPairKeys, world->pairKeys, (size_t)oldCount * sizeof(uint64_t));
+        memcpy(world->stashManifolds, world->manifolds, (size_t)oldCount * sizeof(m3Manifold));
     }
 
     // The suspension pass (5-1): vehicle impulses land here so the
@@ -3814,9 +3803,6 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         }
     }
 
-    // The stash served the warm carry and the event walk: done.
-    m3Free(oldKeys);
-    m3Free(oldManifolds);
     prof.events = (float)(m3NowMs() - t0);
     t0 = m3NowMs();
 

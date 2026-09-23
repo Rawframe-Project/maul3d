@@ -445,6 +445,8 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     M3_ALLOC_W(world->stepVetoKeys, world->pairCapacity, uint64_t);
     M3_ALLOC_W(world->replayVetoKeys, world->pairCapacity, uint64_t);
     M3_ALLOC_W(world->manifolds, world->pairCapacity, m3Manifold);
+    M3_ALLOC_W(world->stashPairKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->stashManifolds, world->pairCapacity, m3Manifold);
     world->pairCount = 0;
 
     // Step scratch: grows between steps on m3_errorCapacity, never
@@ -717,6 +719,8 @@ void m3DestroyWorld(m3WorldId worldId)
     m3Free(world->stepVetoKeys);
     m3Free(world->replayVetoKeys);
     m3Free(world->manifolds);
+    m3Free(world->stashPairKeys);
+    m3Free(world->stashManifolds);
     m3StackDestroy(&world->scratch);
     m3Free(world);
 

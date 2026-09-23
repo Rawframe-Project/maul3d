@@ -722,6 +722,12 @@ typedef struct m3World
     // manifolds (persistent: warm-start impulses live here and ride
     // the snapshot).
     uint64_t* pairKeys;
+    // The previous step's pairs and manifolds, copied here before the
+    // scan overwrites them so the narrowphase can carry warm-start
+    // impulses. Sized to the pair capacity once at creation, so a step
+    // never allocates. Scratch only: never snapshotted or hashed.
+    uint64_t* stashPairKeys;
+    m3Manifold* stashManifolds;
     // S-3b: pairs whose every endpoint is cold (no awake dynamic
     // body) are harvested from the previous step's list and merged
     // back without re-querying the tree. Derived state: never
