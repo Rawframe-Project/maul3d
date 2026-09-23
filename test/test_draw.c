@@ -12,22 +12,11 @@
 #include "maul3d/draw.h"
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
+#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // Counting sink: tallies primitives, tracks colors, and folds every
 // emitted byte into an FNV-1a hash so twin streams can be compared

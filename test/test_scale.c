@@ -11,6 +11,7 @@
 
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
+#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -22,18 +23,6 @@
 #else
 #include <pthread.h>
 #endif
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // The test-grade host pool, the determinism suite's pattern: real
 // threads, spawn per enqueue, any split must produce identical bits.

@@ -10,23 +10,12 @@
 // versus from-scratch rebuilds) hold at every checkpoint. The
 // sanitizer cells run all of it with teeth.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static uint32_t s_rng = 0xA5C39E17u;
 static uint32_t NextRand(void)

@@ -13,21 +13,10 @@
 
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
+#include "test_harness.h"
 
 #include <stdio.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // The poison palette, built from bit patterns so no compiler in the
 // six-cell matrix gets to fold, warn about, or trap on a constant:

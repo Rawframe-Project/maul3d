@@ -6,22 +6,11 @@
 // closest-of-many ordering, and the determinism twins for both.
 
 #include "maul3d/shape.h"
+#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static void TestContactEvents(void)
 {

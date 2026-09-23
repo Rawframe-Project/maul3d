@@ -14,6 +14,7 @@
 //      (trivially serial today; the gate is armed for 2b threading).
 
 #include "maul3d/shape.h"
+#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,18 +123,6 @@ static void PoolFinish(void* userTask, void* userContext)
 #endif
     }
 }
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // The golden scene: a plane, a 4-layer sphere pyramid (16+9+4+1 = 30),
 // and five offset droppers. Every def is pinned; nothing is random.

@@ -8,23 +8,12 @@
 // (twin builds byte-identical), restore rebuild (a rolled-back world
 // carries a byte-identical tree), and the degenerate boxes.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // Deterministic LCG (never libc rand: implementation-defined).
 static uint32_t s_rng = 0x12345678u;

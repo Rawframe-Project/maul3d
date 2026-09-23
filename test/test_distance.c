@@ -8,22 +8,11 @@
 // the same bits. A wrong closest point cannot satisfy the oracle.
 // White box.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include <stdio.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static int NearF(m3real a, m3real b, m3real tol)
 {

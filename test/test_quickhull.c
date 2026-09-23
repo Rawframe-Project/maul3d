@@ -7,22 +7,11 @@
 // Euler's identity, containment, positive-definite mass, and
 // bit-identical reruns over pseudo-random clouds.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include <stdio.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static uint64_t SplitMix(uint64_t* state)
 {

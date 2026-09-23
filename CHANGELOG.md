@@ -20,6 +20,9 @@ Work toward 0.0.1, the first release of the reworked library.
   `tools/gen_api.py` (the same script Maul2D uses), and
   `maul3d/maul3d.h`, an umbrella header that includes the whole API.
 - `m3replay` and `m3lockstep` are installed with the library.
+- `test/hashes.txt` holds the expected determinism hashes, and
+  `tools/check_hashes.py` compares a test run with them, so a change
+  that moves a hash the same way on every platform is caught too.
 
 ### Changed
 
@@ -40,6 +43,8 @@ Work toward 0.0.1, the first release of the reworked library.
   pkg-config template are shared with the sibling engine. The pkg-
   config file is relocatable and no longer lists a thread library the
   engine does not use.
+- Every test suite uses the shared `test/test_harness.h` instead of
+  its own copy of the check macro.
 
 ### Removed
 

@@ -10,23 +10,12 @@
 
 #include "maul3d/character.h"
 #include "maul3d/shape.h"
+#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // Floor plane plus a slab roof over x in [2, 6]: 1.3 meters of
 // clearance. The default character stands 1.8 tall and crouches
