@@ -41,7 +41,7 @@ void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
 
-// The 17-2 material wall lives in the internal (replay hands it raw
+// The material wall lives in the internal (replay hands it raw
 // bytes): count 1..8, finite entries, nonnegative frictions and
 // resistances, every triangle byte < count.
 bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,

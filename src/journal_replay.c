@@ -37,8 +37,8 @@ typedef bool m3ReplayApplyFn(m3World* world, const m3ReplayRecord* r);
 // Journaled defs are untrusted bytes: a
 // flipped bit in an embedded bool field is undefined even to LOAD
 // as _Bool, so every replay handler normalizes bool bytes through
-// uint8_t before the def is used as its C type. UBSAN convicted
-// the raw load on the container fuzzer's first day.
+// uint8_t before the def is used as its C type (UBSan flags the raw
+// load).
 static void NormalizeBoolByte(void* base, size_t offset)
 {
     uint8_t* b = (uint8_t*)base + offset;
@@ -161,9 +161,9 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, payload, sizeof(record));
     if (!(record.dt > 0.0f) || record.substeps < 1 || record.substeps > M3_MAX_SUBSTEPS)
     {
-        // The upper bound is the 13-4 red-team scar: one
-        // flipped bit turned substeps 4 into a billion and a
-        // two-second replay into hours. Hostile tapes refuse
+        // The upper bound matters: one flipped bit could turn
+        // substeps 4 into a billion and a two-second replay into
+        // hours. Hostile tapes refuse
         // in proportion to their crime.
         return false;
     }
@@ -1112,7 +1112,7 @@ static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
     int32_t bytes = r->bytes;
     // A new op gets the strict wall: hostile caps (NaN,
     // nonpositive) fail the replay loudly instead of riding
-    // into the solver. Op 46 keeps its 8-4 byte contract.
+    // into the solver.
     float value;
     if (bytes != (int32_t)sizeof(value))
     {

@@ -924,7 +924,7 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
             (m3Vec3){localH.x + radius, localH.y + radius, localH.z + radius}, hfTris, 512);
         for (int32_t t = 0; t < hfCount; ++t)
         {
-            // The mesh recipe verbatim: the conservative
+            // As for meshes: the conservative
             // vertex-distance check suffices here.
             m3Vec3 d0 = m3Sub3(localH, hfTris[t][0]);
             m3Vec3 d1 = m3Sub3(localH, hfTris[t][1]);

@@ -68,7 +68,7 @@ static void WarmStartWheel(const m3World* world, const m3JointConstraint* c, m3J
     // along the slide axis plus the two point-to-line rows
     // whose scalars ride c->impulse; the shared tail adds
     // c->impulse itself, so subtract it (the generic's
-    // bookkeeping trick, keeping the sum honest).
+    // bookkeeping, so the sum counts it once).
     w->angularImpulse =
         m3Add3(m3MulSV3(c->perpImpulseX, c->perpAxisX), m3MulSV3(c->perpImpulseY, c->perpAxisY));
     w->angularImpulse = m3Add3(w->angularImpulse, m3MulSV3(c->motorImpulse, c->rotationAxis));
@@ -98,8 +98,8 @@ static void SolveWheel(m3World* world, m3JointConstraint* c, const m3JointSolveC
     m3real hSub = s->hSub;
     m3real invHSub = s->invHSub;
     int useBias = s->useBias;
-    // The wheel: each block is its parent's form
-    // verbatim, only the axes differ. Fixed canonical order:
+    // The wheel: each block is its parent joint's form;
+    // only the axes differ. Fixed canonical order:
     // suspension spring, spin motor, suspension limits, axle
     // collinearity, point-to-line. The suspension rows ride
     // the live frame x (prismatic style, full arms); the
@@ -116,7 +116,7 @@ static void SolveWheel(m3World* world, m3JointConstraint* c, const m3JointSolveC
 
     if ((c->flags & M3_JOINT_SPRING) != 0)
     {
-        // The suspension spring (8-6b through the wheel).
+        // The suspension spring.
         m3real cc = translation - c->targetScalar;
         m3real bias = c->springSoft.biasRate * cc;
         m3Vec3 vRel = m3Sub3(m3Sub3(m3Add3(vB, m3Cross3(wB, rB)), vA), m3Cross3(wA, m3Add3(rA, d)));
@@ -204,7 +204,7 @@ static void SolveWheel(m3World* world, m3JointConstraint* c, const m3JointSolveC
         }
     }
 
-    // Axle collinearity: the revolute's 2x2 verbatim, locking
+    // Axle collinearity: the revolute's 2x2 block, locking
     // the two off-axle rotations so the wheel plane rides the
     // chassis. With steering engaged the frame-x row
     // becomes the strut drive and only frame y stays locked.
@@ -324,7 +324,7 @@ static void SolveWheel(m3World* world, m3JointConstraint* c, const m3JointSolveC
         }
     }
 
-    // Point-to-line: the prismatic's 2x2 verbatim along the
+    // Point-to-line: the prismatic's 2x2 block along the
     // fore-aft direction and the axle, the two directions
     // perpendicular to the suspension slide.
     {

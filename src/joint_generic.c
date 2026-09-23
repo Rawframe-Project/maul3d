@@ -81,8 +81,8 @@ static void WarmStartGeneric(const m3World* world, const m3JointConstraint* c,
         L = m3Add3(L, m3MulSV3(c->motorImpulse, basis[motorAxis - 3u]));
     }
     w->linearExtra = m3Sub3(P, c->impulse); // primary already rides
-                                            // c->impulse below; keep
-                                            // the sum honest
+                                            // c->impulse below, so the
+                                            // sum counts it once
     w->angularImpulse = L;
 }
 
@@ -105,7 +105,7 @@ static void SolveGeneric(m3World* world, m3JointConstraint* c, const m3JointSolv
     // recipe, angular locked = per-axis lock row with the
     // rev-19 sign convention, angular limited = the
     // revolute angle recipe about that basis axis, motor =
-    // the prismatic or revolute motor verbatim.
+    // the same motor row as the prismatic or revolute.
     m3Vec3 sep = m3Add3(m3Add3(m3Sub3(deltaPos[c->bodyB], deltaPos[c->bodyA]), m3Sub3(rB, rA)),
                         c->deltaCenter);
     m3Quat quatA = m3MulQuat(deltaRot[c->bodyA], c->frameQA);

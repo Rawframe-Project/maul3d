@@ -54,7 +54,7 @@ static void CollideMeshPair(m3World* world, m3Manifold* fresh, int32_t shapeA, i
     if (world->shapes.shapeType[otherShape] != (uint8_t)m3_planeShape)
     {
         // Sphere, capsule, and hull all ride the welded
-        // per-triangle pipeline (2b-9a through 2b-9c).
+        // per-triangle pipeline.
         m3CollideMeshConvex(world, fresh, meshShape, otherShape, meshShape == shapeA);
     }
 }

@@ -272,7 +272,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     // mid-step. 256 KiB is generous for the 2a sphere world.
     world->scratch = m3StackCreate(256 * 1024);
     // The slot pools and the proxy tree allocate outside the state table;
-    // their footprints are closed-form and join the ledger here.
+    // their footprints are closed-form and join the total here.
     {
         int64_t poolBytes = 0;
         int32_t poolCaps[] = {cap,

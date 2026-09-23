@@ -31,7 +31,7 @@
 
 #include <string.h>
 
-// Reference formula (b2MakeSoft, copied verbatim from Maul2D):
+// Soft constraint coefficients:
 // bias = w/(2z+hw), massScale = hw(2z+hw)/(1+hw(2z+hw)),
 // impulseScale = 1/(1+hw(2z+hw)).
 m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h)
@@ -245,17 +245,15 @@ static void EmitContactEvents(m3World* world, const uint64_t* oldKeys,
 
 static void SizeScratchForStep(m3World* world)
 {
-    // Pre-flight sizing (V-STALL; repositioned by V-LAYOUT): a
-    // starved step is deterministic SIZE-DRIVEN state evolution,
-    // and struct sizes are not part of the cross-platform
-    // contract. The estimate uses PINNED per-item byte budgets
-    // chosen to dominate every platform's real sizes, and it runs
-    // AFTER the pair scan so the pair count is THIS step's count:
-    // the one-step lag was V-LAYOUT's whole crime (a stale budget
-    // let real consumption race capacity on pileup spikes, and the
-    // winner depended on sizeof). Counts are pure state, so every
-    // cell grows on the same tick; the reactive NULL returns below
-    // are loud backstops an honest run can no longer reach.
+    // Pre-flight sizing: a starved step is deterministic, size-driven
+    // state evolution, and struct sizes are not part of the
+    // cross-platform contract. The estimate uses pinned per-item byte
+    // budgets chosen to dominate every platform's real sizes, and it
+    // runs after the pair scan so the pair count is this step's (a
+    // one-step lag let consumption race capacity on pileup spikes, and
+    // the winner depended on sizeof). Counts are pure state, so every
+    // platform grows on the same tick; the NULL checks that follow are
+    // backstops a correct run never reaches.
     {
         int64_t need = 64 * 1024 + 128 * (int64_t)world->bodies.bodyPool.maxIndex +
                        64 * (int64_t)world->shapes.shapePool.maxIndex +
@@ -561,7 +559,7 @@ static void IntegratePositions(m3World* world, const int32_t* movers, int32_t mo
 static void AdvanceWind(m3World* world, float dt)
 {
     // Wind phase: accumulated STATE, so a rollback resumes
-    // the exact same gust wave. Wrapped to keep the float honest.
+    // the exact same gust wave. Wrapped to keep the float precise.
     if (world->windGustHertz > 0.0f)
     {
         world->windPhase += 2.0f * M3_PI * world->windGustHertz * dt;

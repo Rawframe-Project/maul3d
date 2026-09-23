@@ -36,54 +36,11 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 
 #define M3_MAX_WORLDS 64
 
-// Bumped on ANY change that alters simulation behavior (solver math,
-// integration order, constants). Part of the snapshot config hash, so
-// a snapshot from a different behavior revision is refused loudly
-// instead of silently diverging (the Jolt friction-model lesson).
-// NOTE: rev 17 was skipped by a slipped edit in the 2c-5 slice (the
-// cone and twist limits shipped without their bump; same format,
-// new-capability-only, harmless in effect but a discipline miss,
-// recorded here so the ledger stays honest).
-#define M3_SOLVER_REV                                                                              \
-    21 // rev 21: central friction, the reference
-       // 3D layout. One coupled 2x2 tangent row
-       // at the manifold's mean anchors plus a
-       // twist row about the normal, warm-stored
-       // in the world frame; friction and rolling
-       // budgets are PASS-LOCAL sums of live
-       // normal accumulators. Rev 20 read a
-       // cross-pass sum (a misreading of the
-       // reference: its totalNormalImpulse is a
-       // local variable per pass), inflating the
-       // cone up to 8x; and its per-corner
-       // tangent rows handed gravity a fake
-       // pitch lever. A shoved crate stuck in
-       // centimeters, dug its leading edge, and
-       // hopped. Convicted against Maul2D
-       // (textbook mu*g decay, identical scene)
-       // and box3d contact_solver.c; the slide
-       // law test pins Coulomb for good.
-       // rev 20: the reference contact friction
-       // budget and schedule. The friction
-       // cap now reads the STEP-LONG sum of
-       // normal impulses (the reference's
-       // totalNormalImpulse): the relax pass
-       // legally refunds the accumulator for
-       // bodies hovering at the speculative slop
-       // gap, and a cap read from the refunded
-       // value left them sliding and spinning
-       // FRICTIONLESS forever under every pile
-       // (sleep never engaged, the continuous
-       // phase drowned in phantom fast bodies).
-       // Friction also no longer solves during
-       // the bias pass (the reference rule: bias
-       // motion is virtual). Restitution gates
-       // on the step-long sum too.
-       // rev 19: the rotation-lock bias sign (a
-       // latent amplifier in the prismatic
-       // lock, exposed by the 4-2 weld; error
-       // now rides the bias with the contact
-       // row's sign convention)
+// Bumped on any change that alters simulation behavior (solver math,
+// integration order, constants). It is part of the snapshot config hash,
+// so a snapshot from another behavior revision is refused instead of
+// silently diverging.
+#define M3_SOLVER_REV 21
 
 // Def cookies: a def that did not come from its m3Default*Def factory
 // is rejected loudly (the Maul2D pattern).
@@ -105,7 +62,7 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 // hashed (a name moves no matter).
 #define M3_BODY_NAME_CAPACITY 32
 
-// Water volume slots per world: fixed, small, honest.
+// Water volume slots per world: a fixed, small table.
 #define M3_MAX_WATER_VOLUMES 8
 
 // Immutable interned hull data (lifetime 3): vertices, face planes,
@@ -118,7 +75,7 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 // The parity caps. Euler for V = 64: F <= 2V - 4 = 124,
 // half-edges <= 6V - 12 = 372. Geometry is create-time state the
 // hash covers by INDEX, so raising the caps moves no hash; only
-// the snapshot block size (format v38).
+// the snapshot block size.
 #define M3_HULL_MAX_VERTS        64
 #define M3_HULL_MAX_FACES        124
 #define M3_HULL_MAX_FACE_INDICES 372
@@ -156,23 +113,16 @@ typedef struct m3HullData
 
 _Static_assert(sizeof(m3HullData) == 5808, "hull data must be padding-free");
 
-// Static triangle mesh content (lifetime 3): fixed caps keep it one
-// snapshot block per slot, so the snapshot law stays uniform (no
-// variable-size special case; a deliberate deviation from the
-// reference's variable allocations, argued in the 2b-9 slice). The
-// midphase in 2b-9a is a bounded per-triangle scan; the static BVH
-// arrives in 2b-9b behind the same query contract.
-// The 16-bit ceiling. Content arrays went count-derived
-// (heap per slot, variable snapshot blocks): a fixed block at 65k
-// triangles would cost megabytes per EMPTY slot, so the 2b-9
-// fixed-block deviation is reversed here, argued in the plan.
+// Static triangle mesh content: immutable, heap-allocated per slot and
+// sized by its counts (a fixed block at 65k triangles would cost
+// megabytes per empty slot), with 16-bit vertex indices.
 #define M3_MESH_MAX_VERTS 65535
 #define M3_MESH_MAX_TRIS  65535
 
 // Per-triangle surface material: a mesh carries up to eight
 // entries (the public m3MeshSurfaceMaterial) and a byte per
 // triangle naming one; count 0 means "use the shape material"
-// everywhere (the pre-17 behavior, bit-exact).
+// everywhere.
 #define M3_MESH_MAX_MATERIALS 8
 
 typedef struct m3MeshData
@@ -187,9 +137,7 @@ typedef struct m3MeshData
     // create time, deterministic.
     uint8_t* edgeFlags;
     // Material groups. materialCount 0 = the mesh defers to
-    // its shape's material everywhere (canonical zeros throughout,
-    // so a material-free mesh hashes and snapshots exactly like a
-    // pre-17 one modulo the version bump).
+    // its shape's material everywhere (canonical zeros throughout).
     int32_t materialCount;
     uint8_t* triMaterials; // one group index per triangle
     m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
@@ -206,7 +154,7 @@ void m3MeshDataFree(m3MeshData* mesh);
 // will speed it up if profiles ever ask).
 void m3BakeMeshEdgeFlags(m3MeshData* mesh);
 
-// Native heightfield content (19-1, lifetime 3): count-derived raw
+// Native heightfield content: immutable, count-derived raw
 // samples, the low-memory terrain path beside meshes. The cell at
 // (ix, iz) spans x in [ix, ix+1] * cellSize, z likewise, and
 // splits into two CCW-from-above triangles along the ix+iz
@@ -223,13 +171,13 @@ typedef struct m3HeightFieldData
     float* heights;  // nx * nz samples, row-major, x fastest
 } m3HeightFieldData;
 
-// Count-derived ownership, the 10-3 gates: Alloc sizes from the
-// counts already in the struct, Free releases and zeroes.
+// Count-derived ownership: Alloc sizes from the counts already in the
+// struct, Free releases and zeroes.
 bool m3HeightFieldDataAlloc(m3HeightFieldData* hf);
 void m3HeightFieldDataFree(m3HeightFieldData* hf);
 
-// One cell's two triangles (19-2's parity split, THE one rule every
-// consumer shares: contacts, rays, queries, draw, soft particles).
+// One cell's two triangles, split by diagonal parity: the one rule every
+// consumer shares (contacts, rays, queries, draw, soft particles).
 static inline void m3HeightFieldCellTris(const m3HeightFieldData* hf, int32_t cx, int32_t cz,
                                          m3Vec3 out[2][3])
 {
@@ -272,7 +220,7 @@ int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m
 // hashed; rebuilt deterministically wherever mesh content lands
 // (create, journal replay, restore).
 #define M3_MESH_BVH_LEAF 4
-// Node budget per build: 2 * triCount (allocated exactly, 10-3).
+// Node budget per build: 2 * triCount, allocated exactly.
 
 // Quantized node bounds: uint16 grid coordinates against
 // the root box, rounded OUTWARD at build and the query rounded
@@ -404,10 +352,7 @@ typedef struct m3Manifold
     int32_t pointCount;
     // Central friction warm-start payload: stored in the
     // WORLD frame so the next step's tangent basis re-projects it.
-    // Rolling joins it: the reference warm-starts the rolling row
-    // every substep, and the 6-3 cold-start deviation only looked
-    // adequate under the inflated cross-pass budget it shipped
-    // beside (the ledger stays honest).
+    // The rolling row warm-starts every substep from here too.
     m3Vec3 frictionImpulse;
     m3real twistImpulse;
     m3Vec3 rollingImpulse;
@@ -423,7 +368,7 @@ typedef struct m3Bodies
     // Body identity.
     m3IdPool bodyPool;
     // SoA body state, hot fields first. All persistent, all walked by
-    // the snapshot in task 6.
+    // the snapshot.
     m3Transform* transforms;
     m3Vec3* linearVelocities;
     m3Vec3* angularVelocities;
@@ -443,9 +388,9 @@ typedef struct m3Bodies
     uint64_t* userData;
     m3Vec3* bodyForce;         // host force accumulator: integrated
     m3Vec3* bodyTorque;        // each substep, cleared after the step,
-                               // hashed only when nonzero (additive rule)
+                               // hashed only when nonzero
     uint8_t* bodyEnabled;      // Disabled = invisible everywhere
-    uint8_t* bodyLocks;        // bits 0-2 linear xyz, 3-5 angular xyz,
+    uint8_t* bodyLocks;        // bits 0..2 linear xyz, 3..5 angular xyz,
                                // bit 6 allowFastRotation
     float* bodySleepThreshold; // per-body; default the world constant
     uint8_t* bodyCanSleep;     // 0 = never sleeps
@@ -474,13 +419,12 @@ typedef struct m3Shapes
     float* shapeFriction;
     float* shapeRestitution;
     uint8_t* shapeHitEvents;       // Emit hit events (default 0)
-    m3Vec3* shapeLocalPos;         // 10-1 compound offset (default zero)
-    m3Quat* shapeLocalRot;         // 10-1 compound rotation (default identity)
+    m3Vec3* shapeLocalPos;         // compound offset (default zero)
+    m3Quat* shapeLocalRot;         // compound rotation (default identity)
     uint8_t* shapeHasOffset;       // fast identity short-circuit
-    m3Vec3* shapeSurfaceVel;       // 11-3 conveyor (default zero)
+    m3Vec3* shapeSurfaceVel;       // conveyor speed (default zero)
     uint8_t* shapePreSolve;        // Run the pre-solve veto (default 0)
-    float* shapeRollingResistance; // hashed only when nonzero (the
-                                   // additive-state golden rule)
+    float* shapeRollingResistance; // hashed only when nonzero
     uint64_t* shapeCategory;       // filters: hashed only when a
     uint64_t* shapeMask;           // value differs from its default
     int32_t* shapeGroup;
@@ -572,7 +516,7 @@ typedef struct m3Contacts
     // never allocates. Scratch only: never snapshotted or hashed.
     uint64_t* stashPairKeys;
     m3Manifold* stashManifolds;
-    // S-3b: pairs whose every endpoint is cold (no awake dynamic
+    // Cold pairs: pairs whose every endpoint is cold (no awake dynamic
     // body) are harvested from the previous step's list and merged
     // back without re-querying the tree. Derived state: never
     // snapshotted; a restore raises pairsFullQuery and the next
@@ -602,7 +546,7 @@ typedef struct m3Joints
     // Generic 6-DOF state: packed modes (2 bits per axis,
     // linear 0..5, angular 6..11, motor axis 12..15) and per-axis
     // limit vectors. Folded into the hash only for generic-typed
-    // joints (the golden rule for additive state).
+    // joints.
     uint16_t* jointGenericModes;
     m3Vec3* jointGenLinLower;
     m3Vec3* jointGenLinUpper;
@@ -610,8 +554,7 @@ typedef struct m3Joints
     m3Vec3* jointGenAngUpper;
     // Pulley world anchors: fixed points the two rope
     // segments hang from, double like every world position. Folded
-    // into the hash only for pulley-typed joints (the golden rule
-    // for additive state).
+    // into the hash only for pulley-typed joints.
     m3Pos3* jointGroundA;
     m3Pos3* jointGroundB;
     m3IdPool jointPool;
@@ -678,7 +621,7 @@ typedef struct m3Vehicles
     // Vehicles: pooled raycast vehicles. Per-slot config plus
     // per-wheel arrays at slot * M3_VEHICLE_MAX_WHEELS + wheel. All
     // persistent simulation state: snapshotted, hashed for live
-    // slots (the additive-state golden rule).
+    // slots.
     int32_t vehicleCapacity;
     m3IdPool vehPool;
     int32_t* vehChassis;     // chassis body slot, -1 free
@@ -698,7 +641,7 @@ typedef struct m3Vehicles
     uint8_t* vehWheelFlags; // bit0 steerable, bit1 driven
     m3real* vehWheelBrake;
     // Tank mode: per-side throttles; mode 0 = the normal
-    // single-throttle path, bit-exact with pre-23.
+    // single-throttle path.
     uint8_t* vehTrackMode;
     m3real* vehTrackLeft;
     m3real* vehTrackRight;
@@ -713,8 +656,7 @@ typedef struct m3Vehicles
     // The drivetrain: per-vehicle engine curve and gearbox.
     // Def fields land by journaled op; gear, clutch countdown, and
     // last engine speed are simulation state (snapshot always,
-    // hashed only when a drivetrain is attached: the additive-state
-    // golden rule keeps drivetrain-free worlds on their old hashes).
+    // hashed only when a drivetrain is attached).
     uint8_t* vehDtActive;
     int32_t* vehDtCurveCount;
     m3real* vehDtCurveRpm;    // capacity * M3_DRIVETRAIN_MAX_CURVE
@@ -794,7 +736,7 @@ typedef struct m3SoftBodies
     m3Vec3* softAnchorLocal;
     // Soft-to-soft anchors: lattice A's particle pinned to
     // lattice B's particle, released silently when EITHER side
-    // dies (the 7-3 liveness lesson, both directions).
+    // dies.
     int32_t* softSoftCount;     // per slot (owner = LOWER slot)
     int32_t* softSoftParticleA; // cap * M3_SOFTBODY_MAX_ANCHORS
     int32_t* softSoftSlotB;
@@ -806,8 +748,7 @@ typedef struct m3SoftBodies
 typedef struct m3WaterVolumes
 {
     // Water volumes: fixed 8 slots, world-anchored boxes.
-    // Hashed off-default (only while any volume is alive), fixed
-    // snapshot blocks (v48).
+    // Hashed only while any volume is alive; fixed snapshot blocks.
     m3IdPool waterPool;
     m3Pos3 waterLo[M3_MAX_WATER_VOLUMES];
     m3Pos3 waterHi[M3_MAX_WATER_VOLUMES];
@@ -822,7 +763,7 @@ typedef struct m3Events
 {
     // Contact events (transient observers, never snapshotted;
     // cleared on step and on restore).
-    m3HitEvent* hitEvents; // 8-5 streams, transient observers
+    m3HitEvent* hitEvents; // hit events, transient observers
     int32_t hitEventCount;
     int32_t hitEventsDropped;
     m3BodyMoveEvent* moveEvents;
@@ -861,14 +802,13 @@ typedef struct m3Recorder
 // array is described once in the state table (world_state.c).
 typedef struct m3World
 {
-    // World-global state (snapshot header material, task 6).
+    // World-global state (snapshot header material).
     m3Vec3 gravity;
-    // Tuning knobs: STATE, not config. They journal, they
-    // snapshot (v33), and they fold into the hash only off their
-    // defaults, so two worlds that only ever used defaults keep
-    // their old hashes. The config hash stays version + solver rev
-    // + precision + FP policy: knobs must be REPLAYABLE, and a
-    // config-hash knob would refuse the journal instead.
+    // Tuning knobs: state, not config. They journal, they snapshot,
+    // and they fold into the hash only off their defaults. The config
+    // hash stays version + solver revision + precision + FP policy:
+    // knobs must be replayable, and a config-hash knob would refuse the
+    // journal instead.
     float contactHertz;
     float contactDampingRatio;
     float contactPushMaxSpeed;
@@ -893,13 +833,13 @@ typedef struct m3World
     void* userTaskContext;
     uint16_t generation;  // this world slot's generation
     uint16_t worldIndex0; // 0-based slot in the world table
-    // D1: persistent bytes this world holds (arrays at create plus
+    // Persistent bytes this world holds (arrays at create plus
     // count-derived content while it lives) and the step scratch
     // capacity; the scratch PEAK already rides m3Counters.
     int64_t memoryBytes;
     m3PreSolveFn* preSolveFn; // host wiring, never state (like the task hooks)
     void* preSolveContext;
-    // Per-step scratch (lifetime 2: never snapshotted).
+    // Per-step scratch, never snapshotted.
     m3Stack scratch;
     m3real lastInvH; // last step's substep invH: readback scale,
     // Observer tail: profile and step statistics. NEVER

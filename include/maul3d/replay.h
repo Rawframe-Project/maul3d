@@ -16,7 +16,7 @@ extern "C"
 {
 #endif
 
-    /// The M3J1 replay container (phase 9): a pure-memory codec for
+    /// The M3J1 replay container: a pure-memory codec for
     /// [initial snapshot + journal] sessions. The LIBRARY never
     /// touches files; tools own IO (the zero-dependency law). The
     /// embedded snapshot self-validates on restore (config hash,

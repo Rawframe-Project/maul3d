@@ -524,7 +524,7 @@ bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
 {
     if (count < 0 || 2 * count - 1 > tree->capacity)
     {
-        return false; // a balanced tree needs 2n-1 nodes
+        return false; // a balanced tree needs 2n - 1 nodes
     }
     // Reset every node onto the free chain in ascending order, so
     // allocation order (and with it the whole rebuilt layout) is a

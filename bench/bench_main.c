@@ -149,7 +149,7 @@ static m3WorldId SceneMeshGrand(void)
     sd.friction = 0.5f;
     enum
     {
-        GG = 174 // (174-1)^2 * 2 = 59858 triangles
+        GG = 174 // (174 - 1)^2 * 2 = 59858 triangles
     };
     static m3Vec3 verts[GG * GG];
     static uint16_t tris[6 * (GG - 1) * (GG - 1)];
@@ -389,7 +389,7 @@ static void RunVoxfort(int32_t steps)
 // is the landing pile-up, storm is destruction under full load,
 // aftermath is the sleeping-heavy sandbox regime a real game
 // lives in. No engine changes rode in with this scene: it is the
-// measuring stick, not the surgery (the phase 6 law).
+// measuring stick, not the surgery.
 static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
 {
     m3WorldDef def = m3DefaultWorldDef();

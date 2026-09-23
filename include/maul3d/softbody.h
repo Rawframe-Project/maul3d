@@ -44,13 +44,13 @@ extern "C"
         /// NEIGHBOR tethers laid along each lattice axis (three
         /// straight points hold their spacing; a fold shortens it,
         /// and the tether pulls it straight). Zero (the default)
-        /// adds no tethers and keeps the pre-20 lattice bit-exact;
+        /// adds no tethers;
         /// smaller positive values bend stiffer. Full Cosserat
         /// twist stays out by design: positions carry no frames.
         m3real bendCompliance;
         /// Internal pressure: a target volume multiplier for
         /// CLOSED lattices (every axis count >= 2). Zero (default)
-        /// is off, bit-exact with pre-20; 1 holds the create
+        /// is off; 1 holds the create
         /// volume, 2 inflates toward double. One global volume
         /// constraint over the surface, solved beside the edges.
         m3real pressure;

@@ -21,7 +21,7 @@ static void PreparePulley(m3World* world, m3JointConstraint* c, const m3JointFra
     // The pulley: two rope segments to fixed WORLD
     // anchors, u vectors double-subtracted here; the solve
     // refreshes lengths from the substep deltas and builds
-    // the axial mass fresh (the distance lesson). Slot map:
+    // the axial mass fresh (as in the distance joint). Slot map:
     // jointMotor.z = ratio, jointLimits.z = the constant.
     m3Pos3 gA = world->joints.jointGroundA[j];
     m3Pos3 gB = world->joints.jointGroundB[j];
@@ -79,7 +79,7 @@ static void SolvePulley(m3World* world, m3JointConstraint* c, const m3JointSolve
     // The rope row: live segment vectors from the
     // prepare u's plus the substep COM and arm motion (the
     // world anchors never move), fresh axial mass per
-    // iteration (the distance lesson), rigid both ways.
+    // iteration (as in the distance joint), rigid both ways.
     m3real ratio = c->motorSpeed;
     m3Vec3 u1 = m3Add3(c->perpAxisX, m3Add3(deltaPos[c->bodyA], m3Sub3(rA, c->rA)));
     m3Vec3 u2 = m3Add3(c->perpAxisY, m3Add3(deltaPos[c->bodyB], m3Sub3(rB, c->rB)));

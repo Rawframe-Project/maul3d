@@ -51,12 +51,12 @@ static void SolveMotor(m3World* world, m3JointConstraint* c, const m3JointSolveC
     m3real hSub = s->hSub;
     // The servo weld: both rows soft BY LAW, so the
     // shared point weld below must never see this type. The
-    // rotation row is the spherical drive verbatim on the
+    // rotation row is the spherical drive on the
     // fixed joint's frames; the translation row is the
     // shared tail's separation aimed at the rotated target
     // offset and softened by the same spring. Budgets clamp
-    // the accumulated impulse magnitude (the 16-2 shape),
-    // so a starved servo sags honestly instead of lying.
+    // the accumulated impulse magnitude, so a starved servo
+    // visibly sags instead of reporting a pose it cannot hold.
     if ((c->flags & M3_JOINT_SPRING) == 0)
     {
         return; // the springless servo idles free

@@ -375,7 +375,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         // never a partial restore.
         return false;
     }
-    // Pool cursor walls (20-2 cure): a flipped header bit made
+    // Pool cursor walls: a flipped header bit made
     // jointPool.maxIndex outrun its capacity and the island pass
     // read past the alive array (ASAN, the fuzz gate). Every
     // cursor is ranged BEFORE any byte lands.
@@ -638,8 +638,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         world->maximumLinearSpeed != M3_MAX_LINEAR_SPEED_DEFAULT || world->sleepEnabled == 0 ||
         world->continuousEnabled == 0 || world->hitEventThreshold != M3_HIT_EVENT_THRESHOLD_DEFAULT)
     {
-        // Additive-state golden rule, sixth use: tuning knobs fold
-        // only off their defaults.
+        // Tuning knobs fold only off their defaults.
         h = m3Hash64(h, &world->contactHertz, 4);
         h = m3Hash64(h, &world->contactDampingRatio, 4);
         h = m3Hash64(h, &world->contactPushMaxSpeed, 4);
@@ -651,9 +650,8 @@ uint64_t m3World_Hash(m3WorldId worldId)
     }
     if (world->maximumAngularSpeed != M3_MAX_ANGULAR_SPEED_DEFAULT)
     {
-        // The angular cap folds in its OWN block, not the 8-4
-        // knob block above: appending there would move the hash of
-        // every world already off-default on an older knob.
+        // The angular cap folds in its own block, so the knob block
+        // above stays the same size for worlds that change only it.
         h = m3Hash64(h, &world->maximumAngularSpeed, 4);
     }
     if (world->windSpeed != 0.0f)
@@ -681,9 +679,8 @@ uint64_t m3World_Hash(m3WorldId worldId)
             world->bodies.bodyForce[i].z != 0.0f || world->bodies.bodyTorque[i].x != 0.0f ||
             world->bodies.bodyTorque[i].y != 0.0f || world->bodies.bodyTorque[i].z != 0.0f)
         {
-            // Additive-state golden rule: pending host forces fold
-            // only when present (a mid-step snapshot must carry
-            // them; every force-free scene keeps its hash).
+            // Pending host forces fold only when present (a mid-step
+            // snapshot must carry them).
             h = m3Hash64(h, &world->bodies.bodyForce[i], (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->bodies.bodyTorque[i], (int32_t)sizeof(m3Vec3));
         }
@@ -691,8 +688,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
             world->bodies.bodySleepThreshold[i] != M3_SLEEP_VELOCITY_DEFAULT ||
             world->bodies.bodyCanSleep[i] == 0 || world->bodies.bodyHasTarget[i] != 0)
         {
-            // Additive-state golden rule, fifth use: control state
-            // folds only off its defaults.
+            // Control state folds only off its defaults.
             h = m3Hash64(h, &world->bodies.bodyEnabled[i], 1);
             h = m3Hash64(h, &world->bodies.bodyLocks[i], 1);
             h = m3Hash64(h, &world->bodies.bodySleepThreshold[i], 4);
@@ -746,9 +742,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->shapes.shapeRollingResistance[i] != 0.0f)
         {
-            // The additive-state golden rule: the new field folds
-            // only where it is set, so every pre-existing scene
-            // (rolling resistance zero everywhere) keeps its hash.
+            // Rolling resistance folds only where it is set.
             h = m3Hash64(h, &world->shapes.shapeRollingResistance[i], 4);
         }
         if (world->shapes.shapeCategory[i] != 1ull || world->shapes.shapeMask[i] != ~0ull ||
@@ -800,7 +794,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
     {
         if (world->softBodies.softPool.alive[i] == 0)
         {
-            continue; // the additive-state golden rule: live slots only
+            continue; // live slots only
         }
         h = m3Hash64(h, &world->softBodies.softParticleCount[i], 4);
         h = m3Hash64(h, &world->softBodies.softCompliance[i], 4);
@@ -893,7 +887,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
     {
         if (world->vehicles.vehPool.alive[i] == 0)
         {
-            continue; // the additive-state golden rule: live slots only
+            continue; // live slots only
         }
         h = m3Hash64(h, &world->vehicles.vehChassis[i], 4);
         h = m3Hash64(h, &world->vehicles.vehChassisGen[i], 2);
@@ -935,9 +929,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->vehicles.vehDtActive[i] != 0)
         {
-            // The drivetrain hashes only when attached: vehicles on
-            // the flat force model keep their pre-12-1 hashes (the
-            // additive-state golden rule).
+            // The drivetrain hashes only when attached.
             h = m3Hash64(h, &world->vehicles.vehDtCurveCount[i], 4);
             for (int32_t c = 0; c < world->vehicles.vehDtCurveCount[i]; ++c)
             {
@@ -1040,8 +1032,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->joints.jointFlags[i], 1);
         if (world->joints.jointType[i] == (uint8_t)m3_genericJoint)
         {
-            // Additive-state golden rule: new fields fold only for
-            // the new type.
+            // The generic joint's fields fold only for that type.
             h = m3Hash64(h, &world->joints.jointGenericModes[i], 2);
             h = m3Hash64(h, &world->joints.jointGenLinLower[i], (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->joints.jointGenLinUpper[i], (int32_t)sizeof(m3Vec3));
@@ -1050,8 +1041,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->joints.jointType[i] == (uint8_t)m3_pulleyJoint)
         {
-            // The same golden rule, tenth use: the rope's world
-            // anchors exist only under a pulley.
+            // The rope's world anchors exist only under a pulley.
             h = m3Hash64(h, &world->joints.jointGroundA[i], (int32_t)sizeof(m3Pos3));
             h = m3Hash64(h, &world->joints.jointGroundB[i], (int32_t)sizeof(m3Pos3));
         }

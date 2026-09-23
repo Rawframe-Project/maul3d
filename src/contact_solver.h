@@ -52,11 +52,10 @@ typedef struct m3ContactConstraint
     m3Vec3 normal;
     m3Vec3 t1;
     m3Vec3 t2;
-    // Central friction (rev 21, the reference layout): one 2x2 row
+    // Central friction: one 2x2 row
     // at the mean anchors plus a twist row about the normal, instead
     // of per-point tangent rows. Per-corner friction on a box gave
-    // gravity a fake pitch lever (the vehicle arc's hub lesson, at
-    // the contact level).
+    // gravity a fake pitch lever.
     m3Vec3 originA;
     m3Vec3 originB;
     m3real frictionK11; // inverted 2x2 tangent mass, symmetric

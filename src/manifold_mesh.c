@@ -820,7 +820,7 @@ typedef struct m3MeshCandidate
     int32_t triIndex;
 } m3MeshCandidate;
 
-// The welded triangle pipeline, mesh-agnostic since 19-2: the mesh
+// The welded triangle pipeline, mesh-agnostic: the mesh
 // and its BVH arrive as parameters so the native heightfield can
 // feed a scratch window mesh through the SAME flow. A NULL bvh
 // means every triangle is a candidate (the window is pre-clipped).
@@ -1230,7 +1230,7 @@ void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, i
 
 // Native heightfield versus convex: clip the convex's reach
 // to a cell window (a one-cell halo keeps the interior edge flags
-// honest at the window rim), lay the window out as a scratch mesh
+// correct at the window rim), lay the window out as a scratch mesh
 // in the heightfield frame, bake its edge flags, and run the SAME
 // welded pipeline. Window ids are window-local, so the warm carry
 // resets when the window shifts a cell: deterministic, documented.
@@ -1381,8 +1381,8 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
 // kernel in the CHUNK frame (boxes are axis-aligned there by
 // construction, so the sphere case is an exact clamp); the deepest
 // candidate wins the manifold (ties to the lower box index via the
-// ascending scan). Cross-box point merging and seam welding are the
-// 3-4 slice; a flat floor merges into ONE box, so resting contacts
+// ascending scan). Cross-box point merging and seam welding are not
+// done; a flat floor merges into one box, so resting contacts
 // get full manifolds today. Feature ids mix the box index so warm
 // starts follow their box across rebuilds.
 void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape, int32_t otherShape,

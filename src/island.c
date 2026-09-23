@@ -12,7 +12,7 @@
 #include <string.h>
 
 // ---------------------------------------------------------------
-// Islands and sleep (2b-10, the Maul2D recipe): union-find over the
+// Islands and sleep: union-find over the
 // touching dynamic pairs in canonical order. The wake pass runs
 // right after contacts are built (a sleeping body touched by an
 // awake one must join THIS step's solve); the sleep decision runs at
@@ -183,8 +183,8 @@ void m3IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0, cons
         m3Vec3 v = world->bodies.linearVelocities[i];
         m3Vec3 w = world->bodies.angularVelocities[i];
         m3real velocity = sqrtf(m3Dot3(v, v)) + sqrtf(m3Dot3(w, w)) * world->bodies.maxExtents[i];
-        // Position correction counts too (the reference lesson: bias
-        // pushes move bodies that report zero velocity).
+        // Position correction counts too: bias pushes move bodies that
+        // report zero velocity.
         m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
         m3Vec3 dc = {(m3real)(world->bodies.transforms[i].p.x + (double)rlc.x - com0[i].x),
                      (m3real)(world->bodies.transforms[i].p.y + (double)rlc.y - com0[i].y),
@@ -240,7 +240,7 @@ void m3IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0, cons
             world->bodies.awake[i] = 0;
             world->bodies.linearVelocities[i] = (m3Vec3){0.0f, 0.0f, 0.0f};
             world->bodies.angularVelocities[i] = (m3Vec3){0.0f, 0.0f, 0.0f};
-            // S-3b: the freeze step may have pushed this body into
+            // The freeze step may have pushed this body into
             // overlaps no pair list ever saw; discover them now so
             // the frozen buffer equals what a full query would find.
             m3FreezeDiscoverPairs(world, i);

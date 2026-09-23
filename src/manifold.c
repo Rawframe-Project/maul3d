@@ -98,7 +98,7 @@ static m3FaceQuery QueryFaces(const m3HullData* ref, const m3HullData* other, m3
     query.separation = -3.4e38f;
     query.faceIndex = 0;
     // The other hull's vertices depend on the frame, not the face:
-    // transform once (2c-11, the profile's first ask). Same inputs,
+    // transform once. Same inputs,
     // same operations, so every dot below sees bit-identical values.
     m3Vec3 w[M3_HULL_MAX_VERTS];
     for (int32_t v = 0; v < other->vertexCount; ++v)
@@ -689,8 +689,7 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
 }
 
 // ---------------------------------------------------------------
-// Mesh versus convex (2b-9a sphere, 2b-9b capsule), the reference
-// mesh_contact.c recipe. Feature = the closest voronoi region as a
+// Mesh versus convex (sphere, capsule). Feature = the closest voronoi region as a
 // vertex bitmask (1|2|4; 7 = face). Face contacts are accepted
 // immediately and CLAIM their triangle's edges and vertices; edge
 // and vertex contacts are tentative, sorted by distance, accepted
@@ -698,6 +697,5 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
 // internal-edge mitigation. Accepted manifolds then merge into ONE
 // pair manifold by normal cluster around the deepest contact (the
 // same-normal flat-floor case merges perfectly; the multi-normal
-// valley keeps only its dominant cluster until per-manifold solver
-// normals arrive with 2b-9c).
+// valley keeps only its dominant cluster).
 // ---------------------------------------------------------------

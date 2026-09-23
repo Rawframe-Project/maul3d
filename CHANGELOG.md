@@ -105,6 +105,10 @@ Work toward 0.0.1, the first release of the reworked library.
   CI, and the existing exceptions sit in tools/length-exceptions.txt
   with their reasons and a ceiling that may only shrink. Results are
   bit-identical.
+- Comments no longer carry development-history markers (slice codes,
+  revision stories, format versions, the 40-line changelog on
+  M3_SOLVER_REV); tools/check_comments.py enforces the conventions.md
+  rule in CI next to the length rules.
 
 ### Removed
 

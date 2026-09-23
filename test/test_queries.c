@@ -125,7 +125,7 @@ static void TestRayHitsEveryFamily(void)
     CHECK(hit.normal.x < -0.99f, "sphere entry normal faces the ray");
     CHECK(hit.point.x > 8.99 && hit.point.x < 9.01, "sphere entry point");
 
-    // Box: entry at x = 9, fraction (9-0)/20.
+    // Box: entry at x = 9, fraction (9 - 0) / 20.
     hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 10.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f});
     CHECK(hit.hit && hit.fraction > 0.449f && hit.fraction < 0.451f, "box entry fraction");
     CHECK(hit.normal.x < -0.99f, "box entry normal");

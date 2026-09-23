@@ -715,8 +715,8 @@ static void QhDestroyEdges(m3QhBuilder* b, m3QhEdge* begin, m3QhEdge* end)
 
 // Splice `prev` to `next` in a face ring; when both share the same
 // opposing face the pair would orphan it, so the redundant edge (and
-// possibly a dead opposing triangle) is dissolved, the reference's
-// two topologic repair cases kept verbatim.
+// possibly a dead opposing triangle) is dissolved: the two topological
+// repair cases.
 static void QhConnectEdges(m3QhBuilder* b, m3QhEdge* prev, m3QhEdge* next)
 {
     if (prev->twin->face == next->twin->face)

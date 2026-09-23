@@ -63,7 +63,7 @@ static void SolveDistance(m3World* world, m3JointConstraint* c, const m3JointSol
     m3real invHSub = s->invHSub;
     int useBias = s->useBias;
     // The distance rows: live gap and axis, fresh
-    // axial mass per iteration (the prismatic lesson), then
+    // axial mass per iteration (as in the prismatic), then
     // the optional spring and the two clamped bound rows in
     // the revolute limit recipe, signs mirrored.
     m3Vec3 sVec = m3Add3(m3Add3(m3Sub3(deltaPos[c->bodyB], deltaPos[c->bodyA]), m3Sub3(rB, rA)),

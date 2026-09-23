@@ -379,7 +379,7 @@ static void TestGrandMesh(void)
     // onto identical bits; one triangle past the cap refuses.
     enum
     {
-        GRID = 174 // (174-1)^2 * 2 = 59858 triangles, 30276 verts
+        GRID = 174 // (174 - 1)^2 * 2 = 59858 triangles, 30276 verts
     };
     static m3Vec3 verts[GRID * GRID];
     static uint16_t tris[6 * (GRID - 1) * (GRID - 1)];

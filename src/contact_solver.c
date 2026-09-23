@@ -422,11 +422,10 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
             }
         }
 
-        // Rolling resistance (6-3, aligned fully in rev 21): a pure
+        // Rolling resistance: a pure
         // angular row braking relative rotation, capped by the
         // pass-local normal budget, warm across steps through the
-        // manifold like the reference. The 6-3 cold start only
-        // held up because the inflated cross-pass budget hid it.
+        // manifold.
         // Without this row a sphere pile never stops rolling and
         // never sleeps.
         if (c->rollingResistance > 0.0f)
@@ -656,7 +655,7 @@ void m3StoreContactImpulses(m3World* world, m3ContactConstraint* constraints, in
             manifold->points[k].normalImpulse = c->points[k].normalImpulse;
         }
 
-        // Hit events (8-5, the reference recipe): at most one per
+        // Hit events: at most one per
         // contact, for the fastest-approaching point, only when a
         // side opted in and the impact actually fired.
         uint64_t key = world->contacts.pairKeys[c->manifoldIndex];

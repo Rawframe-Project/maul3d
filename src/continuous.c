@@ -306,8 +306,8 @@ static void ContinuousVersusPlane(const m3World* world, m3ContinuousContext* ctx
             // The reference rule the other three arms already obey:
             // a body ALREADY within the target distance at t = 0
             // belongs to the discrete speculative contact, not to
-            // the continuous pull-back. This arm's missing guard
-            // was the 6-3 lock: the pull-back at fraction zero
+            // the continuous pull-back. Without this guard the
+            // pull-back at fraction zero
             // erased each step's integration while velocity stayed,
             // freezing bodies at the slop gap where the refunded
             // accumulator kept their friction at zero: eternal

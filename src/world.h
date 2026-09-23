@@ -38,7 +38,7 @@ m3World* m3WorldFromIndex0(uint16_t index0);
 
 void m3SetHitEventThresholdInternal(m3World* world, float value);
 
-// 8-6 emits through this; capacity jointCapacity, cannot overflow.
+// Joint breaks emit through this; capacity jointCapacity, cannot overflow.
 void m3AppendJointBreakEvent(m3World* world, m3JointId joint);
 
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);

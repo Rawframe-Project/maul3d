@@ -13,7 +13,7 @@
 // through the same internal functions the public API uses.
 typedef enum m3Op
 {
-    m3_opStep = 1, // reserved for task 9
+    m3_opStep = 1, // reserved
     m3_opCreateBody = 2,
     m3_opDestroyBody = 3,
     m3_opSetLinearVelocity = 4,
@@ -70,9 +70,7 @@ typedef enum m3Op
     m3_opJointSetBreak = 55,          // joint + force + torque caps
     m3_opJointSetSpring = 56,         // joint + enable + hertz + zeta
     m3_opJointSetTarget = 57,         // joint + scalar + quat drive target
-    m3_opDestroyShape = 58,           // shape id (10-4: the red team
-                                      // found bodies could shed shapes
-                                      // only by dying)
+    m3_opDestroyShape = 58,           // shape id
     m3_opSoftBodyAnchorSoft = 59,     // lattice<->lattice pin
     m3_opSetWind = 60,                // world wind field
     m3_opSetSurfaceVelocity = 61,     // shape conveyor velocity        // world toggle

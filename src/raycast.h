@@ -15,7 +15,7 @@ m3RayHit m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 
 m3RayHit m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation);
 
 // The step body: the journal replays through this exact path.
-// The caster's float budget (4-7 red team): a translation
+// The caster's float budget: a translation
 // component beyond this squares past FLT_MAX inside the kernels
 // and mints NaN. Every cast path refuses longer translations with
 // a documented miss; the character treats them as hostile no-ops.

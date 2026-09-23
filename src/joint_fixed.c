@@ -33,7 +33,7 @@ static void SolveFixed(m3World* world, m3JointConstraint* c, const m3JointSolveC
     m3Vec3 wB = s->wB;
     const m3Quat* deltaRot = s->deltaRot;
     int useBias = s->useBias;
-    // The weld: the prismatic rotation lock verbatim,
+    // The weld: the same rotation lock as the prismatic,
     // driving the live relative rotation to the create-time
     // pose; the shared point block below welds translation.
     m3Vec3 bias = {0.0f, 0.0f, 0.0f};
@@ -46,9 +46,8 @@ static void SolveFixed(m3World* world, m3JointConstraint* c, const m3JointSolveC
         m3Quat conjA = {-quatA.x, -quatA.y, -quatA.z, quatA.w};
         m3Quat relQ = m3MulQuat(conjA, quatB);
         m3Vec3 rotVec = m3JointQuatToRotationVec(relQ);
-        m3Vec3 cErr = m3RotateVec3(quatA, rotVec); // rev 19: see
-                                                   // the prismatic
-                                                   // lock note
+        m3Vec3 cErr = m3RotateVec3(quatA, rotVec); // the prismatic lock's
+                                                   // sign convention
         bias = m3MulSV3(c->softness.biasRate, cErr);
         massScale = c->softness.massScale;
         impulseScale = c->softness.impulseScale;
