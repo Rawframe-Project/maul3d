@@ -43,12 +43,15 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/body.c
     src/broad_phase.c
     src/character.c
+    src/contact_solver.c
+    src/continuous.c
     src/core.c
     src/diff.c
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
     src/hull.c
+    src/island.c
     src/joint.c
     src/joint_distance.c
     src/joint_fixed.c

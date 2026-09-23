@@ -84,6 +84,9 @@ Work toward 0.0.1, the first release of the reworked library.
   and the triangle-soup kernels (mesh, heightfield and voxel surfaces)
   moved to src/manifold_mesh.c; manifold.c keeps the convex kernels.
   Results are bit-identical.
+- The contact solver, continuous collision and islands moved out of
+  solver.c into contact_solver.c, continuous.c and island.c, each with
+  its header; solver.c keeps the step. Results are bit-identical.
 
 ### Removed
 
