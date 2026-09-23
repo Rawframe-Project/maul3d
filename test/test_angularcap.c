@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The angular cap gate (13-1): the reference spin clamp with the
+// The angular cap gate: the reference spin clamp with the
 // allowFastRotation escape hatch. A legal tumbler keeps its spin, a
 // pathological spinner clamps to the cap, a flagged wheel sails past
 // it, the cap tunes at runtime through the journaled setter, the

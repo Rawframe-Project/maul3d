@@ -53,7 +53,7 @@ typedef struct m3ConstraintPoint
                                // the step; the restitution gate
                                // reads it (a zero means the point
                                // never fired). The friction caps do
-                               // NOT read it (rev 21): they budget
+                               // NOT read it: they budget
                                // from the pass-local sum of live
                                // accumulators, the reference rule.
                                // The cross-pass sum inflated the
@@ -84,7 +84,7 @@ typedef struct m3ContactConstraint
     m3real frictionImpulse2;
     m3real twistMass;
     m3real twistImpulse;
-    m3real tangentVelocity1; // conveyor target (11-3), reference field
+    m3real tangentVelocity1; // conveyor target, reference field
     m3real tangentVelocity2;
     m3real friction;
     m3real restitution;
@@ -93,8 +93,8 @@ typedef struct m3ContactConstraint
     m3Mat3 invIA; // world-space inverse inertia, frozen at prepare
     m3Mat3 invIB;
     m3Softness softness;
-    m3real rollingResistance; // max-mixed, extent-scaled (6-3)
-    m3Vec3 rollingImpulse;    // warm across steps via the manifold (rev 21)
+    m3real rollingResistance; // max-mixed, extent-scaled
+    m3Vec3 rollingImpulse;    // warm across steps via the manifold
     m3Mat3 rollingK;          // iA + iB, solved per relax iteration
     m3ConstraintPoint points[M3_MANIFOLD_MAX_POINTS];
 } m3ContactConstraint;
@@ -137,7 +137,7 @@ static m3real EffectiveMass(const m3ContactConstraint* c, m3Vec3 rA, m3Vec3 rB, 
 // I_w^-1 = R I_l^-1 R^T, built by applying the operator to the world
 // basis vectors. Frozen at prepare like the anchors (reference
 // discipline); the per-substep refresh arrives with the gyroscopic
-// slice (2b-6).
+// slice.
 m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body)
 {
     if (world->types[body] != (uint8_t)m3_dynamicBody)
@@ -215,7 +215,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
         else if (world->preSolveFn != NULL &&
                  (world->shapePreSolve[shapeA] != 0 || world->shapePreSolve[shapeB] != 0))
         {
-            // The pre-solve veto (8-5): serial, canonical pair order.
+            // The pre-solve veto: serial, canonical pair order.
             // The LOUD contract lives on the API: the callback must
             // be pure, or replay divergence is the host's own.
             int32_t deep = 0;
@@ -239,7 +239,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
             if (!world->preSolveFn(idA, idB, point, manifold->normal, world->preSolveContext))
             {
                 // Vetoed: no constraint this step. The key joins the
-                // journal annex (R5-4) so a bare replay repeats the
+                // journal annex so a bare replay repeats the
                 // decision; collection order = pair order = sorted.
                 if (world->journalActive != 0 && world->stepVetoCount < world->pairCapacity)
                 {
@@ -265,7 +265,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
         // Reference mixing: friction geometric, restitution maximum,
         // rolling resistance maximum scaled by the pair's extent
         // (the lever that turns the dimensionless knob into torque).
-        // A painted mesh (17-2) swaps ITS side of the mix for the
+        // A painted mesh swaps ITS side of the mix for the
         // struck triangle's entry; the group index rides the first
         // point's flags (points are id-canonical, so the pick is
         // deterministic), and the whole manifold wears one material
@@ -313,7 +313,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
         c->restitution = m3MaxF(restA, restB);
         c->rollingResistance =
             m3MaxF(rollA, rollB) * m3MaxF(world->maxExtents[bodyA], world->maxExtents[bodyB]);
-        c->rollingImpulse = manifold->rollingImpulse; // reference warm start (rev 21)
+        c->rollingImpulse = manifold->rollingImpulse; // reference warm start
         if (c->rollingResistance > 0.0f)
         {
             m3Mat3 sum = c->invIA;
@@ -385,7 +385,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
         }
         c->frictionImpulse1 = m3Dot3(manifold->frictionImpulse, c->t1);
         c->frictionImpulse2 = m3Dot3(manifold->frictionImpulse, c->t2);
-        // Conveyor targets (11-3): the reference tangentVelocity,
+        // Conveyor targets: the reference tangentVelocity,
         // finally fed. Sign law: friction drives the pair's B-minus-A
         // tangential speed TOWARD this target, so a belt at shape A
         // carries the other body along its surface velocity.
@@ -399,7 +399,7 @@ static int32_t PrepareContacts(m3World* world, m3ContactConstraint* constraints,
         c->twistImpulse = manifold->twistImpulse;
     }
     // The pending recorded vetoes applied to exactly this prepare;
-    // consume them so the next step decides for itself (R5-4).
+    // consume them so the next step decides for itself.
     world->replayVetoCount = 0;
     return count;
 }
@@ -435,7 +435,7 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
         // Normal rows first, then friction rows, per the reference
         // schedule. The Jacobian keeps the fixed prepare-time anchors;
         // rotated anchors only measure the separation drift. The
-        // friction budgets are PASS-LOCAL (rev 21): the sum of live
+        // friction budgets are PASS-LOCAL: the sum of live
         // normal accumulators in this pass, not a cross-pass total.
         m3real passNormal = 0.0f;
         m3real twistLimit = 0.0f;
@@ -531,7 +531,7 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
                 m3Sub3(world->angularVelocities[c->bodyB], world->angularVelocities[c->bodyA]);
             m3Vec3 delta = m3MulSV3(-1.0f, Solve3(&c->rollingK, wRel));
             m3Vec3 accum = m3Add3(c->rollingImpulse, delta);
-            m3real maxRoll = c->rollingResistance * passNormal; // pass-local (rev 21)
+            m3real maxRoll = c->rollingResistance * passNormal; // pass-local
             m3real mag2 = m3Dot3(accum, accum);
             if (mag2 > maxRoll * maxRoll && mag2 > 0.0f)
             {
@@ -574,7 +574,7 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
 }
 
 // ---------------------------------------------------------------
-// Joints (2c-2): the spherical point constraint in soft-step form,
+// Joints: the spherical point constraint in soft-step form,
 // the reference schedule (joints warm start and solve BEFORE the
 // contacts inside every substep pass). Few joints, serial in
 // canonical index order; they join the color palette when counts
@@ -615,16 +615,16 @@ typedef struct m3JointConstraint
     m3real lowerLimit;
     m3real upperLimit;
     m3Vec3 angularImpulse; // prismatic rotation lock (3 DOF)
-    m3Softness springSoft; // distance spring (4-2); drive spring (8-6b)
-    m3Softness steerSoft;  // wheel strut drive (16-3)
+    m3Softness springSoft; // distance spring; drive spring
+    m3Softness steerSoft;  // wheel strut drive
     m3real steerTarget;    // radians about the strut
     m3real steerBudget;    // 0 = unbudgeted
     m3real restLength;     // distance rest (the upper limit)
-    m3real targetScalar;   // drive target: angle or translation (8-6b)
+    m3real targetScalar;   // drive target: angle or translation
     m3Quat targetQ;        // spherical drive target
     m3Vec3 springImpulseV; // x = scalar rows; xyz = spherical row
     m3Mat3 springK;        // iA + iB, the spherical drive mass
-    uint16_t genModes;     // generic 6-DOF packed modes (4-3)
+    uint16_t genModes;     // generic 6-DOF packed modes
     m3Vec3 genLinLower;    // generic per-axis limits
     m3Vec3 genLinUpper;
     m3Vec3 genAngLower;
@@ -708,7 +708,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         if (world->jointType[j] == (uint8_t)m3_filterJoint)
         {
-            // The filter joint is rowless BY LAW (16-1): it never
+            // The filter joint is rowless BY LAW: it never
             // enters the constraint array, because every type that
             // does and fails to continue inherits the shared point
             // weld below.
@@ -751,7 +751,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         c->springImpulseV = world->jointSpringImpulse[j];
         if ((c->flags & 8) != 0)
         {
-            // The drive spring (8-6b): reference softness from the
+            // The drive spring: reference softness from the
             // runtime hertz and damping ratio. The distance joint's
             // spring reuse cannot reach here (flag 8 refuses it).
             c->springSoft = MakeSoft(world->jointSpring[j].x, world->jointSpring[j].y, h);
@@ -763,7 +763,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         if (c->type == (uint8_t)m3_sphericalJoint && (c->flags & (1 | 4 | 8)) != 0)
         {
-            // The shoulder: cone and twist limits (2c-5), prepared
+            // The shoulder: cone and twist limits, prepared
             // per the reference: swing axis from the two frame
             // z-axes, the flagged twist Jacobian with its tan(theta
             // over two) term, both masses frozen at prepare.
@@ -836,7 +836,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_fixedJoint)
         {
-            // The weld (4-2): the create-time relative pose lives in
+            // The weld: the create-time relative pose lives in
             // the stored frames; the rotation lock drives the live
             // relative rotation back to identity between them, and
             // the shared point block below handles translation.
@@ -846,7 +846,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_motorJoint)
         {
-            // The servo weld (16-5): frames like the fixed joint,
+            // The servo weld: frames like the fixed joint,
             // targets from the slot map (jointMotor = offset in the
             // A frame, jointTargetQ = rotation), budgets from the
             // limit slots (x = maxForce, y = maxTorque, 0 =
@@ -868,7 +868,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_wheelJoint)
         {
-            // The wheel (12-2): frame z is the axle (the revolute
+            // The wheel: frame z is the axle (the revolute
             // half spins about it), frame x the suspension slide
             // (the prismatic half), frame y the fore-aft lock. The
             // spare spherical slots carry the extra axes: swingAxis
@@ -897,7 +897,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
             c->upperLimit = world->jointLimits[j].y;
             if ((c->flags & 4) != 0)
             {
-                // Steering (16-3): the wheel slot map. The strut
+                // Steering: the wheel slot map. The strut
                 // drive's softness rides the spherical target slots
                 // (wheels never use the quat target), the target
                 // angle rides jointMotor.z, and the warm impulse
@@ -910,7 +910,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_genericJoint)
         {
-            // The 6-DOF (4-3): the joint frame's world basis rides
+            // The 6-DOF: the joint frame's world basis rides
             // in the three axis slots; impulses ride the slot map
             // documented at the store.
             c->frameQA = m3MulQuat(xfA->q, world->jointFrameQA[j]);
@@ -934,7 +934,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_distanceJoint)
         {
-            // One axial row (4-2): axis from the live anchor gap; a
+            // One axial row: axis from the live anchor gap; a
             // degenerate gap picks a fixed axis deterministically.
             m3Vec3 s = m3Add3(c->deltaCenter, m3Sub3(c->rB, c->rA));
             m3real len2 = m3Dot3(s, s);
@@ -962,7 +962,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_gearJoint)
         {
-            // The gear (16-6): ONE angular row on two DIFFERENT
+            // The gear: ONE angular row on two DIFFERENT
             // world axes, J = [aA, ratio * aB]. Mass frozen at
             // prepare; the drift against the create spins (slot
             // map: jointMotor = {phiA0, phiB0, ratio}) rides
@@ -1008,7 +1008,7 @@ static int32_t PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h
         }
         else if (c->type == (uint8_t)m3_pulleyJoint)
         {
-            // The pulley (16-6): two rope segments to fixed WORLD
+            // The pulley: two rope segments to fixed WORLD
             // anchors, u vectors double-subtracted here; the solve
             // refreshes lengths from the substep deltas and builds
             // the axial mass fresh (the distance lesson). Slot map:
@@ -1055,7 +1055,7 @@ static void WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t c
         {
             // Reference warm form: minus swing along the swing axis,
             // twist difference along the flagged Jacobian, and the
-            // drive spring's world-frame angular payload (8-6b).
+            // drive spring's world-frame angular payload.
             angularImpulse = m3MulSV3(-c->swingImpulse, c->swingAxis);
             angularImpulse = m3Add3(angularImpulse,
                                     m3MulSV3(c->lowerImpulse - c->upperImpulse, c->twistJacobian));
@@ -1089,7 +1089,7 @@ static void WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t c
         }
         else if (c->type == (uint8_t)m3_fixedJoint || c->type == (uint8_t)m3_motorJoint)
         {
-            // The weld's lock; the servo weld (16-5) rides the same
+            // The weld's lock; the servo weld rides the same
             // slots (prepare zeroed them when springless) and its
             // translation row is c->impulse in the shared tail.
             angularImpulse = c->angularImpulse;
@@ -1135,7 +1135,7 @@ static void WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t c
             angularImpulse = m3Add3(angularImpulse, m3MulSV3(c->motorImpulse, c->rotationAxis));
             if ((c->flags & 4) != 0)
             {
-                // The steer drive's warm impulse (16-3) rides the
+                // The steer drive's warm impulse rides the
                 // strut axis; without the flag the slot is zero.
                 angularImpulse =
                     m3Add3(angularImpulse, m3MulSV3(c->springImpulseV.y, c->swingAxis));
@@ -1232,7 +1232,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
 
             if ((c->flags & 8) != 0)
             {
-                // Rotation drive (8-6b), the reference spherical
+                // Rotation drive, the reference spherical
                 // spring: the error is the world-frame pseudo
                 // velocity toward the target, softened, solved
                 // against the summed angular mass.
@@ -1352,7 +1352,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
 
             if ((c->flags & 8) != 0)
             {
-                // Angle drive (8-6b), the reference revolute spring.
+                // Angle drive, the reference revolute spring.
                 m3real angle = 2.0f * m3Atan2(relQ.z, relQ.w);
                 m3real cc = angle - c->targetScalar;
                 m3real bias = c->springSoft.biasRate * cc;
@@ -1361,7 +1361,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
                                c->springSoft.impulseScale * c->springImpulseV.x;
                 if ((c->flags & 2) != 0)
                 {
-                    // The four-state drive (16-2): when the motor
+                    // The four-state drive: when the motor
                     // rides beside the drive, both rows share ONE
                     // effort budget. The spring spends what the
                     // motor's accumulator has left.
@@ -1523,7 +1523,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
 
             if ((c->flags & 8) != 0)
             {
-                // Translation drive (8-6b), the reference prismatic
+                // Translation drive, the reference prismatic
                 // spring: a softened linear row along the slide axis
                 // with the full Jacobian arms.
                 m3real cc = translation - c->targetScalar;
@@ -1535,7 +1535,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
                                c->springSoft.impulseScale * c->springImpulseV.x;
                 if ((c->flags & 2) != 0)
                 {
-                    // The four-state drive (16-2), the slide twin of
+                    // The four-state drive, the slide twin of
                     // the revolute rule: one shared effort budget.
                     m3real budget = c->maxMotorEffort * hSub;
                     m3real room = m3MaxF(budget - m3AbsF(c->motorImpulse), 0.0f);
@@ -1733,7 +1733,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_wheelJoint)
         {
-            // The wheel (12-2): each block is its parent's form
+            // The wheel: each block is its parent's form
             // verbatim, only the axes differ. Fixed canonical order:
             // suspension spring, spin motor, suspension limits, axle
             // collinearity, point-to-line. The suspension rows ride
@@ -1843,7 +1843,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
 
             // Axle collinearity: the revolute's 2x2 verbatim, locking
             // the two off-axle rotations so the wheel plane rides the
-            // chassis. With steering engaged (16-3) the frame-x row
+            // chassis. With steering engaged the frame-x row
             // becomes the strut drive and only frame y stays locked.
             if ((c->flags & 4) == 0)
             {
@@ -1898,7 +1898,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
             }
             else
             {
-                // Steering (16-3): frame y keeps its lock, frame x
+                // Steering: frame y keeps its lock, frame x
                 // becomes a soft drive toward the steer target. The
                 // twist about the strut is the swing-twist about
                 // frame x: 2 atan2(relQ.x, relQ.w), exact regardless
@@ -2027,7 +2027,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_parallelJoint)
         {
-            // PARALLEL (16-1): the revolute's collinearity 2x2 and
+            // PARALLEL: the revolute's collinearity 2x2 and
             // nothing else. The twist about the shared axis and
             // every translation stay free, so the branch continues
             // PAST the shared point weld below.
@@ -2085,7 +2085,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_fixedJoint)
         {
-            // The weld (4-2): the prismatic rotation lock verbatim,
+            // The weld: the prismatic rotation lock verbatim,
             // driving the live relative rotation to the create-time
             // pose; the shared point block below welds translation.
             m3Vec3 bias = {0.0f, 0.0f, 0.0f};
@@ -2122,7 +2122,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_motorJoint)
         {
-            // The servo weld (16-5): both rows soft BY LAW, so the
+            // The servo weld: both rows soft BY LAW, so the
             // shared point weld below must never see this type. The
             // rotation row is the spherical drive verbatim on the
             // fixed joint's frames; the translation row is the
@@ -2204,7 +2204,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_gearJoint)
         {
-            // The gear row (16-6): one equality on two axes; the
+            // The gear row: one equality on two axes; the
             // angular-only joint must never see the point weld.
             m3real ratio = c->motorSpeed;
             m3Vec3 aA = c->rotationAxis;
@@ -2235,7 +2235,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_pulleyJoint)
         {
-            // The rope row (16-6): live segment vectors from the
+            // The rope row: live segment vectors from the
             // prepare u's plus the substep COM and arm motion (the
             // world anchors never move), fresh axial mass per
             // iteration (the distance lesson), rigid both ways.
@@ -2291,7 +2291,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_distanceJoint)
         {
-            // The distance rows (4-2): live gap and axis, fresh
+            // The distance rows: live gap and axis, fresh
             // axial mass per iteration (the prismatic lesson), then
             // the optional spring and the two clamped bound rows in
             // the revolute limit recipe, signs mirrored.
@@ -2395,7 +2395,7 @@ static void SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count
         }
         else if (c->type == (uint8_t)m3_genericJoint)
         {
-            // The 6-DOF (4-3): per-axis rows from the proven
+            // The 6-DOF: per-axis rows from the proven
             // recipes. Linear locked = prismatic perp row, linear
             // limited = translation bounds in the revolute limit
             // recipe, angular locked = per-axis lock row with the
@@ -2709,7 +2709,7 @@ static void StoreJointImpulses(m3World* world, m3JointConstraint* joints, int32_
         world->jointImpulse[c->joint] = c->impulse;
         if (c->type == (uint8_t)m3_genericJoint)
         {
-            // The generic slot map (4-3): linear uppers ride the
+            // The generic slot map: linear uppers ride the
             // perp slots, the angular upper and the motor ride the
             // limit slots.
             world->jointPerpImpulse[c->joint] =
@@ -2730,7 +2730,7 @@ static void StoreJointImpulses(m3World* world, m3JointConstraint* joints, int32_
 }
 
 // ---------------------------------------------------------------
-// Graph coloring (2b-12): constraints in one color share no awake
+// Graph coloring: constraints in one color share no awake
 // dynamic body, so any schedule inside a color writes disjoint
 // velocities and the bits cannot move. The greedy walk runs in
 // canonical constraint order with first-free-bit colors; whatever
@@ -3038,7 +3038,7 @@ static void StoreImpulses(m3World* world, m3ContactConstraint* constraints, int3
     }
 }
 // ---------------------------------------------------------------
-// Continuous collision (2b-8), modeled on the reference
+// Continuous collision, modeled on the reference
 // b3SolveContinuous: any fast dynamic body sweeps against statics;
 // a bullet additionally sweeps against non-bullet dynamics with the
 // TARGET'S true sweep in the TOI (dynamic versus dynamic moves both
@@ -3093,7 +3093,7 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
     }
     if (world->bodyEnabled[body] == 0)
     {
-        return true; // disabled bodies never block the fast mover (8-3)
+        return true; // disabled bodies never block the fast mover
     }
     if (world->bulletFlags[body] != 0)
     {
@@ -3105,7 +3105,7 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
     }
     if (world->shapeType[shape] == (uint8_t)m3_voxelShape)
     {
-        // Voxel TOI (3-5): sweep the fast shape against candidate
+        // Voxel TOI: sweep the fast shape against candidate
         // merged boxes in the CHUNK frame (the correct-frame
         // witnesses the architecture demands). Boxes are UNEXTENDED
         // here on purpose: the seam extension is a contact-only
@@ -3170,7 +3170,7 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
     }
     if (world->shapeType[shape] == (uint8_t)m3_meshShape)
     {
-        // Mesh TOI (2b-9d): sweep the fast shape against every
+        // Mesh TOI: sweep the fast shape against every
         // candidate triangle. Each triangle is a three-point static
         // proxy in the mesh body's frame; the shared kernel does the
         // rest. Ascending triangle order, bounded candidates.
@@ -3239,7 +3239,7 @@ static bool ContinuousQueryCallback(int32_t shape, void* userContext)
         return true; // only bullets sweep against dynamics and kinematics
     }
     {
-        // Filters (8-1): the continuous phase obeys the same rule
+        // Filters: the continuous phase obeys the same rule
         // as the discrete pair scan.
         int32_t gi = world->shapeGroup[shape];
         int32_t gj = world->shapeGroup[ctx->fastShape];
@@ -3608,7 +3608,7 @@ static void IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0,
         m3real sleepVelocity = m3MaxF(velocity, 0.5f * invDt * motion);
         if (world->bodyCanSleep[i] == 0)
         {
-            sleepVelocity = 3.4e38f; // never below any threshold (8-3)
+            sleepVelocity = 3.4e38f; // never below any threshold
         }
         if (sleepVelocity < world->bodySleepThreshold[i])
         {
@@ -3661,7 +3661,7 @@ static void IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0,
 
 void m3StepInternal(m3World* world, float dt, int32_t substeps)
 {
-    // The step profile (14-1): coarse wall-clock brackets, written
+    // The step profile: coarse wall-clock brackets, written
     // to the world only at the single complete-step exit, so a
     // stalled step keeps the previous profile. Observer data only.
     m3Profile prof;
@@ -3696,7 +3696,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         memcpy(world->stashManifolds, world->manifolds, (size_t)oldCount * sizeof(m3Manifold));
     }
 
-    // The suspension pass (5-1): vehicle impulses land here so the
+    // The suspension pass: vehicle impulses land here so the
     // narrowphase and solver see the sprung chassis the same way
     // they see gravity. Serial, slot order, canonical.
     double t0 = m3NowMs();
@@ -3834,7 +3834,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     m3StackReset(&world->scratch);
 
     // Begin-of-step COM and rotation for every body: the sweeps the
-    // continuous pass (2b-8) needs. The scan reads transforms but
+    // continuous pass needs. The scan reads transforms but
     // never moves them, so capturing here equals capturing before
     // it, and now the capture lives under the fresh-count budget.
     int32_t sweepMax = world->bodyPool.maxIndex;
@@ -3920,7 +3920,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
     int32_t jointCount = PrepareJoints(world, jointConstraints, h);
 
-    // The mover list (V-SELF, 6-3): one scan builds the compact
+    // The mover list: one scan builds the compact
     // list of bodies the substep loops touch (awake dynamics and
     // kinematics), in ascending slot order so iteration stays
     // canonical. Eight-plus full-array walks per step become one:
@@ -3938,7 +3938,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     {
         if (world->bodyPool.alive[i] == 0 || world->bodyEnabled[i] == 0)
         {
-            continue; // disabled bodies vanish from the step (8-3)
+            continue; // disabled bodies vanish from the step
         }
         uint8_t type = world->types[i];
         if (type == (uint8_t)m3_kinematicBody ||
@@ -3947,7 +3947,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             movers[moverCount] = i;
             moverCount += 1;
         }
-        // The kinematic servo (8-3): choose velocities so this
+        // The kinematic servo: choose velocities so this
         // step lands the body ON its target, then clear the order.
         if (type == (uint8_t)m3_kinematicBody && world->bodyHasTarget[i] != 0)
         {
@@ -3967,7 +3967,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         }
     }
 
-    // Water volumes (18-1): per-mover buoyancy force, torque, drag
+    // Water volumes: per-mover buoyancy force, torque, drag
     // rates, and the blended flow, computed ONCE per step from the
     // step-start pose (the classic field-force approximation). No
     // volumes = no allocation, no arithmetic, the pre-18 bits.
@@ -4080,7 +4080,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             m3Vec3 v = world->linearVelocities[i];
             m3Vec3 w = world->angularVelocities[i];
             v = m3Add3(v, m3MulSV3(h * world->gravityScales[i], world->gravity));
-            // Host forces and torques (8-2) integrate beside
+            // Host forces and torques integrate beside
             // gravity, every substep, so a force held for one step
             // delivers exactly force times dt.
             v = m3Add3(v, m3MulSV3(h * world->invMass[i], world->bodyForce[i]));
@@ -4093,7 +4093,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             if (waterAlive > 0 && (buoyLin[m] > 0.0f || buoyForce[m].y != 0.0f ||
                                    buoyForce[m].x != 0.0f || buoyForce[m].z != 0.0f))
             {
-                // The water field (18-1): buoyant impulse, torque
+                // The water field: buoyant impulse, torque
                 // about the submerged centroid, then drag pulls the
                 // RELATIVE velocity toward the flow (the damping
                 // recipe, recentered on the current).
@@ -4106,14 +4106,14 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             v = m3MulSV3(1.0f / (1.0f + h * world->linearDamping[i]), v);
             w = m3MulSV3(1.0f / (1.0f + h * world->angularDamping[i]), w);
             w = GyroscopicOmega(world, i, w, h);
-            // Hard linear speed cap (8-4), the reference clamp.
+            // Hard linear speed cap, the reference clamp.
             m3real v2 = m3Dot3(v, v);
             m3real cap = world->maximumLinearSpeed;
             if (v2 > cap * cap)
             {
                 v = m3MulSV3(cap / sqrtf(v2), v);
             }
-            // Hard angular speed cap (13-1) with the reference's
+            // Hard angular speed cap with the reference's
             // allowFastRotation escape hatch on bodyLocks bit 6. The
             // default cap is a catastrophe guard like the 400 m/s
             // linear one, far above legal tumbling, so scenes that
@@ -4146,7 +4146,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             uint8_t locks = world->bodyLocks[i];
             if (locks != 0)
             {
-                // Motion locks (8-3): locked components re-zero
+                // Motion locks: locked components re-zero
                 // every substep, in the STORED velocity too, so
                 // contacts cannot bank motion on a frozen axis.
                 if (locks & 1u)
@@ -4188,7 +4188,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
 
     // Host force accumulators are consumed: a force lives for one
-    // step (8-2). Only movers could carry one (application wakes).
+    // step. Only movers could carry one (application wakes).
     for (int32_t m = 0; m < moverCount; ++m)
     {
         world->bodyForce[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
@@ -4200,7 +4200,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     StoreJointImpulses(world, jointConstraints, jointCount);
     world->lastInvH = invH;
 
-    // Wind phase (11-3): accumulated STATE, so a rollback resumes
+    // Wind phase: accumulated STATE, so a rollback resumes
     // the exact same gust wave. Wrapped to keep the float honest.
     if (world->windGustHertz > 0.0f)
     {
@@ -4211,7 +4211,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         }
     }
 
-    // Joint breakage (8-6a): reactions over threshold destroy the
+    // Joint breakage: reactions over threshold destroy the
     // joint and emit the break event, serially in ascending joint
     // order, a pure function of state (like fragmentation: derived
     // transitions never need their own journal op).
@@ -4249,8 +4249,8 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
     prof.continuous = (float)(m3NowMs() - t0);
     // Island census before the sleep pass retires anyone: awake
-    // dynamic union-find roots, an observer count (14-1), and the
-    // per-body island label the extras draw tints by (14-2).
+    // dynamic union-find roots, an observer count, and the
+    // per-body island label the extras draw tints by.
     // Sleeping bodies keep the label of the island they slept in.
     int32_t islands = 0;
     for (int32_t i = 0; i < maxBody; ++i)
@@ -4277,7 +4277,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     }
     prof.sleep = (float)(m3NowMs() - t0);
 
-    // Body move events (8-5): one per mover, ascending body order
+    // Body move events: one per mover, ascending body order
     // (the mover list is built that way), post-step transform, and
     // fellAsleep on the step the island dropped off. Capacity is
     // bodyCapacity: movers cannot overflow it.
@@ -4316,7 +4316,7 @@ void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
     m3StepInternal(world, dt, substeps);
     if (world->journalActive != 0)
     {
-        // Recording moved BEHIND the execution (R5-4): nothing can
+        // Recording moved BEHIND the execution: nothing can
         // journal during a step, so callback-less streams are
         // byte-identical to the old order, and a step that vetoed
         // contacts writes those keys first. A bare replay (no

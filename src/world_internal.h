@@ -64,7 +64,7 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
        // and box3d contact_solver.c; the slide
        // law test pins Coulomb for good.
        // rev 20: the reference contact friction
-       // budget and schedule (6-3). The friction
+       // budget and schedule. The friction
        // cap now reads the STEP-LONG sum of
        // normal impulses (the reference's
        // totalNormalImpulse): the relax pass
@@ -93,11 +93,11 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 #define M3_SHAPE_COOKIE ((int32_t)(M3_COOKIE ^ ((int32_t)sizeof(m3ShapeDef) << 8) ^ 2))
 
 // Fat AABB margin: pairs exist slightly before touch so speculative
-// contacts (task 8) have something to work with.
+// contacts have something to work with.
 #define M3_AABB_MARGIN (4.0f * 0.005f)
 
 // Hard ceiling on substeps per step, enforced at the public wall
-// and the replay wall alike (13-4): far above any legitimate use,
+// and the replay wall alike: far above any legitimate use,
 // low enough that a flipped tape bit cannot buy a billion substeps.
 #define M3_MAX_SUBSTEPS 256
 
@@ -123,27 +123,27 @@ typedef enum m3Op
     m3_opCreateCharacter = 16,         // def + expected id
     m3_opDestroyCharacter = 17,        // id
     m3_opCharacterMove = 18,           // id + translation
-    m3_opCreateVehicle = 19,           // def + expected id (5-1)
+    m3_opCreateVehicle = 19,           // def + expected id
     m3_opDestroyVehicle = 20,          // id
-    m3_opVehicleCommands = 21,         // id + throttle, steer, brake (5-2)
-    m3_opCreateSoftBody = 22,          // def + expected id (7-1)
+    m3_opVehicleCommands = 21,         // id + throttle, steer, brake
+    m3_opCreateSoftBody = 22,          // def + expected id
     m3_opDestroySoftBody = 23,         // id
     m3_opSoftBodyPin = 24,             // id + particle index
-    m3_opSoftBodyAnchor = 25,          // id + particle + body id (7-3)
-    m3_opApplyForce = 26,              // body + force at center (8-2)
+    m3_opSoftBodyAnchor = 25,          // id + particle + body id
+    m3_opApplyForce = 26,              // body + force at center
     m3_opApplyTorque = 27,             // body + torque
     m3_opApplyLinearImpulse = 28,      // body + impulse at center
     m3_opApplyAngularImpulse = 29,     // body + angular impulse
     m3_opApplyForceAtPoint = 30,       // body + force + world point
     m3_opApplyImpulseAtPoint = 31,     // body + impulse + world point
-    m3_opSetTransform = 32,            // body + pose: the teleport (8-3)
+    m3_opSetTransform = 32,            // body + pose: the teleport
     m3_opSetTargetTransform = 33,      // body + pose: kinematic servo
     m3_opSetType = 34,                 // body + new type
     m3_opSetEnabled = 35,              // body + on/off
     m3_opSetMotionLocks = 36,          // body + lock bits
     m3_opSetSleepControls = 37,        // body + threshold + canSleep
     m3_opSetAwake = 38,                // body + awake flag
-    m3_opSetGravity = 39,              // world gravity vector (8-4)
+    m3_opSetGravity = 39,              // world gravity vector
     m3_opSetShapeFriction = 40,        // shape + coefficient
     m3_opSetShapeRestitution = 41,     // shape + coefficient
     m3_opSetShapeRolling = 42,         // shape + rolling resistance
@@ -153,54 +153,54 @@ typedef enum m3Op
     m3_opSetMaximumLinearSpeed = 46,   // world speed cap
     m3_opEnableSleeping = 47,          // world toggle (off wakes everyone)
     m3_opEnableContinuous = 48,
-    m3_opSetHitEventThreshold = 49,   // world hit speed gate (8-5)
+    m3_opSetHitEventThreshold = 49,   // world hit speed gate
     m3_opEnableShapeHitEvents = 50,   // shape + on/off
     m3_opEnableShapePreSolve = 51,    // shape + on/off
-    m3_opJointSetLimits = 52,         // joint + enable + lower + upper (8-6a)
+    m3_opJointSetLimits = 52,         // joint + enable + lower + upper
     m3_opJointSetMotor = 53,          // joint + enable + speed + effort
     m3_opJointSetCollide = 54,        // joint + collide-connected flag
     m3_opJointSetBreak = 55,          // joint + force + torque caps
-    m3_opJointSetSpring = 56,         // joint + enable + hertz + zeta (8-6b)
+    m3_opJointSetSpring = 56,         // joint + enable + hertz + zeta
     m3_opJointSetTarget = 57,         // joint + scalar + quat drive target
     m3_opDestroyShape = 58,           // shape id (10-4: the red team
                                       // found bodies could shed shapes
                                       // only by dying)
-    m3_opSoftBodyAnchorSoft = 59,     // lattice<->lattice pin (11-2)
-    m3_opSetWind = 60,                // world wind field (11-3)
+    m3_opSoftBodyAnchorSoft = 59,     // lattice<->lattice pin
+    m3_opSetWind = 60,                // world wind field
     m3_opSetSurfaceVelocity = 61,     // shape conveyor velocity        // world toggle
-    m3_opVehicleDrivetrain = 62,      // vehicle + drivetrain def (12-1)
+    m3_opVehicleDrivetrain = 62,      // vehicle + drivetrain def
     m3_opVehicleGear = 63,            // vehicle + gear select
-    m3_opCharacterStance = 64,        // character + halfHeight + radius (12-3)
-    m3_opSetAllowFastRotation = 65,   // body + 0/1 spin-cap escape (13-1)
-    m3_opSetMaximumAngularSpeed = 66, // world spin cap (13-1)
-    m3_opWorldExplode = 67,           // explosion def (13-2)
-    m3_opSetBodyName = 68,            // body + 32 name bytes (14-3)
-    m3_opSetShapeGeom = 69,           // shape + type + geom swap (15-2)
-    m3_opJointSetSteer = 70,          // wheel strut drive (16-3)
-    m3_opJointSetMotorPose = 71,      // motor joint servo aim (16-5)
-    m3_opSetMeshMaterials = 72,       // per-triangle materials (17-2)
-    m3_opRebuildBroadphase = 73,      // balanced tree rebuild (17-4)
-    m3_opCreateWaterVolume = 74,      // water box (18-1)
-    m3_opDestroyWaterVolume = 75,     // the tide goes out (18-1)
-    m3_opCreateHeightFieldGrid = 76,  // native terrain chunk (19-1)
-    m3_opCreateSoftBodyTet = 77,      // the incompressible jelly (20-3)
+    m3_opCharacterStance = 64,        // character + halfHeight + radius
+    m3_opSetAllowFastRotation = 65,   // body + 0/1 spin-cap escape
+    m3_opSetMaximumAngularSpeed = 66, // world spin cap
+    m3_opWorldExplode = 67,           // explosion def
+    m3_opSetBodyName = 68,            // body + 32 name bytes
+    m3_opSetShapeGeom = 69,           // shape + type + geom swap
+    m3_opJointSetSteer = 70,          // wheel strut drive
+    m3_opJointSetMotorPose = 71,      // motor joint servo aim
+    m3_opSetMeshMaterials = 72,       // per-triangle materials
+    m3_opRebuildBroadphase = 73,      // balanced tree rebuild
+    m3_opCreateWaterVolume = 74,      // water box
+    m3_opDestroyWaterVolume = 75,     // the tide goes out
+    m3_opCreateHeightFieldGrid = 76,  // native terrain chunk
+    m3_opCreateSoftBodyTet = 77,      // the incompressible jelly
     m3_opVehicleTankCommands = 78,
-    // R5-4 (audit B3): the pre-solve vetoes a step's callback made,
+    // R5-4: the pre-solve vetoes a step's callback made,
     // recorded BEFORE that step's own op so a bare replay applies
     // them without the host's callback. Payload: the vetoed pair
     // keys, canonical ascending (count = bytes / 8).
-    m3_opStepVetoes = 79, // skid steer (23-1)
+    m3_opStepVetoes = 79, // skid steer
 } m3Op;
 
-// Debug names (14-3): journaled and snapshot like userData, NEVER
+// Debug names: journaled and snapshot like userData, NEVER
 // hashed (a name moves no matter).
 #define M3_BODY_NAME_CAPACITY 32
 
-// Water volume slots per world (18-1): fixed, small, honest.
+// Water volume slots per world: fixed, small, honest.
 #define M3_MAX_WATER_VOLUMES 8
 
 // Immutable interned hull data (lifetime 3): vertices, face planes,
-// and face vertex loops for the SAT (2b-5), plus unit-density mass
+// and face vertex loops for the SAT, plus unit-density mass
 // properties. Content-deduplicated on intern; shapes reference by
 // index and refcount. Fixed arrays keep it one snapshot block.
 // Euler-consistent worst case for 24 vertices: a simplicial hull has
@@ -238,7 +238,7 @@ typedef struct m3HullData
     m3Vec3 faceNormals[M3_HULL_MAX_FACES];
     m3real faceOffsets[M3_HULL_MAX_FACES];
     uint8_t faceVertCounts[M3_HULL_MAX_FACES];
-    uint16_t faceVertStart[M3_HULL_MAX_FACES]; // offsets reach 372 (10-2)
+    uint16_t faceVertStart[M3_HULL_MAX_FACES]; // offsets reach 372
     uint8_t faceIndices[M3_HULL_MAX_FACE_INDICES];
     int32_t edgeCount; // half-edge count (twice the undirected edges)
     m3HullHalfEdge edges[M3_HULL_MAX_HALF_EDGES];
@@ -260,7 +260,7 @@ _Static_assert(sizeof(m3HullData) == 5808, "hull data must be padding-free");
 #define M3_MESH_MAX_VERTS 65535
 #define M3_MESH_MAX_TRIS  65535
 
-// Per-triangle surface material (17-2): a mesh carries up to eight
+// Per-triangle surface material: a mesh carries up to eight
 // entries (the public m3MeshSurfaceMaterial) and a byte per
 // triangle naming one; count 0 means "use the shape material"
 // everywhere (the pre-17 behavior, bit-exact).
@@ -275,7 +275,7 @@ typedef struct m3MeshData
     // Bit k set = triangle edge k (vertex k to k+1) is CONVEX or a
     // boundary: a REAL contact feature. Clear = flat or concave: a
     // ghost candidate the welding filter may silence. Baked at
-    // create time (2b-9d), deterministic.
+    // create time, deterministic.
     uint8_t* edgeFlags;
     // 17-2: material groups. materialCount 0 = the mesh defers to
     // its shape's material everywhere (canonical zeros throughout,
@@ -286,7 +286,7 @@ typedef struct m3MeshData
     m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
 } m3MeshData;
 
-// Count-derived ownership (10-3): Alloc frees any old arrays and
+// Count-derived ownership: Alloc frees any old arrays and
 // sizes new ones from the counts already in the struct; Free
 // releases and zeroes. The snapshot read pass and every create
 // and destroy path share these two gates.
@@ -350,14 +350,14 @@ static inline void m3HeightFieldCellTris(const m3HeightFieldData* hf, int32_t cx
     }
 }
 
-// Bounded triangle gather from a local-frame box (19-3): fills up
+// Bounded triangle gather from a local-frame box: fills up
 // to cap corner triples in ascending cell order and returns the
 // count. Consumers that must NEVER truncate (the raycast) walk
 // cells themselves.
 int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
                             int32_t cap);
 
-// Static per-mesh BVH (2c-10): median split on the longest centroid
+// Static per-mesh BVH: median split on the longest centroid
 // axis, ties broken by triangle index, leaves of up to four
 // triangles. Derived acceleration data: NEVER snapshotted, never
 // hashed; rebuilt deterministically wherever mesh content lands
@@ -365,7 +365,7 @@ int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m
 #define M3_MESH_BVH_LEAF 4
 // Node budget per build: 2 * triCount (allocated exactly, 10-3).
 
-// Quantized node bounds (17-3): uint16 grid coordinates against
+// Quantized node bounds: uint16 grid coordinates against
 // the root box, rounded OUTWARD at build and the query rounded
 // outward again at gather, so the visit set stays a superset of
 // the exact overlaps (visiting more is legal, missing one never).
@@ -386,7 +386,7 @@ typedef struct m3MeshBvh
     int32_t nodeCount;
     m3MeshBvhNode* nodes; // derived data: built at create and after
     uint16_t* order;      // restore, sized 2 * triCount and triCount
-    m3Vec3 rootLo;        // the quantization frame (17-3)
+    m3Vec3 rootLo;        // the quantization frame
     m3Vec3 rootHi;        // float early-out: a query outside the root
                           // is FREE, not clamped onto the grid edge
     m3Vec3 quantScale;    // world-to-grid; 0 on a flat axis (always hits)
@@ -408,7 +408,7 @@ void m3MeshBvhFree(m3MeshBvh* bvh);
 // merged-box bounds). Count is capped at M3_MESH_MAX_TRIS.
 void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count);
 
-// Voxel chunks (3-1): dense 16^3 occupancy + payload, one
+// Voxel chunks: dense 16^3 occupancy + payload, one
 // padding-free snapshot block per slot. STATE ends there; the
 // merged-box surface and its BVH are derived (never snapshotted,
 // never hashed, rebuilt wherever content lands).
@@ -422,7 +422,7 @@ typedef struct m3VoxelChunkData
     int32_t filledCount;
     uint8_t occupancy[M3_VOXEL_COUNT / 8];
     uint16_t payload[M3_VOXEL_COUNT];
-    // Fill fraction (3-6): 255 = a whole voxel, 1 = a sliver; zero
+    // Fill fraction: 255 = a whole voxel, 1 = a sliver; zero
     // never occurs on an occupied voxel (clearing is ClearVoxel's
     // job). Fill is a MASS and destruction property, never a
     // geometry property: a half-destroyed voxel still collides as
@@ -438,7 +438,7 @@ typedef struct m3VoxelSurface
     int32_t boxCount;
     uint8_t boxLo[M3_VOXEL_MAX_BOXES][3]; // inclusive voxel coords
     uint8_t boxHi[M3_VOXEL_MAX_BOXES][3];
-    // Seam welding (3-4): bit k of boxCovered[b] says face k of box
+    // Seam welding: bit k of boxCovered[b] says face k of box
     // b (-x,+x,-y,+y,-z,+z) is fully flush against filled voxels,
     // in this chunk or a welded neighbor. A covered face is
     // interior geometry and can never be a contact feature.
@@ -484,7 +484,7 @@ typedef struct m3ManifoldPoint
 
 _Static_assert(sizeof(m3ManifoldPoint) == 36, "manifold point must be padding-free");
 
-// Up to four contact points (2b-5): a hull face on a plane or a face
+// Up to four contact points: a hull face on a plane or a face
 // pair needs four; spheres use one. Feature ids identify points across
 // rebuilds for the warm-start carry.
 #define M3_MANIFOLD_MAX_POINTS 4
@@ -493,7 +493,7 @@ typedef struct m3Manifold
 {
     m3Vec3 normal; // from shape A to shape B, world frame
     int32_t pointCount;
-    // Central friction warm-start payload (rev 21): stored in the
+    // Central friction warm-start payload: stored in the
     // WORLD frame so the next step's tangent basis re-projects it.
     // Rolling joins it: the reference warm-starts the rolling row
     // every substep, and the 6-3 cold-start deviation only looked
@@ -507,7 +507,7 @@ typedef struct m3Manifold
 
 _Static_assert(sizeof(m3Manifold) == 188, "manifold must be padding-free");
 
-// Journal payload for mesh materials (17-2): the fixed head below,
+// Journal payload for mesh materials: the fixed head below,
 // followed by triangleCount group bytes.
 typedef struct m3SetMeshMaterialsOp
 {
@@ -517,7 +517,7 @@ typedef struct m3SetMeshMaterialsOp
     m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
 } m3SetMeshMaterialsOp;
 
-// Journal payload for tet soft bodies (20-3): the fixed head,
+// Journal payload for tet soft bodies: the fixed head,
 // then pointCount m3Vec3 points, then 4 * tetCount uint16 ids.
 typedef struct m3CreateSoftBodyTetOp
 {
@@ -527,7 +527,7 @@ typedef struct m3CreateSoftBodyTetOp
     m3SoftBodyId expected;
 } m3CreateSoftBodyTetOp;
 
-// Journal payload for the native heightfield (19-1): the fixed
+// Journal payload for the native heightfield: the fixed
 // head below, followed by nx * nz float samples.
 typedef struct m3CreateHeightFieldGridOp
 {
@@ -584,7 +584,7 @@ typedef struct m3World
 {
     // World-global state (snapshot header material, task 6).
     m3Vec3 gravity;
-    // Tuning knobs (8-4): STATE, not config. They journal, they
+    // Tuning knobs: STATE, not config. They journal, they
     // snapshot (v33), and they fold into the hash only off their
     // defaults, so two worlds that only ever used defaults keep
     // their old hashes. The config hash stays version + solver rev
@@ -595,11 +595,11 @@ typedef struct m3World
     float contactPushMaxSpeed;
     float restitutionThreshold;
     float maximumLinearSpeed;
-    float maximumAngularSpeed; // rad/s spin cap (13-1)
+    float maximumAngularSpeed; // rad/s spin cap
     uint8_t sleepEnabled;
     uint8_t continuousEnabled;
-    float hitEventThreshold; // approach speed gate for hit events (8-5)
-    // Wind (11-3): a deterministic field. The gust phase
+    float hitEventThreshold; // approach speed gate for hit events
+    // Wind: a deterministic field. The gust phase
     // ACCUMULATES as state so a rollback resumes the same wave;
     // speed zero means no wind and nothing folds into the hash.
     m3Vec3 windDir;
@@ -634,26 +634,26 @@ typedef struct m3World
     m3real* angularDamping;
     uint8_t* types;
     uint8_t* awake;       // 0 = sleeping (dynamic bodies only), frozen solid
-    float* sleepTimes;    // seconds below the sleep threshold (2b-10)
-    uint8_t* bulletFlags; // 1 = full continuous vs dynamics (2b-8)
+    float* sleepTimes;    // seconds below the sleep threshold
+    uint8_t* bulletFlags; // 1 = full continuous vs dynamics
     float* minExtents;    // per body: thinnest shape measure (CCD trigger)
     float* maxExtents;    // per body: farthest point from the COM (CCD arc bound)
     uint64_t* userData;
-    m3Vec3* bodyForce;         // host force accumulator (8-2): integrated
+    m3Vec3* bodyForce;         // host force accumulator: integrated
     m3Vec3* bodyTorque;        // each substep, cleared after the step,
                                // hashed only when nonzero (additive rule)
     uint8_t* bodyEnabled;      // 8-3: disabled = invisible everywhere
     uint8_t* bodyLocks;        // bits 0-2 linear xyz, 3-5 angular xyz,
-                               // bit 6 allowFastRotation (13-1)
+                               // bit 6 allowFastRotation
     float* bodySleepThreshold; // per-body; default the world constant
     uint8_t* bodyCanSleep;     // 0 = never sleeps
     uint8_t* bodyHasTarget;    // kinematic servo pending (one step)
     m3Transform* bodyTarget;   // the servo pose
-    int32_t* bodyIsland;       // OBSERVER ONLY (14-2): the island
+    int32_t* bodyIsland;       // OBSERVER ONLY: the island
                                // root labeled by the last step's
                                // census, -1 before any step. Never
                                // a snapshot block, never hashed.
-    char* bodyNames;           // cap * M3_BODY_NAME_CAPACITY (14-3):
+    char* bodyNames;           // cap * M3_BODY_NAME_CAPACITY:
                                // journaled + snapshot, never hashed
     int32_t* bodyShapeHead;    // head of each body's shape list, -1 none
 
@@ -673,7 +673,7 @@ typedef struct m3World
     uint8_t* shapePreSolve;        // 8-5: run the pre-solve veto (default 0)
     float* shapeRollingResistance; // hashed only when nonzero (the
                                    // additive-state golden rule)
-    uint64_t* shapeCategory;       // filters (8-1): hashed only when a
+    uint64_t* shapeCategory;       // filters: hashed only when a
     uint64_t* shapeMask;           // value differs from its default
     int32_t* shapeGroup;
     uint64_t* shapeUserData;
@@ -694,7 +694,7 @@ typedef struct m3World
     m3IdPool meshPool;
     m3MeshData* meshData;
     int32_t* meshRefCounts;
-    // Voxel chunk slots (3-1): the mesh-slot pattern (pool,
+    // Voxel chunk slots: the mesh-slot pattern (pool,
     // refcounts, per-slot state block), plus the DERIVED surface.
     int32_t voxelCapacity;
     m3IdPool voxelPool;
@@ -706,7 +706,7 @@ typedef struct m3World
                                          // slot (-1 none), from exact
                                          // grid-aligned transforms
 
-    // Per-mesh static BVH (2c-10): DERIVED data, never in the
+    // Per-mesh static BVH: DERIVED data, never in the
     // snapshot or the hash. Rebuilt from mesh content on create and
     // on restore; the build is a pure function of the triangle set,
     // so twin worlds always agree bit for bit.
@@ -753,11 +753,11 @@ typedef struct m3World
     int32_t pairCount;
     int32_t pairCapacity;
 
-    // Joints (2c-2): SoA arenas, all persistent snapshot state. The
+    // Joints: SoA arenas, all persistent snapshot state. The
     // warm-start impulse is simulation state (the architecture doc
     // names it); the body lists drive the jointed-pair contact
     // filter, the destroy cascade, and island coupling.
-    // Characters (4-4): pool + per-slot state. Config floats and
+    // Characters: pool + per-slot state. Config floats and
     // the grounded story are all simulation state (hashed for live
     // slots, snapshotted, rolled back).
     int32_t characterCapacity;
@@ -771,12 +771,12 @@ typedef struct m3World
     m3real* charStepHeight;
     uint8_t* charGrounded;
     m3Vec3* charGroundNormal;
-    m3real* charMass;        // kilograms; scales push impulses (4-6)
+    m3real* charMass;        // kilograms; scales push impulses
     m3real* charPushMax;     // heaviest pushable body / mass ratio
     int32_t* charGroundBody; // body slot under our feet, -1 none
     uint16_t* charGroundGen; // that body's generation when recorded
 
-    // Vehicles (5-1): pooled raycast vehicles. Per-slot config plus
+    // Vehicles: pooled raycast vehicles. Per-slot config plus
     // per-wheel arrays at slot * M3_VEHICLE_MAX_WHEELS + wheel. All
     // persistent simulation state: snapshotted, hashed for live
     // slots (the additive-state golden rule).
@@ -798,7 +798,7 @@ typedef struct m3World
     m3real* vehWheelRadius;
     uint8_t* vehWheelFlags; // bit0 steerable, bit1 driven
     m3real* vehWheelBrake;
-    // Tank mode (23-1): per-side throttles; mode 0 = the normal
+    // Tank mode: per-side throttles; mode 0 = the normal
     // single-throttle path, bit-exact with pre-23.
     uint8_t* vehTrackMode;
     m3real* vehTrackLeft;
@@ -806,13 +806,13 @@ typedef struct m3World
     m3real* vehLeanGain;
     m3real* vehWheelCompression; // last step's suspension state
     uint8_t* vehWheelContact;
-    m3real* vehTireGrip; // friction circle scale (5-2)
-    m3real* vehThrottle; // command state, journaled (5-2)
+    m3real* vehTireGrip; // friction circle scale
+    m3real* vehThrottle; // command state, journaled
     m3real* vehSteer;
     m3real* vehBrake;
     m3real* vehWheelSpin; // accumulated spin angle, render state
 
-    // The drivetrain (12-1): per-vehicle engine curve and gearbox.
+    // The drivetrain: per-vehicle engine curve and gearbox.
     // Def fields land by journaled op; gear, clutch countdown, and
     // last engine speed are simulation state (snapshot always,
     // hashed only when a drivetrain is attached: the additive-state
@@ -839,7 +839,7 @@ typedef struct m3World
     int32_t* vehDtClutch; // torque-cut countdown, steps
     m3real* vehDtRpm;     // engine speed from the last pass
 
-    // Soft bodies (7-1): XPBD particle lattices, fixed-size blocks
+    // Soft bodies: XPBD particle lattices, fixed-size blocks
     // per slot (the snapshot walker's simplest shape). Positions
     // and previous positions in double like every body; all of it
     // persistent state, hashed for live slots only.
@@ -854,19 +854,19 @@ typedef struct m3World
     m3Pos3* softPos;     // cap * M3_SOFTBODY_MAX_PARTICLES
     m3Pos3* softPrev;    // cap * M3_SOFTBODY_MAX_PARTICLES
     m3real* softInvMass; // cap * M3_SOFTBODY_MAX_PARTICLES
-    // Bend tethers (20-1): edges from softBendStart[slot] onward
+    // Bend tethers: edges from softBendStart[slot] onward
     // solve with softBendCompliance[slot] instead of the stretch
     // compliance.
     int32_t* softBendStart;
     m3real* softBendCompliance;
-    // Pressure (20-2): lattice dims + the create volume + target
+    // Pressure: lattice dims + the create volume + target
     // multiplier; all folded off-default.
     uint16_t* softDimX;
     uint16_t* softDimY;
     uint16_t* softDimZ;
     m3real* softRestVolume;
     m3real* softPressure;
-    // Tet volumes (20-3): four particle ids and a rest 6-volume per
+    // Tet volumes: four particle ids and a rest 6-volume per
     // tet, slot-strided like edges; count 0 = a lattice body.
     int32_t* softTetCount;
     uint16_t* softTetA;
@@ -874,12 +874,12 @@ typedef struct m3World
     uint16_t* softTetC;
     uint16_t* softTetD;
     m3real* softTetRestV6;
-    // Bind-pose tether (20-4): the create positions and the clamp
+    // Bind-pose tether: the create positions and the clamp
     // radius; radius 0 = off and the bind block stays canonical
     // zeros.
     m3Pos3* softBindPos;
     m3real* softMaxDeviation;
-    m3Vec3* softKick;    // pending explosion velocity kicks (13-3):
+    m3Vec3* softKick;    // pending explosion velocity kicks:
                          // integrated once next step, then zeroed,
                          // hashed only when nonzero (additive rule)
     uint16_t* softEdgeA; // cap * M3_SOFTBODY_MAX_EDGES
@@ -890,7 +890,7 @@ typedef struct m3World
     int32_t* softAnchorBody;
     uint16_t* softAnchorGen;
     m3Vec3* softAnchorLocal;
-    // Soft-to-soft anchors (11-2): lattice A's particle pinned to
+    // Soft-to-soft anchors: lattice A's particle pinned to
     // lattice B's particle, released silently when EITHER side
     // dies (the 7-3 liveness lesson, both directions).
     int32_t* softSoftCount;     // per slot (owner = LOWER slot)
@@ -899,7 +899,7 @@ typedef struct m3World
     uint16_t* softSoftGenB;
     int32_t* softSoftParticleB;
 
-    // Generic 6-DOF state (4-3): packed modes (2 bits per axis,
+    // Generic 6-DOF state: packed modes (2 bits per axis,
     // linear 0..5, angular 6..11, motor axis 12..15) and per-axis
     // limit vectors. Folded into the hash only for generic-typed
     // joints (the golden rule for additive state).
@@ -908,19 +908,19 @@ typedef struct m3World
     m3Vec3* jointGenLinUpper;
     m3Vec3* jointGenAngLower;
     m3Vec3* jointGenAngUpper;
-    // Native heightfields (19-1): interned like meshes, one slot
+    // Native heightfields: interned like meshes, one slot
     // per shape capacity, count-derived content.
     m3IdPool hfPool;
     m3HeightFieldData* hfData;
     int32_t* hfRefCounts;
     int32_t* shapeHfIndex;
-    // Pulley world anchors (16-6): fixed points the two rope
+    // Pulley world anchors: fixed points the two rope
     // segments hang from, double like every world position. Folded
     // into the hash only for pulley-typed joints (the golden rule
     // for additive state).
     m3Pos3* jointGroundA;
     m3Pos3* jointGroundB;
-    // Water volumes (18-1): fixed 8 slots, world-anchored boxes.
+    // Water volumes: fixed 8 slots, world-anchored boxes.
     // Hashed off-default (only while any volume is alive), fixed
     // snapshot blocks (v48).
     m3IdPool waterPool;
@@ -973,7 +973,7 @@ typedef struct m3World
     m3ContactEvent* sensorEndEvents;
     int32_t beginEventCount;
     int32_t endEventCount;
-    // Fragment events (3-3): transient like every event stream;
+    // Fragment events: transient like every event stream;
     // cleared by the next step and by restore, never snapshotted.
     struct m3FragmentEvent* fragmentEvents;
     uint16_t* fragmentRecipe;
@@ -995,7 +995,7 @@ typedef struct m3World
     int32_t journalActive;
     int32_t journalOverflow;
 
-    // Observer tail (14-1): profile and step statistics. NEVER
+    // Observer tail: profile and step statistics. NEVER
     // snapshot blocks, NEVER hash inputs; the walker and the hash
     // enumerate arrays explicitly and skip this region by design.
     m3Profile profile;       // last completed step
@@ -1027,14 +1027,14 @@ void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3]);
 // Monotonic milliseconds (core.c): the profile clock. Observer only.
 double m3NowMs(void);
 
-// Tuning defaults (8-4): the reference values, shared by the def,
+// Tuning defaults: the reference values, shared by the def,
 // the solver reads, and the off-default hash folds.
 #define M3_CONTACT_HERTZ_DEFAULT          30.0f
 #define M3_CONTACT_DAMPING_RATIO_DEFAULT  10.0f
 #define M3_CONTACT_PUSH_MAX_SPEED_DEFAULT 3.0f
 #define M3_RESTITUTION_THRESHOLD_DEFAULT  1.0f
 #define M3_MAX_LINEAR_SPEED_DEFAULT       400.0f
-// The angular twin (13-1) keeps the linear cap's philosophy: a
+// The angular twin keeps the linear cap's philosophy: a
 // catastrophe guard far above legal tumbling, not the reference's
 // aggressive dt-derived clamp. Hosts wanting the tight reference
 // behavior set a low cap and flag their wheels.
@@ -1068,7 +1068,7 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta);
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q);
 
-// The compound gate (10-1): THE one way to read where a shape sits
+// The compound gate: THE one way to read where a shape sits
 // in the world. Bodies still move; shapes may ride at an offset.
 // Identity short-circuits through the flag so default scenes pay a
 // branch and nothing else.
@@ -1119,7 +1119,7 @@ void m3ApplyAngularImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse
 void m3ApplyForceAtPointInternal(m3World* world, int32_t index, m3Vec3 force, m3Pos3 point);
 void m3ApplyImpulseAtPointInternal(m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
 
-// The filter rule (8-1), one function for pairs and queries alike.
+// The filter rule, one function for pairs and queries alike.
 static inline int m3FilterPass(uint64_t catA, uint64_t maskA, uint64_t catB, uint64_t maskB)
 {
     return (catA & maskB) != 0 && (catB & maskA) != 0;
@@ -1143,7 +1143,7 @@ void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents);
 // finish through this.
 void m3HullBuildHalfEdges(m3HullData* hull);
 
-// QuickHull (2b-3b), adapted from the reference hull.c (Erin Catto,
+// QuickHull, adapted from the reference hull.c (Erin Catto,
 // with portions contributed by Dirk Gregorius): builds the convex
 // hull of up to M3_HULL_MAX_INPUT points into the fixed m3HullData
 // block, faces merged coplanar, unit-density mass properties
@@ -1161,7 +1161,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
 void m3DestroyShapeInternal(m3World* world, int32_t index);
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
-// Hostile-input guards (2d-1): every def field that reaches
+// Hostile-input guards: every def field that reaches
 // simulation state must be finite. NaN comparisons are false and
 // inf minus inf is NaN, so the x - x == 0 form refuses NaN and both
 // infinities in one branchless test, no libm, no macro promotion.
@@ -1186,7 +1186,7 @@ static inline bool m3FiniteQuat(m3Quat q)
     return m3FiniteF(q.x) && m3FiniteF(q.y) && m3FiniteF(q.z) && m3FiniteF(q.w);
 }
 
-// The gear's spin readback (16-6): a body's rotation seen in its
+// The gear's spin readback: a body's rotation seen in its
 // own gear frame, twisted about that frame's z (the gear axis).
 // Shared by the create bake and the solver's drift measurement so
 // the two can never disagree.
@@ -1228,7 +1228,7 @@ m3Result m3UpdatePairsBruteForce(m3World* world);
 void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi[3]);
 int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId);
 
-// Fracture (3-3): after a clearing edit, flood fill the chunk in
+// Fracture: after a clearing edit, flood fill the chunk in
 // canonical order; islands with no voxel in the y = 0 base layer
 // are removed from the grid (part of the SAME state transition, so
 // replay and rollback re-derive identical grids) and emitted as
@@ -1237,7 +1237,7 @@ int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId);
 #define M3_FRAGMENT_RECIPE_CAP 8192
 void m3VoxelFractureSweep(m3World* world, int32_t shape);
 
-// Seam welding (3-4). Links derive from EXACT transforms: two
+// Seam welding. Links derive from EXACT transforms: two
 // chunks weld when both bodies carry the bit-exact identity
 // rotation, cell sizes match, and world positions differ by
 // exactly one chunk extent along one axis (grid-laid level
@@ -1251,7 +1251,7 @@ void m3VoxelCoverageBuild(m3World* world, int32_t slot);
 void m3VoxelCoverageRefreshAround(m3World* world, int32_t slot);
 void m3VoxelBoundsHull(m3Vec3 lo, m3Vec3 hi, m3HullData* out);
 
-// Character internals (4-4): create/destroy/move without journal
+// Character internals: create/destroy/move without journal
 // (replay drives these; public wrappers validate and record).
 int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def);
 void m3DestroyCharacterInternal(m3World* world, int32_t slot);
@@ -1259,7 +1259,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation);
 bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius);
 // Re-evaluate grounding in place (no displacement): the voxel edit
 // path calls this so a carved floor drops its tenants the same
-// step (4-5).
+// step.
 void m3CharacterRefreshGrounding(m3World* world, int32_t slot);
 m3RayHit m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation);
 int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId);
@@ -1267,7 +1267,7 @@ m3RayHit m3CastConvexClosestEx(m3World* world, m3Pos3 base, const m3Vec3* points
                                int32_t pointCount, m3real radius, m3Vec3 translation,
                                int32_t ignoreBody);
 
-// Voxel edit internals (3-2): apply without journaling (replay
+// Voxel edit internals: apply without journaling (replay
 // drives these); the public entries validate, journal, then call.
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload);
@@ -1297,9 +1297,9 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
 // z), because the friction rows are order-sensitive downstream.
 void m3MakeTangentBasis(m3Vec3 normal, m3Vec3* t1, m3Vec3* t2);
 
-// GJK distance (2b-4), adapted from the reference distance.c: convex
+// GJK distance, adapted from the reference distance.c: convex
 // proxies, a warm-startable simplex cache, results in frame A. The
-// SAT manifolds (2b-5) and the TOI (2b-8) build on this kernel.
+// SAT manifolds and the TOI build on this kernel.
 #define M3_MAX_GJK_ITERATIONS 32
 
 typedef struct m3DistanceProxy
@@ -1378,7 +1378,7 @@ typedef struct m3TOIOutput
 } m3TOIOutput;
 
 // Time of impact by conservative advancement with root finding
-// (2b-8), adapted from the reference distance.c: separation
+//, adapted from the reference distance.c: separation
 // functions built from the GJK simplex cache (vertices, edge pairs,
 // faces), deepest-point push-back, mixed false-position and
 // bisection roots. Both sweeps participate: dynamic versus dynamic
@@ -1389,7 +1389,7 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input);
 // borrow the caller's scratch for their point storage).
 m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scratch[2]);
 
-// Hull-versus-hull SAT (2b-5b): face queries both ways, the Gauss-map
+// Hull-versus-hull SAT: face queries both ways, the Gauss-map
 // edge query, face clipping or the edge closest-point contact. B is
 // given in A's frame; the manifold is in A's frame with the A-to-B
 // normal. Reduction reuses the deepest-four canonical rule.

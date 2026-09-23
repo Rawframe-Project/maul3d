@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// m3replay: the replay studio's command line (9-1). Records the
+// m3replay: the replay studio's command line. Records the
 // built-in demo storm to an .m3j container, prints container info,
 // and verifies a container by replaying it bit-for-bit. File IO
 // lives HERE, never in the library (the zero-dependency law).
@@ -237,7 +237,7 @@ static int Verify(const char* path)
     return hash == view.finalHash ? 0 : 2;
 }
 
-// --- The step scrubber (9-2) ------------------------------------------------
+// --- The step scrubber ------------------------------------------------
 //
 // A journal prefix cut at record boundaries is itself a valid
 // journal, so the scrubber needs no engine additions: it slices

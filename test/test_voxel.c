@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The voxel chunk gate (3-1): state in the grid, everything else
+// The voxel chunk gate: state in the grid, everything else
 // derived. Twin builds agree to the byte, the greedy merge produces
 // the analytically-known box counts, bodies rest on voxel floors at
 // analytic heights, the chunk rides snapshot and journal like every
@@ -47,7 +47,7 @@ static const m3VoxelSurface* SurfaceOf(m3WorldId worldId, m3ShapeId shape)
     return &world->voxelSurface[world->shapeVoxelIndex[shape.index1 - 1]];
 }
 
-// Content equality for the pointer-based BVH (10-3): derived data
+// Content equality for the pointer-based BVH: derived data
 // must match by VALUE, and the struct now carries heap pointers.
 static int VoxBvhSame(const m3MeshBvh* a, const m3MeshBvh* b)
 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The drivetrain gate (12-1): the engine curve and gearbox. A
+// The drivetrain gate: the engine curve and gearbox. A
 // geared car climbs a slope that bogs it in top gear (the whole
 // point of gears), auto shift walks up through a flat sprint at
 // the pinned RPMs on identical bits, a rollback lands mid-shift

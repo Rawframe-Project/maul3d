@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The character controller core (4-4): collide-and-slide over the
+// The character controller core: collide-and-slide over the
 // engine's own convex casts, deterministic front to back. The
 // character owns a zero-velocity kinematic capsule body: the solver
 // never moves it, dynamics collide with it, and every displacement
@@ -126,7 +126,7 @@ void m3DestroyCharacterInternal(m3World* world, int32_t slot)
     m3IdPoolFree(&world->charPool, slot);
 }
 
-// The floor classifier (4-5): a ray straight down the capsule
+// The floor classifier: a ray straight down the capsule
 // axis. Capsule casts landing on a stair edge report the CORNER
 // normal, which reads as unwalkable; the surface under the axis is
 // the truth a walker cares about. The ray starts inside our own
@@ -146,7 +146,7 @@ static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, m3real re
     return false;
 }
 
-// Grounding is recorded WITH the body under the surface (4-6): the
+// Grounding is recorded WITH the body under the surface: the
 // carry pass ferries riders by that body's step motion, and the
 // generation guards against a recycled slot impersonating a floor.
 static void RecordGround(m3World* world, int32_t slot, const m3RayHit* hit)
@@ -204,7 +204,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
             pos.z += (double)remaining.z;
             break;
         }
-        // The stair maneuver (4-5): a grounded walker blocked by a
+        // The stair maneuver: a grounded walker blocked by a
         // steep face tries the classic lift, advance, land triple.
         // Accept only a walkable landing that clears no more than
         // one step height; otherwise the face is a wall and the
@@ -280,7 +280,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         {
             RecordGround(world, slot, &hit);
         }
-        // The push (4-6): a blocked move shoves a dynamic body with
+        // The push: a blocked move shoves a dynamic body with
         // impulse = mass * blocked displacement into the surface.
         // Per tick that displacement IS the walker's velocity in
         // tick units, so the momentum flux comes out mass * speed
@@ -317,7 +317,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         // budget, minus its component into the surface. A steep
         // face is a WALL: the slide may never mint upward motion
         // out of horizontal intent, or walkers would creep up
-        // cliffs one skin at a time (4-5).
+        // cliffs one skin at a time.
         m3Vec3 leftover = m3MulSV3(1.0f - advance * inv, remaining);
         remaining = m3Sub3(leftover, m3MulSV3(m3Dot3(leftover, n), n));
         if (n.y < cosSlope && remaining.y > 0.0f && translation.y <= 0.0f)
@@ -394,7 +394,7 @@ void m3CharacterRefreshGrounding(m3World* world, int32_t slot)
     RefreshGroundingCore(world, slot);
 }
 
-// Riders (4-6): after the step integrates every body, grounded
+// Riders: after the step integrates every body, grounded
 // characters follow their ground body's rigid motion through the
 // regular slide casts, so platforms ferry walkers and walls still
 // block them. Serial in slot order: canonical. The begin-of-step
@@ -571,7 +571,7 @@ m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
     return (m3BodyId){under + 1, world->worldIndex0, world->bodyPool.generations[under]};
 }
 
-// The stance change (12-3): resize the capsule FEET ANCHORED. The
+// The stance change: resize the capsule FEET ANCHORED. The
 // veto casts the GROWN capsule at its new pose through the exact
 // core every move uses (m3CastConvexClosestEx reports an initial
 // overlap as a fraction-zero hit, so a wall against a wider radius

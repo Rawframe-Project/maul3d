@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The transmission gate (16-6): a GEAR holds spinA + ratio * spinB
+// The transmission gate: a GEAR holds spinA + ratio * spinB
 // at its create value across two bodies hinged on a common frame
 // (counter-rotation under positive ratio, the external mesh), and a
 // PULLEY holds length1 + ratio * length2 across two world anchors

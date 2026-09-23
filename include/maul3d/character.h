@@ -36,10 +36,10 @@ extern "C"
                                  // reaches to stay glued on descents
         m3real skin;             // the standing gap casts preserve
         m3real stepHeight;       // the tallest riser a walking
-                                 // character mounts in one move (4-5)
+                                 // character mounts in one move
         m3real mass;             // kilograms; a blocked move pushes
                                  // dynamic bodies with impulse =
-                                 // mass * blocked displacement (4-6)
+                                 // mass * blocked displacement
         m3real pushMaxMassRatio; // the heaviest body a push moves,
                                  // as a multiple of mass; heavier
                                  // bodies are walls (zero: never
@@ -73,10 +73,10 @@ extern "C"
     /// after that body is destroyed). Each m3World_Step carries
     /// grounded characters along with this body's motion through
     /// the regular slide casts: kinematic platforms, elevators, and
-    /// dynamic fragments all ferry their riders (4-6).
+    /// dynamic fragments all ferry their riders.
     M3_API m3BodyId m3Character_GetGroundBody(m3CharacterId characterId);
 
-    /// Stance (12-3): resize the capsule in place, FEET ANCHORED
+    /// Stance: resize the capsule in place, FEET ANCHORED
     /// (the center moves so the capsule bottom stays level; a mid
     /// air crouch therefore lands shorter, not higher). Shrinking
     /// always applies. Growing runs the stand-up veto: the grown

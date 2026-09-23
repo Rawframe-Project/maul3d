@@ -19,7 +19,7 @@
 #include <time.h>
 #endif
 
-// Monotonic milliseconds for the step profile (14-1). Observer data
+// Monotonic milliseconds for the step profile. Observer data
 // only: never a hash input, never serialized, never fed back into
 // the simulation. The bench keeps its own copy on purpose (tools do
 // not reach into engine internals).
@@ -72,7 +72,7 @@ void m3AssertFail(const char* condition, const char* file, int line)
 {
     // Debug-only diagnostic. Library code never aborts in release; the
     // guarded return paths carry the failure instead. A host handler
-    // returning nonzero declares the failure handled (14-3).
+    // returning nonzero declares the failure handled.
     if (s_assertHandlerCtx != NULL &&
         s_assertHandlerCtx(condition, file, line, s_assertContext) != 0)
     {

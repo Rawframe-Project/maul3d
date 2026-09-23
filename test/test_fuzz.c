@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Red-team round one (2d-1): hostile inputs. Every def field takes
+// Red-team round one: hostile inputs. Every def field takes
 // NaN, both infinities, denormals, and hostile magnitudes; every
 // geometry family takes its degenerate forms. The contract under
 // attack: every refusal is a null id or a no-op, never a crash and

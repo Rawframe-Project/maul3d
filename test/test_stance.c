@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The stance gate (12-3): crouch and resize with the stand-up veto.
+// The stance gate: crouch and resize with the stand-up veto.
 // A character ducks under a slab it cannot walk under, is REFUSED
 // the stand while the slab presses, stands the moment it clears the
 // edge, lands shorter after a mid-air crouch, cannot widen inside a

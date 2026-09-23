@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The introspection gate (14-1): counters report the live world
+// The introspection gate: counters report the live world
 // exactly, the profile fills after a step, and above all READING IS
 // PURE: a twin that polls counters and profile every tick lands on
 // the same bits as a twin that never looks.

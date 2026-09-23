@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Debug draw gate (2c-9): the observer promise, held three ways. A
+// Debug draw gate: the observer promise, held three ways. A
 // draw pass between two snapshots leaves every byte identical; a twin
 // that draws every step lands bit-exact on a twin that never draws;
 // and two identical worlds emit bit-identical draw streams. Plus
@@ -270,7 +270,7 @@ static void TestDrawIsPureObserver(void)
     extras.drawMassAxes = true;
     extras.drawTreeBoxes = true;
     m3World_DrawExtras(world, &extras); // the extras walk obeys the
-                                        // same purity law (14-2)
+                                        // same purity law
     m3World_DrawExtras(world, &extras);
 
     CHECK(m3World_Snapshot(world, after, bytes) == bytes, "snapshot after writes");

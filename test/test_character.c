@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The mover core gate (4-4): a kinematic capsule walks the world by
+// The mover core gate: a kinematic capsule walks the world by
 // collide-and-slide, deterministically. Flat ground carries it at
 // exact height, walls strip the blocked component and keep the
 // rest, ceilings stop it, ledges honestly drop it, and every move
@@ -275,7 +275,7 @@ static void TestCharacterContracts(void)
 
 static void TestHostileMovesRedTeam(void)
 {
-    // Red team (4-7): the walker takes abuse without corruption. A
+    // Red team: the walker takes abuse without corruption. A
     // planetary-scale move stops at the first wall like any other;
     // denormal dust moves change not one bit; the world stays
     // finite through all of it.

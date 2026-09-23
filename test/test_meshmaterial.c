@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The painted floor gate (17-2): a mesh triangle can wear its own
+// The painted floor gate: a mesh triangle can wear its own
 // surface material. The struck triangle's friction replaces the
 // shape's in the contact mix, its surface velocity runs a conveyor,
 // hostile paint refuses loudly, and the whole feature rides twins,

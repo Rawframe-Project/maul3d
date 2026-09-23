@@ -57,7 +57,7 @@ int main(void)
     }
     free(snap);
 
-    // The destruction round trip (3-8): the installed package must
+    // The destruction round trip: the installed package must
     // carry the whole niche. Build a wall, carve it, catch the
     // fragment, make a body of it, and roll the world back.
     static uint8_t voxels[16 * 16 * 16];

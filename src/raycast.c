@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Closest-hit ray casting (2b-13). The world cast localizes the
+// Closest-hit ray casting. The world cast localizes the
 // double origin per shape (the hybrid precision pattern), runs an
 // analytic kernel per shape family in the body frame, and keeps the
 // smallest fraction with ties to the lower shape index. Candidates
@@ -247,7 +247,7 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
 static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m3MeshBvh* bvh)
 {
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
-    // Segment box gather (2c-10): a hit point lies on the segment and
+    // Segment box gather: a hit point lies on the segment and
     // in the triangle, so it lies in both boxes; the pruned set is a
     // safe superset and ascending order keeps tie winners identical.
     m3Vec3 end = m3Add3(o, d);
@@ -298,7 +298,7 @@ static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m
 
 static m3RayLocalHit RayHeightField(m3Vec3 o, m3Vec3 d, const m3HeightFieldData* hf)
 {
-    // Cell-span scan (19-3): the segment's XZ box picks the cells;
+    // Cell-span scan: the segment's XZ box picks the cells;
     // each contributes its two parity triangles to the same
     // front-face test the mesh path runs. A long diagonal ray
     // scans its whole span box: honest, deterministic, and the DDA
@@ -384,17 +384,17 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     }
     if (world->bodyEnabled[body] == 0)
     {
-        return; // disabled bodies are invisible to rays (8-3)
+        return; // disabled bodies are invisible to rays
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits, world->shapeCategory[shape],
                       world->shapeMask[shape]))
     {
-        return; // filtered out (8-1)
+        return; // filtered out
     }
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS;
 
-    // Localize the double origin into the SHAPE frame (10-1).
+    // Localize the double origin into the SHAPE frame.
     m3Vec3 rel = {(m3real)(ctx->origin.x - xf->p.x), (m3real)(ctx->origin.y - xf->p.y),
                   (m3real)(ctx->origin.z - xf->p.z)};
     m3Vec3 o = m3InvRotateVec3(xf->q, rel);

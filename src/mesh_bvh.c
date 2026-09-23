@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Static per-mesh BVH (2c-10): the midphase the benchmark asked for
+// Static per-mesh BVH: the midphase the benchmark asked for
 // (meshfield dominated the 2c-1 profile). Median split on the longest
 // centroid axis with triangle-index tie breaking makes the build a
 // pure function of the triangle set: no state, no randomness, no
@@ -94,7 +94,7 @@ static int32_t BuildRange(m3MeshBvh* bvh, BvhScratch* scratch, int32_t s, int32_
         chi.y = m3MaxF(chi.y, scratch->centroid[t].y);
         chi.z = m3MaxF(chi.z, scratch->centroid[t].z);
     }
-    // Quantize outward against the root frame (17-3): floor on the
+    // Quantize outward against the root frame: floor on the
     // low corner, ceil on the high, clamped to the grid.
     for (int32_t k = 0; k < 3; ++k)
     {
@@ -142,7 +142,7 @@ static int32_t BuildRange(m3MeshBvh* bvh, BvhScratch* scratch, int32_t s, int32_
     return nodeIndex;
 }
 
-// The root quantization frame (17-3): the whole tree's bounds and
+// The root quantization frame: the whole tree's bounds and
 // the grid scale, computed BEFORE the recursive build writes nodes.
 static void SetQuantFrame(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count)
 {
@@ -176,7 +176,7 @@ void m3MeshBvhFree(m3MeshBvh* bvh)
 
 void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count)
 {
-    // Derived data, exact-size (10-3): free the old build, size the
+    // Derived data, exact-size: free the old build, size the
     // new one from the count (2 * count nodes bounds the tree).
     m3MeshBvhFree(bvh);
     if (count <= 0 || count > M3_MESH_MAX_TRIS)
@@ -221,7 +221,7 @@ void m3MeshBvhBuild(m3MeshBvh* bvh, const m3MeshData* mesh)
         m3MeshBvhFree(bvh);
         return;
     }
-    // Heap staging (10-3): 65k bounds no longer fit a stack.
+    // Heap staging: 65k bounds no longer fit a stack.
     m3Vec3* los = (m3Vec3*)m3AllocZeroed(triCount * (int32_t)sizeof(m3Vec3));
     m3Vec3* his = (m3Vec3*)m3AllocZeroed(triCount * (int32_t)sizeof(m3Vec3));
     if (los == NULL || his == NULL)
@@ -282,14 +282,14 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
     {
         return 0;
     }
-    // Float early-out first (17-3): a query outside the whole tree
+    // Float early-out first: a query outside the whole tree
     // is free; clamping it onto the grid edge would over-visit.
     if (hi.x < bvh->rootLo.x || lo.x > bvh->rootHi.x || hi.y < bvh->rootLo.y ||
         lo.y > bvh->rootHi.y || hi.z < bvh->rootLo.z || lo.z > bvh->rootHi.z)
     {
         return 0;
     }
-    // Quantize the query outward too (17-3): the doubly-rounded
+    // Quantize the query outward too: the doubly-rounded
     // pair can only ADD candidates, never drop one.
     uint16_t qlo[3];
     uint16_t qhi[3];

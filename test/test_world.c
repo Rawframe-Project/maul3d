@@ -479,7 +479,7 @@ static void TestHullSnapshotShrink(void)
     m3DestroyWorld(boxed);
 }
 
-// The documentation ceiling pin (R5-1, integration audit C3): the
+// The documentation ceiling pin: the
 // manual's Capacities chapter cites these exact numbers and points
 // at this test. If a constant moves, this fails before the
 // documentation lies. Moving a ceiling is allowed; updating the
@@ -517,7 +517,7 @@ static void HookFree(void* memory, void* context)
     free(memory);
 }
 
-// R5-3 (audit A3): a world born under a host allocator routes every
+// R5-3: a world born under a host allocator routes every
 // persistent allocation and free through it, and dies in balance.
 static void TestAllocatorHook(void)
 {
@@ -545,7 +545,7 @@ static void TestAllocatorHook(void)
     m3SetAllocator(NULL, NULL, NULL);
 }
 
-// R5-3 (audit D1): the ledger is computed, not accumulated, so it
+// R5-3: the ledger is computed, not accumulated, so it
 // cannot drift; content grows it and steps do not.
 static void TestMemoryUsage(void)
 {

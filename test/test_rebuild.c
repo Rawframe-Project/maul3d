@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The rebuilt tree gate (17-4): m3World_RebuildBroadphase replaces
+// The rebuilt tree gate: m3World_RebuildBroadphase replaces
 // a lopsided insertion-order tree with a balanced one WITHOUT
 // touching a single answer. Physics stays bit-identical (pairs are
 // canonical regardless of tree shape), queries return the same

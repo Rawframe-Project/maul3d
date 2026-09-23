@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The runtime-control gate (8-3): teleports wake both
+// The runtime-control gate: teleports wake both
 // neighborhoods, the kinematic servo lands ON its target, type
 // flips rebuild the books, disabled bodies vanish everywhere,
 // motion locks hold their axes exact, sleep knobs obey, and every

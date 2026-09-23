@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Debug draw (2c-9): wireframe everything through two primitives.
+// Debug draw: wireframe everything through two primitives.
 // Read-only by construction: every function takes the world state as
 // it stands and emits segments; the twin-hash test holds the
 // no-mutation promise on every commit.
@@ -563,7 +563,7 @@ void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw)
     }
 }
 
-// --- Extras (14-2) ----------------------------------------------------------
+// --- Extras ----------------------------------------------------------
 
 static void ExtraBoxEdges(const m3ExtraDraw* draw, const double lo[3], const double hi[3],
                           uint32_t color)

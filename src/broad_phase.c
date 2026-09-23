@@ -51,7 +51,7 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
 
     if (world->shapeType[shape] == (uint8_t)m3_heightFieldShape)
     {
-        // Native grid bounds (19-2): the same box the fat-AABB
+        // Native grid bounds: the same box the fat-AABB
         // branch uses, minus the fat margin plus the tight one.
         const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
         m3Aabb3d box;
@@ -150,7 +150,7 @@ void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi
 {
     if (world->shapeType[shape] == (uint8_t)m3_heightFieldShape)
     {
-        // The native grid (19-1): min corner at the body origin,
+        // The native grid: min corner at the body origin,
         // the sample extremes baked at create; the mesh margin.
         const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
         const m3Transform* xf = &world->transforms[world->shapeBody[shape]];
@@ -189,7 +189,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
     }
     if (world->bodyEnabled[bodyI] == 0 || world->bodyEnabled[bodyJ] == 0)
     {
-        return 0; // disabled bodies vanish (8-3)
+        return 0; // disabled bodies vanish
     }
     if (world->types[bodyI] == (uint8_t)m3_staticBody &&
         world->types[bodyJ] == (uint8_t)m3_staticBody)
@@ -202,7 +202,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
     {
         return 0;
     }
-    // Filters (8-1): a shared nonzero group overrides the bits,
+    // Filters: a shared nonzero group overrides the bits,
     // positive forcing and negative forbidding; otherwise each
     // category must land in the other's mask.
     int32_t gi = world->shapeGroup[i];
@@ -275,7 +275,7 @@ static int CompareKeys(const void* a, const void* b)
 typedef struct m3QueryCtx
 {
     m3World* world;
-    m3Aabb3d* cache;     // per-step fresh bounds (21-2)
+    m3Aabb3d* cache;     // per-step fresh bounds
     uint8_t* cacheValid; // S-3a: sleepers fill lazily on first hit
     m3Aabb3d selfBounds;
     int32_t self;
@@ -291,7 +291,7 @@ static bool QueryHit(int32_t other, void* context)
     }
     // Emit each pair once. Both-awake pairs use the larger-index
     // rule (both directions get queried, one emits). A sleeping
-    // shape never queries (S-3b), so its awake partner emits from
+    // shape never queries, so its awake partner emits from
     // EITHER side; the referee caught pair (sleeper, awake) with
     // the sleeper on the smaller index silently vanishing.
     if (other < ctx->self)
@@ -310,13 +310,13 @@ static bool QueryHit(int32_t other, void* context)
     }
     if (!PairHot(ctx->world, ctx->self, other))
     {
-        return true; // cold: rides the frozen buffer (S-3b)
+        return true; // cold: rides the frozen buffer
     }
     // The stored leaf bounds can be stale-but-containing (a leaf only
     // moves when its fresh bounds escape), so the tree can return a
     // SUPERSET of the true fat overlaps. Re-test with fresh bounds so
     // the pair list equals the brute-force referee STRUCTURALLY, not
-    // by luck. The bounds come from the per-step cache (21-2): the
+    // by luck. The bounds come from the per-step cache: the
     // first shape of this profile recomputed a hull's 64-vertex box
     // once PER HIT; memoized values are bit-identical by definition.
     m3Aabb3d fresh;
@@ -324,7 +324,7 @@ static bool QueryHit(int32_t other, void* context)
     {
         if (ctx->cacheValid[other] == 0)
         {
-            // A sleeping shape skipped the prefill (S-3a); compute
+            // A sleeping shape skipped the prefill; compute
             // once on first touch. Same function, same inputs, same
             // bits as the prefill would have written.
             ctx->cache[other] = SphereAabb(ctx->world, other);
@@ -468,7 +468,7 @@ m3Result m3UpdatePairs(m3World* world)
     world->pairCount = 0;
     int32_t maxShape = world->shapePool.maxIndex;
 
-    // Fresh bounds, once per shape per step (21-2): the refresh,
+    // Fresh bounds, once per shape per step: the refresh,
     // the self query, and every hit re-test read this cache. Pure
     // memoization: the values are what the old per-call computes
     // produced, so the pair set cannot move by a bit. A scratch
@@ -554,7 +554,7 @@ m3Result m3UpdatePairs(m3World* world)
             }
             if (!PairHot(world, p, s))
             {
-                continue; // cold: rides the frozen buffer (S-3b)
+                continue; // cold: rides the frozen buffer
             }
             if (!EmitPair(world, p, s))
             {
@@ -574,7 +574,7 @@ m3Result m3UpdatePairs(m3World* world)
         if (world->types[world->shapeBody[i]] != (uint8_t)m3_staticBody &&
             world->awake[world->shapeBody[i]] == 0)
         {
-            continue; // a frozen shape discovers nothing new (S-3b)
+            continue; // a frozen shape discovers nothing new
         }
         m3Aabb3d fat;
         if (cache != NULL)
@@ -604,7 +604,7 @@ m3Result m3UpdatePairs(m3World* world)
         }
     }
 
-    // Merge the frozen buffer (S-3b): only pairs that are STILL
+    // Merge the frozen buffer: only pairs that are STILL
     // cold and alive emit; the same walk compacts the buffer, so a
     // wake or a destroy needs no bookkeeping anywhere else. The
     // fresh passes emit only hot pairs, so the union is

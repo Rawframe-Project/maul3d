@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Mesh BVH gate (2c-10): the brute-force referee the plan demands.
+// Mesh BVH gate: the brute-force referee the plan demands.
 // The tree is a pruning layer, nothing more: for any query box the
 // gathered set, filtered by the exact per-triangle test, must equal
 // the full scan filtered by the same test. Plus build determinism
@@ -167,7 +167,7 @@ static void TestRefereeGather(void)
     m3DestroyWorld(world);
 }
 
-// Content equality for the pointer-based BVH (10-3): derived data
+// Content equality for the pointer-based BVH: derived data
 // must match by VALUE, and the struct now carries heap pointers.
 static int BvhSame(const m3MeshBvh* a, const m3MeshBvh* b)
 {

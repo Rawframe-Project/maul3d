@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The benchmark harness (2c-1). NOT a CI gate: wall time is not
+// The benchmark harness. NOT a CI gate: wall time is not
 // deterministic and never will be. CI builds this binary so it
 // cannot rot; profiles run locally in Release. Every performance
 // slice in 2c must print its before-and-after from here in the
@@ -134,7 +134,7 @@ static m3WorldId SceneHullJam(void)
     return world;
 }
 
-// Scene 3b (10-4): the grand mesh, a ~60k-triangle terrain under
+// Scene 3b: the grand mesh, a ~60k-triangle terrain under
 // a crate rain: the 10-3 ceiling priced and pinned.
 static m3WorldId SceneMeshGrand(void)
 {
@@ -240,7 +240,7 @@ static m3WorldId SceneMeshField(void)
     return world;
 }
 
-// Scene 4 (3-8): voxfort, the destruction demo and the
+// Scene 4: voxfort, the destruction demo and the
 // constitution's consumer. A hollow voxel fort is shelled by
 // deterministic charges; the HOST reads fragment events and turns
 // recipes into dynamic bodies (small islands become QuickHull
@@ -381,7 +381,7 @@ static void RunVoxfort(int32_t steps)
     m3DestroyWorld(world);
 }
 
-// Scene 5 (6-1): the city block, the 5k-body scale proof. A grid
+// Scene 5: the city block, the 5k-body scale proof. A grid
 // of welded voxel tower stacks takes a five-thousand-body rain of
 // mixed shapes; mid-run a fracture wave carves the towers and the
 // host recipe turns the falling sections into dynamic rubble. The
@@ -560,7 +560,7 @@ static uint64_t RunCityblockOnce(int32_t totalSteps, double phaseMs[3], int32_t 
     return hash;
 }
 
-// The scale gauntlet (6-4): the full-size numbers the suite proves
+// The scale gauntlet: the full-size numbers the suite proves
 // at CI size. Rollback cost at five thousand bodies, measured
 // mid-storm; then the ten-thousand-body smoke run: integrity only
 // (finite, twin-stable), wall time reported, no pass band.

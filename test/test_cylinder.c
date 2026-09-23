@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The cylinder gate (15-1): the factory mints an honest prism
+// The cylinder gate: the factory mints an honest prism
 // through the hull path. Degenerate defs refuse, the quality knob
 // clamps, the prism's mass behaves like the round closed form
 // within the faceting error, a spun cylinder rolls where a cube

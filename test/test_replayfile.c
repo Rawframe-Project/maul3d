@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The container gate (9-1): an M3J1 session round-trips in pure
+// The container gate: an M3J1 session round-trips in pure
 // memory onto the recorder's hash, the header's counts match the
 // stream, and every kind of corruption refuses loudly without
 // touching a world.
@@ -1109,7 +1109,7 @@ static void TestFuzzPhase20Ops(void)
     free(snap);
 }
 
-// R5-4 (audit B3): a session recorded WITH a vetoing pre-solve
+// R5-4: a session recorded WITH a vetoing pre-solve
 // callback must replay to the same bits WITHOUT it: the veto
 // annex (op 79) makes the tape self-sufficient.
 static bool VetoAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void* context)

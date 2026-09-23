@@ -81,7 +81,7 @@ m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, m3real dist, m3real radius)
     return manifold;
 }
 
-// --- Hull-versus-hull SAT (2b-5b), adapted from the reference
+// --- Hull-versus-hull SAT, adapted from the reference
 // convex_manifold.c (Gauss-map edge pruning by Dirk Gregorius). All
 // work happens in A's frame; B arrives via the float relative pose.
 
@@ -449,7 +449,7 @@ static void SphereWorldCenter(const m3World* world, int32_t shape, double* cx, d
 
 // Offset from a body's world center of mass to a world point (float
 // is exact enough near contact). Anchors are COM-relative because
-// impulses and rotation act about the COM (2b-1).
+// impulses and rotation act about the COM.
 static m3Vec3 FromCom(const m3World* world, int32_t body, double px, double py, double pz)
 {
     const m3Transform* xf = &world->transforms[body];
@@ -1581,7 +1581,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     }
     m3real reach = radius + M3_SPECULATIVE_DISTANCE;
 
-    // Midphase (2c-10): the static BVH prunes, then the exact
+    // Midphase: the static BVH prunes, then the exact
     // per-triangle reject below runs unchanged, so the accepted
     // sequence is bit-identical to the full scan this replaced
     // (gather returns ascending order; the cap break fires at the
@@ -1749,7 +1749,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
         int newVert1 = ClaimVertex(&set, i1);
         int newVert2 = ClaimVertex(&set, i2);
         int newVert3 = ClaimVertex(&set, i3);
-        // Baked convexity (2b-9d): a genuinely convex ridge or a
+        // Baked convexity: a genuinely convex ridge or a
         // boundary is a REAL feature and overrides the claim filter;
         // only flat and concave edges can be ghosts.
         uint8_t convex = mesh->edgeFlags[t];
@@ -1839,7 +1839,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
             gSep[gCount] = faceAccepted[k].local.separation[p];
             gId[gCount] =
                 (uint16_t)((faceAccepted[k].triIndex << 2) | faceAccepted[k].local.localId[p]);
-            // The material group rides the point flags (17-2): a
+            // The material group rides the point flags: a
             // material-free mesh writes zeros, so its manifolds
             // hash exactly as before.
             gMat[gCount] = mesh->materialCount > 0
@@ -1917,7 +1917,7 @@ static void CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshSha
                     meshShape, otherShape, meshIsA);
 }
 
-// Native heightfield versus convex (19-2): clip the convex's reach
+// Native heightfield versus convex: clip the convex's reach
 // to a cell window (a one-cell halo keeps the interior edge flags
 // honest at the window rim), lay the window out as a scratch mesh
 // in the heightfield frame, bake its edge flags, and run the SAME
@@ -2065,7 +2065,7 @@ static void CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t 
     CollideMeshCore(world, fresh, &window, NULL, hfShape, otherShape, hfIsA);
 }
 
-// Voxel chunk versus convex (3-1): the surface BVH gathers merged
+// Voxel chunk versus convex: the surface BVH gathers merged
 // boxes in ascending order; each candidate runs the family's exact
 // kernel in the CHUNK frame (boxes are axis-aligned there by
 // construction, so the sphere case is an exact clamp); the deepest
@@ -2139,7 +2139,7 @@ static void CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelS
     }
     m3real reach = radius + M3_SPECULATIVE_DISTANCE;
 
-    // Interior depenetration (3-6): when the OTHER shape's center
+    // Interior depenetration: when the OTHER shape's center
     // is inside the solid, the surface candidates are meaningless
     // (every nearby face is interior). A grid BFS names the nearest
     // exposed face; one synthetic contact walks the body out at a
@@ -2211,7 +2211,7 @@ static void CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelS
         int32_t box = gather[g];
         m3Manifold local;
         memset(&local, 0, sizeof(local));
-        // Seam welding (3-4): a covered face is interior geometry.
+        // Seam welding: a covered face is interior geometry.
         // Extending it one chunk length outward models the solid
         // continuing through the seam, so the clamp and the SATs can
         // only ever answer with exposed features. No ghost normals.
@@ -2418,7 +2418,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
         }
         else if (planePair && hullPair)
         {
-            // Plane versus hull (2b-5a): every hull vertex below the
+            // Plane versus hull: every hull vertex below the
             // margin becomes a candidate; the four deepest survive
             // (ties break on the lower vertex index) and emit in
             // ascending vertex order, the canonical point order.
@@ -2524,7 +2524,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
         }
         else if (typeA == (uint8_t)m3_hullShape && typeB == (uint8_t)m3_hullShape)
         {
-            // Hull versus hull (2b-5b): the SAT runs in A's frame on a
+            // Hull versus hull: the SAT runs in A's frame on a
             // float relative pose (doubles localized here), then the
             // manifold rotates out to world with COM-relative anchors.
             int32_t bodyA = world->shapeBody[shapeA];
@@ -2711,7 +2711,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
                 else if (hullPair)
                 {
                     // A sphere center inside a hull: the least-deep
-                    // face is the exact minimum translation (2b-7).
+                    // face is the exact minimum translation.
                     int hullIsA = typeA == (uint8_t)m3_hullShape;
                     const m3HullData* hull =
                         &world->hullData[world->shapeHullIndex[hullIsA ? shapeA : shapeB]];
@@ -2880,7 +2880,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
                 {
                     const m3Manifold* previous = &oldManifolds[mid];
                     // The central friction payload carries with the
-                    // PAIR, not with the points (rev 21).
+                    // PAIR, not with the points.
                     fresh.frictionImpulse = previous->frictionImpulse;
                     fresh.twistImpulse = previous->twistImpulse;
                     fresh.rollingImpulse = previous->rollingImpulse;

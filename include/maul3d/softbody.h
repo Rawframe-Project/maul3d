@@ -40,7 +40,7 @@ extern "C"
         m3real radius;       // particle collision radius
         m3real gravityScale;
         uint64_t userData;
-        /// Bend resistance (20-1): XPBD compliance of the SECOND
+        /// Bend resistance: XPBD compliance of the SECOND
         /// NEIGHBOR tethers laid along each lattice axis (three
         /// straight points hold their spacing; a fold shortens it,
         /// and the tether pulls it straight). Zero (the default)
@@ -48,13 +48,13 @@ extern "C"
         /// smaller positive values bend stiffer. Full Cosserat
         /// twist stays out by design: positions carry no frames.
         m3real bendCompliance;
-        /// Internal pressure (20-2): a target volume multiplier for
+        /// Internal pressure: a target volume multiplier for
         /// CLOSED lattices (every axis count >= 2). Zero (default)
         /// is off, bit-exact with pre-20; 1 holds the create
         /// volume, 2 inflates toward double. One global volume
         /// constraint over the surface, solved beside the edges.
         m3real pressure;
-        /// Bind-pose tether (20-4): every particle clamps to this
+        /// Bind-pose tether: every particle clamps to this
         /// radius around its CREATE position each substep. Zero
         /// (default) is off. The cheap skinned-vertex limit: cloth
         /// on a character cannot explode past its bind pose.
@@ -70,7 +70,7 @@ extern "C"
     /// Journaled with id verification.
     M3_API m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def);
 
-    /// A tetrahedral soft body (20-3): explicit points (world
+    /// A tetrahedral soft body: explicit points (world
     /// positions after adding def->position) and tets (four point
     /// indices each, positive volume required). Edges come from
     /// the tet edges, deduplicated in first-touch order, at
@@ -104,7 +104,7 @@ extern "C"
     M3_API void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId bodyId);
 
     /// Pin a particle of one lattice to a particle of ANOTHER
-    /// lattice (11-2): a position equality split by inverse mass,
+    /// lattice: a position equality split by inverse mass,
     /// solved each substep after soft-vs-soft contact. Released
     /// silently when EITHER lattice dies. Journaled; the pin lives
     /// in the lower slot's table (one canonical home per pair).

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The overlap family gate (15-3): capsule, oriented box, and raw
+// The overlap family gate: capsule, oriented box, and raw
 // cloud queries answer EXACTLY, in ascending id order, through the
 // same filter law as the sphere family. A tilted box finds the
 // crate a sphere of its inradius misses, a corridor capsule finds

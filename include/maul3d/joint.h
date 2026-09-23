@@ -23,17 +23,17 @@ extern "C"
         m3_distanceJoint = 4,  // rope/rod: anchor distance in [lower, upper]
         m3_genericJoint = 5,   // 6-DOF: per-axis lock/free/limit + one motor
         m3_wheelJoint = 6,
-        /// FILTER (16-1): no constraint rows at all; the joint's
+        /// FILTER: no constraint rows at all; the joint's
         /// whole effect is the connected-pair collision filter
         /// (create with collideConnected false). Ragdoll sibling
         /// limbs stop grinding without buying a single solver row.
         m3_filterJoint = 7,
-        /// PARALLEL (16-1): keeps localAxisA on body A parallel to
+        /// PARALLEL: keeps localAxisA on body A parallel to
         /// localAxisB on body B (two angular rows); every
         /// translation and the twist about the shared axis stay
         /// free. Platform linkages without the full revolute.
         m3_parallelJoint = 8,
-        /// MOTOR (16-5): a servo weld. Drives body B toward a target
+        /// MOTOR: a servo weld. Drives body B toward a target
         /// pose relative to body A's create-time joint frame: a soft
         /// 3-DOF rotation drive plus a soft 3-DOF translation drive,
         /// each budget-capped. Tune with m3Joint_SetSpring (the
@@ -43,7 +43,7 @@ extern "C"
         /// Without a spring the servo idles completely free. A
         /// fresh servo aims at its own create pose.
         m3_motorJoint = 9,
-        /// GEAR (16-6): couples spin so that spinA + ratio * spinB
+        /// GEAR: couples spin so that spinA + ratio * spinB
         /// keeps its create value, where spinX is body X's rotation
         /// about its own axis localAxisX. Positive ratio is the
         /// external mesh (counter-rotation: ratio 2 turns B half as
@@ -55,7 +55,7 @@ extern "C"
         /// freedom. Angle drift is corrected softly, so the mesh
         /// cannot creep under load.
         m3_gearJoint = 10,
-        /// PULLEY (16-6): a rope from localAnchorA up over the
+        /// PULLEY: a rope from localAnchorA up over the
         /// WORLD point groundAnchorA, across to groundAnchorB and
         /// down to localAnchorB: length1 + ratio * length2 keeps
         /// its create value (ratio > 0). The rope is RIGID both
@@ -102,7 +102,7 @@ extern "C"
         /// lowerLimit and upperLimit as twist angles.
         bool enableCone;
         m3real coneAngle; // radians from the A frame's z-axis
-        /// Distance joints (4-2) REQUIRE enableLimit with
+        /// Distance joints REQUIRE enableLimit with
         /// 0 <= lowerLimit <= upperLimit meters (a rod is lower ==
         /// upper; a rope is a range). Their optional spring reuses
         /// the motor fields, documented reuse: enableMotor turns it
@@ -115,7 +115,7 @@ extern "C"
         /// Jointed bodies do not collide with each other unless this
         /// is set (the classic chain-fight guard).
         bool collideConnected;
-        /// The generic joint (4-3). Modes are m3AxisMode per joint
+        /// The generic joint. Modes are m3AxisMode per joint
         /// frame axis; limits are meters (linear) and radians
         /// (angular), used only where the mode is limited. One
         /// motor: genericMotorAxis picks 0..2 (linear) or 3..5
@@ -127,7 +127,7 @@ extern "C"
         /// ball); anything else refuses loudly. Growing this def
         /// bumps the cookie: stale-compiled callers are refused
         /// loudly instead of misread (the freeze's mechanism).
-        /// The wheel joint (12-2), the OPTIONAL rigid-wheel path for
+        /// The wheel joint, the OPTIONAL rigid-wheel path for
         /// vehicles (the raycast vehicle stays the default): the
         /// wheel body B slides along a suspension axis fixed in the
         /// chassis A and spins freely about its axle. localAxisA is
@@ -141,7 +141,7 @@ extern "C"
         /// spring is the 8-6b drive: m3Joint_SetSpring plus
         /// m3Joint_SetTargetTranslation. m3Joint_GetAngle reads the
         /// spin angle, m3Joint_GetTranslation the suspension travel.
-        /// Breakage (8-6a) applies unchanged: a capped axle snaps
+        /// Breakage applies unchanged: a capped axle snaps
         /// deterministically and the wheel body rolls away.
         uint8_t genericLinear[3];
         uint8_t genericAngular[3];
@@ -151,7 +151,7 @@ extern "C"
         m3real genericLinearUpper[3];
         m3real genericAngularLower[3];
         m3real genericAngularUpper[3];
-        /// Gear and pulley (16-6): the coupling ratio (gear: any
+        /// Gear and pulley: the coupling ratio (gear: any
         /// nonzero, sign picks the mesh; pulley: > 0) and the
         /// pulley's two fixed WORLD anchor points. Growing this def
         /// bumps the cookie: stale-compiled callers refuse loudly.
@@ -174,7 +174,7 @@ extern "C"
     M3_API void m3DestroyJoint(m3JointId jointId);
     M3_API bool m3Joint_IsValid(m3JointId jointId);
 
-    /// Runtime joint control (8-6a). All journaled; both bodies wake
+    /// Runtime joint control. All journaled; both bodies wake
     /// on any change. Limits and motor reuse the def semantics per
     /// type (angles for revolute and spherical twist, meters for
     /// prismatic and distance); toggling zeroes the row's stored
@@ -182,12 +182,12 @@ extern "C"
     M3_API void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper);
     M3_API void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffort);
 
-    /// Aim the MOTOR joint (16-5): offset in body A's joint frame,
+    /// Aim the MOTOR joint: offset in body A's joint frame,
     /// rotation as the target relative orientation. Journaled;
     /// refused loudly on other types and hostile values.
     M3_API void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation);
 
-    /// Wheel steering (16-3): a soft target-angle drive about the
+    /// Wheel steering: a soft target-angle drive about the
     /// strut axis. While enabled, the wheel's frame-x lock becomes
     /// the drive (frame y stays locked), so the axle yaws toward
     /// targetAngle (radians, |target| <= 1) at the given stiffness;
@@ -205,7 +205,7 @@ extern "C"
     M3_API void m3Joint_SetCollideConnected(m3JointId jointId, bool collide);
     M3_API bool m3Joint_GetCollideConnected(m3JointId jointId);
 
-    /// Breakage (8-6a), a deliberate addition over the reference:
+    /// Breakage, a deliberate addition over the reference:
     /// rollback games need breakage as a deterministic in-step
     /// state transition, not a host poll racing the journal. When
     /// either reaction magnitude exceeds its cap at the end of a
@@ -214,7 +214,7 @@ extern "C"
     /// default) means unbreakable.
     M3_API void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorque);
 
-    /// Reaction readback (8-6a): MAGNITUDES of the last step's
+    /// Reaction readback: MAGNITUDES of the last step's
     /// constraint reactions, assembled per type from the stored
     /// solver rows (linear rows into force, angular rows into
     /// torque; the generic joint reports a conservative sum). Reads
@@ -230,7 +230,7 @@ extern "C"
     M3_API m3real m3Joint_GetAngle(m3JointId jointId);
     M3_API m3real m3Joint_GetTranslation(m3JointId jointId);
 
-    /// Position drive (8-6b), the reference spring rows: a soft
+    /// Position drive, the reference spring rows: a soft
     /// constraint with the given frequency and damping ratio pulls
     /// the joint toward its target. Revolute drives the hinge angle,
     /// prismatic the translation, spherical the relative rotation;

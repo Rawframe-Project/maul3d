@@ -384,7 +384,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     world->contactPushMaxSpeed = def->contactPushMaxSpeed;
     world->restitutionThreshold = def->restitutionThreshold;
     world->maximumLinearSpeed = def->maximumLinearSpeed;
-    // Not a def field (13-1): the def cookie stays put under 1.x.
+    // Not a def field: the def cookie stays put under 1.x.
     // Hosts tune it through the journaled setter.
     world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
     world->sleepEnabled = def->enableSleeping != 0 ? 1 : 0;
@@ -791,7 +791,7 @@ bool m3World_IsValid(m3WorldId worldId)
     return m3WorldFromId(worldId) != NULL;
 }
 
-// --- Tuning knobs (8-4) -----------------------------------------------------
+// --- Tuning knobs -----------------------------------------------------
 
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity)
 {
@@ -934,7 +934,7 @@ void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value)
 }
 
 // Live slots without a scan: the pool hands out from the free queue
-// or bumps maxIndex, and retirement is the only other exit (14-1).
+// or bumps maxIndex, and retirement is the only other exit.
 static int32_t PoolLive(const m3IdPool* pool)
 {
     return pool->maxIndex - pool->freeCount - pool->retiredCount;
@@ -1071,7 +1071,7 @@ bool m3World_IsContinuousEnabled(m3WorldId worldId)
     return world != NULL && world->continuousEnabled != 0;
 }
 
-// --- Events (8-5) -----------------------------------------------------------
+// --- Events -----------------------------------------------------------
 
 void m3SetHitEventThresholdInternal(m3World* world, float value)
 {
@@ -1310,7 +1310,7 @@ static void WakeAroundWater(m3World* world, int32_t slot)
 
 int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
 {
-    // The full wall (18-1), here because replay hands this function
+    // The full wall, here because replay hands this function
     // raw journal bytes.
     if (!m3FinitePos3(def->lo) || !m3FinitePos3(def->hi) || !(def->hi.x > def->lo.x) ||
         !(def->hi.y > def->lo.y) || !(def->hi.z > def->lo.z) || !m3FiniteF(def->density) ||
@@ -1655,7 +1655,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t index = m3BodySlot(world, record.id);
             if (index < 0 || !m3FiniteV3(record.v))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetLinearVelocityInternal(world, index, record.v);
             break;
@@ -1676,7 +1676,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t index = m3BodySlot(world, record.id);
             if (index < 0 || !m3FiniteV3(record.v))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetAngularVelocityInternal(world, index, record.v);
             break;
@@ -2074,7 +2074,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3CharacterSlot(world, record.id);
             if (slot < 0 || !m3FiniteV3(record.translation))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3CharacterMoveInternal(world, slot, record.translation);
             break;
@@ -2191,7 +2191,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             if (slot < 0 || !m3FiniteF(record.throttle) || !m3FiniteF(record.steer) ||
                 !m3FiniteF(record.brake))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3VehicleCommandsInternal(world, slot, record.throttle, record.steer, record.brake);
             break;
@@ -2346,7 +2346,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
                 world->softSoftCount[slotA < slotB ? slotA : slotB] >= M3_SOFTBODY_MAX_ANCHORS)
             {
                 // A flipped particle index would become an out of
-                // bounds solver read: the full public wall (16-7).
+                // bounds solver read: the full public wall.
                 return false;
             }
             m3SoftBodyAnchorSoftInternal(world, slotA, record.particleA, slotB, record.particleB);
@@ -2371,7 +2371,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t index = m3BodySlot(world, record.id);
             if (index < 0 || !m3FiniteV3(record.v))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opApplyForce)
             {
@@ -2409,7 +2409,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t index = m3BodySlot(world, record.id);
             if (index < 0 || !m3FiniteV3(record.v) || !m3FinitePos3(record.p))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opApplyForceAtPoint)
             {
@@ -2441,7 +2441,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             if (index < 0 || !m3FinitePos3(record.pose.p) || !m3FiniteQuat(record.pose.q) ||
                 !(qq > 0.98f) || !(qq < 1.02f))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opSetTransform)
             {
@@ -2563,7 +2563,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             memcpy(&gravity, payload, sizeof(gravity));
             if (!m3FiniteV3(gravity))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetGravityInternal(world, gravity);
             break;
@@ -2586,7 +2586,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3ShapeSlot(world, record.id);
             if (slot < 0 || !m3FiniteF(record.value) || record.value < 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opSetShapeFriction)
             {
@@ -2619,7 +2619,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3ShapeSlot(world, record.id);
             if (slot < 0 || !m3FiniteF(record.value) || record.value <= 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetShapeDensityInternal(world, slot, record.value, record.updateMass);
             break;
@@ -2641,7 +2641,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
                 !m3FiniteF(record.dampingRatio) || record.dampingRatio <= 0.0f ||
                 !m3FiniteF(record.pushSpeed) || record.pushSpeed <= 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetContactTuningInternal(world, record.hertz, record.dampingRatio, record.pushSpeed);
             break;
@@ -2658,7 +2658,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             if (!m3FiniteF(value) || (op == m3_opSetRestitutionThreshold && value < 0.0f) ||
                 (op == m3_opSetMaximumLinearSpeed && value <= 0.0f))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opSetRestitutionThreshold)
             {
@@ -3048,7 +3048,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
                 !m3FiniteF(record.gustHertz) || record.gustHertz < 0.0f ||
                 !m3FiniteF(record.gustScale) || record.gustScale < 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetWindInternal(world, record.dir, record.speed, record.gustHertz, record.gustScale);
             break;
@@ -3069,7 +3069,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3ShapeSlot(world, record.id);
             if (slot < 0 || !m3FiniteV3(record.v))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetSurfaceVelocityInternal(world, slot, record.v);
             break;
@@ -3084,7 +3084,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             memcpy(&value, payload, sizeof(value));
             if (!m3FiniteF(value) || value < 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3SetHitEventThresholdInternal(world, value);
             break;
@@ -3137,13 +3137,13 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3JointSlot(world, record.id);
             if (slot < 0 || !m3FiniteF(record.a) || !m3FiniteF(record.b))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             if (op == m3_opJointSetLimits)
             {
                 // Mirror the public contract: the motor joint's
                 // budgets are independent nonnegatives, every other
-                // type wants an ordered range (16-5).
+                // type wants an ordered range.
                 if (world->jointType[slot] == (uint8_t)m3_motorJoint
                         ? (record.a < 0.0f || record.b < 0.0f)
                         : record.a > record.b)
@@ -3197,7 +3197,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             if (slot < 0 || !m3FiniteF(record.maxForce) || !m3FiniteF(record.maxTorque) ||
                 record.maxForce < 0.0f || record.maxTorque < 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3JointSetBreakInternal(world, slot, record.maxForce, record.maxTorque);
             break;
@@ -3221,7 +3221,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             if (slot < 0 || !m3FiniteF(record.hertz) || record.hertz <= 0.0f ||
                 !m3FiniteF(record.zeta) || record.zeta < 0.0f)
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3JointSetSpringInternal(world, slot, record.enable, record.hertz, record.zeta);
             break;
@@ -3243,7 +3243,7 @@ static bool JournalReplayApply(m3World* world, const void* data, int32_t size)
             int32_t slot = m3JointSlot(world, record.id);
             if (slot < 0 || !m3FiniteF(record.scalar) || !m3FiniteQuat(record.q))
             {
-                return false; // hostile bytes fail loudly (16-7)
+                return false; // hostile bytes fail loudly
             }
             m3JointSetTargetInternal(world, slot, record.scalar, record.q);
             break;
@@ -3262,7 +3262,7 @@ bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size)
     {
         return false; // contract, not invariant
     }
-    // Atomic replay (2d-2): the world either takes the whole session
+    // Atomic replay: the world either takes the whole session
     // or none of it. A pre-replay snapshot backs out any partial
     // application on refusal, so a corrupted or truncated journal
     // can never leave a half-built world behind.

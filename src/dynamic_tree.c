@@ -409,7 +409,7 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
     }
 }
 
-// --- Whole-tree rebuild (17-4) ----------------------------------------------
+// --- Whole-tree rebuild ----------------------------------------------
 
 typedef struct RebuildScratch
 {

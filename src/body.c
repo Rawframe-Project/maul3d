@@ -45,7 +45,7 @@ m3BodyDef m3DefaultBodyDef(void)
 
 int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
 {
-    // The hostile-input wall (2d-1) lives HERE since 16-7, because
+    // The hostile-input wall lives HERE since 16-7, because
     // replay hands this function raw journal bytes (the soft-body
     // lesson, fourth verse): nothing non-finite reaches state, a
     // rotation far from unit is a corrupted def, and a type byte
@@ -90,7 +90,7 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     world->userData[index] = def->userData;
     world->bodyEnabled[index] = 1;
     world->bodyLocks[index] = 0;
-    world->bodyIsland[index] = -1; // observer label (14-2)
+    world->bodyIsland[index] = -1; // observer label
     memset(world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0, M3_BODY_NAME_CAPACITY);
     world->bodySleepThreshold[index] = M3_SLEEP_VELOCITY_DEFAULT;
     world->bodyCanSleep[index] = 1;
@@ -136,14 +136,14 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
     world->bodyTorque[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     world->bodyEnabled[index] = 0;
     world->bodyLocks[index] = 0;
-    world->bodyIsland[index] = -1; // observer label (14-2)
+    world->bodyIsland[index] = -1; // observer label
     memset(world->bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0, M3_BODY_NAME_CAPACITY);
     world->bodySleepThreshold[index] = 0.0f;
     world->bodyCanSleep[index] = 0;
     world->bodyHasTarget[index] = 0;
     world->bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
     // Characters standing on this body lose their ground reference
-    // NOW (4-6): the generation guard would catch a recycled slot,
+    // NOW: the generation guard would catch a recycled slot,
     // but a cleared reference never even asks.
     for (int32_t c = 0; c < world->charPool.maxIndex; ++c)
     {
@@ -153,7 +153,7 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
             world->charGroundGen[c] = 0;
         }
     }
-    // A chassis takes its vehicle with it (5-1): the cascade rule,
+    // A chassis takes its vehicle with it: the cascade rule,
     // same as shapes and joints, in ascending slot order.
     for (int32_t v = 0; v < world->vehPool.maxIndex; ++v)
     {
@@ -165,7 +165,7 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->bodyPool, index);
 }
 
-// Runtime control internals (8-3): replay and the wrappers share
+// Runtime control internals: replay and the wrappers share
 // one path each.
 void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3])
 {
@@ -282,7 +282,7 @@ void m3SetEnabledInternal(m3World* world, int32_t index, int enabled)
 
 void m3SetMotionLocksInternal(m3World* world, int32_t index, uint8_t locks)
 {
-    // Bit 6 is allowFastRotation (13-1), owned by its own op; a
+    // Bit 6 is allowFastRotation, owned by its own op; a
     // locks write must not clobber it.
     world->bodyLocks[index] =
         (uint8_t)((world->bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) | (locks & 0x3Fu));
@@ -332,7 +332,7 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
     }
 }
 
-// Forces and impulses (8-2). One internal per op so replay and the
+// Forces and impulses. One internal per op so replay and the
 // public wrappers share exactly one application path.
 static int ForceTargetValid(m3World* world, int32_t index)
 {
@@ -428,7 +428,7 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         // the null id (see m3CreateWorld).
         return m3_nullBodyId;
     }
-    // Hostile-input wall (2d-1): nothing non-finite reaches state,
+    // Hostile-input wall: nothing non-finite reaches state,
     // and a rotation that is not close to unit is a corrupted def,
     // not a request (loud refusal beats silent renormalization).
     m3real qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
@@ -716,7 +716,7 @@ void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name)
     if (name != NULL)
     {
         // Truncation is silent and the terminator is forced: names
-        // are debug labels, not data (14-3).
+        // are debug labels, not data.
         for (int32_t i = 0; i < M3_BODY_NAME_CAPACITY - 1 && name[i] != 0; ++i)
         {
             slot[i] = name[i];

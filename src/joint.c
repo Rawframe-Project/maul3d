@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joint lifecycle (2c-2): the same law as bodies and shapes. Public
+// Joint lifecycle: the same law as bodies and shapes. Public
 // functions validate and journal, internal functions mutate, replay
 // drives the internals and verifies minted ids. The warm-start
 // impulse lives in the persistent arena and rides the snapshot.
@@ -101,7 +101,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     {
         return -1;
     }
-    // Gear and pulley geometry walls (16-6), same law: internal
+    // Gear and pulley geometry walls, same law: internal
     // validation because replay bytes land here raw.
     if (def->type == (int32_t)m3_gearJoint &&
         (!m3FiniteV3(def->localAxisA) || !m3FiniteV3(def->localAxisB) ||
@@ -138,7 +138,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
             return -1; // a rope end ON its pulley has no direction
         }
     }
-    // The wheel frame (12-2), built BEFORE the slot is taken so a
+    // The wheel frame, built BEFORE the slot is taken so a
     // refused geometry leaks nothing. Frame x = the suspension axis
     // (from A), frame z = the axle captured from B's world image and
     // snapped exactly perpendicular; real skew refuses loudly. This
@@ -182,7 +182,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     world->jointAngularImpulse[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     if (def->type == (int32_t)m3_fixedJoint || def->type == (int32_t)m3_motorJoint)
     {
-        // The weld pose (4-2): store frames so that at the create
+        // The weld pose: store frames so that at the create
         // pose the two world frames coincide; the solver's rotation
         // lock then drives their live relative rotation back to
         // identity. frameA = identity, frameB = conj(qB0) * qA0.
@@ -209,7 +209,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     else if (def->type == (int32_t)m3_filterJoint)
     {
         // A filter has no geometry at all: identity frames, and a
-        // zero axis must never reach the normalizer (16-1).
+        // zero axis must never reach the normalizer.
         world->jointFrameQA[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
         world->jointFrameQB[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
     }
@@ -223,7 +223,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     world->jointMotor[index] = (m3Vec3){def->motorSpeed, def->maxMotorEffort, 0.0f};
     if (def->type == (int32_t)m3_motorJoint)
     {
-        // The servo's default aim is the CREATE pose (16-5): bake
+        // The servo's default aim is the CREATE pose: bake
         // the anchor gap (in A's frame) into the offset slot so a
         // fresh servo holds where it was built instead of snapping
         // the anchors together the moment its spring wakes.
@@ -247,7 +247,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     // For the spherical, z carries the cone angle (x and y stay the
     // twist range): no snapshot growth, all of it already hashed.
     world->jointLimits[index] = (m3Vec3){def->lowerLimit, def->upperLimit, def->coneAngle};
-    // Gear and pulley bakes (16-6) live BELOW the generic limit
+    // Gear and pulley bakes live BELOW the generic limit
     // write on purpose: both reuse slots that line overwrites (the
     // pulley constant learned this the hard way).
     if (def->type == (int32_t)m3_gearJoint)
@@ -405,7 +405,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
     }
     if (def->type == (int32_t)m3_genericJoint)
     {
-        // The generic contract (4-3): sane modes, finite ordered
+        // The generic contract: sane modes, finite ordered
         // limits where used, one motor on a movable axis, and the
         // v1 angular-limit rule.
         int32_t limitedAngular = 0;
@@ -478,7 +478,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         // bounds), and a spring only with a real hertz.
         return m3_nullJointId;
     }
-    // Hostile-input wall (2d-1): finite fields only, ordered limits
+    // Hostile-input wall: finite fields only, ordered limits
     // only, and a cone that is a cone.
     if (!m3FiniteV3(def->localAnchorA) || !m3FiniteV3(def->localAnchorB) ||
         !m3FiniteV3(def->localAxisA) || !m3FiniteV3(def->localAxisB) ||
@@ -543,7 +543,7 @@ bool m3Joint_IsValid(m3JointId jointId)
     return world != NULL && m3JointSlot(world, jointId) >= 0;
 }
 
-// --- Runtime control and breakage (8-6a) ------------------------------------
+// --- Runtime control and breakage ------------------------------------
 
 static void JointWakeBodies(m3World* world, int32_t j)
 {
@@ -592,7 +592,7 @@ void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float sp
 void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float target, float hertz,
                              float zeta, float maxEffort)
 {
-    // The wheel slot map (16-3): flags bit 4 (the cone bit, unused
+    // The wheel slot map: flags bit 4 (the cone bit, unused
     // on wheels), target in jointMotor.z, softness and budget in
     // the spherical target slots, warm impulse in spring slot y.
     world->jointFlags[j] = (uint8_t)((world->jointFlags[j] & ~4u) | (enable != 0 ? 4u : 0u));
@@ -609,7 +609,7 @@ void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float ta
 
 void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Quat rotation)
 {
-    // The motor slot map (16-5): the target offset rides jointMotor
+    // The motor slot map: the target offset rides jointMotor
     // (the servo has no velocity motor), the rotation rides the
     // spherical target slot.
     world->jointMotor[j] = offset;
@@ -644,12 +644,12 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
     switch (world->jointType[j])
     {
     case (uint8_t)m3_parallelJoint:
-        // Two angular locks, nothing else (16-1).
+        // Two angular locks, nothing else.
         *outForce = 0.0f;
         *outTorque = invH * m3Length3((m3Vec3){perp.x, perp.y, 0.0f});
         return;
     case (uint8_t)m3_filterJoint:
-        // No rows, no reactions, ever (16-1).
+        // No rows, no reactions, ever.
         *outForce = 0.0f;
         *outTorque = 0.0f;
         return;
@@ -676,7 +676,7 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
         force += fabsf(lim.x) + fabsf(lim.y) + fabsf(perp.z);
         break;
     case (uint8_t)m3_genericJoint:
-        // The slot map (4-3): linear uppers ride perp x, y; the
+        // The slot map: linear uppers ride perp x, y; the
         // angular upper and the motor ride lim.x, lim.y. The motor
         // may be either kind: fold it into BOTH sums, conservative
         // by construction, documented.
@@ -684,7 +684,7 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
         torque = m3Length3(ang) + fabsf(lim.x) + fabsf(lim.y);
         break;
     case (uint8_t)m3_wheelJoint:
-        // The composed split (12-2): lin carries the two point-to-
+        // The composed split: lin carries the two point-to-
         // line rows and the suspension limits are linear (force);
         // perp x, y are the axle collinearity locks and the spin
         // motor rides perp.z (torque). The BREAK CONTRACT for an
@@ -694,14 +694,14 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
         torque = sqrtf(perp.x * perp.x + perp.y * perp.y) + fabsf(perp.z);
         break;
     case (uint8_t)m3_gearJoint:
-        // One angular row on two axes (16-6): report the LARGER
+        // One angular row on two axes: report the LARGER
         // side of the mesh, conservative for the break law.
         *outForce = 0.0f;
         *outTorque = invH * fabsf(perp.z) * m3MaxF(1.0f, fabsf(world->jointMotor[j].z));
         return;
     case (uint8_t)m3_pulleyJoint:
         // The rope impulse rides perp.z; the B side carries ratio
-        // times it (16-6): again the larger side.
+        // times it: again the larger side.
         *outForce = invH * fabsf(perp.z) * m3MaxF(1.0f, world->jointMotor[j].z);
         *outTorque = 0.0f;
         return;
@@ -739,7 +739,7 @@ void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
     }
     if (world->jointType[slot] == (uint8_t)m3_motorJoint)
     {
-        // The servo budgets (16-5): lower = maxForce, upper =
+        // The servo budgets: lower = maxForce, upper =
         // maxTorque, independent allowances rather than a range, so
         // the range order rule does not apply but negatives do.
         if (lower < 0.0f || upper < 0.0f)
@@ -1009,7 +1009,7 @@ m3real m3Joint_GetTranslation(m3JointId jointId)
     return m3Dot3(d, axis);
 }
 
-// --- Position drive (8-6b) --------------------------------------------------
+// --- Position drive --------------------------------------------------
 
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta)
 {
@@ -1103,7 +1103,7 @@ void m3Joint_SetTargetTranslation(m3JointId jointId, float meters)
          world->jointType[slot] != (uint8_t)m3_wheelJoint) ||
         !m3FiniteF(meters))
     {
-        return; // the wheel's drive is its suspension spring (12-2)
+        return; // the wheel's drive is its suspension spring
     }
     JointTargetOp(world, jointId, slot, meters, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }

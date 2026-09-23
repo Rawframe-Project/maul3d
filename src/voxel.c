@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The voxel chunk (3-1): the destruction niche's foundation. State
+// The voxel chunk: the destruction niche's foundation. State
 // is a dense 16x16x16 occupancy bitset plus a uint16 payload per
 // voxel (one padding-free snapshot block per chunk slot). The
 // collision surface is DERIVED data under the standing law: a
@@ -58,7 +58,7 @@ int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16
 // unnecessary).
 void m3VoxelSurfaceBuild(m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
 {
-    // The embedded BVH owns heap arrays now (10-3): release them
+    // The embedded BVH owns heap arrays now: release them
     // before the wipe or the rebuild leaks the previous build.
     // CONTRACT: the surface must be zeroed or a previous build;
     // garbage pointers here are the caller's crash.
@@ -205,7 +205,7 @@ void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box,
 }
 
 // ---------------------------------------------------------------
-// Edits (3-2): deterministic state transitions.
+// Edits: deterministic state transitions.
 
 // Wake every dynamic body whose fat bounds touch the edited region
 // (world frame): a disturbance is a disturbance even for sleepers.
@@ -258,7 +258,7 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
     m3TreeQuery(&world->tree, wlo, whi, VoxelWakeCallback, &ctx);
 
     // Characters standing over the edited region lose their ground
-    // THIS step if it vanished (4-5): the destruction interplay is
+    // THIS step if it vanished: the destruction interplay is
     // a contract, not a next-frame coincidence.
     for (int32_t c = 0; c < world->charPool.maxIndex; ++c)
     {
@@ -282,7 +282,7 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
     // A parked car hovers on wheel RAYS: its chassis bounds may sit
     // well above the carved region and the tree wake would leave
     // the sleeper floating on vanished floor. Any wheel ray
-    // overlapping the region wakes the chassis (5-3); the next
+    // overlapping the region wakes the chassis; the next
     // suspension pass reads the new surface the same step.
     for (int32_t v = 0; v < world->vehPool.maxIndex; ++v)
     {
@@ -429,7 +429,7 @@ bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y,
 
 int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, m3real radius)
 {
-    // The explosion bite (13-3): clear every cell whose center lies
+    // The explosion bite: clear every cell whose center lies
     // inside the sphere (center in the CHUNK frame), then ONE
     // surface rebuild and ONE fracture sweep for the whole bite,
     // the ClearBox economy. Cell (x,y,z) spans [x, x+1) * cellSize.
@@ -621,7 +621,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
 }
 
 // ---------------------------------------------------------------
-// Fracture (3-3): connectivity and fragment events.
+// Fracture: connectivity and fragment events.
 
 // Deterministic flood fill: seeds scan in canonical linear order,
 // the frontier grows with a fixed six-neighbor order, so island
@@ -705,7 +705,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             int32_t x = v % M3_VOXEL_DIM;
             int32_t y = (v / M3_VOXEL_DIM) % M3_VOXEL_DIM;
             int32_t z = v / (M3_VOXEL_DIM * M3_VOXEL_DIM);
-            m3real w = (m3real)chunk->fill[v]; // fill-weighted (3-6)
+            m3real w = (m3real)chunk->fill[v]; // fill-weighted
             fillSum += (int64_t)chunk->fill[v];
             chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
             chunk->payload[v] = 0;
@@ -788,7 +788,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
     }
 }
 
-// Interior depenetration (3-6): a body center INSIDE the solid
+// Interior depenetration: a body center INSIDE the solid
 // (spawn mistakes, monster impulses) escapes through the nearest
 // exposed face found by a deterministic BFS over the grid (fixed
 // seed, fixed neighbor order). Returns false when the point is not
@@ -891,7 +891,7 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
 }
 
 // ---------------------------------------------------------------
-// Seam welding (3-4).
+// Seam welding.
 
 void m3VoxelRebuildLinks(m3World* world)
 {

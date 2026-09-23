@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The explosion gate (13-2): one journaled call pushes every dynamic
+// The explosion gate: one journaled call pushes every dynamic
 // convex shape in range. A symmetric ring flies outward on mirrored
 // speeds, the falloff band grades the push, sleepers in range wake
 // while sleepers beyond it nap on, a negative impulse implodes, the

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The voxel red team (3-7): gap eight. Negative and near-edge
+// The voxel red team: gap eight. Negative and near-edge
 // coordinates, the anchor convention pinned as contract, fracture
 // storms up to and past the event capacity, journal composition
 // refusals, the chunk pool sweep, and a deterministic edit storm

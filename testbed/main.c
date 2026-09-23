@@ -299,7 +299,7 @@ static tbScene SceneKeep(void)
 }
 
 // Scene 1b: the blastyard. One call does the whole demolition
-// (13-2/13-3): crates and barrels ring a voxel wall, X detonates at
+//: crates and barrels ring a voxel wall, X detonates at
 // the reticle, the blast shoves every body by its facing area,
 // carves the wall, and the freed islands fly out as kicked
 // fragments. R rewinds the explosion, which is the whole point.
@@ -358,7 +358,7 @@ static tbScene SceneBlastyard(void)
         m3Sphere orb = {{0.0f, 0.0f, 0.0f}, 0.4f};
         m3CreateSphereShape(ball, &sd, &orb);
     }
-    // The flooded quarter (18-3): a basin beside the keep, debris
+    // The flooded quarter: a basin beside the keep, debris
     // that floats, and a current that ferries it along.
     m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
     water.lo = (m3Pos3){8.0, 0.0, -6.0};
@@ -534,7 +534,7 @@ static tbScene SceneMachines(void)
     sj.maxMotorEffort = 40.0f;
     m3CreateJoint(&sj);
 
-    // The gear pair (16-6): the motor door's hinge work echoed
+    // The gear pair: the motor door's hinge work echoed
     // through a 2:1 mesh; the small wheel spins twice as fast,
     // backwards.
     m3BodyDef gearFrame = m3DefaultBodyDef();
@@ -572,7 +572,7 @@ static tbScene SceneMachines(void)
     mesh.ratio = 0.5f; // big drives: small turns twice as fast
     m3CreateJoint(&mesh);
 
-    // The pulley (16-6): a heavy crate and a light one trade rope
+    // The pulley: a heavy crate and a light one trade rope
     // over two fixed points.
     m3BodyDef crateDef = m3DefaultBodyDef();
     crateDef.type = m3_dynamicBody;
@@ -591,7 +591,7 @@ static tbScene SceneMachines(void)
     rope.ratio = 1.0f;
     m3CreateJoint(&rope);
 
-    // The servo weld (16-5): a plate held in the air by pure
+    // The servo weld: a plate held in the air by pure
     // budgeted drive, no rows of steel.
     m3BodyDef servoAnchor = m3DefaultBodyDef();
     servoAnchor.position = (m3Pos3){0.0, 4.0, -6.0};
@@ -1658,7 +1658,7 @@ int main(void)
         }
         if (IsKeyPressed(KEY_X) && look.hit && !mouseInPanel)
         {
-            // One call does the demolition (13-2/13-3): shove every
+            // One call does the demolition: shove every
             // convex body by facing area, carve any chunk in range,
             // then dress the freed islands with the radial kick.
             m3ExplosionDef boom = m3DefaultExplosionDef();
@@ -1832,7 +1832,7 @@ int main(void)
         }
 
         // The joint cart: spin the surviving axles, steer the
-        // front pair about their struts (16-3).
+        // front pair about their struts.
         if (cartScene && !paused)
         {
             float spin = (IsKeyDown(KEY_W) ? -25.0f : 0.0f) + (IsKeyDown(KEY_S) ? 14.0f : 0.0f);

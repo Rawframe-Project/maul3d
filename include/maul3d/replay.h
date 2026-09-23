@@ -65,7 +65,7 @@ extern "C"
     /// untouched on refusal.
     M3_API bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out);
 
-    /// One row of a world-versus-world body comparison (9-3). A
+    /// One row of a world-versus-world body comparison. A
     /// DEBUG READ for the divergence finder: never state, never
     /// hashed, order is total (error magnitude descending, body
     /// index ascending on ties).

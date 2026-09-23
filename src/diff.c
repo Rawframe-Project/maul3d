@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The divergence finder's world comparator (9-3): a pure debug
+// The divergence finder's world comparator: a pure debug
 // read over two worlds' body books. Never state, never hashed,
 // never inside the step.
 

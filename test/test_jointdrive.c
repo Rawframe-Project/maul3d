@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The joint runtime gate (8-6a): limits and motors bind mid-run,
+// The joint runtime gate: limits and motors bind mid-run,
 // the collide toggle separates an overlapped pair, readback lands
 // in the m*g band on a hanging load, breakage fires exactly once
 // at the analytic threshold, and every op replays bit-exact.

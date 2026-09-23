@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The query surface (2c-7): multi-hit rays, sphere and capsule shape
+// The query surface: multi-hit rays, sphere and capsule shape
 // casts through the shared time-of-impact kernel, point containment,
 // and overlap gathers. Pure observers: no query moves a bit of
 // simulation state, and every result orders canonically (fraction
@@ -69,12 +69,12 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     m3RayAllContext* ctx = (m3RayAllContext*)userContext;
     if (ctx->world->bodyEnabled[ctx->world->shapeBody[shape]] == 0)
     {
-        return true; // disabled bodies vanish from queries (8-3)
+        return true; // disabled bodies vanish from queries
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
                       ctx->world->shapeCategory[shape], ctx->world->shapeMask[shape]))
     {
-        return true; // filtered out (8-1)
+        return true; // filtered out
     }
     m3RayHit hit = m3RayTestOneShape(ctx->world, shape, ctx->origin, ctx->translation);
     if (hit.hit)
@@ -163,16 +163,16 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     }
     if (world->bodyEnabled[body] == 0)
     {
-        return; // disabled bodies vanish from queries (8-3)
+        return; // disabled bodies vanish from queries
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
                       ctx->world->shapeCategory[shape], ctx->world->shapeMask[shape]))
     {
-        return; // filtered out (8-1)
+        return; // filtered out
     }
     if (world->shapeType[shape] == (uint8_t)m3_voxelShape)
     {
-        // Voxel targets (3-5): per-box TOI against the merged
+        // Voxel targets: per-box TOI against the merged
         // surface, unextended (queries report true geometry; the
         // seam extension is a contact-only device).
         int32_t slot = world->shapeVoxelIndex[shape];
@@ -403,12 +403,12 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
     }
     if (world->bodyEnabled[world->shapeBody[shape]] == 0)
     {
-        return; // disabled bodies vanish from queries (8-3)
+        return; // disabled bodies vanish from queries
     }
     if (!m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits, world->shapeCategory[shape],
                       world->shapeMask[shape]))
     {
-        return; // filtered out (8-1)
+        return; // filtered out
     }
     m3Vec3 n = world->shapeGeom[shape].v;
     m3real offset =
@@ -899,7 +899,7 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
     }
     if (type == (uint8_t)m3_heightFieldShape)
     {
-        // Distance to any terrain triangle within reach (19-3): the
+        // Distance to any terrain triangle within reach: the
         // mesh recipe over the cell gather.
         m3Transform xfS6 = m3ShapeWorldTransform(world, shape);
         const m3Transform* xfH = &xfS6;
@@ -990,12 +990,12 @@ static bool OverlapCallback(int32_t shape, void* userContext)
         m3OverlapContext* fctx = (m3OverlapContext*)userContext;
         if (fctx->world->bodyEnabled[fctx->world->shapeBody[shape]] == 0)
         {
-            return true; // disabled bodies vanish from queries (8-3)
+            return true; // disabled bodies vanish from queries
         }
         if (!m3FilterPass(fctx->filter.categoryBits, fctx->filter.maskBits,
                           fctx->world->shapeCategory[shape], fctx->world->shapeMask[shape]))
         {
-            return true; // filtered out (8-1)
+            return true; // filtered out
         }
     }
     m3OverlapContext* ctx = (m3OverlapContext*)userContext;
@@ -1107,7 +1107,7 @@ int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m
                                    m3DefaultQueryFilter());
 }
 
-// --- Explosions (13-2) ------------------------------------------------------
+// --- Explosions ------------------------------------------------------
 
 #define M3_EXPLOSION_COOKIE ((int32_t)(M3_COOKIE ^ ((int32_t)sizeof(m3ExplosionDef) << 8) ^ 13))
 
@@ -1183,7 +1183,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     uint8_t type = world->shapeType[shape];
     if (type == (uint8_t)m3_voxelShape)
     {
-        // The carve couples the blast to destruction (13-3): one
+        // The carve couples the blast to destruction: one
         // call bites the chunk, the fracture sweep frees islands,
         // and the fragment events carry the rest to the host.
         if (def->voxelCarve > 0.0f)
@@ -1289,7 +1289,7 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
     m3TreeQuery(&world->tree, lo, hi, ExplodeCallback, &ctx);
     // Soft particles: a canonical linear pass over the pool. Verlet
     // has no velocity to poke, so the push lands as a pending kick
-    // the next step integrates exactly once (13-3).
+    // the next step integrates exactly once.
     if (def->softPush != 0.0f && def->impulsePerArea != 0.0f)
     {
         int32_t maxSoft = world->softPool.maxIndex;
@@ -1367,7 +1367,7 @@ void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def)
     }
 }
 
-// --- Contact readback (14-3) ------------------------------------------------
+// --- Contact readback ------------------------------------------------
 
 static void FillContactData(const m3World* world, int32_t pair, m3ContactData* out)
 {
@@ -1458,7 +1458,7 @@ int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capac
     return written;
 }
 
-// --- Proxy overlaps (15-3) --------------------------------------------------
+// --- Proxy overlaps --------------------------------------------------
 
 typedef struct m3ProxyOverlapContext
 {
@@ -1569,7 +1569,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     }
     if (type == (uint8_t)m3_heightFieldShape)
     {
-        // The overlap family sees terrain (19-3): cloud box, cell
+        // The overlap family sees terrain: cloud box, cell
         // gather, the same reach test per triangle.
         const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
         m3Vec3 hlo = local[0];
@@ -1777,7 +1777,7 @@ int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
                                 m3DefaultQueryFilter());
 }
 
-// --- The mover toolkit (22-1) -----------------------------------------------
+// --- The mover toolkit -----------------------------------------------
 //
 // Pure queries plus a pure solver: nothing here journals, mutates,
 // or hashes. Hosts compose them into their own movers; the engine

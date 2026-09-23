@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// XPBD particle lattices (7-1). The soft pass runs inside the step:
+// XPBD particle lattices. The soft pass runs inside the step:
 // per substep, integrate every live particle under gravity, satisfy
 // the distance constraints once in fixed edge order (the small-steps
 // XPBD schedule: one Gauss-Seidel sweep per substep beats many
@@ -175,7 +175,7 @@ int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
             }
         }
     }
-    // Bend tethers (20-1): second-neighbor edges along each axis,
+    // Bend tethers: second-neighbor edges along each axis,
     // AFTER every structural edge so one boundary index splits the
     // two compliances. Capacity is checked up front: a lattice
     // whose tethers cannot fit refuses loudly instead of shipping
@@ -279,7 +279,7 @@ void m3DestroySoftBodyInternal(m3World* world, int32_t slot)
     m3IdPoolFree(&world->softPool, slot);
 }
 
-// Tet soft bodies (20-3): explicit points and tets, edges deduped
+// Tet soft bodies: explicit points and tets, edges deduped
 // from tet edges in first-touch order, one rigid volume row per
 // tet. The full wall lives here: replay hands this raw bytes.
 static int32_t TetEdgeSeen(const uint16_t* ea, const uint16_t* eb, int32_t count, uint16_t lo,
@@ -527,7 +527,7 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     world->softPos[k].x += (double)(depth * n.x);
     world->softPos[k].y += (double)(depth * n.y);
     world->softPos[k].z += (double)(depth * n.z);
-    // Two-way (7-3): a particle pushed out of a dynamic body
+    // Two-way: a particle pushed out of a dynamic body
     // pushes back, the wheel-reaction pattern: the projection is a
     // velocity change of depth over h on the particle's mass,
     // mirrored onto the body at the contact and waking it. Jelly
@@ -728,7 +728,7 @@ static void SoftCollideParticle(m3World* world, int32_t slot, int32_t k, int32_t
     }
     if (stype == (uint8_t)m3_heightFieldShape)
     {
-        // Native terrain (19-3): the mesh recipe over the cell
+        // Native terrain: the mesh recipe over the cell
         // gather, particle-sized window.
         const m3HeightFieldData* hf = &world->hfData[world->shapeHfIndex[shape]];
         m3Vec3 hfTris[32][3];
@@ -786,7 +786,7 @@ static void SoftCollideParticle(m3World* world, int32_t slot, int32_t k, int32_t
     }
 }
 
-// The closed-lattice volume and its gradients (20-2): six faces
+// The closed-lattice volume and its gradients: six faces
 // walked in fixed order, outward winding, signed tet sum against a
 // local origin (the first particle: double-safe far from zero).
 // dV/da for triangle (a, b, c) is cross(b, c) / 6; the division by
@@ -869,7 +869,7 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
     return volume6;
 }
 
-// The soft pass: XPBD small steps over the full shape set (7-2).
+// The soft pass: XPBD small steps over the full shape set.
 void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
 {
     if (world->softPool.maxIndex == 0)
@@ -915,7 +915,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             // Integrate: velocity from the previous position pair,
             // gravity, then the predicted position.
             m3Vec3 g = m3MulSV3(world->softGravityScale[slot], world->gravity);
-            // Wind (11-3): proportional drag toward the wind
+            // Wind: proportional drag toward the wind
             // velocity, gusted by the accumulated phase. Soft-only
             // by design (rigid bodies already have the force API).
             m3Vec3 windVel = {0.0f, 0.0f, 0.0f};
@@ -934,7 +934,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 {
                     world->softPrev[k] = world->softPos[k];
                     // A blast kick on a pinned particle evaporates:
-                    // it must not linger in the hash forever (13-3).
+                    // it must not linger in the hash forever.
                     world->softKick[k] = (m3Vec3){0.0f, 0.0f, 0.0f};
                     continue;
                 }
@@ -946,7 +946,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 if (kick.x != 0.0f || kick.y != 0.0f || kick.z != 0.0f)
                 {
                     // The pending explosion kick lands exactly once,
-                    // on the first substep that integrates it (13-3).
+                    // on the first substep that integrates it.
                     v = m3Add3(v, kick);
                     world->softKick[k] = (m3Vec3){0.0f, 0.0f, 0.0f};
                 }
@@ -965,7 +965,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 {
                     v = m3Add3(v, m3MulSV3(h * windDrag, m3Sub3(windVel, v)));
                 }
-                // Water (18-2): a submerged particle trades gravity
+                // Water: a submerged particle trades gravity
                 // for buoyancy under the rho-1000 particle
                 // convention (density 1000 suspends, denser fluids
                 // lift, thinner ones let it sink) and drags toward
@@ -1031,7 +1031,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 world->softPos[kb].z -= (double)(wb * scale * diff.z);
             }
 
-            // The bind tether (20-4): a hard clamp to the create
+            // The bind tether: a hard clamp to the create
             // pose radius, BEFORE the volume rows so a crushed tet
             // still restores its volume (the tether is a bound,
             // the volumes are promises; documented order).
@@ -1058,7 +1058,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     }
                 }
             }
-            // Tet volume rows (20-3): one rigid row per tet in
+            // Tet volume rows: one rigid row per tet in
             // fixed order (6V against the rest, the pressure
             // gradients localized to four particles).
             int32_t tetCount2 = world->softTetCount[slot];
@@ -1133,7 +1133,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     world->softPos[id2].z += (double)dp.z;
                 }
             }
-            // The pressure row (20-2): one global volume constraint
+            // The pressure row: one global volume constraint
             // per substep, PBD-projected in fixed particle order.
             // Gradients are of 6V, so the projection solves
             // C6 = 6 (V - target) against them directly: the sixes
@@ -1172,7 +1172,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 }
             }
 
-            // Anchors (7-3): snap each anchored particle to its
+            // Anchors: snap each anchored particle to its
             // body-frame target; the pull the lattice exerted on it
             // this substep (where the edges dragged it versus where
             // the body says it must be) lands on the body as an
@@ -1215,7 +1215,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 }
             }
 
-            // The world's surfaces (7-2): every particle projects
+            // The world's surfaces: every particle projects
             // out of every shape family through the shared local
             // kernels, ascending shape order, friction from the
             // touched shape (the PBD tangential rule). Planes stay
@@ -1231,7 +1231,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 int32_t body = world->shapeBody[sShape];
                 if (world->bodyEnabled[body] == 0)
                 {
-                    continue; // disabled bodies are ghosts to lattices too (8-3)
+                    continue; // disabled bodies are ghosts to lattices too
                 }
                 for (int32_t i = 0; i < count; ++i)
                 {
@@ -1245,7 +1245,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             }
         }
 
-        // Soft-vs-soft (11-1): particle pairs between DIFFERENT
+        // Soft-vs-soft: particle pairs between DIFFERENT
         // lattices, the gap the competitors' own docs admit.
         // Canonical order: lower slot first, ascending particle
         // indices, one projection per substep. Self-collision stays
@@ -1369,7 +1369,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             }
         }
 
-        // Soft-to-soft anchors (11-2): position equality between two
+        // Soft-to-soft anchors: position equality between two
         // lattices' particles, split by inverse mass, canonical
         // owner order (the lower slot holds the pin). EITHER side
         // dying releases the pin silently: the 7-3 liveness lesson

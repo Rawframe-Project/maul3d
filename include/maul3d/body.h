@@ -33,7 +33,7 @@ extern "C"
         float angularDamping;
         uint64_t userData; // opaque, carried verbatim
         /// A high speed body that gets the full continuous pass
-        /// against static AND dynamic targets (2b-8). Every fast
+        /// against static AND dynamic targets. Every fast
         /// dynamic body already sweeps against statics; the bullet
         /// flag buys the dynamic-target sweep. Bullet versus bullet
         /// is not resolved (the reference limitation, documented).
@@ -48,7 +48,7 @@ extern "C"
     /// Create a body. Returns the null id on an invalid def, a stale
     /// world, or an exhausted body pool (loud in debug builds). A
     /// shapeless dynamic body has unit mass and zero inertia until a
-    /// shape provides the real values (task 7).
+    /// shape provides the real values.
     M3_API m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def);
 
     /// Destroy a body. The id goes stale; the slot recycles FIFO with a
@@ -64,7 +64,7 @@ extern "C"
     M3_API m3BodyType m3Body_GetType(m3BodyId bodyId);
 
     /// Journaled setters: every mutation is a discrete op.
-    /// Runtime control (8-3), all journaled. SetTransform is the
+    /// Runtime control, all journaled. SetTransform is the
     /// teleport: the pose lands instantly, velocities stay, and
     /// bodies around BOTH the old and new locations wake so
     /// nothing keeps sleeping under or inside a teleported crate.
@@ -97,7 +97,7 @@ extern "C"
     /// the empty string for unnamed bodies and stale ids.
     M3_API void m3Body_SetName(m3BodyId bodyId, const char* name);
     M3_API const char* m3Body_GetName(m3BodyId bodyId);
-    /// Who touches me now (14-3): fills up to capacity entries and
+    /// Who touches me now: fills up to capacity entries and
     /// returns the count written. See m3ContactData in world.h.
     M3_API int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capacity);
     /// Sleep controls: a per-body velocity threshold (zero restores
@@ -108,7 +108,7 @@ extern "C"
     /// to sleep and zeroes its velocities.
     M3_API void m3Body_SetAwake(m3BodyId bodyId, bool awake);
 
-    /// Forces and impulses (8-2), journaled like every mutation.
+    /// Forces and impulses, journaled like every mutation.
     /// Forces and torques ACCUMULATE and act over the next step,
     /// then clear; impulses change velocity immediately. Only
     /// awake-able dynamic bodies respond: static and kinematic

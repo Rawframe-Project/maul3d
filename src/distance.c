@@ -706,7 +706,7 @@ m3DistanceOutput m3ShapeDistance(const m3DistanceInput* input, m3SimplexCache* c
 }
 
 // ---------------------------------------------------------------
-// Time of impact (2b-8), adapted from the reference distance.c.
+// Time of impact, adapted from the reference distance.c.
 // ---------------------------------------------------------------
 
 m3Transform m3GetSweepTransform(const m3Sweep* sweep, m3real time)
@@ -1095,7 +1095,7 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input)
         if (distanceOutput.distance <= 0.0f)
         {
             // Started overlapped: continuous gives up, the discrete
-            // deep-recovery kernels (2b-7) own this case.
+            // deep-recovery kernels own this case.
             output.state = m3_toiStateOverlapped;
             output.fraction = 0.0f;
             break;

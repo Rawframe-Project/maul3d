@@ -56,7 +56,7 @@ extern "C"
     /// same purity test: a draw pass never moves the world hash.
     M3_API void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw);
 
-    /// Extra layers (14-2): the analysis views on top of the base
+    /// Extra layers: the analysis views on top of the base
     /// walk. A SEPARATE additive struct again; m3DebugDraw and
     /// m3SolidDraw stay frozen ABI. Read-only like both, held by
     /// the same purity gate.

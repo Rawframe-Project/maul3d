@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The soft body gate (7-1): XPBD lattices under the four gates. A
+// The soft body gate: XPBD lattices under the four gates. A
 // pinned rope hangs to its analytic length, a jelly cube rests on
 // the plane at its geometric height, the whole session journals
 // and replays bit-exact, and a mid-sag rollback re-sags onto
@@ -541,7 +541,7 @@ static void TestClothFollowsBeam(void)
 
 static void TestSoftFractureStorm(void)
 {
-    // Red team (7-4): a jelly rides a voxel deck while the deck is
+    // Red team: a jelly rides a voxel deck while the deck is
     // shot out from under it; fragments rain, the jelly falls into
     // the holes, and twin storms agree to the bit.
     uint64_t hashes[2];

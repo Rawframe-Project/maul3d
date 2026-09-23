@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The fields gate (11-3): wind streams a flag deterministically
+// The fields gate: wind streams a flag deterministically
 // with gust continuity across rollback, and conveyors carry
 // crates at belt speed with the reference tangentVelocity law the
 // central-friction port carried at zero until this slice.

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// No-growth bookkeeping (2d-6): the soak asserts that steady-state
+// No-growth bookkeeping: the soak asserts that steady-state
 // stepping performs ZERO net allocation. Counters, not sizes: the
 // free contract carries no size, and a flat live count plus the
 // LeakSanitizer cell together are the growth proof. Main-thread
@@ -38,7 +38,7 @@ void m3DebugAllocCounts(int64_t* allocs, int64_t* frees)
     }
 }
 
-// The host hook (integration audit A3): set before the first
+// The host hook: set before the first
 // world, constant while worlds live. Hooked memory arrives
 // uninitialized, so the zeroing happens here either way.
 static m3AllocFn* s_hookAlloc = NULL;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The reshape gate (15-2): sphere and capsule geometry swaps in
+// The reshape gate: sphere and capsule geometry swaps in
 // place, conversions included. Interned families refuse, hostile
 // dimensions refuse and journal nothing, a shrink drops what leaned
 // on the old silhouette and wakes the sleepers, mass follows the

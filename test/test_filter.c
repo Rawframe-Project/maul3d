@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The filter gate (8-1): categories, masks, and groups decide who
+// The filter gate: categories, masks, and groups decide who
 // touches whom, queries carry their own filter, sensors and the
 // continuous phase obey the same rule, and filtered worlds
 // journal, replay, and roll back onto identical bits.

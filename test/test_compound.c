@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The compound gate (10-1): an offset shape behaves exactly like a
+// The compound gate: an offset shape behaves exactly like a
 // centered shape parked at the same world spot, a dumbbell carries
 // the analytic composite inertia, a rotated offset lies the way it
 // looks, queries hit shapes where they visually sit, and offsets

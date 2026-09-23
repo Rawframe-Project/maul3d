@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The vehicle gate (5-1): the raycast suspension. A dropped chassis
+// The vehicle gate: the raycast suspension. A dropped chassis
 // settles with every spring at the analytic balance, the whole
 // bounce twins and rolls back to the bit, the pool churns and
 // refuses honestly, and a destroyed chassis takes its vehicle with
@@ -617,7 +617,7 @@ static void TestPoolAndCascade(void)
 
 static void TestFerryRideAndChurn(void)
 {
-    // Red team (5-4): a car parked on a moving kinematic ferry
+    // Red team: a car parked on a moving kinematic ferry
     // rides it (the tire works in surface-relative velocity), and
     // stops with it; then vehicle churn twins prove the pool under
     // create/destroy load.

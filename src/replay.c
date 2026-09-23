@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The M3J1 container codec (9-1): pure memory, no IO, no world
+// The M3J1 container codec: pure memory, no IO, no world
 // access. Corrupt input refuses loudly and touches nothing.
 
 #include "maul3d/replay.h"

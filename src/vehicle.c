@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The raycast vehicle (5-1): the suspension pass. Wheels cast rays
+// The raycast vehicle: the suspension pass. Wheels cast rays
 // from the chassis (the chassis ignores itself through the ray
 // hook), springs push back through hertz and zeta scaled by a
 // quarter of the chassis mass per wheel, and every impulse lands
@@ -249,7 +249,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
         m3Vec3 arms[M3_VEHICLE_MAX_WHEELS];
         int32_t applied = 0;
 
-        // The drivetrain (12-1): one engine per vehicle, computed
+        // The drivetrain: one engine per vehicle, computed
         // BEFORE the wheel loop from pass-start velocities like
         // everything else. Engine speed derives from chassis forward
         // speed through the driven wheels' mean radius, the active
@@ -371,7 +371,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             }
         }
 
-        // Differentials (16-4): the driven mean of the LAST step's
+        // Differentials: the driven mean of the LAST step's
         // contact speeds, one pass and one step of lag like the
         // engine's own wheel reading.
         m3real dtMeanLon = 0.0f;
@@ -450,7 +450,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             m3Vec3 hubArm = {arm.x + dir.x * suspLen, arm.y + dir.y * suspLen,
                              arm.z + dir.z * suspLen};
 
-            // The tire (5-2): drive, brake, and lateral impulses in
+            // The tire: drive, brake, and lateral impulses in
             // the contact plane, all clamped by one friction circle
             // against this wheel's suspension load. The chassis
             // local +x axis is forward by convention; a steerable
@@ -492,7 +492,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 }
                 m3Vec3 vContact = m3Sub3(m3Add3(v0, m3Cross3(w0, hubArm)), vSurf);
                 m3real vLon = m3Dot3(vContact, forward);
-                world->vehWheelLon[k] = vLon; // the diff's next-step read (16-4)
+                world->vehWheelLon[k] = vLon; // the diff's next-step read
                 m3real vLat = m3Dot3(vContact, side);
 
                 // Velocity kills use the solver's own effective
@@ -534,7 +534,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                     }
                     else if (world->vehTrackMode[slot] != 0)
                     {
-                        // Skid steer (23-1): the side picks its own
+                        // Skid steer: the side picks its own
                         // throttle by the anchor's chassis-local z
                         // (+z right by convention).
                         m3real trackThr = world->vehWheelAnchor[k].z >= 0.0f
@@ -575,7 +575,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             arms[applied] = hubArm;
             applied += 1;
 
-            // Newton's third law for dynamic ground (5-4): a wheel
+            // Newton's third law for dynamic ground: a wheel
             // pressing or driving on a fragment pushes the fragment
             // back, or cars would mint momentum from loose rubble.
             int32_t under = world->shapeBody[hit.shape.index1 - 1];
@@ -603,7 +603,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 world->angularVelocities[chassis], m3MulMV3(invI, m3Cross3(arms[a], impulses[a])));
         }
 
-        // The lean stabilizer (23-2): a two-wheeler is an inverted
+        // The lean stabilizer: a two-wheeler is an inverted
         // pendulum, so an opt-in controller rolls the chassis toward
         // the lean the turn demands. It works in angular velocity
         // directly (inertia-free, the gain reads in 1/s^2) and only

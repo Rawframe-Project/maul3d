@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The native terrain gate (19-1): a grid heightfield lands as raw
+// The native terrain gate: a grid heightfield lands as raw
 // samples (the low-memory path beside meshes), refuses hostile
 // grids in both doors, and rides the journal and the snapshot
 // byte for byte. Contacts open in 19-2.

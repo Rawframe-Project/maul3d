@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The mover toolkit gate (22-1): pure capsule casts, contact plane
+// The mover toolkit gate: pure capsule casts, contact plane
 // collection, and the plane accumulator. Nothing here mutates a
 // world: the hash fence proves it.
 

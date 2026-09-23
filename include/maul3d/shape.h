@@ -20,9 +20,9 @@ extern "C"
         m3_planeShape = 1,       // static bodies only: an infinite half-space
         m3_hullShape = 2,        // convex hull (boxes in 2b-3; point clouds later)
         m3_capsuleShape = 3,     // a segment with a radius
-        m3_meshShape = 4,        // static triangle soup (2b-9)
-        m3_voxelShape = 5,       // dense 16^3 voxel chunk (3-1)
-        m3_heightFieldShape = 6, // native grid terrain (19-1)
+        m3_meshShape = 4,        // static triangle soup
+        m3_voxelShape = 5,       // dense 16^3 voxel chunk
+        m3_heightFieldShape = 6, // native grid terrain
     } m3ShapeType;
 
     typedef struct m3Sphere
@@ -45,7 +45,7 @@ extern "C"
         float density; // kg/m^3
         float friction;
         float restitution;
-        /// Collision filtering (8-1). A pair collides when each
+        /// Collision filtering. A pair collides when each
         /// side's category intersects the other's mask, unless a
         /// shared nonzero groupIndex overrides: positive forces
         /// collision, negative forbids it (the reference rule).
@@ -53,7 +53,7 @@ extern "C"
         uint64_t categoryBits;
         uint64_t maskBits;
         int32_t groupIndex;
-        /// Rolling resistance (6-3): a dimensionless material knob
+        /// Rolling resistance: a dimensionless material knob
         /// braking relative rotation at contacts, mixed by maximum
         /// across the pair and scaled by the pair's extent (the
         /// reference recipe). Zero (the default) rolls free; around
@@ -68,7 +68,7 @@ extern "C"
         bool isSensor;
         bool enableHitEvents;      // 8-5: default false, streams cost
         bool enablePreSolveEvents; // 8-5: default false, veto calls cost
-        /// Compound offset (10-1): the shape's transform relative to
+        /// Compound offset: the shape's transform relative to
         /// its body. Identity by default; a near-unit rotation is
         /// demanded, garbage refuses at create.
         m3Vec3 localPosition;
@@ -115,7 +115,7 @@ extern "C"
     M3_API m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def,
                                           const m3Capsule* capsule);
 
-    /// A cylinder, honestly faceted (15-1): the factory mints a
+    /// A cylinder, honestly faceted: the factory mints a
     /// 2N-vertex prism through the interned hull path (N = segments,
     /// clamped to [3, 32] so 2N fits the 64-vertex hull), so mass,
     /// contacts, casts, carving, and CCD all inherit exact hull math
@@ -134,7 +134,7 @@ extern "C"
     M3_API m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def,
                                            const m3Cylinder* cylinder, int32_t segments);
 
-    /// Runtime geometry replacement (15-2): swap a sphere or capsule
+    /// Runtime geometry replacement: swap a sphere or capsule
     /// shape's geometry in place; conversions between the two are
     /// legal. Hulls, meshes, voxels, and planes refuse loudly
     /// (interned slabs are immutable by law). Journaled; mass,
@@ -161,7 +161,7 @@ extern "C"
                                        const m3Vec3* vertices, int32_t vertexCount,
                                        const uint16_t* indices, int32_t triangleCount);
 
-    /// A per-triangle surface material for mesh shapes (17-2): the
+    /// A per-triangle surface material for mesh shapes: the
     /// struck triangle's entry replaces the SHAPE's friction,
     /// restitution, and rolling resistance in the contact mix, and
     /// its surface velocity feeds the conveyor row (a moving
@@ -194,7 +194,7 @@ extern "C"
                                               const float* heights, int32_t nx, int32_t nz,
                                               m3real cellSize);
 
-    /// The NATIVE grid heightfield (19-1): the same nx-by-nz grid
+    /// The NATIVE grid heightfield: the same nx-by-nz grid
     /// contract as above, but stored as raw heights (four bytes per
     /// sample) instead of triangulated into a mesh: the low-memory
     /// terrain path. Grid limits per chunk: 2..255 in each
@@ -231,7 +231,7 @@ extern "C"
                                              const uint8_t* voxels, const uint16_t* payload,
                                              m3real cellSize);
 
-    /// Voxel edits (3-2): deterministic state transitions, journaled
+    /// Voxel edits: deterministic state transitions, journaled
     /// and replayed like every other mutation, fully inside the
     /// rollback delta. The collision surface rebuilds as a pure
     /// function of the grid after any occupancy change (a
@@ -258,7 +258,7 @@ extern "C"
     /// or -1 on a stale id, a non-voxel shape, or a bad region.
     M3_API int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3],
                                          const int32_t hi[3]);
-    /// Fill fraction (3-6): 255 is a whole voxel, 1 a sliver. A
+    /// Fill fraction: 255 is a whole voxel, 1 a sliver. A
     /// mass and destruction property, never geometry: the voxel
     /// still collides as a full box, but its fragment mass scales
     /// by fill / 255. Refuses zero fill (that is a clear: use
@@ -272,17 +272,17 @@ extern "C"
     /// The owning body (22-2: the mover recipe needs to tell its
     /// own shape from the world's). Null id for stale shapes.
     M3_API m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
-    /// Who touches this shape now (14-3): fills up to capacity
+    /// Who touches this shape now: fills up to capacity
     /// entries and returns the count written. See m3ContactData.
     M3_API int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);
 
-    /// Destroy one shape and rebuild the owner's mass books (10-4).
+    /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
     /// mass (the reference convention).
     M3_API void m3DestroyShape(m3ShapeId shapeId);
 
-    /// Runtime material setters (8-4). Journaled; contacts read
+    /// Runtime material setters. Journaled; contacts read
     /// materials at prepare, so changes bind from the next step. A
     /// sleeping stack keeps its old mix until something wakes it
     /// (the reference behavior, documented).
@@ -298,14 +298,14 @@ extern "C"
     M3_API void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass);
     M3_API float m3Shape_GetDensity(m3ShapeId shapeId);
 
-    /// Opt a shape into hit events / the pre-solve veto (8-5).
+    /// Opt a shape into hit events / the pre-solve veto.
     /// Journaled; the flags are state and snapshot with the world.
     M3_API void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag);
     M3_API bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId);
     M3_API void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag);
     M3_API bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 
-    /// Conveyor (11-3): a world-frame surface velocity on the
+    /// Conveyor: a world-frame surface velocity on the
     /// shape. Contacts drive the tangential target toward it, the
     /// reference tangentVelocity semantic the central-friction port
     /// carried at zero until now. Journaled; state, hashed when

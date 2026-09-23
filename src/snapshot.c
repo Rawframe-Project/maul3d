@@ -150,7 +150,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
     M3_BLOCK(world->maxExtents, cap * (int32_t)sizeof(float));
     M3_BLOCK(world->userData, cap * (int32_t)sizeof(uint64_t));
     M3_BLOCK(world->bodyNames,
-             cap * M3_BODY_NAME_CAPACITY); // v43: debug names (14-3), never hashed
+             cap * M3_BODY_NAME_CAPACITY); // v43: debug names, never hashed
     M3_BLOCK(world->bodyForce, cap * (int32_t)sizeof(m3Vec3));
     M3_BLOCK(world->bodyTorque, cap * (int32_t)sizeof(m3Vec3));
     M3_BLOCK(world->bodyEnabled, cap * (int32_t)sizeof(uint8_t));
@@ -199,7 +199,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
     M3_BLOCK(world->proxyIds, shapeCap * (int32_t)sizeof(int32_t));
     M3_BLOCK(world->tree.nodes, world->tree.capacity * (int32_t)sizeof(m3TreeNode));
     M3_BLOCK(world->shapeHullIndex, shapeCap * (int32_t)sizeof(int32_t));
-    // Hull CONTENT moved to the count-derived tail (17-1): the
+    // Hull CONTENT moved to the count-derived tail: the
     // 5808-byte fixed slabs cost more snapshot than every joint
     // in the world combined, per EMPTY slot.
     M3_BLOCK(world->hullRefCounts, shapeCap * (int32_t)sizeof(int32_t));
@@ -343,7 +343,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
              world->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES * (int32_t)sizeof(m3Pos3));
     M3_BLOCK(world->softInvMass,
              world->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES * (int32_t)sizeof(m3real));
-    M3_BLOCK(world->softKick, // v43: pending explosion kicks (13-3)
+    M3_BLOCK(world->softKick, // v43: pending explosion kicks
              world->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES * (int32_t)sizeof(m3Vec3));
     M3_BLOCK(world->softEdgeA,
              world->softBodyCapacity * M3_SOFTBODY_MAX_EDGES * (int32_t)sizeof(uint16_t));
@@ -420,7 +420,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
     M3_BLOCK(world->jointPool.freeQueue, world->jointCapacity * (int32_t)sizeof(int32_t));
     M3_BLOCK(world->manifolds, world->pairCapacity * (int32_t)sizeof(m3Manifold));
 
-    // Mesh content LAST (10-3): the only variable-size section, so
+    // Mesh content LAST: the only variable-size section, so
     // the fixed prefix above stays state-independent and the
     // restore can pre-validate sizes straight from the buffer.
     // Counts land first; the read pass sizes the slot through the
@@ -445,7 +445,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
                 M3_BLOCK(mesh->vertices, mesh->vertexCount * (int32_t)sizeof(m3Vec3));
                 M3_BLOCK(mesh->indices, 3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
                 M3_BLOCK(mesh->edgeFlags, mesh->triangleCount);
-                // Material groups (17-2): the count, the fixed
+                // Material groups: the count, the fixed
                 // table, and one group byte per triangle. A
                 // material-free mesh writes zeros throughout.
                 M3_BLOCK(&mesh->materialCount, 4);
@@ -458,7 +458,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
                 M3_BLOCK(mesh->triMaterials, mesh->triangleCount);
             }
         }
-        // Hull content, count-derived (17-1): counts land first,
+        // Hull content, count-derived: counts land first,
         // the read pass validates them against the compile-time
         // caps and zeroes the slab so the unused tail is canonical
         // (a released slot already zeroes itself; this guards the
@@ -518,7 +518,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
                 M3_BLOCK(hull->edges, hull->edgeCount * (int32_t)sizeof(m3HullHalfEdge));
             }
         }
-        // Native heightfield content (19-1): counts first, then the
+        // Native heightfield content: counts first, then the
         // baked extremes and the raw samples; the read pass sizes
         // through the alloc gate and refuses hostile counts.
         for (int32_t hfIdx = 0; hfIdx < world->shapeCapacity; ++hfIdx)
@@ -682,7 +682,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     {
         return false; // the pair list and the tree index arrays directly
     }
-    // Two-phase size validation (10-3): the fixed prefix is
+    // Two-phase size validation: the fixed prefix is
     // state-independent, and the variable mesh tail is parsed
     // straight from the buffer BEFORE any byte lands in the world,
     // so refusal stays atomic.
@@ -708,7 +708,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         }
         if (tc > 0)
         {
-            // Content (10-3) plus the material section (17-2): the
+            // Content plus the material section: the
             // count word, the fixed eight-entry table, and a group
             // byte per triangle.
             int64_t content = (int64_t)vc * (int64_t)sizeof(m3Vec3) + 6LL * tc + (int64_t)tc + 4 +
@@ -721,7 +721,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
             cursor += (int32_t)content;
         }
     }
-    // The hull tail (17-1): same pre-validation, four counts per
+    // The hull tail: same pre-validation, four counts per
     // slot, content only where vertices exist.
     for (int32_t hIdx = 0; hIdx < world->shapeCapacity; ++hIdx)
     {
@@ -757,7 +757,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
             cursor += (int32_t)content;
         }
     }
-    // The heightfield tail (19-1): three count words per slot,
+    // The heightfield tail: three count words per slot,
     // samples only where a grid lives.
     for (int32_t hfIdx = 0; hfIdx < world->shapeCapacity; ++hfIdx)
     {
@@ -848,7 +848,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     }
     // The frozen-pair buffer is derived from a pair list this
     // restore just invalidated; the next update must requery the
-    // whole tree once and re-harvest (S-3b).
+    // whole tree once and re-harvest.
     world->sleepingPairCount = 0;
     world->pairsFullQuery = 1;
     // Derived data follows content: the per-mesh BVHs are rebuilt
@@ -922,7 +922,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
     }
     if (world->maximumAngularSpeed != M3_MAX_ANGULAR_SPEED_DEFAULT)
     {
-        // The angular cap folds in its OWN block (13-1), not the 8-4
+        // The angular cap folds in its OWN block, not the 8-4
         // knob block above: appending there would move the hash of
         // every world already off-default on an older knob.
         h = m3Hash64(h, &world->maximumAngularSpeed, 4);
@@ -1024,7 +1024,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         if (world->shapeCategory[i] != 1ull || world->shapeMask[i] != ~0ull ||
             world->shapeGroup[i] != 0)
         {
-            // Same rule for filters (8-1): default-filtered shapes
+            // Same rule for filters: default-filtered shapes
             // keep every pre-existing hash still.
             h = m3Hash64(h, &world->shapeCategory[i], 8);
             h = m3Hash64(h, &world->shapeMask[i], 8);
@@ -1076,13 +1076,13 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->softCompliance[i], 4);
         if (world->softBendCompliance[i] != 0.0f)
         {
-            // Bend tethers fold off-default (20-1), their own block.
+            // Bend tethers fold off-default, their own block.
             h = m3Hash64(h, &world->softBendStart[i], 4);
             h = m3Hash64(h, &world->softBendCompliance[i], 4);
         }
         if (world->softPressure[i] != 0.0f)
         {
-            // Pressure folds off-default (20-2), its own block.
+            // Pressure folds off-default, its own block.
             h = m3Hash64(h, &world->softDimX[i], 2);
             h = m3Hash64(h, &world->softDimY[i], 2);
             h = m3Hash64(h, &world->softDimZ[i], 2);
@@ -1091,7 +1091,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->softMaxDeviation[i] != 0.0f)
         {
-            // The tether folds off-default (20-4), its own block;
+            // The tether folds off-default, its own block;
             // bind positions join only then (dead weight otherwise).
             h = m3Hash64(h, &world->softMaxDeviation[i], 4);
             h = m3Hash64(h, &world->softBindPos[i * M3_SOFTBODY_MAX_PARTICLES],
@@ -1099,7 +1099,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->softTetCount[i] > 0)
         {
-            // Tets fold off-default (20-3), their own block.
+            // Tets fold off-default, their own block.
             h = m3Hash64(h, &world->softTetCount[i], 4);
             int32_t tbase = i * M3_SOFTBODY_MAX_TETS;
             h = m3Hash64(h, &world->softTetA[tbase], 2 * world->softTetCount[i]);
@@ -1120,7 +1120,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
             if (world->softKick[k].x != 0.0f || world->softKick[k].y != 0.0f ||
                 world->softKick[k].z != 0.0f)
             {
-                // Pending kicks fold only while they exist (13-3):
+                // Pending kicks fold only while they exist:
                 // the window between a blast and its next step is
                 // real rollback state, everything else is silence.
                 h = m3Hash64(h, &world->softKick[k], (int32_t)sizeof(m3Vec3));
@@ -1170,14 +1170,14 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->vehThrottle[i], 4);
         if (world->vehTrackMode[i] != 0)
         {
-            // Tank mode folds off-default (23-1), its own block.
+            // Tank mode folds off-default, its own block.
             h = m3Hash64(h, &world->vehTrackMode[i], 1);
             h = m3Hash64(h, &world->vehTrackLeft[i], 4);
             h = m3Hash64(h, &world->vehTrackRight[i], 4);
         }
         if (world->vehLeanGain[i] != 0.0f)
         {
-            // The lean gain folds off-default (23-2), its own block.
+            // The lean gain folds off-default, its own block.
             h = m3Hash64(h, &world->vehLeanGain[i], 4);
         }
         h = m3Hash64(h, &world->vehSteer[i], 4);
@@ -1218,7 +1218,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
             h = m3Hash64(h, &world->vehDtFinal[i], 4);
             if (world->vehDtDiffMode[i] != 0)
             {
-                // The diff folds only when engaged (16-4), wheel
+                // The diff folds only when engaged, wheel
                 // speeds included: they steer forces only then.
                 h = m3Hash64(h, &world->vehDtDiffMode[i], 4);
                 h = m3Hash64(h, &world->vehDtDiffCouple[i], 4);
@@ -1315,7 +1315,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
     }
 
-    // Water volumes (18-1): folded ONLY while any volume is alive
+    // Water volumes: folded ONLY while any volume is alive
     // (the off-default law, in its own block); the pool identity
     // rides along so a destroyed-and-recreated volume moves bits.
     {

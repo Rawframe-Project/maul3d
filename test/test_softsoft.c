@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The soft-vs-soft gate (11-1): two lattices refuse to share
+// The soft-vs-soft gate: two lattices refuse to share
 // space, a rope drapes over a cloth instead of falling through,
 // and mid-contact rollbacks land on identical bits. The gap the
 // competitors' own documentation admits, closed under the law.

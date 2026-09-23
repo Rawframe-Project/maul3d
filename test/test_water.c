@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The water gate (18-1): a world-anchored box of water floats what
+// The water gate: a world-anchored box of water floats what
 // should float, sinks what should sink, carries what drifts into
 // its current, wakes sleepers when the tide arrives or leaves, and
 // rides twins, the journal, and the snapshot. No fluid sim BY LAW.
@@ -237,7 +237,7 @@ static void TestWaterTwinsReplayRollback(void)
 
 static void TestSoftBuoyancy(void)
 {
-    // The rho-1000 particle convention (18-2): in a density-1500
+    // The rho-1000 particle convention: in a density-1500
     // basin a cloth hangs high in the water column while its dry
     // twin crumples to the floor; a current drags the wet one
     // downstream.

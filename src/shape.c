@@ -73,7 +73,7 @@ static m3Mat3 InvertSymmetric(m3Mat3 m)
 // Density-scaled mass, centroid, and centroid inertia of one shape.
 // Returns 0 for shapes that carry no mass (planes).
 // Compose a shape's mass properties through its compound offset
-// (10-1): the raw props live in the SHAPE frame; the body wants
+//: the raw props live in the SHAPE frame; the body wants
 // them in ITS frame. c' = p + R c, I' = R I R^T. Identity offsets
 // short-circuit: default scenes never enter the rotation.
 static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat3* inertia)
@@ -253,7 +253,7 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     world->inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
     world->invInertiaLocal[bodyIndex] = InvertSymmetric(inertia);
 
-    // Extents drive continuous collision (2b-8): minExtent is the
+    // Extents drive continuous collision: minExtent is the
     // thinnest measure any shape brings (motion past half of it in
     // one step marks the body fast), maxExtent bounds the rotation
     // arc in the sweep advance.
@@ -548,7 +548,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     world->shapeHfIndex[index] = -1;
     if (type == (uint8_t)m3_heightFieldShape)
     {
-        // The mesh-slot pattern (19-1): fresh slot, the count-derived
+        // The mesh-slot pattern: fresh slot, the count-derived
         // content TAKEN OVER from the caller's staging struct (the
         // pointer moves, no copy of the sample block).
         int32_t hfIndex = m3IdPoolAlloc(&world->hfPool);
@@ -730,7 +730,7 @@ static m3ShapeId CreateShapeCommon(m3BodyId bodyId, const m3ShapeDef* def, uint8
     if (!m3FiniteV3(def->localPosition) || !m3FiniteQuat(def->localRotation) || rotLen2 < 0.99f ||
         rotLen2 > 1.01f)
     {
-        // The compound offset demands a near-unit rotation (10-1).
+        // The compound offset demands a near-unit rotation.
         return m3_nullShapeId;
     }
     if (!m3FiniteF(def->density) || !(def->density > 0.0f) || !m3FiniteF(def->friction) ||
@@ -774,7 +774,7 @@ m3ShapeId m3CreateSphereShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Sp
         return m3_nullShapeId;
     }
     // The 2a off-origin refusal is gone: the full inertia tensor and
-    // center-of-mass bookkeeping (2b-1) make offset spheres exact.
+    // center-of-mass bookkeeping make offset spheres exact.
     m3ShapeGeom geom = {sphere->center, sphere->radius, {0.0f, 0.0f, 0.0f}, 0.0f};
     return CreateShapeCommon(bodyId, def, (uint8_t)m3_sphereShape, &geom);
 }
@@ -824,7 +824,7 @@ m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def, const m3C
 m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Cylinder* cylinder,
                                 int32_t segments)
 {
-    // The honest cylinder (15-1): a 2N-vertex prism through the
+    // The honest cylinder: a 2N-vertex prism through the
     // interned hull path. Everything downstream (mass, SAT, casts,
     // CCD, the blast's projected area) treats the prism exactly;
     // the N-gon side is the documented trade, and the analytic
@@ -866,7 +866,7 @@ m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)
 {
-    // The validation wall (15-2): both doors pass through here.
+    // The validation wall: both doors pass through here.
     // Only geometry that LIVES in m3ShapeGeom swaps (sphere and
     // capsule, conversions included); interned slabs are immutable.
     uint8_t current = world->shapeType[slot];
@@ -1136,7 +1136,7 @@ m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def, const
     }
     // Triangulate the grid (CCW seen from +y) and reuse the mesh
     // path whole: welding, journaling, snapshotting all come free.
-    // Heap staging (10-3): 65k-scale grids no longer fit a stack.
+    // Heap staging: 65k-scale grids no longer fit a stack.
     m3Vec3* verts = (m3Vec3*)m3AllocZeroed(nx * nz * (int32_t)sizeof(m3Vec3));
     uint16_t* tris = (uint16_t*)m3AllocZeroed(6 * (nx - 1) * (nz - 1) * (int32_t)sizeof(uint16_t));
     if (verts == NULL || tris == NULL)
@@ -1186,7 +1186,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
     {
         return m3_nullShapeId; // static bodies only, like meshes
     }
-    // The full content wall (19-1), mirrored into the decode: grid
+    // The full content wall, mirrored into the decode: grid
     // limits, finite samples, a positive cell.
     if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
         !m3FiniteF(cellSize) || !(cellSize > 0.0f))
@@ -1391,7 +1391,7 @@ void m3DestroyShape(m3ShapeId shapeId)
     }
 }
 
-// --- Runtime materials (8-4) ------------------------------------------------
+// --- Runtime materials ------------------------------------------------
 
 void m3SetShapeFrictionInternal(m3World* world, int32_t slot, float value)
 {
@@ -1616,7 +1616,7 @@ bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
                                 const m3MeshSurfaceMaterial* materials, int32_t materialCount,
                                 const uint8_t* triangleMaterials)
 {
-    // The full wall (17-2), here because replay hands this function
+    // The full wall, here because replay hands this function
     // raw journal bytes: hostile counts, values, or group indices
     // refuse loudly and paint nothing.
     if (meshIndex < 0 || materialCount < 1 || materialCount > M3_MESH_MAX_MATERIALS)
@@ -1722,7 +1722,7 @@ void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
     m3SetSurfaceVelocityInternal(world, slot, velocity);
 }
 
-// --- Mesh content ownership (10-3) ------------------------------------------
+// --- Mesh content ownership ------------------------------------------
 
 bool m3MeshDataAlloc(m3MeshData* mesh)
 {
@@ -1741,7 +1741,7 @@ bool m3MeshDataAlloc(m3MeshData* mesh)
     mesh->vertices = (m3Vec3*)m3AllocZeroed(mesh->vertexCount * (int32_t)sizeof(m3Vec3));
     mesh->indices = (uint16_t*)m3AllocZeroed(3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
     mesh->edgeFlags = (uint8_t*)m3AllocZeroed(mesh->triangleCount);
-    // Material groups (17-2) ride beside the content: all-zero
+    // Material groups ride beside the content: all-zero
     // bytes and count 0 ARE the "shape material everywhere" state.
     mesh->triMaterials = (uint8_t*)m3AllocZeroed(mesh->triangleCount);
     if (mesh->vertices == NULL || mesh->indices == NULL || mesh->edgeFlags == NULL ||

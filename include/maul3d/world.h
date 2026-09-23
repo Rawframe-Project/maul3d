@@ -14,7 +14,7 @@ extern "C"
 {
 #endif
 
-    /// The task interface (2b-11): the HOST owns the threads, the
+    /// The task interface: the HOST owns the threads, the
     /// library only describes work. enqueueTask receives a task
     /// function, the item count, and a minimum grain; the host splits
     /// [0, itemCount) into subranges, runs each range exactly once on
@@ -28,7 +28,7 @@ extern "C"
                                   void* taskContext, void* userContext);
     typedef void m3FinishTaskFn(void* userTask, void* userContext);
 
-    /// Query-side filter (8-1): a query behaves like a shape with
+    /// Query-side filter: a query behaves like a shape with
     /// these bits. A shape is visible to the query when the
     /// query's category intersects the shape's mask AND the
     /// shape's category intersects the query's mask. The default
@@ -50,10 +50,10 @@ extern "C"
         int32_t shapeCapacity;
         int32_t meshCapacity; // static triangle-mesh slots (24 KB each)
         int32_t jointCapacity;
-        int32_t voxelCapacity;        // voxel chunk slots (3-1)
-        int32_t characterCapacity;    // character controllers (4-4)
-        int32_t vehicleCapacity;      // raycast vehicles (5-1)
-        int32_t softBodyCapacity;     // XPBD lattices (7-1)
+        int32_t voxelCapacity;        // voxel chunk slots
+        int32_t characterCapacity;    // character controllers
+        int32_t vehicleCapacity;      // raycast vehicles
+        int32_t softBodyCapacity;     // XPBD lattices
         int32_t workerCount;          // HOST HINT ONLY: the engine never
                                       // reads it (parallelism comes from
                                       // the task hooks' ranges); kept for
@@ -63,7 +63,7 @@ extern "C"
         m3EnqueueTaskFn* enqueueTask; // both null = serial (the default)
         m3FinishTaskFn* finishTask;
         void* userTaskContext;
-        // Tuning knobs (8-4). All journaled-settable at runtime too;
+        // Tuning knobs. All journaled-settable at runtime too;
         // they are engine STATE: snapshots carry them and replays
         // reproduce them. Defaults are the reference values.
         float contactHertz;         // contact softness frequency (30)
@@ -74,7 +74,7 @@ extern "C"
         int32_t enableSleeping;     // 1 = islands may sleep (default 1)
         int32_t enableContinuous;   // 1 = CCD phase runs (default 1)
         float hitEventThreshold;    // hit events need approach speed
-                                    // above this (default 1) (8-5)
+                                    // above this (default 1)
         int32_t internalValue;
     } m3WorldDef;
 
@@ -95,13 +95,13 @@ extern "C"
     M3_API void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity);
 
     /// Rebuild the broadphase tree top-down into a balanced shape
-    /// (17-4). Bulk shape creation grows the tree one insertion at
+    ///. Bulk shape creation grows the tree one insertion at
     /// a time and can leave it lopsided; call this once after
     /// building a level and queries walk a balanced tree instead.
     /// Deterministic and journaled: the rebuilt shape is a pure
     /// function of the live shapes, so twins and replays agree.
     M3_API void m3World_RebuildBroadphase(m3WorldId worldId);
-    /// A water volume (18-1): a world-anchored axis-aligned box of
+    /// A water volume: a world-anchored axis-aligned box of
     /// still or flowing water. The surface is the box top; there is
     /// no fluid simulation BY LAW. Rigid bodies inside get buoyancy
     /// proportional to their submerged bounds, drag toward the flow
@@ -168,7 +168,7 @@ extern "C"
     /// Whether the continuous phase is enabled.
     M3_API bool m3World_IsContinuousEnabled(m3WorldId worldId);
 
-    /// Wind (11-3): a deterministic field applied to soft-body
+    /// Wind: a deterministic field applied to soft-body
     /// particles as proportional drag toward the wind velocity.
     /// The gust is a sine of an ACCUMULATED phase (state, in the
     /// snapshot), so rollbacks resume the exact same wave: no host
@@ -183,7 +183,7 @@ extern "C"
     /// with the given substep count (1..256; out of range refuses
     /// loudly). Deterministic: same inputs, same bits, on every
     /// platform and backend. Journaled.
-    /// THE THREADING CONTRACT (integration audit B2/D3). Per world:
+    /// THE THREADING CONTRACT. Per world:
     /// one writer at a time; Step and every mutating call demand
     /// exclusive access to that world. Between steps, any number of
     /// concurrent READERS (queries, casts, getters, snapshot) may
@@ -207,7 +207,7 @@ extern "C"
     M3_API int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity);
     M3_API bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size);
 
-    /// Contact events (2b-13): begin fires on the step two shapes
+    /// Contact events: begin fires on the step two shapes
     /// first touch, end fires on the step they separate. Derived from
     /// the canonical pair walk, so replay produces the identical
     /// stream. Pointers are valid until the next step or restore.
@@ -226,7 +226,7 @@ extern "C"
     M3_API const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* count);
     M3_API const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count);
 
-    /// A fragment-spawn event (3-3): a voxel edit disconnected an
+    /// A fragment-spawn event: a voxel edit disconnected an
     /// island from its chunk's base layer (y = 0 voxels anchor a
     /// chunk; an island with no path to the base cannot stand). The
     /// engine REMOVES the island from the grid as part of the edit's
@@ -268,7 +268,7 @@ extern "C"
     M3_API const m3ContactEvent* m3World_SensorBeginEvents(m3WorldId worldId, int32_t* count);
     M3_API const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count);
 
-    /// A hit event (8-5): two shapes collided with approach speed
+    /// A hit event: two shapes collided with approach speed
     /// above the world threshold. Emitted at most once per contact
     /// per step, for the fastest-approaching manifold point, and
     /// only when either shape opted in (m3Shape_EnableHitEvents).
@@ -290,7 +290,7 @@ extern "C"
     /// Hit events require approach speed above this. Journaled.
     M3_API void m3World_SetHitEventThreshold(m3WorldId worldId, float value);
 
-    /// A body move event (8-5): one per body that MOVED this step
+    /// A body move event: one per body that MOVED this step
     /// (every mover), in ascending body order, carrying the post-step
     /// transform. fellAsleep marks the step a body drops off; a
     /// sleeping body emits nothing until it wakes. Render sync reads
@@ -315,7 +315,7 @@ extern "C"
 
     M3_API const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* count);
 
-    /// Pre-solve veto (8-5): called during contact preparation, in
+    /// Pre-solve veto: called during contact preparation, in
     /// canonical pair order, for pairs where either shape opted in
     /// (m3Shape_EnablePreSolve). Return false to disable the contact
     /// for THIS step (the one-way platform tool). point is the
@@ -335,7 +335,7 @@ extern "C"
     /// Register (or clear with NULL) the pre-solve callback. The
     /// REGISTRATION is host wiring (never journaled, never snapshot
     /// state), but the DECISIONS are not: every veto a step makes
-    /// is journaled as that step's annex (R5-4), so a bare replay
+    /// is journaled as that step's annex, so a bare replay
     /// (m3replay verify included) applies the recorded vetoes with
     /// no callback installed and lands on the recorded bits. During
     /// such a step the recorded set wins and any installed callback
@@ -358,7 +358,7 @@ extern "C"
     /// The closest front-face hit along origin + t * translation for
     /// t in [0, 1]. Rays MISS shapes they start inside or exactly on
     /// (front faces only); ask m3World_PointInside for containment.
-    /// The mover toolkit (22-1): pure queries and a pure plane
+    /// The mover toolkit: pure queries and a pure plane
     /// solver for hosts that roll their own character movers (the
     /// engine's kinematic controller remains the built-in path).
     /// A mover is a vertical capsule: center, half height between
@@ -391,7 +391,7 @@ extern "C"
                                 int32_t iterations);
 
     M3_API m3RayHit m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation);
-    /// Filtered variants (8-1): the query carries an m3QueryFilter
+    /// Filtered variants: the query carries an m3QueryFilter
     /// (defined in shape.h) and behaves like a shape with those
     /// bits; the unfiltered forms see everything.
     M3_API m3RayHit m3World_CastRayClosestEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation,
@@ -411,7 +411,7 @@ extern "C"
     /// that STARTS overlapped hits at fraction zero with a zero
     /// normal (the documented start-inside contract; rays instead
     /// MISS shapes they start inside, front faces only).
-    /// Generic convex casts (4-1): a box (with orientation) or a
+    /// Generic convex casts: a box (with orientation) or a
     /// caller point cloud (2..24 points, base-relative) swept along
     /// a translation, skinless. Same contracts as every cast: the
     /// earliest touch in [0, 1], start-overlapped reports fraction
@@ -457,7 +457,7 @@ extern "C"
                                            m3ShapeId* shapes, int32_t capacity,
                                            m3QueryFilter filter);
 
-    /// The exact overlap family (15-3): capsule, oriented box, and
+    /// The exact overlap family: capsule, oriented box, and
     /// raw convex cloud queries with the same contract as the
     /// sphere: shapes within EXACT reach (GJK per candidate, planes
     /// and voxel/mesh handled per family), ascending shape index,
@@ -480,7 +480,7 @@ extern "C"
                                                int32_t count, m3real radius, m3ShapeId* shapes,
                                                int32_t capacity, m3QueryFilter filter);
 
-    /// Explosion definition (13-2): one journaled call pushes every
+    /// Explosion definition: one journaled call pushes every
     /// dynamic convex shape in range. The impulse scales with the
     /// area the shape shows to the blast (the reference model),
     /// fades linearly to zero across the falloff band past the
@@ -513,7 +513,7 @@ extern "C"
     /// order. The value every gate compares.
     M3_API uint64_t m3World_Hash(m3WorldId worldId);
 
-    /// Live contact readback (14-3): one entry per manifold touching
+    /// Live contact readback: one entry per manifold touching
     /// the queried body or shape, in canonical pair order. Pure
     /// observer data; points are world space at read time.
     typedef struct m3ContactData
@@ -527,7 +527,7 @@ extern "C"
         float normalImpulses[4]; // last step's warm-start payload
     } m3ContactData;
 
-    /// Live-world counters (14-1): pure observer data. Reading them
+    /// Live-world counters: pure observer data. Reading them
     /// never touches the simulation, the snapshot, or the hash. The
     /// count fields are themselves deterministic (twins report
     /// identical counts); islandCount, colorCount, and scratchPeak
@@ -557,7 +557,7 @@ extern "C"
 
     M3_API m3Counters m3World_GetCounters(m3WorldId worldId);
 
-    /// Per-world memory accounting (integration audit D1), computed
+    /// Per-world memory accounting, computed
     /// on demand so it cannot drift: persistentBytes is the fixed
     /// array footprint decided at create (pools, tree, and every
     /// snapshot-walked array), contentBytes is the live
@@ -575,7 +575,7 @@ extern "C"
     M3_API m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId);
 
     /// Wall-clock milliseconds per phase of the LAST COMPLETED step
-    /// (14-1): honest observer timing from a monotonic clock. Never
+    ///: honest observer timing from a monotonic clock. Never
     /// deterministic, never hashed, never serialized; zero before
     /// the first step, and a step that stalls on scratch growth
     /// keeps the previous profile.

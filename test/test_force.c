@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The force gate (8-2): host forces and impulses land by the
+// The force gate: host forces and impulses land by the
 // analytic books (F = m a, T = I alpha, off-center impulses split
 // into the linear and angular ledgers), live for exactly one step
 // when they are forces, journal and roll back to the bit, and

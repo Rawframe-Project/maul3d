@@ -38,9 +38,9 @@ extern "C"
         m3real zeta;       // damping ratio
         m3real radius;     // wheel radius (the cast reaches
                            // restLength + radius along direction)
-        bool steerable;    // consumed by the drive slice (5-2)
-        bool driven;       // consumed by the drive slice (5-2)
-        m3real brakeShare; // consumed by the drive slice (5-2)
+        bool steerable;    // consumed by the drive slice
+        bool driven;       // consumed by the drive slice
+        m3real brakeShare; // consumed by the drive slice
     } m3WheelDef;
 
     typedef struct m3VehicleDef
@@ -87,7 +87,7 @@ extern "C"
     /// Whether the wheel's suspension cast found ground last step.
     M3_API bool m3Vehicle_IsWheelGrounded(m3VehicleId vehicleId, int32_t wheel);
 
-    /// Drive commands (5-2): journaled STATE, not per-step
+    /// Drive commands: journaled STATE, not per-step
     /// parameters, so replay and rollback hold to the bit. Values
     /// clamp to their ranges (throttle and steer to [-1, 1], brake
     /// to [0, 1]); non-finite commands are hostile no-ops that
@@ -95,7 +95,7 @@ extern "C"
     /// chassis-local +x axis is the vehicle's forward by
     /// convention; steer rotates each steerable wheel's frame
     /// about its suspension axis by steer * maxSteerAngle.
-    /// Tank commands (23-1): per-side throttle for skid steering.
+    /// Tank commands: per-side throttle for skid steering.
     /// Driven wheels split by the sign of their chassis-local
     /// anchor z (+z right); each side takes its own throttle in
     /// [-1, 1], the brake rides all wheels. Engaging tank mode
@@ -115,7 +115,7 @@ extern "C"
 #define M3_DRIVETRAIN_MAX_CURVE 8
 #define M3_DRIVETRAIN_MAX_GEARS 6
 
-    /// The drivetrain (12-1): the flat force model grows an engine.
+    /// The drivetrain: the flat force model grows an engine.
     /// Torque comes from a pinned curve (control points, linear
     /// interpolation between them: deterministic on every platform
     /// because only +,-,*,/ touch the numbers), multiplied through
@@ -146,7 +146,7 @@ extern "C"
         m3real shiftDownRpm;                         // auto shift drops below this
         int32_t clutchSteps;                         // steps of torque cut per shift
         bool autoShift;
-        /// Differential (16-4): 0 open (the equal split), 1 limited
+        /// Differential: 0 open (the equal split), 1 limited
         /// slip, 2 locked. Nonzero modes couple each driven wheel
         /// toward the driven mean of the LAST step's contact speeds
         /// with diffCouple newtons per m/s of disparity; limited

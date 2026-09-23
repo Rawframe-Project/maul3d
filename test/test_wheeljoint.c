@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The wheel joint gate (12-2): the OPTIONAL rigid-wheel path. A
+// The wheel joint gate: the OPTIONAL rigid-wheel path. A
 // jointed cart drives on real contacts (no rays anywhere), rolls a
 // rubble field without sinking through anything, twins to the bit,
 // snaps a capped axle deterministically and plows on three wheels,

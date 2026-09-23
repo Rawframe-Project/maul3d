@@ -177,7 +177,7 @@ Set the gravity vector. Journaled; sleeping islands stay asleep until disturbed 
 ```c
 void m3World_RebuildBroadphase(m3WorldId worldId);
 ```
-Rebuild the broadphase tree top-down into a balanced shape (17-4). Bulk shape creation grows the tree one insertion at a time and can leave it lopsided; call this once after building a level and queries walk a balanced tree instead. Deterministic and journaled: the rebuilt shape is a pure function of the live shapes, so twins and replays agree.
+Rebuild the broadphase tree top-down into a balanced shape . Bulk shape creation grows the tree one insertion at a time and can leave it lopsided; call this once after building a level and queries walk a balanced tree instead. Deterministic and journaled: the rebuilt shape is a pure function of the live shapes, so twins and replays agree.
 
 ```c
 m3WaterVolumeDef m3DefaultWaterVolumeDef(void);
@@ -244,12 +244,12 @@ Whether the continuous phase is enabled.
 ```c
 void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gustHertz, float gustScale);
 ```
-Wind (11-3): a deterministic field applied to soft-body particles as proportional drag toward the wind velocity. The gust is a sine of an ACCUMULATED phase (state, in the snapshot), so rollbacks resume the exact same wave: no host randomness exists anywhere in it. speed zero disables. direction must be near-unit when speed is nonzero. Rigid bodies are not wind-blown in v1 (documented: the force API already serves them); journaled.
+Wind: a deterministic field applied to soft-body particles as proportional drag toward the wind velocity. The gust is a sine of an ACCUMULATED phase (state, in the snapshot), so rollbacks resume the exact same wave: no host randomness exists anywhere in it. speed zero disables. direction must be near-unit when speed is nonzero. Rigid bodies are not wind-blown in v1 (documented: the force API already serves them); journaled.
 
 ```c
 void m3World_Step(m3WorldId worldId, float dt, int32_t substeps);
 ```
-Advance the simulation: collide, then the Soft Step solver with the given substep count (1..256; out of range refuses loudly). Deterministic: same inputs, same bits, on every platform and backend. Journaled. THE THREADING CONTRACT (integration audit B2/D3). Per world: one writer at a time; Step and every mutating call demand exclusive access to that world. Between steps, any number of concurrent READERS (queries, casts, getters, snapshot) may run on the same world from any threads. DISTINCT worlds are fully independent: stepping two worlds on two host threads is supported and bit-identical to stepping them serially (the concurrency suite proves it; the TSAN cell polices it). m3CreateWorld and m3DestroyWorld touch a process-wide slot registry and must be serialized BY THE HOST across threads; the library adds no lock (zero-dependency law). Reading a world WHILE it steps is undefined.
+Advance the simulation: collide, then the Soft Step solver with the given substep count (1..256; out of range refuses loudly). Deterministic: same inputs, same bits, on every platform and backend. Journaled. THE THREADING CONTRACT. Per world: one writer at a time; Step and every mutating call demand exclusive access to that world. Between steps, any number of concurrent READERS (queries, casts, getters, snapshot) may run on the same world from any threads. DISTINCT worlds are fully independent: stepping two worlds on two host threads is supported and bit-identical to stepping them serially (the concurrency suite proves it; the TSAN cell polices it). m3CreateWorld and m3DestroyWorld touch a process-wide slot registry and must be serialized BY THE HOST across threads; the library adds no lock (zero-dependency law). Reading a world WHILE it steps is undefined.
 
 ```c
 int32_t m3World_SnapshotSize(m3WorldId worldId);
@@ -320,7 +320,7 @@ const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* co
 ```c
 void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* context);
 ```
-Register (or clear with NULL) the pre-solve callback. The REGISTRATION is host wiring (never journaled, never snapshot state), but the DECISIONS are not: every veto a step makes is journaled as that step's annex (R5-4), so a bare replay (m3replay verify included) applies the recorded vetoes with no callback installed and lands on the recorded bits. During such a step the recorded set wins and any installed callback stays silent; do not expect callbacks to fire under replay.
+Register (or clear with NULL) the pre-solve callback. The REGISTRATION is host wiring (never journaled, never snapshot state), but the DECISIONS are not: every veto a step makes is journaled as that step's annex, so a bare replay (m3replay verify included) applies the recorded vetoes with no callback installed and lands on the recorded bits. During such a step the recorded set wins and any installed callback stays silent; do not expect callbacks to fire under replay.
 
 ```c
 m3RayHit m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, m3real radius, m3Vec3 translation);
@@ -344,7 +344,7 @@ m3RayHit m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 transla
 ```c
 m3RayHit m3World_CastRayClosestEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3QueryFilter filter);
 ```
-Filtered variants (8-1): the query carries an m3QueryFilter (defined in shape.h) and behaves like a shape with those bits; the unfiltered forms see everything.
+Filtered variants: the query carries an m3QueryFilter (defined in shape.h) and behaves like a shape with those bits; the unfiltered forms see everything.
 
 ```c
 int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits, int32_t capacity);
@@ -358,7 +358,7 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
 ```c
 m3RayHit m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3Vec3 translation);
 ```
-Closest-hit shape casts: sweep a sphere or a capsule along a translation. fraction is the earliest touch in [0, 1]; a cast that STARTS overlapped hits at fraction zero with a zero normal (the documented start-inside contract; rays instead MISS shapes they start inside, front faces only). Generic convex casts (4-1): a box (with orientation) or a caller point cloud (2..24 points, base-relative) swept along a translation, skinless. Same contracts as every cast: the earliest touch in [0, 1], start-overlapped reports fraction zero with a zero normal, hostile inputs miss. A single point is a ray: use the ray casts.
+Closest-hit shape casts: sweep a sphere or a capsule along a translation. fraction is the earliest touch in [0, 1]; a cast that STARTS overlapped hits at fraction zero with a zero normal (the documented start-inside contract; rays instead MISS shapes they start inside, front faces only). Generic convex casts: a box (with orientation) or a caller point cloud (2..24 points, base-relative) swept along a translation, skinless. Same contracts as every cast: the earliest touch in [0, 1], start-overlapped reports fraction zero with a zero normal, hostile inputs miss. A single point is a ray: use the ray casts.
 
 ```c
 m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3Vec3 translation, m3QueryFilter filter);
@@ -414,7 +414,7 @@ int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius,
 ```c
 int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius, m3ShapeId* shapes, int32_t capacity);
 ```
-The exact overlap family (15-3): capsule, oriented box, and raw convex cloud queries with the same contract as the sphere: shapes within EXACT reach (GJK per candidate, planes and voxel/mesh handled per family), ascending shape index, filtered, read-only. Clouds carry base-relative points (the cast convention), at most 64 of them.
+The exact overlap family: capsule, oriented box, and raw convex cloud queries with the same contract as the sphere: shapes within EXACT reach (GJK per candidate, planes and voxel/mesh handled per family), ascending shape index, filtered, read-only. Clouds carry base-relative points (the cast convention), at most 64 of them.
 
 ```c
 int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
@@ -489,7 +489,7 @@ Returns a def with pinned defaults (identity rotation, gravity scale one) and a 
 ```c
 m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def);
 ```
-Create a body. Returns the null id on an invalid def, a stale world, or an exhausted body pool (loud in debug builds). A shapeless dynamic body has unit mass and zero inertia until a shape provides the real values (task 7).
+Create a body. Returns the null id on an invalid def, a stale world, or an exhausted body pool (loud in debug builds). A shapeless dynamic body has unit mass and zero inertia until a shape provides the real values.
 
 ```c
 void m3DestroyBody(m3BodyId bodyId);
@@ -527,7 +527,7 @@ m3BodyType m3Body_GetType(m3BodyId bodyId);
 ```c
 void m3Body_SetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation);
 ```
-Journaled setters: every mutation is a discrete op. Runtime control (8-3), all journaled. SetTransform is the teleport: the pose lands instantly, velocities stay, and bodies around BOTH the old and new locations wake so nothing keeps sleeping under or inside a teleported crate.
+Journaled setters: every mutation is a discrete op. Runtime control, all journaled. SetTransform is the teleport: the pose lands instantly, velocities stay, and bodies around BOTH the old and new locations wake so nothing keeps sleeping under or inside a teleported crate.
 
 ```c
 void m3Body_SetTargetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation);
@@ -578,7 +578,7 @@ const char* m3Body_GetName(m3BodyId bodyId);
 ```c
 int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capacity);
 ```
-Who touches me now (14-3): fills up to capacity entries and returns the count written. See m3ContactData in world.h.
+Who touches me now: fills up to capacity entries and returns the count written. See m3ContactData in world.h.
 
 ```c
 void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep);
@@ -597,7 +597,7 @@ SetAwake(true) wakes; SetAwake(false) puts the single body to sleep and zeroes i
 ```c
 void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force);
 ```
-Forces and impulses (8-2), journaled like every mutation. Forces and torques ACCUMULATE and act over the next step, then clear; impulses change velocity immediately. Only awake-able dynamic bodies respond: static and kinematic targets and non-finite values are documented no-ops. A nonzero application wakes the body. Points are world-space; an off-center application adds the matching angular part.
+Forces and impulses, journaled like every mutation. Forces and torques ACCUMULATE and act over the next step, then clear; impulses change velocity immediately. Only awake-able dynamic bodies respond: static and kinematic targets and non-finite values are documented no-ops. A nonzero application wakes the body. Points are world-space; an off-center application adds the matching angular part.
 
 ```c
 void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque);
@@ -669,12 +669,12 @@ The last walkable surface normal (zeros while airborne).
 ```c
 m3BodyId m3Character_GetGroundBody(m3CharacterId characterId);
 ```
-The body under the character's feet (null while airborne or after that body is destroyed). Each m3World_Step carries grounded characters along with this body's motion through the regular slide casts: kinematic platforms, elevators, and dynamic fragments all ferry their riders (4-6).
+The body under the character's feet (null while airborne or after that body is destroyed). Each m3World_Step carries grounded characters along with this body's motion through the regular slide casts: kinematic platforms, elevators, and dynamic fragments all ferry their riders.
 
 ```c
 bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real radius);
 ```
-Stance (12-3): resize the capsule in place, FEET ANCHORED (the center moves so the capsule bottom stays level; a mid air crouch therefore lands shorter, not higher). Shrinking always applies. Growing runs the stand-up veto: the grown capsule is cast at its new pose through the same core every move uses, and ANY contact within the skin (a pressing ceiling, a wall against a wider radius) refuses the whole change and returns false; stance is untouched. Journaled only when applied; the veto's refusal is bit-deterministic so twins and replays refuse together. Stance is state: snapshotted, hashed, rolled back like everything else.
+Stance: resize the capsule in place, FEET ANCHORED (the center moves so the capsule bottom stays level; a mid air crouch therefore lands shorter, not higher). Shrinking always applies. Growing runs the stand-up veto: the grown capsule is cast at its new pose through the same core every move uses, and ANY contact within the skin (a pressing ceiling, a wall against a wider radius) refuses the whole change and returns false; stance is untouched. Journaled only when applied; the veto's refusal is bit-deterministic so twins and replays refuse together. Stance is state: snapshotted, hashed, rolled back like everything else.
 
 ```c
 void m3Character_GetStance(m3CharacterId characterId, m3real* halfHeight, m3real* radius);
@@ -724,7 +724,7 @@ bool m3Joint_IsValid(m3JointId jointId);
 ```c
 void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper);
 ```
-Runtime joint control (8-6a). All journaled; both bodies wake on any change. Limits and motor reuse the def semantics per type (angles for revolute and spherical twist, meters for prismatic and distance); toggling zeroes the row's stored impulse so a stale warm start cannot kick.
+Runtime joint control. All journaled; both bodies wake on any change. Limits and motor reuse the def semantics per type (angles for revolute and spherical twist, meters for prismatic and distance); toggling zeroes the row's stored impulse so a stale warm start cannot kick.
 
 ```c
 void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffort);
@@ -733,12 +733,12 @@ void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffo
 ```c
 void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation);
 ```
-Aim the MOTOR joint (16-5): offset in body A's joint frame, rotation as the target relative orientation. Journaled; refused loudly on other types and hostile values.
+Aim the MOTOR joint: offset in body A's joint frame, rotation as the target relative orientation. Journaled; refused loudly on other types and hostile values.
 
 ```c
 void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float hertz, float zeta, float maxEffort);
 ```
-Wheel steering (16-3): a soft target-angle drive about the strut axis. While enabled, the wheel's frame-x lock becomes the drive (frame y stays locked), so the axle yaws toward targetAngle (radians, |target| <= 1) at the given stiffness; maxEffort > 0 caps the torque, 0 leaves it uncapped. Wheel joints only; refused loudly elsewhere. Journaled.
+Wheel steering: a soft target-angle drive about the strut axis. While enabled, the wheel's frame-x lock becomes the drive (frame y stays locked), so the axle yaws toward targetAngle (radians, |target| <= 1) at the given stiffness; maxEffort > 0 caps the torque, 0 leaves it uncapped. Wheel joints only; refused loudly elsewhere. Journaled.
 
 ```c
 float m3Joint_GetSteerAngle(m3JointId jointId);
@@ -757,12 +757,12 @@ bool m3Joint_GetCollideConnected(m3JointId jointId);
 ```c
 void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorque);
 ```
-Breakage (8-6a), a deliberate addition over the reference: rollback games need breakage as a deterministic in-step state transition, not a host poll racing the journal. When either reaction magnitude exceeds its cap at the end of a step, the joint destroys itself and emits the joint break event (see world.h). Zero disables a cap; both zero (the default) means unbreakable.
+Breakage, a deliberate addition over the reference: rollback games need breakage as a deterministic in-step state transition, not a host poll racing the journal. When either reaction magnitude exceeds its cap at the end of a step, the joint destroys itself and emits the joint break event (see world.h). Zero disables a cap; both zero (the default) means unbreakable.
 
 ```c
 m3real m3Joint_GetConstraintForce(m3JointId jointId);
 ```
-Reaction readback (8-6a): MAGNITUDES of the last step's constraint reactions, assembled per type from the stored solver rows (linear rows into force, angular rows into torque; the generic joint reports a conservative sum). Reads 0 before the first step after a restore (documented transient). The reference's vector form waits for a consumer with a direction to point at (argued in the plan).
+Reaction readback: MAGNITUDES of the last step's constraint reactions, assembled per type from the stored solver rows (linear rows into force, angular rows into torque; the generic joint reports a conservative sum). Reads 0 before the first step after a restore (documented transient). The reference's vector form waits for a consumer with a direction to point at (argued in the plan).
 
 ```c
 m3real m3Joint_GetConstraintTorque(m3JointId jointId);
@@ -780,7 +780,7 @@ m3real m3Joint_GetTranslation(m3JointId jointId);
 ```c
 void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampingRatio);
 ```
-Position drive (8-6b), the reference spring rows: a soft constraint with the given frequency and damping ratio pulls the joint toward its target. Revolute drives the hinge angle, prismatic the translation, spherical the relative rotation; other types refuse. Toggling zeroes the spring's stored impulse. All journaled; both bodies wake.
+Position drive, the reference spring rows: a soft constraint with the given frequency and damping ratio pulls the joint toward its target. Revolute drives the hinge angle, prismatic the translation, spherical the relative rotation; other types refuse. Toggling zeroes the spring's stored impulse. All journaled; both bodies wake.
 
 ```c
 void m3Joint_SetTargetAngle(m3JointId jointId, float radians);
@@ -859,7 +859,7 @@ m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3
 ```c
 bool m3Shape_SetSphere(m3ShapeId shapeId, const m3Sphere* sphere);
 ```
-Runtime geometry replacement (15-2): swap a sphere or capsule shape's geometry in place; conversions between the two are legal. Hulls, meshes, voxels, and planes refuse loudly (interned slabs are immutable by law). Journaled; mass, extents, and the broadphase follow, and sleepers around both the old and the new bounds wake.
+Runtime geometry replacement: swap a sphere or capsule shape's geometry in place; conversions between the two are legal. Hulls, meshes, voxels, and planes refuse loudly (interned slabs are immutable by law). Journaled; mass, extents, and the broadphase follow, and sleepers around both the old and the new bounds wake.
 
 ```c
 bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule);
@@ -888,7 +888,7 @@ A heightfield chunk: an nx by nz grid of heights (row-major, x fastest) spaced `
 ```c
 m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, const float* heights, int32_t nx, int32_t nz, m3real cellSize);
 ```
-The NATIVE grid heightfield (19-1): the same nx-by-nz grid contract as above, but stored as raw heights (four bytes per sample) instead of triangulated into a mesh: the low-memory terrain path. Grid limits per chunk: 2..255 in each direction; larger terrain tiles as chunks. Static bodies only; the minimum corner sits at the body origin.
+The NATIVE grid heightfield: the same nx-by-nz grid contract as above, but stored as raw heights (four bytes per sample) instead of triangulated into a mesh: the low-memory terrain path. Grid limits per chunk: 2..255 in each direction; larger terrain tiles as chunks. Static bodies only; the minimum corner sits at the body origin.
 
 ```c
 m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const uint8_t* voxels, const uint16_t* payload, m3real cellSize);
@@ -898,7 +898,7 @@ True while the id names a live shape in a live world; false for the null id, sta
 ```c
 bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, uint16_t payload);
 ```
-Voxel edits (3-2): deterministic state transitions, journaled and replayed like every other mutation, fully inside the rollback delta. The collision surface rebuilds as a pure function of the grid after any occupancy change (a payload-only set touches no geometry), and dynamic bodies whose bounds touch the edited region are woken (a floor vanishing under a sleeper is a disturbance). Coordinates are voxel indices in [0, 15]; out-of-range and inverted regions refuse loudly. A chunk edited down to empty stays a valid shape that collides with nothing (the natural end state of destruction).  The anchor convention: an island is anchored through the CHUNK's y = 0 base layer, not through world ground. Build structures at their chunk's base; a floating platform is a chunk whose BODY sits in the air with the platform at local y = 0. Voxels with no path to the base layer survive creation but fragment on the first clearing edit anywhere in the chunk (the sweep is chunk-wide by design).
+Voxel edits: deterministic state transitions, journaled and replayed like every other mutation, fully inside the rollback delta. The collision surface rebuilds as a pure function of the grid after any occupancy change (a payload-only set touches no geometry), and dynamic bodies whose bounds touch the edited region are woken (a floor vanishing under a sleeper is a disturbance). Coordinates are voxel indices in [0, 15]; out-of-range and inverted regions refuse loudly. A chunk edited down to empty stays a valid shape that collides with nothing (the natural end state of destruction).  The anchor convention: an island is anchored through the CHUNK's y = 0 base layer, not through world ground. Build structures at their chunk's base; a floating platform is a chunk whose BODY sits in the air with the platform at local y = 0. Voxels with no path to the base layer survive creation but fragment on the first clearing edit anywhere in the chunk (the sweep is chunk-wide by design).
 
 ```c
 bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z);
@@ -912,7 +912,7 @@ Clears the inclusive box [lo, hi] per axis. Returns the number of voxels that we
 ```c
 bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, uint8_t fill);
 ```
-Fill fraction (3-6): 255 is a whole voxel, 1 a sliver. A mass and destruction property, never geometry: the voxel still collides as a full box, but its fragment mass scales by fill / 255. Refuses zero fill (that is a clear: use m3VoxelChunk_ClearVoxel) and empty voxels. Journaled state, hashed, inside the rollback delta like every edit.
+Fill fraction: 255 is a whole voxel, 1 a sliver. A mass and destruction property, never geometry: the voxel still collides as a full box, but its fragment mass scales by fill / 255. Refuses zero fill (that is a clear: use m3VoxelChunk_ClearVoxel) and empty voxels. Journaled state, hashed, inside the rollback delta like every edit.
 
 ```c
 bool m3Shape_IsValid(m3ShapeId shapeId);
@@ -926,17 +926,17 @@ The owning body (22-2: the mover recipe needs to tell its own shape from the wor
 ```c
 int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);
 ```
-Who touches this shape now (14-3): fills up to capacity entries and returns the count written. See m3ContactData.
+Who touches this shape now: fills up to capacity entries and returns the count written. See m3ContactData.
 
 ```c
 void m3DestroyShape(m3ShapeId shapeId);
 ```
-Destroy one shape and rebuild the owner's mass books (10-4). Journaled; contacts involving the shape dissolve at the next step. The last shape leaves a shapeless dynamic body at unit mass (the reference convention).
+Destroy one shape and rebuild the owner's mass books. Journaled; contacts involving the shape dissolve at the next step. The last shape leaves a shapeless dynamic body at unit mass (the reference convention).
 
 ```c
 void m3Shape_SetFriction(m3ShapeId shapeId, float friction);
 ```
-Runtime material setters (8-4). Journaled; contacts read materials at prepare, so changes bind from the next step. A sleeping stack keeps its old mix until something wakes it (the reference behavior, documented).
+Runtime material setters. Journaled; contacts read materials at prepare, so changes bind from the next step. A sleeping stack keeps its old mix until something wakes it (the reference behavior, documented).
 
 ```c
 float m3Shape_GetFriction(m3ShapeId shapeId);
@@ -970,7 +970,7 @@ float m3Shape_GetDensity(m3ShapeId shapeId);
 ```c
 void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag);
 ```
-Opt a shape into hit events / the pre-solve veto (8-5). Journaled; the flags are state and snapshot with the world.
+Opt a shape into hit events / the pre-solve veto. Journaled; the flags are state and snapshot with the world.
 
 ```c
 bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId);
@@ -987,7 +987,7 @@ bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 ```c
 void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity);
 ```
-Conveyor (11-3): a world-frame surface velocity on the shape. Contacts drive the tangential target toward it, the reference tangentVelocity semantic the central-friction port carried at zero until now. Journaled; state, hashed when nonzero.
+Conveyor: a world-frame surface velocity on the shape. Contacts drive the tangential target toward it, the reference tangentVelocity semantic the central-friction port carried at zero until now. Journaled; state, hashed when nonzero.
 
 ## `softbody.h`
 
@@ -1005,7 +1005,7 @@ Creates the lattice with structural edges and face diagonals in fixed index orde
 ```c
 m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, const m3Vec3* points, int32_t pointCount, const uint16_t* tets, int32_t tetCount);
 ```
-A tetrahedral soft body (20-3): explicit points (world positions after adding def->position) and tets (four point indices each, positive volume required). Edges come from the tet edges, deduplicated in first-touch order, at def->compliance; every tet holds its create volume rigidly (the incompressible jelly). def->countX/Y/Z, spacing, bendCompliance, and pressure must be left at defaults (the lattice knobs; hostile mixes refuse loudly). Pins, anchors, wind, water, explosions, and collision all treat the particles exactly like lattice particles.
+A tetrahedral soft body: explicit points (world positions after adding def->position) and tets (four point indices each, positive volume required). Edges come from the tet edges, deduplicated in first-touch order, at def->compliance; every tet holds its create volume rigidly (the incompressible jelly). def->countX/Y/Z, spacing, bendCompliance, and pressure must be left at defaults (the lattice knobs; hostile mixes refuse loudly). Pins, anchors, wind, water, explosions, and collision all treat the particles exactly like lattice particles.
 
 ```c
 void m3DestroySoftBody(m3SoftBodyId softId);
@@ -1028,7 +1028,7 @@ Anchors one particle to a body at the particle's CURRENT position, expressed in 
 ```c
 void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBodyId softIdB, int32_t particleB);
 ```
-Pin a particle of one lattice to a particle of ANOTHER lattice (11-2): a position equality split by inverse mass, solved each substep after soft-vs-soft contact. Released silently when EITHER lattice dies. Journaled; the pin lives in the lower slot's table (one canonical home per pair).
+Pin a particle of one lattice to a particle of ANOTHER lattice: a position equality split by inverse mass, solved each substep after soft-vs-soft contact. Released silently when EITHER lattice dies. Journaled; the pin lives in the lower slot's table (one canonical home per pair).
 
 ```c
 int32_t m3SoftBody_GetParticleCount(m3SoftBodyId softId);
@@ -1072,7 +1072,7 @@ Whether the wheel's suspension cast found ground last step.
 ```c
 void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right, m3real brake);
 ```
-Drive commands (5-2): journaled STATE, not per-step parameters, so replay and rollback hold to the bit. Values clamp to their ranges (throttle and steer to [-1, 1], brake to [0, 1]); non-finite commands are hostile no-ops that never journal. Setting commands wakes the chassis. The chassis-local +x axis is the vehicle's forward by convention; steer rotates each steerable wheel's frame about its suspension axis by steer * maxSteerAngle. Tank commands (23-1): per-side throttle for skid steering. Driven wheels split by the sign of their chassis-local anchor z (+z right); each side takes its own throttle in [-1, 1], the brake rides all wheels. Engaging tank mode suspends the normal throttle until m3Vehicle_SetCommands is called again (which disengages it). Drivetrain vehicles refuse: a gearbox and a skid steer are different machines.
+Drive commands: journaled STATE, not per-step parameters, so replay and rollback hold to the bit. Values clamp to their ranges (throttle and steer to [-1, 1], brake to [0, 1]); non-finite commands are hostile no-ops that never journal. Setting commands wakes the chassis. The chassis-local +x axis is the vehicle's forward by convention; steer rotates each steerable wheel's frame about its suspension axis by steer * maxSteerAngle. Tank commands: per-side throttle for skid steering. Driven wheels split by the sign of their chassis-local anchor z (+z right); each side takes its own throttle in [-1, 1], the brake rides all wheels. Engaging tank mode suspends the normal throttle until m3Vehicle_SetCommands is called again (which disengages it). Drivetrain vehicles refuse: a gearbox and a skid steer are different machines.
 
 ```c
 void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer, m3real brake);

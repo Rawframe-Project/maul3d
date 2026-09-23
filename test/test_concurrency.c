@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The multi-world concurrency contract (integration audit B2/D3),
+// The multi-world concurrency contract,
 // proven, not promised: two DISTINCT worlds stepped on two host
 // threads land bit-identical to their serially-stepped twins, and
 // read-only queries from a second thread between steps disturb

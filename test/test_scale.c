@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The scale gate (6-4): the 5k-body claims, proven at CI size. A
+// The scale gate: the 5k-body claims, proven at CI size. A
 // thousand mixed bodies rain into a voxel block; worker-count twins
 // (serial versus a real four-thread host pool) land on identical
 // bits; the whole session records, replays, and rolls back

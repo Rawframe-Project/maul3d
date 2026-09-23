@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The tuning gate (8-4): runtime materials bind next step, density
+// The tuning gate: runtime materials bind next step, density
 // rebuilds mass on request, world knobs change behavior in the
 // direction physics demands, equal-knob worlds twin bit-exact,
 // differing knobs diverge detectably, and every op replays.

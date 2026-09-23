@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Events and queries gate (2b-13): contact begin/end streams against
+// Events and queries gate: contact begin/end streams against
 // hand-counted expectations, analytic ray hits on every shape family,
 // closest-of-many ordering, and the determinism twins for both.
 

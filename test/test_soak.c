@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The soak (2d-6): one long life, no drift, no growth. A busy zoo
+// The soak: one long life, no drift, no growth. A busy zoo
 // runs more than twenty thousand steps in segments; every segment
 // is journaled and replayed against a snapshot twin (the replay
 // must land on the live world's exact hash), every segment ends in
@@ -124,7 +124,7 @@ int main(void)
     }
 
     // Prime the reused twin once: its first restore buys the
-    // count-derived mesh arrays (10-3), a one-time capacity
+    // count-derived mesh arrays, a one-time capacity
     // purchase exactly like world creation, not steady state.
     CHECK(m3World_Snapshot(live, snap, snapBytes) == snapBytes, "the priming snapshot writes");
     CHECK(m3World_Restore(scratch, snap, snapBytes), "the priming restore lands");

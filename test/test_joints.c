@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joint gate (2c-2): the spherical point constraint against analytic
+// Joint gate: the spherical point constraint against analytic
 // pendulum physics, a hanging chain, and the determinism spine
 // (rollback, replay with minted joint ids, sleep coupling).
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Red-team round two (2d-2): hostile SEQUENCES. Round one poisoned
+// Red-team round two: hostile SEQUENCES. Round one poisoned
 // the inputs; this round abuses the order of operations: stale ids
 // into every entry, snapshots into short buffers, corrupted and
 // truncated journals against the new atomic-replay guarantee,

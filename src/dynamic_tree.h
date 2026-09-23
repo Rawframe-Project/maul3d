@@ -55,7 +55,7 @@ typedef bool (*m3TreeQueryFn)(int32_t userData, void* context);
 void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
                  void* context);
 
-/// Rebuild the whole tree top-down (17-4): callers supply the leaf
+/// Rebuild the whole tree top-down: callers supply the leaf
 /// bounds and payloads in CANONICAL order; the build is a median
 /// split on the longest centroid axis (ties keep the input order),
 /// so the resulting shape is a pure function of the input list.

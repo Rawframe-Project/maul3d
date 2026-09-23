@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // m3lockstep: the rollback-networking recipe as an executable
-// document (9-4). Peer A plays ONLINE: it predicts missing remote
+// document. Peer A plays ONLINE: it predicts missing remote
 // inputs (as empty), rolls back to its confirmed frontier when
 // late inputs arrive, and re-simulates to the present. Peer B is
 // the offline truth: it steps a frame only when every input for

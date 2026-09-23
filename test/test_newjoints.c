@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The new joint gate (16-1): FILTER is rowless by law (its whole
+// The new joint gate: FILTER is rowless by law (its whole
 // effect is the connected-pair collision filter; a falling body
 // wearing one falls FREE, never welded), and PARALLEL locks two
 // axes parallel while every translation and the shared twist stay
@@ -265,7 +265,7 @@ static void TestFourStateDrive(void)
     CHECK(held < 0.15, "state POSITION holds the target");
     // position + velocity with a STARVED shared budget: the drive
     // may not spend more than the motor's allowance, so the arm
-    // sags well below the unbudgeted hold (16-2).
+    // sags well below the unbudgeted hold.
     double starved = ArmDroop(true, true, 0.05f);
     CHECK(starved > held + 0.1, "the shared budget honestly starves the drive");
     // position + velocity with a rich budget matches the hold.
@@ -404,7 +404,7 @@ static double ServoDroop(float maxForce)
 
 static void TestMotorJointServo(void)
 {
-    // The servo weld (16-5): springless it idles FREE (the joint
+    // The servo weld: springless it idles FREE (the joint
     // holds nothing), with a spring it flies to the commanded
     // offset AND rotation, budgets starve it honestly, and the aim
     // rides twins, the journal, and the hostile wall.

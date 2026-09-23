@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The events gate (8-5): hit events fire once per impact at the
+// The events gate: hit events fire once per impact at the
 // analytic speed and only for opted-in shapes; body move events
 // mirror every mover's transform and mark the sleep edge; the
 // pre-solve veto builds a one-way platform under the loud purity

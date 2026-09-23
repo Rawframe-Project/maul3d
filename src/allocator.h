@@ -4,7 +4,7 @@
 // The three memory lifetimes, kept structurally apart because mixing
 // them is the classic mistake that defeats rollback:
 //   1. Persistent rollback state: per-array M3_ALLOC allocations, every
-//      one registered in the world's single snapshot walker (task 6).
+//      one registered in the world's single snapshot walker.
 //   2. Per-step scratch: the m3Stack below, reset every step, never
 //      snapshotted, never aborts on exhaustion (loud failure instead).
 //   3. Immutable geometry and config: interned, referenced, not copied.
@@ -35,7 +35,7 @@ void* m3AllocZeroed(int32_t bytes);
 // 32-bit byte count, or when the allocator refuses.
 void* m3AllocArray(int64_t count, int64_t elementBytes);
 void m3Free(void* memory);
-// Soak bookkeeping: cumulative alloc and free call counts (2d-6).
+// Soak bookkeeping: cumulative alloc and free call counts.
 void m3DebugAllocCounts(int64_t* allocs, int64_t* frees);
 
 /// Per-step scratch: a bump allocator with 16-byte alignment. Reset
