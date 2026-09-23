@@ -2,22 +2,17 @@
 
 [![ci](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml)
 
-A deterministic 3D physics engine for games. Written in C17 with a
-pure C API, zero dependencies, MIT licensed. The 3D sibling of
-[Maul2D](https://github.com/Rawframe-Project/maul2d), built on the same
-constitution: the same inputs produce the same bits on every
-supported platform, and the engine is designed around that promise
-end to end.
+A deterministic 3D physics engine for games, written in C17 with a
+plain C API, no dependencies and an MIT license. Maul3D is the 3D
+member of the Maul family; [Maul2D](https://github.com/Rawframe-Project/maul2d)
+is its 2D sibling and follows the same rules.
 
-Maul3D's difference is a contract, not a feature flag. Snapshots
-restore worlds bit-exactly and resume identically (the rollback
-most engines explicitly do not promise), a command journal records
-sessions and replays them byte for byte with id verification and
-atomic backout, and CI fails on a single differing bit across
-seven platform cells spanning x64, arm64, MSVC, wasm and
-sanitizers. Rollback netcode, deterministic lockstep,
-kill-cam replays and server-verified simulation stop being
-research projects and become four lines of code:
+The same inputs produce the same bits on every supported platform.
+Snapshots restore a world exactly and it resumes identically, and a
+command journal records a session and replays it byte for byte, with
+id verification and atomic backout. That makes rollback netcode,
+lockstep multiplayer, replays and server-side verification a few
+calls away:
 
 ```c
 int32_t size = m3World_SnapshotSize(world);
@@ -26,134 +21,129 @@ m3World_Snapshot(world, buffer, size);
 m3World_Restore(world, buffer, size); // bit-exact resimulation from here
 ```
 
-## What is in the box
+## Features
 
-- **Rigid bodies**: spheres, capsules, cylinders (honest faceted
-  prisms through the hull path), convex hulls (64 vertices),
-  triangle meshes (65k triangles with a BVH), heightfields, native
-  infinite planes, and compound children with local transforms;
-  static, kinematic, dynamic; forces, impulses, motion locks,
-  kinematic targets, runtime type switching, per-shape materials
-  with conveyor surface velocities, gusting wind fields.
-- **Voxel destruction inside the rollback contract**: chunked
-  voxel shapes with merged-box collision, journaled carving,
-  fracture events with island recipes for host-spawned fragments,
-  voxel CCD, and seam welding; carve the floor and the character,
-  the car, and the rope all react the same step.
-- **Explosions in one call**: m3World_Explode pushes every body
-  by the area it shows to the blast (falloff band, wake,
-  implosions), carves voxel chunks, and shoves soft particles,
-  all journaled and bit-exact under rollback.
-- **A soft-step solver** adapted from the Box2D v3 lineage:
-  speculative contacts, warm starting, graph coloring, sub-steps;
-  hybrid f64 positions keep worlds exact far from the origin.
+- **Rigid bodies**: spheres, capsules, cylinders (faceted prisms
+  through the hull path), convex hulls of up to 64 vertices, triangle
+  meshes of up to 65k triangles with a BVH, heightfields, infinite
+  planes and compound children with local transforms; static,
+  kinematic and dynamic bodies; forces, impulses, motion locks,
+  kinematic targets, runtime type switching, per-shape materials with
+  conveyor velocities and gusting wind fields.
+- **Voxel destruction inside rollback**: chunked voxel shapes with
+  merged-box collision, journaled carving, fracture events with island
+  recipes for host-spawned fragments, voxel continuous collision and
+  seam welding.
+- **Explosions in one call**: `m3World_Explode` pushes every body by
+  the area it shows to the blast, carves voxel chunks and shoves soft
+  particles, journaled and exact under rollback.
+- **Solver**: soft-step contacts with speculative margins, warm
+  starting, graph coloring and sub-steps; 64-bit positions keep worlds
+  exact far from the origin.
 - **Seven joint types**: spherical (with cone and twist limits),
-  revolute, prismatic, fixed, distance, a 6-DOF generic, and a
-  composed wheel joint (suspension slide plus free spin); limits,
-  motors, springs with position targets, constraint force
-  readback, and built-in BREAKING as a deterministic in-step
-  state transition with events.
-- **Vehicles two ways**: an arcade raycast car with suspension,
-  tire friction circles, and a full drivetrain (pinned torque
-  curve, gearbox with deterministic auto shift, clutch), or rigid
-  wheel-joint carts for trucks over rubble.
-- **A character controller**: collide-and-slide capsule with step
-  climbing, slope limits, ground snapping, moving-platform
-  carrying, dt-free pushing, and crouch/resize guarded by a
-  stand-up overlap veto.
-- **Soft bodies**: XPBD particle lattices (boxes, ropes, cloth
-  sheets) colliding with the rigid world and with EACH OTHER,
-  anchored to bodies or across lattices, driven by wind; all
-  inside the same snapshot, journal and hash contract.
-- **The replay studio**: the M3J1 container seals a snapshot plus
-  journal plus final hash into one artifact; the `m3replay` CLI
-  records, verifies, seeks, plays and DIFFS two runs to the exact
-  divergence frame; `m3lockstep` simulates a two-peer lockstep
-  exchange in one process (predict, rollback, re-simulate) and
-  proves both timelines bit-identical at every checkpoint.
-- **Events and queries**: contact begin/end, sensors, hit events
-  with speed thresholds, body move events, joint break events,
-  pre-solve vetoes; rays, sphere/capsule/hull/box casts, overlap
-  queries, all filterable by category/mask/group and canonically
-  ordered.
-- **Continuous collision** for bullets, island-based sleeping,
-  world tuning knobs, debug draw (wireframe and solid triangle
-  streams, both held by a draw-purity test).
+  revolute, prismatic, fixed, distance, a generic six-degree-of-freedom
+  joint and a wheel joint, with limits, motors, springs with position
+  targets, constraint force readback and breaking with events.
+- **Vehicles**: a raycast car with suspension, tire friction circles
+  and a drivetrain (torque curve, gearbox with automatic shifting,
+  clutch), or rigid wheel-joint carts.
+- **Character controller**: a collide-and-slide capsule with step
+  climbing, slope limits, ground snapping, moving platforms, pushing,
+  and crouching guarded by a stand-up overlap check.
+- **Soft bodies**: XPBD particle lattices (boxes, ropes, cloth) that
+  collide with the rigid world and with each other, can be anchored
+  to bodies or to other lattices and respond to wind.
+- **Replays**: the M3J1 container seals a snapshot, a journal and the
+  final hash into one file. The `m3replay` tool records, verifies,
+  seeks, plays and diffs two runs down to the first diverging frame;
+  `m3lockstep` runs a two-peer lockstep exchange in one process and
+  checks both timelines at every checkpoint.
+- **Events and queries**: contact, sensor, hit, body move and joint
+  break events and pre-solve vetoes; rays, sphere, capsule, hull and
+  box casts and overlap queries, all filterable and in canonical
+  order.
+- **Continuous collision** for fast bodies, island sleeping, tuning
+  settings and debug draw as wireframe and solid triangle streams.
 
-## Quick start
+## Getting started
 
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build
 ```
 
-No dependencies. A C17 compiler is required. The engine is portable
-scalar C today; vectorized kernels will arrive under the same
-bit-identity rule the rest of the engine follows.
+A C17 compiler is required; with MSVC that means Visual Studio 2022 or
+newer. The engine is portable scalar C.
 
-The interactive testbed (raylib, viewer only, outside the engine's
-dependency surface) builds with `-DMAUL3D_BUILD_TESTBED=ON`:
-fourteen scenes across benchmarks, voxel destruction (including a
-blastyard where one keypress detonates, carves the wall, and kicks
-the fragments), three kinds of vehicle, a playable character with
-the crouch veto, cloth in gusting wind over a conveyor, and a
-rolling heightfield; solid
-shading with shadows, a solver panel, and a Recording panel that
-seals the live session into an M3J1 replay and verifies it
-bit-exact on a button. Hold R and time runs backward through a
-snapshot ring, bit for bit.
+`cmake --install` installs the library, the headers, a CMake package
+and a pkg-config file, so `find_package(maul3d)` and
+`pkg-config maul3d` both work. Build a shared library with
+`-DMAUL3D_BUILD_SHARED=ON`.
 
-## Determinism and performance
+The [samples](docs/samples.md) show the API at work: a falling stack,
+the rollback loop, a car that turns into a tank and a character on
+the stairs. `samples/minimal` is a standalone project that finds the
+installed package.
 
-Determinism here means pinned IEEE arithmetic (no fast math, no FP
-contraction), fixed tessellations and canonical ordering on every
-path, journaled defs treated as untrusted bytes on replay, and a
-golden world hash that has moved exactly twice in the engine's
-life, both times argued on the record. Every commit runs 53 test
-suites in three build flavors plus a shared-library cell, ASAN and
-UBSAN, cross-platform hash equality across all cells, and seven
-pinned benchmark hashes that must not move: a 5000-body city block
-with destruction, a 10k-body smoke test with twin-run matching,
-mesh and hull rain fields, and the classic pyramid.
+The interactive testbed (built on raylib, which the library itself
+does not use) builds with `-DMAUL3D_BUILD_TESTBED=ON`. Its fourteen
+scenes cover benchmarks, voxel destruction, three kinds of vehicle, a
+playable character, cloth in gusting wind and a heightfield, with a
+recording panel that seals the session into an M3J1 replay and
+verifies it. Hold R and time runs backward.
 
-## Status and stability
+## Determinism
 
-Current version: 0.0.1. Until 1.0.0 the API, the ABI and the
-snapshot and journal formats may change in any minor release; the
-[changelog](CHANGELOG.md) records every change. Defs are
-cookie-guarded, so a stale compiled caller fails loudly instead of
-subtly. Snapshots and journal tapes are versioned artifacts of a
-single library version and refuse loudly across versions.
+- IEEE arithmetic only: no fast math and no floating-point
+  contraction, enforced at configure time.
+- Fixed tessellations and canonical ordering on every path.
+- Journaled defs are treated as untrusted input on replay.
+- CI compares the determinism hashes printed by the tests across
+  seven platform cells: GCC and Clang on x64 Linux in Debug and
+  Release, a sanitizer build, Clang on arm64 macOS, MSVC on Windows
+  and WebAssembly.
 
-## Learn more
+## Benchmarks
+
+The scenes in `bench/` (a pyramid, hull and mesh fields, a voxel
+fort, a 5000-body city block with destruction and a 10,000-body smoke
+test) print their timings and their final world hashes. The hashes
+are pinned in `bench/pins.txt`, and CI fails when one moves.
+
+## Status
+
+Current version: 0.0.1. Until 1.0.0 the API, the ABI and the snapshot
+and journal formats may change in any minor release; the
+[changelog](CHANGELOG.md) records every change. Defs carry a cookie,
+so a def that was not initialized with its `m3Default...Def`
+function is refused. Snapshots and journal tapes belong to one
+library version and are refused by any other.
+
+## Documentation
 
 - [The documentation site](https://rawframe-project.github.io/maul3d/):
-  the manual, the samples and the changelog as web pages.
-- [The manual](docs/manual.md): the engine-host contract, chapter
+  the manual, the samples, the conventions and the changelog as web
+  pages.
+- [The manual](docs/manual.md): the engine and host contract, chapter
   by chapter: rollback, the journal, destruction, vehicles, the
-  character, soft bodies, the replay studio, lockstep networking,
-  and the integration checklist.
-- [The changelog](CHANGELOG.md): every release and what changed.
-- [bindings/](bindings/): starter kits for C# (single-file
-  P/Invoke) and Godot (a GDExtension skeleton), seeds meant to be
-  copied into your project and grown.
+  character, soft bodies, replays, lockstep networking and an
+  integration checklist.
 - [The conventions](docs/conventions.md): the rules both engines
   follow, from naming to commits.
-- [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
-- [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
-- [Maul2D](https://github.com/Rawframe-Project/maul2d): the 2D sibling,
-  same constitution, with particle fluids and a browser-playable
-  testbed.
+- [The changelog](CHANGELOG.md): every release and what changed.
+- [Bindings](bindings/): starting points for C# (a single P/Invoke
+  file) and Godot (a GDExtension skeleton).
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute.
 
 ## Acknowledgments
 
-Maul3D stands on the shoulders of [Box2D and Box3D](https://github.com/erincatto)
-by Erin Catto (MIT): the soft-step solver structure, joint
-formulations, and several collision kernels are adapted from that
-lineage, with adaptations noted in the sources and licensed in
-[THIRD_PARTY.md](THIRD_PARTY.md). The determinism architecture
-(hybrid f64 positions, snapshot rollback, the command journal,
-config-hash refusal, cross-platform hash gating) and the
-voxel-destruction-inside-rollback design are Maul's own, shared
-with [Maul2D](https://github.com/Rawframe-Project/maul2d).
+The solver stage structure, joint formulations, several collision
+kernels and the trigonometric approximations were adapted from the
+Box2D and Box3D projects by Erin Catto. Each adaptation is noted in
+its source file, and the license is reproduced in
+[THIRD_PARTY.md](THIRD_PARTY.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
