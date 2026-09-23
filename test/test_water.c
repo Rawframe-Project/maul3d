@@ -66,6 +66,7 @@ static void TestFloatAndSink(void)
     double anvilY = m3Body_GetPosition(anvil).y;
     CHECK(corkY > 2.5 && corkY < 4.6, "the light crate floats near the surface");
     CHECK(anvilY < 0.8, "the dense crate sinks to the floor");
+    printf("M3_WATER_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
     m3DestroyWorld(world);
 }
 

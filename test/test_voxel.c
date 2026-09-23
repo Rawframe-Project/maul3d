@@ -175,6 +175,7 @@ static void TestRestingOnVoxelFloor(void)
         m3DestroyWorld(world);
     }
     CHECK(hashes[0] == hashes[1], "voxel resting scenes are bit-deterministic twins");
+    printf("M3_VOXEL_HASH=%016llx\n", (unsigned long long)hashes[0]);
 }
 
 static void TestSnapshotJournalAndDerivedRebuild(void)

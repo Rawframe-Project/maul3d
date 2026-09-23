@@ -112,6 +112,7 @@ static void TestSteerCircle(void)
     CHECK(fabsf(w.y) > 0.3f, "the steer turns the car");
     m3real radius = speed / fabsf(w.y);
     CHECK(radius > 1.4f && radius < 5.0f, "the turning radius sits near Ackermann");
+    printf("M3_VEHICLE_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
     m3DestroyWorld(world);
 }
 

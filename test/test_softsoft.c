@@ -138,6 +138,7 @@ static void TestRopeDrapesOverCloth(void)
         }
     }
     CHECK(ropeLow > 1.2, "the rope drapes over the cloth instead of falling through");
+    printf("M3_SOFTSOFT_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
     m3DestroyWorld(world);
 }
 

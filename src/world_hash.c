@@ -15,19 +15,8 @@
 
 #include <stddef.h>
 
-uint64_t m3World_Hash(m3WorldId worldId)
+static uint64_t HashWorldHeader(const m3World* world, uint64_t h)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
-    }
-    // Curated deterministic state in canonical slot order: what the
-    // simulation IS, not how it is stored. Dead slots contribute only
-    // their liveness byte (destroy zeroes state, but the hash must not
-    // depend on that coincidence).
-    uint64_t h = M3_HASH_INIT;
     h = m3Hash64(h, &world->stepCount, 8);
     h = m3Hash64(h, &world->gravity, (int32_t)sizeof(m3Vec3));
     if (world->contactHertz != M3_CONTACT_HERTZ_DEFAULT ||
@@ -63,6 +52,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->windGustScale, 4);
         h = m3Hash64(h, &world->windPhase, 4);
     }
+    return h;
+}
+
+static uint64_t HashBodies(const m3World* world, uint64_t h)
+{
     int32_t maxIndex = world->bodies.bodyPool.maxIndex;
     for (int32_t i = 0; i < maxIndex; ++i)
     {
@@ -104,6 +98,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->bodies.awake[i], 1);
         h = m3Hash64(h, &world->bodies.sleepTimes[i], 4);
     }
+    return h;
+}
+
+static uint64_t HashShapes(const m3World* world, uint64_t h)
+{
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t i = 0; i < maxShape; ++i)
     {
@@ -164,7 +163,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
             h = m3Hash64(h, &world->shapes.shapeVoxelIndex[i], 4);
         }
     }
+    return h;
+}
 
+static uint64_t HashCharacters(const m3World* world, uint64_t h)
+{
     // Character state: live slots only, the additive-state rule.
     int32_t maxChar = world->characters.charPool.maxIndex;
     for (int32_t i = 0; i < maxChar; ++i)
@@ -189,6 +192,44 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->characters.charGroundBody[i], 4);
         h = m3Hash64(h, &world->characters.charGroundGen[i], 2);
     }
+    return h;
+}
+
+// One soft body's edges, body anchors and soft-to-soft anchors.
+static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
+{
+    int32_t ec = world->softBodies.softEdgeCount[i];
+    for (int32_t e = 0; e < ec; ++e)
+    {
+        int32_t k = i * M3_SOFTBODY_MAX_EDGES + e;
+        h = m3Hash64(h, &world->softBodies.softEdgeA[k], 2);
+        h = m3Hash64(h, &world->softBodies.softEdgeB[k], 2);
+        h = m3Hash64(h, &world->softBodies.softEdgeRest[k], 4);
+    }
+    int32_t ac = world->softBodies.softAnchorCount[i];
+    for (int32_t a = 0; a < ac; ++a)
+    {
+        int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
+        h = m3Hash64(h, &world->softBodies.softAnchorParticle[k], 4);
+        h = m3Hash64(h, &world->softBodies.softAnchorBody[k], 4);
+        h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 2);
+        h = m3Hash64(h, &world->softBodies.softAnchorLocal[k], (int32_t)sizeof(m3Vec3));
+    }
+    // Soft-to-soft anchors fold off-empty (additive rule).
+    int32_t sc = world->softBodies.softSoftCount[i];
+    for (int32_t a = 0; a < sc; ++a)
+    {
+        int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
+        h = m3Hash64(h, &world->softBodies.softSoftParticleA[k], 4);
+        h = m3Hash64(h, &world->softBodies.softSoftSlotB[k], 4);
+        h = m3Hash64(h, &world->softBodies.softSoftGenB[k], 2);
+        h = m3Hash64(h, &world->softBodies.softSoftParticleB[k], 4);
+    }
+    return h;
+}
+
+static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
+{
     for (int32_t i = 0; i < world->softBodies.softPool.maxIndex; ++i)
     {
         if (world->softBodies.softPool.alive[i] == 0)
@@ -254,34 +295,49 @@ uint64_t m3World_Hash(m3WorldId worldId)
                 h = m3Hash64(h, &world->softBodies.softKick[k], (int32_t)sizeof(m3Vec3));
             }
         }
-        int32_t ec = world->softBodies.softEdgeCount[i];
-        for (int32_t e = 0; e < ec; ++e)
+        h = HashSoftLinks(world, h, i);
+    }
+    return h;
+}
+
+static uint64_t HashDrivetrain(const m3World* world, uint64_t h, int32_t i)
+{
+    h = m3Hash64(h, &world->vehicles.vehDtCurveCount[i], 4);
+    for (int32_t c = 0; c < world->vehicles.vehDtCurveCount[i]; ++c)
+    {
+        h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_DRIVETRAIN_MAX_CURVE + c], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_DRIVETRAIN_MAX_CURVE + c], 4);
+    }
+    h = m3Hash64(h, &world->vehicles.vehDtGearCount[i], 4);
+    for (int32_t g = 0; g < world->vehicles.vehDtGearCount[i]; ++g)
+    {
+        h = m3Hash64(h, &world->vehicles.vehDtGearRatio[i * M3_DRIVETRAIN_MAX_GEARS + g], 4);
+    }
+    h = m3Hash64(h, &world->vehicles.vehDtReverse[i], 4);
+    h = m3Hash64(h, &world->vehicles.vehDtFinal[i], 4);
+    if (world->vehicles.vehDtDiffMode[i] != 0)
+    {
+        // The diff folds only when engaged, wheel
+        // speeds included: they steer forces only then.
+        h = m3Hash64(h, &world->vehicles.vehDtDiffMode[i], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtDiffCouple[i], 4);
+        for (int32_t wq = 0; wq < world->vehicles.vehWheelCount[i]; ++wq)
         {
-            int32_t k = i * M3_SOFTBODY_MAX_EDGES + e;
-            h = m3Hash64(h, &world->softBodies.softEdgeA[k], 2);
-            h = m3Hash64(h, &world->softBodies.softEdgeB[k], 2);
-            h = m3Hash64(h, &world->softBodies.softEdgeRest[k], 4);
-        }
-        int32_t ac = world->softBodies.softAnchorCount[i];
-        for (int32_t a = 0; a < ac; ++a)
-        {
-            int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
-            h = m3Hash64(h, &world->softBodies.softAnchorParticle[k], 4);
-            h = m3Hash64(h, &world->softBodies.softAnchorBody[k], 4);
-            h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 2);
-            h = m3Hash64(h, &world->softBodies.softAnchorLocal[k], (int32_t)sizeof(m3Vec3));
-        }
-        // Soft-to-soft anchors fold off-empty (additive rule).
-        int32_t sc = world->softBodies.softSoftCount[i];
-        for (int32_t a = 0; a < sc; ++a)
-        {
-            int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
-            h = m3Hash64(h, &world->softBodies.softSoftParticleA[k], 4);
-            h = m3Hash64(h, &world->softBodies.softSoftSlotB[k], 4);
-            h = m3Hash64(h, &world->softBodies.softSoftGenB[k], 2);
-            h = m3Hash64(h, &world->softBodies.softSoftParticleB[k], 4);
+            h = m3Hash64(h, &world->vehicles.vehWheelLon[i * M3_VEHICLE_MAX_WHEELS + wq], 4);
         }
     }
+    h = m3Hash64(h, &world->vehicles.vehDtShiftUp[i], 4);
+    h = m3Hash64(h, &world->vehicles.vehDtShiftDown[i], 4);
+    h = m3Hash64(h, &world->vehicles.vehDtClutchSteps[i], 4);
+    h = m3Hash64(h, &world->vehicles.vehDtAutoShift[i], 1);
+    h = m3Hash64(h, &world->vehicles.vehDtGear[i], 1);
+    h = m3Hash64(h, &world->vehicles.vehDtClutch[i], 4);
+    h = m3Hash64(h, &world->vehicles.vehDtRpm[i], 4);
+    return h;
+}
+
+static uint64_t HashVehicles(const m3World* world, uint64_t h)
+{
     for (int32_t i = 0; i < world->vehicles.vehPool.maxIndex; ++i)
     {
         if (world->vehicles.vehPool.alive[i] == 0)
@@ -328,44 +384,14 @@ uint64_t m3World_Hash(m3WorldId worldId)
         }
         if (world->vehicles.vehDtActive[i] != 0)
         {
-            // The drivetrain hashes only when attached.
-            h = m3Hash64(h, &world->vehicles.vehDtCurveCount[i], 4);
-            for (int32_t c = 0; c < world->vehicles.vehDtCurveCount[i]; ++c)
-            {
-                h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_DRIVETRAIN_MAX_CURVE + c], 4);
-                h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_DRIVETRAIN_MAX_CURVE + c],
-                             4);
-            }
-            h = m3Hash64(h, &world->vehicles.vehDtGearCount[i], 4);
-            for (int32_t g = 0; g < world->vehicles.vehDtGearCount[i]; ++g)
-            {
-                h = m3Hash64(h, &world->vehicles.vehDtGearRatio[i * M3_DRIVETRAIN_MAX_GEARS + g],
-                             4);
-            }
-            h = m3Hash64(h, &world->vehicles.vehDtReverse[i], 4);
-            h = m3Hash64(h, &world->vehicles.vehDtFinal[i], 4);
-            if (world->vehicles.vehDtDiffMode[i] != 0)
-            {
-                // The diff folds only when engaged, wheel
-                // speeds included: they steer forces only then.
-                h = m3Hash64(h, &world->vehicles.vehDtDiffMode[i], 4);
-                h = m3Hash64(h, &world->vehicles.vehDtDiffCouple[i], 4);
-                for (int32_t wq = 0; wq < world->vehicles.vehWheelCount[i]; ++wq)
-                {
-                    h = m3Hash64(h, &world->vehicles.vehWheelLon[i * M3_VEHICLE_MAX_WHEELS + wq],
-                                 4);
-                }
-            }
-            h = m3Hash64(h, &world->vehicles.vehDtShiftUp[i], 4);
-            h = m3Hash64(h, &world->vehicles.vehDtShiftDown[i], 4);
-            h = m3Hash64(h, &world->vehicles.vehDtClutchSteps[i], 4);
-            h = m3Hash64(h, &world->vehicles.vehDtAutoShift[i], 1);
-            h = m3Hash64(h, &world->vehicles.vehDtGear[i], 1);
-            h = m3Hash64(h, &world->vehicles.vehDtClutch[i], 4);
-            h = m3Hash64(h, &world->vehicles.vehDtRpm[i], 4);
+            h = HashDrivetrain(world, h, i); // only when attached
         }
     }
+    return h;
+}
 
+static uint64_t HashVoxels(const m3World* world, uint64_t h)
+{
     // Voxel chunk content is simulation state (destruction edits it
     // and rollback must cover it); live slots only, same law as
     // everything above.
@@ -387,6 +413,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, world->voxels.voxelData[i].fill,
                      (int32_t)sizeof(world->voxels.voxelData[i].fill));
     }
+    return h;
+}
+
+static uint64_t HashJoints(const m3World* world, uint64_t h)
+{
     int32_t maxJoint = world->joints.jointPool.maxIndex;
     for (int32_t i = 0; i < maxJoint; ++i)
     {
@@ -445,7 +476,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
             h = m3Hash64(h, &world->joints.jointGroundB[i], (int32_t)sizeof(m3Pos3));
         }
     }
+    return h;
+}
 
+static uint64_t HashWater(const m3World* world, uint64_t h)
+{
     // Water volumes: folded ONLY while any volume is alive
     // (the off-default law, in its own block); the pool identity
     // rides along so a destroyed-and-recreated volume moves bits.
@@ -469,7 +504,11 @@ uint64_t m3World_Hash(m3WorldId worldId)
             h = m3Hash64(h, world->water.waterPool.alive, M3_MAX_WATER_VOLUMES);
         }
     }
+    return h;
+}
 
+static uint64_t HashContacts(const m3World* world, uint64_t h)
+{
     // Pairs and manifolds: warm-start impulses are simulation state
     // (they steer the next solve), so they are part of what the world
     // IS.
@@ -479,5 +518,28 @@ uint64_t m3World_Hash(m3WorldId worldId)
         h = m3Hash64(h, &world->contacts.pairKeys[i], 8);
         h = m3Hash64(h, &world->contacts.manifolds[i], (int32_t)sizeof(m3Manifold));
     }
+    return h;
+}
+
+uint64_t m3World_Hash(m3WorldId worldId)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0;
+    }
+    // Dead slots contribute only their liveness byte: destroy zeroes
+    // state, but the hash must not depend on that coincidence.
+    uint64_t h = HashWorldHeader(world, M3_HASH_INIT);
+    h = HashBodies(world, h);
+    h = HashShapes(world, h);
+    h = HashCharacters(world, h);
+    h = HashSoftBodies(world, h);
+    h = HashVehicles(world, h);
+    h = HashVoxels(world, h);
+    h = HashJoints(world, h);
+    h = HashWater(world, h);
+    h = HashContacts(world, h);
     return h;
 }

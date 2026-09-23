@@ -92,6 +92,7 @@ static void TestJellyRest(void)
     }
     CHECK(minY > 0.05 && minY < 0.15, "the bottom layer rests at particle radius");
     CHECK(maxY - minY > 0.7 && maxY - minY < 1.0, "the cube keeps its height, squash tolerated");
+    printf("M3_SOFTBODY_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
     m3DestroyWorld(world);
 }
 

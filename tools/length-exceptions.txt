@@ -77,4 +77,3 @@ solver.c EmitContactEvents 86 numeric kernel: solver rows in one fixed operation
 distance.c SolveSimplex3 85 numeric kernel: one pass in a fixed operation order
 shape.c m3CreateMeshShape 85 creation or teardown: validation and every slot field in one pass
 solver.c m3StepInternal 83 numeric kernel: solver rows in one fixed operation order
-world_hash.c m3World_Hash 463 one canonical walk over the world state, in hash order

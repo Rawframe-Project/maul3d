@@ -31,6 +31,9 @@ Work toward 0.0.1, the first release of the reworked library.
 - The library target requires C11 of its consumers through CMake, and
   a test compiles the umbrella header as C++ so the API stays usable
   from C++.
+- `test/hashes.txt` pins soft body, soft-to-soft, vehicle, drivetrain,
+  water, character and voxel scenes, so every subsystem the world hash
+  covers has a golden value.
 
 ### Changed
 

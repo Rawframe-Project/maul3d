@@ -107,6 +107,10 @@ static void TestUphillBogAndClimb(void)
         }
         progress[attempt] = m3Body_GetPosition(chassis).x - startX;
         CHECK(m3Vehicle_GetGear(car) == (attempt == 0 ? 5 : 1), "the manual gear holds");
+        if (attempt == 1)
+        {
+            printf("M3_DRIVETRAIN_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+        }
         m3DestroyWorld(world);
     }
     CHECK(progress[0] < 0.5, "top gear bogs on the slope");
