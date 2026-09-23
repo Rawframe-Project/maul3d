@@ -1,10 +1,10 @@
 # Maul3D
 
-[![ci](https://github.com/siracozmen01/Maul3D/actions/workflows/ci.yml/badge.svg)](https://github.com/siracozmen01/Maul3D/actions/workflows/ci.yml)
+[![ci](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml)
 
 A deterministic 3D physics engine for games. Written in C17 with a
 pure C API, zero dependencies, MIT licensed. The 3D sibling of
-[Maul2D](https://github.com/siracozmen01/Maul2D), built on the same
+[Maul2D](https://github.com/Rawframe-Project/maul2d), built on the same
 constitution: the same inputs produce the same bits on every
 supported platform, and the engine is designed around that promise
 end to end.
@@ -129,6 +129,8 @@ single library version and refuse loudly across versions.
 
 ## Learn more
 
+- [The documentation site](https://rawframe-project.github.io/maul3d/):
+  the manual, the samples and the changelog as web pages.
 - [The manual](docs/manual.md): the engine-host contract, chapter
   by chapter: rollback, the journal, destruction, vehicles, the
   character, soft bodies, the replay studio, lockstep networking,
@@ -139,7 +141,7 @@ single library version and refuse loudly across versions.
   copied into your project and grown.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
 - [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
-- [Maul2D](https://github.com/siracozmen01/Maul2D): the 2D sibling,
+- [Maul2D](https://github.com/Rawframe-Project/maul2d): the 2D sibling,
   same constitution, with particle fluids and a browser-playable
   testbed.
 
@@ -153,4 +155,4 @@ lineage, with adaptations noted in the sources and licensed in
 (hybrid f64 positions, snapshot rollback, the command journal,
 config-hash refusal, cross-platform hash gating) and the
 voxel-destruction-inside-rollback design are Maul's own, shared
-with [Maul2D](https://github.com/siracozmen01/Maul2D).
+with [Maul2D](https://github.com/Rawframe-Project/maul2d).

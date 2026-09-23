@@ -13,7 +13,7 @@ RISC-V, 32-bit, SIMD and scalar, Windows, wasm).
 - [Samples](samples.html): small complete programs, from a falling
   stack to a snapshot round-trip to a skid-steer tank.
 - [The changelog](changelog.html): every release and what changed.
-- [The repository](https://github.com/siracozmen01/Maul3D):
+- [The repository](https://github.com/Rawframe-Project/maul3d):
   source, releases, and the test suites that keep the promises.
 
 ## The promises

@@ -48,7 +48,7 @@ h1, h2 {{ line-height: 1.25; }}
 <a href="manual.html">Manual</a>
 <a href="samples.html">Samples</a>
 <a href="changelog.html">Changelog</a>
-<a href="https://github.com/siracozmen01/Maul3D">GitHub</a>
+<a href="https://github.com/Rawframe-Project/maul3d">GitHub</a>
 </nav>
 {body}
 </body>
