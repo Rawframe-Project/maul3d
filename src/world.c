@@ -100,73 +100,44 @@ static void FreeWorldStorage(m3World* world)
     m3Free(world);
 }
 
-m3WorldId m3CreateWorld(const m3WorldDef* def)
+// User-input validation is contract, not invariant: a bad def is a
+// refusal, never an assert.
+static bool ValidWorldDef(const m3WorldDef* def)
 {
-    m3WorldId nullId = {0, 0};
-    if (def == NULL || def->internalValue != M3_WORLD_COOKIE || def->bodyCapacity <= 0 ||
-        def->shapeCapacity <= 0 || def->meshCapacity <= 0 || def->jointCapacity <= 0 ||
-        def->voxelCapacity <= 0 || def->characterCapacity <= 0 || def->vehicleCapacity <= 0 ||
-        def->softBodyCapacity <= 0 || def->workerCount <= 0 || def->shapeCapacity > INT32_MAX / 8 ||
-        def->voxelCapacity > INT32_MAX / 6 ||
-        (def->enqueueTask == NULL) != (def->finishTask == NULL) || !m3FiniteV3(def->gravity) ||
-        !m3FiniteF(def->contactHertz) || def->contactHertz <= 0.0f ||
-        !m3FiniteF(def->contactDampingRatio) || def->contactDampingRatio <= 0.0f ||
-        !m3FiniteF(def->contactPushMaxSpeed) || def->contactPushMaxSpeed <= 0.0f ||
-        !m3FiniteF(def->restitutionThreshold) || def->restitutionThreshold < 0.0f ||
-        !m3FiniteF(def->maximumLinearSpeed) || def->maximumLinearSpeed <= 0.0f ||
-        !m3FiniteF(def->hitEventThreshold) || def->hitEventThreshold < 0.0f)
+    if (def == NULL || def->internalValue != M3_WORLD_COOKIE)
     {
-        m3Refuse(NULL, m3_errorInvalid);
-        // User-input validation is contract, not invariant: the API
-        // promises a null id for a bad def (tests exercise this), so
-        // no assert here. Asserts guard states that cannot happen.
-        return nullId;
+        return false;
     }
+    bool capacities = def->bodyCapacity > 0 && def->shapeCapacity > 0 && def->meshCapacity > 0 &&
+                      def->jointCapacity > 0 && def->voxelCapacity > 0 &&
+                      def->characterCapacity > 0 && def->vehicleCapacity > 0 &&
+                      def->softBodyCapacity > 0 && def->workerCount > 0 &&
+                      def->shapeCapacity <= INT32_MAX / 8 && def->voxelCapacity <= INT32_MAX / 6;
+    bool tasks = (def->enqueueTask == NULL) == (def->finishTask == NULL);
+    bool tuning = m3FiniteV3(def->gravity) && m3FiniteF(def->contactHertz) &&
+                  def->contactHertz > 0.0f && m3FiniteF(def->contactDampingRatio) &&
+                  def->contactDampingRatio > 0.0f && m3FiniteF(def->contactPushMaxSpeed) &&
+                  def->contactPushMaxSpeed > 0.0f && m3FiniteF(def->restitutionThreshold) &&
+                  def->restitutionThreshold >= 0.0f && m3FiniteF(def->maximumLinearSpeed) &&
+                  def->maximumLinearSpeed > 0.0f && m3FiniteF(def->hitEventThreshold) &&
+                  def->hitEventThreshold >= 0.0f;
+    return capacities && tasks && tuning;
+}
 
-    int32_t slot = -1;
-    for (int32_t i = 0; i < M3_MAX_WORLDS; ++i)
-    {
-        if (s_worlds[i] == NULL)
-        {
-            slot = i;
-            break;
-        }
-    }
-    if (slot < 0)
-    {
-        m3Refuse(NULL, m3_errorCapacity);
-        return nullId; // table exhausted: loud, never silent, and a
-                       // capacity refusal is contract, not invariant
-    }
-
-    m3World* world = (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
-    if (world == NULL)
-    {
-        m3Refuse(NULL, m3_errorCapacity);
-        return nullId; // out of memory
-    }
-    int32_t cap = def->bodyCapacity;
+// Copies the def's settings and capacities into a zeroed world.
+static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
+{
     world->gravity = def->gravity;
     world->contactHertz = def->contactHertz;
     world->contactDampingRatio = def->contactDampingRatio;
     world->contactPushMaxSpeed = def->contactPushMaxSpeed;
     world->restitutionThreshold = def->restitutionThreshold;
     world->maximumLinearSpeed = def->maximumLinearSpeed;
-    // Not a def field: the def cookie stays put under 1.x.
-    // Hosts tune it through the journaled setter.
-    world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
+    world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT; // set through its setter
     world->sleepEnabled = def->enableSleeping != 0 ? 1 : 0;
     world->continuousEnabled = def->enableContinuous != 0 ? 1 : 0;
     world->hitEventThreshold = def->hitEventThreshold;
-    world->preSolveFn = NULL;
-    world->preSolveContext = NULL;
-    world->lastInvH = 0.0f;
-    world->windDir = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->windSpeed = 0.0f;
-    world->windGustHertz = 0.0f;
-    world->windGustScale = 0.0f;
-    world->windPhase = 0.0f;
-    world->bodies.bodyCapacity = cap;
+    world->bodies.bodyCapacity = def->bodyCapacity;
     world->shapes.shapeCapacity = def->shapeCapacity;
     world->meshes.meshCapacity = def->meshCapacity;
     world->voxels.voxelCapacity = def->voxelCapacity;
@@ -178,146 +149,120 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
-    world->generation = s_worldGenerations[slot];
-    world->worldIndex0 = (uint16_t)slot;
     world->contacts.pairCapacity = 8 * def->shapeCapacity;
-    if (!m3StateAllocate(world))
-    {
-        goto allocFailed;
-    }
-    world->bodies.bodyPool = m3IdPoolCreate(cap);
+}
 
-    for (int32_t i = 0; i < cap; ++i)
+// Sets every link and back-reference of fresh state to "none".
+static void ClearLinks(m3World* world)
+{
+    for (int32_t i = 0; i < world->bodies.bodyCapacity; ++i)
     {
         world->bodies.bodyIsland[i] = -1; // observer label, no island yet
         world->bodies.bodyShapeHead[i] = -1;
+        world->joints.bodyJointHead[i] = -1;
     }
-
-    int32_t shapeCap = def->shapeCapacity;
-    world->shapes.shapePool = m3IdPoolCreate(shapeCap);
-    for (int32_t i = 0; i < shapeCap; ++i)
+    for (int32_t i = 0; i < world->shapes.shapeCapacity; ++i)
     {
         world->shapes.shapeBody[i] = -1;
         world->shapes.shapeNext[i] = -1;
-    }
-
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
         world->shapes.shapeHullIndex[i] = -1;
+        world->shapes.shapeHfIndex[i] = -1;
+        world->shapes.shapeVoxelIndex[i] = -1;
+        world->shapes.shapeMeshIndex[i] = -1;
+        world->broadphase.proxyIds[i] = M3_TREE_NULL;
     }
-    world->hulls.hullPool = m3IdPoolCreate(shapeCap);
-    world->joints.jointPool = m3IdPoolCreate(def->jointCapacity);
-    world->heightFields.hfPool = m3IdPoolCreate(def->shapeCapacity);
-    for (int32_t hf = 0; hf < def->shapeCapacity; ++hf)
-    {
-        world->shapes.shapeHfIndex[hf] = -1;
-    }
-    world->water.waterPool = m3IdPoolCreate(M3_MAX_WATER_VOLUMES);
-    world->characters.charPool = m3IdPoolCreate(def->characterCapacity);
-    world->vehicles.vehPool = m3IdPoolCreate(def->vehicleCapacity);
-    world->softBodies.softPool = m3IdPoolCreate(def->softBodyCapacity);
-    for (int32_t v = 0; v < def->vehicleCapacity; ++v)
+    for (int32_t v = 0; v < world->vehicles.vehicleCapacity; ++v)
     {
         world->vehicles.vehChassis[v] = -1;
     }
-    for (int32_t i = 0; i < def->characterCapacity; ++i)
+    for (int32_t i = 0; i < world->characters.characterCapacity; ++i)
     {
         world->characters.charBody[i] = -1;
     }
-    for (int32_t i = 0; i < def->jointCapacity; ++i)
+    for (int32_t i = 0; i < world->joints.jointCapacity; ++i)
     {
         world->joints.jointBodyA[i] = -1;
         world->joints.jointBodyB[i] = -1;
         world->joints.jointNextA[i] = -1;
         world->joints.jointNextB[i] = -1;
     }
-    for (int32_t i = 0; i < cap; ++i)
-    {
-        world->joints.bodyJointHead[i] = -1;
-    }
-    world->meshes.meshPool = m3IdPoolCreate(def->meshCapacity);
-    world->voxels.voxelPool = m3IdPoolCreate(def->voxelCapacity);
-    for (int32_t i = 0; i < def->voxelCapacity; ++i)
+    for (int32_t i = 0; i < world->voxels.voxelCapacity; ++i)
     {
         world->voxels.voxelShape[i] = -1;
     }
-    for (int32_t i = 0; i < def->voxelCapacity * 6; ++i)
+    for (int32_t i = 0; i < world->voxels.voxelCapacity * 6; ++i)
     {
         world->voxels.voxelNeighbors[i] = -1;
     }
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapes.shapeVoxelIndex[i] = -1;
-    }
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapes.shapeMeshIndex[i] = -1;
-    }
+}
 
+// The slot pools, the proxy tree and the step scratch live outside the
+// state table. Each reports a refusal as zero capacity; their closed-form
+// footprints join the memory total.
+static bool CreatePools(m3World* world)
+{
+    m3IdPool* pools[] = {
+        &world->bodies.bodyPool,     &world->shapes.shapePool,    &world->hulls.hullPool,
+        &world->joints.jointPool,    &world->heightFields.hfPool, &world->water.waterPool,
+        &world->characters.charPool, &world->vehicles.vehPool,    &world->softBodies.softPool,
+        &world->meshes.meshPool,     &world->voxels.voxelPool};
+    int32_t caps[] = {world->bodies.bodyCapacity,          world->shapes.shapeCapacity,
+                      world->shapes.shapeCapacity,         world->joints.jointCapacity,
+                      world->shapes.shapeCapacity,         M3_MAX_WATER_VOLUMES,
+                      world->characters.characterCapacity, world->vehicles.vehicleCapacity,
+                      world->softBodies.softBodyCapacity,  world->meshes.meshCapacity,
+                      world->voxels.voxelCapacity};
+    bool ok = true;
+    for (int32_t p = 0; p < (int32_t)(sizeof(caps) / sizeof(caps[0])); ++p)
+    {
+        *pools[p] = m3IdPoolCreate(caps[p]);
+        ok = ok && pools[p]->capacity != 0;
+        world->memoryBytes +=
+            (int64_t)caps[p] * (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
+    }
+    int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(2 * shapeCap);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->broadphase.proxyIds[i] = M3_TREE_NULL;
-    }
-
-    world->events.hitEventCount = 0;
-    world->events.hitEventsDropped = 0;
-    world->events.moveEventCount = 0;
-    world->joints.jointBreakEventCount = 0;
-    world->events.beginEventCount = 0;
-    world->events.endEventCount = 0;
-    world->contacts.pairCount = 0;
-
-    // Step scratch: grows between steps on m3_errorCapacity, never
-    // mid-step. 256 KiB is generous for the 2a sphere world.
+    world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
+    // Step scratch grows between steps on m3_errorCapacity, never mid-step.
     world->scratch = m3StackCreate(256 * 1024);
-    // The slot pools and the proxy tree allocate outside the state table;
-    // their footprints are closed-form and join the total here.
-    {
-        int64_t poolBytes = 0;
-        int32_t poolCaps[] = {cap,
-                              shapeCap,
-                              shapeCap,
-                              def->jointCapacity,
-                              def->shapeCapacity,
-                              M3_MAX_WATER_VOLUMES,
-                              def->characterCapacity,
-                              def->vehicleCapacity,
-                              def->softBodyCapacity,
-                              def->meshCapacity,
-                              def->voxelCapacity};
-        for (int32_t p = 0; p < (int32_t)(sizeof(poolCaps) / sizeof(poolCaps[0])); ++p)
-        {
-            poolBytes += (int64_t)poolCaps[p] *
-                         (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
-        }
-        world->memoryBytes += poolBytes;
-        world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
-    }
+    return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0;
+}
 
-    // The pools, the tree and the scratch report a refusal as zero
-    // capacity rather than jumping, so check them once here.
-    if (world->bodies.bodyPool.capacity == 0 || world->shapes.shapePool.capacity == 0 ||
-        world->hulls.hullPool.capacity == 0 || world->joints.jointPool.capacity == 0 ||
-        world->heightFields.hfPool.capacity == 0 || world->water.waterPool.capacity == 0 ||
-        world->characters.charPool.capacity == 0 || world->vehicles.vehPool.capacity == 0 ||
-        world->softBodies.softPool.capacity == 0 || world->meshes.meshPool.capacity == 0 ||
-        world->voxels.voxelPool.capacity == 0 || world->broadphase.tree.capacity == 0 ||
-        world->scratch.capacity == 0)
+m3WorldId m3CreateWorld(const m3WorldDef* def)
+{
+    m3WorldId nullId = {0, 0};
+    if (!ValidWorldDef(def))
     {
-        goto allocFailed;
+        m3Refuse(NULL, m3_errorInvalid);
+        return nullId;
     }
-
+    int32_t slot = -1;
+    for (int32_t i = 0; i < M3_MAX_WORLDS && slot < 0; ++i)
+    {
+        slot = s_worlds[i] == NULL ? i : -1;
+    }
+    m3World* world = slot < 0 ? NULL : (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
+    if (world == NULL)
+    {
+        m3Refuse(NULL, m3_errorCapacity); // the world table is full or memory is out
+        return nullId;
+    }
+    ApplyWorldDef(world, def);
+    world->generation = s_worldGenerations[slot];
+    world->worldIndex0 = (uint16_t)slot;
+    bool ok = m3StateAllocate(world);
+    ok = ok && CreatePools(world);
+    if (!ok)
+    {
+        // Out of memory or an unrepresentable size: release what exists
+        // and refuse. Nothing was registered, so the slot stays free.
+        FreeWorldStorage(world);
+        m3Refuse(NULL, m3_errorCapacity);
+        return nullId;
+    }
+    ClearLinks(world);
     s_worlds[slot] = world;
-    m3WorldId id = {slot + 1, world->generation};
-    return id;
-
-allocFailed:
-    // Out of memory or an unrepresentable size: release what exists
-    // and refuse. Nothing was registered, so the slot stays free.
-    FreeWorldStorage(world);
-    m3Refuse(NULL, m3_errorCapacity);
-    return nullId;
+    return (m3WorldId){slot + 1, world->generation};
 }
 
 void m3DestroyWorld(m3WorldId worldId)

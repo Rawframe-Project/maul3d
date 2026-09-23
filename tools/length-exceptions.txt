@@ -27,7 +27,6 @@ contact_solver.c m3PrepareContacts 257 numeric kernel: solver rows in one fixed 
 query.c ShapeCastTestShape 235 numeric kernel: one pass in a fixed operation order
 joint_prismatic.c SolvePrismatic 233 numeric kernel: solver rows in one fixed operation order
 joint.c m3CreateJointInternal 226 creation or teardown: validation and every slot field in one pass
-world.c m3CreateWorld 216 world creation: def validation, allocation and seeding in one pass
 broad_phase.c m3UpdatePairs 213 numeric kernel: one pass in a fixed operation order
 softbody.c SoftCollideParticle 213 numeric kernel: one pass in a fixed operation order
 distance.c SolveSimplex4 212 numeric kernel: one pass in a fixed operation order
@@ -49,7 +48,6 @@ query.c ProxyReachesShape 137 numeric kernel: one pass in a fixed operation orde
 manifold_mesh.c m3CollideHeightFieldConvex 135 numeric kernel: one pass in a fixed operation order
 query.c SphereReachesShape 129 numeric kernel: one pass in a fixed operation order
 distance.c ToiMakeSeparationFunction 123 numeric kernel: one pass in a fixed operation order
-draw.c DrawShape 123 debug draw: one walk emitting every primitive in canonical order
 broad_phase.c SphereAabb 122 numeric kernel: one pass in a fixed operation order
 softbody.c m3CreateSoftBodyTetInternal 122 creation or teardown: validation and every slot field in one pass
 joint_spherical.c SolveSpherical 119 numeric kernel: solver rows in one fixed operation order
@@ -61,7 +59,6 @@ dynamic_tree.c Balance 107 tree kernel: one rotation or insertion in a fixed ord
 joint.c JointDefIsValid 104 the def contract, checked field by field
 narrowphase.c CollidePlaneHullPair 103 numeric kernel: one pass in a fixed operation order
 quickhull.c m3ComputeHull 103 numeric kernel: one pass in a fixed operation order
-draw.c m3World_Draw 101 debug draw: one walk emitting every primitive in canonical order
 dynamic_tree.c m3TreeInsert 99 tree kernel: one rotation or insertion in a fixed order
 solver.c PrepareBuoyancy 97 numeric kernel: solver rows in one fixed operation order
 voxel.c VoxelWakeRegion 96 numeric kernel: one pass in a fixed operation order

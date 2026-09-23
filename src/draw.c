@@ -95,130 +95,242 @@ static uint32_t ShapeColor(const m3World* world, int32_t shape, const m3DebugDra
     return M3_DRAW_COLOR_AWAKE;
 }
 
+// The twelve edges of a box whose corner k has bit 0 for x, 1 for y and
+// 2 for z set when it sits on the upper bound.
+static const int32_t s_boxEdges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
+                                          {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
+
+static void DrawSphere(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape,
+                       uint32_t color)
+{
+    m3Vec3 c = ctx->world->shapes.shapeGeom[shape].v;
+    m3real r = ctx->world->shapes.shapeGeom[shape].s;
+    Circle(ctx, xf, c, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Vec3){0.0f, 1.0f, 0.0f}, r, color);
+    Circle(ctx, xf, c, (m3Vec3){0.0f, 1.0f, 0.0f}, (m3Vec3){0.0f, 0.0f, 1.0f}, r, color);
+    Circle(ctx, xf, c, (m3Vec3){0.0f, 0.0f, 1.0f}, (m3Vec3){1.0f, 0.0f, 0.0f}, r, color);
+}
+
+// Two end rings and four side rails.
+static void DrawCapsule(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape,
+                        uint32_t color)
+{
+    m3Vec3 p1 = ctx->world->shapes.shapeGeom[shape].v;
+    m3Vec3 p2 = ctx->world->shapes.shapeGeom[shape].v2;
+    m3real r = ctx->world->shapes.shapeGeom[shape].s;
+    m3Vec3 t1;
+    m3Vec3 t2;
+    m3MakeTangentBasis(m3Normalize3(m3Sub3(p2, p1)), &t1, &t2);
+    Circle(ctx, xf, p1, t1, t2, r, color);
+    Circle(ctx, xf, p2, t1, t2, r, color);
+    m3Vec3 dirs[4] = {t1, m3Neg3(t1), t2, m3Neg3(t2)};
+    for (int32_t k = 0; k < 4; ++k)
+    {
+        m3Vec3 offset = m3MulSV3(r, dirs[k]);
+        Segment(ctx, ToWorld(xf, m3Add3(p1, offset)), ToWorld(xf, m3Add3(p2, offset)), color);
+    }
+}
+
+static void Triangle(const m3DrawContext* ctx, const m3Transform* xf, m3Vec3 a, m3Vec3 b, m3Vec3 c,
+                     uint32_t color)
+{
+    Segment(ctx, ToWorld(xf, a), ToWorld(xf, b), color);
+    Segment(ctx, ToWorld(xf, b), ToWorld(xf, c), color);
+    Segment(ctx, ToWorld(xf, c), ToWorld(xf, a), color);
+}
+
+static void DrawHull(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape, uint32_t color)
+{
+    const m3World* world = ctx->world;
+    const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
+    for (int32_t e = 0; e < hull->edgeCount; e += 2)
+    {
+        m3Vec3 a = hull->vertices[hull->edges[e].origin];
+        m3Vec3 b = hull->vertices[hull->edges[e + 1].origin];
+        Segment(ctx, ToWorld(xf, a), ToWorld(xf, b), color);
+    }
+}
+
+static void DrawMesh(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape, uint32_t color)
+{
+    const m3World* world = ctx->world;
+    const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
+    for (int32_t t = 0; t < mesh->triangleCount; ++t)
+    {
+        Triangle(ctx, xf, mesh->vertices[mesh->indices[3 * t + 0]],
+                 mesh->vertices[mesh->indices[3 * t + 1]], mesh->vertices[mesh->indices[3 * t + 2]],
+                 color);
+    }
+}
+
+static void DrawHeightField(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape,
+                            uint32_t color)
+{
+    const m3World* world = ctx->world;
+    const m3HeightFieldData* hf = &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
+    for (int32_t cz = 0; cz + 1 < hf->nz; ++cz)
+    {
+        for (int32_t cx = 0; cx + 1 < hf->nx; ++cx)
+        {
+            m3Vec3 cell[2][3];
+            m3HeightFieldCellTris(hf, cx, cz, cell);
+            Triangle(ctx, xf, cell[0][0], cell[0][1], cell[0][2], color);
+            Triangle(ctx, xf, cell[1][0], cell[1][1], cell[1][2], color);
+        }
+    }
+}
+
+// The merged-box wireframe: what the collision actually sees.
+static void DrawVoxels(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape,
+                       uint32_t color)
+{
+    const m3World* world = ctx->world;
+    int32_t chunk = world->shapes.shapeVoxelIndex[shape];
+    const m3VoxelSurface* surface = &world->voxels.voxelSurface[chunk];
+    m3real cell = world->voxels.voxelData[chunk].cellSize;
+    for (int32_t b = 0; b < surface->boxCount; ++b)
+    {
+        m3Vec3 lo;
+        m3Vec3 hi;
+        m3VoxelBoxBounds(surface, cell, b, &lo, &hi);
+        m3Vec3 c[8];
+        for (int32_t k = 0; k < 8; ++k)
+        {
+            c[k] = (m3Vec3){(k & 1) != 0 ? hi.x : lo.x, (k & 2) != 0 ? hi.y : lo.y,
+                            (k & 4) != 0 ? hi.z : lo.z};
+        }
+        for (int32_t k = 0; k < 12; ++k)
+        {
+            Segment(ctx, ToWorld(xf, c[s_boxEdges[k][0]]), ToWorld(xf, c[s_boxEdges[k][1]]), color);
+        }
+    }
+}
+
+// An infinite plane draws as a cross patch and a normal whisker at the
+// projection of the body origin.
+static void DrawPlane(const m3DrawContext* ctx, const m3Transform* xf, int32_t shape,
+                      uint32_t color)
+{
+    m3Vec3 n = ctx->world->shapes.shapeGeom[shape].v;
+    m3Vec3 onPlane = m3MulSV3(ctx->world->shapes.shapeGeom[shape].s, n);
+    m3Vec3 t1;
+    m3Vec3 t2;
+    m3MakeTangentBasis(n, &t1, &t2);
+    const m3real extent = 2.0f;
+    Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t1))),
+            ToWorld(xf, m3Add3(onPlane, m3MulSV3(extent, t1))), color);
+    Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t2))),
+            ToWorld(xf, m3Add3(onPlane, m3MulSV3(extent, t2))), color);
+    Segment(ctx, ToWorld(xf, onPlane), ToWorld(xf, m3Add3(onPlane, m3MulSV3(0.5f, n))), color);
+}
+
 static void DrawShape(const m3DrawContext* ctx, int32_t shape)
 {
     const m3World* world = ctx->world;
-    m3Transform xfS = m3ShapeWorldTransform(world, shape);
-    const m3Transform* xf = &xfS;
+    m3Transform xf = m3ShapeWorldTransform(world, shape);
     uint32_t color = ShapeColor(world, shape, ctx->draw);
-    uint8_t type = world->shapes.shapeType[shape];
+    switch (world->shapes.shapeType[shape])
+    {
+    case m3_sphereShape:
+        DrawSphere(ctx, &xf, shape, color);
+        break;
+    case m3_capsuleShape:
+        DrawCapsule(ctx, &xf, shape, color);
+        break;
+    case m3_hullShape:
+        DrawHull(ctx, &xf, shape, color);
+        break;
+    case m3_meshShape:
+        DrawMesh(ctx, &xf, shape, color);
+        break;
+    case m3_heightFieldShape:
+        DrawHeightField(ctx, &xf, shape, color);
+        break;
+    case m3_voxelShape:
+        DrawVoxels(ctx, &xf, shape, color);
+        break;
+    case m3_planeShape:
+        DrawPlane(ctx, &xf, shape, color);
+        break;
+    default:
+        break;
+    }
+}
 
-    if (type == (uint8_t)m3_sphereShape)
+// The twelve edges of every fat proxy box; planes have no finite bounds.
+static void DrawAabbs(const m3DrawContext* ctx)
+{
+    const m3World* world = ctx->world;
+    for (int32_t s = 0; s < world->shapes.shapePool.maxIndex; ++s)
     {
-        m3Vec3 c = world->shapes.shapeGeom[shape].v;
-        m3real r = world->shapes.shapeGeom[shape].s;
-        Circle(ctx, xf, c, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Vec3){0.0f, 1.0f, 0.0f}, r, color);
-        Circle(ctx, xf, c, (m3Vec3){0.0f, 1.0f, 0.0f}, (m3Vec3){0.0f, 0.0f, 1.0f}, r, color);
-        Circle(ctx, xf, c, (m3Vec3){0.0f, 0.0f, 1.0f}, (m3Vec3){1.0f, 0.0f, 0.0f}, r, color);
-        return;
-    }
-    if (type == (uint8_t)m3_capsuleShape)
-    {
-        m3Vec3 p1 = world->shapes.shapeGeom[shape].v;
-        m3Vec3 p2 = world->shapes.shapeGeom[shape].v2;
-        m3real r = world->shapes.shapeGeom[shape].s;
-        m3Vec3 axis = m3Normalize3(m3Sub3(p2, p1));
-        m3Vec3 t1;
-        m3Vec3 t2;
-        m3MakeTangentBasis(axis, &t1, &t2);
-        Circle(ctx, xf, p1, t1, t2, r, color);
-        Circle(ctx, xf, p2, t1, t2, r, color);
-        // Four side rails.
-        for (int32_t k = 0; k < 4; ++k)
+        if (world->shapes.shapePool.alive[s] == 0 ||
+            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
         {
-            m3Vec3 dir = k == 0 ? t1 : (k == 1 ? m3Neg3(t1) : (k == 2 ? t2 : m3Neg3(t2)));
-            m3Vec3 offset = m3MulSV3(r, dir);
-            Segment(ctx, ToWorld(xf, m3Add3(p1, offset)), ToWorld(xf, m3Add3(p2, offset)), color);
+            continue;
         }
-        return;
-    }
-    if (type == (uint8_t)m3_hullShape)
-    {
-        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
-        for (int32_t e = 0; e < hull->edgeCount; e += 2)
+        double lo[3];
+        double hi[3];
+        m3ShapeFatAabb(world, s, lo, hi);
+        m3Pos3 c[8];
+        for (int32_t k = 0; k < 8; ++k)
         {
-            m3Vec3 a = hull->vertices[hull->edges[e].origin];
-            m3Vec3 b = hull->vertices[hull->edges[e + 1].origin];
-            Segment(ctx, ToWorld(xf, a), ToWorld(xf, b), color);
+            c[k] = (m3Pos3){(k & 1) != 0 ? hi[0] : lo[0], (k & 2) != 0 ? hi[1] : lo[1],
+                            (k & 4) != 0 ? hi[2] : lo[2]};
         }
-        return;
-    }
-    if (type == (uint8_t)m3_meshShape)
-    {
-        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
-        for (int32_t t = 0; t < mesh->triangleCount; ++t)
+        for (int32_t k = 0; k < 12; ++k)
         {
-            m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
-            m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
-            m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
-            Segment(ctx, ToWorld(xf, a), ToWorld(xf, b), color);
-            Segment(ctx, ToWorld(xf, b), ToWorld(xf, c), color);
-            Segment(ctx, ToWorld(xf, c), ToWorld(xf, a), color);
+            Segment(ctx, c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], M3_DRAW_COLOR_AABB);
         }
-        return;
     }
-    if (type == (uint8_t)m3_heightFieldShape)
+}
+
+// A point per manifold point and a normal whisker scaled by the warm
+// impulse: impulse over dt is force, and the host knows dt.
+static void DrawContacts(const m3DrawContext* ctx)
+{
+    const m3World* world = ctx->world;
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        const m3HeightFieldData* hf =
-            &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
-        for (int32_t cz = 0; cz + 1 < hf->nz; ++cz)
+        const m3Manifold* manifold = &world->contacts.manifolds[i];
+        uint64_t key = world->contacts.pairKeys[i];
+        int32_t bodyA = world->shapes.shapeBody[(int32_t)(key >> 32)];
+        const m3Transform* xfA = &world->bodies.transforms[bodyA];
+        m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[bodyA]);
+        for (int32_t k = 0; k < manifold->pointCount; ++k)
         {
-            for (int32_t cx = 0; cx + 1 < hf->nx; ++cx)
+            // anchorA is COM-relative in world orientation.
+            m3Vec3 anchor = manifold->points[k].anchorA;
+            m3Pos3 p = {xfA->p.x + (double)rlcA.x + (double)anchor.x,
+                        xfA->p.y + (double)rlcA.y + (double)anchor.y,
+                        xfA->p.z + (double)rlcA.z + (double)anchor.z};
+            Point(ctx, p, 4.0f, M3_DRAW_COLOR_CONTACT);
+            m3real scale = 0.1f * manifold->points[k].normalImpulse;
+            if (scale > 0.0f)
             {
-                m3Vec3 cell[2][3];
-                m3HeightFieldCellTris(hf, cx, cz, cell);
-                for (int32_t t = 0; t < 2; ++t)
-                {
-                    Segment(ctx, ToWorld(xf, cell[t][0]), ToWorld(xf, cell[t][1]), color);
-                    Segment(ctx, ToWorld(xf, cell[t][1]), ToWorld(xf, cell[t][2]), color);
-                    Segment(ctx, ToWorld(xf, cell[t][2]), ToWorld(xf, cell[t][0]), color);
-                }
+                m3Pos3 tip = {p.x + (double)(manifold->normal.x * scale),
+                              p.y + (double)(manifold->normal.y * scale),
+                              p.z + (double)(manifold->normal.z * scale)};
+                Segment(ctx, p, tip, M3_DRAW_COLOR_CONTACT);
             }
         }
-        return;
     }
-    if (type == (uint8_t)m3_voxelShape)
+}
+
+static void DrawJoints(const m3DrawContext* ctx)
+{
+    const m3World* world = ctx->world;
+    for (int32_t j = 0; j < world->joints.jointPool.maxIndex; ++j)
     {
-        // Merged-box wireframe: what the collision actually sees.
-        const m3VoxelSurface* surface =
-            &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]];
-        m3real cell = world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
-        static const int32_t boxEdges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
-                                                {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-        for (int32_t b = 0; b < surface->boxCount; ++b)
+        if (world->joints.jointPool.alive[j] == 0)
         {
-            m3Vec3 lo;
-            m3Vec3 hi;
-            m3VoxelBoxBounds(surface, cell, b, &lo, &hi);
-            m3Vec3 c[8];
-            for (int32_t k = 0; k < 8; ++k)
-            {
-                c[k] = (m3Vec3){(k & 1) != 0 ? hi.x : lo.x, (k & 2) != 0 ? hi.y : lo.y,
-                                (k & 4) != 0 ? hi.z : lo.z};
-            }
-            for (int32_t k = 0; k < 12; ++k)
-            {
-                Segment(ctx, ToWorld(xf, c[boxEdges[k][0]]), ToWorld(xf, c[boxEdges[k][1]]), color);
-            }
+            continue;
         }
-        return;
-    }
-    if (type == (uint8_t)m3_planeShape)
-    {
-        // An infinite plane draws as a cross patch and a normal
-        // whisker at the projection of the body origin.
-        m3Vec3 n = world->shapes.shapeGeom[shape].v;
-        m3real offset = world->shapes.shapeGeom[shape].s;
-        m3Vec3 onPlane = m3MulSV3(offset, n);
-        m3Vec3 t1;
-        m3Vec3 t2;
-        m3MakeTangentBasis(n, &t1, &t2);
-        const m3real extent = 2.0f;
-        Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t1))),
-                ToWorld(xf, m3Add3(onPlane, m3MulSV3(extent, t1))), color);
-        Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t2))),
-                ToWorld(xf, m3Add3(onPlane, m3MulSV3(extent, t2))), color);
-        Segment(ctx, ToWorld(xf, onPlane), ToWorld(xf, m3Add3(onPlane, m3MulSV3(0.5f, n))), color);
+        const m3Transform* xfA = &world->bodies.transforms[world->joints.jointBodyA[j]];
+        const m3Transform* xfB = &world->bodies.transforms[world->joints.jointBodyB[j]];
+        m3Pos3 a = ToWorld(xfA, world->joints.jointLocalA[j]);
+        m3Pos3 b = ToWorld(xfB, world->joints.jointLocalB[j]);
+        Point(ctx, a, 5.0f, M3_DRAW_COLOR_JOINT);
+        Point(ctx, b, 5.0f, M3_DRAW_COLOR_JOINT);
+        Segment(ctx, a, b, M3_DRAW_COLOR_JOINT);
     }
 }
 
@@ -231,99 +343,24 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
         return;
     }
     m3DrawContext ctx = {draw, world};
-
-    if (draw->drawShapes)
+    for (int32_t s = 0; draw->drawShapes && s < world->shapes.shapePool.maxIndex; ++s)
     {
-        int32_t maxShape = world->shapes.shapePool.maxIndex;
-        for (int32_t s = 0; s < maxShape; ++s)
+        if (world->shapes.shapePool.alive[s] != 0)
         {
-            if (world->shapes.shapePool.alive[s] != 0)
-            {
-                DrawShape(&ctx, s);
-            }
+            DrawShape(&ctx, s);
         }
     }
-
     if (draw->drawAabbs)
     {
-        int32_t maxShape = world->shapes.shapePool.maxIndex;
-        for (int32_t s = 0; s < maxShape; ++s)
-        {
-            if (world->shapes.shapePool.alive[s] == 0 ||
-                world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
-            {
-                continue; // planes have no finite bounds
-            }
-            double lo[3];
-            double hi[3];
-            m3ShapeFatAabb(world, s, lo, hi);
-            // Twelve edges of the fat box.
-            m3Pos3 c[8];
-            for (int32_t k = 0; k < 8; ++k)
-            {
-                c[k] = (m3Pos3){(k & 1) != 0 ? hi[0] : lo[0], (k & 2) != 0 ? hi[1] : lo[1],
-                                (k & 4) != 0 ? hi[2] : lo[2]};
-            }
-            const int32_t edges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
-                                          {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-            for (int32_t k = 0; k < 12; ++k)
-            {
-                Segment(&ctx, c[edges[k][0]], c[edges[k][1]], M3_DRAW_COLOR_AABB);
-            }
-        }
+        DrawAabbs(&ctx);
     }
-
     if (draw->drawContacts)
     {
-        for (int32_t i = 0; i < world->contacts.pairCount; ++i)
-        {
-            const m3Manifold* manifold = &world->contacts.manifolds[i];
-            if (manifold->pointCount == 0)
-            {
-                continue;
-            }
-            uint64_t key = world->contacts.pairKeys[i];
-            int32_t bodyA = world->shapes.shapeBody[(int32_t)(key >> 32)];
-            const m3Transform* xfA = &world->bodies.transforms[bodyA];
-            m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[bodyA]);
-            for (int32_t k = 0; k < manifold->pointCount; ++k)
-            {
-                // anchorA is COM-relative in world orientation.
-                m3Pos3 p = {xfA->p.x + (double)rlcA.x + (double)manifold->points[k].anchorA.x,
-                            xfA->p.y + (double)rlcA.y + (double)manifold->points[k].anchorA.y,
-                            xfA->p.z + (double)rlcA.z + (double)manifold->points[k].anchorA.z};
-                Point(&ctx, p, 4.0f, M3_DRAW_COLOR_CONTACT);
-                // The normal whisker scales with the warm impulse:
-                // impulse over dt is force, and the host knows dt.
-                m3real scale = 0.1f * manifold->points[k].normalImpulse;
-                if (scale > 0.0f)
-                {
-                    m3Pos3 tip = {p.x + (double)(manifold->normal.x * scale),
-                                  p.y + (double)(manifold->normal.y * scale),
-                                  p.z + (double)(manifold->normal.z * scale)};
-                    Segment(&ctx, p, tip, M3_DRAW_COLOR_CONTACT);
-                }
-            }
-        }
+        DrawContacts(&ctx);
     }
-
     if (draw->drawJoints)
     {
-        int32_t maxJoint = world->joints.jointPool.maxIndex;
-        for (int32_t j = 0; j < maxJoint; ++j)
-        {
-            if (world->joints.jointPool.alive[j] == 0)
-            {
-                continue;
-            }
-            const m3Transform* xfA = &world->bodies.transforms[world->joints.jointBodyA[j]];
-            const m3Transform* xfB = &world->bodies.transforms[world->joints.jointBodyB[j]];
-            m3Pos3 a = ToWorld(xfA, world->joints.jointLocalA[j]);
-            m3Pos3 b = ToWorld(xfB, world->joints.jointLocalB[j]);
-            Point(&ctx, a, 5.0f, M3_DRAW_COLOR_JOINT);
-            Point(&ctx, b, 5.0f, M3_DRAW_COLOR_JOINT);
-            Segment(&ctx, a, b, M3_DRAW_COLOR_JOINT);
-        }
+        DrawJoints(&ctx);
     }
 }
 
@@ -586,11 +623,9 @@ static void ExtraBoxEdges(const m3ExtraDraw* draw, const double lo[3], const dou
         c[k] = (m3Pos3){(k & 1) != 0 ? hi[0] : lo[0], (k & 2) != 0 ? hi[1] : lo[1],
                         (k & 4) != 0 ? hi[2] : lo[2]};
     }
-    static const int32_t edges[12][2] = {{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
-                                         {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
     for (int32_t k = 0; k < 12; ++k)
     {
-        draw->DrawSegment(c[edges[k][0]], c[edges[k][1]], color, draw->context);
+        draw->DrawSegment(c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], color, draw->context);
     }
 }
 
