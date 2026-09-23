@@ -13,12 +13,19 @@
 // m3CreateWorld where `world` is in scope; this wrapper feeds the
 // per-world byte ledger the audit asked for. Tree, pools, and the
 // scratch stack report their footprints through helpers below.
+// World-owned persistent arrays. The count is evaluated in 64 bits and
+// the byte size is overflow-checked; a refusal jumps to the creation
+// failure path, which frees everything allocated so far.
 #define M3_ALLOC_W(field, count, type)                                                             \
     do                                                                                             \
     {                                                                                              \
-        int32_t m3AllocBytes_ = (int32_t)((count) * (int32_t)sizeof(type));                        \
-        (field) = (type*)m3AllocZeroed(m3AllocBytes_);                                             \
-        world->memoryBytes += (int64_t)m3AllocBytes_;                                              \
+        int64_t m3AllocCount_ = (int64_t)(count);                                                  \
+        (field) = (type*)m3AllocArray(m3AllocCount_, (int64_t)sizeof(type));                       \
+        if ((field) == NULL)                                                                       \
+        {                                                                                          \
+            goto allocFailed;                                                                      \
+        }                                                                                          \
+        world->memoryBytes += m3AllocCount_ * (int64_t)sizeof(type);                               \
     } while (0)
 
 #include <stddef.h>
@@ -87,409 +94,11 @@ m3WorldDef m3DefaultWorldDef(void)
     return def;
 }
 
-m3WorldId m3CreateWorld(const m3WorldDef* def)
+// Frees every allocation a world owns, then the world itself. Safe on
+// a partially created world: every field starts zeroed, m3Free
+// accepts NULL, and the per-slot loops skip arrays that never arrived.
+static void FreeWorldStorage(m3World* world)
 {
-    m3WorldId nullId = {0, 0};
-    if (def == NULL || def->internalValue != M3_WORLD_COOKIE || def->bodyCapacity <= 0 ||
-        def->shapeCapacity <= 0 || def->meshCapacity <= 0 || def->jointCapacity <= 0 ||
-        def->voxelCapacity <= 0 || def->characterCapacity <= 0 || def->vehicleCapacity <= 0 ||
-        def->softBodyCapacity <= 0 || def->workerCount <= 0 ||
-        (def->enqueueTask == NULL) != (def->finishTask == NULL) || !m3FiniteV3(def->gravity) ||
-        !m3FiniteF(def->contactHertz) || def->contactHertz <= 0.0f ||
-        !m3FiniteF(def->contactDampingRatio) || def->contactDampingRatio <= 0.0f ||
-        !m3FiniteF(def->contactPushMaxSpeed) || def->contactPushMaxSpeed <= 0.0f ||
-        !m3FiniteF(def->restitutionThreshold) || def->restitutionThreshold < 0.0f ||
-        !m3FiniteF(def->maximumLinearSpeed) || def->maximumLinearSpeed <= 0.0f ||
-        !m3FiniteF(def->hitEventThreshold) || def->hitEventThreshold < 0.0f)
-    {
-        // User-input validation is contract, not invariant: the API
-        // promises a null id for a bad def (tests exercise this), so
-        // no assert here. Asserts guard states that cannot happen.
-        return nullId;
-    }
-
-    int32_t slot = -1;
-    for (int32_t i = 0; i < M3_MAX_WORLDS; ++i)
-    {
-        if (s_worlds[i] == NULL)
-        {
-            slot = i;
-            break;
-        }
-    }
-    if (slot < 0)
-    {
-        return nullId; // table exhausted: loud, never silent, and a
-                       // capacity refusal is contract, not invariant
-    }
-
-    m3World* world = (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
-    int32_t cap = def->bodyCapacity;
-    world->gravity = def->gravity;
-    world->contactHertz = def->contactHertz;
-    world->contactDampingRatio = def->contactDampingRatio;
-    world->contactPushMaxSpeed = def->contactPushMaxSpeed;
-    world->restitutionThreshold = def->restitutionThreshold;
-    world->maximumLinearSpeed = def->maximumLinearSpeed;
-    // Not a def field (13-1): the def cookie stays put under 1.x.
-    // Hosts tune it through the journaled setter.
-    world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
-    world->sleepEnabled = def->enableSleeping != 0 ? 1 : 0;
-    world->continuousEnabled = def->enableContinuous != 0 ? 1 : 0;
-    world->hitEventThreshold = def->hitEventThreshold;
-    world->preSolveFn = NULL;
-    world->preSolveContext = NULL;
-    world->lastInvH = 0.0f;
-    world->windDir = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->windSpeed = 0.0f;
-    world->windGustHertz = 0.0f;
-    world->windGustScale = 0.0f;
-    world->windPhase = 0.0f;
-    world->bodyCapacity = cap;
-    world->shapeCapacity = def->shapeCapacity;
-    world->meshCapacity = def->meshCapacity;
-    world->voxelCapacity = def->voxelCapacity;
-    world->characterCapacity = def->characterCapacity;
-    world->vehicleCapacity = def->vehicleCapacity;
-    world->softBodyCapacity = def->softBodyCapacity;
-    world->jointCapacity = def->jointCapacity;
-    world->workerCount = def->workerCount;
-    world->enqueueTask = def->enqueueTask;
-    world->finishTask = def->finishTask;
-    world->userTaskContext = def->userTaskContext;
-    world->generation = s_worldGenerations[slot];
-    world->worldIndex0 = (uint16_t)slot;
-    world->bodyPool = m3IdPoolCreate(cap);
-
-    M3_ALLOC_W(world->transforms, cap, m3Transform);
-    M3_ALLOC_W(world->linearVelocities, cap, m3Vec3);
-    M3_ALLOC_W(world->angularVelocities, cap, m3Vec3);
-    M3_ALLOC_W(world->invMass, cap, m3real);
-    M3_ALLOC_W(world->invInertiaLocal, cap, m3Mat3);
-    M3_ALLOC_W(world->inertiaLocal, cap, m3Mat3);
-    M3_ALLOC_W(world->localCenters, cap, m3Vec3);
-    M3_ALLOC_W(world->gravityScales, cap, m3real);
-    M3_ALLOC_W(world->linearDamping, cap, m3real);
-    M3_ALLOC_W(world->angularDamping, cap, m3real);
-    M3_ALLOC_W(world->types, cap, uint8_t);
-    M3_ALLOC_W(world->awake, cap, uint8_t);
-    M3_ALLOC_W(world->sleepTimes, cap, float);
-    M3_ALLOC_W(world->bulletFlags, cap, uint8_t);
-    M3_ALLOC_W(world->minExtents, cap, float);
-    M3_ALLOC_W(world->maxExtents, cap, float);
-    M3_ALLOC_W(world->userData, cap, uint64_t);
-    M3_ALLOC_W(world->bodyForce, cap, m3Vec3);
-    M3_ALLOC_W(world->bodyTorque, cap, m3Vec3);
-    M3_ALLOC_W(world->bodyEnabled, cap, uint8_t);
-    M3_ALLOC_W(world->bodyLocks, cap, uint8_t);
-    M3_ALLOC_W(world->bodySleepThreshold, cap, float);
-    M3_ALLOC_W(world->bodyCanSleep, cap, uint8_t);
-    M3_ALLOC_W(world->bodyHasTarget, cap, uint8_t);
-    M3_ALLOC_W(world->bodyTarget, cap, m3Transform);
-    M3_ALLOC_W(world->bodyIsland, cap, int32_t);
-    M3_ALLOC_W(world->bodyNames, cap * M3_BODY_NAME_CAPACITY, char);
-    M3_ALLOC_W(world->bodyShapeHead, cap, int32_t);
-    for (int32_t i = 0; i < cap; ++i)
-    {
-        world->bodyIsland[i] = -1; // observer label, no island yet
-        world->bodyShapeHead[i] = -1;
-    }
-
-    int32_t shapeCap = def->shapeCapacity;
-    world->shapePool = m3IdPoolCreate(shapeCap);
-    M3_ALLOC_W(world->shapeBody, shapeCap, int32_t);
-    M3_ALLOC_W(world->shapeType, shapeCap, uint8_t);
-    M3_ALLOC_W(world->shapeGeom, shapeCap, m3ShapeGeom);
-    M3_ALLOC_W(world->shapeDensity, shapeCap, float);
-    M3_ALLOC_W(world->shapeFriction, shapeCap, float);
-    M3_ALLOC_W(world->shapeRestitution, shapeCap, float);
-    M3_ALLOC_W(world->shapeRollingResistance, shapeCap, float);
-    M3_ALLOC_W(world->shapeCategory, shapeCap, uint64_t);
-    M3_ALLOC_W(world->shapeMask, shapeCap, uint64_t);
-    M3_ALLOC_W(world->shapeGroup, shapeCap, int32_t);
-    M3_ALLOC_W(world->shapeUserData, shapeCap, uint64_t);
-    M3_ALLOC_W(world->shapeNext, shapeCap, int32_t);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapeBody[i] = -1;
-        world->shapeNext[i] = -1;
-    }
-
-    M3_ALLOC_W(world->shapeHullIndex, shapeCap, int32_t);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapeHullIndex[i] = -1;
-    }
-    world->hullPool = m3IdPoolCreate(shapeCap);
-    M3_ALLOC_W(world->hullData, shapeCap, m3HullData);
-    M3_ALLOC_W(world->hullRefCounts, shapeCap, int32_t);
-    world->jointPool = m3IdPoolCreate(def->jointCapacity);
-    M3_ALLOC_W(world->jointType, def->jointCapacity, uint8_t);
-    M3_ALLOC_W(world->jointBodyA, def->jointCapacity, int32_t);
-    M3_ALLOC_W(world->jointBodyB, def->jointCapacity, int32_t);
-    M3_ALLOC_W(world->jointLocalA, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointLocalB, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointCollide, def->jointCapacity, uint8_t);
-    M3_ALLOC_W(world->jointImpulse, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointPerpImpulse, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointLimitImpulse, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointAngularImpulse, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointFrameQA, def->jointCapacity, m3Quat);
-    M3_ALLOC_W(world->jointFrameQB, def->jointCapacity, m3Quat);
-    M3_ALLOC_W(world->jointFlags, def->jointCapacity, uint8_t);
-    M3_ALLOC_W(world->jointBreak, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointSpring, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointTargetScalar, def->jointCapacity, float);
-    M3_ALLOC_W(world->jointTargetQ, def->jointCapacity, m3Quat);
-    M3_ALLOC_W(world->jointSpringImpulse, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointMotor, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointLimits, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointGenericModes, def->jointCapacity, uint16_t);
-    M3_ALLOC_W(world->jointGenLinLower, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointGenLinUpper, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointGenAngLower, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointGenAngUpper, def->jointCapacity, m3Vec3);
-    M3_ALLOC_W(world->jointGroundA, def->jointCapacity, m3Pos3);
-    M3_ALLOC_W(world->jointGroundB, def->jointCapacity, m3Pos3);
-    world->hfPool = m3IdPoolCreate(def->shapeCapacity);
-    M3_ALLOC_W(world->hfData, def->shapeCapacity, m3HeightFieldData);
-    M3_ALLOC_W(world->hfRefCounts, def->shapeCapacity, int32_t);
-    M3_ALLOC_W(world->shapeHfIndex, def->shapeCapacity, int32_t);
-    for (int32_t hf = 0; hf < def->shapeCapacity; ++hf)
-    {
-        world->shapeHfIndex[hf] = -1;
-    }
-    world->waterPool = m3IdPoolCreate(M3_MAX_WATER_VOLUMES);
-    world->charPool = m3IdPoolCreate(def->characterCapacity);
-    M3_ALLOC_W(world->charBody, def->characterCapacity, int32_t);
-    M3_ALLOC_W(world->charRadius, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charHalfHeight, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charCosSlope, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charSnap, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charSkin, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charStepHeight, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charMass, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charPushMax, def->characterCapacity, m3real);
-    M3_ALLOC_W(world->charGroundBody, def->characterCapacity, int32_t);
-    M3_ALLOC_W(world->charGroundGen, def->characterCapacity, uint16_t);
-    world->vehPool = m3IdPoolCreate(def->vehicleCapacity);
-    M3_ALLOC_W(world->vehChassis, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehChassisGen, def->vehicleCapacity, uint16_t);
-    M3_ALLOC_W(world->vehWheelCount, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehMaxSteer, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehDriveForce, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehBrakeForce, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehUserData, def->vehicleCapacity, uint64_t);
-    M3_ALLOC_W(world->vehWheelAnchor, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3Vec3);
-    M3_ALLOC_W(world->vehWheelDir, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3Vec3);
-    M3_ALLOC_W(world->vehWheelRest, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelTravel, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelHertz, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelZeta, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelRadius, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelFlags, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, uint8_t);
-    M3_ALLOC_W(world->vehWheelBrake, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehTrackMode, def->vehicleCapacity, uint8_t);
-    M3_ALLOC_W(world->vehTrackLeft, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehTrackRight, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehLeanGain, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehWheelCompression, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehWheelContact, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, uint8_t);
-    M3_ALLOC_W(world->vehTireGrip, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehThrottle, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehSteer, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehBrake, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehWheelSpin, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehDtActive, def->vehicleCapacity, uint8_t);
-    M3_ALLOC_W(world->vehDtCurveCount, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehDtCurveRpm, def->vehicleCapacity * M3_DRIVETRAIN_MAX_CURVE, m3real);
-    M3_ALLOC_W(world->vehDtCurveTorque, def->vehicleCapacity * M3_DRIVETRAIN_MAX_CURVE, m3real);
-    M3_ALLOC_W(world->vehDtGearCount, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehDtGearRatio, def->vehicleCapacity * M3_DRIVETRAIN_MAX_GEARS, m3real);
-    M3_ALLOC_W(world->vehDtReverse, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehDtFinal, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehDtDiffMode, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehDtDiffCouple, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehWheelLon, def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
-    M3_ALLOC_W(world->vehDtShiftUp, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehDtShiftDown, def->vehicleCapacity, m3real);
-    M3_ALLOC_W(world->vehDtClutchSteps, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehDtAutoShift, def->vehicleCapacity, uint8_t);
-    M3_ALLOC_W(world->vehDtGear, def->vehicleCapacity, int8_t);
-    M3_ALLOC_W(world->vehDtClutch, def->vehicleCapacity, int32_t);
-    M3_ALLOC_W(world->vehDtRpm, def->vehicleCapacity, m3real);
-    world->softPool = m3IdPoolCreate(def->softBodyCapacity);
-    M3_ALLOC_W(world->softParticleCount, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softEdgeCount, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softCompliance, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softBendStart, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softBendCompliance, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softDimX, def->softBodyCapacity, uint16_t);
-    M3_ALLOC_W(world->softDimY, def->softBodyCapacity, uint16_t);
-    M3_ALLOC_W(world->softDimZ, def->softBodyCapacity, uint16_t);
-    M3_ALLOC_W(world->softRestVolume, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softPressure, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softTetCount, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softTetA, def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
-    M3_ALLOC_W(world->softTetB, def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
-    M3_ALLOC_W(world->softTetC, def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
-    M3_ALLOC_W(world->softTetD, def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
-    M3_ALLOC_W(world->softTetRestV6, def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, m3real);
-    M3_ALLOC_W(world->softBindPos, def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Pos3);
-    M3_ALLOC_W(world->softMaxDeviation, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softRadius, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softGravityScale, def->softBodyCapacity, m3real);
-    M3_ALLOC_W(world->softUserData, def->softBodyCapacity, uint64_t);
-    M3_ALLOC_W(world->softPos, def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Pos3);
-    M3_ALLOC_W(world->softPrev, def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Pos3);
-    M3_ALLOC_W(world->softInvMass, def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3real);
-    M3_ALLOC_W(world->softKick, def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Vec3);
-    M3_ALLOC_W(world->softEdgeA, def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, uint16_t);
-    M3_ALLOC_W(world->softEdgeB, def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, uint16_t);
-    M3_ALLOC_W(world->softEdgeRest, def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, m3real);
-    M3_ALLOC_W(world->softAnchorCount, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softAnchorParticle, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, int32_t);
-    M3_ALLOC_W(world->softAnchorBody, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, int32_t);
-    M3_ALLOC_W(world->softAnchorGen, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, uint16_t);
-    M3_ALLOC_W(world->softAnchorLocal, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, m3Vec3);
-    M3_ALLOC_W(world->softSoftCount, def->softBodyCapacity, int32_t);
-    M3_ALLOC_W(world->softSoftParticleA, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, int32_t);
-    M3_ALLOC_W(world->softSoftSlotB, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, int32_t);
-    M3_ALLOC_W(world->softSoftGenB, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, uint16_t);
-    M3_ALLOC_W(world->softSoftParticleB, def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS, int32_t);
-    for (int32_t v = 0; v < def->vehicleCapacity; ++v)
-    {
-        world->vehChassis[v] = -1;
-    }
-    M3_ALLOC_W(world->charGrounded, def->characterCapacity, uint8_t);
-    M3_ALLOC_W(world->charGroundNormal, def->characterCapacity, m3Vec3);
-    for (int32_t i = 0; i < def->characterCapacity; ++i)
-    {
-        world->charBody[i] = -1;
-    }
-    M3_ALLOC_W(world->jointNextA, def->jointCapacity, int32_t);
-    M3_ALLOC_W(world->jointNextB, def->jointCapacity, int32_t);
-    M3_ALLOC_W(world->bodyJointHead, cap, int32_t);
-    for (int32_t i = 0; i < def->jointCapacity; ++i)
-    {
-        world->jointBodyA[i] = -1;
-        world->jointBodyB[i] = -1;
-        world->jointNextA[i] = -1;
-        world->jointNextB[i] = -1;
-    }
-    for (int32_t i = 0; i < cap; ++i)
-    {
-        world->bodyJointHead[i] = -1;
-    }
-    world->meshPool = m3IdPoolCreate(def->meshCapacity);
-    M3_ALLOC_W(world->meshData, def->meshCapacity, m3MeshData);
-    M3_ALLOC_W(world->meshRefCounts, def->meshCapacity, int32_t);
-    M3_ALLOC_W(world->meshBvh, def->meshCapacity, m3MeshBvh);
-    world->voxelPool = m3IdPoolCreate(def->voxelCapacity);
-    M3_ALLOC_W(world->voxelData, def->voxelCapacity, m3VoxelChunkData);
-    M3_ALLOC_W(world->voxelRefCounts, def->voxelCapacity, int32_t);
-    M3_ALLOC_W(world->voxelSurface, def->voxelCapacity, m3VoxelSurface);
-    M3_ALLOC_W(world->voxelShape, def->voxelCapacity, int32_t);
-    M3_ALLOC_W(world->voxelNeighbors, def->voxelCapacity * 6, int32_t);
-    for (int32_t i = 0; i < def->voxelCapacity; ++i)
-    {
-        world->voxelShape[i] = -1;
-    }
-    for (int32_t i = 0; i < def->voxelCapacity * 6; ++i)
-    {
-        world->voxelNeighbors[i] = -1;
-    }
-    M3_ALLOC_W(world->shapeVoxelIndex, shapeCap, int32_t);
-    M3_ALLOC_W(world->fragmentEvents, M3_FRAGMENT_EVENT_CAP, m3FragmentEvent);
-    M3_ALLOC_W(world->fragmentRecipe, M3_FRAGMENT_RECIPE_CAP, uint16_t);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapeVoxelIndex[i] = -1;
-    }
-    M3_ALLOC_W(world->shapeMeshIndex, shapeCap, int32_t);
-    M3_ALLOC_W(world->shapeSensor, shapeCap, uint8_t);
-    M3_ALLOC_W(world->shapeHitEvents, shapeCap, uint8_t);
-    M3_ALLOC_W(world->shapePreSolve, shapeCap, uint8_t);
-    M3_ALLOC_W(world->shapeLocalPos, shapeCap, m3Vec3);
-    M3_ALLOC_W(world->shapeLocalRot, shapeCap, m3Quat);
-    M3_ALLOC_W(world->shapeHasOffset, shapeCap, uint8_t);
-    M3_ALLOC_W(world->shapeSurfaceVel, shapeCap, m3Vec3);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->shapeMeshIndex[i] = -1;
-    }
-
-    world->tree = m3TreeCreate(2 * shapeCap);
-    M3_ALLOC_W(world->proxyIds, shapeCap, int32_t);
-    for (int32_t i = 0; i < shapeCap; ++i)
-    {
-        world->proxyIds[i] = M3_TREE_NULL;
-    }
-
-    world->pairCapacity = 8 * shapeCap;
-    M3_ALLOC_W(world->beginEvents, world->pairCapacity, m3ContactEvent);
-    M3_ALLOC_W(world->endEvents, world->pairCapacity, m3ContactEvent);
-    M3_ALLOC_W(world->sensorBeginEvents, world->pairCapacity, m3ContactEvent);
-    M3_ALLOC_W(world->sensorEndEvents, world->pairCapacity, m3ContactEvent);
-    M3_ALLOC_W(world->hitEvents, world->pairCapacity, m3HitEvent);
-    M3_ALLOC_W(world->moveEvents, def->bodyCapacity, m3BodyMoveEvent);
-    M3_ALLOC_W(world->jointBreakEvents, def->jointCapacity, m3JointBreakEvent);
-    world->hitEventCount = 0;
-    world->hitEventsDropped = 0;
-    world->moveEventCount = 0;
-    world->jointBreakEventCount = 0;
-    world->beginEventCount = 0;
-    world->endEventCount = 0;
-    M3_ALLOC_W(world->pairKeys, world->pairCapacity, uint64_t);
-    M3_ALLOC_W(world->sleepingPairKeys, world->pairCapacity, uint64_t);
-    M3_ALLOC_W(world->stepVetoKeys, world->pairCapacity, uint64_t);
-    M3_ALLOC_W(world->replayVetoKeys, world->pairCapacity, uint64_t);
-    M3_ALLOC_W(world->manifolds, world->pairCapacity, m3Manifold);
-    M3_ALLOC_W(world->stashPairKeys, world->pairCapacity, uint64_t);
-    M3_ALLOC_W(world->stashManifolds, world->pairCapacity, m3Manifold);
-    world->pairCount = 0;
-
-    // Step scratch: grows between steps on m3_errorCapacity, never
-    // mid-step. 256 KiB is generous for the 2a sphere world.
-    world->scratch = m3StackCreate(256 * 1024);
-    // The slot pools and the proxy tree allocate outside M3_ALLOC_W;
-    // their footprints are closed-form and join the ledger here.
-    {
-        int64_t poolBytes = 0;
-        int32_t poolCaps[] = {cap,
-                              shapeCap,
-                              shapeCap,
-                              def->jointCapacity,
-                              def->shapeCapacity,
-                              M3_MAX_WATER_VOLUMES,
-                              def->characterCapacity,
-                              def->vehicleCapacity,
-                              def->softBodyCapacity,
-                              def->meshCapacity,
-                              def->voxelCapacity};
-        for (int32_t p = 0; p < (int32_t)(sizeof(poolCaps) / sizeof(poolCaps[0])); ++p)
-        {
-            poolBytes += (int64_t)poolCaps[p] *
-                         (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
-        }
-        world->memoryBytes += poolBytes;
-        world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
-    }
-
-    s_worlds[slot] = world;
-    m3WorldId id = {slot + 1, world->generation};
-    return id;
-}
-
-void m3DestroyWorld(m3WorldId worldId)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        return; // stale or foreign id: contract, not invariant
-    }
-    int32_t slot = world->worldIndex0;
-
     m3IdPoolDestroy(&world->bodyPool);
     m3Free(world->transforms);
     m3Free(world->linearVelocities);
@@ -564,7 +173,7 @@ void m3DestroyWorld(m3WorldId worldId)
     m3Free(world->jointGenAngUpper);
     m3Free(world->jointGroundA);
     m3Free(world->jointGroundB);
-    for (int32_t hf = 0; hf < world->shapeCapacity; ++hf)
+    for (int32_t hf = 0; world->hfData != NULL && hf < world->shapeCapacity; ++hf)
     {
         m3HeightFieldDataFree(&world->hfData[hf]);
     }
@@ -676,12 +285,13 @@ void m3DestroyWorld(m3WorldId worldId)
     m3Free(world->jointNextB);
     m3Free(world->bodyJointHead);
     m3IdPoolDestroy(&world->meshPool);
-    for (int32_t m = 0; m < world->meshCapacity; ++m)
+    for (int32_t m = 0;
+         world->meshData != NULL && world->meshBvh != NULL && m < world->meshCapacity; ++m)
     {
         m3MeshDataFree(&world->meshData[m]);
         m3MeshBvhFree(&world->meshBvh[m]);
     }
-    for (int32_t v = 0; v < world->voxelCapacity; ++v)
+    for (int32_t v = 0; world->voxelSurface != NULL && v < world->voxelCapacity; ++v)
     {
         m3MeshBvhFree(&world->voxelSurface[v].bvh);
     }
@@ -723,6 +333,454 @@ void m3DestroyWorld(m3WorldId worldId)
     m3Free(world->stashManifolds);
     m3StackDestroy(&world->scratch);
     m3Free(world);
+}
+
+m3WorldId m3CreateWorld(const m3WorldDef* def)
+{
+    m3WorldId nullId = {0, 0};
+    if (def == NULL || def->internalValue != M3_WORLD_COOKIE || def->bodyCapacity <= 0 ||
+        def->shapeCapacity <= 0 || def->meshCapacity <= 0 || def->jointCapacity <= 0 ||
+        def->voxelCapacity <= 0 || def->characterCapacity <= 0 || def->vehicleCapacity <= 0 ||
+        def->softBodyCapacity <= 0 || def->workerCount <= 0 || def->shapeCapacity > INT32_MAX / 8 ||
+        def->voxelCapacity > INT32_MAX / 6 ||
+        (def->enqueueTask == NULL) != (def->finishTask == NULL) || !m3FiniteV3(def->gravity) ||
+        !m3FiniteF(def->contactHertz) || def->contactHertz <= 0.0f ||
+        !m3FiniteF(def->contactDampingRatio) || def->contactDampingRatio <= 0.0f ||
+        !m3FiniteF(def->contactPushMaxSpeed) || def->contactPushMaxSpeed <= 0.0f ||
+        !m3FiniteF(def->restitutionThreshold) || def->restitutionThreshold < 0.0f ||
+        !m3FiniteF(def->maximumLinearSpeed) || def->maximumLinearSpeed <= 0.0f ||
+        !m3FiniteF(def->hitEventThreshold) || def->hitEventThreshold < 0.0f)
+    {
+        // User-input validation is contract, not invariant: the API
+        // promises a null id for a bad def (tests exercise this), so
+        // no assert here. Asserts guard states that cannot happen.
+        return nullId;
+    }
+
+    int32_t slot = -1;
+    for (int32_t i = 0; i < M3_MAX_WORLDS; ++i)
+    {
+        if (s_worlds[i] == NULL)
+        {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0)
+    {
+        return nullId; // table exhausted: loud, never silent, and a
+                       // capacity refusal is contract, not invariant
+    }
+
+    m3World* world = (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
+    if (world == NULL)
+    {
+        return nullId; // out of memory
+    }
+    int32_t cap = def->bodyCapacity;
+    world->gravity = def->gravity;
+    world->contactHertz = def->contactHertz;
+    world->contactDampingRatio = def->contactDampingRatio;
+    world->contactPushMaxSpeed = def->contactPushMaxSpeed;
+    world->restitutionThreshold = def->restitutionThreshold;
+    world->maximumLinearSpeed = def->maximumLinearSpeed;
+    // Not a def field (13-1): the def cookie stays put under 1.x.
+    // Hosts tune it through the journaled setter.
+    world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
+    world->sleepEnabled = def->enableSleeping != 0 ? 1 : 0;
+    world->continuousEnabled = def->enableContinuous != 0 ? 1 : 0;
+    world->hitEventThreshold = def->hitEventThreshold;
+    world->preSolveFn = NULL;
+    world->preSolveContext = NULL;
+    world->lastInvH = 0.0f;
+    world->windDir = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->windSpeed = 0.0f;
+    world->windGustHertz = 0.0f;
+    world->windGustScale = 0.0f;
+    world->windPhase = 0.0f;
+    world->bodyCapacity = cap;
+    world->shapeCapacity = def->shapeCapacity;
+    world->meshCapacity = def->meshCapacity;
+    world->voxelCapacity = def->voxelCapacity;
+    world->characterCapacity = def->characterCapacity;
+    world->vehicleCapacity = def->vehicleCapacity;
+    world->softBodyCapacity = def->softBodyCapacity;
+    world->jointCapacity = def->jointCapacity;
+    world->workerCount = def->workerCount;
+    world->enqueueTask = def->enqueueTask;
+    world->finishTask = def->finishTask;
+    world->userTaskContext = def->userTaskContext;
+    world->generation = s_worldGenerations[slot];
+    world->worldIndex0 = (uint16_t)slot;
+    world->bodyPool = m3IdPoolCreate(cap);
+
+    M3_ALLOC_W(world->transforms, cap, m3Transform);
+    M3_ALLOC_W(world->linearVelocities, cap, m3Vec3);
+    M3_ALLOC_W(world->angularVelocities, cap, m3Vec3);
+    M3_ALLOC_W(world->invMass, cap, m3real);
+    M3_ALLOC_W(world->invInertiaLocal, cap, m3Mat3);
+    M3_ALLOC_W(world->inertiaLocal, cap, m3Mat3);
+    M3_ALLOC_W(world->localCenters, cap, m3Vec3);
+    M3_ALLOC_W(world->gravityScales, cap, m3real);
+    M3_ALLOC_W(world->linearDamping, cap, m3real);
+    M3_ALLOC_W(world->angularDamping, cap, m3real);
+    M3_ALLOC_W(world->types, cap, uint8_t);
+    M3_ALLOC_W(world->awake, cap, uint8_t);
+    M3_ALLOC_W(world->sleepTimes, cap, float);
+    M3_ALLOC_W(world->bulletFlags, cap, uint8_t);
+    M3_ALLOC_W(world->minExtents, cap, float);
+    M3_ALLOC_W(world->maxExtents, cap, float);
+    M3_ALLOC_W(world->userData, cap, uint64_t);
+    M3_ALLOC_W(world->bodyForce, cap, m3Vec3);
+    M3_ALLOC_W(world->bodyTorque, cap, m3Vec3);
+    M3_ALLOC_W(world->bodyEnabled, cap, uint8_t);
+    M3_ALLOC_W(world->bodyLocks, cap, uint8_t);
+    M3_ALLOC_W(world->bodySleepThreshold, cap, float);
+    M3_ALLOC_W(world->bodyCanSleep, cap, uint8_t);
+    M3_ALLOC_W(world->bodyHasTarget, cap, uint8_t);
+    M3_ALLOC_W(world->bodyTarget, cap, m3Transform);
+    M3_ALLOC_W(world->bodyIsland, cap, int32_t);
+    M3_ALLOC_W(world->bodyNames, (int64_t)cap * M3_BODY_NAME_CAPACITY, char);
+    M3_ALLOC_W(world->bodyShapeHead, cap, int32_t);
+    for (int32_t i = 0; i < cap; ++i)
+    {
+        world->bodyIsland[i] = -1; // observer label, no island yet
+        world->bodyShapeHead[i] = -1;
+    }
+
+    int32_t shapeCap = def->shapeCapacity;
+    world->shapePool = m3IdPoolCreate(shapeCap);
+    M3_ALLOC_W(world->shapeBody, shapeCap, int32_t);
+    M3_ALLOC_W(world->shapeType, shapeCap, uint8_t);
+    M3_ALLOC_W(world->shapeGeom, shapeCap, m3ShapeGeom);
+    M3_ALLOC_W(world->shapeDensity, shapeCap, float);
+    M3_ALLOC_W(world->shapeFriction, shapeCap, float);
+    M3_ALLOC_W(world->shapeRestitution, shapeCap, float);
+    M3_ALLOC_W(world->shapeRollingResistance, shapeCap, float);
+    M3_ALLOC_W(world->shapeCategory, shapeCap, uint64_t);
+    M3_ALLOC_W(world->shapeMask, shapeCap, uint64_t);
+    M3_ALLOC_W(world->shapeGroup, shapeCap, int32_t);
+    M3_ALLOC_W(world->shapeUserData, shapeCap, uint64_t);
+    M3_ALLOC_W(world->shapeNext, shapeCap, int32_t);
+    for (int32_t i = 0; i < shapeCap; ++i)
+    {
+        world->shapeBody[i] = -1;
+        world->shapeNext[i] = -1;
+    }
+
+    M3_ALLOC_W(world->shapeHullIndex, shapeCap, int32_t);
+    for (int32_t i = 0; i < shapeCap; ++i)
+    {
+        world->shapeHullIndex[i] = -1;
+    }
+    world->hullPool = m3IdPoolCreate(shapeCap);
+    M3_ALLOC_W(world->hullData, shapeCap, m3HullData);
+    M3_ALLOC_W(world->hullRefCounts, shapeCap, int32_t);
+    world->jointPool = m3IdPoolCreate(def->jointCapacity);
+    M3_ALLOC_W(world->jointType, def->jointCapacity, uint8_t);
+    M3_ALLOC_W(world->jointBodyA, def->jointCapacity, int32_t);
+    M3_ALLOC_W(world->jointBodyB, def->jointCapacity, int32_t);
+    M3_ALLOC_W(world->jointLocalA, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointLocalB, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointCollide, def->jointCapacity, uint8_t);
+    M3_ALLOC_W(world->jointImpulse, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointPerpImpulse, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointLimitImpulse, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointAngularImpulse, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointFrameQA, def->jointCapacity, m3Quat);
+    M3_ALLOC_W(world->jointFrameQB, def->jointCapacity, m3Quat);
+    M3_ALLOC_W(world->jointFlags, def->jointCapacity, uint8_t);
+    M3_ALLOC_W(world->jointBreak, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointSpring, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointTargetScalar, def->jointCapacity, float);
+    M3_ALLOC_W(world->jointTargetQ, def->jointCapacity, m3Quat);
+    M3_ALLOC_W(world->jointSpringImpulse, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointMotor, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointLimits, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointGenericModes, def->jointCapacity, uint16_t);
+    M3_ALLOC_W(world->jointGenLinLower, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointGenLinUpper, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointGenAngLower, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointGenAngUpper, def->jointCapacity, m3Vec3);
+    M3_ALLOC_W(world->jointGroundA, def->jointCapacity, m3Pos3);
+    M3_ALLOC_W(world->jointGroundB, def->jointCapacity, m3Pos3);
+    world->hfPool = m3IdPoolCreate(def->shapeCapacity);
+    M3_ALLOC_W(world->hfData, def->shapeCapacity, m3HeightFieldData);
+    M3_ALLOC_W(world->hfRefCounts, def->shapeCapacity, int32_t);
+    M3_ALLOC_W(world->shapeHfIndex, def->shapeCapacity, int32_t);
+    for (int32_t hf = 0; hf < def->shapeCapacity; ++hf)
+    {
+        world->shapeHfIndex[hf] = -1;
+    }
+    world->waterPool = m3IdPoolCreate(M3_MAX_WATER_VOLUMES);
+    world->charPool = m3IdPoolCreate(def->characterCapacity);
+    M3_ALLOC_W(world->charBody, def->characterCapacity, int32_t);
+    M3_ALLOC_W(world->charRadius, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charHalfHeight, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charCosSlope, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charSnap, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charSkin, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charStepHeight, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charMass, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charPushMax, def->characterCapacity, m3real);
+    M3_ALLOC_W(world->charGroundBody, def->characterCapacity, int32_t);
+    M3_ALLOC_W(world->charGroundGen, def->characterCapacity, uint16_t);
+    world->vehPool = m3IdPoolCreate(def->vehicleCapacity);
+    M3_ALLOC_W(world->vehChassis, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehChassisGen, def->vehicleCapacity, uint16_t);
+    M3_ALLOC_W(world->vehWheelCount, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehMaxSteer, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehDriveForce, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehBrakeForce, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehUserData, def->vehicleCapacity, uint64_t);
+    M3_ALLOC_W(world->vehWheelAnchor, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               m3Vec3);
+    M3_ALLOC_W(world->vehWheelDir, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3Vec3);
+    M3_ALLOC_W(world->vehWheelRest, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehWheelTravel, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               m3real);
+    M3_ALLOC_W(world->vehWheelHertz, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehWheelZeta, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehWheelRadius, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               m3real);
+    M3_ALLOC_W(world->vehWheelFlags, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               uint8_t);
+    M3_ALLOC_W(world->vehWheelBrake, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehTrackMode, def->vehicleCapacity, uint8_t);
+    M3_ALLOC_W(world->vehTrackLeft, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehTrackRight, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehLeanGain, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehWheelCompression, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               m3real);
+    M3_ALLOC_W(world->vehWheelContact, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS,
+               uint8_t);
+    M3_ALLOC_W(world->vehTireGrip, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehThrottle, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehSteer, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehBrake, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehWheelSpin, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehDtActive, def->vehicleCapacity, uint8_t);
+    M3_ALLOC_W(world->vehDtCurveCount, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehDtCurveRpm, (int64_t)def->vehicleCapacity * M3_DRIVETRAIN_MAX_CURVE,
+               m3real);
+    M3_ALLOC_W(world->vehDtCurveTorque, (int64_t)def->vehicleCapacity * M3_DRIVETRAIN_MAX_CURVE,
+               m3real);
+    M3_ALLOC_W(world->vehDtGearCount, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehDtGearRatio, (int64_t)def->vehicleCapacity * M3_DRIVETRAIN_MAX_GEARS,
+               m3real);
+    M3_ALLOC_W(world->vehDtReverse, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehDtFinal, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehDtDiffMode, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehDtDiffCouple, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehWheelLon, (int64_t)def->vehicleCapacity * M3_VEHICLE_MAX_WHEELS, m3real);
+    M3_ALLOC_W(world->vehDtShiftUp, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehDtShiftDown, def->vehicleCapacity, m3real);
+    M3_ALLOC_W(world->vehDtClutchSteps, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehDtAutoShift, def->vehicleCapacity, uint8_t);
+    M3_ALLOC_W(world->vehDtGear, def->vehicleCapacity, int8_t);
+    M3_ALLOC_W(world->vehDtClutch, def->vehicleCapacity, int32_t);
+    M3_ALLOC_W(world->vehDtRpm, def->vehicleCapacity, m3real);
+    world->softPool = m3IdPoolCreate(def->softBodyCapacity);
+    M3_ALLOC_W(world->softParticleCount, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softEdgeCount, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softCompliance, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softBendStart, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softBendCompliance, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softDimX, def->softBodyCapacity, uint16_t);
+    M3_ALLOC_W(world->softDimY, def->softBodyCapacity, uint16_t);
+    M3_ALLOC_W(world->softDimZ, def->softBodyCapacity, uint16_t);
+    M3_ALLOC_W(world->softRestVolume, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softPressure, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softTetCount, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softTetA, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
+    M3_ALLOC_W(world->softTetB, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
+    M3_ALLOC_W(world->softTetC, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
+    M3_ALLOC_W(world->softTetD, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, uint16_t);
+    M3_ALLOC_W(world->softTetRestV6, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_TETS, m3real);
+    M3_ALLOC_W(world->softBindPos, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES,
+               m3Pos3);
+    M3_ALLOC_W(world->softMaxDeviation, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softRadius, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softGravityScale, def->softBodyCapacity, m3real);
+    M3_ALLOC_W(world->softUserData, def->softBodyCapacity, uint64_t);
+    M3_ALLOC_W(world->softPos, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Pos3);
+    M3_ALLOC_W(world->softPrev, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Pos3);
+    M3_ALLOC_W(world->softInvMass, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES,
+               m3real);
+    M3_ALLOC_W(world->softKick, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES, m3Vec3);
+    M3_ALLOC_W(world->softEdgeA, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, uint16_t);
+    M3_ALLOC_W(world->softEdgeB, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, uint16_t);
+    M3_ALLOC_W(world->softEdgeRest, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_EDGES, m3real);
+    M3_ALLOC_W(world->softAnchorCount, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softAnchorParticle, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               int32_t);
+    M3_ALLOC_W(world->softAnchorBody, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               int32_t);
+    M3_ALLOC_W(world->softAnchorGen, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               uint16_t);
+    M3_ALLOC_W(world->softAnchorLocal, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               m3Vec3);
+    M3_ALLOC_W(world->softSoftCount, def->softBodyCapacity, int32_t);
+    M3_ALLOC_W(world->softSoftParticleA, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               int32_t);
+    M3_ALLOC_W(world->softSoftSlotB, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               int32_t);
+    M3_ALLOC_W(world->softSoftGenB, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               uint16_t);
+    M3_ALLOC_W(world->softSoftParticleB, (int64_t)def->softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS,
+               int32_t);
+    for (int32_t v = 0; v < def->vehicleCapacity; ++v)
+    {
+        world->vehChassis[v] = -1;
+    }
+    M3_ALLOC_W(world->charGrounded, def->characterCapacity, uint8_t);
+    M3_ALLOC_W(world->charGroundNormal, def->characterCapacity, m3Vec3);
+    for (int32_t i = 0; i < def->characterCapacity; ++i)
+    {
+        world->charBody[i] = -1;
+    }
+    M3_ALLOC_W(world->jointNextA, def->jointCapacity, int32_t);
+    M3_ALLOC_W(world->jointNextB, def->jointCapacity, int32_t);
+    M3_ALLOC_W(world->bodyJointHead, cap, int32_t);
+    for (int32_t i = 0; i < def->jointCapacity; ++i)
+    {
+        world->jointBodyA[i] = -1;
+        world->jointBodyB[i] = -1;
+        world->jointNextA[i] = -1;
+        world->jointNextB[i] = -1;
+    }
+    for (int32_t i = 0; i < cap; ++i)
+    {
+        world->bodyJointHead[i] = -1;
+    }
+    world->meshPool = m3IdPoolCreate(def->meshCapacity);
+    M3_ALLOC_W(world->meshData, def->meshCapacity, m3MeshData);
+    M3_ALLOC_W(world->meshRefCounts, def->meshCapacity, int32_t);
+    M3_ALLOC_W(world->meshBvh, def->meshCapacity, m3MeshBvh);
+    world->voxelPool = m3IdPoolCreate(def->voxelCapacity);
+    M3_ALLOC_W(world->voxelData, def->voxelCapacity, m3VoxelChunkData);
+    M3_ALLOC_W(world->voxelRefCounts, def->voxelCapacity, int32_t);
+    M3_ALLOC_W(world->voxelSurface, def->voxelCapacity, m3VoxelSurface);
+    M3_ALLOC_W(world->voxelShape, def->voxelCapacity, int32_t);
+    M3_ALLOC_W(world->voxelNeighbors, (int64_t)def->voxelCapacity * 6, int32_t);
+    for (int32_t i = 0; i < def->voxelCapacity; ++i)
+    {
+        world->voxelShape[i] = -1;
+    }
+    for (int32_t i = 0; i < def->voxelCapacity * 6; ++i)
+    {
+        world->voxelNeighbors[i] = -1;
+    }
+    M3_ALLOC_W(world->shapeVoxelIndex, shapeCap, int32_t);
+    M3_ALLOC_W(world->fragmentEvents, M3_FRAGMENT_EVENT_CAP, m3FragmentEvent);
+    M3_ALLOC_W(world->fragmentRecipe, M3_FRAGMENT_RECIPE_CAP, uint16_t);
+    for (int32_t i = 0; i < shapeCap; ++i)
+    {
+        world->shapeVoxelIndex[i] = -1;
+    }
+    M3_ALLOC_W(world->shapeMeshIndex, shapeCap, int32_t);
+    M3_ALLOC_W(world->shapeSensor, shapeCap, uint8_t);
+    M3_ALLOC_W(world->shapeHitEvents, shapeCap, uint8_t);
+    M3_ALLOC_W(world->shapePreSolve, shapeCap, uint8_t);
+    M3_ALLOC_W(world->shapeLocalPos, shapeCap, m3Vec3);
+    M3_ALLOC_W(world->shapeLocalRot, shapeCap, m3Quat);
+    M3_ALLOC_W(world->shapeHasOffset, shapeCap, uint8_t);
+    M3_ALLOC_W(world->shapeSurfaceVel, shapeCap, m3Vec3);
+    for (int32_t i = 0; i < shapeCap; ++i)
+    {
+        world->shapeMeshIndex[i] = -1;
+    }
+
+    world->tree = m3TreeCreate(2 * shapeCap);
+    M3_ALLOC_W(world->proxyIds, shapeCap, int32_t);
+    for (int32_t i = 0; i < shapeCap; ++i)
+    {
+        world->proxyIds[i] = M3_TREE_NULL;
+    }
+
+    world->pairCapacity = 8 * shapeCap;
+    M3_ALLOC_W(world->beginEvents, world->pairCapacity, m3ContactEvent);
+    M3_ALLOC_W(world->endEvents, world->pairCapacity, m3ContactEvent);
+    M3_ALLOC_W(world->sensorBeginEvents, world->pairCapacity, m3ContactEvent);
+    M3_ALLOC_W(world->sensorEndEvents, world->pairCapacity, m3ContactEvent);
+    M3_ALLOC_W(world->hitEvents, world->pairCapacity, m3HitEvent);
+    M3_ALLOC_W(world->moveEvents, def->bodyCapacity, m3BodyMoveEvent);
+    M3_ALLOC_W(world->jointBreakEvents, def->jointCapacity, m3JointBreakEvent);
+    world->hitEventCount = 0;
+    world->hitEventsDropped = 0;
+    world->moveEventCount = 0;
+    world->jointBreakEventCount = 0;
+    world->beginEventCount = 0;
+    world->endEventCount = 0;
+    M3_ALLOC_W(world->pairKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->sleepingPairKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->stepVetoKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->replayVetoKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->manifolds, world->pairCapacity, m3Manifold);
+    M3_ALLOC_W(world->stashPairKeys, world->pairCapacity, uint64_t);
+    M3_ALLOC_W(world->stashManifolds, world->pairCapacity, m3Manifold);
+    world->pairCount = 0;
+
+    // Step scratch: grows between steps on m3_errorCapacity, never
+    // mid-step. 256 KiB is generous for the 2a sphere world.
+    world->scratch = m3StackCreate(256 * 1024);
+    // The slot pools and the proxy tree allocate outside M3_ALLOC_W;
+    // their footprints are closed-form and join the ledger here.
+    {
+        int64_t poolBytes = 0;
+        int32_t poolCaps[] = {cap,
+                              shapeCap,
+                              shapeCap,
+                              def->jointCapacity,
+                              def->shapeCapacity,
+                              M3_MAX_WATER_VOLUMES,
+                              def->characterCapacity,
+                              def->vehicleCapacity,
+                              def->softBodyCapacity,
+                              def->meshCapacity,
+                              def->voxelCapacity};
+        for (int32_t p = 0; p < (int32_t)(sizeof(poolCaps) / sizeof(poolCaps[0])); ++p)
+        {
+            poolBytes += (int64_t)poolCaps[p] *
+                         (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
+        }
+        world->memoryBytes += poolBytes;
+        world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
+    }
+
+    // The pools, the tree and the scratch report a refusal as zero
+    // capacity rather than jumping, so check them once here.
+    if (world->bodyPool.capacity == 0 || world->shapePool.capacity == 0 ||
+        world->hullPool.capacity == 0 || world->jointPool.capacity == 0 ||
+        world->hfPool.capacity == 0 || world->waterPool.capacity == 0 ||
+        world->charPool.capacity == 0 || world->vehPool.capacity == 0 ||
+        world->softPool.capacity == 0 || world->meshPool.capacity == 0 ||
+        world->voxelPool.capacity == 0 || world->tree.capacity == 0 || world->scratch.capacity == 0)
+    {
+        goto allocFailed;
+    }
+
+    s_worlds[slot] = world;
+    m3WorldId id = {slot + 1, world->generation};
+    return id;
+
+allocFailed:
+    // Out of memory or an unrepresentable size: release what exists
+    // and refuse. Nothing was registered, so the slot stays free.
+    FreeWorldStorage(world);
+    return nullId;
+}
+
+void m3DestroyWorld(m3WorldId worldId)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL)
+    {
+        return; // stale or foreign id: contract, not invariant
+    }
+    int32_t slot = world->worldIndex0;
+
+    FreeWorldStorage(world);
 
     s_worlds[slot] = NULL;
     s_worldGenerations[slot] += 1;
@@ -1368,6 +1426,15 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
     memcpy(out + 4, &bytes, 4);
     memcpy(out + 8, payload, (size_t)bytes);
     world->journalCursor += need;
+}
+
+void m3JournalAbandon(m3World* world)
+{
+    // The op could not be encoded (no memory for its payload). A tape
+    // missing an op would replay a different world, so the recording
+    // fails the same loud way an overflow does.
+    world->journalOverflow = 1;
+    world->journalActive = 0;
 }
 
 bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)

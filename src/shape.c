@@ -1096,6 +1096,10 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
         int32_t indexBytes = 3 * triangleCount * (int32_t)sizeof(uint16_t);
         int32_t payloadBytes = (int32_t)sizeof(m3CreateMeshShapeOp) + vertexBytes + indexBytes;
         uint8_t* payload = (uint8_t*)m3AllocZeroed(payloadBytes);
+        if (payload == NULL)
+        {
+            m3JournalAbandon(world);
+        }
         if (payload != NULL)
         {
             m3CreateMeshShapeOp record;
@@ -1242,6 +1246,10 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
         int32_t sampleBytes = nx * nz * (int32_t)sizeof(float);
         int32_t bytes = (int32_t)sizeof(m3CreateHeightFieldGridOp) + sampleBytes;
         uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
+        if (payload == NULL)
+        {
+            m3JournalAbandon(world);
+        }
         if (payload != NULL)
         {
             m3CreateHeightFieldGridOp head;

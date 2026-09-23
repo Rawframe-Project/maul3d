@@ -54,6 +54,14 @@ int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, 
     int32_t maxIndex = maxA > maxB ? maxA : maxB;
     m3BodyDiff* rows = (m3BodyDiff*)m3AllocZeroed(
         maxIndex > 0 ? maxIndex * (int32_t)sizeof(m3BodyDiff) : (int32_t)sizeof(m3BodyDiff));
+    if (rows == NULL)
+    {
+        if (outCount != NULL)
+        {
+            *outCount = 0;
+        }
+        return -1; // out of memory
+    }
     int32_t found = 0;
     for (int32_t i = 0; i < maxIndex; ++i)
     {

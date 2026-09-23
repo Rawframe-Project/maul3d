@@ -79,12 +79,20 @@ void* m3AllocZeroed(int32_t bytes)
     {
         memory = calloc(1, (size_t)bytes);
     }
-    M3_ASSERT(memory != NULL);
     if (memory != NULL)
     {
         M3_COUNT_INC(s_allocCalls);
     }
     return memory;
+}
+
+void* m3AllocArray(int64_t count, int64_t elementBytes)
+{
+    if (count <= 0 || elementBytes <= 0 || count > (int64_t)INT32_MAX / elementBytes)
+    {
+        return NULL;
+    }
+    return m3AllocZeroed((int32_t)(count * elementBytes));
 }
 
 void m3Free(void* memory)
@@ -160,10 +168,16 @@ m3IdPool m3IdPoolCreate(int32_t capacity)
         M3_ASSERT(false);
         return pool;
     }
-    pool.capacity = capacity;
     M3_ALLOC(pool.generations, capacity, uint16_t);
     M3_ALLOC(pool.alive, capacity, uint8_t);
     M3_ALLOC(pool.freeQueue, capacity, int32_t);
+    if (pool.generations == NULL || pool.alive == NULL || pool.freeQueue == NULL)
+    {
+        // Out of memory: an empty pool (capacity 0) tells the caller.
+        m3IdPoolDestroy(&pool);
+        return pool;
+    }
+    pool.capacity = capacity;
     return pool;
 }
 

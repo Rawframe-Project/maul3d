@@ -42,9 +42,15 @@ m3Tree m3TreeCreate(int32_t capacity)
 {
     m3Tree tree;
     memset(&tree, 0, sizeof(tree));
-    tree.capacity = capacity;
     tree.root = M3_TREE_NULL;
     M3_ALLOC(tree.nodes, capacity, m3TreeNode);
+    if (tree.nodes == NULL)
+    {
+        // Out of memory: an empty tree (capacity 0) tells the caller.
+        tree.freeList = M3_TREE_NULL;
+        return tree;
+    }
+    tree.capacity = capacity;
     for (int32_t i = 0; i < capacity; ++i)
     {
         tree.nodes[i].parent = i + 1 < capacity ? i + 1 : M3_TREE_NULL;

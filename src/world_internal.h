@@ -1445,6 +1445,8 @@ m3RayHit m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
                               m3QueryFilter filter);
 
 void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes);
+// Fails the active recording when an op cannot be encoded.
+void m3JournalAbandon(m3World* world);
 
 int32_t m3JointSlot(const m3World* world, m3JointId jointId);
 int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB);

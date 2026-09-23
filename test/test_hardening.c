@@ -395,9 +395,90 @@ static void TestJournalOverflowIsLoud(void)
     m3DestroyWorld(world);
 }
 
+// A host allocator that refuses once a budget of successful calls is
+// spent, and counts live blocks so a leak shows up as a nonzero total.
+typedef struct FailingAllocator
+{
+    int32_t budget;
+    int32_t live;
+} FailingAllocator;
+
+static void* FailingAlloc(int32_t bytes, void* context)
+{
+    FailingAllocator* fa = (FailingAllocator*)context;
+    if (fa->budget <= 0)
+    {
+        return NULL;
+    }
+    fa->budget -= 1;
+    void* memory = malloc((size_t)bytes);
+    if (memory != NULL)
+    {
+        fa->live += 1;
+    }
+    return memory;
+}
+
+static void FailingFree(void* memory, void* context)
+{
+    FailingAllocator* fa = (FailingAllocator*)context;
+    if (memory != NULL)
+    {
+        fa->live -= 1;
+        free(memory);
+    }
+}
+
+static void TestCreateWorldOutOfMemory(void)
+{
+    // Refuse the first, second, third... allocation of world creation
+    // in turn. Every attempt must either refuse cleanly with a null id
+    // and nothing left allocated, or succeed and destroy cleanly.
+    m3WorldDef def = m3DefaultWorldDef();
+    FailingAllocator fa = {0, 0};
+    int32_t refusals = 0;
+    bool created = false;
+    for (int32_t budget = 0; budget < 4096 && !created; ++budget)
+    {
+        fa.budget = budget;
+        fa.live = 0;
+        m3SetAllocator(FailingAlloc, FailingFree, &fa);
+        m3WorldId world = m3CreateWorld(&def);
+        if (m3World_IsValid(world))
+        {
+            created = true;
+            m3DestroyWorld(world);
+        }
+        else
+        {
+            refusals += 1;
+        }
+        m3SetAllocator(NULL, NULL, NULL);
+        if (fa.live != 0)
+        {
+            printf("FAIL: %d block(s) leaked with an allocation budget of %d\n", fa.live, budget);
+            s_failures += 1;
+            break;
+        }
+    }
+    CHECK(created, "world creation succeeds once the allocator stops refusing");
+    CHECK(refusals > 100, "every allocation of world creation was refused once");
+
+    // Capacities whose derived byte sizes cannot be represented are
+    // refused up front instead of overflowing.
+    m3WorldDef huge = m3DefaultWorldDef();
+    huge.shapeCapacity = INT32_MAX / 4;
+    CHECK(!m3World_IsValid(m3CreateWorld(&huge)), "an unrepresentable shape capacity is refused");
+    huge = m3DefaultWorldDef();
+    huge.softBodyCapacity = INT32_MAX / 1024;
+    CHECK(!m3World_IsValid(m3CreateWorld(&huge)),
+          "an unrepresentable soft body capacity is refused");
+}
+
 int main(void)
 {
     TestZoo();
+    TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
     TestJournalOverflowIsLoud();
     if (s_failures == 0)

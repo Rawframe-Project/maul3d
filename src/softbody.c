@@ -443,6 +443,10 @@ m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, co
                         pointCount * (int32_t)sizeof(m3Vec3) +
                         4 * tetCount * (int32_t)sizeof(uint16_t);
         uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
+        if (payload == NULL)
+        {
+            m3JournalAbandon(world);
+        }
         if (payload != NULL)
         {
             m3CreateSoftBodyTetOp head;

@@ -17,15 +17,23 @@
 
 #include "maul3d/base.h"
 
-// Persistent arrays: allocation with a loud null check. The snapshot
-// walker, not this macro, is the source of truth for what state IS.
+// Persistent arrays. The field is NULL when the count is not positive,
+// the byte size overflows, or the allocator refuses; callers check it.
+// The snapshot walker, not this macro, is the source of truth for what
+// state is.
 #define M3_ALLOC(field, count, type)                                                               \
     do                                                                                             \
     {                                                                                              \
-        (field) = (type*)m3AllocZeroed((int32_t)((count) * (int32_t)sizeof(type)));                \
+        (field) = (type*)m3AllocArray((int64_t)(count), (int64_t)sizeof(type));                    \
     } while (0)
 
+// Zeroed memory, or NULL when bytes is not positive or the allocator
+// refuses. Running out of memory is a refusal, never an assert.
 void* m3AllocZeroed(int32_t bytes);
+// Zeroed array of count elements, or NULL when count or elementBytes is
+// not positive, when count * elementBytes does not fit the allocator's
+// 32-bit byte count, or when the allocator refuses.
+void* m3AllocArray(int64_t count, int64_t elementBytes);
 void m3Free(void* memory);
 // Soak bookkeeping: cumulative alloc and free call counts (2d-6).
 void m3DebugAllocCounts(int64_t* allocs, int64_t* frees);
