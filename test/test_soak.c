@@ -195,7 +195,7 @@ int main(int argc, char** argv)
 
     printf("M3_SOAK steps=%lld segments=%d journalCap=%d\n", (long long)totalSteps, segments,
            JOURNAL_CAP);
-    CHECK(totalSteps >= 20000, "the soak lived past twenty thousand steps");
+    CHECK(totalSteps >= (int64_t)segments * SEGMENT_STEPS, "the soak ran every requested step");
 
     free(snap);
     free(roll);
