@@ -495,13 +495,17 @@ m3RayHit m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
     ctx.ignoreBody = ignoreBody;
     ctx.filter = filter;
     ctx.best.fraction = 1.0f;
-    if (world == NULL || !(m3Dot3(translation, translation) > 0.0f) ||
+    if (world == NULL || !m3FinitePos3(origin) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
         !(translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT))
     {
-        return ctx.best; // null world, zero ray, or a translation
-                         // past the float budget: a clean miss
+        m3Refuse(world, m3_errorInvalid); // non-finite, or past the float budget
+        return ctx.best;
+    }
+    if (!(m3Dot3(translation, translation) > 0.0f))
+    {
+        return ctx.best; // a zero ray is a clean miss
     }
     ctx.world = world;
     ctx.origin = origin;
@@ -549,12 +553,6 @@ m3RayHit m3World_CastRayClosestEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 trans
                                   m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        m3RayHit miss;
-        memset(&miss, 0, sizeof(miss));
-        return miss;
-    }
     return m3RayClosestFiltered(world, origin, translation, -1, filter);
 }
 

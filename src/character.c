@@ -587,7 +587,8 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
     if (!m3FiniteF(halfHeight) || !m3FiniteF(radius) || halfHeight < 0.05f || radius < 0.05f ||
         halfHeight > 10.0f || radius > 10.0f)
     {
-        return false; // hostile dimensions never touch state
+        m3Refuse(world, m3_errorInvalid);
+        return false; // hostile dimensions never touch state (a veto is not misuse)
     }
     int32_t body = world->charBody[slot];
     m3real oldHh = world->charHalfHeight[slot];

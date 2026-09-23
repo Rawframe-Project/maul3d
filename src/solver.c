@@ -4316,7 +4316,8 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
 void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || !(dt > 0.0f) || substeps < 1 || substeps > M3_MAX_SUBSTEPS)
+    if (world == NULL || !m3FiniteF(dt) || !(dt > 0.0f) || substeps < 1 ||
+        substeps > M3_MAX_SUBSTEPS)
     {
         m3Refuse(world, m3_errorInvalid);
         return;

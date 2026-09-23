@@ -128,3 +128,10 @@ Work toward 0.0.1, the first release of the reworked library.
   colors in parallel had a data race (ThreadSanitizer, test_scale). It
   now writes dynamic bodies only, like every other contact write-back;
   results are unchanged.
+- Ray, shape and overlap queries refuse non-finite origins, bases,
+  points, radii, centers and boxes (and inverted boxes) with a
+  recorded reason, and a NULL world is refused instead of returning a
+  silent miss; m3World_PointInside refuses a non-finite point;
+  m3World_Step refuses an infinite dt; m3Character_SetStance records a
+  reason for hostile dimensions (a veto for lack of headroom still is
+  not misuse).

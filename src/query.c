@@ -94,7 +94,7 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
                              int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || hits == NULL || capacity <= 0 ||
+    if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
         !(m3Dot3(translation, translation) > 0.0f) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
@@ -496,12 +496,19 @@ static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3*
     // A skinless cast (radius zero) is legal for real point clouds:
     // boxes and hulls cast their corners; spheres and capsules keep
     // their mandatory skin.
-    if (world == NULL || pointCount < 1 || pointCount > M3_HULL_MAX_VERTS || radius < 0.0f ||
-        !(radius > 0.0f || pointCount >= 2) ||
-        !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
-        !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
-        !(translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT))
+    bool valid = world != NULL && points != NULL && pointCount >= 1 &&
+                 pointCount <= M3_HULL_MAX_VERTS && m3FiniteF(radius) && radius >= 0.0f &&
+                 (radius > 0.0f || pointCount >= 2) && m3FinitePos3(base) &&
+                 translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT &&
+                 translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT &&
+                 translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT;
+    for (int32_t k = 0; valid && k < pointCount; ++k)
     {
+        valid = m3FiniteV3(points[k]);
+    }
+    if (!valid)
+    {
+        m3Refuse(world, m3_errorInvalid);
         return ctx.best;
     }
     ctx.world = world;
@@ -638,12 +645,6 @@ m3RayHit m3World_CastSphereClosestEx(m3WorldId worldId, m3Pos3 center, m3real ra
 {
     m3Vec3 point = {0.0f, 0.0f, 0.0f};
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        m3RayHit miss;
-        memset(&miss, 0, sizeof(miss));
-        return miss;
-    }
     return CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
 }
 
@@ -660,12 +661,6 @@ m3RayHit m3World_CastCapsuleClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 p
 {
     m3Vec3 points[2] = {point1, point2};
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        m3RayHit miss;
-        memset(&miss, 0, sizeof(miss));
-        return miss;
-    }
     return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
 }
 
@@ -756,7 +751,7 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
 m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || !m3FinitePos3(point))
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
@@ -1051,7 +1046,8 @@ int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId
                               int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || shapes == NULL || capacity <= 0)
+    if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
+        !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -1080,7 +1076,8 @@ int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius,
                                 int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || shapes == NULL || capacity <= 0 || !(radius > 0.0f))
+    if (world == NULL || shapes == NULL || capacity <= 0 || !m3FiniteF(radius) ||
+        !(radius > 0.0f) || !m3FinitePos3(center))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -1695,6 +1692,7 @@ int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3
     {
         if (!m3FiniteV3(points[k]))
         {
+            m3Refuse(world, m3_errorInvalid);
             return 0;
         }
     }
