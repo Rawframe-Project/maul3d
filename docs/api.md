@@ -28,7 +28,7 @@ uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count);
 void m3SetAssertHandler(m3AssertFn* handler, void* context);
 ```
 
-## `math.h`
+## `core_math.h`
 
 Deterministic 3D math. World positions are 64-bit (m3Pos3) and everything local is 32-bit (m3real). Every operation is plain IEEE arithmetic under -ffp-contract=off, so the bits agree on every platform; the transcendentals are the engine's own.
 

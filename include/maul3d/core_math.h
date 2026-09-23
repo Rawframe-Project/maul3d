@@ -6,8 +6,8 @@
 // arithmetic under -ffp-contract=off, so the bits agree on every
 // platform; the transcendentals are the engine's own.
 
-#ifndef MAUL3D_MATH_H
-#define MAUL3D_MATH_H
+#ifndef MAUL3D_CORE_MATH_H
+#define MAUL3D_CORE_MATH_H
 
 #include "maul3d/base.h"
 
@@ -233,4 +233,4 @@ extern "C"
 }
 #endif
 
-#endif // MAUL3D_MATH_H
+#endif // MAUL3D_CORE_MATH_H

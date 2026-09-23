@@ -8,7 +8,7 @@
 #ifndef MAUL3D_REPLAY_H
 #define MAUL3D_REPLAY_H
 
-#include "maul3d/math.h"
+#include "maul3d/core_math.h"
 #include "maul3d/world.h"
 
 #ifdef __cplusplus

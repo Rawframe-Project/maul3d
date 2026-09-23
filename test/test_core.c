@@ -10,7 +10,7 @@
 #include "test_harness.h"
 
 #include "maul3d/body.h"
-#include "maul3d/math.h"
+#include "maul3d/core_math.h"
 #include "maul3d/world.h"
 
 #include <math.h>

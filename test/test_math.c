@@ -7,7 +7,7 @@
 // or backend rounds one of these operations differently, the gate goes
 // red before any physics is built on top.
 
-#include "maul3d/math.h"
+#include "maul3d/core_math.h"
 #include "test_harness.h"
 
 #include <stdio.h>

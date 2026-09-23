@@ -59,6 +59,9 @@ Work toward 0.0.1, the first release of the reworked library.
   the package consumer, and compares hashes with `test/hashes.txt`.
   Tagged releases now publish packages and the testbed for Linux,
   macOS and Windows.
+- The public `maul3d/math.h` header is now `maul3d/core_math.h`, so it
+  can never shadow the C library's `math.h` when `include/maul3d`
+  lands on an include path.
 
 ### Removed
 

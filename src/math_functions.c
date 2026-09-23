@@ -7,7 +7,7 @@
 // atan2f are not trusted to agree bit for bit across platforms; only
 // sqrtf and remainderf (IEEE exact) are allowed through.
 
-#include "maul3d/math.h"
+#include "maul3d/core_math.h"
 
 // Minimax polynomial approximation of atan on [0, 1], mapped to the
 // full circle. Matches the reference constants exactly.

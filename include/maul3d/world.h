@@ -7,7 +7,7 @@
 #ifndef MAUL3D_WORLD_H
 #define MAUL3D_WORLD_H
 
-#include "maul3d/math.h"
+#include "maul3d/core_math.h"
 
 #ifdef __cplusplus
 extern "C"
