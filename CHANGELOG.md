@@ -79,6 +79,11 @@ Work toward 0.0.1, the first release of the reworked library.
   the point constraint). Joint flag bits are named M3_JOINT_*.
   solver.c shrank from 4,350 to 2,200 lines. Results are bit-
   identical.
+- The narrow phase picks each pair's collider from a [typeA][typeB]
+  table in the new src/narrowphase.c instead of a 560-line if-chain,
+  and the triangle-soup kernels (mesh, heightfield and voxel surfaces)
+  moved to src/manifold_mesh.c; manifold.c keeps the convex kernels.
+  Results are bit-identical.
 
 ### Removed
 

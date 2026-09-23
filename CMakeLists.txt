@@ -64,8 +64,10 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/joint_wheel.c
     src/journal_replay.c
     src/manifold.c
+    src/manifold_mesh.c
     src/math_functions.c
     src/mesh_bvh.c
+    src/narrowphase.c
     src/query.c
     src/quickhull.c
     src/raycast.c
