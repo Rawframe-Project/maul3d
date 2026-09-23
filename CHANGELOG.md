@@ -117,7 +117,7 @@ Work toward 0.0.1, the first release of the reworked library.
   argument-halving identity and a Taylor series, accurate to about
   4e-7 instead of the previous 2e-3. docs/references.md lists the
   published sources behind the algorithms.
-- Snapshot format 2: the header holds only the magic, the format
+- The snapshot header holds only the magic, the format
   version, the build hash and the eight world capacities. Step count,
   gravity, the pair count, the tree cursors and every pool cursor are
   state table rows, checked before any byte lands. A vehicle or soft
