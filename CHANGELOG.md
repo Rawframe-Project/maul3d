@@ -28,6 +28,9 @@ Work toward 0.0.1, the first release of the reworked library.
   `m3Counters.misuse`, which counts invalid arguments against a live
   world. Every public function now records a reason when it refuses;
   before, refusals were silent.
+- The library target requires C11 of its consumers through CMake, and
+  a test compiles the umbrella header as C++ so the API stays usable
+  from C++.
 
 ### Changed
 
