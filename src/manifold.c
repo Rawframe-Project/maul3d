@@ -834,7 +834,7 @@ static int ClipSegmentToTriFace(m3Vec3 segment[2], const m3Vec3 tri[3], m3Vec3 f
         {
             segment[vertexCount++] = p2;
         }
-        if (distance1 * distance2 < 0.0f)
+        if (vertexCount < 2 && distance1 * distance2 < 0.0f)
         {
             m3real t = distance1 / (distance1 - distance2);
             segment[vertexCount] = m3Add3(p1, m3MulSV3(t, m3Sub3(p2, p1)));
@@ -933,9 +933,7 @@ static void CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3r
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceOutput dOut = m3ShapeDistance(&input, &cache);
 
     if (dOut.distance > radius + M3_SPECULATIVE_DISTANCE)
@@ -1279,6 +1277,10 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
                 startEdge = e;
             }
         }
+        if (startEdge < 0)
+        {
+            return; // a face without edges: malformed hull data, no contact
+        }
         int32_t edgeIndex = startEdge;
         do
         {
@@ -1337,6 +1339,10 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
             {
                 startEdge = e;
             }
+        }
+        if (startEdge < 0)
+        {
+            return; // a face without edges: malformed hull data, no contact
         }
         int32_t edgeIndex = startEdge;
         do
@@ -1430,9 +1436,7 @@ static void CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, cons
         input.q = m3MakeIdentityQuat();
         input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
         input.useRadii = false;
-        m3SimplexCache cache;
-        cache.count = 0;
-        cache.metric = 0.0f;
+        m3SimplexCache cache = {0};
         m3DistanceOutput dOut = m3ShapeDistance(&input, &cache);
         if (dOut.distance > 0.0f && dOut.distance <= M3_SPECULATIVE_DISTANCE)
         {
@@ -2688,9 +2692,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
             input.proxyA = m3MakeShapeProxy(world, shapeA, pointsA);
             input.proxyB = m3MakeShapeProxy(world, shapeB, pointsB);
             input.useRadii = false;
-            m3SimplexCache cache;
-            cache.count = 0;
-            cache.metric = 0.0f;
+            m3SimplexCache cache = {0};
             m3DistanceOutput out = m3ShapeDistance(&input, &cache);
             m3real rA = input.proxyA.radius;
             m3real rB = input.proxyB.radius;

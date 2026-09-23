@@ -687,6 +687,10 @@ static void QhBuildCone(m3QhBuilder* b, m3QhVertex* apex)
         b->cone[b->coneCount++] = face;
         QhLinkFace(face, 1, edge->twin);
     }
+    if (b->coneCount == 0)
+    {
+        return; // an empty horizon adds no faces
+    }
     m3QhFace* face1 = b->cone[b->coneCount - 1];
     for (int32_t i = 0; i < b->coneCount; ++i)
     {
@@ -804,6 +808,9 @@ static void QhAbsorbFaces(m3QhBuilder* b, m3QhFace* face)
 // QhConnectEdges and a fresh Newell plane.
 static void QhConnectFaces(m3QhBuilder* b, m3QhEdge* edge)
 {
+    // Every half-edge of a closed hull has a twin, so the walks below
+    // never meet a null link.
+    // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
     m3QhFace* face = edge->face;
     m3QhEdge* twin = edge->twin;
     m3QhEdge* edgePrev = edge->prev;
@@ -1116,8 +1123,7 @@ bool m3ComputeHull(const m3Vec3* points, int32_t count, m3HullData* out)
     for (int32_t i = 0; i < count; ++i)
     {
         // Non-finite input is refused loudly, never built.
-        if (!(points[i].x == points[i].x) || !(points[i].y == points[i].y) ||
-            !(points[i].z == points[i].z) || points[i].x > 1.0e18f || points[i].x < -1.0e18f ||
+        if (!m3FiniteV3(points[i]) || points[i].x > 1.0e18f || points[i].x < -1.0e18f ||
             points[i].y > 1.0e18f || points[i].y < -1.0e18f || points[i].z > 1.0e18f ||
             points[i].z < -1.0e18f)
         {

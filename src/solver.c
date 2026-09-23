@@ -3667,7 +3667,6 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     m3Profile prof;
     memset(&prof, 0, sizeof(prof));
     double tStep = m3NowMs();
-    double t0 = tStep;
 
     // The documented growth (allocator.h, finally exercised by the
     // 6-1 city block): a step that starves the scratch stalls
@@ -3700,7 +3699,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     // The suspension pass (5-1): vehicle impulses land here so the
     // narrowphase and solver see the sprung chassis the same way
     // they see gravity. Serial, slot order, canonical.
-    t0 = m3NowMs();
+    double t0 = m3NowMs();
     m3VehicleApplySuspension(world, dt);
     prof.vehicles = (float)(m3NowMs() - t0);
 

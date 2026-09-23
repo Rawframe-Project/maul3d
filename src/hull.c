@@ -145,8 +145,13 @@ int32_t m3InternHull(m3World* world, const m3HullData* data)
     int32_t maxIndex = world->hullPool.maxIndex;
     for (int32_t i = 0; i < maxIndex; ++i)
     {
-        if (world->hullPool.alive[i] != 0 &&
-            memcmp(&world->hullData[i], data, sizeof(m3HullData)) == 0)
+        if (world->hullPool.alive[i] == 0)
+        {
+            continue;
+        }
+        // Hull data is padding-free, so equal bytes mean an equal hull.
+        // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison)
+        if (memcmp(&world->hullData[i], data, sizeof(m3HullData)) == 0)
         {
             world->hullRefCounts[i] += 1;
             return i;

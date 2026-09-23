@@ -1087,10 +1087,6 @@ static inline m3Transform m3ShapeWorldTransform(const m3World* world, int32_t sh
     return xf;
 }
 
-// The compound gate (10-1): THE one way to read where a shape sits
-// in the world. Bodies still move; shapes may ride at an offset.
-static inline m3Transform m3ShapeWorldTransform(const struct m3World* world, int32_t shape);
-
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 void m3SetShapeFrictionInternal(m3World* world, int32_t slot, float value);
 void m3SetShapeRestitutionInternal(m3World* world, int32_t slot, float value);
@@ -1171,11 +1167,11 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 // infinities in one branchless test, no libm, no macro promotion.
 static inline bool m3FiniteF(m3real x)
 {
-    return x - x == 0.0f;
+    return x - x == 0.0f; // NOLINT(misc-redundant-expression): the finite test
 }
 static inline bool m3FiniteD(double x)
 {
-    return x - x == 0.0;
+    return x - x == 0.0; // NOLINT(misc-redundant-expression): the finite test
 }
 static inline bool m3FiniteV3(m3Vec3 v)
 {

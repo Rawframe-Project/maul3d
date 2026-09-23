@@ -822,9 +822,17 @@ ToiMakeSeparationFunction(const m3SimplexCache* cache, const m3DistanceProxy* pr
     fcn.witness2 = (m3Vec3){0.0f, 0.0f, 0.0f};
     fcn.type = m3_separationVertices;
 
-    int32_t indexA[3] = {cache->indexA[0], cache->indexA[1], cache->indexA[2]};
-    int32_t indexB[3] = {cache->indexB[0], cache->indexB[1], cache->indexB[2]};
+    // Copy only the entries the cache holds; unused slots repeat the
+    // first so nothing reads indeterminate bytes.
     int32_t count = cache->count < 3 ? (int32_t)cache->count : 3;
+    count = count > 0 ? count : 1;
+    int32_t indexA[3];
+    int32_t indexB[3];
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        indexA[k] = k < count ? cache->indexA[k] : cache->indexA[0];
+        indexB[k] = k < count ? cache->indexB[k] : cache->indexB[0];
+    }
     int32_t uniqueA = ToiUniqueCount(count, indexA);
     int32_t uniqueB = ToiUniqueCount(count, indexB);
 
@@ -1064,9 +1072,7 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input)
     const int32_t maxIterations = 25;
     int32_t distanceIterations = 0;
 
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceInput distanceInput;
     distanceInput.proxyA = input->proxyA;
     distanceInput.proxyB = input->proxyB;
@@ -1194,7 +1200,6 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input)
             if (rootIterationCount == maxRootIterations - 1 && function.type == m3_separationEdges)
             {
                 // Failing edge case: pin the axis and restart.
-                rootIterationCount = 0;
                 t2 = tMax;
                 ToiForceFixedAxis(&function, t1);
             }

@@ -684,6 +684,33 @@ static void TestSeamWeldingCoverage(void)
     m3DestroyWorld(world);
 }
 
+static void TestEscapeStopsAtWeldedBorder(void)
+{
+    // A point in the corner cell of chunk A, whose -x neighbor is a
+    // welded solid chunk. The escape search must not step across the
+    // border (it once indexed its visited set at -1 there) and finds
+    // the open bottom face instead.
+    m3WorldId world = SmallWorld();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    FillSlab(voxels, 4);
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){0.0, 0.0, 0.0};
+    m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, voxels, NULL, 1.0f);
+    gd.position = (m3Pos3){16.0, 0.0, 0.0};
+    m3ShapeId chunkA = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, voxels, NULL, 1.0f);
+
+    m3World* w = m3WorldFromId(world);
+    int32_t slot = w->shapeVoxelIndex[chunkA.index1 - 1];
+    m3Vec3 normal = {0.0f, 0.0f, 0.0f};
+    m3real plane = 0.0f;
+    bool found = m3VoxelEscape(w, slot, (m3Vec3){0.5f, 0.5f, 0.5f}, &normal, &plane);
+    CHECK(found, "the corner cell has an exit");
+    CHECK(normal.x == 0.0f && normal.y == -1.0f && normal.z == 0.0f,
+          "through the open bottom, not across the welded border");
+    m3DestroyWorld(world);
+}
+
 static void TestRollingAcrossSeams(void)
 {
     // The headline: a ball rolls across an INTRA-chunk box seam and
@@ -1064,6 +1091,7 @@ static void TestEmbeddedRecovery(void)
 
 int main(void)
 {
+    TestEscapeStopsAtWeldedBorder();
     TestGreedyMergeAnalytics();
     TestRestingOnVoxelFloor();
     TestSnapshotJournalAndDerivedRebuild();

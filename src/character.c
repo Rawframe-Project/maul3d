@@ -419,6 +419,8 @@ void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* ro
         m3Pos3 old = {com0[under].x - (double)rlc0.x, com0[under].y - (double)rlc0.y,
                       com0[under].z - (double)rlc0.z};
         const m3Transform* now = &world->transforms[under];
+        // Bitwise identity is the question here, so memcmp is right.
+        // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison)
         if (memcmp(&rot0[under], &now->q, sizeof(m3Quat)) == 0 && old.x == now->p.x &&
             old.y == now->p.y && old.z == now->p.z)
         {

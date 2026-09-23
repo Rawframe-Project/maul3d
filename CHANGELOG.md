@@ -62,3 +62,12 @@ Work toward 0.0.1, the first release of the reworked library.
 - `m3World_Restore` now also ranges the header's pair count and tree
   cursors before overwriting anything. A snapshot with a hostile pair
   count used to be accepted and crashed the next step.
+- The voxel escape search indexed its visited set out of bounds (at -1
+  in the corner cell) when a solid cell continued into a welded
+  neighbor chunk. It now treats that direction as closed and looks for
+  the exit inside the chunk. The cityblock benchmark pin moved because
+  its destruction crosses welded borders.
+- Two hull contact paths read the edge before index 0 when a face had
+  no edges, which only malformed hull data can cause; they now produce
+  no contact. GJK simplex caches are fully zero-initialized, and the
+  time-of-impact setup no longer copies unused cache entries.

@@ -5,7 +5,7 @@
 // and the debug assert hook. No dependencies beyond libc.
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
-#define _POSIX_C_SOURCE 199309L // clock_gettime for the profile clock
+#define _POSIX_C_SOURCE 199309L // NOLINT(bugprone-reserved-identifier): clock_gettime
 #endif
 
 #include "maul3d/base.h"

@@ -84,9 +84,6 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     return true;
 }
 
-int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
-                             int32_t capacity, m3QueryFilter filter);
-
 int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
                            int32_t capacity)
 {
@@ -982,9 +979,7 @@ static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3re
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceOutput out = m3ShapeDistance(&input, &cache);
     return out.distance - proxy.radius <= radius;
 }
@@ -1235,9 +1230,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceOutput out = m3ShapeDistance(&input, &cache);
     m3real surface = out.distance - proxy.radius;
     if (surface > def->radius + def->falloff)
@@ -1497,9 +1490,7 @@ static int ProxyCloudReach(const m3Vec3* cloud, int32_t cloudCount, m3real cloud
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceOutput out = m3ShapeDistance(&input, &cache);
     return out.distance <= cloudRadius + targetRadius;
 }
@@ -1894,9 +1885,7 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
     input.q = m3MakeIdentityQuat();
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
-    m3SimplexCache cache;
-    cache.count = 0;
-    cache.metric = 0.0f;
+    m3SimplexCache cache = {0};
     m3DistanceOutput out = m3ShapeDistance(&input, &cache);
     m3real gap = out.distance - input.proxyA.radius - ctx->radius;
     if (gap > ctx->skin)

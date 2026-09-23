@@ -873,6 +873,11 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
                 *outPlane = (m3real)faceCell * cell;
                 return true;
             }
+            if (nx < 0 || nx >= M3_VOXEL_DIM || ny < 0 || ny >= M3_VOXEL_DIM || nz < 0 ||
+                nz >= M3_VOXEL_DIM)
+            {
+                continue; // solid continues into a welded neighbor: no exit this way
+            }
             int32_t nv = nx + M3_VOXEL_DIM * (ny + M3_VOXEL_DIM * nz);
             if (visited[nv] == 0)
             {
@@ -905,6 +910,7 @@ void m3VoxelRebuildLinks(m3World* world)
         }
         int32_t bodyA = world->shapeBody[world->voxelShape[a]];
         const m3Transform* xfA = &world->transforms[bodyA];
+        // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bitwise identity
         if (memcmp(&xfA->q, &identity, sizeof(m3Quat)) != 0)
         {
             continue; // the welding contract wants grid alignment
@@ -919,6 +925,7 @@ void m3VoxelRebuildLinks(m3World* world)
             }
             int32_t bodyB = world->shapeBody[world->voxelShape[b]];
             const m3Transform* xfB = &world->transforms[bodyB];
+            // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bitwise identity
             if (memcmp(&xfB->q, &identity, sizeof(m3Quat)) != 0)
             {
                 continue;
