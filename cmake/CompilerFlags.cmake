@@ -3,14 +3,6 @@
 # build-time half of the determinism contract; the test suite verifies
 # the promise at runtime.
 
-# SIMD policy (phase 2a design): the canonical logical width is 4
-# lanes on every backend (SSE2 on x64, NEON on arm64, scalar fallback),
-# which is Box3D's choice and aids cross-platform bit identity. SSE2 is
-# part of the x86-64 baseline, so no extra arch flags are needed.
-# MAUL3D_SIMD=scalar forces the scalar fallback, and CI runs one scalar
-# cell whose hashes must match the vector cells bit for bit.
-set(MAUL3D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
-
 function(maul3d_apply_flags target)
     # A host injecting fast-math through global flags would silently void
     # the determinism contract; refuse to configure at all.
@@ -34,10 +26,6 @@ function(maul3d_apply_flags target)
         target_compile_options(${target} PRIVATE
             -ffp-contract=off -fno-trapping-math -fno-fast-math -fno-unsafe-math-optimizations
             -Wall -Wextra -Werror -Wshadow -Wdouble-promotion)
-    endif()
-
-    if(MAUL3D_SIMD STREQUAL "scalar")
-        target_compile_definitions(${target} PRIVATE MAUL3D_SIMD_FORCE_SCALAR=1)
     endif()
 
     if(MAUL3D_SANITIZE)

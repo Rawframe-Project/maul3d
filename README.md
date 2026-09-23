@@ -14,8 +14,8 @@ restore worlds bit-exactly and resume identically (the rollback
 most engines explicitly do not promise), a command journal records
 sessions and replays them byte for byte with id verification and
 atomic backout, and CI fails on a single differing bit across
-seven platform cells spanning x64, arm64, MSVC, sanitizers and
-portable scalar. Rollback netcode, deterministic lockstep,
+seven platform cells spanning x64, arm64, MSVC, wasm and
+sanitizers. Rollback netcode, deterministic lockstep,
 kill-cam replays and server-verified simulation stop being
 research projects and become four lines of code:
 
@@ -88,10 +88,9 @@ cmake --build build
 ctest --test-dir build
 ```
 
-No dependencies. A C17 compiler is required. The default build
-uses SIMD kernels with a portable scalar fallback
-(`-DMAUL3D_SIMD=scalar`) that produces bit-identical results, and
-CI enforces that equality on every commit.
+No dependencies. A C17 compiler is required. The engine is portable
+scalar C today; vectorized kernels will arrive under the same
+bit-identity rule the rest of the engine follows.
 
 The interactive testbed (raylib, viewer only, outside the engine's
 dependency surface) builds with `-DMAUL3D_BUILD_TESTBED=ON`:

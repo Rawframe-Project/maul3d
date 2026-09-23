@@ -53,10 +53,10 @@ contract).
 
 **Promised:** the same build of Maul3D, given the same sequence of
 API calls with the same arguments, produces bit-identical simulation
-state on every supported platform, compiler, architecture, SIMD
-backend, and worker count. This is CI-enforced across seven cells
-(Linux gcc and clang, Debug and Release, forced-scalar with
-sanitizers, macOS arm64, Windows MSVC, and wasm32 under node)
+state on every supported platform, compiler, architecture and
+worker count. This is CI-enforced across seven cells
+(Linux gcc and clang, Debug and Release, sanitizers, macOS arm64,
+Windows MSVC, and wasm32 under node)
 whose printed state hashes must be equal on every commit.
 
 **Deliberately not promised:**
@@ -111,9 +111,8 @@ step counter.
 
 Deliberately NOT in the snapshot:
 
-- **SIMD width and worker count.** A snapshot taken on a 4-wide AVX
-  build restores on a scalar build and continues bit-identically;
-  parallelism is not state.
+- **Worker count.** A snapshot taken with eight workers restores
+  with one and continues bit-identically; parallelism is not state.
 - **Derived data.** Acceleration structures that are pure functions
   of content (the per-mesh BVH) are rebuilt on restore and proven
   byte-identical by test.

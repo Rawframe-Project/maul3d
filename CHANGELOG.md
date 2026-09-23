@@ -31,3 +31,10 @@ Work toward 0.0.1, the first release of the reworked library.
   payload cannot be allocated, instead of silently missing the op.
 - `m3World_DiffReport` returns -1 instead of crashing when it cannot
   allocate its working rows.
+
+### Removed
+
+- The unused 4-wide SIMD header, its test and the `MAUL3D_SIMD`
+  option. No engine code included it, so the README's claim that
+  the default build used SIMD kernels was not true. The engine is
+  scalar until real vector kernels land.

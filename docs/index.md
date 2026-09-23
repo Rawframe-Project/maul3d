@@ -4,7 +4,7 @@ A deterministic, rollback-native 3D physics engine in pure C17.
 Zero dependencies, MIT licensed, built for sandbox destruction and
 lockstep multiplayer: the whole world snapshots, restores, and
 replays to the bit, on every platform CI can reach (x86-64, ARM,
-RISC-V, 32-bit, SIMD and scalar, Windows, wasm).
+RISC-V, 32-bit, Windows, wasm).
 
 - [The manual](manual.html): the engine-host contract, chapter by
   chapter: rollback, the journal, destruction, vehicles, the

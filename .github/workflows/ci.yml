@@ -1,7 +1,7 @@
 # The determinism gate: seven cells across three OSes, three ISAs,
-# compilers, plus a sanitize+scalar cell. Every cell extracts its
+# compilers, plus a sanitizer cell. Every cell extracts its
 # M3_*_HASH lines; the compare job fails unless every line appears
-# identically in every cell. Adapted from Maul2D's proven gate.
+# identically in every cell.
 name: ci
 
 on:
@@ -20,7 +20,7 @@ jobs:
           - { name: ubuntu-gcc-release,     os: ubuntu-latest,  cc: gcc,   build: Release, flags: "" }
           - { name: ubuntu-clang-release,   os: ubuntu-latest,  cc: clang, build: Release, flags: "" }
           - { name: ubuntu-clang-debug,     os: ubuntu-latest,  cc: clang, build: Debug,   flags: "" }
-          - { name: ubuntu-scalar-sanitize, os: ubuntu-latest,  cc: clang, build: Debug,   flags: "-DMAUL3D_SANITIZE=ON -DMAUL3D_SIMD=scalar" }
+          - { name: ubuntu-clang-sanitize, os: ubuntu-latest,  cc: clang, build: Debug,   flags: "-DMAUL3D_SANITIZE=ON" }
           - { name: macos-arm64-release,    os: macos-14,       cc: clang, build: Release, flags: "" }
           - { name: windows-msvc-release,   os: windows-latest, cc: cl,    build: Release, flags: "" }
           # The shared-library cell runs the black-box suites and the
@@ -47,7 +47,7 @@ jobs:
           cd build
           ctest -C ${{ matrix.build }} -V --output-on-failure | tee out.txt
       - name: Package consumer
-        if: matrix.name != 'ubuntu-scalar-sanitize'
+        if: matrix.name != 'ubuntu-clang-sanitize'
         shell: bash
         run: |
           cmake --install build --config ${{ matrix.build }} --prefix "$PWD/pkg"
