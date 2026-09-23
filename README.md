@@ -136,6 +136,8 @@ library version and are refused by any other.
   integration checklist.
 - [The conventions](docs/conventions.md): the rules both engines
   follow, from naming to commits.
+- [Design records](docs/adr/README.md): the decisions behind the
+  rules and the architecture.
 - [The changelog](CHANGELOG.md): every release and what changed.
 - [Bindings](bindings/): starting points for C# (a single P/Invoke
   file) and Godot (a GDExtension skeleton).
