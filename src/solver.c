@@ -539,10 +539,19 @@ static void SolveOneContact(m3World* world, m3ContactConstraint* c, const m3Vec3
             }
             delta = m3Sub3(accum, c->rollingImpulse);
             c->rollingImpulse = accum;
-            world->angularVelocities[c->bodyA] =
-                m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, delta));
-            world->angularVelocities[c->bodyB] =
-                m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, delta));
+            // Guarded like every contact write-back: a static body shared
+            // across graph colors must never be written, even with an
+            // unchanged value (concurrent identical writes still race).
+            if (world->types[c->bodyA] == (uint8_t)m3_dynamicBody)
+            {
+                world->angularVelocities[c->bodyA] =
+                    m3Sub3(world->angularVelocities[c->bodyA], m3MulMV3(c->invIA, delta));
+            }
+            if (world->types[c->bodyB] == (uint8_t)m3_dynamicBody)
+            {
+                world->angularVelocities[c->bodyB] =
+                    m3Add3(world->angularVelocities[c->bodyB], m3MulMV3(c->invIB, delta));
+            }
         }
 
         // Central friction: one coupled 2x2 row at the mean anchors,

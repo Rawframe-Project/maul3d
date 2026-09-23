@@ -123,3 +123,8 @@ Work toward 0.0.1, the first release of the reworked library.
   reason on every refusal path (several returned null silently,
   including a plane on a dynamic body); a valid generic joint no
   longer leaves m3_errorInvalid behind.
+- The rolling-resistance row wrote the angular velocity of static
+  bodies, which are shared across graph colors, so a host running
+  colors in parallel had a data race (ThreadSanitizer, test_scale). It
+  now writes dynamic bodies only, like every other contact write-back;
+  results are unchanged.
