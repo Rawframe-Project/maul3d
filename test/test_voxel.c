@@ -429,7 +429,7 @@ static void TestEditRollbackReedit(void)
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    // The composition rule (the manual states it, this test honors
+    // The composition rule (the guide states it, this test honors
     // it): the journal closes BEFORE the rollback block. A restore
     // is not an op, so a journal spanning one would replay a longer
     // history than the world lived. The first draft of this test

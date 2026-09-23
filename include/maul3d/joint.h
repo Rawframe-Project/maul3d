@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joints (2c-2): articulation with snapshot-riding warm starts. The
-// first joint is the spherical (ball) point constraint; hinges,
-// sliders, and shoulder limits follow in their own slices.
+// Joints: the seven joint types, their defs, limits, motors,
+// springs, constraint force readback and breaking.
 
 #ifndef MAUL3D_JOINT_H
 #define MAUL3D_JOINT_H

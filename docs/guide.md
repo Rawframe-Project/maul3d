@@ -1,4 +1,4 @@
-# Maul3D Manual
+# Maul3D guide
 
 This is the contract between the engine and the host, engineer to
 engineer. The README says what Maul3D is; this document says exactly

@@ -16,6 +16,9 @@ Work toward 0.0.1, the first release of the reworked library.
   samples page are now real programs built with the library, so they
   cannot drift from the API. `samples/minimal` is the installed-
   package consumer, moved from `test/consumer`.
+- `docs/api.md`: the API reference, generated from the headers by
+  `tools/gen_api.py` (the same script Maul2D uses), and
+  `maul3d/maul3d.h`, an umbrella header that includes the whole API.
 
 ### Changed
 
@@ -23,6 +26,7 @@ Work toward 0.0.1, the first release of the reworked library.
   were withdrawn.
 - The `m3SolvePlanes` documentation now states that only the first 64
   planes take part.
+- `docs/manual.md` is now `docs/guide.md`, the name the family uses.
 
 ### Removed
 

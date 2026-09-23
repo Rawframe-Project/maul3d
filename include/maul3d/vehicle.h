@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The raycast vehicle (5-1): wheels are not bodies. Each wheel is a
-// suspension ray cast from the chassis, a spring and damper impulse
-// at the contact, and (from 5-2) tire friction impulses in the
-// contact plane. The vehicle is an engine-owned object like the
-// character: pooled ids, journaled ops, stepped inside m3World_Step
-// in canonical slot order, every field snapshotted and hashed, so
-// a replayed or rolled-back drive lands on identical bits.
+// Raycast vehicles: each wheel is a suspension ray from the chassis
+// with a spring and damper at the contact and tire friction in the
+// contact plane. Vehicles are stepped inside m3World_Step in slot order
+// and fully snapshotted, so a replayed or rolled-back drive lands on
+// identical bits.
 
 #ifndef MAUL3D_VEHICLE_H
 #define MAUL3D_VEHICLE_H

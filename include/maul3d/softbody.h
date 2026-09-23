@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Deterministic soft bodies (7-1): XPBD particle lattices. A soft
-// body is a box lattice of particles bound by distance constraints
-// (structural edges plus face diagonals) solved Gauss-Seidel in
-// FIXED index order per substep: deterministic by construction,
-// under the same four gates as everything else. Rope (n x 1 x 1),
-// cloth (n x m x 1), and jelly (n x m x k) all fall out of the one
-// factory. Engine-owned like characters and vehicles: pooled ids,
-// journaled ops, snapshotted and hashed state, bit-exact rollback.
+// Soft bodies: XPBD particle lattices bound by distance constraints
+// and solved in a fixed index order each substep. Rope, cloth and jelly
+// come from one factory. Ids are pooled, operations journaled and state
+// snapshotted and hashed, so rollback covers them exactly.
 
 #ifndef MAUL3D_SOFTBODY_H
 #define MAUL3D_SOFTBODY_H

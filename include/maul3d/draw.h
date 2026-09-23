@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Debug draw (2c-9): a pure observer. The world describes itself as
-// segments and points through host callbacks; a draw pass reads
-// simulation state and never writes a bit (a test hashes the world
-// across a draw to hold that promise).
+// Debug draw: the world describes itself as segments, points and
+// triangles through host callbacks. A draw pass only reads simulation
+// state; a test hashes the world across a draw to check that.
 
 #ifndef MAUL3D_DRAW_H
 #define MAUL3D_DRAW_H

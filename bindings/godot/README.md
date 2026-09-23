@@ -38,12 +38,12 @@ This kit is compile-checked against the Maul3D headers; building
 the extension itself needs godot-cpp and scons, which are not part
 of this repository's CI. Extend `M3World3D` along the same
 pattern: every engine call you need is one bound method away, and
-the C API is documented in `docs/manual.md`.
+the C API is documented in `docs/guide.md` and `docs/api.md`.
 
 ## Determinism note
 
 Godot's `_physics_process` delta is fixed, but if you run rollback
 netcode, step the world yourself from your netcode tick instead
 and keep `_physics_process` for interpolation only. Snapshot,
-journal, and hash behave exactly as the manual describes; the
+journal, and hash behave exactly as the guide describes; the
 binding adds nothing and takes nothing away.

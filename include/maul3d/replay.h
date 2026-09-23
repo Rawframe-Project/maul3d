@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Replays: the M3J1 container that seals a snapshot, a journal and
+// the final hash into one artifact, and the functions that write,
+// verify, seek and compare replays.
 
 #ifndef MAUL3D_REPLAY_H
 #define MAUL3D_REPLAY_H

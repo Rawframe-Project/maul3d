@@ -62,8 +62,11 @@ m3World_Restore(world, buffer, size); // bit-exact resimulation from here
   break events and pre-solve vetoes; rays, sphere, capsule, hull and
   box casts and overlap queries, all filterable and in canonical
   order.
-- **Continuous collision** for fast bodies, island sleeping, tuning
-  settings and debug draw as wireframe and solid triangle streams.
+- **Continuous collision** for fast bodies, island sleeping and tuning
+  settings.
+- **Integration**: 234 public functions, full state readback, debug
+  draw as wireframe and solid triangle streams, counters and
+  profiling, allocator and assert hooks.
 
 ## Getting started
 
@@ -123,9 +126,11 @@ library version and are refused by any other.
 ## Documentation
 
 - [The documentation site](https://rawframe-project.github.io/maul3d/):
-  the manual, the samples, the conventions and the changelog as web
+  the guide, the samples, the conventions and the changelog as web
   pages.
-- [The manual](docs/manual.md): the engine and host contract, chapter
+- [The API reference](docs/api.md): every public function with its
+  documentation, generated from the headers.
+- [The guide](docs/guide.md): the engine and host contract, chapter
   by chapter: rollback, the journal, destruction, vehicles, the
   character, soft bodies, replays, lockstep networking and an
   integration checklist.

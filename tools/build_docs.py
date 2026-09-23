@@ -16,7 +16,8 @@ OUT = ROOT / "_site"
 
 PAGES = [
     ("index", "Maul3D", DOCS / "index.md"),
-    ("manual", "The manual", DOCS / "manual.md"),
+    ("guide", "The guide", DOCS / "guide.md"),
+    ("api", "API reference", DOCS / "api.md"),
     ("changelog", "The changelog", ROOT / "CHANGELOG.md"),
     ("samples", "Samples", DOCS / "samples.md"),
     ("conventions", "Conventions", DOCS / "conventions.md"),
@@ -46,7 +47,8 @@ h1, h2 {{ line-height: 1.25; }}
 <body>
 <nav>
 <a href="index.html">Maul3D</a>
-<a href="manual.html">Manual</a>
+<a href="guide.html">Guide</a>
+<a href="api.html">API</a>
 <a href="samples.html">Samples</a>
 <a href="changelog.html">Changelog</a>
 <a href="https://github.com/Rawframe-Project/maul3d">GitHub</a>

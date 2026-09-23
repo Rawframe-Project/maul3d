@@ -474,7 +474,7 @@ static void TestDifferentials(void)
     // The coupling lives inside the friction circle, so its effect
     // is emergent: a strong lock converges wheel speeds and kills
     // the turn; softer values redistribute grip and can even liven
-    // rotation (the probe measured both regimes; the manual says
+    // rotation (the probe measured both regimes; the guide says
     // couple is host-tuned to the vehicle's mass scale).
     uint64_t lockedA = 0;
     uint64_t lockedB = 0;

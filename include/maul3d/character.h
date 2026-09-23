@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The character controller (4-4): a kinematic capsule driven by
-// collide-and-slide over the engine's convex casts. Never a dynamic
-// body: controllers want exactness, not bounce. The character's
-// body has ZERO velocity by contract and never moves during
-// m3World_Step; every displacement comes from m3Character_Move,
-// which is a journaled, deterministic, rollback-covered command
-// (gravity is the host's job: add it to the move each tick).
+// The character controller: a kinematic capsule moved by
+// collide-and-slide over the engine's convex casts. Its body never
+// moves during m3World_Step; every displacement comes from
+// m3Character_Move, a journaled command that rollback covers. Gravity
+// is the host's job: add it to each move.
 
 #ifndef MAUL3D_CHARACTER_H
 #define MAUL3D_CHARACTER_H

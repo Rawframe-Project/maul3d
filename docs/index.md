@@ -1,15 +1,17 @@
 # Maul3D
 
-A deterministic, rollback-native 3D physics engine in pure C17.
-Zero dependencies, MIT licensed, built for sandbox destruction and
-lockstep multiplayer: the whole world snapshots, restores, and
-replays to the bit, on every platform CI can reach (x86-64, ARM,
-RISC-V, 32-bit, Windows, wasm).
+A deterministic 3D physics engine for games in C17, with no
+dependencies and an MIT license, built for destruction and lockstep
+multiplayer: the whole world snapshots, restores and replays to the
+bit on every platform CI covers (x64 Linux and Windows, arm64 macOS
+and WebAssembly).
 
-- [The manual](manual.html): the engine-host contract, chapter by
+- [The guide](guide.html): the engine-host contract, chapter by
   chapter: rollback, the journal, destruction, vehicles, the
   character controller, soft bodies, water, heightfields, the
   replay studio, and lockstep networking.
+- [API reference](api.html): every public function, generated from
+  the headers.
 - [Samples](samples.html): small complete programs, from a falling
   stack to a snapshot round-trip to a skid-steer tank.
 - [The changelog](changelog.html): every release and what changed.

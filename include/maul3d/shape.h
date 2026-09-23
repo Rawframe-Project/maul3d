@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Shapes: geometry, materials, filters, compounds, meshes,
+// heightfields and voxel chunks.
 
 #ifndef MAUL3D_SHAPE_H
 #define MAUL3D_SHAPE_H

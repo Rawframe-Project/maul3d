@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Base definitions shared by every Maul3D header: the version, the
+// export macro, the result codes, the allocator and assert hooks, and
+// hashing.
 
 #ifndef MAUL3D_BASE_H
 #define MAUL3D_BASE_H

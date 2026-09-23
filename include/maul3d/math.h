@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Deterministic 3D math. Hybrid precision: world positions are double
-// (m3Pos3), everything local is float (m3real). Every operation here is
-// plain IEEE arithmetic under -ffp-contract=off, so the bits agree on
-// every platform; the transcendentals live in math_functions.c and are
-// hand rolled (reference technique) because libm is not trusted to
-// agree across systems.
+// Deterministic 3D math. World positions are 64-bit (m3Pos3) and
+// everything local is 32-bit (m3real). Every operation is plain IEEE
+// arithmetic under -ffp-contract=off, so the bits agree on every
+// platform; the transcendentals are the engine's own.
 
 #ifndef MAUL3D_MATH_H
 #define MAUL3D_MATH_H
