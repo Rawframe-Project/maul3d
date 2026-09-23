@@ -53,6 +53,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/hull.c
     src/island.c
     src/joint.c
+    src/joint_params.c
     src/joint_distance.c
     src/joint_fixed.c
     src/joint_gear.c
@@ -66,6 +67,9 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/joint_spherical.c
     src/joint_wheel.c
     src/journal_replay.c
+    src/journal_replay_actors.c
+    src/journal_replay_joints.c
+    src/journal_replay_shapes.c
     src/manifold.c
     src/manifold_mesh.c
     src/math_functions.c
@@ -76,6 +80,10 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/raycast.c
     src/replay.c
     src/shape.c
+    src/shape_create.c
+    src/shape_data.c
+    src/shape_mass.c
+    src/shape_params.c
     src/snapshot.c
     src/softbody.c
     src/solver.c
