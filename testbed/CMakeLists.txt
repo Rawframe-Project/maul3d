@@ -17,6 +17,9 @@ FetchContent_MakeAvailable(raylib)
 
 add_executable(testbed main.c)
 target_link_libraries(testbed PRIVATE maul3d raylib)
+# The top-level build puts executables at the root, where the testbed
+# would collide with this directory; it stays here instead.
+set_target_properties(testbed PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_target_properties(testbed PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON)
 if(NOT MSVC)
     target_compile_options(testbed PRIVATE -Wall -Wextra)
