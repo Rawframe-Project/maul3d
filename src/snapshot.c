@@ -22,54 +22,7 @@
 #endif
 
 #define M3_SNAPSHOT_MAGIC   0x4D33534Eu // 'M3SN'
-#define M3_SNAPSHOT_VERSION 54u
-// v54: tank commands (23-1) + the lean gain (23-2).
-// v53: soft bind tethers (20-4).
-// v52: tet soft bodies (20-3).
-// v51: soft pressure (20-2).
-// v50: soft bend tethers (20-1).
-// v49: native heightfields (19-1).
-// v48: water volumes (18-1).
-// v47: per-triangle mesh materials (17-2).
-// v46: count-derived hull content (17-1): the 5808-byte fixed
-//      slabs leave the fixed prefix; an empty slot costs 16 bytes.
-// v45: pulley world anchors (16-6).
-// v44: drivetrain differentials and wheel contact speeds (16-4);
-//      body debug names and soft explosion kicks rode v43's bump
-//      window in the same release train.
-// v43: angular speed cap (13-1).
-// v42: vehicle drivetrain, the engine curve and gearbox (12-1).
-// v41: wind field and conveyor surface velocities (11-3).
-// v40: soft-to-soft anchors (11-2).
-// v39: mesh content went count-derived (10-3): variable blocks
-//      replace the fixed mesh slab, reversing the 2b-9 deviation.
-// v38: hull capacity 64 (10-2): bigger hull blocks, same law.
-// v37: compound shape offsets (10-1).
-// v36: joint drive springs and targets (8-6b).
-// v35: joint break thresholds (8-6a).
-// v34: hit threshold + shape event flags (8-5).
-// v33: world tuning knobs (8-4).
-// v32: central friction manifold payload replaces per-point
-//      tangent impulses (solver rev 21).
-// v31: runtime body control state (8-3).
-// v30: host force and torque accumulators (8-2).
-// v29: collision filters (8-1).
-// v28: soft body anchors (7-3 coupling).
-// v27: the soft body pool (7-1 XPBD lattices).
-// v26: shape rolling resistance (6-3).
-// v25: tire grip, drive commands, and wheel spin (5-2).
-// v24: the vehicle pool and wheel arrays (5-1 raycast vehicles).
-// v23: character mass, push ratio, and the ground-body reference
-// (4-6 riders). v22: stepHeight. v21: the character pool.
-// v20: generic joint state. NOTE for the ledger: v19 (voxel fill
-// fractions, 3-6) shipped MISLABELED as 18: the bump script died
-// after a partial edit, the same failure mode as the rev-17 skip
-// in 2c-5. No released pairing could misread a snapshot (the
-// config hash embeds the library version and every release differs
-// there), but the label was wrong and this comment is the honest
-// record. The 2c-8 lesson now has a second clause: after a partial
-// script failure, diff EVERY intended edit, not just the one that
-// raised.
+#define M3_SNAPSHOT_VERSION 1u
 
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.

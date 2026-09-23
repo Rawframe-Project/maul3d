@@ -17,7 +17,7 @@ OUT = ROOT / "_site"
 PAGES = [
     ("index", "Maul3D", DOCS / "index.md"),
     ("manual", "The manual", DOCS / "manual.md"),
-    ("changelog", "The changelog", DOCS / "changelog.md"),
+    ("changelog", "The changelog", ROOT / "CHANGELOG.md"),
     ("samples", "Samples", DOCS / "samples.md"),
 ]
 

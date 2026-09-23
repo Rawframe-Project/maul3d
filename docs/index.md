@@ -12,8 +12,7 @@ RISC-V, 32-bit, SIMD and scalar, Windows, wasm).
   replay studio, and lockstep networking.
 - [Samples](samples.html): small complete programs, from a falling
   stack to a snapshot round-trip to a skid-steer tank.
-- [The changelog](changelog.html): every release with its
-  determinism ledger.
+- [The changelog](changelog.html): every release and what changed.
 - [The repository](https://github.com/siracozmen01/Maul3D):
   source, releases, and the test suites that keep the promises.
 
@@ -21,5 +20,4 @@ RISC-V, 32-bit, SIMD and scalar, Windows, wasm).
 
 1. Same inputs, same bits, every platform, every thread count.
 2. Snapshot, restore, journal replay: bit-exact, always.
-3. Additive API under 1.x: code written today compiles tomorrow.
-4. Loud failure: bad input refuses; it never corrupts quietly.
+3. Loud failure: bad input refuses; it never corrupts quietly.

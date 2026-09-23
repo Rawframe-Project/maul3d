@@ -120,9 +120,9 @@ mesh and hull rain fields, and the classic pyramid.
 
 ## Status and stability
 
-Current release: 1.22. The 1.x API surface is frozen: functions and
-defs may be added in minor releases, but existing signatures,
-semantics and id layouts do not change until a 2.0. Defs are
+Current version: 0.0.1. Until 1.0.0 the API, the ABI and the
+snapshot and journal formats may change in any minor release; the
+[changelog](CHANGELOG.md) records every change. Defs are
 cookie-guarded, so a stale compiled caller fails loudly instead of
 subtly. Snapshots and journal tapes are versioned artifacts of a
 single library version and refuse loudly across versions.
@@ -133,9 +133,7 @@ single library version and refuse loudly across versions.
   by chapter: rollback, the journal, destruction, vehicles, the
   character, soft bodies, the replay studio, lockstep networking,
   and the integration checklist.
-- [The changelog](docs/changelog.md): every release with its
-  determinism ledger, including the convictions the road collected
-  and what they cost.
+- [The changelog](CHANGELOG.md): every release and what changed.
 - [bindings/](bindings/): starter kits for C# (single-file
   P/Invoke) and Godot (a GDExtension skeleton), seeds meant to be
   copied into your project and grown.

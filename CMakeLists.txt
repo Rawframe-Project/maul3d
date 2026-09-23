@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.16)
-project(maul3d VERSION 1.0.0 LANGUAGES C)
+cmake_minimum_required(VERSION 3.22)
+
+include(cmake/ReadVersion.cmake)
+maul_read_version(${CMAKE_CURRENT_SOURCE_DIR}/include/maul3d/base.h M3 M3_VERSION)
+project(maul3d VERSION ${M3_VERSION} LANGUAGES C)
 
 option(MAUL3D_SANITIZE "Build with ASAN/UBSAN" OFF)
 option(MAUL3D_BUILD_SHARED "Build maul3d as a shared library" OFF)
@@ -47,11 +50,16 @@ target_include_directories(maul3d PUBLIC
 target_include_directories(maul3d PRIVATE src)
 maul3d_apply_flags(maul3d)
 if(MAUL3D_BUILD_SHARED)
-    # SONAME discipline: the SOVERSION tracks the major version (0
-    # while the API is pre-freeze), the full version rides along.
+    # Before 1.0 every minor release may break the ABI, so the
+    # SOVERSION carries major.minor; from 1.0 on it is the major alone.
+    if(PROJECT_VERSION_MAJOR EQUAL 0)
+        set(MAUL3D_SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+    else()
+        set(MAUL3D_SOVERSION ${PROJECT_VERSION_MAJOR})
+    endif()
     set_target_properties(maul3d PROPERTIES
         VERSION ${PROJECT_VERSION}
-        SOVERSION ${PROJECT_VERSION_MAJOR}
+        SOVERSION ${MAUL3D_SOVERSION}
         C_VISIBILITY_PRESET hidden)
     target_compile_definitions(maul3d PUBLIC MAUL3D_SHARED)
 endif()
