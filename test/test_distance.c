@@ -138,8 +138,34 @@ static void TestOracle(void)
     CHECK(separated > 30 && overlapped > 30, "the sweep hits both regimes");
 }
 
+// Nested cores whose simplex can pass exactly through the origin: the
+// origin on the simplex is an overlap, never a tiny distance with a
+// noise normal. The offset case is the one the drum stack first hit.
+static void TestOriginOnSimplex(void)
+{
+    static m3HullData big;
+    static m3HullData small;
+    const m3Vec3 offsets[3] = {{0.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 3.0f}, {0.5f, 0.2f, -0.1f}};
+    m3BuildBoxHull(&big, (m3Vec3){3.5f, 1.0f, 3.5f});
+    m3BuildBoxHull(&small, (m3Vec3){0.4f, 0.4f, 0.4f});
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        m3DistanceInput input;
+        memset(&input, 0, sizeof(input));
+        input.proxyA = (m3DistanceProxy){big.vertices, big.vertexCount, 0.0f};
+        input.proxyB = (m3DistanceProxy){small.vertices, small.vertexCount, 0.0f};
+        input.q = m3MakeIdentityQuat();
+        input.p = offsets[k];
+        m3DistanceOutput out = m3ShapeDistance(&input);
+        CHECK(out.distance == 0.0f, "nested cores report no distance");
+        CHECK(out.normal.x == 0.0f && out.normal.y == 0.0f && out.normal.z == 0.0f,
+              "and no normal");
+    }
+}
+
 int main(void)
 {
+    TestOriginOnSimplex();
     TestAnalytic();
     TestOracle();
     if (s_failures == 0)

@@ -266,7 +266,13 @@ m3DistanceOutput m3ShapeDistance(const m3DistanceInput* input)
     {
         Simplex before = s;
         m3real vv = Reduce(&s);
-        if (s.count == 4 || vv == 0.0f)
+        m3real scale = 0.0f;
+        for (int32_t i = 0; i < s.count; ++i)
+        {
+            scale = m3MaxF(scale, m3Dot3(s.v[i].w, s.v[i].w));
+        }
+        // The origin on the simplex, up to rounding against its own size.
+        if (s.count == 4 || vv <= 1.0e-12f * scale)
         {
             // The origin is enclosed or lies on the simplex: the cores
             // overlap or touch, and either way their distance is zero.
