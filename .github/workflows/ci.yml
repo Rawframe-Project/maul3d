@@ -34,9 +34,9 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.cc }}" = "cl" ]; then
-            cmake -S . -B build ${{ matrix.flags }}
+            cmake -S . -B build -DMAUL3D_WERROR=ON ${{ matrix.flags }}
           else
-            CC=${{ matrix.cc }} cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build }} ${{ matrix.flags }}
+            CC=${{ matrix.cc }} cmake -S . -B build -DMAUL3D_WERROR=ON -DCMAKE_BUILD_TYPE=${{ matrix.build }} ${{ matrix.flags }}
           fi
       - name: Build
         shell: bash

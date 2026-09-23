@@ -2,12 +2,12 @@
 
 Each sample in [`samples/`](../samples) is a complete program that uses
 only the public headers and prints something you can check. They are
-built with the library (turn them off with `-DMAUL3D_SAMPLES=OFF`):
+built with the library (turn them off with `-DMAUL3D_BUILD_SAMPLES=OFF`):
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/samples/sample_stack
+./build/sample_stack
 ```
 
 ## A falling stack, hashed

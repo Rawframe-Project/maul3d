@@ -1,37 +1,65 @@
-# Determinism-critical compiler flags. Every target that contains
-# simulation code must call maul3d_apply_flags(). These flags are the
-# build-time half of the determinism contract; the test suite verifies
-# the promise at runtime.
+# Compiler settings for every target that holds engine code, tests,
+# samples or tools. maul_apply_flags(target) sets C17, the flags the
+# determinism contract depends on, the warning set and the options
+# named ${MAUL_PREFIX}_WERROR, _SANITIZE, _TSAN and _COVERAGE. An
+# engine adds architecture flags through MAUL_ARCH_FLAGS and
+# definitions through MAUL_EXTRA_DEFINITIONS before calling it.
 
-function(maul3d_apply_flags target)
-    # A host injecting fast-math through global flags would silently void
-    # the determinism contract; refuse to configure at all.
-    string(FIND "${CMAKE_C_FLAGS}" "fast-math" _m3_fastmath)
-    string(FIND "${CMAKE_C_FLAGS}" "/fp:fast" _m3_fpfast)
-    if(NOT _m3_fastmath EQUAL -1 OR NOT _m3_fpfast EQUAL -1)
-        message(FATAL_ERROR "fast-math in CMAKE_C_FLAGS is incompatible with maul3d's determinism contract")
-    endif()
+function(maul_apply_flags target)
+    # Fast math anywhere in the global flags would void the determinism
+    # contract, so configuration stops instead.
+    foreach(config "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
+        string(REGEX MATCH "fast-math|/fp:fast|-Ofast" fast "${CMAKE_C_FLAGS${config}}")
+        if(fast)
+            message(FATAL_ERROR "CMAKE_C_FLAGS${config} contains ${fast}, which the determinism contract forbids")
+        endif()
+    endforeach()
 
-    set_target_properties(${target} PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+    set_target_properties(${target} PROPERTIES
+        C_STANDARD 17
+        C_STANDARD_REQUIRED ON
+        C_EXTENSIONS OFF)
 
     if(MSVC)
-        # /fp:precise alone permitted FMA contraction before VS2022 17.0
-        # (and by default on arm64). Require a compiler that knows
-        # /fp:contract so contraction can be switched off explicitly.
+        # Before Visual Studio 2022, /fp:precise still allowed contraction
+        # into FMA and /fp:contract- did not exist to forbid it.
         if(MSVC_VERSION LESS 1930)
-            message(FATAL_ERROR "MSVC >= VS2022 17.0 (1930) required: older versions cannot disable FP contraction")
+            message(FATAL_ERROR "MSVC 19.30 (Visual Studio 2022) or newer is required to turn off floating-point contraction")
         endif()
-        target_compile_options(${target} PRIVATE /W4 /WX /fp:precise /fp:contract-)
+        target_compile_options(${target} PRIVATE /W4 /fp:precise /fp:contract-)
+        if(${MAUL_PREFIX}_WERROR)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
     else()
         target_compile_options(${target} PRIVATE
             -ffp-contract=off -fno-trapping-math -fno-fast-math -fno-unsafe-math-optimizations
-            -Wall -Wextra -Werror -Wshadow -Wdouble-promotion)
+            -Wall -Wextra -Wshadow -Wdouble-promotion)
+        if(${MAUL_PREFIX}_WERROR)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
     endif()
 
-    if(MAUL3D_SANITIZE)
-        if(NOT MSVC)
-            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    if(MAUL_ARCH_FLAGS)
+        target_compile_options(${target} PRIVATE ${MAUL_ARCH_FLAGS})
+    endif()
+    if(MAUL_EXTRA_DEFINITIONS)
+        target_compile_definitions(${target} PRIVATE ${MAUL_EXTRA_DEFINITIONS})
+    endif()
+
+    if(NOT MSVC)
+        if(${MAUL_PREFIX}_SANITIZE)
+            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all
+                                                     -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        endif()
+        if(${MAUL_PREFIX}_TSAN)
+            target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+            target_link_options(${target} PRIVATE -fsanitize=thread)
+        endif()
+        # Coverage only adds counters, so it rides on the normal flags.
+        if(${MAUL_PREFIX}_COVERAGE)
+            target_compile_options(${target} PRIVATE --coverage -O0)
+            target_link_options(${target} PRIVATE --coverage)
         endif()
     endif()
 endfunction()

@@ -1,435 +1,87 @@
 cmake_minimum_required(VERSION 3.22)
 
 include(cmake/ReadVersion.cmake)
-maul_read_version(${CMAKE_CURRENT_SOURCE_DIR}/include/maul3d/base.h M3 M3_VERSION)
-project(maul3d VERSION ${M3_VERSION} LANGUAGES C)
+maul_read_version(${CMAKE_CURRENT_SOURCE_DIR}/include/maul3d/base.h M3 MAUL_VERSION)
+project(maul3d
+    VERSION ${MAUL_VERSION}
+    DESCRIPTION "Deterministic 3D physics with bit-exact rollback, replay and voxel destruction"
+    LANGUAGES C)
 
-option(MAUL3D_SANITIZE "Build with ASAN/UBSAN" OFF)
-option(MAUL3D_BUILD_SHARED "Build maul3d as a shared library" OFF)
-option(MAUL3D_BUILD_TESTBED "Build the interactive raylib testbed" OFF)
+# The family modules read their options through this prefix.
+set(MAUL_PREFIX MAUL3D)
 
-include(cmake/CompilerFlags.cmake)
-include(GNUInstallDirs)
+option(MAUL3D_BUILD_TESTS "Build the test suites" ${PROJECT_IS_TOP_LEVEL})
+option(MAUL3D_BUILD_SAMPLES "Build the samples" ${PROJECT_IS_TOP_LEVEL})
+option(MAUL3D_BUILD_BENCH "Build the benchmarks" ${PROJECT_IS_TOP_LEVEL})
+option(MAUL3D_BUILD_TOOLS "Build the command-line tools" ${PROJECT_IS_TOP_LEVEL})
+option(MAUL3D_BUILD_TESTBED "Build the interactive testbed (fetches raylib)" OFF)
+option(MAUL3D_BUILD_SHARED "Build a shared library instead of a static one" OFF)
+option(MAUL3D_INSTALL "Generate install rules" ${PROJECT_IS_TOP_LEVEL})
+option(MAUL3D_WERROR "Treat compiler warnings as errors" OFF)
+option(MAUL3D_SANITIZE "Instrument with AddressSanitizer and UBSan" OFF)
+option(MAUL3D_TSAN "Instrument with ThreadSanitizer" OFF)
+option(MAUL3D_COVERAGE "Instrument for gcov coverage" OFF)
 
-if(MAUL3D_BUILD_SHARED)
-    set(MAUL3D_LIB_KIND SHARED)
-else()
-    set(MAUL3D_LIB_KIND STATIC)
+# Every executable (tests, samples, benchmarks, tools) lands in the top
+# of the build tree, so scripts and CI find them in one place.
+if(PROJECT_IS_TOP_LEVEL)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 endif()
 
-add_library(maul3d ${MAUL3D_LIB_KIND}
+include(GNUInstallDirs)
+include(cmake/CompilerFlags.cmake)
+include(cmake/Library.cmake)
+include(cmake/Testing.cmake)
+
+if(MAUL3D_BUILD_SHARED)
+    set(MAUL_LIBRARY_KIND SHARED)
+else()
+    set(MAUL_LIBRARY_KIND STATIC)
+endif()
+add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/allocator.c
     src/body.c
     src/broad_phase.c
     src/character.c
-    src/vehicle.c
-    src/softbody.c
     src/core.c
+    src/diff.c
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
     src/hull.c
-    src/manifold.c
-    src/mesh_bvh.c
-    src/quickhull.c
     src/joint.c
-    src/query.c
-    src/raycast.c
+    src/manifold.c
     src/math_functions.c
+    src/mesh_bvh.c
+    src/query.c
+    src/quickhull.c
+    src/raycast.c
+    src/replay.c
     src/shape.c
     src/snapshot.c
-    src/replay.c
-    src/diff.c
+    src/softbody.c
     src/solver.c
+    src/vehicle.c
     src/voxel.c
-    src/world.c
-)
-target_include_directories(maul3d PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_include_directories(maul3d PRIVATE src)
-maul3d_apply_flags(maul3d)
-if(MAUL3D_BUILD_SHARED)
-    # Before 1.0 every minor release may break the ABI, so the
-    # SOVERSION carries major.minor; from 1.0 on it is the major alone.
-    if(PROJECT_VERSION_MAJOR EQUAL 0)
-        set(MAUL3D_SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
-    else()
-        set(MAUL3D_SOVERSION ${PROJECT_VERSION_MAJOR})
-    endif()
-    set_target_properties(maul3d PROPERTIES
-        VERSION ${PROJECT_VERSION}
-        SOVERSION ${MAUL3D_SOVERSION}
-        C_VISIBILITY_PRESET hidden)
-    target_compile_definitions(maul3d PUBLIC MAUL3D_SHARED)
+    src/world.c)
+maul_configure_library(maul3d)
+
+if(MAUL3D_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(test)
 endif()
-if(NOT MSVC)
-    # sqrtf and remainderf, the only libm the bit law allows.
-    target_link_libraries(maul3d PUBLIC m)
-endif()
-
-# The installable package: headers, the library, an exported CMake
-# target (maul3d::maul3d) and a pkg-config file. samples/minimal builds
-# against the installed tree and gates CI.
-install(DIRECTORY include/maul3d DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(TARGETS maul3d EXPORT maul3dTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(EXPORT maul3dTargets
-    NAMESPACE maul3d::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/maul3d)
-
-include(CMakePackageConfigHelpers)
-configure_package_config_file(cmake/maul3dConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/maul3dConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/maul3d)
-write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/maul3dConfigVersion.cmake
-    COMPATIBILITY SameMinorVersion)
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/maul3dConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/maul3dConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/maul3d)
-
-configure_file(cmake/maul3d.pc.in ${CMAKE_CURRENT_BINARY_DIR}/maul3d.pc @ONLY)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/maul3d.pc
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-
-option(MAUL3D_SAMPLES "Build the sample programs" ON)
-if(MAUL3D_SAMPLES)
+if(MAUL3D_BUILD_SAMPLES)
     add_subdirectory(samples)
 endif()
-
+if(MAUL3D_BUILD_BENCH)
+    add_subdirectory(bench)
+endif()
+if(MAUL3D_BUILD_TOOLS AND EXISTS ${PROJECT_SOURCE_DIR}/tools/CMakeLists.txt)
+    add_subdirectory(tools)
+endif()
 if(MAUL3D_BUILD_TESTBED)
     add_subdirectory(testbed)
 endif()
-
-enable_testing()
-
-find_package(Threads REQUIRED)
-
-add_executable(test_determinism test/test_determinism.c)
-target_link_libraries(test_determinism PRIVATE maul3d Threads::Threads)
-maul3d_apply_flags(test_determinism)
-add_test(NAME determinism COMMAND test_determinism)
-
-add_executable(test_math test/test_math.c)
-target_link_libraries(test_math PRIVATE maul3d)
-maul3d_apply_flags(test_math)
-add_test(NAME math COMMAND test_math)
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_core test/test_core.c)
-    target_link_libraries(test_core PRIVATE maul3d)
-    target_include_directories(test_core PRIVATE src)
-    maul3d_apply_flags(test_core)
-    add_test(NAME core COMMAND test_core)
-endif()
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_world test/test_world.c)
-    target_link_libraries(test_world PRIVATE maul3d)
-    target_include_directories(test_world PRIVATE src)
-    maul3d_apply_flags(test_world)
-    add_test(NAME world COMMAND test_world)
-endif()
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_contacts test/test_contacts.c)
-    target_link_libraries(test_contacts PRIVATE maul3d)
-    target_include_directories(test_contacts PRIVATE src)
-    maul3d_apply_flags(test_contacts)
-    add_test(NAME contacts COMMAND test_contacts)
-endif()
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_distance test/test_distance.c)
-    target_link_libraries(test_distance PRIVATE maul3d)
-    target_include_directories(test_distance PRIVATE src)
-    maul3d_apply_flags(test_distance)
-    add_test(NAME distance COMMAND test_distance)
-endif()
-
-add_executable(test_solver test/test_solver.c)
-target_link_libraries(test_solver PRIVATE maul3d)
-maul3d_apply_flags(test_solver)
-add_test(NAME solver COMMAND test_solver)
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_quickhull test/test_quickhull.c)
-    target_link_libraries(test_quickhull PRIVATE maul3d)
-    target_include_directories(test_quickhull PRIVATE src)
-    maul3d_apply_flags(test_quickhull)
-    add_test(NAME quickhull COMMAND test_quickhull)
-endif()
-
-add_executable(test_queries test/test_queries.c)
-target_link_libraries(test_queries PRIVATE maul3d)
-maul3d_apply_flags(test_queries)
-add_test(NAME queries COMMAND test_queries)
-
-# The benchmark harness: built always (so it cannot rot), never a
-# ctest gate (wall time is not deterministic). Run manually in
-# Release for profiles; scenes print their hashes as a sanity anchor.
-add_executable(maul3d_bench bench/bench_main.c)
-target_link_libraries(maul3d_bench PRIVATE maul3d)
-maul3d_apply_flags(maul3d_bench)
-
-add_executable(m3replay tools/m3replay.c)
-target_link_libraries(m3replay PRIVATE maul3d)
-maul3d_apply_flags(m3replay)
-add_test(NAME replaytool COMMAND m3replay selftest)
-add_test(NAME replaydiff COMMAND m3replay difftest)
-
-add_executable(m3lockstep tools/m3lockstep.c)
-target_link_libraries(m3lockstep PRIVATE maul3d)
-maul3d_apply_flags(m3lockstep)
-add_test(NAME lockstep COMMAND m3lockstep)
-
-add_executable(test_joints test/test_joints.c)
-target_link_libraries(test_joints PRIVATE maul3d)
-maul3d_apply_flags(test_joints)
-add_test(NAME joints COMMAND test_joints)
-
-add_executable(test_hardening test/test_hardening.c)
-target_link_libraries(test_hardening PRIVATE maul3d)
-maul3d_apply_flags(test_hardening)
-add_test(NAME hardening COMMAND test_hardening)
-
-add_executable(test_journal test/test_journal.c)
-target_link_libraries(test_journal PRIVATE maul3d)
-maul3d_apply_flags(test_journal)
-add_test(NAME journal COMMAND test_journal)
-
-add_executable(test_draw test/test_draw.c)
-target_link_libraries(test_draw PRIVATE maul3d)
-maul3d_apply_flags(test_draw)
-add_test(NAME draw COMMAND test_draw)
-
-# White-box suites: static builds only (internal symbols).
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_voxstorm test/test_voxstorm.c)
-    target_link_libraries(test_voxstorm PRIVATE maul3d)
-    target_include_directories(test_voxstorm PRIVATE src)
-    maul3d_apply_flags(test_voxstorm)
-    add_test(NAME voxstorm COMMAND test_voxstorm)
-
-    add_executable(test_voxel test/test_voxel.c)
-    target_link_libraries(test_voxel PRIVATE maul3d)
-    target_include_directories(test_voxel PRIVATE src)
-    maul3d_apply_flags(test_voxel)
-    add_test(NAME voxel COMMAND test_voxel)
-endif()
-
-# White-box suite (allocator counters): static builds only, like
-# the other internal-symbol suites.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_soak test/test_soak.c)
-    target_link_libraries(test_soak PRIVATE maul3d)
-    target_include_directories(test_soak PRIVATE src)
-    maul3d_apply_flags(test_soak)
-    add_test(NAME soak COMMAND test_soak)
-endif()
-
-add_executable(test_sequences test/test_sequences.c)
-target_link_libraries(test_sequences PRIVATE maul3d)
-maul3d_apply_flags(test_sequences)
-add_test(NAME sequences COMMAND test_sequences)
-
-add_executable(test_character test/test_character.c)
-target_link_libraries(test_character PRIVATE maul3d)
-maul3d_apply_flags(test_character)
-add_test(NAME character COMMAND test_character)
-
-add_executable(test_vehicle test/test_vehicle.c)
-target_link_libraries(test_vehicle PRIVATE maul3d)
-maul3d_apply_flags(test_vehicle)
-add_test(NAME vehicle COMMAND test_vehicle)
-
-add_executable(test_scale test/test_scale.c)
-target_link_libraries(test_scale PRIVATE maul3d Threads::Threads)
-maul3d_apply_flags(test_scale)
-add_test(NAME scale COMMAND test_scale)
-
-add_executable(test_softbody test/test_softbody.c)
-target_link_libraries(test_softbody PRIVATE maul3d)
-maul3d_apply_flags(test_softbody)
-add_test(NAME softbody COMMAND test_softbody)
-
-add_executable(test_filter test/test_filter.c)
-target_link_libraries(test_filter PRIVATE maul3d)
-maul3d_apply_flags(test_filter)
-add_test(NAME filter COMMAND test_filter)
-
-add_executable(test_force test/test_force.c)
-target_link_libraries(test_force PRIVATE maul3d)
-maul3d_apply_flags(test_force)
-add_test(NAME force COMMAND test_force)
-
-add_executable(test_bodycontrol test/test_bodycontrol.c)
-target_link_libraries(test_bodycontrol PRIVATE maul3d)
-maul3d_apply_flags(test_bodycontrol)
-add_test(NAME bodycontrol COMMAND test_bodycontrol)
-
-add_executable(test_tuning test/test_tuning.c)
-target_link_libraries(test_tuning PRIVATE maul3d)
-maul3d_apply_flags(test_tuning)
-add_test(NAME tuning COMMAND test_tuning)
-
-add_executable(test_events test/test_events.c)
-target_link_libraries(test_events PRIVATE maul3d)
-maul3d_apply_flags(test_events)
-add_test(NAME events COMMAND test_events)
-
-add_executable(test_jointdrive test/test_jointdrive.c)
-target_link_libraries(test_jointdrive PRIVATE maul3d)
-maul3d_apply_flags(test_jointdrive)
-add_test(NAME jointdrive COMMAND test_jointdrive)
-
-add_executable(test_replayfile test/test_replayfile.c)
-target_link_libraries(test_replayfile PRIVATE maul3d)
-maul3d_apply_flags(test_replayfile)
-add_test(NAME replayfile COMMAND test_replayfile)
-
-add_executable(test_compound test/test_compound.c)
-target_link_libraries(test_compound PRIVATE maul3d)
-maul3d_apply_flags(test_compound)
-add_test(NAME compound COMMAND test_compound)
-
-add_executable(test_softsoft test/test_softsoft.c)
-target_link_libraries(test_softsoft PRIVATE maul3d)
-maul3d_apply_flags(test_softsoft)
-add_test(NAME softsoft COMMAND test_softsoft)
-
-add_executable(test_fields test/test_fields.c)
-target_link_libraries(test_fields PRIVATE maul3d)
-maul3d_apply_flags(test_fields)
-add_test(NAME fields COMMAND test_fields)
-
-add_executable(test_drivetrain test/test_drivetrain.c)
-target_link_libraries(test_drivetrain PRIVATE maul3d)
-maul3d_apply_flags(test_drivetrain)
-add_test(NAME drivetrain COMMAND test_drivetrain)
-
-add_executable(test_wheeljoint test/test_wheeljoint.c)
-target_link_libraries(test_wheeljoint PRIVATE maul3d)
-maul3d_apply_flags(test_wheeljoint)
-add_test(NAME wheeljoint COMMAND test_wheeljoint)
-
-add_executable(test_stance test/test_stance.c)
-target_link_libraries(test_stance PRIVATE maul3d)
-maul3d_apply_flags(test_stance)
-add_test(NAME stance COMMAND test_stance)
-
-add_executable(test_angularcap test/test_angularcap.c)
-target_link_libraries(test_angularcap PRIVATE maul3d)
-maul3d_apply_flags(test_angularcap)
-add_test(NAME angularcap COMMAND test_angularcap)
-
-add_executable(test_explosion test/test_explosion.c)
-target_link_libraries(test_explosion PRIVATE maul3d)
-maul3d_apply_flags(test_explosion)
-add_test(NAME explosion COMMAND test_explosion)
-
-add_executable(test_introspection test/test_introspection.c)
-target_link_libraries(test_introspection PRIVATE maul3d)
-maul3d_apply_flags(test_introspection)
-add_test(NAME introspection COMMAND test_introspection)
-
-add_executable(test_cylinder test/test_cylinder.c)
-target_link_libraries(test_cylinder PRIVATE maul3d)
-maul3d_apply_flags(test_cylinder)
-add_test(NAME cylinder COMMAND test_cylinder)
-
-add_executable(test_reshape test/test_reshape.c)
-target_link_libraries(test_reshape PRIVATE maul3d)
-maul3d_apply_flags(test_reshape)
-add_test(NAME reshape COMMAND test_reshape)
-
-add_executable(test_overlapfamily test/test_overlapfamily.c)
-target_link_libraries(test_overlapfamily PRIVATE maul3d)
-maul3d_apply_flags(test_overlapfamily)
-add_test(NAME overlapfamily COMMAND test_overlapfamily)
-
-add_executable(test_newjoints test/test_newjoints.c)
-target_link_libraries(test_newjoints PRIVATE maul3d)
-maul3d_apply_flags(test_newjoints)
-add_test(NAME newjoints COMMAND test_newjoints)
-
-add_executable(test_gearpulley test/test_gearpulley.c)
-target_link_libraries(test_gearpulley PRIVATE maul3d)
-maul3d_apply_flags(test_gearpulley)
-add_test(NAME gearpulley COMMAND test_gearpulley)
-
-add_executable(test_meshmaterial test/test_meshmaterial.c)
-target_link_libraries(test_meshmaterial PRIVATE maul3d)
-maul3d_apply_flags(test_meshmaterial)
-add_test(NAME meshmaterial COMMAND test_meshmaterial)
-
-add_executable(test_rebuild test/test_rebuild.c)
-target_link_libraries(test_rebuild PRIVATE maul3d)
-maul3d_apply_flags(test_rebuild)
-add_test(NAME rebuild COMMAND test_rebuild)
-
-add_executable(test_water test/test_water.c)
-target_link_libraries(test_water PRIVATE maul3d)
-maul3d_apply_flags(test_water)
-add_test(NAME water COMMAND test_water)
-
-add_executable(test_heightfield test/test_heightfield.c)
-target_link_libraries(test_heightfield PRIVATE maul3d)
-maul3d_apply_flags(test_heightfield)
-add_test(NAME heightfield COMMAND test_heightfield)
-
-add_executable(test_mover test/test_mover.c)
-target_link_libraries(test_mover PRIVATE maul3d)
-maul3d_apply_flags(test_mover)
-add_test(NAME mover COMMAND test_mover)
-
-if(NOT WIN32)
-    # POSIX-only suite (pthreads): the contract holds everywhere,
-    # the referee runs where the referee's tools live. The TSAN CI
-    # cell runs it to make any data race a red build.
-    add_executable(test_concurrency test/test_concurrency.c)
-    target_link_libraries(test_concurrency PRIVATE maul3d pthread)
-    maul3d_apply_flags(test_concurrency)
-    add_test(NAME concurrency COMMAND test_concurrency)
-endif()
-
-add_executable(test_fuzz test/test_fuzz.c)
-target_link_libraries(test_fuzz PRIVATE maul3d)
-maul3d_apply_flags(test_fuzz)
-add_test(NAME fuzz COMMAND test_fuzz)
-
-# White-box suite: reaches internal symbols, which a
-# hidden-visibility shared build does not export. Static
-# builds gate it; the shared gate is the black-box suites
-# plus the installed-package consumer.
-if(NOT MAUL3D_BUILD_SHARED)
-    add_executable(test_bvh test/test_bvh.c)
-    target_link_libraries(test_bvh PRIVATE maul3d)
-    target_include_directories(test_bvh PRIVATE src)
-    maul3d_apply_flags(test_bvh)
-    add_test(NAME bvh COMMAND test_bvh)
+if(MAUL3D_INSTALL)
+    include(cmake/Install.cmake)
 endif()

@@ -5,5 +5,5 @@
 foreach(sample stack rollback car character)
     add_executable(sample_${sample} ${sample}.c)
     target_link_libraries(sample_${sample} PRIVATE maul3d)
-    maul3d_apply_flags(sample_${sample})
+    maul_apply_flags(sample_${sample})
 endforeach()
