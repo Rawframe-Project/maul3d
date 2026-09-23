@@ -103,9 +103,10 @@ verifies it. Hold R and time runs backward.
 - Fixed tessellations and canonical ordering on every path.
 - Journaled defs are treated as untrusted input on replay.
 - CI compares the determinism hashes printed by the tests across
-  seven platform cells: GCC and Clang on x64 Linux in Debug and
-  Release, a sanitizer build, Clang on arm64 macOS, MSVC on Windows
-  and WebAssembly.
+  eleven cells: GCC, Clang and MSVC on x64 and arm64 Linux and
+  Windows, Clang on arm64 macOS, Debug builds, a sanitizer build and
+  WebAssembly. They must also match the values committed in
+  `test/hashes.txt`.
 
 ## Benchmarks
 

@@ -3,8 +3,8 @@
 A deterministic 3D physics engine for games in C17, with no
 dependencies and an MIT license, built for destruction and lockstep
 multiplayer: the whole world snapshots, restores and replays to the
-bit on every platform CI covers (x64 Linux and Windows, arm64 macOS
-and WebAssembly).
+bit on every platform CI covers: x64 and arm64 Linux and Windows,
+arm64 macOS, and WebAssembly.
 
 - [The guide](guide.html): the engine-host contract, chapter by
   chapter: rollback, the journal, destruction, vehicles, the
@@ -22,4 +22,4 @@ and WebAssembly).
 
 1. Same inputs, same bits, every platform, every thread count.
 2. Snapshot, restore, journal replay: bit-exact, always.
-3. Loud failure: bad input refuses; it never corrupts quietly.
+3. Bad input is refused with a reason; it never corrupts quietly.

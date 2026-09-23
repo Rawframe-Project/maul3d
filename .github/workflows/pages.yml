@@ -1,9 +1,11 @@
+# Publishes the documentation site to GitHub Pages, plus the
+# WebAssembly testbed when the engine has a web shell for it. The same
+# file serves both engines.
 name: pages
 
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "CHANGELOG.md", "tools/build_docs.py"]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +17,9 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  PREFIX: MAUL3D
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,8 +28,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install markdown==3.6
-      - run: python tools/build_docs.py
+      - name: Documentation
+        run: |
+          pip install markdown==3.6
+          python tools/build_docs.py
+      - uses: mymindstorm/setup-emsdk@v14
+        if: hashFiles('testbed/web/shell.html') != ''
+        with:
+          version: 6.0.2
+      # Single-threaded on purpose: Pages sends no COOP/COEP headers,
+      # so SharedArrayBuffer is unavailable in the browser.
+      - name: WebAssembly testbed
+        if: hashFiles('testbed/web/shell.html') != ''
+        run: |
+          emcmake cmake -B build-web -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON \
+            -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF \
+            -D${PREFIX}_BUILD_TOOLS=OFF
+          cmake --build build-web --target testbed -j 4
+          mkdir -p _site/testbed
+          cp build-web/testbed/testbed.html _site/testbed/index.html
+          cp build-web/testbed/testbed.js build-web/testbed/testbed.wasm _site/testbed/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

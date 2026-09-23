@@ -53,6 +53,12 @@ Work toward 0.0.1, the first release of the reworked library.
 - `m3SetAssertHandler` takes a context pointer, like Maul2D's, and
   replaces `m3SetAssertHandlerCtx`. Refusing input never asserts; the
   `M3_ASSERT` macro and `m3AssertFail` are internal now.
+- CI is the family workflow shared with Maul2D. It adds arm64 Linux
+  and Windows cells, runs every suite under WebAssembly,
+  ThreadSanitizer and a shared-library build, checks clang-tidy and
+  the package consumer, and compares hashes with `test/hashes.txt`.
+  Tagged releases now publish packages and the testbed for Linux,
+  macOS and Windows.
 
 ### Removed
 

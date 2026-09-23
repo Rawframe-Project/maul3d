@@ -16,6 +16,7 @@
 #include "test_harness.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // The poison palette, built from bit patterns so no compiler in the
@@ -363,24 +364,31 @@ static uint64_t RunGauntlet(void)
     return hash;
 }
 
-static void TestGauntletTwins(void)
+static void TestGauntletTwins(uint32_t seed)
 {
-    s_rng = 0xF00DFACEu;
+    s_rng = seed;
     uint64_t first = RunGauntlet();
-    s_rng = 0xF00DFACEu;
+    s_rng = seed;
     uint64_t second = RunGauntlet();
     CHECK(first == second, "the hostile gauntlet is bit-deterministic across twins");
     CHECK(first != 0, "the gauntlet world lived");
 }
 
-int main(void)
+// An optional argument adds that many extra gauntlet seeds beyond the
+// canonical one; the weekly CI run passes a large number.
+int main(int argc, char** argv)
 {
+    int32_t extraSeeds = argc > 1 ? atoi(argv[1]) : 0;
     InitPoisons();
     TestHostileWorldDefs();
     TestHostileBodyDefs();
     TestHostileShapeDefs();
     TestHostileJointDefsAndCommands();
-    TestGauntletTwins();
+    TestGauntletTwins(0xF00DFACEu);
+    for (int32_t k = 0; k < extraSeeds; ++k)
+    {
+        TestGauntletTwins(0x9E3779B9u * (uint32_t)(k + 1));
+    }
     if (s_failures == 0)
     {
         printf("test_fuzz: all green\n");

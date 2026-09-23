@@ -1,0 +1,99 @@
+# A pushed tag vX.Y.Z builds the release: the installed library tree
+# (library, headers, CMake package, pkg-config file) for each platform,
+# and the testbed. The same file serves both engines.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  LIB: maul3d
+  PREFIX: MAUL3D
+
+jobs:
+  package:
+    name: package ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, os: ubuntu-latest, archive: tar }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
+          - { name: macos-arm64, os: macos-latest, archive: tar }
+          - { name: windows-x64, os: windows-latest, archive: zip }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and install
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTS=OFF \
+            -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF
+          cmake --build build --config Release -j 4
+          cmake --install build --config Release --prefix "stage/$LIB-$TAG-${{ matrix.name }}"
+      - name: Archive
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        working-directory: stage
+        run: |
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "../$LIB-$TAG-${{ matrix.name }}.zip" "$LIB-$TAG-${{ matrix.name }}"
+          else
+            tar czf "../$LIB-$TAG-${{ matrix.name }}.tar.gz" "$LIB-$TAG-${{ matrix.name }}"
+          fi
+      - name: Upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
+          gh release upload "$TAG" $(ls "$LIB-$TAG-${{ matrix.name }}".*) --clobber
+
+  testbed:
+    name: testbed ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, os: ubuntu-latest }
+          - { name: windows-x64, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+      - name: Build
+        shell: bash
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON
+          cmake --build build --config Release --target testbed -j 4
+      - name: Archive and upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p stage
+          NAME="$LIB-testbed-$TAG-${{ matrix.name }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp build/testbed/Release/testbed.exe "stage/$LIB-testbed.exe"
+            (cd stage && 7z a "../$NAME.zip" .)
+            FILE="$NAME.zip"
+          else
+            cp build/testbed/testbed "stage/$LIB-testbed"
+            (cd stage && tar czf "../$NAME.tar.gz" .)
+            FILE="$NAME.tar.gz"
+          fi
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
+          gh release upload "$TAG" "$FILE" --clobber

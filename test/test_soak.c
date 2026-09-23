@@ -106,8 +106,13 @@ static m3WorldId BuildSoakZoo(m3BodyId* kicker)
     return world;
 }
 
-int main(void)
+// An optional argument sets the total step count; the default keeps the
+// CTest run short and the weekly CI run passes a much larger number.
+int main(int argc, char** argv)
 {
+    int64_t requested = argc > 1 ? atoll(argv[1]) : (int64_t)SEGMENTS * SEGMENT_STEPS;
+    int32_t segments = (int32_t)(requested / SEGMENT_STEPS);
+    segments = segments > 0 ? segments : 1;
     static uint8_t journal[JOURNAL_CAP];
     m3BodyId kicker;
     m3WorldId live = BuildSoakZoo(&kicker);
@@ -138,7 +143,7 @@ int main(void)
     int64_t liveAllocs0 = allocs0 - frees0;
 
     int64_t totalSteps = WARMUP_STEPS;
-    for (int32_t segment = 0; segment < SEGMENTS; ++segment)
+    for (int32_t segment = 0; segment < segments; ++segment)
     {
         // Segment: snapshot the start, journal the life.
         CHECK(m3World_Snapshot(live, snap, snapBytes) == snapBytes, "segment snapshot writes");
@@ -188,7 +193,7 @@ int main(void)
         CHECK(allocs - frees == liveAllocs0, "steady state performs zero net allocation");
     }
 
-    printf("M3_SOAK steps=%lld segments=%d journalCap=%d\n", (long long)totalSteps, SEGMENTS,
+    printf("M3_SOAK steps=%lld segments=%d journalCap=%d\n", (long long)totalSteps, segments,
            JOURNAL_CAP);
     CHECK(totalSteps >= 20000, "the soak lived past twenty thousand steps");
 
