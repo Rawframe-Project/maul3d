@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Continuous collision: fast bodies sweep and pull back to the time of
-// impact.
+// Continuous collision. A dynamic body that moved further in a step than
+// half its thinnest extent sweeps every shape against what it passed:
+// static shapes always, and dynamic and kinematic ones too when it is a
+// bullet, with both sweeps in the time of impact. The earliest impact
+// pulls the body back to that pose; its velocity stays, and the next
+// step's speculative contact turns it into an impulse. Bullets never
+// sweep against bullets. Bodies go in ascending index order, so later
+// bodies see earlier pull-backs.
 
 #include "continuous.h"
 
@@ -12,36 +18,26 @@
 #include "solver.h"
 #include "world_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
-// ---------------------------------------------------------------
-// Continuous collision, modeled on the reference
-// b3SolveContinuous: any fast dynamic body sweeps against statics;
-// a bullet additionally sweeps against non-bullet dynamics with the
-// TARGET'S true sweep in the TOI (dynamic versus dynamic moves both
-// bodies). A hit pulls the fast body back to the impact pose;
-// velocity stays, and next step's speculative contact resolves the
-// impact. Bullet versus bullet is not resolved (the reference
-// limitation, kept and documented). Bodies are processed in
-// ascending index order; later bodies see earlier pull-backs, all
-// deterministic.
-// ---------------------------------------------------------------
-
-typedef struct m3ContinuousContext
+typedef struct Sweeper
 {
     m3World* world;
     const m3Pos3* com0;
     const m3Quat* rot0;
-    int32_t fastBody;
-    int32_t fastShape;
-    m3Pos3 base; // re-center: TOI floats stay small
-    m3Sweep fastSweep;
-    m3real fraction;
-} m3ContinuousContext;
+    int32_t body;
+    int32_t shape;
+    m3Pos3 base; // the fast body's start: the sweep frame's origin
+    m3Sweep sweep;
+    m3real fraction; // the earliest impact so far
+} Sweeper;
 
-static m3Sweep MakeRelativeSweep(const m3World* world, int32_t body, const m3Pos3* com0,
-                                 const m3Quat* rot0, m3Pos3 base)
+// A body's sweep over the step, relative to base so the kernels see small
+// floats.
+static m3Sweep RelativeSweep(const m3World* world, int32_t body, const m3Pos3* com0,
+                             const m3Quat* rot0, m3Pos3 base)
 {
     m3Sweep sweep;
     sweep.localCenter = world->bodies.localCenters[body];
@@ -56,354 +52,302 @@ static m3Sweep MakeRelativeSweep(const m3World* world, int32_t body, const m3Pos
     return sweep;
 }
 
-static bool ContinuousQueryCallback(int32_t shape, void* userContext)
+static void TakeImpact(Sweeper* sw, const m3TOIInput* input)
 {
-    m3ContinuousContext* ctx = (m3ContinuousContext*)userContext;
-    m3World* world = ctx->world;
-    if (shape == ctx->fastShape)
+    m3TOIOutput out = m3TimeOfImpact(input);
+    if (out.state == m3_toiStateHit && 0.0f < out.fraction && out.fraction < sw->fraction)
+    {
+        sw->fraction = out.fraction;
+    }
+}
+
+// The box the fast body's center of mass sweeps, padded by its reach,
+// in the frame of a target body (static meshes and voxel chunks keep
+// their triangles in their own frame).
+static void SweptBoxIn(const Sweeper* sw, int32_t target, m3Vec3* lo, m3Vec3* hi)
+{
+    const m3World* world = sw->world;
+    const m3Transform* xfT = &world->bodies.transforms[target];
+    const m3Transform* xfF = &world->bodies.transforms[sw->body];
+    m3Pos3 start = sw->com0[sw->body];
+    m3Vec3 rlc = m3RotateVec3(xfF->q, world->bodies.localCenters[sw->body]);
+    m3Vec3 c1 =
+        m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(start.x - xfT->p.x), (m3real)(start.y - xfT->p.y),
+                                         (m3real)(start.z - xfT->p.z)});
+    m3Vec3 c2 = m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(xfF->p.x + (double)rlc.x - xfT->p.x),
+                                                 (m3real)(xfF->p.y + (double)rlc.y - xfT->p.y),
+                                                 (m3real)(xfF->p.z + (double)rlc.z - xfT->p.z)});
+    m3real pad = world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN;
+    *lo = (m3Vec3){m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
+    *hi = (m3Vec3){m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
+}
+
+// Sweeps against a voxel chunk's merged boxes, unextended: the seam
+// extension is a contact device, and a bullet must not stop against
+// phantom solid behind a thin welded wall. A sweep grazing a seam at
+// worst stops a hair early and leaves the rest to the contacts.
+static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
+{
+    m3World* world = sw->world;
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+    m3real cell = world->voxels.voxelData[slot].cellSize;
+    m3Vec3 scratch[2];
+    m3TOIInput input;
+    input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
+    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
+    input.sweepB = sw->sweep;
+    m3Vec3 lo;
+    m3Vec3 hi;
+    SweptBoxIn(sw, body, &lo, &hi);
+    uint16_t gather[M3_MESH_MAX_TRIS];
+    int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather);
+    for (int32_t g = 0; g < count && g < 64; ++g)
+    {
+        m3Vec3 blo;
+        m3Vec3 bhi;
+        m3VoxelBoxBounds(surface, cell, gather[g], &blo, &bhi);
+        m3Vec3 corners[8];
+        for (int32_t k = 0; k < 8; ++k)
+        {
+            corners[k] = (m3Vec3){(k & 1) != 0 ? bhi.x : blo.x, (k & 2) != 0 ? bhi.y : blo.y,
+                                  (k & 4) != 0 ? bhi.z : blo.z};
+        }
+        input.proxyA = (m3DistanceProxy){corners, 8, 0.0f};
+        input.maxFraction = sw->fraction;
+        TakeImpact(sw, &input);
+    }
+}
+
+// Sweeps against the mesh triangles the swept box overlaps, at most 64,
+// in ascending triangle order.
+static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
+{
+    m3World* world = sw->world;
+    const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
+    m3Vec3 scratch[2];
+    m3TOIInput input;
+    input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
+    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
+    input.sweepB = sw->sweep;
+    m3Vec3 lo;
+    m3Vec3 hi;
+    SweptBoxIn(sw, body, &lo, &hi);
+    uint16_t gather[M3_MESH_MAX_TRIS];
+    int32_t count = m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo,
+                                    hi, gather);
+    int32_t budget = 64;
+    for (int32_t g = 0; g < count && budget > 0; ++g)
+    {
+        int32_t t = gather[g];
+        m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
+                        mesh->vertices[mesh->indices[3 * t + 1]],
+                        mesh->vertices[mesh->indices[3 * t + 2]]};
+        m3Vec3 tlo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
+                      m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y)),
+                      m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z))};
+        m3Vec3 thi = {m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x)),
+                      m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y)),
+                      m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z))};
+        if (thi.x < lo.x || tlo.x > hi.x || thi.y < lo.y || tlo.y > hi.y || thi.z < lo.z ||
+            tlo.z > hi.z)
+        {
+            continue;
+        }
+        budget -= 1;
+        input.proxyA = (m3DistanceProxy){tv, 3, 0.0f};
+        input.maxFraction = sw->fraction;
+        TakeImpact(sw, &input);
+    }
+}
+
+// Whether the fast shape sweeps against shape at all: never itself or
+// its own body, disabled bodies, bullets or sensors; dynamic and
+// kinematic bodies only for a bullet; and only pairs the collision
+// filter lets meet.
+static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
+{
+    const m3World* world = sw->world;
+    int32_t body = world->shapes.shapeBody[shape];
+    uint8_t type = world->shapes.shapeType[shape];
+    if (shape == sw->shape || body == sw->body || world->bodies.bodyEnabled[body] == 0 ||
+        world->bodies.bulletFlags[body] != 0 || world->shapes.shapeSensor[shape] != 0)
+    {
+        return false;
+    }
+    if (type == (uint8_t)m3_voxelShape || type == (uint8_t)m3_meshShape)
+    {
+        return true; // static surfaces, filtered by their contacts
+    }
+    if (world->bodies.types[body] != (uint8_t)m3_staticBody &&
+        world->bodies.bulletFlags[sw->body] == 0)
+    {
+        return false;
+    }
+    int32_t groupA = world->shapes.shapeGroup[shape];
+    int32_t groupB = world->shapes.shapeGroup[sw->shape];
+    if (groupA != 0 && groupA == groupB)
+    {
+        return groupA > 0;
+    }
+    return m3FilterPass(world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape],
+                        world->shapes.shapeCategory[sw->shape], world->shapes.shapeMask[sw->shape]);
+}
+
+static bool SweepCallback(int32_t shape, void* context)
+{
+    Sweeper* sw = (Sweeper*)context;
+    m3World* world = sw->world;
+    if (!SweepsAgainst(sw, shape))
     {
         return true;
     }
     int32_t body = world->shapes.shapeBody[shape];
-    if (body == ctx->fastBody)
+    uint8_t type = world->shapes.shapeType[shape];
+    if (type == (uint8_t)m3_voxelShape)
     {
+        SweepVoxels(sw, shape, body);
         return true;
     }
-    if (world->bodies.bodyEnabled[body] == 0)
+    if (type == (uint8_t)m3_meshShape)
     {
-        return true; // disabled bodies never block the fast mover
-    }
-    if (world->bodies.bulletFlags[body] != 0)
-    {
-        return true; // bullet versus bullet: skip (documented)
-    }
-    if (world->shapes.shapeSensor[shape] != 0)
-    {
-        return true; // sensors never stop anything
-    }
-    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
-    {
-        // Voxel TOI: sweep the fast shape against candidate
-        // merged boxes in the CHUNK frame (the correct-frame
-        // witnesses the architecture demands). Boxes are UNEXTENDED
-        // here on purpose: the seam extension is a contact-only
-        // device (coverage guarantees exactly one flush layer, and
-        // a bullet must not stop against phantom solid a chunk
-        // length behind a thin welded wall). A seam-grazing sweep
-        // at worst stops a hair early and hands the rest of the
-        // step to the welded contact solver.
-        int32_t slot = world->shapes.shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-        m3real cell = world->voxels.voxelData[slot].cellSize;
-        m3Sweep chunkSweep = MakeRelativeSweep(world, body, ctx->com0, ctx->rot0, ctx->base);
-        m3Vec3 scratchFast[2];
-        m3DistanceProxy fastProxy = m3MakeShapeProxy(world, ctx->fastShape, scratchFast);
-
-        const m3Transform* xfV = &world->bodies.transforms[body];
-        m3Vec3 c1 =
-            m3InvRotateVec3(xfV->q, (m3Vec3){(m3real)(ctx->com0[ctx->fastBody].x - xfV->p.x),
-                                             (m3real)(ctx->com0[ctx->fastBody].y - xfV->p.y),
-                                             (m3real)(ctx->com0[ctx->fastBody].z - xfV->p.z)});
-        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[ctx->fastBody].q,
-                                  world->bodies.localCenters[ctx->fastBody]);
-        m3Vec3 c2 = m3InvRotateVec3(
-            xfV->q,
-            (m3Vec3){
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.x + (double)rlc.x - xfV->p.x),
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.y + (double)rlc.y - xfV->p.y),
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.z + (double)rlc.z - xfV->p.z)});
-        m3real pad = world->bodies.maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
-        m3Vec3 lo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
-        m3Vec3 hi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
-
-        uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, lo, hi, gather);
-        int32_t budget = 64;
-        for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
-        {
-            budget -= 1;
-            m3Vec3 blo;
-            m3Vec3 bhi;
-            m3VoxelBoxBounds(surface, cell, gather[g], &blo, &bhi);
-            m3Vec3 corners[8];
-            for (int32_t k = 0; k < 8; ++k)
-            {
-                corners[k] = (m3Vec3){(k & 1) != 0 ? bhi.x : blo.x, (k & 2) != 0 ? bhi.y : blo.y,
-                                      (k & 4) != 0 ? bhi.z : blo.z};
-            }
-            m3TOIInput input;
-            input.proxyA.points = corners;
-            input.proxyA.count = 8;
-            input.proxyA.radius = 0.0f;
-            input.proxyB = fastProxy;
-            input.sweepA = chunkSweep;
-            input.sweepB = ctx->fastSweep;
-            input.maxFraction = ctx->fraction;
-            m3TOIOutput out = m3TimeOfImpact(&input);
-            if (out.state == m3_toiStateHit && 0.0f < out.fraction && out.fraction < ctx->fraction)
-            {
-                ctx->fraction = out.fraction;
-            }
-        }
+        SweepMesh(sw, shape, body);
         return true;
     }
-    if (world->shapes.shapeType[shape] == (uint8_t)m3_meshShape)
-    {
-        // Mesh TOI: sweep the fast shape against every
-        // candidate triangle. Each triangle is a three-point static
-        // proxy in the mesh body's frame; the shared kernel does the
-        // rest. Ascending triangle order, bounded candidates.
-        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
-        m3Sweep meshSweep = MakeRelativeSweep(world, body, ctx->com0, ctx->rot0, ctx->base);
-        m3Vec3 scratchFast[2];
-        m3DistanceProxy fastProxy = m3MakeShapeProxy(world, ctx->fastShape, scratchFast);
-
-        // The swept bounds of the fast body in mesh-local space, a
-        // conservative box from the relative sweep endpoints.
-        const m3Transform* xfM = &world->bodies.transforms[body];
-        m3Vec3 c1 =
-            m3InvRotateVec3(xfM->q, (m3Vec3){(m3real)(ctx->com0[ctx->fastBody].x - xfM->p.x),
-                                             (m3real)(ctx->com0[ctx->fastBody].y - xfM->p.y),
-                                             (m3real)(ctx->com0[ctx->fastBody].z - xfM->p.z)});
-        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[ctx->fastBody].q,
-                                  world->bodies.localCenters[ctx->fastBody]);
-        m3Vec3 c2 = m3InvRotateVec3(
-            xfM->q,
-            (m3Vec3){
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.x + (double)rlc.x - xfM->p.x),
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.y + (double)rlc.y - xfM->p.y),
-                (m3real)(world->bodies.transforms[ctx->fastBody].p.z + (double)rlc.z - xfM->p.z)});
-        m3real pad = world->bodies.maxExtents[ctx->fastBody] + M3_AABB_MARGIN;
-        m3Vec3 lo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
-        m3Vec3 hi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
-
-        uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(
-            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo, hi, gather);
-        int32_t budget = 64;
-        for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
-        {
-            int32_t t = gather[g];
-            m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
-                            mesh->vertices[mesh->indices[3 * t + 1]],
-                            mesh->vertices[mesh->indices[3 * t + 2]]};
-            m3real tlx = m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x));
-            m3real thx = m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x));
-            m3real tly = m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y));
-            m3real thy = m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y));
-            m3real tlz = m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z));
-            m3real thz = m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z));
-            if (thx < lo.x || tlx > hi.x || thy < lo.y || tly > hi.y || thz < lo.z || tlz > hi.z)
-            {
-                continue;
-            }
-            budget -= 1;
-            m3TOIInput input;
-            input.proxyA.points = tv;
-            input.proxyA.count = 3;
-            input.proxyA.radius = 0.0f;
-            input.proxyB = fastProxy;
-            input.sweepA = meshSweep;
-            input.sweepB = ctx->fastSweep;
-            input.maxFraction = ctx->fraction;
-            m3TOIOutput out = m3TimeOfImpact(&input);
-            if (out.state == m3_toiStateHit && 0.0f < out.fraction && out.fraction < ctx->fraction)
-            {
-                ctx->fraction = out.fraction;
-            }
-        }
-        return true;
-    }
-    if (world->bodies.types[body] != (uint8_t)m3_staticBody &&
-        world->bodies.bulletFlags[ctx->fastBody] == 0)
-    {
-        return true; // only bullets sweep against dynamics and kinematics
-    }
-    {
-        // Filters: the continuous phase obeys the same rule
-        // as the discrete pair scan.
-        int32_t gi = world->shapes.shapeGroup[shape];
-        int32_t gj = world->shapes.shapeGroup[ctx->fastShape];
-        if (gi != 0 && gi == gj)
-        {
-            if (gi < 0)
-            {
-                return true;
-            }
-        }
-        else if (!m3FilterPass(world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape],
-                               world->shapes.shapeCategory[ctx->fastShape],
-                               world->shapes.shapeMask[ctx->fastShape]))
-        {
-            return true;
-        }
-    }
-
-    m3TOIInput input;
     m3Vec3 scratchA[2];
     m3Vec3 scratchB[2];
+    m3TOIInput input;
     input.proxyA = m3MakeShapeProxy(world, shape, scratchA);
-    input.proxyB = m3MakeShapeProxy(world, ctx->fastShape, scratchB);
-    input.sweepA = MakeRelativeSweep(world, body, ctx->com0, ctx->rot0, ctx->base);
-    input.sweepB = ctx->fastSweep;
-    input.maxFraction = ctx->fraction;
-    m3TOIOutput out = m3TimeOfImpact(&input);
-    if (out.state == m3_toiStateHit && 0.0f < out.fraction && out.fraction < ctx->fraction)
-    {
-        ctx->fraction = out.fraction;
-    }
+    input.proxyB = m3MakeShapeProxy(world, sw->shape, scratchB);
+    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
+    input.sweepB = sw->sweep;
+    input.maxFraction = sw->fraction;
+    TakeImpact(sw, &input);
     return true;
 }
 
-// Plane targets are not in the tree: a bounded conservative advance
-// against the analytic plane distance (support of the fast proxy at
-// the swept pose, minus its radius).
-static void ContinuousVersusPlane(const m3World* world, m3ContinuousContext* ctx,
-                                  int32_t planeShape)
+// Planes stay out of the tree: conservative advancement against the
+// plane's analytic distance, the fast proxy's lowest point minus its
+// radius target. A body already within the target at the start belongs
+// to the discrete speculative contact; pulling it back to its start
+// every step would erase its integration while its velocity stayed.
+static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 {
     m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
     m3real offset =
         world->shapes.shapeGeom[planeShape].s -
-        (m3real)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
+        (m3real)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
     m3Vec3 scratch[2];
-    m3DistanceProxy proxy = m3MakeShapeProxy(world, ctx->fastShape, scratch);
-
+    m3DistanceProxy proxy = m3MakeShapeProxy(world, sw->shape, scratch);
     const m3real linearSlop = 0.005f;
     m3real target = m3MaxF(linearSlop, proxy.radius - linearSlop);
     m3real tolerance = 0.25f * linearSlop;
-
-    // Conservative rate: linear travel plus the rotation arc.
-    m3Vec3 travel = m3Sub3(ctx->fastSweep.c2, ctx->fastSweep.c1);
-    m3Quat dq = m3MulQuat(ctx->fastSweep.q2, (m3Quat){-ctx->fastSweep.q1.x, -ctx->fastSweep.q1.y,
-                                                      -ctx->fastSweep.q1.z, ctx->fastSweep.q1.w});
-    m3real arc = 2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) *
-                 world->bodies.maxExtents[ctx->fastBody];
-    m3real rate = sqrtf(m3Dot3(travel, travel)) + arc;
+    // The gap closes no faster than the travel plus the fastest turn of
+    // the farthest point.
+    m3real rate = m3Length3(m3Sub3(sw->sweep.c2, sw->sweep.c1)) +
+                  m3SweepAngularRateBound(&sw->sweep) * world->bodies.maxExtents[sw->body];
     if (!(rate > 0.0f))
     {
         return;
     }
-
     m3real t = 0.0f;
-    for (int32_t iter = 0; iter < 25; ++iter)
+    for (int32_t iteration = 0; iteration < 25; ++iteration)
     {
-        m3Transform xf = m3GetSweepTransform(&ctx->fastSweep, t);
-        m3real minD = 3.4e38f;
+        m3Transform xf = m3GetSweepTransform(&sw->sweep, t);
+        m3real lowest = FLT_MAX;
         for (int32_t k = 0; k < proxy.count; ++k)
         {
             m3Vec3 r = m3RotateVec3(xf.q, proxy.points[k]);
-            m3real d = n.x * ((m3real)xf.p.x + r.x) + n.y * ((m3real)xf.p.y + r.y) +
-                       n.z * ((m3real)xf.p.z + r.z);
-            minD = m3MinF(minD, d);
+            lowest = m3MinF(lowest, n.x * ((m3real)xf.p.x + r.x) + n.y * ((m3real)xf.p.y + r.y) +
+                                        n.z * ((m3real)xf.p.z + r.z));
         }
-        m3real sep = minD - offset;
-        if (sep <= 0.0f)
+        m3real gap = lowest - offset;
+        if (gap <= 0.0f)
         {
-            return; // started behind or overlapped: discrete owns it
+            return; // started behind or overlapped: the contacts own it
         }
-        if (sep <= target + tolerance)
+        if (gap <= target + tolerance)
         {
-            // The reference rule the other three arms already obey:
-            // a body ALREADY within the target distance at t = 0
-            // belongs to the discrete speculative contact, not to
-            // the continuous pull-back. Without this guard the
-            // pull-back at fraction zero
-            // erased each step's integration while velocity stayed,
-            // freezing bodies at the slop gap where the refunded
-            // accumulator kept their friction at zero: eternal
-            // frictionless skaters under every pile, sleep never
-            // engaging, the aftermath phase priced like the storm.
-            if (t > 0.0f && t < ctx->fraction)
+            if (t > 0.0f && t < sw->fraction)
             {
-                ctx->fraction = t;
+                sw->fraction = t;
             }
             return;
         }
-        t += (sep - target) / rate;
-        if (t >= ctx->fraction)
+        t += (gap - target) / rate;
+        if (t >= sw->fraction)
         {
-            return; // no earlier hit than the current best
+            return;
+        }
+    }
+}
+
+// Whether a body moved further than half its thinnest extent: the travel
+// of its center of mass plus the arc its farthest point can sweep.
+static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
+{
+    m3real motion = m3Length3(m3Sub3(sweep->c2, sweep->c1)) +
+                    m3SweepAngularRateBound(sweep) * world->bodies.maxExtents[body];
+    return motion > 0.5f * world->bodies.minExtents[body];
+}
+
+// Sweeps one shape of the fast body against the tree and the planes.
+static void SweepShape(Sweeper* sw, int32_t shape)
+{
+    m3World* world = sw->world;
+    sw->shape = shape;
+    double pad = (double)(world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN);
+    m3Pos3 a = sw->com0[sw->body];
+    m3Pos3 b = {sw->base.x + (double)sw->sweep.c2.x, sw->base.y + (double)sw->sweep.c2.y,
+                sw->base.z + (double)sw->sweep.c2.z};
+    double lo[3] = {fmin(a.x, b.x) - pad, fmin(a.y, b.y) - pad, fmin(a.z, b.z) - pad};
+    double hi[3] = {fmax(a.x, b.x) + pad, fmax(a.y, b.y) + pad, fmax(a.z, b.z) + pad};
+    m3TreeQuery(&world->broadphase.tree, lo, hi, SweepCallback, sw);
+    for (int32_t p = 0; p < world->shapes.shapePool.maxIndex; ++p)
+    {
+        if (world->shapes.shapePool.alive[p] != 0 &&
+            world->shapes.shapeType[p] == (uint8_t)m3_planeShape)
+        {
+            SweepPlane(world, sw, p);
         }
     }
 }
 
 void m3SolveContinuousPhase(m3World* world, const m3Pos3* com0, const m3Quat* rot0)
 {
-    int32_t maxBody = world->bodies.bodyPool.maxIndex;
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t i = 0; i < maxBody; ++i)
+    for (int32_t i = 0; i < world->bodies.bodyPool.maxIndex; ++i)
     {
         if (world->bodies.bodyPool.alive[i] == 0 ||
             world->bodies.types[i] != (uint8_t)m3_dynamicBody)
         {
             continue;
         }
-        // Fast test: displacement plus rotation arc versus the
-        // thinnest extent (the reference safety factor of one half).
-        m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
-        double cx = world->bodies.transforms[i].p.x + (double)rlc.x;
-        double cy = world->bodies.transforms[i].p.y + (double)rlc.y;
-        double cz = world->bodies.transforms[i].p.z + (double)rlc.z;
-        m3Vec3 dc = {(m3real)(cx - com0[i].x), (m3real)(cy - com0[i].y), (m3real)(cz - com0[i].z)};
-        m3Quat q0 = rot0[i];
-        m3Quat dq = m3MulQuat(world->bodies.transforms[i].q, (m3Quat){-q0.x, -q0.y, -q0.z, q0.w});
-        m3real arc =
-            2.0f * sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) * world->bodies.maxExtents[i];
-        m3real maxMotion = sqrtf(m3Dot3(dc, dc)) + arc;
-        if (!(maxMotion > 0.5f * world->bodies.minExtents[i]))
+        Sweeper sw;
+        sw.world = world;
+        sw.com0 = com0;
+        sw.rot0 = rot0;
+        sw.body = i;
+        sw.base = com0[i];
+        sw.fraction = 1.0f;
+        sw.sweep = RelativeSweep(world, i, com0, rot0, sw.base);
+        if (!MovedFast(world, i, &sw.sweep))
         {
             continue;
         }
-
-        m3ContinuousContext ctx;
-        ctx.world = world;
-        ctx.com0 = com0;
-        ctx.rot0 = rot0;
-        ctx.fastBody = i;
-        ctx.base = com0[i];
-        ctx.fraction = 1.0f;
-        ctx.fastSweep = MakeRelativeSweep(world, i, com0, rot0, ctx.base);
-
         for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
         {
-            if (world->shapes.shapeSensor[s] != 0)
+            if (world->shapes.shapeSensor[s] == 0) // a fast sensor blocks nothing
             {
-                continue; // a sensor on a fast body blocks nothing
-            }
-            ctx.fastShape = s;
-            // Swept candidate box: both COM endpoints padded by the
-            // body's max extent (a coarse superset; the TOI filters).
-            double pad = (double)(world->bodies.maxExtents[i] + M3_AABB_MARGIN);
-            double lo[3];
-            double hi[3];
-            lo[0] = (com0[i].x < cx ? com0[i].x : cx) - pad;
-            lo[1] = (com0[i].y < cy ? com0[i].y : cy) - pad;
-            lo[2] = (com0[i].z < cz ? com0[i].z : cz) - pad;
-            hi[0] = (com0[i].x > cx ? com0[i].x : cx) + pad;
-            hi[1] = (com0[i].y > cy ? com0[i].y : cy) + pad;
-            hi[2] = (com0[i].z > cz ? com0[i].z : cz) + pad;
-            m3TreeQuery(&world->broadphase.tree, lo, hi, ContinuousQueryCallback, &ctx);
-
-            // Planes take the dedicated pass (never in the tree).
-            for (int32_t p = 0; p < maxShape; ++p)
-            {
-                if (world->shapes.shapePool.alive[p] != 0 &&
-                    world->shapes.shapeType[p] == (uint8_t)m3_planeShape)
-                {
-                    ContinuousVersusPlane(world, &ctx, p);
-                }
+                SweepShape(&sw, s);
             }
         }
-
-        if (ctx.fraction < 1.0f)
+        if (sw.fraction < 1.0f)
         {
-            // Pull the body back to the impact pose. Velocity stays:
-            // next step's speculative contact turns it into impulse.
-            m3Transform xf = m3GetSweepTransform(&ctx.fastSweep, ctx.fraction);
+            m3Transform xf = m3GetSweepTransform(&sw.sweep, sw.fraction);
             world->bodies.transforms[i].q = xf.q;
-            world->bodies.transforms[i].p.x = ctx.base.x + xf.p.x;
-            world->bodies.transforms[i].p.y = ctx.base.y + xf.p.y;
-            world->bodies.transforms[i].p.z = ctx.base.z + xf.p.z;
+            world->bodies.transforms[i].p.x = sw.base.x + xf.p.x;
+            world->bodies.transforms[i].p.y = sw.base.y + xf.p.y;
+            world->bodies.transforms[i].p.z = sw.base.z + xf.p.z;
         }
     }
 }

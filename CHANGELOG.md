@@ -135,6 +135,8 @@ Work toward 0.0.1, the first release of the reworked library.
   the triangle's half-circle Gauss arcs. The mesh welding core is
   split into named steps with unchanged behavior; the kernels move to
   triangle_contact.c.
+- Continuous collision is restructured into a filter and one sweep per
+  target kind (convex, mesh, voxel chunk, plane).
 
 ### Removed
 
@@ -253,3 +255,7 @@ Work toward 0.0.1, the first release of the reworked library.
 - GJK reported a tiny positive distance and a noise normal when the
   origin fell exactly on a simplex face of deeply overlapping hulls;
   it now reports the overlap.
+- The fast-body test and the plane sweep bounded rotation by the chord
+  a point travels, which is shorter than its arc; a fast spinning body
+  could pass the test or overshoot a plane. Both now use the arc bound
+  of the swept rotation.

@@ -14,7 +14,6 @@ shape_cast.c ShapeCastTestShape 235 numeric kernel: one pass in a fixed operatio
 joint_prismatic.c SolvePrismatic 233 numeric kernel: solver rows in one fixed operation order
 broad_phase.c m3UpdatePairs 213 numeric kernel: one pass in a fixed operation order
 softbody_solver.c SoftCollideParticle 213 numeric kernel: one pass in a fixed operation order
-continuous.c ContinuousQueryCallback 195 numeric kernel: one pass in a fixed operation order
 character.c m3CharacterMoveInternal 187 numeric kernel: one pass in a fixed operation order
 joint_revolute.c SolveRevolute 162 numeric kernel: solver rows in one fixed operation order
 voxel_fracture.c m3VoxelFractureSweep 158 numeric kernel: one pass in a fixed operation order

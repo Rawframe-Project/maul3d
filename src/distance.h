@@ -54,6 +54,10 @@ typedef struct m3Sweep
 
 m3Transform m3GetSweepTransform(const m3Sweep* sweep, m3real time);
 
+// The fastest the swept rotation turns, in radians per unit of sweep
+// time.
+m3real m3SweepAngularRateBound(const m3Sweep* sweep);
+
 typedef struct m3TOIInput
 {
     m3DistanceProxy proxyA; // the target shape

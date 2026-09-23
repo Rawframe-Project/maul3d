@@ -345,7 +345,7 @@ m3Transform m3GetSweepTransform(const m3Sweep* sweep, m3real time)
 // time. Interpolating unit quaternions half an angle a apart turns the
 // quaternion at most 2 tan(a / 2) per unit time, at the middle of the
 // sweep, and the body by twice that; tan(a / 2) = sin a / (1 + cos a).
-static m3real AngularRateBound(const m3Sweep* sweep)
+m3real m3SweepAngularRateBound(const m3Sweep* sweep)
 {
     m3Quat q1 = sweep->q1;
     m3Quat q2 = sweep->q2;
@@ -412,8 +412,8 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input)
     m3real target = m3MaxF(linearSlop, input->proxyA.radius + input->proxyB.radius - linearSlop);
     m3real tolerance = 0.25f * linearSlop;
     m3Vec3 velocity = m3Sub3(m3Sub3(sweepB.c2, sweepB.c1), m3Sub3(sweepA.c2, sweepA.c1));
-    m3real spin = AngularRateBound(&sweepA) * Reach(&input->proxyA, sweepA.localCenter) +
-                  AngularRateBound(&sweepB) * Reach(&input->proxyB, sweepB.localCenter);
+    m3real spin = m3SweepAngularRateBound(&sweepA) * Reach(&input->proxyA, sweepA.localCenter) +
+                  m3SweepAngularRateBound(&sweepB) * Reach(&input->proxyB, sweepB.localCenter);
     m3real t = 0.0f;
     for (int32_t iteration = 0; iteration < 64; ++iteration)
     {
