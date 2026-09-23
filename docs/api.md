@@ -17,20 +17,15 @@ void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context);
 ```
 
 ```c
+m3Result m3LastResult(void);
+```
+
+```c
 uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count);
 ```
 
 ```c
-void m3AssertFail(const char* condition, const char* file, int line);
-```
-The debug assert sink (prints and aborts). Internal invariants only; never called for user input, never present in release.
-
-```c
-void m3SetAssertHandlerCtx(m3AssertCtxFn* handler, void* context);
-```
-
-```c
-void m3SetAssertHandler(m3AssertFn handler);
+void m3SetAssertHandler(m3AssertFn* handler, void* context);
 ```
 
 ## `math.h`
@@ -1109,4 +1104,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-234 functions across 11 headers.
+233 functions across 11 headers.

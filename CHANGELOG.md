@@ -23,6 +23,11 @@ Work toward 0.0.1, the first release of the reworked library.
 - `test/hashes.txt` holds the expected determinism hashes, and
   `tools/check_hashes.py` compares a test run with them, so a change
   that moves a hash the same way on every platform is caught too.
+- `m3LastResult`: the reason for the last refusal on the calling
+  thread (invalid input, capacity, or configuration), and
+  `m3Counters.misuse`, which counts invalid arguments against a live
+  world. Every public function now records a reason when it refuses;
+  before, refusals were silent.
 
 ### Changed
 
@@ -45,6 +50,9 @@ Work toward 0.0.1, the first release of the reworked library.
   engine does not use.
 - Every test suite uses the shared `test/test_harness.h` instead of
   its own copy of the check macro.
+- `m3SetAssertHandler` takes a context pointer, like Maul2D's, and
+  replaces `m3SetAssertHandlerCtx`. Refusing input never asserts; the
+  `M3_ASSERT` macro and `m3AssertFail` are internal now.
 
 ### Removed
 

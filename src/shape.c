@@ -765,12 +765,14 @@ m3ShapeId m3CreateSphereShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Sp
     if (sphere == NULL || !(sphere->radius > 0.0f) || !m3FiniteF(sphere->radius) ||
         !m3FiniteV3(sphere->center))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     // The 2a off-origin refusal is gone: the full inertia tensor and
@@ -784,6 +786,7 @@ m3ShapeId m3CreatePlaneShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Pla
     if (plane == NULL || !m3FiniteV3(plane->normal) || !m3FiniteF(plane->offset) ||
         !(m3Dot3(plane->normal, plane->normal) > 1.0e-12f))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId; // a zero or poisoned normal never
                                // reaches the normalize below
     }
@@ -804,11 +807,13 @@ m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def, const m3C
     if (capsule == NULL || !(capsule->radius > 0.0f) || !m3FiniteF(capsule->radius) ||
         !m3FiniteV3(capsule->point1) || !m3FiniteV3(capsule->point2))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3Vec3 axis = m3Sub3(capsule->point2, capsule->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         // A zero-length capsule is a sphere; asking for one is a
         // contract violation, refused loudly (use m3CreateSphereShape).
         return m3_nullShapeId;
@@ -831,11 +836,13 @@ m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3
     if (cylinder == NULL || !(cylinder->radius > 0.0f) || !m3FiniteF(cylinder->radius) ||
         !m3FiniteV3(cylinder->point1) || !m3FiniteV3(cylinder->point2))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3Vec3 axis = m3Sub3(cylinder->point2, cylinder->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId; // a flat cylinder is a disc, refused
     }
     if (segments < 3)
@@ -961,6 +968,7 @@ bool m3Shape_SetSphere(m3ShapeId shapeId, const m3Sphere* sphere)
 {
     if (sphere == NULL)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     m3ShapeGeom geom;
@@ -974,6 +982,7 @@ bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule)
 {
     if (capsule == NULL)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     m3ShapeGeom geom;
@@ -991,10 +1000,12 @@ m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     if (points == NULL || count <= 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     for (int32_t i = 0; i < count; ++i)
@@ -1008,6 +1019,7 @@ m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     m3HullData data;
     if (!m3ComputeHull(points, count, &data))
     {
+        m3Refuse(world, m3_errorInvalid);
         // Degenerate cloud or over the caps: contract, null id.
         return m3_nullShapeId;
     }
@@ -1017,6 +1029,7 @@ m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
                                           &data, NULL, NULL, NULL);
     if (index < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
     m3ShapeId id = {index + 1, world->worldIndex0, world->shapePool.generations[index]};
@@ -1042,6 +1055,7 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE ||
         world->types[bodyIndex] != (uint8_t)m3_staticBody)
     {
+        m3Refuse(world, m3_errorInvalid);
         // Meshes are static world geometry: a dynamic mesh body is
         // refused loudly (no mass model for triangle soup).
         return m3_nullShapeId;
@@ -1049,6 +1063,7 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     if (vertices == NULL || indices == NULL || vertexCount < 3 || vertexCount > M3_MESH_MAX_VERTS ||
         triangleCount < 1 || triangleCount > M3_MESH_MAX_TRIS)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     for (int32_t i = 0; i < 3 * triangleCount; ++i)
@@ -1071,6 +1086,7 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
     mesh.triangleCount = triangleCount;
     if (!m3MeshDataAlloc(&mesh))
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
     memcpy(mesh.vertices, vertices, (size_t)vertexCount * sizeof(m3Vec3));
@@ -1124,6 +1140,7 @@ m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def, const
     if (heights == NULL || nx < 2 || nx > 32 || nz < 2 || nz > 32 || !(cellSize > 0.0f) ||
         !m3FiniteF(cellSize))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId; // grid contract: chunks tile larger terrain
     }
     for (int32_t i = 0; i < nx * nz; ++i)
@@ -1183,6 +1200,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE || heights == NULL ||
         world->types[bodyIndex] != (uint8_t)m3_staticBody)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId; // static bodies only, like meshes
     }
     // The full content wall, mirrored into the decode: grid
@@ -1190,6 +1208,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
     if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
         !m3FiniteF(cellSize) || !(cellSize > 0.0f))
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     for (int32_t i = 0; i < nx * nz; ++i)
@@ -1208,6 +1227,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
         def->restitution < 0.0f || !m3FiniteF(def->rollingResistance) ||
         def->rollingResistance < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3HeightFieldData hf;
@@ -1217,6 +1237,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
     hf.cellSize = cellSize;
     if (!m3HeightFieldDataAlloc(&hf))
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
     memcpy(hf.heights, heights, (size_t)(nx * nz) * sizeof(float));
@@ -1276,10 +1297,12 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
     if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE || voxels == NULL ||
         !(cellSize > 0.0f) || !m3FiniteF(cellSize))
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     if (world->types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
     {
+        m3Refuse(world, m3_errorInvalid);
         // Voxel chunks are static level geometry, and sensors are
         // convex volumes by contract: both are refused.
         return m3_nullShapeId;
@@ -1287,11 +1310,13 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
     m3VoxelChunkData* chunk = (m3VoxelChunkData*)m3AllocZeroed((int32_t)sizeof(m3VoxelChunkData));
     if (chunk == NULL)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
     int32_t filled = m3VoxelPack(chunk, voxels, payload, cellSize);
     if (filled == 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         m3Free(chunk);
         return m3_nullShapeId; // an empty chunk is a request for nothing
     }
@@ -1342,6 +1367,7 @@ m3ShapeId m3CreateBoxShape(m3BodyId bodyId, const m3ShapeDef* def, m3Vec3 halfEx
     if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
         !m3FiniteV3(halfExtents))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullShapeId; // contract: bad extents return null
     }
     m3ShapeGeom geom = {halfExtents, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
@@ -1361,6 +1387,7 @@ m3BodyId m3Shape_GetBody(m3ShapeId shapeId)
     int32_t slot = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return null;
     }
     int32_t body = world->shapeBody[slot];
@@ -1374,6 +1401,7 @@ void m3DestroyShape(m3ShapeId shapeId)
     int32_t index = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1470,6 +1498,7 @@ void m3Shape_SetFriction(m3ShapeId shapeId, float friction)
 {
     if (!m3FiniteF(friction) || friction < 0.0f)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeFriction, friction);
@@ -1486,6 +1515,7 @@ void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution)
 {
     if (!m3FiniteF(restitution) || restitution < 0.0f)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeRestitution, restitution);
@@ -1502,6 +1532,7 @@ void m3Shape_SetRollingResistance(m3ShapeId shapeId, float value)
 {
     if (!m3FiniteF(value) || value < 0.0f)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeRolling, value);
@@ -1520,6 +1551,7 @@ void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass)
     m3World* world = ResolveShape(shapeId, &slot);
     if (world == NULL || !m3FiniteF(density) || density <= 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1658,11 +1690,13 @@ void m3Shape_SetMeshMaterials(m3ShapeId shapeId, const m3MeshSurfaceMaterial* ma
     if (world == NULL || materials == NULL || triangleMaterials == NULL ||
         world->shapeType[slot] != (uint8_t)m3_meshShape)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     int32_t meshIndex = world->shapeMeshIndex[slot];
     if (!m3SetMeshMaterialsInternal(world, meshIndex, materials, materialCount, triangleMaterials))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // refused: nothing journals
     }
     if (world->journalActive != 0)
@@ -1703,6 +1737,7 @@ void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
     m3World* world = ResolveShape(shapeId, &slot);
     if (world == NULL || !m3FiniteV3(velocity))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)

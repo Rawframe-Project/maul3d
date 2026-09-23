@@ -558,6 +558,7 @@ int32_t m3World_SnapshotSize(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return -1;
     }
     return (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 1);
@@ -568,12 +569,14 @@ int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || out == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return -1;
     }
     int32_t size =
         (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 1);
     if (capacity < size)
     {
+        m3Refuse(world, m3_errorInvalid);
         return -1; // loud: the caller sized with m3World_SnapshotSize
     }
 
@@ -635,6 +638,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || data == NULL || size < (int32_t)sizeof(m3SnapshotHeader))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     m3SnapshotHeader header;
@@ -647,6 +651,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         header.voxelCapacity != world->voxelCapacity ||
         header.charCapacity != world->characterCapacity)
     {
+        m3Refuse(world, m3_errorInvalid);
         // Wrong world shape or wrong build semantics: refuse loudly,
         // never a partial restore.
         return false;
@@ -673,6 +678,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         !M3_POOL_SANE(header.charMaxIndex, header.charFreeHead, header.charFreeCount,
                       header.charRetiredCount, world->characterCapacity))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // hostile cursors refuse before any write
     }
 #undef M3_POOL_SANE
@@ -680,6 +686,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         header.treeRoot < M3_TREE_NULL || header.treeRoot >= world->tree.capacity ||
         header.treeFreeList < M3_TREE_NULL || header.treeFreeList >= world->tree.capacity)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // the pair list and the tree index arrays directly
     }
     // Two-phase size validation: the fixed prefix is
@@ -790,6 +797,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     }
     if (size != cursor)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
 
@@ -893,6 +901,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     // Curated deterministic state in canonical slot order: what the

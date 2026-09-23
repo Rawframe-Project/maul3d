@@ -452,11 +452,13 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
         !m3FiniteF(def->stepHeight) || def->stepHeight < 0.0f || !m3FiniteF(def->mass) ||
         !(def->mass > 0.0f) || !m3FiniteF(def->pushMaxMassRatio) || def->pushMaxMassRatio < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullCharacterId;
     }
     int32_t slot = m3CreateCharacterInternal(world, def);
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullCharacterId;
     }
     m3CharacterId id = {slot + 1, world->worldIndex0, world->charPool.generations[slot]};
@@ -481,6 +483,7 @@ void m3DestroyCharacter(m3CharacterId characterId)
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale: the quiet destroy contract
     }
     if (world->journalActive != 0)
@@ -530,6 +533,7 @@ m3Pos3 m3Character_GetPosition(m3CharacterId characterId)
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return world->transforms[world->charBody[slot]].p;
@@ -548,6 +552,7 @@ m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId)
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     return world->charGroundNormal[slot];
@@ -622,6 +627,7 @@ bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real 
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     if (!m3CharacterStanceInternal(world, slot, halfHeight, radius))

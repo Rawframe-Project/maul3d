@@ -394,6 +394,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
          def->type != (int32_t)m3_parallelJoint && def->type != (int32_t)m3_motorJoint &&
          def->type != (int32_t)m3_gearJoint && def->type != (int32_t)m3_pulleyJoint))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId;
     }
     if ((def->type == (int32_t)m3_revoluteJoint || def->type == (int32_t)m3_prismaticJoint ||
@@ -401,10 +402,12 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         (!(m3Dot3(def->localAxisA, def->localAxisA) > 0.0f) ||
          !(m3Dot3(def->localAxisB, def->localAxisB) > 0.0f)))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId; // a hinge, slider, or wheel needs real axes
     }
     if (def->type == (int32_t)m3_genericJoint)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         // The generic contract: sane modes, finite ordered
         // limits where used, one motor on a movable axis, and the
         // v1 angular-limit rule.
@@ -487,27 +490,32 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         def->maxMotorEffort < 0.0f || (def->enableLimit && def->lowerLimit > def->upperLimit) ||
         (def->enableCone && def->coneAngle < 0.0f))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId;
     }
     m3World* world = m3WorldFromIndex0(def->bodyA.world0);
     if (world == NULL || def->bodyB.world0 != def->bodyA.world0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId; // both bodies must share a world
     }
     int32_t bodyA = m3BodySlot(world, def->bodyA);
     int32_t bodyB = m3BodySlot(world, def->bodyB);
     if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId;
     }
     if (world->types[bodyA] != (uint8_t)m3_dynamicBody &&
         world->types[bodyB] != (uint8_t)m3_dynamicBody)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId; // a joint between immovables is inert
     }
     int32_t index = m3CreateJointInternal(world, def, bodyA, bodyB);
     if (index < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullJointId;
     }
     m3JointId id = {index + 1, world->worldIndex0, world->jointPool.generations[index]};
@@ -528,6 +536,7 @@ void m3DestroyJoint(m3JointId jointId)
     int32_t index = world != NULL ? m3JointSlot(world, jointId) : -1;
     if (index < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale id: a quiet no-op is the destroy contract
     }
     if (world->journalActive != 0)
@@ -735,6 +744,7 @@ void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
     m3World* world = ResolveJoint(jointId, &slot);
     if (world == NULL || !m3FiniteF(lower) || !m3FiniteF(upper))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->jointType[slot] == (uint8_t)m3_motorJoint)
@@ -780,6 +790,7 @@ void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float h
         !m3FiniteF(zeta) || !m3FiniteF(maxEffort) || zeta < 0.0f || maxEffort < 0.0f ||
         (enable && !(hertz > 0.0f)))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // steering is a wheel contract, refused loudly
     }
     if (world->journalActive != 0)
@@ -811,6 +822,7 @@ float m3Joint_GetSteerAngle(m3JointId jointId)
     m3World* world = ResolveJoint(jointId, &slot);
     if (world == NULL || world->jointType[slot] != (uint8_t)m3_wheelJoint)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
     int32_t bodyA = world->jointBodyA[slot];
@@ -835,6 +847,7 @@ void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation)
     if (world == NULL || world->jointType[slot] != (uint8_t)m3_motorJoint || !m3FiniteV3(offset) ||
         !m3FiniteQuat(rotation) || q2 < 0.81f || q2 > 1.21f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // the servo aim is a motor-joint contract
     }
     if (world->journalActive != 0)
@@ -860,6 +873,7 @@ void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffo
     m3World* world = ResolveJoint(jointId, &slot);
     if (world == NULL || !m3FiniteF(speed) || !m3FiniteF(maxEffort) || maxEffort < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -887,6 +901,7 @@ void m3Joint_SetCollideConnected(m3JointId jointId, bool collide)
     m3World* world = ResolveJoint(jointId, &slot);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -918,6 +933,7 @@ void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorq
     if (world == NULL || !m3FiniteF(maxForce) || maxForce < 0.0f || !m3FiniteF(maxTorque) ||
         maxTorque < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -972,6 +988,7 @@ m3real m3Joint_GetAngle(m3JointId jointId)
     if (world == NULL || (world->jointType[slot] != (uint8_t)m3_revoluteJoint &&
                           world->jointType[slot] != (uint8_t)m3_wheelJoint))
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0.0f; // the wheel's frame z is its axle: same twist read
     }
     m3Quat qA = m3MulQuat(world->transforms[world->jointBodyA[slot]].q, world->jointFrameQA[slot]);
@@ -989,6 +1006,7 @@ m3real m3Joint_GetTranslation(m3JointId jointId)
     if (world == NULL || (world->jointType[slot] != (uint8_t)m3_prismaticJoint &&
                           world->jointType[slot] != (uint8_t)m3_wheelJoint))
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
     int32_t bodyA = world->jointBodyA[slot];
@@ -1042,6 +1060,7 @@ void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampin
     if (world == NULL || !JointTypeDrives(world->jointType[slot]) || !m3FiniteF(hertz) ||
         hertz <= 0.0f || !m3FiniteF(dampingRatio) || dampingRatio < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1089,6 +1108,7 @@ void m3Joint_SetTargetAngle(m3JointId jointId, float radians)
     if (world == NULL || world->jointType[slot] != (uint8_t)m3_revoluteJoint ||
         !m3FiniteF(radians) || radians < -M3_PI || radians > M3_PI)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     JointTargetOp(world, jointId, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
@@ -1103,6 +1123,7 @@ void m3Joint_SetTargetTranslation(m3JointId jointId, float meters)
          world->jointType[slot] != (uint8_t)m3_wheelJoint) ||
         !m3FiniteF(meters))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // the wheel's drive is its suspension spring
     }
     JointTargetOp(world, jointId, slot, meters, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
@@ -1115,12 +1136,14 @@ void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target)
     if (world == NULL || world->jointType[slot] != (uint8_t)m3_sphericalJoint ||
         !m3FiniteQuat(target))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     m3real len2 =
         target.x * target.x + target.y * target.y + target.z * target.z + target.w * target.w;
     if (len2 < 0.99f || len2 > 1.01f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // not a unit rotation: refuse by doing nothing
     }
     JointTargetOp(world, jointId, slot, 0.0f, target);

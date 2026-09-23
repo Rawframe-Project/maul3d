@@ -146,17 +146,6 @@ static void TestReadingIsPure(void)
     CHECK(hashes[0] == hashes[1], "watching the world never changes it");
 }
 
-static int s_assertSeen = 0;
-
-static int AssertCatcher(const char* condition, const char* file, int line)
-{
-    (void)condition;
-    (void)file;
-    (void)line;
-    s_assertSeen += 1;
-    return 1; // handled: no abort
-}
-
 static void TestNamesAndHooks(void)
 {
     static uint8_t journal[65536];
@@ -192,12 +181,6 @@ static void TestNamesAndHooks(void)
     m3Body_SetName(stale, "ghost");
     CHECK(m3Body_GetName(stale)[0] == 0, "a stale id stays nameless");
     m3DestroyWorld(world);
-
-    // The assert hook: installed, fired, uninstalled, no abort.
-    m3SetAssertHandler(AssertCatcher);
-    m3AssertFail("introspection-probe", __FILE__, __LINE__);
-    CHECK(s_assertSeen == 1, "the handler caught the failure");
-    m3SetAssertHandler(NULL);
 }
 
 static void TestContactReadback(void)

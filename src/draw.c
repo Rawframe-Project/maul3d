@@ -221,6 +221,7 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || draw == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     m3DrawContext ctx = {draw, world};
@@ -550,6 +551,7 @@ void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || draw == NULL || draw->DrawTriangle == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     m3SolidContext ctx = {draw, world};
@@ -587,6 +589,7 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || draw == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     // A fixed island palette, cycled by root slot: twins label the

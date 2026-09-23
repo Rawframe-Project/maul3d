@@ -6,6 +6,8 @@
 
 #include "maul3d/replay.h"
 
+#include "core.h"
+
 #include <string.h>
 
 #define M3_REPLAY_MAGIC        0x314A334Du // "M3J1" little-endian
@@ -16,6 +18,7 @@ bool m3JournalDescribe(const void* journal, int32_t bytes, m3JournalInfo* out)
 {
     if (journal == NULL || bytes < 0 || out == NULL)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     const uint8_t* p = (const uint8_t*)journal;
@@ -52,6 +55,7 @@ int32_t m3ReplayEncodeSize(int32_t snapshotBytes, int32_t journalBytes)
 {
     if (snapshotBytes <= 0 || journalBytes < 0)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return 0;
     }
     return M3_REPLAY_HEADER_BYTES + snapshotBytes + journalBytes;
@@ -64,11 +68,13 @@ int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* 
     if (need == 0 || snapshot == NULL || (journal == NULL && journalBytes > 0) || out == NULL ||
         capacity < need)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return 0;
     }
     m3JournalInfo info;
     if (!m3JournalDescribe(journal, journalBytes, &info))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return 0; // a container never wraps a malformed stream
     }
     uint8_t* p = (uint8_t*)out;
@@ -93,6 +99,7 @@ bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out)
 {
     if (data == NULL || bytes < M3_REPLAY_HEADER_BYTES || out == NULL)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     const uint8_t* p = (const uint8_t*)data;
@@ -114,16 +121,19 @@ bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out)
         journalBytes < 0 ||
         (int64_t)M3_REPLAY_HEADER_BYTES + snapshotBytes + journalBytes != (int64_t)bytes)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     m3JournalInfo info;
     const uint8_t* journal = p + M3_REPLAY_HEADER_BYTES + snapshotBytes;
     if (!m3JournalDescribe(journal, journalBytes, &info))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false;
     }
     if (info.stepCount != stepCount || info.opCount != opCount)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return false; // header lies about its own stream
     }
     out->snapshot = p + M3_REPLAY_HEADER_BYTES;

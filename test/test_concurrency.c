@@ -13,7 +13,9 @@
 #include "maul3d/world.h"
 #include "test_harness.h"
 
+#include <math.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -142,8 +144,37 @@ static void TestConcurrentReadersBetweenSteps(void)
     m3DestroyWorld(world);
 }
 
+static void* RefuseCapacityMain(void* arg)
+{
+    m3WorldId world = *(const m3WorldId*)arg;
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3CreateBody(world, &bd); // the pool is full: refused for capacity
+    return (void*)(intptr_t)(m3LastResult() == m3_errorCapacity);
+}
+
+static void TestLastResultIsPerThread(void)
+{
+    // This thread refuses for invalid input while another refuses for
+    // capacity; each thread reads back its own reason.
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 1;
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3CreateBody(world, &bd);
+    m3World_SetGravity(world, (m3Vec3){0.0f, 0.0f, INFINITY});
+    CHECK(m3LastResult() == m3_errorInvalid, "this thread's refusal is invalid");
+    pthread_t other;
+    void* sawCapacity = NULL;
+    pthread_create(&other, NULL, RefuseCapacityMain, &world);
+    pthread_join(other, &sawCapacity);
+    CHECK(sawCapacity != NULL, "the other thread saw its own capacity refusal");
+    CHECK(m3LastResult() == m3_errorInvalid, "and did not overwrite this thread's reason");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestLastResultIsPerThread();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersBetweenSteps();
     if (s_failures == 0)

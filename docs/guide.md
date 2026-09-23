@@ -938,11 +938,15 @@ answer "who touches me" through m3Body_GetContactData and
 m3Shape_GetContactData: manifold entries in canonical pair order
 with world points, separations, and last-step normal impulses.
 
-m3SetAssertHandler installs a global host hook ahead of the
-debug abort; returning nonzero declares the failure handled
-(test harnesses, crash reporters). There is deliberately NO log
-hook: the engine has no log stream to route, and a dead API is
-worse than a missing one.
+Every call that rejects its input records why: read m3LastResult
+right after a refusal (invalid input, a full pool, or data from a
+different build), on the same thread. Invalid arguments against a
+live world also count in m3Counters.misuse, so a host can poll once
+per frame and catch bugs in release builds. Refusals never assert.
+m3SetAssertHandler installs a host hook ahead of the abort for a
+failed internal invariant; returning nonzero declares the failure
+handled (test harnesses, crash reporters). There is no log hook:
+the engine has no log stream to route.
 
 ## The faceted cylinder, reshaping, and the overlap family
 

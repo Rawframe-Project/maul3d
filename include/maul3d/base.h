@@ -54,16 +54,19 @@ extern "C"
     typedef void m3FreeFn(void* memory, void* context);
     M3_API void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context);
 
-    /// Loud failure, the constitution's way: APIs that can fail return a
-    /// result code (never a silent no-op, never an abort in library
-    /// code). Debug builds additionally assert.
+    /// Why the last call on this thread refused. Every API that rejects
+    /// its input (a bad def, a stale or wrong-kind id, a full pool)
+    /// records the reason here before it returns its null result. The
+    /// slot is per thread and success paths do not clear it: read it
+    /// right after the refusal you care about.
     typedef enum m3Result
     {
         m3_success = 0,
-        m3_errorInvalid = 1,  // bad argument, stale id, wrong body type
-        m3_errorCapacity = 2, // a fixed pool or the step scratch ran out
-        m3_errorConfig = 3,   // snapshot/journal config hash mismatch
+        m3_errorInvalid = 1,  // bad def or argument, stale id, wrong body or joint type
+        m3_errorCapacity = 2, // a fixed pool, slot table or allocation ran out
+        m3_errorConfig = 3,   // a snapshot or journal from a different build
     } m3Result;
+    M3_API m3Result m3LastResult(void);
 
     /// Opaque generation-tagged handles: the only identity, public and
     /// internal. index1 is 1-based (0 means null), the generation
@@ -115,38 +118,13 @@ extern "C"
 
     M3_API uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count);
 
-#if !defined(NDEBUG)
-#define M3_ASSERT(cond)                                                                            \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            m3AssertFail(#cond, __FILE__, __LINE__);                                               \
-        }                                                                                          \
-    } while (0)
-#else
-#define M3_ASSERT(cond) ((void)0)
-#endif
-
-    /// The debug assert sink (prints and aborts). Internal invariants
-    /// only; never called for user input, never present in release.
-    M3_API void m3AssertFail(const char* condition, const char* file, int line);
-
-    /// Contextful host assert hook: same
-    /// contract as m3SetAssertHandler below, with the context the
-    /// embedding host needs to route the failure to its own
-    /// diagnostics without globals. When both handlers are set the
-    /// contextful one wins. Return nonzero to suppress the abort.
-    typedef int m3AssertCtxFn(const char* condition, const char* file, int line, void* context);
-    M3_API void m3SetAssertHandlerCtx(m3AssertCtxFn* handler, void* context);
-
-    /// Host assert hook: installed globally, called before
-    /// the abort. Return nonzero to declare the failure handled and
-    /// skip the abort (test harnesses, crash reporters); return
-    /// zero to keep the default print-and-abort. NULL restores the
-    /// default. Observer machinery: never touches simulation state.
-    typedef int (*m3AssertFn)(const char* condition, const char* file, int line);
-    M3_API void m3SetAssertHandler(m3AssertFn handler);
+    /// Host assert hook: called before the default print-and-abort for
+    /// every failed internal invariant. Return nonzero to declare the
+    /// failure handled and suppress the abort (crash reporters, test
+    /// harnesses). NULL restores the default. The hook only observes;
+    /// it never touches simulation state.
+    typedef int m3AssertFn(const char* condition, const char* file, int line, void* context);
+    M3_API void m3SetAssertHandler(m3AssertFn* handler, void* context);
 
 #ifdef __cplusplus
 }

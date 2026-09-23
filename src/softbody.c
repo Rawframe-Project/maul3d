@@ -429,11 +429,13 @@ m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, co
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE ||
         points == NULL || tets == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return null;
     }
     int32_t slot = m3CreateSoftBodyTetInternal(world, def, points, pointCount, tets, tetCount);
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return null;
     }
     m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softPool.generations[slot]};
@@ -1419,11 +1421,13 @@ m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullSoftBodyId; // field checks live in the internal
     }
     int32_t slot = m3CreateSoftBodyInternal(world, def);
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullSoftBodyId;
     }
     m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softPool.generations[slot]};
@@ -1448,6 +1452,7 @@ void m3DestroySoftBody(m3SoftBodyId softId)
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale: the quiet destroy contract
     }
     if (world->journalActive != 0)
@@ -1469,6 +1474,7 @@ void m3SoftBody_PinParticle(m3SoftBodyId softId, int32_t particle)
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0 || particle < 0 || particle >= world->softParticleCount[slot])
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale or out of range: a documented no-op
     }
     if (world->journalActive != 0)
@@ -1542,6 +1548,7 @@ void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBody
         particleB >= world->softParticleCount[slotB] ||
         world->softSoftCount[slotA < slotB ? slotA : slotB] >= M3_SOFTBODY_MAX_ANCHORS)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale, self-pin, out of range, or full: quiet no-op
     }
     if (world->journalActive != 0)
@@ -1571,6 +1578,7 @@ void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId b
     if (slot < 0 || body < 0 || particle < 0 || particle >= world->softParticleCount[slot] ||
         world->softAnchorCount[slot] >= M3_SOFTBODY_MAX_ANCHORS)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale, out of range, or a full table: quiet no-op
     }
     if (world->journalActive != 0)
@@ -1603,6 +1611,7 @@ m3Pos3 m3SoftBody_GetParticlePosition(m3SoftBodyId softId, int32_t particle)
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0 || particle < 0 || particle >= world->softParticleCount[slot])
     {
+        m3Refuse(world, m3_errorInvalid);
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return world->softPos[slot * M3_SOFTBODY_MAX_PARTICLES + particle];

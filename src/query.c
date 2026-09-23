@@ -30,7 +30,6 @@ typedef struct m3RayAllContext
 
 // The single-shape ray test lives in raycast.c; queries reuse it
 // through this internal hook.
-m3RayHit m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 translation);
 
 static void RayAllInsert(m3RayAllContext* ctx, const m3RayHit* hit, int32_t shapeIndex)
 {
@@ -101,6 +100,7 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
         !(translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT))
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     m3RayAllContext ctx = {world, origin, translation, hits, capacity, 0, m3DefaultQueryFilter()};
@@ -483,9 +483,9 @@ static bool ShapeCastCallback(int32_t shape, void* userContext)
     return true;
 }
 
-m3RayHit m3CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                              int32_t pointCount, m3real radius, m3Vec3 translation,
-                              int32_t ignoreBody, m3QueryFilter filter)
+static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
+                                   int32_t pointCount, m3real radius, m3Vec3 translation,
+                                   int32_t ignoreBody, m3QueryFilter filter)
 {
     m3ShapeCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -563,6 +563,7 @@ m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfE
         !m3FiniteQuat(rotation) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !(qq > 0.98f) || !(qq < 1.02f))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return miss; // hostile input: the cast quietly misses, loudly
                      // documented (the query contract has no id to
                      // refuse with)
@@ -580,7 +581,7 @@ m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfE
     {
         return miss;
     }
-    return m3CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter);
+    return CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter);
 }
 
 m3RayHit m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
@@ -598,6 +599,7 @@ m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3*
     if (points == NULL || count < 2 || count > M3_HULL_MAX_VERTS || !m3FinitePos3(base) ||
         !m3FiniteV3(translation))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return miss; // a one-point skinless cast is a ray: use rays
     }
     for (int32_t k = 0; k < count; ++k)
@@ -610,9 +612,10 @@ m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3*
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return miss;
     }
-    return m3CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter);
+    return CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter);
 }
 
 m3RayHit m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
@@ -626,8 +629,8 @@ m3RayHit m3CastConvexClosestEx(m3World* worldPtr, m3Pos3 base, const m3Vec3* poi
                                int32_t pointCount, m3real radius, m3Vec3 translation,
                                int32_t ignoreBody)
 {
-    return m3CastConvexFiltered(worldPtr, base, points, pointCount, radius, translation, ignoreBody,
-                                m3DefaultQueryFilter());
+    return CastConvexFiltered(worldPtr, base, points, pointCount, radius, translation, ignoreBody,
+                              m3DefaultQueryFilter());
 }
 
 m3RayHit m3World_CastSphereClosestEx(m3WorldId worldId, m3Pos3 center, m3real radius,
@@ -641,7 +644,7 @@ m3RayHit m3World_CastSphereClosestEx(m3WorldId worldId, m3Pos3 center, m3real ra
         memset(&miss, 0, sizeof(miss));
         return miss;
     }
-    return m3CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
+    return CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
 }
 
 m3RayHit m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center, m3real radius,
@@ -663,7 +666,7 @@ m3RayHit m3World_CastCapsuleClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 p
         memset(&miss, 0, sizeof(miss));
         return miss;
     }
-    return m3CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
+    return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
 }
 
 m3RayHit m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
@@ -755,6 +758,7 @@ m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullShapeId;
     }
     int32_t maxShape = world->shapePool.maxIndex;
@@ -1049,6 +1053,7 @@ int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     m3OverlapContext ctx;
@@ -1077,6 +1082,7 @@ int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius,
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0 || !(radius > 0.0f))
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     m3OverlapContext ctx;
@@ -1349,10 +1355,12 @@ void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M3_EXPLOSION_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (!m3WorldExplodeInternal(world, def))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // hostile fields apply nothing and journal nothing
     }
     if (world->journalActive != 0)
@@ -1401,12 +1409,14 @@ int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t ca
     m3World* world = m3WorldFromIndex0(shapeId.world0);
     if (world == NULL || out == NULL || capacity <= 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t shape = shapeId.index1 - 1;
     if (shape < 0 || shape >= world->shapePool.maxIndex || world->shapePool.alive[shape] == 0 ||
         world->shapePool.generations[shape] != shapeId.generation)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t written = 0;
@@ -1429,11 +1439,13 @@ int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capac
     m3World* world = m3WorldFromIndex0(bodyId.world0);
     if (world == NULL || out == NULL || capacity <= 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t body = m3BodySlot(world, bodyId);
     if (body < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t written = 0;
@@ -1676,6 +1688,7 @@ int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3
     if (world == NULL || points == NULL || count < 1 || count > 64 || shapes == NULL ||
         capacity <= 0 || !m3FinitePos3(base) || !m3FiniteF(radius) || radius < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     for (int32_t k = 0; k < count; ++k)
@@ -1731,6 +1744,7 @@ int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return 0;
     }
     m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
@@ -1751,6 +1765,7 @@ int32_t m3World_OverlapBoxEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtent
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return 0;
     }
     m3Vec3 corners[8];
@@ -1787,6 +1802,7 @@ m3RayHit m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, 
     if (world == NULL || !m3FinitePos3(center) || !m3FiniteF(halfHeight) || halfHeight < 0.0f ||
         !m3FiniteF(radius) || !(radius > 0.0f) || !m3FiniteV3(translation))
     {
+        m3Refuse(world, m3_errorInvalid);
         return miss;
     }
     m3Vec3 points[2] = {{0.0f, halfHeight, 0.0f}, {0.0f, -halfHeight, 0.0f}};
@@ -1911,6 +1927,7 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
         !m3FiniteF(halfHeight) || halfHeight < 0.0f || !m3FiniteF(radius) || !(radius > 0.0f) ||
         !m3FiniteF(skin) || skin < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     m3MoverCollideCtx ctx;
@@ -1968,6 +1985,7 @@ m3Vec3 m3SolvePlanes(m3Vec3 translation, const m3MoverPlane* planes, int32_t cou
 {
     if (planes == NULL || count <= 0 || iterations <= 0 || !m3FiniteV3(translation))
     {
+        m3Refuse(NULL, m3_errorInvalid);
         return translation;
     }
     // The reference accumulator: per-plane nonnegative pushes,

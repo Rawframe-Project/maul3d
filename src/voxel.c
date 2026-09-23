@@ -505,6 +505,7 @@ bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, u
     m3World* world = ResolveVoxelShape(shapeId, &shape);
     if (world == NULL || !VoxelCoordsValid(x, y, z))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     if (world->journalActive != 0)
@@ -533,6 +534,7 @@ bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z)
     m3World* world = ResolveVoxelShape(shapeId, &shape);
     if (world == NULL || !VoxelCoordsValid(x, y, z))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     if (world->journalActive != 0)
@@ -558,11 +560,13 @@ bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, ui
     m3World* world = ResolveVoxelShape(shapeId, &shape);
     if (world == NULL || !VoxelCoordsValid(x, y, z) || fill == 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // fill zero is a clear in disguise: refused
     }
     int32_t slot = world->shapeVoxelIndex[shape];
     if (!m3VoxelGet(&world->voxelData[slot], x, y, z))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     if (world->journalActive != 0)
@@ -591,6 +595,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
     m3World* world = ResolveVoxelShape(shapeId, &shape);
     if (world == NULL || lo == NULL || hi == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return -1;
     }
     for (int32_t k = 0; k < 3; ++k)

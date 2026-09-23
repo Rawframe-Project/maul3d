@@ -4309,7 +4309,7 @@ void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !(dt > 0.0f) || substeps < 1 || substeps > M3_MAX_SUBSTEPS)
     {
-        M3_ASSERT(false);
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     world->stepVetoCount = 0;

@@ -351,6 +351,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
         !m3FiniteF(def->maximumLinearSpeed) || def->maximumLinearSpeed <= 0.0f ||
         !m3FiniteF(def->hitEventThreshold) || def->hitEventThreshold < 0.0f)
     {
+        m3Refuse(NULL, m3_errorInvalid);
         // User-input validation is contract, not invariant: the API
         // promises a null id for a bad def (tests exercise this), so
         // no assert here. Asserts guard states that cannot happen.
@@ -368,6 +369,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     }
     if (slot < 0)
     {
+        m3Refuse(NULL, m3_errorCapacity);
         return nullId; // table exhausted: loud, never silent, and a
                        // capacity refusal is contract, not invariant
     }
@@ -776,6 +778,7 @@ void m3DestroyWorld(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     int32_t slot = world->worldIndex0;
@@ -849,6 +852,7 @@ void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteV3(gravity))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -872,6 +876,7 @@ void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio
     if (world == NULL || !m3FiniteF(hertz) || hertz <= 0.0f || !m3FiniteF(dampingRatio) ||
         dampingRatio <= 0.0f || !m3FiniteF(pushMaxSpeed) || pushMaxSpeed <= 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -896,6 +901,7 @@ void m3World_SetRestitutionThreshold(m3WorldId worldId, float value)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -910,6 +916,7 @@ void m3World_SetMaximumLinearSpeed(m3WorldId worldId, float value)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -924,6 +931,7 @@ void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -947,6 +955,7 @@ m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return usage;
     }
     usage.persistentBytes = world->memoryBytes;
@@ -983,6 +992,7 @@ m3Counters m3World_GetCounters(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return counters;
     }
     counters.bodyCount = PoolLive(&world->bodyPool);
@@ -1014,6 +1024,7 @@ m3Counters m3World_GetCounters(m3WorldId worldId)
     counters.scratchCapacity = world->scratch.capacity;
     counters.snapshotBytes = m3World_SnapshotSize(worldId);
     m3DebugAllocCounts(&counters.allocCalls, &counters.freeCalls);
+    counters.misuse = m3MisuseCount(world);
     return counters;
 }
 
@@ -1034,6 +1045,7 @@ void m3World_EnableSleeping(m3WorldId worldId, bool flag)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1055,6 +1067,7 @@ void m3World_EnableContinuous(m3WorldId worldId, bool flag)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1083,6 +1096,7 @@ void m3World_SetHitEventThreshold(m3WorldId worldId, float value)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1150,6 +1164,7 @@ void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gus
     if (world == NULL || !m3FiniteV3(direction) || !m3FiniteF(speed) || speed < 0.0f ||
         !m3FiniteF(gustHertz) || gustHertz < 0.0f || !m3FiniteF(gustScale) || gustScale < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (speed > 0.0f)
@@ -1191,6 +1206,7 @@ void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* cont
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     world->preSolveFn = fn;
@@ -1264,6 +1280,7 @@ void m3World_RebuildBroadphase(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1352,11 +1369,13 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M3_WATER_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return null;
     }
     int32_t slot = m3CreateWaterVolumeInternal(world, def);
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return null;
     }
     m3WaterVolumeId id = {slot + 1, world->worldIndex0, world->waterPool.generations[slot]};
@@ -1398,6 +1417,7 @@ void m3DestroyWaterVolume(m3WaterVolumeId id)
     int32_t slot = world != NULL ? WaterSlot(world, id) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -1442,6 +1462,7 @@ bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || buffer == NULL || capacity < 8 || world->journalActive != 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // contract, not invariant
     }
     world->journalBuffer = (uint8_t*)buffer;
@@ -1457,6 +1478,7 @@ int32_t m3World_JournalEnd(m3WorldId worldId)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return -1; // contract, not invariant
     }
     int32_t bytes = world->journalOverflow != 0 ? -1 : world->journalCursor;
@@ -3260,6 +3282,7 @@ bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || data == NULL || size < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // contract, not invariant
     }
     // Atomic replay: the world either takes the whole session
@@ -3270,6 +3293,7 @@ bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size)
     uint8_t* snap = (uint8_t*)m3AllocZeroed(snapBytes);
     if (snap == NULL)
     {
+        m3Refuse(world, m3_errorCapacity);
         return false; // no memory for the guarantee means no replay
     }
     if (m3World_Snapshot(worldId, snap, snapBytes) != snapBytes)

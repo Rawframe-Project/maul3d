@@ -15,6 +15,8 @@
 #ifndef MAUL3D_ALLOCATOR_H
 #define MAUL3D_ALLOCATOR_H
 
+#include "core.h"
+
 #include "maul3d/base.h"
 
 // Persistent arrays. The field is NULL when the count is not positive,

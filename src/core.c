@@ -2,11 +2,15 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Core: version, the FNV-1a hash every determinism gate folds through,
-// and the debug assert hook. No dependencies beyond libc.
+// the assert hook, refusals and the profile clock.
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 199309L // NOLINT(bugprone-reserved-identifier): clock_gettime
 #endif
+
+#include "core.h"
+
+#include "world_internal.h"
 
 #include "maul3d/base.h"
 
@@ -14,6 +18,7 @@
 #include <stdlib.h>
 
 #ifdef _WIN32
+#include <intrin.h>
 #include <windows.h>
 #else
 #include <time.h>
@@ -53,35 +58,60 @@ uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count)
     return h;
 }
 
-static m3AssertFn s_assertHandler = NULL;
-static m3AssertCtxFn* s_assertHandlerCtx = NULL;
+static m3AssertFn* s_assertHandler = NULL;
 static void* s_assertContext = NULL;
 
-void m3SetAssertHandler(m3AssertFn handler)
+void m3SetAssertHandler(m3AssertFn* handler, void* context)
 {
     s_assertHandler = handler;
-}
-
-void m3SetAssertHandlerCtx(m3AssertCtxFn* handler, void* context)
-{
-    s_assertHandlerCtx = handler;
     s_assertContext = context;
 }
 
 void m3AssertFail(const char* condition, const char* file, int line)
 {
-    // Debug-only diagnostic. Library code never aborts in release; the
-    // guarded return paths carry the failure instead. A host handler
-    // returning nonzero declares the failure handled.
-    if (s_assertHandlerCtx != NULL &&
-        s_assertHandlerCtx(condition, file, line, s_assertContext) != 0)
+    if (s_assertHandler != NULL && s_assertHandler(condition, file, line, s_assertContext) != 0)
     {
-        return; // handled by the contextful hook (A5)
+        return; // handled by the host
     }
-    if (s_assertHandler != NULL && s_assertHandler(condition, file, line) != 0)
-    {
-        return;
-    }
-    fprintf(stderr, "maul3d assert failed: %s (%s:%d)\n", condition, file, line);
+    fprintf(stderr, "maul3d assertion failed: %s (%s:%d)\n", condition, file, line);
     abort();
+}
+
+#if defined(_MSC_VER)
+#define M3_THREAD_LOCAL __declspec(thread)
+#else
+#define M3_THREAD_LOCAL _Thread_local
+#endif
+
+// One slot per thread: a refusal on one thread never overwrites the
+// reason another thread is about to read.
+static M3_THREAD_LOCAL m3Result s_lastResult = m3_success;
+
+m3Result m3LastResult(void)
+{
+    return s_lastResult;
+}
+
+void m3Refuse(m3World* world, m3Result reason)
+{
+    s_lastResult = reason;
+    if (world != NULL && reason == m3_errorInvalid)
+    {
+        // Reader-class calls refuse too, possibly on several threads at
+        // once, so the counter is bumped atomically.
+#if defined(_MSC_VER)
+        _InterlockedIncrement64(&world->misuseCount);
+#else
+        __atomic_fetch_add(&world->misuseCount, 1, __ATOMIC_RELAXED);
+#endif
+    }
+}
+
+uint64_t m3MisuseCount(const m3World* world)
+{
+#if defined(_MSC_VER)
+    return (uint64_t)_InterlockedCompareExchange64((volatile long long*)&world->misuseCount, 0, 0);
+#else
+    return (uint64_t)__atomic_load_n(&world->misuseCount, __ATOMIC_RELAXED);
+#endif
 }

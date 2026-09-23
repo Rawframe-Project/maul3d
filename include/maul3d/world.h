@@ -552,6 +552,7 @@ extern "C"
         int32_t snapshotBytes;   // exact m3World_Snapshot size now
         int64_t allocCalls;      // process-global persistent allocs
         int64_t freeCalls;
+        uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
     } m3Counters;
 
     M3_API m3Counters m3World_GetCounters(m3WorldId worldId);

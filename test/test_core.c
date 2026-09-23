@@ -9,8 +9,11 @@
 #include "allocator.h"
 #include "test_harness.h"
 
+#include "maul3d/body.h"
 #include "maul3d/math.h"
+#include "maul3d/world.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -83,8 +86,62 @@ static void TestIdShapes(void)
           "ids are 8 bytes");
 }
 
+static int s_handled = 0;
+static int HandleAssert(const char* condition, const char* file, int line, void* context)
+{
+    (void)condition;
+    (void)file;
+    (void)line;
+    *(int*)context += 1;
+    return 1; // handled: no abort
+}
+
+static void TestAssertHandler(void)
+{
+    // The hook sees a failed invariant with its context and suppresses
+    // the abort. Refusing bad input is not a failed invariant: it
+    // records a reason and never reaches the hook.
+    s_handled = 0;
+    m3SetAssertHandler(HandleAssert, &s_handled);
+    m3AssertFail("test", __FILE__, __LINE__);
+    CHECK(s_handled == 1, "the handler saw the failure and carried its context");
+    m3WorldDef bad = m3DefaultWorldDef();
+    bad.internalValue = 0;
+    CHECK(!m3World_IsValid(m3CreateWorld(&bad)), "a hand-rolled def is refused");
+    CHECK(s_handled == 1, "without an assertion");
+    CHECK(m3LastResult() == m3_errorInvalid, "and the refusal carries its reason");
+    m3SetAssertHandler(NULL, NULL);
+}
+
+static void TestEveryRefusalHasAReason(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId b = m3CreateBody(world, &bd);
+    CHECK(m3Body_IsValid(a) && m3Body_IsValid(b), "two bodies fit");
+    CHECK(m3CreateBody(world, &bd).index1 == 0, "a third body is refused");
+    CHECK(m3LastResult() == m3_errorCapacity, "because the pool is full");
+
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    m3World_SetGravity(world, (m3Vec3){0.0f, NAN, 0.0f});
+    CHECK(m3LastResult() == m3_errorInvalid, "a NaN gravity is refused as invalid");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "and counts as misuse");
+    m3DestroyBody(b);
+    CHECK(!m3Body_IsValid(b), "a validity query on a stale id answers false");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "without counting as misuse");
+
+    m3DestroyWorld(world);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(m3LastResult() == m3_errorInvalid, "stepping a destroyed world is refused");
+}
+
 int main(void)
 {
+    TestAssertHandler();
+    TestEveryRefusalHasAReason();
     TestStack();
     TestIdPool();
     TestIdShapes();

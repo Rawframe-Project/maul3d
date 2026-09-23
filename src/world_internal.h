@@ -1002,6 +1002,8 @@ typedef struct m3World
     int32_t lastIslandCount; // last completed step
     int32_t lastColorCount;  // last completed step
     int32_t lastScratchPeak; // bytes, last completed step
+    volatile long long
+        misuseCount; // cumulative refusals; atomic access only (m3Refuse, m3MisuseCount)
 } m3World;
 
 // Registry lookup: NULL for a stale or null id.
@@ -1025,7 +1027,8 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
 void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3]);
 
 // Monotonic milliseconds (core.c): the profile clock. Observer only.
-double m3NowMs(void);
+// Ray against one shape, in world space; used by the ray queries.
+m3RayHit m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 translation);
 
 // Tuning defaults: the reference values, shared by the def,
 // the solver reads, and the off-default hash folds.

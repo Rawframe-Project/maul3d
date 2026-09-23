@@ -423,6 +423,7 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         (def->type != m3_staticBody && def->type != m3_kinematicBody &&
          def->type != m3_dynamicBody))
     {
+        m3Refuse(world, m3_errorInvalid);
         // Contract, not invariant: a bad def or stale world returns
         // the null id (see m3CreateWorld).
         return m3_nullBodyId;
@@ -438,11 +439,13 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         !m3FiniteF(def->angularDamping) || def->linearDamping < 0.0f ||
         def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f))
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullBodyId;
     }
     int32_t index = m3CreateBodyInternal(world, def);
     if (index < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullBodyId;
     }
     m3BodyId id = {index + 1, world->worldIndex0, world->bodyPool.generations[index]};
@@ -467,6 +470,7 @@ void m3DestroyBody(m3BodyId bodyId)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (world->journalActive != 0)
@@ -536,6 +540,7 @@ void m3Body_SetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation)
     if (world == NULL || !m3FinitePos3(position) || !m3FiniteQuat(rotation) || !(qq > 0.98f) ||
         !(qq < 1.02f))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     m3Transform pose = {position, rotation};
@@ -563,6 +568,7 @@ void m3Body_SetTargetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation
     if (world == NULL || world->types[index] != (uint8_t)m3_kinematicBody ||
         !m3FinitePos3(position) || !m3FiniteQuat(rotation) || !(qq > 0.98f) || !(qq < 1.02f))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // kinematic bodies only: the servo contract
     }
     m3Transform pose = {position, rotation};
@@ -588,6 +594,7 @@ void m3Body_SetType(m3BodyId bodyId, m3BodyType type)
     if (world == NULL ||
         (type != m3_staticBody && type != m3_kinematicBody && type != m3_dynamicBody))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -611,6 +618,7 @@ void m3Body_SetEnabled(m3BodyId bodyId, bool enabled)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -641,6 +649,7 @@ void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || (locks & ~0x3Fu) != 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // only the six lock bits exist
     }
     if (world->journalActive != 0)
@@ -684,6 +693,7 @@ void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -729,6 +739,7 @@ void m3Body_SetName(m3BodyId bodyId, const char* name)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -765,6 +776,7 @@ void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || !m3FiniteF(threshold) || threshold < 0.0f)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -797,6 +809,7 @@ void m3Body_SetAwake(m3BodyId bodyId, bool awake)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || world->types[index] != (uint8_t)m3_dynamicBody)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -820,6 +833,7 @@ void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || !m3FiniteV3(force) || !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -843,6 +857,7 @@ void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || !m3FiniteV3(torque) || !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -866,6 +881,7 @@ void m3Body_ApplyLinearImpulse(m3BodyId bodyId, m3Vec3 impulse)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || !m3FiniteV3(impulse) || !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -889,6 +905,7 @@ void m3Body_ApplyAngularImpulse(m3BodyId bodyId, m3Vec3 impulse)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL || !m3FiniteV3(impulse) || !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -913,6 +930,7 @@ void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
     if (world == NULL || !m3FiniteV3(force) || !m3FinitePos3(point) ||
         !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -939,6 +957,7 @@ void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 po
     if (world == NULL || !m3FiniteV3(impulse) || !m3FinitePos3(point) ||
         !ForceTargetValid(world, index))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -964,10 +983,12 @@ void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (!m3FiniteV3(velocity))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
     }
     if (world->journalActive != 0)
@@ -991,10 +1012,12 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
     m3World* world = ResolveBody(bodyId, &index);
     if (world == NULL)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
     if (!m3FiniteV3(velocity))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
     }
     if (world->journalActive != 0)

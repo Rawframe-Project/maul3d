@@ -700,11 +700,13 @@ m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M3_VEHICLE_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullVehicleId; // field checks live in the internal
     }
     int32_t slot = m3CreateVehicleInternal(world, def);
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorCapacity);
         return m3_nullVehicleId;
     }
     m3VehicleId id = {slot + 1, world->worldIndex0, world->vehPool.generations[slot]};
@@ -729,6 +731,7 @@ void m3DestroyVehicle(m3VehicleId vehicleId)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale: the quiet destroy contract
     }
     if (world->journalActive != 0)
@@ -750,6 +753,7 @@ m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehWheelCount[slot])
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
     return world->vehWheelCompression[slot * M3_VEHICLE_MAX_WHEELS + wheel];
@@ -761,6 +765,7 @@ void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || !m3FiniteF(throttle) || !m3FiniteF(steer) || !m3FiniteF(brake))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale id or hostile command: a documented no-op
     }
     if (world->journalActive != 0)
@@ -789,6 +794,7 @@ void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
     if (slot < 0 || !m3FiniteF(left) || !m3FiniteF(right) || !m3FiniteF(brake) ||
         world->vehDtActive[slot] != 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // a gearbox and a skid steer are different machines
     }
     if (world->journalActive != 0)
@@ -816,6 +822,7 @@ m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehWheelCount[slot])
     {
+        m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
     return world->vehWheelSpin[slot * M3_VEHICLE_MAX_WHEELS + wheel];
@@ -827,6 +834,7 @@ bool m3Vehicle_IsWheelGrounded(m3VehicleId vehicleId, int32_t wheel)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehWheelCount[slot])
     {
+        m3Refuse(world, m3_errorInvalid);
         return false;
     }
     return world->vehWheelContact[slot * M3_VEHICLE_MAX_WHEELS + wheel] != 0;
@@ -963,10 +971,12 @@ void m3Vehicle_SetDrivetrain(m3VehicleId vehicleId, const m3DrivetrainDef* def)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || def == NULL || def->internalValue != M3_DRIVETRAIN_COOKIE)
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // stale id or hostile def: a documented no-op
     }
     if (!m3VehicleDrivetrainInternal(world, slot, def))
     {
+        m3Refuse(world, m3_errorInvalid);
         return; // invalid fields never journal
     }
     if (world->journalActive != 0)
@@ -989,10 +999,12 @@ void m3Vehicle_SelectGear(m3VehicleId vehicleId, int32_t gear)
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (!m3VehicleGearInternal(world, slot, gear))
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
