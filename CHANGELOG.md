@@ -117,6 +117,11 @@ Work toward 0.0.1, the first release of the reworked library.
   argument-halving identity and a Taylor series, accurate to about
   4e-7 instead of the previous 2e-3. docs/references.md lists the
   published sources behind the algorithms.
+- Snapshot format 2: the header holds only the magic, the format
+  version, the build hash and the eight world capacities. Step count,
+  gravity, the pair count, the tree cursors and every pool cursor are
+  state table rows, checked before any byte lands. A vehicle or soft
+  body capacity mismatch is now `m3_errorConfig`.
 
 ### Removed
 
@@ -202,3 +207,7 @@ Work toward 0.0.1, the first release of the reworked library.
 - The character's slope cosine, vehicle steering and the soft-body
   wind gust called libm's cosf and sinf, which are not required to
   agree bit for bit across platforms; they now use m3ComputeCosSin.
+- Restore now brings back the slot cursors of the height field, water,
+  vehicle and soft body pools. They were missing from snapshots, so a
+  soft body destroyed after a snapshot came back on restore, and the
+  next create reused its slot and overwrote it.

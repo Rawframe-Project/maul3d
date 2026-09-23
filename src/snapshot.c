@@ -27,7 +27,7 @@
 #endif
 
 #define M3_SNAPSHOT_MAGIC   0x4D33534Eu // 'M3SN'
-#define M3_SNAPSHOT_VERSION 1u
+#define M3_SNAPSHOT_VERSION 2u
 
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.
@@ -37,54 +37,29 @@ _Static_assert(sizeof(m3Pos3) == 24, "m3Pos3 must be padding-free");
 _Static_assert(sizeof(m3Transform) == 40, "m3Transform must be padding-free");
 _Static_assert(sizeof(m3Mat3) == 36, "m3Mat3 must be padding-free");
 
+// The header says which build and which world shape wrote the bytes;
+// everything else, pool cursors included, is the state table's.
 typedef struct m3SnapshotHeader
 {
     uint32_t magic;
     uint32_t formatVersion;
     uint64_t configHash;
-    uint64_t stepCount;
-    int32_t bodyCapacity;
-    int32_t maxIndex;
-    int32_t freeHead;
-    int32_t freeCount;
-    int32_t retiredCount;
-    int32_t shapeCapacity;
-    int32_t shapeMaxIndex;
-    int32_t shapeFreeHead;
-    int32_t shapeFreeCount;
-    int32_t shapeRetiredCount;
-    int32_t pairCount;
-    int32_t treeRoot;
-    int32_t treeFreeList;
-    int32_t hullMaxIndex;
-    int32_t hullFreeHead;
-    int32_t hullFreeCount;
-    int32_t hullRetiredCount;
-    int32_t meshCapacity;
-    int32_t meshMaxIndex;
-    int32_t meshFreeHead;
-    int32_t meshFreeCount;
-    int32_t meshRetiredCount;
-    int32_t jointCapacity;
-    int32_t jointMaxIndex;
-    int32_t jointFreeHead;
-    int32_t jointFreeCount;
-    int32_t jointRetiredCount;
-    int32_t voxelCapacity;
-    int32_t voxelMaxIndex;
-    int32_t voxelFreeHead;
-    int32_t voxelFreeCount;
-    int32_t voxelRetiredCount;
-    int32_t charCapacity;
-    int32_t charMaxIndex;
-    int32_t charFreeHead;
-    int32_t charFreeCount;
-    int32_t charRetiredCount;
-    int32_t reserved[2]; // keeps the 8-byte-aligned header padding-free
-    m3Vec3 gravity;
+    int32_t capacities[8];
 } m3SnapshotHeader;
 
-_Static_assert(sizeof(m3SnapshotHeader) == 192, "snapshot header must be padding-free");
+_Static_assert(sizeof(m3SnapshotHeader) == 48, "snapshot header must be padding-free");
+
+static void WorldCapacities(const m3World* world, int32_t capacities[8])
+{
+    capacities[0] = world->bodies.bodyCapacity;
+    capacities[1] = world->shapes.shapeCapacity;
+    capacities[2] = world->meshes.meshCapacity;
+    capacities[3] = world->joints.jointCapacity;
+    capacities[4] = world->voxels.voxelCapacity;
+    capacities[5] = world->characters.characterCapacity;
+    capacities[6] = world->vehicles.vehicleCapacity;
+    capacities[7] = world->softBodies.softBodyCapacity;
+}
 
 static uint64_t ConfigHash(void)
 {
@@ -112,164 +87,168 @@ typedef enum m3WalkMode
     m3_walkRead = 2,
 } m3WalkMode;
 
+// A cursor over the snapshot byte stream. Measure only counts; write
+// and read stream against the caller's buffer at the running offset.
+typedef struct m3Walk
+{
+    uint8_t* out;
+    const uint8_t* in;
+    m3WalkMode mode;
+    int32_t cursor;
+} m3Walk;
+
+static void Block(m3Walk* walk, void* ptr, int32_t bytes)
+{
+    if (walk->mode == m3_walkWrite)
+    {
+        memcpy(walk->out + walk->cursor, ptr, (size_t)bytes);
+    }
+    else if (walk->mode == m3_walkRead)
+    {
+        memcpy(ptr, walk->in + walk->cursor, (size_t)bytes);
+    }
+    walk->cursor += bytes;
+}
+
+// Counts land first; the read pass sizes the slot through the alloc gate
+// before its content arrives. The BVH stays derived and rebuilds after
+// restore. A material-free mesh writes zeros for its material table.
+static bool WalkMesh(m3Walk* walk, m3MeshData* mesh)
+{
+    Block(walk, &mesh->vertexCount, 4);
+    Block(walk, &mesh->triangleCount, 4);
+    if (walk->mode == m3_walkRead && !m3MeshDataAlloc(mesh))
+    {
+        return false; // corrupt counts or no memory
+    }
+    if (mesh->triangleCount == 0)
+    {
+        return true;
+    }
+    Block(walk, mesh->vertices, mesh->vertexCount * (int32_t)sizeof(m3Vec3));
+    Block(walk, mesh->indices, 3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
+    Block(walk, mesh->edgeFlags, mesh->triangleCount);
+    Block(walk, &mesh->materialCount, 4);
+    if (walk->mode == m3_walkRead &&
+        (mesh->materialCount < 0 || mesh->materialCount > M3_MESH_MAX_MATERIALS))
+    {
+        return false;
+    }
+    Block(walk, mesh->materials, (int32_t)sizeof(mesh->materials));
+    Block(walk, mesh->triMaterials, mesh->triangleCount);
+    return true;
+}
+
+static bool HullCountsValid(const m3HullData* hull)
+{
+    return hull->vertexCount >= 0 && hull->vertexCount <= M3_HULL_MAX_VERTS &&
+           hull->faceCount >= 0 && hull->faceCount <= M3_HULL_MAX_FACES && hull->indexCount >= 0 &&
+           hull->indexCount <= M3_HULL_MAX_FACE_INDICES && hull->edgeCount >= 0 &&
+           hull->edgeCount <= M3_HULL_MAX_HALF_EDGES &&
+           (hull->vertexCount != 0 || (hull->faceCount | hull->indexCount | hull->edgeCount) == 0);
+}
+
+// Only the used prefix of each hull array travels; an empty slot costs
+// 16 bytes. The read pass wipes a lived-in slot so the unused tail is
+// canonical zeros. An empty slot already is (create fills prefixes,
+// release wipes), and wiping every slot made restore five times slower
+// than snapshot.
+static bool WalkHull(m3Walk* walk, m3HullData* hull)
+{
+    int32_t hadContent = hull->vertexCount; // read before the counts land
+    Block(walk, &hull->vertexCount, 4);
+    Block(walk, &hull->faceCount, 4);
+    Block(walk, &hull->indexCount, 4);
+    Block(walk, &hull->edgeCount, 4);
+    if (walk->mode == m3_walkRead)
+    {
+        if (!HullCountsValid(hull))
+        {
+            return false;
+        }
+        if (hadContent > 0)
+        {
+            int32_t vc = hull->vertexCount;
+            int32_t fc = hull->faceCount;
+            int32_t ic = hull->indexCount;
+            int32_t ec = hull->edgeCount;
+            memset(hull, 0, sizeof(*hull));
+            hull->vertexCount = vc;
+            hull->faceCount = fc;
+            hull->indexCount = ic;
+            hull->edgeCount = ec;
+        }
+    }
+    if (hull->vertexCount > 0)
+    {
+        Block(walk, &hull->unitMass, 4);
+        Block(walk, &hull->unitCom, (int32_t)sizeof(m3Vec3));
+        Block(walk, &hull->unitInertiaCom, (int32_t)sizeof(m3Mat3));
+        Block(walk, &hull->center, (int32_t)sizeof(m3Vec3));
+        Block(walk, hull->vertices, hull->vertexCount * (int32_t)sizeof(m3Vec3));
+        Block(walk, hull->faceNormals, hull->faceCount * (int32_t)sizeof(m3Vec3));
+        Block(walk, hull->faceOffsets, hull->faceCount * (int32_t)sizeof(m3real));
+        Block(walk, hull->faceVertCounts, hull->faceCount);
+        Block(walk, hull->faceVertStart, hull->faceCount * (int32_t)sizeof(uint16_t));
+        Block(walk, hull->faceIndices, hull->indexCount);
+        Block(walk, hull->edges, hull->edgeCount * (int32_t)sizeof(m3HullHalfEdge));
+    }
+    return true;
+}
+
+// Counts first, then the baked extremes and the raw samples; the read
+// pass refuses hostile counts and sizes through the alloc gate.
+static bool WalkHeightField(m3Walk* walk, m3HeightFieldData* hf)
+{
+    Block(walk, &hf->nx, 4);
+    Block(walk, &hf->nz, 4);
+    Block(walk, &hf->cellSize, 4);
+    if (walk->mode == m3_walkRead)
+    {
+        bool valid = hf->nx >= 0 && hf->nx <= M3_HEIGHTFIELD_MAX_DIM && hf->nz >= 0 &&
+                     hf->nz <= M3_HEIGHTFIELD_MAX_DIM && (hf->nx == 0) == (hf->nz == 0) &&
+                     (hf->nx == 0 || (hf->nx >= 2 && hf->nz >= 2));
+        if (!valid || !m3HeightFieldDataAlloc(hf))
+        {
+            return false;
+        }
+    }
+    if (hf->nx > 0)
+    {
+        Block(walk, &hf->minHeight, 4);
+        Block(walk, &hf->maxHeight, 4);
+        Block(walk, hf->heights, hf->nx * hf->nz * (int32_t)sizeof(float));
+    }
+    return true;
+}
+
 // The snapshot byte stream: the state table's fixed prefix, then the
-// variable-size per-slot content (meshes, hulls, heightfields). Measure
-// returns the byte total; write and read stream against the caller's
-// buffer at the running offset.
+// variable-size per-slot content (meshes, hulls, heightfields) last, so
+// the prefix stays state-independent and restore can pre-validate sizes
+// straight from the buffer. Returns the byte total, or -1 when a read
+// meets corrupt counts or runs out of memory.
 static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3WalkMode mode,
                           int includeMesh)
 {
-    int32_t cursor = 0;
-
-#define M3_BLOCK(ptr, bytes)                                                                       \
-    do                                                                                             \
-    {                                                                                              \
-        int32_t n = (int32_t)(bytes);                                                              \
-        if (mode == m3_walkWrite)                                                                  \
-        {                                                                                          \
-            memcpy(out + cursor, (ptr), (size_t)n);                                                \
-        }                                                                                          \
-        else if (mode == m3_walkRead)                                                              \
-        {                                                                                          \
-            memcpy((ptr), in + cursor, (size_t)n);                                                 \
-        }                                                                                          \
-        cursor += n;                                                                               \
-    } while (0)
-
-    // The fixed prefix: every snapshot array, in table order.
-    cursor = m3StateWalk(world, out, in, mode == m3_walkWrite ? 0 : mode == m3_walkRead ? 1 : 2);
-
-    // Mesh content LAST: the only variable-size section, so
-    // the fixed prefix above stays state-independent and the
-    // restore can pre-validate sizes straight from the buffer.
-    // Counts land first; the read pass sizes the slot through the
-    // alloc gate before its content arrives. The BVH stays derived
-    // and rebuilds after restore.
-    if (includeMesh)
+    m3Walk walk = {out, in, mode, 0};
+    walk.cursor = m3StateWalk(world, out, in,
+                              mode == m3_walkWrite  ? 0
+                              : mode == m3_walkRead ? 1
+                                                    : 2);
+    bool ok = true;
+    for (int32_t m = 0; includeMesh && ok && m < world->meshes.meshCapacity; ++m)
     {
-        for (int32_t m = 0; m < world->meshes.meshCapacity; ++m)
-        {
-            m3MeshData* mesh = &world->meshes.meshData[m];
-            M3_BLOCK(&mesh->vertexCount, 4);
-            M3_BLOCK(&mesh->triangleCount, 4);
-            if (mode == m3_walkRead)
-            {
-                if (!m3MeshDataAlloc(mesh))
-                {
-                    return -1; // corrupt counts or no memory: refuse
-                }
-            }
-            if (mesh->triangleCount > 0)
-            {
-                M3_BLOCK(mesh->vertices, mesh->vertexCount * (int32_t)sizeof(m3Vec3));
-                M3_BLOCK(mesh->indices, 3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
-                M3_BLOCK(mesh->edgeFlags, mesh->triangleCount);
-                // Material groups: the count, the fixed
-                // table, and one group byte per triangle. A
-                // material-free mesh writes zeros throughout.
-                M3_BLOCK(&mesh->materialCount, 4);
-                if (mode == m3_walkRead &&
-                    (mesh->materialCount < 0 || mesh->materialCount > M3_MESH_MAX_MATERIALS))
-                {
-                    return -1; // corrupt count: refuse
-                }
-                M3_BLOCK(mesh->materials, (int32_t)sizeof(mesh->materials));
-                M3_BLOCK(mesh->triMaterials, mesh->triangleCount);
-            }
-        }
-        // Hull content, count-derived: counts land first,
-        // the read pass validates them against the compile-time
-        // caps and zeroes the slab so the unused tail is canonical
-        // (a released slot already zeroes itself; this guards the
-        // restore-over-a-lived-in-world path). Only the used
-        // prefixes of each array travel; an empty slot costs 16
-        // bytes instead of 5808.
-        for (int32_t hIdx = 0; hIdx < world->shapes.shapeCapacity; ++hIdx)
-        {
-            m3HullData* hull = &world->hulls.hullData[hIdx];
-            // The old count, read BEFORE the incoming counts land:
-            // an empty slab is already canonical zeros (create
-            // fills prefixes, release wipes), so only a lived-in
-            // slot pays the wipe below. The unconditional memset
-            // was 47 MB per restore at 8k shape slots and restore
-            // ran five times slower than snapshot because of it.
-            int32_t hadContent = hull->vertexCount;
-            M3_BLOCK(&hull->vertexCount, 4);
-            M3_BLOCK(&hull->faceCount, 4);
-            M3_BLOCK(&hull->indexCount, 4);
-            M3_BLOCK(&hull->edgeCount, 4);
-            if (mode == m3_walkRead)
-            {
-                if (hull->vertexCount < 0 || hull->vertexCount > M3_HULL_MAX_VERTS ||
-                    hull->faceCount < 0 || hull->faceCount > M3_HULL_MAX_FACES ||
-                    hull->indexCount < 0 || hull->indexCount > M3_HULL_MAX_FACE_INDICES ||
-                    hull->edgeCount < 0 || hull->edgeCount > M3_HULL_MAX_HALF_EDGES ||
-                    (hull->vertexCount == 0 &&
-                     (hull->faceCount | hull->indexCount | hull->edgeCount) != 0))
-                {
-                    return -1; // corrupt counts: refuse
-                }
-                if (hadContent > 0)
-                {
-                    int32_t vc = hull->vertexCount;
-                    int32_t fc = hull->faceCount;
-                    int32_t ic = hull->indexCount;
-                    int32_t ec = hull->edgeCount;
-                    memset(hull, 0, sizeof(*hull));
-                    hull->vertexCount = vc;
-                    hull->faceCount = fc;
-                    hull->indexCount = ic;
-                    hull->edgeCount = ec;
-                }
-            }
-            if (hull->vertexCount > 0)
-            {
-                M3_BLOCK(&hull->unitMass, 4);
-                M3_BLOCK(&hull->unitCom, (int32_t)sizeof(m3Vec3));
-                M3_BLOCK(&hull->unitInertiaCom, (int32_t)sizeof(m3Mat3));
-                M3_BLOCK(&hull->center, (int32_t)sizeof(m3Vec3));
-                M3_BLOCK(hull->vertices, hull->vertexCount * (int32_t)sizeof(m3Vec3));
-                M3_BLOCK(hull->faceNormals, hull->faceCount * (int32_t)sizeof(m3Vec3));
-                M3_BLOCK(hull->faceOffsets, hull->faceCount * (int32_t)sizeof(m3real));
-                M3_BLOCK(hull->faceVertCounts, hull->faceCount);
-                M3_BLOCK(hull->faceVertStart, hull->faceCount * (int32_t)sizeof(uint16_t));
-                M3_BLOCK(hull->faceIndices, hull->indexCount);
-                M3_BLOCK(hull->edges, hull->edgeCount * (int32_t)sizeof(m3HullHalfEdge));
-            }
-        }
-        // Native heightfield content: counts first, then the
-        // baked extremes and the raw samples; the read pass sizes
-        // through the alloc gate and refuses hostile counts.
-        for (int32_t hfIdx = 0; hfIdx < world->shapes.shapeCapacity; ++hfIdx)
-        {
-            m3HeightFieldData* hf = &world->heightFields.hfData[hfIdx];
-            M3_BLOCK(&hf->nx, 4);
-            M3_BLOCK(&hf->nz, 4);
-            M3_BLOCK(&hf->cellSize, 4);
-            if (mode == m3_walkRead)
-            {
-                if (hf->nx < 0 || hf->nx > M3_HEIGHTFIELD_MAX_DIM || hf->nz < 0 ||
-                    hf->nz > M3_HEIGHTFIELD_MAX_DIM || (hf->nx == 0) != (hf->nz == 0) ||
-                    (hf->nx > 0 && (hf->nx < 2 || hf->nz < 2)))
-                {
-                    return -1;
-                }
-                if (!m3HeightFieldDataAlloc(hf))
-                {
-                    return -1;
-                }
-            }
-            if (hf->nx > 0)
-            {
-                M3_BLOCK(&hf->minHeight, 4);
-                M3_BLOCK(&hf->maxHeight, 4);
-                M3_BLOCK(hf->heights, hf->nx * hf->nz * (int32_t)sizeof(float));
-            }
-        }
+        ok = WalkMesh(&walk, &world->meshes.meshData[m]);
     }
-
-#undef M3_BLOCK
-    return cursor;
+    for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
+    {
+        ok = WalkHull(&walk, &world->hulls.hullData[i]);
+    }
+    for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
+    {
+        ok = WalkHeightField(&walk, &world->heightFields.hfData[i]);
+    }
+    return ok ? walk.cursor : -1;
 }
 
 int32_t m3World_SnapshotSize(m3WorldId worldId)
@@ -304,47 +283,7 @@ int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity)
     header.magic = M3_SNAPSHOT_MAGIC;
     header.formatVersion = M3_SNAPSHOT_VERSION;
     header.configHash = ConfigHash();
-    header.stepCount = world->stepCount;
-    header.bodyCapacity = world->bodies.bodyCapacity;
-    header.maxIndex = world->bodies.bodyPool.maxIndex;
-    header.freeHead = world->bodies.bodyPool.freeHead;
-    header.freeCount = world->bodies.bodyPool.freeCount;
-    header.retiredCount = world->bodies.bodyPool.retiredCount;
-    header.shapeCapacity = world->shapes.shapeCapacity;
-    header.shapeMaxIndex = world->shapes.shapePool.maxIndex;
-    header.shapeFreeHead = world->shapes.shapePool.freeHead;
-    header.shapeFreeCount = world->shapes.shapePool.freeCount;
-    header.shapeRetiredCount = world->shapes.shapePool.retiredCount;
-    header.pairCount = world->contacts.pairCount;
-    header.treeRoot = world->broadphase.tree.root;
-    header.treeFreeList = world->broadphase.tree.freeList;
-    header.hullMaxIndex = world->hulls.hullPool.maxIndex;
-    header.hullFreeHead = world->hulls.hullPool.freeHead;
-    header.hullFreeCount = world->hulls.hullPool.freeCount;
-    header.hullRetiredCount = world->hulls.hullPool.retiredCount;
-    header.reserved[0] = 0;
-    header.reserved[1] = 0;
-    header.meshCapacity = world->meshes.meshCapacity;
-    header.jointCapacity = world->joints.jointCapacity;
-    header.jointMaxIndex = world->joints.jointPool.maxIndex;
-    header.jointFreeHead = world->joints.jointPool.freeHead;
-    header.jointFreeCount = world->joints.jointPool.freeCount;
-    header.jointRetiredCount = world->joints.jointPool.retiredCount;
-    header.charCapacity = world->characters.characterCapacity;
-    header.charMaxIndex = world->characters.charPool.maxIndex;
-    header.charFreeHead = world->characters.charPool.freeHead;
-    header.charFreeCount = world->characters.charPool.freeCount;
-    header.charRetiredCount = world->characters.charPool.retiredCount;
-    header.voxelCapacity = world->voxels.voxelCapacity;
-    header.voxelMaxIndex = world->voxels.voxelPool.maxIndex;
-    header.voxelFreeHead = world->voxels.voxelPool.freeHead;
-    header.voxelFreeCount = world->voxels.voxelPool.freeCount;
-    header.voxelRetiredCount = world->voxels.voxelPool.retiredCount;
-    header.meshMaxIndex = world->meshes.meshPool.maxIndex;
-    header.meshFreeHead = world->meshes.meshPool.freeHead;
-    header.meshFreeCount = world->meshes.meshPool.freeCount;
-    header.meshRetiredCount = world->meshes.meshPool.retiredCount;
-    header.gravity = world->gravity;
+    WorldCapacities(world, header.capacities);
 
     uint8_t* bytes = (uint8_t*)out;
     memcpy(bytes, &header, sizeof(header));
@@ -480,114 +419,9 @@ static bool TailFits(const m3World* world, const uint8_t* raw, int32_t size, int
     return cursor == size;
 }
 
-bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
+// Events are transient observers: a restore clears them.
+static void ClearEvents(m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || data == NULL || size < (int32_t)sizeof(m3SnapshotHeader))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
-    }
-    m3SnapshotHeader header;
-    memcpy(&header, data, sizeof(header));
-    if (header.magic != M3_SNAPSHOT_MAGIC || header.formatVersion != M3_SNAPSHOT_VERSION ||
-        header.configHash != ConfigHash() || header.bodyCapacity != world->bodies.bodyCapacity ||
-        header.shapeCapacity != world->shapes.shapeCapacity ||
-        header.meshCapacity != world->meshes.meshCapacity ||
-        header.jointCapacity != world->joints.jointCapacity ||
-        header.voxelCapacity != world->voxels.voxelCapacity ||
-        header.charCapacity != world->characters.characterCapacity)
-    {
-        m3Refuse(world, m3_errorConfig);
-        // Wrong world shape or wrong build semantics: refuse loudly,
-        // never a partial restore.
-        return false;
-    }
-    // Pool cursor walls: a flipped header bit made
-    // jointPool.maxIndex outrun its capacity and the island pass
-    // read past the alive array (ASAN, the fuzz gate). Every
-    // cursor is ranged BEFORE any byte lands.
-#define M3_POOL_SANE(mx, fh, fc, rc, cap)                                                          \
-    ((mx) >= 0 && (mx) <= (cap) && (fh) >= -1 && (fh) < (cap) && (fc) >= 0 && (fc) <= (cap) &&     \
-     (rc) >= 0 && (rc) <= (cap))
-    if (!M3_POOL_SANE(header.maxIndex, header.freeHead, header.freeCount, header.retiredCount,
-                      world->bodies.bodyCapacity) ||
-        !M3_POOL_SANE(header.shapeMaxIndex, header.shapeFreeHead, header.shapeFreeCount,
-                      header.shapeRetiredCount, world->shapes.shapeCapacity) ||
-        !M3_POOL_SANE(header.hullMaxIndex, header.hullFreeHead, header.hullFreeCount,
-                      header.hullRetiredCount, world->shapes.shapeCapacity) ||
-        !M3_POOL_SANE(header.jointMaxIndex, header.jointFreeHead, header.jointFreeCount,
-                      header.jointRetiredCount, world->joints.jointCapacity) ||
-        !M3_POOL_SANE(header.meshMaxIndex, header.meshFreeHead, header.meshFreeCount,
-                      header.meshRetiredCount, world->meshes.meshCapacity) ||
-        !M3_POOL_SANE(header.voxelMaxIndex, header.voxelFreeHead, header.voxelFreeCount,
-                      header.voxelRetiredCount, world->voxels.voxelCapacity) ||
-        !M3_POOL_SANE(header.charMaxIndex, header.charFreeHead, header.charFreeCount,
-                      header.charRetiredCount, world->characters.characterCapacity))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // hostile cursors refuse before any write
-    }
-#undef M3_POOL_SANE
-    if (header.pairCount < 0 || header.pairCount > world->contacts.pairCapacity ||
-        header.treeRoot < M3_TREE_NULL || header.treeRoot >= world->broadphase.tree.capacity ||
-        header.treeFreeList < M3_TREE_NULL ||
-        header.treeFreeList >= world->broadphase.tree.capacity)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // the pair list and the tree index arrays directly
-    }
-    // Two-phase size validation: the fixed prefix is
-    // state-independent, and the variable mesh tail is parsed
-    // straight from the buffer BEFORE any byte lands in the world,
-    // so refusal stays atomic.
-    int32_t fixed =
-        (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
-    int32_t cursor = fixed;
-    const uint8_t* raw = (const uint8_t*)data;
-    // Every fixed block is checked against its table entry before any
-    // byte lands: indices in range, flags that are flags, finite floats.
-    if (size < fixed || !m3StateValidate(world, raw + sizeof(m3SnapshotHeader)))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
-    }
-    if (!TailFits(world, raw, size, cursor))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
-    }
-
-    world->stepCount = header.stepCount;
-    world->gravity = header.gravity;
-    world->bodies.bodyPool.maxIndex = header.maxIndex;
-    world->bodies.bodyPool.freeHead = header.freeHead;
-    world->bodies.bodyPool.freeCount = header.freeCount;
-    world->bodies.bodyPool.retiredCount = header.retiredCount;
-    world->shapes.shapePool.maxIndex = header.shapeMaxIndex;
-    world->shapes.shapePool.freeHead = header.shapeFreeHead;
-    world->shapes.shapePool.freeCount = header.shapeFreeCount;
-    world->shapes.shapePool.retiredCount = header.shapeRetiredCount;
-    world->contacts.pairCount = header.pairCount;
-    world->broadphase.tree.root = header.treeRoot;
-    world->broadphase.tree.freeList = header.treeFreeList;
-    world->joints.jointPool.maxIndex = header.jointMaxIndex;
-    world->joints.jointPool.freeHead = header.jointFreeHead;
-    world->joints.jointPool.freeCount = header.jointFreeCount;
-    world->joints.jointPool.retiredCount = header.jointRetiredCount;
-    world->characters.charPool.maxIndex = header.charMaxIndex;
-    world->characters.charPool.freeHead = header.charFreeHead;
-    world->characters.charPool.freeCount = header.charFreeCount;
-    world->characters.charPool.retiredCount = header.charRetiredCount;
-    world->voxels.voxelPool.maxIndex = header.voxelMaxIndex;
-    world->voxels.voxelPool.freeHead = header.voxelFreeHead;
-    world->voxels.voxelPool.freeCount = header.voxelFreeCount;
-    world->voxels.voxelPool.retiredCount = header.voxelRetiredCount;
-    world->meshes.meshPool.maxIndex = header.meshMaxIndex;
-    world->meshes.meshPool.freeHead = header.meshFreeHead;
-    world->meshes.meshPool.freeCount = header.meshFreeCount;
-    world->meshes.meshPool.retiredCount = header.meshRetiredCount;
-    // Events are transient observers: a restore clears them.
     world->events.beginEventCount = 0;
     world->events.endEventCount = 0;
     world->events.sensorBeginEventCount = 0;
@@ -602,24 +436,16 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     world->events.moveEventCount = 0;
     world->joints.jointBreakEventCount = 0;
     world->lastInvH = 0.0f; // readback reads 0 until the next step
-    world->hulls.hullPool.maxIndex = header.hullMaxIndex;
-    world->hulls.hullPool.freeHead = header.hullFreeHead;
-    world->hulls.hullPool.freeCount = header.hullFreeCount;
-    world->hulls.hullPool.retiredCount = header.hullRetiredCount;
-    if (WalkBlocks(world, NULL, (const uint8_t*)data + sizeof(header), m3_walkRead, 1) < 0)
-    {
-        return false; // the pre-parse above makes this unreachable,
-                      // except for exhausted memory in the alloc gate
-    }
-    // The frozen-pair buffer is derived from a pair list this
-    // restore just invalidated; the next update must requery the
-    // whole tree once and re-harvest.
+}
+
+// Derived data follows content. The frozen-pair buffer came from a pair
+// list the restore replaced, so the next update requeries the whole
+// tree. Mesh BVHs and voxel surfaces are pure functions of the restored
+// content, so they rebuild byte-identical to the ones create built.
+static void RebuildDerived(m3World* world)
+{
     world->contacts.sleepingPairCount = 0;
     world->contacts.pairsFullQuery = 1;
-    // Derived data follows content: the per-mesh BVHs are rebuilt
-    // from the restored triangle sets (a pure function, so the tree
-    // a restore produces is byte-identical to the one the original
-    // create produced).
     for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
     {
         if (world->meshes.meshPool.alive[m] != 0)
@@ -635,11 +461,11 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
             m3VoxelSurfaceBuild(&world->voxels.voxelSurface[v], &world->voxels.voxelData[v]);
         }
     }
-    for (int32_t s2 = 0; s2 < world->shapes.shapePool.maxIndex; ++s2)
+    for (int32_t s = 0; s < world->shapes.shapePool.maxIndex; ++s)
     {
-        if (world->shapes.shapePool.alive[s2] != 0 && world->shapes.shapeVoxelIndex[s2] >= 0)
+        if (world->shapes.shapePool.alive[s] != 0 && world->shapes.shapeVoxelIndex[s] >= 0)
         {
-            world->voxels.voxelShape[world->shapes.shapeVoxelIndex[s2]] = s2;
+            world->voxels.voxelShape[world->shapes.shapeVoxelIndex[s]] = s;
         }
     }
     m3VoxelRebuildLinks(world);
@@ -650,5 +476,47 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
             m3VoxelCoverageBuild(world, v);
         }
     }
+}
+
+bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL || data == NULL || size < (int32_t)sizeof(m3SnapshotHeader))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3SnapshotHeader header;
+    memcpy(&header, data, sizeof(header));
+    int32_t capacities[8];
+    WorldCapacities(world, capacities);
+    if (header.magic != M3_SNAPSHOT_MAGIC || header.formatVersion != M3_SNAPSHOT_VERSION ||
+        header.configHash != ConfigHash() ||
+        memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
+    {
+        m3Refuse(world, m3_errorConfig); // another build or another world shape
+        return false;
+    }
+    // Every byte is checked before any lands, so a refusal is atomic: the
+    // fixed prefix against its table entries (indices and cursors in
+    // range, flags that are flags, finite floats), then the variable
+    // tail parsed straight from the buffer.
+    int32_t fixed =
+        (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
+    const uint8_t* raw = (const uint8_t*)data;
+    if (size < fixed || !m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
+        !TailFits(world, raw, size, fixed))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    ClearEvents(world);
+    if (WalkBlocks(world, NULL, raw + sizeof(header), m3_walkRead, 1) < 0)
+    {
+        // The pre-parse leaves only exhausted memory in the alloc gate.
+        m3Refuse(world, m3_errorCapacity);
+        return false;
+    }
+    RebuildDerived(world);
     return true;
 }

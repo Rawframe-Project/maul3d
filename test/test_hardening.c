@@ -464,30 +464,60 @@ static void TestCreateWorldOutOfMemory(void)
           "an unrepresentable soft body capacity is refused");
 }
 
-static void TestRestoreRefusesBadCursors(void)
+static m3WorldId CursorWorld(int32_t bodies)
 {
-    // A snapshot whose pair count points past the pair table is
-    // refused before anything is overwritten.
     m3WorldDef def = m3DefaultWorldDef();
     m3WorldId world = m3CreateWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){0.0, 1.0, 0.0};
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &sphere);
+    for (int32_t i = 0; i < bodies; ++i)
+    {
+        bd.position = (m3Pos3){2.0 * i, 1.0, 0.0};
+        m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &sphere);
+    }
+    return world;
+}
+
+static void TestRestoreRefusesBadCursors(void)
+{
+    // The body and shape pool cursors are the words that read 1 with one
+    // body and 2 with two. Pointed past their pools, they are refused
+    // before anything is overwritten.
+    m3WorldId world = CursorWorld(1);
+    m3WorldId twin = CursorWorld(2);
     int32_t size = m3World_SnapshotSize(world);
+    CHECK(m3World_SnapshotSize(twin) == size, "one world shape, one snapshot size");
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    uint8_t* other = (uint8_t*)malloc((size_t)size);
     CHECK(m3World_Snapshot(world, snap, size) == size, "snapshot taken");
+    CHECK(m3World_Snapshot(twin, other, size) == size, "twin snapshot taken");
     m3World_Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m3World_Hash(world);
 
+    int32_t poisoned = 0;
     int32_t hostile = 1 << 30;
-    memcpy(snap + 64, &hostile, sizeof(hostile)); // header pairCount
-    CHECK(!m3World_Restore(world, snap, size), "an out-of-range pair count is refused");
+    for (int32_t at = 0; at + 4 <= size; ++at) // the stream is unaligned
+    {
+        int32_t one;
+        int32_t two;
+        memcpy(&one, snap + at, sizeof(one));
+        memcpy(&two, other + at, sizeof(two));
+        if (one == 1 && two == 2)
+        {
+            memcpy(snap + at, &hostile, sizeof(hostile));
+            poisoned += 1;
+        }
+    }
+    CHECK(poisoned >= 2, "the cursors are found");
+    CHECK(!m3World_Restore(world, snap, size), "out-of-range cursors are refused");
+    CHECK(m3LastResult() == m3_errorInvalid, "as invalid input");
     CHECK(m3World_Hash(world) == before, "and the world is untouched");
 
+    free(other);
     free(snap);
+    m3DestroyWorld(twin);
     m3DestroyWorld(world);
 }
 
@@ -531,7 +561,7 @@ static void TestRestoreRefusesPoisonedWords(void)
     int32_t refused = 0;
     int32_t untouched = 0;
     int32_t reasoned = 0;
-    for (int32_t at = 0; at + 4 <= size; at += 4)
+    for (int32_t at = 0; at + 4 <= size; ++at) // the stream is unaligned
     {
         memcpy(poisoned, clean, (size_t)size);
         int32_t huge = 0x7FFFFFFF;

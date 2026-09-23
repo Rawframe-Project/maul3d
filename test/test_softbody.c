@@ -886,6 +886,42 @@ static void TestBendRods(void)
     m3DestroyWorld(world);
 }
 
+// A restore brings back the slot pool cursors with the slots: a soft
+// body destroyed after the snapshot is alive again, and the next create
+// takes a fresh slot instead of the restored one.
+static void TestRestoreKeepsPoolCursors(void)
+{
+    static uint8_t snap[2097152];
+    m3WorldId world = PlaneWorld();
+    m3SoftBodyDef sb = m3DefaultSoftBodyDef();
+    sb.position = (m3Pos3){0.0, 2.0, 0.0};
+    sb.countX = 2;
+    sb.countY = 2;
+    sb.countZ = 2;
+    m3SoftBodyId first = m3CreateSoftBody(world, &sb);
+    int32_t bytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+    CHECK(bytes > 0, "the snapshot fits");
+    m3DestroySoftBody(first);
+    CHECK(m3World_Restore(world, snap, bytes), "the restore lands");
+    CHECK(m3SoftBody_IsValid(first), "the destroyed body is back");
+    sb.position = (m3Pos3){3.0, 2.0, 0.0};
+    m3SoftBodyId second = m3CreateSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(second), "a new body creates after the restore");
+    CHECK(second.index1 != first.index1, "the new body takes its own slot");
+    CHECK(m3SoftBody_GetParticlePosition(first, 0).x < 1.0, "the restored body keeps its state");
+
+    // The same world played forward without the detour hands out the same id.
+    m3WorldId twin = PlaneWorld();
+    sb.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3CreateSoftBody(twin, &sb);
+    sb.position = (m3Pos3){3.0, 2.0, 0.0};
+    m3SoftBodyId twinSecond = m3CreateSoftBody(twin, &sb);
+    CHECK(twinSecond.index1 == second.index1 && twinSecond.generation == second.generation,
+          "restored and straight timelines allocate alike");
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHangingRope();
@@ -904,6 +940,7 @@ int main(void)
     TestPressure();
     TestTetBodies();
     TestBindTether();
+    TestRestoreKeepsPoolCursors();
     if (s_failures == 0)
     {
         printf("test_softbody: all green\n");

@@ -108,11 +108,25 @@ typedef struct m3StateArray
      m3_check_##checkKind,                                                                         \
      m3_extent_##rangeExtent}
 
+// The cursors of an id pool: its high-water mark, the head and length
+// of its FIFO free ring and its retired count. The pool argument names a
+// field path, so it cannot be parenthesized.
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define M3_STATE_POOL_CURSORS(pool, ext)                                                           \
+    M3_STATE_INLINE_CHECKED(pool.maxIndex, M3_STATE_SNAPSHOT, countEach, ext),                     \
+        M3_STATE_INLINE_CHECKED(pool.freeHead, M3_STATE_SNAPSHOT, index, ext),                     \
+        M3_STATE_INLINE_CHECKED(pool.freeCount, M3_STATE_SNAPSHOT, countEach, ext),                \
+        M3_STATE_INLINE_CHECKED(pool.retiredCount, M3_STATE_SNAPSHOT, countEach, ext)
+// NOLINTEND(bugprone-macro-parentheses)
+
 static const m3StateArray s_state[] = {
     // Snapshot state, in snapshot byte order. Identity is state: pool
     // generations, liveness and FIFO queues restore exactly, so ids
-    // minted after a rollback cannot diverge; the broadphase tree is
-    // state too, so a rolled-back world continues on the same tree.
+    // minted after a rollback cannot diverge; the pool cursors restore
+    // with them. The broadphase tree is state too, so a rolled-back
+    // world continues on the same tree.
+    M3_STATE_INLINE(stepCount, M3_STATE_SNAPSHOT),
+    M3_STATE_INLINE_CHECKED(gravity, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.transforms, m3Transform, body, M3_STATE_SNAPSHOT, transform, one),
     M3_STATE_CHECKED(bodies.linearVelocities, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.angularVelocities, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
@@ -159,6 +173,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(bodies.bodyPool.freeQueue, int32_t, body,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, body),
+    M3_STATE_POOL_CURSORS(bodies.bodyPool, body),
     M3_STATE_CHECKED(bodies.bodyShapeHead, int32_t, body, M3_STATE_SNAPSHOT, indexOrNone, shape),
     M3_STATE_CHECKED(shapes.shapeBody, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, body),
     M3_STATE_CHECKED(shapes.shapeType, uint8_t, shape, M3_STATE_SNAPSHOT, shapeType, one),
@@ -174,10 +189,14 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(shapes.shapePool.freeQueue, int32_t, shape,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, shape),
+    M3_STATE_POOL_CURSORS(shapes.shapePool, shape),
+    M3_STATE_INLINE_CHECKED(contacts.pairCount, M3_STATE_SNAPSHOT, countEach, pair),
     M3_STATE_CHECKED(contacts.pairKeys, uint64_t, pair, M3_STATE_SNAPSHOT, pairKey, shape),
     M3_STATE_CHECKED(broadphase.proxyIds, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, treeNode),
     M3_STATE_CHECKED(broadphase.tree.nodes, m3TreeNode, treeNode,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, treeNode, treeNode),
+    M3_STATE_INLINE_CHECKED(broadphase.tree.root, M3_STATE_SNAPSHOT, indexOrNone, treeNode),
+    M3_STATE_INLINE_CHECKED(broadphase.tree.freeList, M3_STATE_SNAPSHOT, indexOrNone, treeNode),
     M3_STATE_CHECKED(shapes.shapeHullIndex, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, shape),
     M3_STATE_ARRAY(hulls.hullRefCounts, int32_t, shape, M3_STATE_SNAPSHOT),
     M3_STATE_ARRAY(hulls.hullPool.generations, uint16_t, shape,
@@ -186,6 +205,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(hulls.hullPool.freeQueue, int32_t, shape,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, shape),
+    M3_STATE_POOL_CURSORS(hulls.hullPool, shape),
     M3_STATE_CHECKED(shapes.shapeMeshIndex, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, mesh),
     M3_STATE_CHECKED(shapes.shapeSensor, uint8_t, shape, M3_STATE_SNAPSHOT, bool, one),
     M3_STATE_CHECKED(shapes.shapeRollingResistance, float, shape, M3_STATE_SNAPSHOT, finite32, one),
@@ -206,6 +226,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(voxels.voxelPool.freeQueue, int32_t, voxel,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, voxel),
+    M3_STATE_POOL_CURSORS(voxels.voxelPool, voxel),
     M3_STATE_CHECKED(shapes.shapeVoxelIndex, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, voxel),
     M3_STATE_CHECKED(shapes.shapeHfIndex, int32_t, shape, M3_STATE_SNAPSHOT, indexOrNone, shape),
     M3_STATE_ARRAY(heightFields.hfRefCounts, int32_t, shape, M3_STATE_SNAPSHOT),
@@ -215,6 +236,7 @@ static const m3StateArray s_state[] = {
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, bool, one),
     M3_STATE_CHECKED(heightFields.hfPool.freeQueue, int32_t, shape,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, shape),
+    M3_STATE_POOL_CURSORS(heightFields.hfPool, shape),
     M3_STATE_CHECKED(characters.charBody, int32_t, character, M3_STATE_SNAPSHOT, indexOrNone, body),
     M3_STATE_CHECKED(characters.charRadius, m3real, character, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(characters.charHalfHeight, m3real, character, M3_STATE_SNAPSHOT, finite32,
@@ -238,6 +260,7 @@ static const m3StateArray s_state[] = {
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, bool, one),
     M3_STATE_CHECKED(characters.charPool.freeQueue, int32_t, character,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, character),
+    M3_STATE_POOL_CURSORS(characters.charPool, character),
     M3_STATE_CHECKED(vehicles.vehChassis, int32_t, vehicle, M3_STATE_SNAPSHOT, indexOrNone, body),
     M3_STATE_ARRAY(vehicles.vehChassisGen, uint16_t, vehicle, M3_STATE_SNAPSHOT),
     M3_STATE_CHECKED(vehicles.vehWheelCount, int32_t, vehicle, M3_STATE_SNAPSHOT, countEach,
@@ -301,6 +324,7 @@ static const m3StateArray s_state[] = {
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, bool, one),
     M3_STATE_CHECKED(vehicles.vehPool.freeQueue, int32_t, vehicle,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, vehicle),
+    M3_STATE_POOL_CURSORS(vehicles.vehPool, vehicle),
     M3_STATE_CHECKED(softBodies.softParticleCount, int32_t, soft, M3_STATE_SNAPSHOT, countEach,
                      particlesPerSoft),
     M3_STATE_CHECKED(softBodies.softEdgeCount, int32_t, soft, M3_STATE_SNAPSHOT, countEach,
@@ -365,6 +389,7 @@ static const m3StateArray s_state[] = {
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, bool, one),
     M3_STATE_CHECKED(softBodies.softPool.freeQueue, int32_t, soft,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, soft),
+    M3_STATE_POOL_CURSORS(softBodies.softPool, soft),
     M3_STATE_ARRAY(meshes.meshRefCounts, int32_t, mesh, M3_STATE_SNAPSHOT),
     M3_STATE_ARRAY(meshes.meshPool.generations, uint16_t, mesh,
                    M3_STATE_SNAPSHOT | M3_STATE_BORROWED),
@@ -372,6 +397,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(meshes.meshPool.freeQueue, int32_t, mesh,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, mesh),
+    M3_STATE_POOL_CURSORS(meshes.meshPool, mesh),
     M3_STATE_CHECKED(joints.jointType, uint8_t, joint, M3_STATE_SNAPSHOT, jointType, one),
     M3_STATE_CHECKED(joints.jointBodyA, int32_t, joint, M3_STATE_SNAPSHOT, indexOrNone, body),
     M3_STATE_CHECKED(joints.jointBodyB, int32_t, joint, M3_STATE_SNAPSHOT, indexOrNone, body),
@@ -411,6 +437,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(water.waterPool.freeQueue, int32_t, water,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, water),
+    M3_STATE_POOL_CURSORS(water.waterPool, water),
     M3_STATE_CHECKED(joints.jointNextA, int32_t, joint, M3_STATE_SNAPSHOT, indexOrNone, joint),
     M3_STATE_CHECKED(joints.jointNextB, int32_t, joint, M3_STATE_SNAPSHOT, indexOrNone, joint),
     M3_STATE_CHECKED(joints.bodyJointHead, int32_t, body, M3_STATE_SNAPSHOT, indexOrNone, joint),
@@ -420,6 +447,7 @@ static const m3StateArray s_state[] = {
                      bool, one),
     M3_STATE_CHECKED(joints.jointPool.freeQueue, int32_t, joint,
                      M3_STATE_SNAPSHOT | M3_STATE_BORROWED, index, joint),
+    M3_STATE_POOL_CURSORS(joints.jointPool, joint),
     M3_STATE_CHECKED(contacts.manifolds, m3Manifold, pair, M3_STATE_SNAPSHOT, manifold, one),
 
     // Owned but not snapshot state: derived data, per-slot content with
