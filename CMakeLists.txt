@@ -94,6 +94,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/softbody_pairs.c
     src/softbody_solver.c
     src/solver.c
+    src/triangle_contact.c
     src/vehicle.c
     src/vehicle_drivetrain.c
     src/voxel.c

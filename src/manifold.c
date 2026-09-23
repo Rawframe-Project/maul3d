@@ -261,7 +261,7 @@ static bool ArcsCross(m3Vec3 a1, m3Vec3 a2, m3Vec3 b1, m3Vec3 b2)
 
 // The deepest separation over the edge pairs that form faces of the
 // Minkowski difference A - B, whose arcs are A's (u, v) and B's negated
-// (-u, -v). Each axis is the edges' cross product turned away from A.
+// (-u, -v). Each axis is the edges' cross product, turned outward.
 static EdgeAxis BestEdges(const PosedHull* a, const PosedHull* b)
 {
     EdgeAxis best = {-FLT_MAX, -1, -1, {0.0f, 1.0f, 0.0f}};
@@ -289,8 +289,10 @@ static EdgeAxis BestEdges(const PosedHull* a, const PosedHull* b)
             {
                 continue; // parallel edges give no axis
             }
+            // The Minkowski face normal lies on A's arc, which spans less
+            // than a half circle, so it agrees with the arc's middle.
             axis = m3MulSV3(1.0f / length, axis);
-            if (m3Dot3(axis, m3Sub3(pA, a->center)) < 0.0f)
+            if (m3Dot3(axis, m3Add3(uA, vA)) < 0.0f)
             {
                 axis = m3Neg3(axis);
             }

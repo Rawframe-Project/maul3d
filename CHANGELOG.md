@@ -129,6 +129,12 @@ Work toward 0.0.1, the first release of the reworked library.
 - GJK distance, time of impact, QuickHull and the hull-versus-hull
   manifold are rewritten from published sources (docs/references.md).
   The GJK cache that no caller kept is gone from the API.
+- The convex-versus-triangle kernels are rewritten: nearest point on a
+  triangle by barycentric regions, capsules by direct segment-triangle
+  closest points, hulls by a separating axis test whose edge pairs use
+  the triangle's half-circle Gauss arcs. The mesh welding core is
+  split into named steps with unchanged behavior; the kernels move to
+  triangle_contact.c.
 
 ### Removed
 

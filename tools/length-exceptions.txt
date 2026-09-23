@@ -4,12 +4,9 @@
 # shrinks: nothing may grow past its ceiling, and an entry that is back
 # under its limit must go.
 
-manifold_mesh.c * 1674 the triangle-soup pipeline: per-triangle kernels and the welded core
 softbody_solver.c m3SoftBodyPass 394 numeric kernel: one pass in a fixed operation order
 vehicle.c m3VehicleApplySuspension 459 numeric kernel: one pass in a fixed operation order
-manifold_mesh.c CollideMeshCore 390 numeric kernel: one pass in a fixed operation order
 joint_wheel.c SolveWheel 295 numeric kernel: solver rows in one fixed operation order
-manifold_mesh.c CollideHullTriangle 287 numeric kernel: one pass in a fixed operation order
 manifold_mesh.c m3CollideVoxelConvex 283 numeric kernel: one pass in a fixed operation order
 joint_generic.c SolveGeneric 267 numeric kernel: solver rows in one fixed operation order
 contact_solver.c m3PrepareContacts 257 numeric kernel: solver rows in one fixed operation order
@@ -22,7 +19,6 @@ character.c m3CharacterMoveInternal 187 numeric kernel: one pass in a fixed oper
 joint_revolute.c SolveRevolute 162 numeric kernel: solver rows in one fixed operation order
 voxel_fracture.c m3VoxelFractureSweep 158 numeric kernel: one pass in a fixed operation order
 manifold.c m3CollideSegmentHull 156 numeric kernel: one pass in a fixed operation order
-manifold_mesh.c CollideCapsuleTriangle 154 numeric kernel: one pass in a fixed operation order
 contact_solver.c SolveOneContact 149 numeric kernel: solver rows in one fixed operation order
 narrowphase.c CollideConvexGjkPair 141 numeric kernel: one pass in a fixed operation order
 query_proxy.c ProxyReachesShape 137 numeric kernel: one pass in a fixed operation order
