@@ -201,8 +201,14 @@ extern "C"
     /// portable and versioned: field blocks in little-endian order with
     /// a header carrying a config hash (engine version, solver
     /// revision, precision, FP policy). Restore refuses a mismatched
-    /// config or format loudly, restores in place, and the restored
-    /// world resimulates bit-exactly.
+    /// config, format or world shape with m3_errorConfig, restores in
+    /// place, and the restored world resimulates bit-exactly. Before any
+    /// byte lands, every block is checked: out-of-range indices and
+    /// counts, flags that are not flags, and non-finite state refuse with
+    /// m3_errorInvalid and leave the world as it was. The checks make
+    /// every index safe to use; they do not re-derive every structural
+    /// invariant (tree shape, list links), so restore only snapshots this
+    /// engine wrote.
     M3_API int32_t m3World_SnapshotSize(m3WorldId worldId);
     M3_API int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity);
     M3_API bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size);

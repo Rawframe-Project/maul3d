@@ -23,4 +23,9 @@ void m3StateFree(m3World* world);
 // number of bytes.
 int32_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int direction);
 
+// Checks the incoming fixed snapshot prefix against the table before any
+// of it lands: every index in range, every flag a flag, every count
+// within its bound, every float finite.
+bool m3StateValidate(const m3World* world, const uint8_t* in);
+
 #endif // MAUL3D_SRC_WORLD_STATE_H

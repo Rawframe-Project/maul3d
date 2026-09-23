@@ -82,6 +82,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/vehicle.c
     src/voxel.c
     src/world.c
+    src/world_hash.c
     src/world_state.c)
 maul_configure_library(maul3d)
 

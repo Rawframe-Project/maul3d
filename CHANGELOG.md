@@ -183,3 +183,11 @@ Work toward 0.0.1, the first release of the reworked library.
   way, and a replay whose safety snapshot cannot be taken now record a
   reason (m3_errorCapacity or m3_errorInvalid) instead of returning
   silently.
+- m3World_Restore pre-validated the header and the variable tail but
+  copied the fixed blocks in unchecked: a corrupted snapshot could
+  carry out-of-range body, shape, joint, soft-body particle or tree
+  indices, invalid flags or non-finite state into the world. Every
+  fixed block is now checked against its state-table entry before any
+  byte lands. A snapshot from another build or world shape now refuses
+  with m3_errorConfig, and the tail checks record a reason instead of
+  returning silently. The world hash moved to src/world_hash.c.

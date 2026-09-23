@@ -491,9 +491,72 @@ static void TestRestoreRefusesBadCursors(void)
     m3DestroyWorld(world);
 }
 
+// Restore checks every incoming block before any of it lands: poison
+// each 32-bit word of a snapshot in turn with a huge value. A refused
+// restore leaves the world untouched and records a reason.
+static void TestRestoreRefusesPoisonedWords(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    def.meshCapacity = 1;
+    def.voxelCapacity = 1;
+    def.characterCapacity = 1;
+    def.vehicleCapacity = 1;
+    def.softBodyCapacity = 1;
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3CreateBoxShape(ground, &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.2, 0.0};
+    m3BodyId box = m3CreateBody(world, &bd);
+    m3CreateBoxShape(box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3World_Step(world, 1.0f / 60.0f, 4);
+
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && poisoned != NULL, "snapshot buffers");
+    if (clean == NULL || poisoned == NULL)
+    {
+        free(clean);
+        free(poisoned);
+        return;
+    }
+    m3World_Snapshot(world, clean, size);
+    uint64_t cleanHash = m3World_Hash(world);
+    int32_t refused = 0;
+    int32_t untouched = 0;
+    int32_t reasoned = 0;
+    for (int32_t at = 0; at + 4 <= size; at += 4)
+    {
+        memcpy(poisoned, clean, (size_t)size);
+        int32_t huge = 0x7FFFFFFF;
+        memcpy(poisoned + at, &huge, sizeof(huge));
+        if (!m3World_Restore(world, poisoned, size))
+        {
+            refused += 1;
+            untouched += m3World_Hash(world) == cleanHash ? 1 : 0;
+            reasoned += m3LastResult() != m3_success ? 1 : 0;
+            continue;
+        }
+        m3World_Restore(world, clean, size);
+    }
+    CHECK(refused > 0, "hostile words are refused");
+    CHECK(untouched == refused, "a refused restore leaves the world as it was");
+    CHECK(reasoned == refused, "and records why");
+    free(clean);
+    free(poisoned);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestZoo();
+    TestRestoreRefusesPoisonedWords();
     TestRestoreRefusesBadCursors();
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
