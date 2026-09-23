@@ -97,6 +97,14 @@ Work toward 0.0.1, the first release of the reworked library.
 - Journal payloads are declared once in src/journal.h and shared by
   the recorders and replay (they were declared twice, as anonymous
   structs on each side). The wire format is unchanged.
+- The step reads as its stages: m3StepInternal (657 lines) hands its
+  passes (contact events, scratch sizing, sweep capture, movers,
+  buoyancy, velocity and position integration, joint breaks) to named
+  functions over an m3StepScratch. A length rule now holds functions
+  to 80 lines and source files to 1000: tools/check_lengths.py runs in
+  CI, and the existing exceptions sit in tools/length-exceptions.txt
+  with their reasons and a ceiling that may only shrink. Results are
+  bit-identical.
 
 ### Removed
 

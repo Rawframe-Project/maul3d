@@ -138,70 +138,26 @@ static m3Vec3 GyroscopicOmega(const m3World* world, int32_t body, m3Vec3 w, m3re
     return m3RotateVec3(q, omega2);
 }
 
-void m3StepInternal(m3World* world, float dt, int32_t substeps)
+// The per-mover water field of one step; active is zero when no volume
+// is alive (or the scratch stalled), and then the arrays are unused.
+typedef struct m3Buoyancy
 {
-    // The step profile: coarse wall-clock brackets, written
-    // to the world only at the single complete-step exit, so a
-    // stalled step keeps the previous profile. Observer data only.
-    m3Profile prof;
-    memset(&prof, 0, sizeof(prof));
-    double tStep = m3NowMs();
+    m3Vec3* force;
+    m3Vec3* torque;
+    m3Vec3* flow;
+    float* lin;
+    float* ang;
+    int32_t active;
+} m3Buoyancy;
 
-    // The documented growth (allocator.h, finally exercised by the
-    // 6-1 city block): a step that starves the scratch stalls
-    // loudly and harmlessly; the NEXT step arrives with double the
-    // room. Size-driven, so twins and replays stall and grow on
-    // exactly the same ticks: the stall is deterministic state
-    // evolution, not noise. No scene under 5000 bodies had ever
-    // overflowed 256 KB, which is how the promise stayed unpaid
-    // for four phases.
-    if (world->scratch.overflow != 0 && world->scratch.capacity < (1 << 28))
-    {
-        int32_t bigger = world->scratch.capacity * 2;
-        m3StackDestroy(&world->scratch);
-        world->scratch = m3StackCreate(bigger);
-    }
-
-    // Stash the previous pairs and manifolds before the scan
-    // overwrites them; the warm-start carry and the event walk read
-    // the stash. The buffers belong to the world, so this never
-    // allocates and an early return cannot leak.
-    int32_t oldCount = world->contacts.pairCount;
-    const uint64_t* oldKeys = world->contacts.stashPairKeys;
-    const m3Manifold* oldManifolds = world->contacts.stashManifolds;
-    if (oldCount > 0)
-    {
-        memcpy(world->contacts.stashPairKeys, world->contacts.pairKeys,
-               (size_t)oldCount * sizeof(uint64_t));
-        memcpy(world->contacts.stashManifolds, world->contacts.manifolds,
-               (size_t)oldCount * sizeof(m3Manifold));
-    }
-
-    // The suspension pass: vehicle impulses land here so the
-    // narrowphase and solver see the sprung chassis the same way
-    // they see gravity. Serial, slot order, canonical.
-    double t0 = m3NowMs();
-    m3VehicleApplySuspension(world, dt);
-    prof.vehicles = (float)(m3NowMs() - t0);
-
-    t0 = m3NowMs();
-    m3Result pairsResult = m3UpdatePairs(world);
-    prof.broadphase = (float)(m3NowMs() - t0);
-    t0 = m3NowMs();
-    m3Result contactsResult = pairsResult == m3_success
-                                  ? m3UpdateContacts(world, oldKeys, oldManifolds, oldCount)
-                                  : pairsResult;
-    prof.narrowphase = (float)(m3NowMs() - t0);
-    if (pairsResult != m3_success || contactsResult != m3_success)
-    {
-        return; // scratch starve (transient, grown next step) or a
-                // full pair table: the world stalls, never corrupts
-    }
-
+// Resets the event streams, then walks the old and new pair lists (both
+// sorted) and emits begin and end events in pair order.
+static void EmitContactEvents(m3World* world, const uint64_t* oldKeys,
+                              const m3Manifold* oldManifolds, int32_t oldCount)
+{
     // Contact events: a canonical merge walk of the old and new pair
     // lists (both sorted). Serial and after the parallel narrowphase
     // on purpose: appends must happen in pair order, bit-stably.
-    t0 = m3NowMs();
     world->events.beginEventCount = 0;
     world->events.endEventCount = 0;
     world->events.sensorBeginEventCount = 0;
@@ -285,10 +241,10 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             }
         }
     }
+}
 
-    prof.events = (float)(m3NowMs() - t0);
-    t0 = m3NowMs();
-
+static void SizeScratchForStep(m3World* world)
+{
     // Pre-flight sizing (V-STALL; repositioned by V-LAYOUT): a
     // starved step is deterministic SIZE-DRIVEN state evolution,
     // and struct sizes are not part of the cross-platform
@@ -316,23 +272,13 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             world->scratch = m3StackCreate(grown);
         }
     }
-    m3StackReset(&world->scratch);
+}
 
-    // Begin-of-step COM and rotation for every body: the sweeps the
-    // continuous pass needs. The scan reads transforms but
-    // never moves them, so capturing here equals capturing before
-    // it, and now the capture lives under the fresh-count budget.
+// Begin-of-step centers of mass and rotations: the sweeps the continuous
+// pass needs.
+static void CaptureSweepStarts(const m3World* world, m3Pos3* com0, m3Quat* rot0)
+{
     int32_t sweepMax = world->bodies.bodyPool.maxIndex;
-    m3Pos3* com0 =
-        (m3Pos3*)m3StackAlloc(&world->scratch, sweepMax > 0 ? sweepMax * (int32_t)sizeof(m3Pos3)
-                                                            : (int32_t)sizeof(m3Pos3));
-    m3Quat* rot0 =
-        (m3Quat*)m3StackAlloc(&world->scratch, sweepMax > 0 ? sweepMax * (int32_t)sizeof(m3Quat)
-                                                            : (int32_t)sizeof(m3Quat));
-    if (com0 == NULL || rot0 == NULL)
-    {
-        return; // unreachable backstop (see the pre-flight above)
-    }
     for (int32_t i = 0; i < sweepMax; ++i)
     {
         if (world->bodies.bodyPool.alive[i] == 0)
@@ -345,80 +291,15 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         com0[i].z = world->bodies.transforms[i].p.z + (double)rlc.z;
         rot0[i] = world->bodies.transforms[i].q;
     }
+}
 
-    // Islands and wake propagation BEFORE the solve: a sleeping body
-    // touched by an awake one participates in this very step.
-    int32_t* islandParent = m3IslandWakePass(world);
-    if (islandParent == NULL)
-    {
-        return; // transient scratch stall, grown next step
-    }
-
-    // Solver scratch: constraints plus per-body delta accumulators.
+// The mover list: awake dynamics and kinematics in ascending slot order,
+// the bodies the substep loops touch. Kinematic targets turn into the
+// velocities that land them this step. Returns the mover count.
+static int32_t BuildMovers(m3World* world, int32_t* movers, float dt)
+{
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
-    m3ContactConstraint* constraints = (m3ContactConstraint*)m3StackAlloc(
-        &world->scratch, world->contacts.pairCount > 0
-                             ? world->contacts.pairCount * (int32_t)sizeof(m3ContactConstraint)
-                             : (int32_t)sizeof(m3ContactConstraint));
-    m3Vec3* deltaPos = (m3Vec3*)m3StackAlloc(
-        &world->scratch, maxBody > 0 ? maxBody * (int32_t)sizeof(m3Vec3) : (int32_t)sizeof(m3Vec3));
-    m3Quat* deltaRot = (m3Quat*)m3StackAlloc(
-        &world->scratch, maxBody > 0 ? maxBody * (int32_t)sizeof(m3Quat) : (int32_t)sizeof(m3Quat));
-    if (constraints == NULL || deltaPos == NULL || deltaRot == NULL)
-    {
-        return; // transient scratch stall, grown next step
-    }
-    for (int32_t i = 0; i < maxBody; ++i)
-    {
-        deltaPos[i] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        deltaRot[i] = m3MakeIdentityQuat();
-    }
-
-    prof.prepare = (float)(m3NowMs() - t0);
-    t0 = m3NowMs();
-
-    m3real h = dt / (m3real)substeps;
-    m3real invH = h > 0.0f ? 1.0f / h : 0.0f;
-    int32_t constraintCount = m3PrepareContacts(world, constraints, h);
-
-    m3SolverColoring coloring;
-    if (!m3BuildColoring(world, constraints, constraintCount, &coloring))
-    {
-        return; // transient scratch stall, grown next step
-    }
-    int32_t usedColors = 0;
-    for (int32_t c = 0; c < M3_GRAPH_COLORS + 1; ++c)
-    {
-        if (coloring.starts[c + 1] > coloring.starts[c])
-        {
-            usedColors += 1;
-        }
-    }
-
-    int32_t maxJointSlots = world->joints.jointPool.maxIndex;
-    m3JointConstraint* jointConstraints = (m3JointConstraint*)m3StackAlloc(
-        &world->scratch, maxJointSlots > 0 ? maxJointSlots * (int32_t)sizeof(m3JointConstraint)
-                                           : (int32_t)sizeof(m3JointConstraint));
-    if (jointConstraints == NULL)
-    {
-        return; // transient scratch stall, grown next step
-    }
-    int32_t jointCount = m3PrepareJoints(world, jointConstraints, h);
-
-    // The mover list: one scan builds the compact
-    // list of bodies the substep loops touch (awake dynamics and
-    // kinematics), in ascending slot order so iteration stays
-    // canonical. Eight-plus full-array walks per step become one:
-    // at five thousand bodies with most of the world asleep, the
-    // integrate loops stop paying for the sleepers. Same math,
-    // same order, not one bit of simulation moves.
-    int32_t* movers = (int32_t*)m3StackAlloc(&world->scratch,
-                                             maxBody > 0 ? maxBody * (int32_t)sizeof(int32_t) : 4);
     int32_t moverCount = 0;
-    if (movers == NULL)
-    {
-        return; // transient scratch stall, grown next step
-    }
     for (int32_t i = 0; i < maxBody; ++i)
     {
         if (world->bodies.bodyPool.alive[i] == 0 || world->bodies.bodyEnabled[i] == 0)
@@ -454,43 +335,42 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         }
     }
 
-    // Water volumes: per-mover buoyancy force, torque, drag
-    // rates, and the blended flow, computed ONCE per step from the
-    // step-start pose (the classic field-force approximation). No
-    // volumes = no allocation, no arithmetic, the pre-18 bits.
-    int32_t waterAlive = 0;
+    return moverCount;
+}
+
+// Water volumes: per-mover buoyancy force, torque, drag rates and the
+// blended flow, computed once per step from the step-start pose.
+static void PrepareBuoyancy(m3World* world, const int32_t* movers, int32_t moverCount,
+                            m3Buoyancy* b)
+{
+    memset(b, 0, sizeof(*b));
     for (int32_t k = 0; k < world->water.waterPool.maxIndex; ++k)
     {
-        waterAlive += world->water.waterPool.alive[k];
+        b->active += world->water.waterPool.alive[k];
     }
-    m3Vec3* buoyForce = NULL;
-    m3Vec3* buoyTorque = NULL;
-    m3Vec3* buoyFlow = NULL;
-    float* buoyLin = NULL;
-    float* buoyAng = NULL;
-    if (waterAlive > 0 && moverCount > 0)
+    if (b->active > 0 && moverCount > 0)
     {
-        buoyForce = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
-        buoyTorque = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
-        buoyFlow = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
-        buoyLin = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
-        buoyAng = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
-        if (buoyForce == NULL || buoyTorque == NULL || buoyFlow == NULL || buoyLin == NULL ||
-            buoyAng == NULL)
+        b->force = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+        b->torque = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+        b->flow = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+        b->lin = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
+        b->ang = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
+        if (b->force == NULL || b->torque == NULL || b->flow == NULL || b->lin == NULL ||
+            b->ang == NULL)
         {
-            waterAlive = 0; // transient scratch stall: dry step
+            b->active = 0; // transient scratch stall: dry step
         }
     }
-    if (waterAlive > 0 && moverCount > 0)
+    if (b->active > 0 && moverCount > 0)
     {
         for (int32_t m = 0; m < moverCount; ++m)
         {
             int32_t i = movers[m];
-            buoyForce[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
-            buoyTorque[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
-            buoyFlow[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
-            buoyLin[m] = 0.0f;
-            buoyAng[m] = 0.0f;
+            b->force[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+            b->torque[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+            b->flow[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+            b->lin[m] = 0.0f;
+            b->ang[m] = 0.0f;
             if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
             {
                 continue;
@@ -546,154 +426,140 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
                     m3Vec3 r = {(float)(0.5 * (clo[0] + chi[0]) - comX),
                                 (float)(0.5 * (clo[1] + chi[1]) - comY),
                                 (float)(0.5 * (clo[2] + chi[2]) - comZ)};
-                    buoyForce[m] = m3Add3(buoyForce[m], f);
-                    buoyTorque[m] = m3Add3(buoyTorque[m], m3Cross3(r, f));
-                    buoyFlow[m] = m3Add3(buoyFlow[m], m3MulSV3(frac, world->water.waterFlow[k]));
-                    buoyLin[m] += world->water.waterLinDrag[k] * frac;
-                    buoyAng[m] += world->water.waterAngDrag[k] * frac;
+                    b->force[m] = m3Add3(b->force[m], f);
+                    b->torque[m] = m3Add3(b->torque[m], m3Cross3(r, f));
+                    b->flow[m] = m3Add3(b->flow[m], m3MulSV3(frac, world->water.waterFlow[k]));
+                    b->lin[m] += world->water.waterLinDrag[k] * frac;
+                    b->ang[m] += world->water.waterAngDrag[k] * frac;
                     fracSum += frac;
                 }
             }
             if (fracSum > 0.0f)
             {
-                buoyFlow[m] = m3MulSV3(1.0f / fracSum, buoyFlow[m]);
+                b->flow[m] = m3MulSV3(1.0f / fracSum, b->flow[m]);
             }
         }
     }
+}
 
-    for (int32_t sub = 0; sub < substeps; ++sub)
+static void IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverCount,
+                                const m3Buoyancy* buoy, m3real h)
+{
+    // Integrate velocities (fixed body order): gravity, damping.
+    for (int32_t m = 0; m < moverCount; ++m)
     {
-        // Integrate velocities (fixed body order): gravity, damping.
-        for (int32_t m = 0; m < moverCount; ++m)
+        int32_t i = movers[m];
+        if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
         {
-            int32_t i = movers[m];
-            if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
+            continue; // kinematics ride the list for positions only
+        }
+        m3Vec3 v = world->bodies.linearVelocities[i];
+        m3Vec3 w = world->bodies.angularVelocities[i];
+        v = m3Add3(v, m3MulSV3(h * world->bodies.gravityScales[i], world->gravity));
+        // Host forces and torques integrate beside
+        // gravity, every substep, so a force held for one step
+        // delivers exactly force times dt.
+        v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], world->bodies.bodyForce[i]));
+        if (world->bodies.bodyTorque[i].x != 0.0f || world->bodies.bodyTorque[i].y != 0.0f ||
+            world->bodies.bodyTorque[i].z != 0.0f)
+        {
+            w = m3Add3(
+                w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), world->bodies.bodyTorque[i])));
+        }
+        if (buoy->active > 0 && (buoy->lin[m] > 0.0f || buoy->force[m].y != 0.0f ||
+                                 buoy->force[m].x != 0.0f || buoy->force[m].z != 0.0f))
+        {
+            // The water field: buoyant impulse, torque
+            // about the submerged centroid, then drag pulls the
+            // RELATIVE velocity toward the flow (the damping
+            // recipe, recentered on the current).
+            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], buoy->force[m]));
+            w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), buoy->torque[m])));
+            m3Vec3 rel = m3Sub3(v, buoy->flow[m]);
+            v = m3Add3(buoy->flow[m], m3MulSV3(1.0f / (1.0f + h * buoy->lin[m]), rel));
+            w = m3MulSV3(1.0f / (1.0f + h * buoy->ang[m]), w);
+        }
+        v = m3MulSV3(1.0f / (1.0f + h * world->bodies.linearDamping[i]), v);
+        w = m3MulSV3(1.0f / (1.0f + h * world->bodies.angularDamping[i]), w);
+        w = GyroscopicOmega(world, i, w, h);
+        // Hard linear speed cap, the reference clamp.
+        m3real v2 = m3Dot3(v, v);
+        m3real cap = world->maximumLinearSpeed;
+        if (v2 > cap * cap)
+        {
+            v = m3MulSV3(cap / sqrtf(v2), v);
+        }
+        // Hard angular speed cap with the reference's
+        // allowFastRotation escape hatch on bodyLocks bit 6. The
+        // default cap is a catastrophe guard like the 400 m/s
+        // linear one, far above legal tumbling, so scenes that
+        // never touch the knob keep their bits.
+        if ((world->bodies.bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
+        {
+            m3real w2 = m3Dot3(w, w);
+            m3real wcap = world->maximumAngularSpeed;
+            if (w2 > wcap * wcap)
             {
-                continue; // kinematics ride the list for positions only
+                w = m3MulSV3(wcap / sqrtf(w2), w);
             }
-            m3Vec3 v = world->bodies.linearVelocities[i];
-            m3Vec3 w = world->bodies.angularVelocities[i];
-            v = m3Add3(v, m3MulSV3(h * world->bodies.gravityScales[i], world->gravity));
-            // Host forces and torques integrate beside
-            // gravity, every substep, so a force held for one step
-            // delivers exactly force times dt.
-            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], world->bodies.bodyForce[i]));
-            if (world->bodies.bodyTorque[i].x != 0.0f || world->bodies.bodyTorque[i].y != 0.0f ||
-                world->bodies.bodyTorque[i].z != 0.0f)
-            {
-                w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i),
-                                                   world->bodies.bodyTorque[i])));
-            }
-            if (waterAlive > 0 && (buoyLin[m] > 0.0f || buoyForce[m].y != 0.0f ||
-                                   buoyForce[m].x != 0.0f || buoyForce[m].z != 0.0f))
-            {
-                // The water field: buoyant impulse, torque
-                // about the submerged centroid, then drag pulls the
-                // RELATIVE velocity toward the flow (the damping
-                // recipe, recentered on the current).
-                v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], buoyForce[m]));
-                w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), buoyTorque[m])));
-                m3Vec3 rel = m3Sub3(v, buoyFlow[m]);
-                v = m3Add3(buoyFlow[m], m3MulSV3(1.0f / (1.0f + h * buoyLin[m]), rel));
-                w = m3MulSV3(1.0f / (1.0f + h * buoyAng[m]), w);
-            }
-            v = m3MulSV3(1.0f / (1.0f + h * world->bodies.linearDamping[i]), v);
-            w = m3MulSV3(1.0f / (1.0f + h * world->bodies.angularDamping[i]), w);
-            w = GyroscopicOmega(world, i, w, h);
-            // Hard linear speed cap, the reference clamp.
-            m3real v2 = m3Dot3(v, v);
-            m3real cap = world->maximumLinearSpeed;
-            if (v2 > cap * cap)
-            {
-                v = m3MulSV3(cap / sqrtf(v2), v);
-            }
-            // Hard angular speed cap with the reference's
-            // allowFastRotation escape hatch on bodyLocks bit 6. The
-            // default cap is a catastrophe guard like the 400 m/s
-            // linear one, far above legal tumbling, so scenes that
-            // never touch the knob keep their bits.
-            if ((world->bodies.bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
-            {
-                m3real w2 = m3Dot3(w, w);
-                m3real wcap = world->maximumAngularSpeed;
-                if (w2 > wcap * wcap)
-                {
-                    w = m3MulSV3(wcap / sqrtf(w2), w);
-                }
-            }
+        }
+        world->bodies.linearVelocities[i] = v;
+        world->bodies.angularVelocities[i] = w;
+    }
+}
+
+static void IntegratePositions(m3World* world, const int32_t* movers, int32_t moverCount,
+                               m3Vec3* deltaPos, m3Quat* deltaRot, m3real h)
+{
+    // Integrate positions and accumulate the substep deltas the
+    // separation tracking reads.
+    for (int32_t m = 0; m < moverCount; ++m)
+    {
+        int32_t i = movers[m];
+        m3Vec3 v = world->bodies.linearVelocities[i];
+        m3Vec3 w = world->bodies.angularVelocities[i];
+        uint8_t locks = world->bodies.bodyLocks[i];
+        if (locks != 0)
+        {
+            // Motion locks: locked components re-zero
+            // every substep, in the STORED velocity too, so
+            // contacts cannot bank motion on a frozen axis.
+            if (locks & 1u)
+                v.x = 0.0f;
+            if (locks & 2u)
+                v.y = 0.0f;
+            if (locks & 4u)
+                v.z = 0.0f;
+            if (locks & 8u)
+                w.x = 0.0f;
+            if (locks & 16u)
+                w.y = 0.0f;
+            if (locks & 32u)
+                w.z = 0.0f;
             world->bodies.linearVelocities[i] = v;
             world->bodies.angularVelocities[i] = w;
         }
-
-        m3WarmStartJoints(world, jointConstraints, jointCount, deltaRot);
-        m3RunColored(world, &coloring, constraints, deltaPos, deltaRot, invH, 0, 1);
-        m3SolveJoints(world, jointConstraints, jointCount, deltaPos, deltaRot, h, invH, 1);
-        m3RunColored(world, &coloring, constraints, deltaPos, deltaRot, invH, 1, 0);
-
-        // Integrate positions and accumulate the substep deltas the
-        // separation tracking reads.
-        for (int32_t m = 0; m < moverCount; ++m)
-        {
-            int32_t i = movers[m];
-            m3Vec3 v = world->bodies.linearVelocities[i];
-            m3Vec3 w = world->bodies.angularVelocities[i];
-            uint8_t locks = world->bodies.bodyLocks[i];
-            if (locks != 0)
-            {
-                // Motion locks: locked components re-zero
-                // every substep, in the STORED velocity too, so
-                // contacts cannot bank motion on a frozen axis.
-                if (locks & 1u)
-                    v.x = 0.0f;
-                if (locks & 2u)
-                    v.y = 0.0f;
-                if (locks & 4u)
-                    v.z = 0.0f;
-                if (locks & 8u)
-                    w.x = 0.0f;
-                if (locks & 16u)
-                    w.y = 0.0f;
-                if (locks & 32u)
-                    w.z = 0.0f;
-                world->bodies.linearVelocities[i] = v;
-                world->bodies.angularVelocities[i] = w;
-            }
-            // Rigid bodies rotate about the center of mass: advance
-            // the COM, spin, then place the origin back. A centered
-            // body (lc zero) reduces to the plain origin update.
-            m3Vec3 lc = world->bodies.localCenters[i];
-            m3Vec3 rlcOld = m3RotateVec3(world->bodies.transforms[i].q, lc);
-            double cx = world->bodies.transforms[i].p.x + (double)rlcOld.x + (double)(h * v.x);
-            double cy = world->bodies.transforms[i].p.y + (double)rlcOld.y + (double)(h * v.y);
-            double cz = world->bodies.transforms[i].p.z + (double)rlcOld.z + (double)(h * v.z);
-            m3Vec3 dw = m3MulSV3(h, w);
-            world->bodies.transforms[i].q = m3IntegrateRotation(world->bodies.transforms[i].q, dw);
-            m3Vec3 rlcNew = m3RotateVec3(world->bodies.transforms[i].q, lc);
-            world->bodies.transforms[i].p.x = cx - (double)rlcNew.x;
-            world->bodies.transforms[i].p.y = cy - (double)rlcNew.y;
-            world->bodies.transforms[i].p.z = cz - (double)rlcNew.z;
-            deltaPos[i] = m3Add3(deltaPos[i], m3MulSV3(h, v));
-            deltaRot[i] = m3IntegrateRotation(deltaRot[i], dw);
-        }
-
-        // Relax: remove the bias energy (reference schedule).
-        m3SolveJoints(world, jointConstraints, jointCount, deltaPos, deltaRot, h, invH, 0);
-        m3RunColored(world, &coloring, constraints, deltaPos, deltaRot, invH, 0, 0);
+        // Rigid bodies rotate about the center of mass: advance
+        // the COM, spin, then place the origin back. A centered
+        // body (lc zero) reduces to the plain origin update.
+        m3Vec3 lc = world->bodies.localCenters[i];
+        m3Vec3 rlcOld = m3RotateVec3(world->bodies.transforms[i].q, lc);
+        double cx = world->bodies.transforms[i].p.x + (double)rlcOld.x + (double)(h * v.x);
+        double cy = world->bodies.transforms[i].p.y + (double)rlcOld.y + (double)(h * v.y);
+        double cz = world->bodies.transforms[i].p.z + (double)rlcOld.z + (double)(h * v.z);
+        m3Vec3 dw = m3MulSV3(h, w);
+        world->bodies.transforms[i].q = m3IntegrateRotation(world->bodies.transforms[i].q, dw);
+        m3Vec3 rlcNew = m3RotateVec3(world->bodies.transforms[i].q, lc);
+        world->bodies.transforms[i].p.x = cx - (double)rlcNew.x;
+        world->bodies.transforms[i].p.y = cy - (double)rlcNew.y;
+        world->bodies.transforms[i].p.z = cz - (double)rlcNew.z;
+        deltaPos[i] = m3Add3(deltaPos[i], m3MulSV3(h, v));
+        deltaRot[i] = m3IntegrateRotation(deltaRot[i], dw);
     }
+}
 
-    // Host force accumulators are consumed: a force lives for one
-    // step. Only movers could carry one (application wakes).
-    for (int32_t m = 0; m < moverCount; ++m)
-    {
-        world->bodies.bodyForce[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodies.bodyTorque[movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    }
-
-    m3Restitution(world, constraints, constraintCount);
-    m3StoreContactImpulses(world, constraints, constraintCount);
-    m3StoreJointImpulses(world, jointConstraints, jointCount);
-    world->lastInvH = invH;
-
+static void AdvanceWind(m3World* world, float dt)
+{
     // Wind phase: accumulated STATE, so a rollback resumes
     // the exact same gust wave. Wrapped to keep the float honest.
     if (world->windGustHertz > 0.0f)
@@ -704,7 +570,10 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             world->windPhase -= 2.0f * M3_PI * (m3real)(int32_t)(world->windPhase / (2.0f * M3_PI));
         }
     }
+}
 
+static void BreakJoints(m3World* world, m3real invH)
+{
     // Joint breakage: reactions over threshold destroy the
     // joint and emit the break event, serially in ascending joint
     // order, a pure function of state (like fragmentation: derived
@@ -734,14 +603,13 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             }
         }
     }
+}
 
-    prof.solve = (float)(m3NowMs() - t0);
-    t0 = m3NowMs();
-    if (world->continuousEnabled != 0)
-    {
-        m3SolveContinuousPhase(world, com0, rot0);
-    }
-    prof.continuous = (float)(m3NowMs() - t0);
+// Labels every awake dynamic body with its island root and returns the
+// island count (observer data).
+static int32_t LabelIslands(m3World* world, const int32_t* islandParent)
+{
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
     // Island census before the sleep pass retires anyone: awake
     // dynamic union-find roots, an observer count, and the
     // per-body island label the extras draw tints by.
@@ -764,13 +632,11 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
             }
         }
     }
-    t0 = m3NowMs();
-    if (world->sleepEnabled != 0)
-    {
-        m3IslandSleepPass(world, islandParent, com0, rot0, dt);
-    }
-    prof.sleep = (float)(m3NowMs() - t0);
+    return islands;
+}
 
+static void EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
+{
     // Body move events: one per mover, ascending body order
     // (the mover list is built that way), post-step transform, and
     // fellAsleep on the step the island dropped off. Capacity is
@@ -784,8 +650,247 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
         e->fellAsleep =
             world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] == 0;
     }
+}
+
+// Everything one step takes from the scratch stack, in the order it takes
+// it. The order is part of the stall behavior: a starved step fails at
+// the same allocation on every platform.
+typedef struct m3StepScratch
+{
+    m3Pos3* com0; // begin-of-step centers of mass (continuous, sleep, riders)
+    m3Quat* rot0;
+    int32_t* islandParent;
+    m3ContactConstraint* constraints;
+    int32_t constraintCount;
+    m3Vec3* deltaPos; // per-body position and rotation drift within the step
+    m3Quat* deltaRot;
+    m3SolverColoring coloring;
+    int32_t usedColors;
+    m3JointConstraint* joints;
+    int32_t jointCount;
+    int32_t* movers;
+    int32_t moverCount;
+    m3Buoyancy buoy;
+    m3real h;
+    m3real invH;
+} m3StepScratch;
+
+// A step that starved the scratch stalled harmlessly; the next one
+// arrives with double the room. Growth is driven by sizes alone, so twins
+// and replays stall and grow on the same ticks.
+static void GrowScratchAfterStall(m3World* world)
+{
+    if (world->scratch.overflow != 0 && world->scratch.capacity < (1 << 28))
+    {
+        int32_t bigger = world->scratch.capacity * 2;
+        m3StackDestroy(&world->scratch);
+        world->scratch = m3StackCreate(bigger);
+    }
+}
+
+// Copies the previous pairs and manifolds aside before the pair scan
+// overwrites them; the warm-start carry and the event walk read the copy.
+// The buffers belong to the world, so this never allocates.
+static int32_t StashPairs(m3World* world)
+{
+    int32_t oldCount = world->contacts.pairCount;
+    if (oldCount > 0)
+    {
+        memcpy(world->contacts.stashPairKeys, world->contacts.pairKeys,
+               (size_t)oldCount * sizeof(uint64_t));
+        memcpy(world->contacts.stashManifolds, world->contacts.manifolds,
+               (size_t)oldCount * sizeof(m3Manifold));
+    }
+    return oldCount;
+}
+
+static void* ScratchArray(m3World* world, int32_t count, int32_t elementSize)
+{
+    return m3StackAlloc(&world->scratch, count > 0 ? count * elementSize : elementSize);
+}
+
+// The sweep starts, the island wake pass (a sleeping body touched by an
+// awake one joins this step) and the per-body drift accumulators. Returns
+// false on a scratch stall.
+static bool BeginStep(m3World* world, m3StepScratch* s)
+{
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
+    s->com0 = (m3Pos3*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Pos3));
+    s->rot0 = (m3Quat*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Quat));
+    if (s->com0 == NULL || s->rot0 == NULL)
+    {
+        return false; // unreachable after SizeScratchForStep; a backstop
+    }
+    CaptureSweepStarts(world, s->com0, s->rot0);
+    s->islandParent = m3IslandWakePass(world);
+    if (s->islandParent == NULL)
+    {
+        return false;
+    }
+    s->constraints = (m3ContactConstraint*)ScratchArray(world, world->contacts.pairCount,
+                                                        (int32_t)sizeof(m3ContactConstraint));
+    s->deltaPos = (m3Vec3*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Vec3));
+    s->deltaRot = (m3Quat*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Quat));
+    if (s->constraints == NULL || s->deltaPos == NULL || s->deltaRot == NULL)
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < maxBody; ++i)
+    {
+        s->deltaPos[i] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        s->deltaRot[i] = m3MakeIdentityQuat();
+    }
+    return true;
+}
+
+// Contact and joint constraints, the graph coloring, the mover list and
+// the water field for the substep loop. Returns false on a scratch stall.
+static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t substeps)
+{
+    s->h = dt / (m3real)substeps;
+    s->invH = s->h > 0.0f ? 1.0f / s->h : 0.0f;
+    s->constraintCount = m3PrepareContacts(world, s->constraints, s->h);
+    if (!m3BuildColoring(world, s->constraints, s->constraintCount, &s->coloring))
+    {
+        return false;
+    }
+    s->usedColors = 0;
+    for (int32_t c = 0; c < M3_GRAPH_COLORS + 1; ++c)
+    {
+        if (s->coloring.starts[c + 1] > s->coloring.starts[c])
+        {
+            s->usedColors += 1;
+        }
+    }
+    s->joints = (m3JointConstraint*)ScratchArray(world, world->joints.jointPool.maxIndex,
+                                                 (int32_t)sizeof(m3JointConstraint));
+    if (s->joints == NULL)
+    {
+        return false;
+    }
+    s->jointCount = m3PrepareJoints(world, s->joints, s->h);
+    int32_t maxBody = world->bodies.bodyPool.maxIndex;
+    s->movers = (int32_t*)m3StackAlloc(&world->scratch,
+                                       maxBody > 0 ? maxBody * (int32_t)sizeof(int32_t) : 4);
+    if (s->movers == NULL)
+    {
+        return false;
+    }
+    s->moverCount = BuildMovers(world, s->movers, dt);
+    PrepareBuoyancy(world, s->movers, s->moverCount, &s->buoy);
+    return true;
+}
+
+// The substep loop, the reference schedule: integrate velocities, warm
+// start, solve with bias, integrate positions, relax without bias.
+static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
+{
+    for (int32_t sub = 0; sub < substeps; ++sub)
+    {
+        IntegrateVelocities(world, s->movers, s->moverCount, &s->buoy, s->h);
+        m3WarmStartJoints(world, s->joints, s->jointCount, s->deltaRot);
+        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 0, 1);
+        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 1);
+        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 1, 0);
+        IntegratePositions(world, s->movers, s->moverCount, s->deltaPos, s->deltaRot, s->h);
+        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 0);
+        m3RunColored(world, &s->coloring, s->constraints, s->deltaPos, s->deltaRot, s->invH, 0, 0);
+    }
+}
+
+// After the substeps: host forces are consumed (a force lives for one
+// step, and only movers can carry one), restitution runs, impulses are
+// stored for the next warm start, the wind advances and overloaded
+// joints break.
+static void FinishSolve(m3World* world, const m3StepScratch* s, float dt)
+{
+    for (int32_t m = 0; m < s->moverCount; ++m)
+    {
+        world->bodies.bodyForce[s->movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        world->bodies.bodyTorque[s->movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    }
+    m3Restitution(world, s->constraints, s->constraintCount);
+    m3StoreContactImpulses(world, s->constraints, s->constraintCount);
+    m3StoreJointImpulses(world, s->joints, s->jointCount);
+    world->lastInvH = s->invH;
+    AdvanceWind(world, dt);
+    BreakJoints(world, s->invH);
+}
+
+void m3StepInternal(m3World* world, float dt, int32_t substeps)
+{
+    // The profile is written to the world only when the step completes,
+    // so a stalled step keeps the previous one. Observer data only.
+    m3Profile prof;
+    memset(&prof, 0, sizeof(prof));
+    double tStep = m3NowMs();
+
+    GrowScratchAfterStall(world);
+    int32_t oldCount = StashPairs(world);
+    const uint64_t* oldKeys = world->contacts.stashPairKeys;
+    const m3Manifold* oldManifolds = world->contacts.stashManifolds;
+
+    // Vehicle suspension impulses land first, so the narrow phase and the
+    // solver see the sprung chassis the way they see gravity.
+    double t0 = m3NowMs();
+    m3VehicleApplySuspension(world, dt);
+    prof.vehicles = (float)(m3NowMs() - t0);
+
     t0 = m3NowMs();
-    m3CharacterCarryRiders(world, com0, rot0);
+    m3Result pairsResult = m3UpdatePairs(world);
+    prof.broadphase = (float)(m3NowMs() - t0);
+    t0 = m3NowMs();
+    m3Result contactsResult = pairsResult == m3_success
+                                  ? m3UpdateContacts(world, oldKeys, oldManifolds, oldCount)
+                                  : pairsResult;
+    prof.narrowphase = (float)(m3NowMs() - t0);
+    if (pairsResult != m3_success || contactsResult != m3_success)
+    {
+        return; // a scratch stall (grown next step) or a full pair table:
+                // the world stalls, never corrupts
+    }
+
+    t0 = m3NowMs();
+    EmitContactEvents(world, oldKeys, oldManifolds, oldCount);
+    prof.events = (float)(m3NowMs() - t0);
+
+    t0 = m3NowMs();
+    SizeScratchForStep(world);
+    m3StackReset(&world->scratch);
+    m3StepScratch s;
+    memset(&s, 0, sizeof(s));
+    if (!BeginStep(world, &s))
+    {
+        return; // scratch stall, grown next step
+    }
+    prof.prepare = (float)(m3NowMs() - t0);
+
+    t0 = m3NowMs();
+    if (!PrepareSolve(world, &s, dt, substeps))
+    {
+        return; // scratch stall, grown next step
+    }
+    SolveSubsteps(world, &s, substeps);
+    FinishSolve(world, &s, dt);
+    prof.solve = (float)(m3NowMs() - t0);
+
+    t0 = m3NowMs();
+    if (world->continuousEnabled != 0)
+    {
+        m3SolveContinuousPhase(world, s.com0, s.rot0);
+    }
+    prof.continuous = (float)(m3NowMs() - t0);
+    int32_t islands = LabelIslands(world, s.islandParent);
+    t0 = m3NowMs();
+    if (world->sleepEnabled != 0)
+    {
+        m3IslandSleepPass(world, s.islandParent, s.com0, s.rot0, dt);
+    }
+    prof.sleep = (float)(m3NowMs() - t0);
+
+    EmitMoveEvents(world, s.movers, s.moverCount);
+    t0 = m3NowMs();
+    m3CharacterCarryRiders(world, s.com0, s.rot0);
     prof.characters = (float)(m3NowMs() - t0);
     t0 = m3NowMs();
     m3SoftBodyPass(world, dt, substeps);
@@ -795,7 +900,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     prof.step = (float)(m3NowMs() - tStep);
     world->profile = prof;
     world->lastIslandCount = islands;
-    world->lastColorCount = usedColors;
+    world->lastColorCount = s.usedColors;
     world->lastScratchPeak = world->scratch.top;
 }
 
