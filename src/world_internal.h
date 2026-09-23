@@ -6,8 +6,8 @@
 // handles, the per-step scratch stack, and the journal cursor. No
 // pointers inside persistent state; slots cross-reference by index.
 
-#ifndef MAUL3D_WORLD_INTERNAL_H
-#define MAUL3D_WORLD_INTERNAL_H
+#ifndef MAUL3D_SRC_WORLD_INTERNAL_H
+#define MAUL3D_SRC_WORLD_INTERNAL_H
 
 #include "allocator.h"
 #include "dynamic_tree.h"
@@ -1451,4 +1451,4 @@ int32_t m3JointSlot(const m3World* world, m3JointId jointId);
 int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB);
 void m3DestroyJointInternal(m3World* world, int32_t index);
 
-#endif // MAUL3D_WORLD_INTERNAL_H
+#endif // MAUL3D_SRC_WORLD_INTERNAL_H

@@ -5,8 +5,8 @@
 // monotonic clock. Every engine source reaches these through
 // world_internal.h or allocator.h.
 
-#ifndef MAUL3D_CORE_H
-#define MAUL3D_CORE_H
+#ifndef MAUL3D_SRC_CORE_H
+#define MAUL3D_SRC_CORE_H
 
 #include "maul3d/base.h"
 
@@ -34,4 +34,4 @@ uint64_t m3MisuseCount(const m3World* world);
 // hash input.
 double m3NowMs(void);
 
-#endif // MAUL3D_CORE_H
+#endif // MAUL3D_SRC_CORE_H

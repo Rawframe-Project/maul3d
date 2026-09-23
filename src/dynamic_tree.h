@@ -8,8 +8,8 @@
 // snapshot state: its shape is a deterministic function of the op
 // history, and restoring it bit-exactly keeps rollback total.
 
-#ifndef MAUL3D_DYNAMIC_TREE_H
-#define MAUL3D_DYNAMIC_TREE_H
+#ifndef MAUL3D_SRC_DYNAMIC_TREE_H
+#define MAUL3D_SRC_DYNAMIC_TREE_H
 
 #include "maul3d/base.h"
 
@@ -66,4 +66,4 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
 bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
                    const int32_t* userDatas, int32_t count, int32_t* outNodes);
 
-#endif // MAUL3D_DYNAMIC_TREE_H
+#endif // MAUL3D_SRC_DYNAMIC_TREE_H

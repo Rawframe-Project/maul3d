@@ -12,8 +12,8 @@
 // handle: FIFO recycling with a generation bump, so a stale id can
 // always be detected and slots are reused in a canonical order.
 
-#ifndef MAUL3D_ALLOCATOR_H
-#define MAUL3D_ALLOCATOR_H
+#ifndef MAUL3D_SRC_ALLOCATOR_H
+#define MAUL3D_SRC_ALLOCATOR_H
 
 #include "core.h"
 
@@ -82,4 +82,4 @@ int32_t m3IdPoolAlloc(m3IdPool* pool);
 void m3IdPoolFree(m3IdPool* pool, int32_t index);
 int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint16_t generation);
 
-#endif // MAUL3D_ALLOCATOR_H
+#endif // MAUL3D_SRC_ALLOCATOR_H
