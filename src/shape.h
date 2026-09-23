@@ -54,11 +54,26 @@ static inline int m3FilterPass(uint64_t catA, uint64_t maskA, uint64_t catB, uin
     return (catA & maskB) != 0 && (catB & maskA) != 0;
 }
 
+// Content a shape create hands over, built before the create: a hull
+// from QuickHull, or staged mesh, voxel or height field content. All NULL
+// for the plain geometry kinds.
+typedef struct m3ShapeContent
+{
+    const m3HullData* hull;
+    const m3MeshData* mesh;
+    const m3VoxelChunkData* voxels;
+    const m3HeightFieldData* heightField;
+} m3ShapeContent;
+
+// Materials and the compound pose of a def, and the geometry of the
+// plain shape kinds. The internal create checks both; public doors check
+// them first to refuse bad input as invalid rather than as capacity.
+bool m3ShapeDefValid(const m3ShapeDef* def);
+bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom);
+
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeGeom* geom, const m3ShapeDef* def,
-                              const m3HullData* prebuilt, const m3MeshData* meshPrebuilt,
-                              const m3VoxelChunkData* voxelPrebuilt,
-                              const m3HeightFieldData* hfPrebuilt);
+                              const m3ShapeContent* content);
 
 void m3DestroyShapeInternal(m3World* world, int32_t index);
 

@@ -10,6 +10,7 @@
 #include "maul3d/shape.h"
 #include "test_harness.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -583,6 +584,37 @@ static void TestRestoreRefusesPoisonedWords(void)
     m3DestroyWorld(world);
 }
 
+// Every shape constructor checks the def's materials before it builds
+// anything: a poisoned def is invalid input, never a capacity refusal.
+static void TestShapeDefsRefuseAsInvalid(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = NAN;
+    static const m3Vec3 tri[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    static const uint16_t idx[3] = {0, 1, 2};
+    CHECK(!m3Shape_IsValid(m3CreateMeshShape(ground, &sd, tri, 3, idx, 1)),
+          "a mesh with a NaN density refuses");
+    CHECK(m3LastResult() == m3_errorInvalid, "as invalid input");
+    CHECK(!m3Shape_IsValid(m3CreateHullShape(ground, &sd, tri, 3)),
+          "a hull with a NaN density refuses");
+    CHECK(m3LastResult() == m3_errorInvalid, "as invalid input too");
+    static const float heights[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    CHECK(!m3Shape_IsValid(m3CreateHeightFieldGridShape(ground, &sd, heights, 2, 2, 1.0f)),
+          "a height field with a NaN density refuses");
+    CHECK(m3LastResult() == m3_errorInvalid, "as invalid input as well");
+    sd = m3DefaultShapeDef();
+    m3Sphere bad = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    sd.friction = -1.0f;
+    CHECK(!m3Shape_IsValid(m3CreateSphereShape(ground, &sd, &bad)),
+          "a sphere with negative friction refuses");
+    CHECK(m3LastResult() == m3_errorInvalid, "and says why");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestZoo();
@@ -591,6 +623,7 @@ int main(void)
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
     TestJournalOverflowIsLoud();
+    TestShapeDefsRefuseAsInvalid();
     if (s_failures == 0)
     {
         printf("test_hardening: all checks passed\n");

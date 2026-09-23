@@ -907,14 +907,18 @@ void m3DestroyWaterVolume(m3WaterVolumeId id)
     m3DestroyWaterVolumeInternal(world, slot);
 }
 
-void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes)
+void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts, int32_t partCount)
 {
     if (world->recorder.journalActive == 0)
     {
         return;
     }
-    int32_t need = 8 + bytes;
-    if (world->recorder.journalCursor + need > world->recorder.journalCapacity)
+    int64_t bytes = 0;
+    for (int32_t i = 0; i < partCount; ++i)
+    {
+        bytes += parts[i].bytes;
+    }
+    if (world->recorder.journalCursor + 8 + bytes > world->recorder.journalCapacity)
     {
         // Loud overflow: latch, stop recording, End reports -1.
         world->recorder.journalOverflow = 1;
@@ -922,19 +926,22 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
         return;
     }
     uint8_t* out = world->recorder.journalBuffer + world->recorder.journalCursor;
+    int32_t payloadBytes = (int32_t)bytes;
     memcpy(out, &op, 4);
-    memcpy(out + 4, &bytes, 4);
-    memcpy(out + 8, payload, (size_t)bytes);
-    world->recorder.journalCursor += need;
+    memcpy(out + 4, &payloadBytes, 4);
+    int32_t at = 8;
+    for (int32_t i = 0; i < partCount; ++i)
+    {
+        memcpy(out + at, parts[i].data, (size_t)parts[i].bytes);
+        at += parts[i].bytes;
+    }
+    world->recorder.journalCursor += at;
 }
 
-void m3JournalAbandon(m3World* world)
+void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes)
 {
-    // The op could not be encoded (no memory for its payload). A tape
-    // missing an op would replay a different world, so the recording
-    // fails the same loud way an overflow does.
-    world->recorder.journalOverflow = 1;
-    world->recorder.journalActive = 0;
+    m3JournalPart part = {payload, bytes};
+    m3JournalRecordParts(world, op, &part, 1);
 }
 
 bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)

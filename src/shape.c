@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Shapes: spheres and static half-spaces, their mass, and the body
-// shape lists. Same law as bodies: public functions validate and
+// Shapes: the internal create and destroy, geometry updates and the
+// body shape lists. Same law as bodies: public functions validate and
 // journal, internal functions mutate, replay drives the internals.
 
 #include "shape.h"
@@ -52,598 +52,147 @@ m3ShapeDef m3DefaultShapeDef(void)
     return def;
 }
 
-// Invert a symmetric positive-definite 3x3 via the adjugate. A
-// singular or non-positive matrix returns zero (an unrotatable body),
-// never NaN.
-static m3Mat3 InvertSymmetric(m3Mat3 m)
+// Materials and the compound pose, checked on every create door.
+bool m3ShapeDefValid(const m3ShapeDef* def)
 {
-    m3real a = m.cx.x;
-    m3real b = m.cy.x; // = m.cx.y by symmetry
-    m3real c = m.cz.x;
-    m3real d = m.cy.y;
-    m3real e = m.cz.y;
-    m3real f = m.cz.z;
-    m3real co00 = d * f - e * e;
-    m3real co01 = c * e - b * f;
-    m3real co02 = b * e - c * d;
-    m3real det = a * co00 + b * co01 + c * co02;
-    if (!(det > 0.0f))
-    {
-        return m3MakeZeroMat3();
-    }
-    m3real inv = 1.0f / det;
-    m3Mat3 r;
-    r.cx = (m3Vec3){co00 * inv, co01 * inv, co02 * inv};
-    r.cy = (m3Vec3){co01 * inv, (a * f - c * c) * inv, (b * c - a * e) * inv};
-    r.cz = (m3Vec3){co02 * inv, (b * c - a * e) * inv, (a * d - b * b) * inv};
-    return r;
+    m3Quat q = def->localRotation;
+    float rotLen2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    return m3FiniteV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
+           rotLen2 <= 1.01f && m3FiniteF(def->density) && def->density > 0.0f &&
+           m3FiniteF(def->friction) && def->friction >= 0.0f && m3FiniteF(def->restitution) &&
+           def->restitution >= 0.0f && m3FiniteF(def->rollingResistance) &&
+           def->rollingResistance >= 0.0f;
 }
 
-// Density-scaled mass, centroid, and centroid inertia of one shape.
-// Returns 0 for shapes that carry no mass (planes).
-// Compose a shape's mass properties through its compound offset
-//: the raw props live in the SHAPE frame; the body wants
-// them in ITS frame. c' = p + R c, I' = R I R^T. Identity offsets
-// short-circuit: default scenes never enter the rotation.
-static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat3* inertia)
+// The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
+// and box hulls, whose half extents ride in geom.v. A zero-height
+// capsule is legal: it is a documented character stance.
+bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom)
 {
-    if (world->shapes.shapeHasOffset[s] == 0)
+    switch (type)
     {
-        return;
-    }
-    m3Quat q = world->shapes.shapeLocalRot[s];
-    *com = m3Add3(world->shapes.shapeLocalPos[s], m3RotateVec3(q, *com));
-    m3Mat3 r;
-    r.cx = m3RotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f});
-    r.cy = m3RotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f});
-    r.cz = m3RotateVec3(q, (m3Vec3){0.0f, 0.0f, 1.0f});
-    // I' = R I R^T, built column by column: first T = I R^T, then
-    // I' = R T. Columns of R^T are rows of R.
-    m3Mat3 t;
-    t.cx = (m3Vec3){inertia->cx.x * r.cx.x + inertia->cy.x * r.cx.y + inertia->cz.x * r.cx.z,
-                    inertia->cx.y * r.cx.x + inertia->cy.y * r.cx.y + inertia->cz.y * r.cx.z,
-                    inertia->cx.z * r.cx.x + inertia->cy.z * r.cx.y + inertia->cz.z * r.cx.z};
-    t.cy = (m3Vec3){inertia->cx.x * r.cy.x + inertia->cy.x * r.cy.y + inertia->cz.x * r.cy.z,
-                    inertia->cx.y * r.cy.x + inertia->cy.y * r.cy.y + inertia->cz.y * r.cy.z,
-                    inertia->cx.z * r.cy.x + inertia->cy.z * r.cy.y + inertia->cz.z * r.cy.z};
-    t.cz = (m3Vec3){inertia->cx.x * r.cz.x + inertia->cy.x * r.cz.y + inertia->cz.x * r.cz.z,
-                    inertia->cx.y * r.cz.x + inertia->cy.y * r.cz.y + inertia->cz.y * r.cz.z,
-                    inertia->cx.z * r.cz.x + inertia->cy.z * r.cz.y + inertia->cz.z * r.cz.z};
-    inertia->cx = (m3Vec3){r.cx.x * t.cx.x + r.cy.x * t.cx.y + r.cz.x * t.cx.z,
-                           r.cx.y * t.cx.x + r.cy.y * t.cx.y + r.cz.y * t.cx.z,
-                           r.cx.z * t.cx.x + r.cy.z * t.cx.y + r.cz.z * t.cx.z};
-    inertia->cy = (m3Vec3){r.cx.x * t.cy.x + r.cy.x * t.cy.y + r.cz.x * t.cy.z,
-                           r.cx.y * t.cy.x + r.cy.y * t.cy.y + r.cz.y * t.cy.z,
-                           r.cx.z * t.cy.x + r.cy.z * t.cy.y + r.cz.z * t.cy.z};
-    inertia->cz = (m3Vec3){r.cx.x * t.cz.x + r.cy.x * t.cz.y + r.cz.x * t.cz.z,
-                           r.cx.y * t.cz.x + r.cy.y * t.cz.y + r.cz.y * t.cz.z,
-                           r.cx.z * t.cz.x + r.cy.z * t.cz.y + r.cz.z * t.cz.z};
-}
-
-static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
-                          m3Mat3* inertiaOut)
-{
-    uint8_t type = world->shapes.shapeType[s];
-    if (type == (uint8_t)m3_sphereShape)
-    {
-        float r = world->shapes.shapeGeom[s].s;
-        float m = world->shapes.shapeDensity[s] * (4.0f / 3.0f) * M3_PI * r * r * r;
-        float ic = 0.4f * m * r * r;
-        *massOut = m;
-        *comOut = world->shapes.shapeGeom[s].v;
-        *inertiaOut = m3MakeZeroMat3();
-        inertiaOut->cx.x = ic;
-        inertiaOut->cy.y = ic;
-        inertiaOut->cz.z = ic;
-        return 1;
-    }
-    if (type == (uint8_t)m3_capsuleShape)
-    {
-        // Closed form: a cylinder of length L plus two hemispheres.
-        // About the COM (the segment midpoint), with u the unit axis:
-        //   I = Iperp * Identity + (Iaxial - Iperp) * (u outer u)
-        // because t1(x)t1 + t2(x)t2 = Identity - u(x)u for any
-        // orthonormal basis {t1, u, t2}. No basis matrix needed and
-        // the result is exactly symmetric.
-        m3Vec3 p1 = world->shapes.shapeGeom[s].v;
-        m3Vec3 p2 = world->shapes.shapeGeom[s].v2;
-        float r = world->shapes.shapeGeom[s].s;
-        m3Vec3 axis = m3Sub3(p2, p1);
-        float length = sqrtf(m3Dot3(axis, axis));
-        // The create walls demand length > 0, but a mutated snapshot
-        // writes the geometry slab directly and a zero or NaN segment
-        // must not mint an inf axis here. With length zero the d
-        // term below vanishes and the isotropic (sphere) inertia is
-        // exactly right, so any unit stand-in axis is correct.
-        m3Vec3 u = length > 0.0f ? m3MulSV3(1.0f / length, axis) : (m3Vec3){1.0f, 0.0f, 0.0f};
-        float density = world->shapes.shapeDensity[s];
-        float mCyl = density * M3_PI * r * r * length;
-        float mSph = density * (4.0f / 3.0f) * M3_PI * r * r * r;
-        float axial = 0.5f * mCyl * r * r + 0.4f * mSph * r * r;
-        float perp = mCyl * (length * length / 12.0f + 0.25f * r * r) +
-                     mSph * (0.4f * r * r + 0.25f * length * length + 0.375f * length * r);
-        *massOut = mCyl + mSph;
-        *comOut = m3MulSV3(0.5f, m3Add3(p1, p2));
-        m3Mat3 ic2 = m3MakeZeroMat3();
-        float d = axial - perp;
-        ic2.cx = (m3Vec3){perp + d * u.x * u.x, d * u.x * u.y, d * u.x * u.z};
-        ic2.cy = (m3Vec3){d * u.x * u.y, perp + d * u.y * u.y, d * u.y * u.z};
-        ic2.cz = (m3Vec3){d * u.x * u.z, d * u.y * u.z, perp + d * u.z * u.z};
-        *inertiaOut = ic2;
-        return 1;
-    }
-    if (type == (uint8_t)m3_hullShape)
-    {
-        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s]];
-        float density = world->shapes.shapeDensity[s];
-        *massOut = density * hull->unitMass;
-        *comOut = hull->unitCom;
-        m3Mat3 ic = hull->unitInertiaCom;
-        ic.cx = m3MulSV3(density, ic.cx);
-        ic.cy = m3MulSV3(density, ic.cy);
-        ic.cz = m3MulSV3(density, ic.cz);
-        *inertiaOut = ic;
-        return 1;
-    }
-    return 0;
-}
-
-void m3RecomputeMass(m3World* world, int32_t bodyIndex)
-{
-    if (world->bodies.types[bodyIndex] != (uint8_t)m3_dynamicBody)
-    {
-        world->bodies.invMass[bodyIndex] = 0.0f;
-        world->bodies.invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->bodies.inertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->bodies.localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodies.minExtents[bodyIndex] = 1.0e30f;
-        world->bodies.maxExtents[bodyIndex] = 0.0f;
-        return;
-    }
-    // Two passes: first total mass and the mass
-    // weighted center, THEN inertia about that center via the parallel
-    // axis theorem. Every term is non-negative and small; no
-    // big-minus-big cancellation can occur.
-    float mass = 0.0f;
-    m3Vec3 center = {0.0f, 0.0f, 0.0f};
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
-    {
-        float m;
-        m3Vec3 c;
-        m3Mat3 ic;
-        if (!ShapeMassProps(world, s, &m, &c, &ic))
-        {
-            continue;
-        }
-        ComposeMassProps(world, s, &c, &ic);
-        mass += m;
-        center = m3Add3(center, m3MulSV3(m, c));
-    }
-    if (!(mass > 0.0f))
-    {
-        // Shapeless dynamic body: unit mass, zero inertia (the
-        // reference convention).
-        world->bodies.invMass[bodyIndex] = 1.0f;
-        world->bodies.invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->bodies.inertiaLocal[bodyIndex] = m3MakeZeroMat3();
-        world->bodies.localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodies.minExtents[bodyIndex] = 1.0e30f;
-        world->bodies.maxExtents[bodyIndex] = 0.0f;
-        return;
-    }
-    center = m3MulSV3(1.0f / mass, center);
-
-    m3Mat3 inertia = m3MakeZeroMat3();
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
-    {
-        float m;
-        m3Vec3 c;
-        m3Mat3 ic;
-        if (!ShapeMassProps(world, s, &m, &c, &ic))
-        {
-            continue;
-        }
-        ComposeMassProps(world, s, &c, &ic);
-        m3Vec3 d = m3Sub3(c, center);
-        float d2 = m3Dot3(d, d);
-        // I += Ic + m * (|d|^2 Identity - d outer d), the full 3D
-        // parallel axis theorem, term by term non-negative diagonals.
-        inertia.cx.x += ic.cx.x + m * (d2 - d.x * d.x);
-        inertia.cy.y += ic.cy.y + m * (d2 - d.y * d.y);
-        inertia.cz.z += ic.cz.z + m * (d2 - d.z * d.z);
-        inertia.cy.x += ic.cy.x - m * d.x * d.y;
-        inertia.cx.y += ic.cx.y - m * d.x * d.y;
-        inertia.cz.x += ic.cz.x - m * d.x * d.z;
-        inertia.cx.z += ic.cx.z - m * d.x * d.z;
-        inertia.cz.y += ic.cz.y - m * d.y * d.z;
-        inertia.cy.z += ic.cy.z - m * d.y * d.z;
-    }
-    world->bodies.invMass[bodyIndex] = 1.0f / mass;
-    world->bodies.inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
-    world->bodies.invInertiaLocal[bodyIndex] = InvertSymmetric(inertia);
-
-    // Extents drive continuous collision: minExtent is the
-    // thinnest measure any shape brings (motion past half of it in
-    // one step marks the body fast), maxExtent bounds the rotation
-    // arc in the sweep advance.
-    float minExtent = 1.0e30f;
-    float maxExtent = 0.0f;
-    for (int32_t s2 = world->bodies.bodyShapeHead[bodyIndex]; s2 != -1;
-         s2 = world->shapes.shapeNext[s2])
-    {
-        uint8_t type = world->shapes.shapeType[s2];
-        if (type == (uint8_t)m3_sphereShape)
-        {
-            float r = world->shapes.shapeGeom[s2].s;
-            m3Vec3 d = m3Sub3(world->shapes.shapeGeom[s2].v, center);
-            minExtent = m3MinF(minExtent, r);
-            maxExtent = m3MaxF(maxExtent, sqrtf(m3Dot3(d, d)) + r);
-        }
-        else if (type == (uint8_t)m3_capsuleShape)
-        {
-            float r = world->shapes.shapeGeom[s2].s;
-            m3Vec3 d1 = m3Sub3(world->shapes.shapeGeom[s2].v, center);
-            m3Vec3 d2 = m3Sub3(world->shapes.shapeGeom[s2].v2, center);
-            minExtent = m3MinF(minExtent, r);
-            maxExtent = m3MaxF(maxExtent, sqrtf(m3MaxF(m3Dot3(d1, d1), m3Dot3(d2, d2))) + r);
-        }
-        else if (type == (uint8_t)m3_hullShape)
-        {
-            const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s2]];
-            for (int32_t f = 0; f < hull->faceCount; ++f)
-            {
-                float dist = hull->faceOffsets[f] - m3Dot3(hull->faceNormals[f], center);
-                minExtent = m3MinF(minExtent, dist);
-            }
-            for (int32_t v = 0; v < hull->vertexCount; ++v)
-            {
-                m3Vec3 d = m3Sub3(hull->vertices[v], center);
-                maxExtent = m3MaxF(maxExtent, sqrtf(m3Dot3(d, d)));
-            }
-        }
-    }
-    world->bodies.minExtents[bodyIndex] = minExtent;
-    world->bodies.maxExtents[bodyIndex] = maxExtent;
-    world->bodies.localCenters[bodyIndex] = center;
-}
-
-// Edge convexity for the welding filter: for every triangle edge,
-// find the neighbor sharing the undirected vertex pair. No neighbor
-// (a boundary) or a neighbor bending away (convex ridge) marks a
-// REAL feature; flat and concave edges stay ghost candidates.
-void m3BakeMeshEdgeFlags(m3MeshData* mesh)
-{
-    const m3real tol = 0.005f;
-    int32_t triCount = mesh->triangleCount;
-    for (int32_t t = 0; t < triCount; ++t)
-    {
-        mesh->edgeFlags[t] = 0;
-        m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
-        m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
-        m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
-        m3Vec3 n = m3Normalize3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)));
-        m3real off = m3Dot3(n, a);
-        for (int32_t k = 0; k < 3; ++k)
-        {
-            int32_t v1 = mesh->indices[3 * t + k];
-            int32_t v2 = mesh->indices[3 * t + (k + 1) % 3];
-            int32_t neighborOpp = -1;
-            for (int32_t u = 0; u < triCount && neighborOpp < 0; ++u)
-            {
-                if (u == t)
-                {
-                    continue;
-                }
-                for (int32_t j = 0; j < 3; ++j)
-                {
-                    int32_t w1 = mesh->indices[3 * u + j];
-                    int32_t w2 = mesh->indices[3 * u + (j + 1) % 3];
-                    if ((w1 == v2 && w2 == v1) || (w1 == v1 && w2 == v2))
-                    {
-                        neighborOpp = mesh->indices[3 * u + (j + 2) % 3];
-                        break;
-                    }
-                }
-            }
-            if (neighborOpp < 0)
-            {
-                mesh->edgeFlags[t] |= (uint8_t)(1 << k); // boundary: real
-                continue;
-            }
-            m3real d = m3Dot3(n, mesh->vertices[neighborOpp]) - off;
-            if (d < -tol)
-            {
-                mesh->edgeFlags[t] |= (uint8_t)(1 << k); // convex ridge: real
-            }
-            // Flat or concave: stays zero, a ghost candidate.
-        }
-    }
-}
-
-bool m3HeightFieldDataAlloc(m3HeightFieldData* hf)
-{
-    m3Free(hf->heights);
-    hf->heights = NULL;
-    if (hf->nx <= 0 || hf->nz <= 0)
-    {
-        return hf->nx == 0 && hf->nz == 0; // an empty slot is legal
-    }
-    hf->heights = (float*)m3AllocZeroed(hf->nx * hf->nz * (int32_t)sizeof(float));
-    if (hf->heights == NULL)
-    {
-        m3HeightFieldDataFree(hf);
+    case m3_sphereShape:
+        return m3FiniteV3(geom->v) && m3FiniteF(geom->s) && geom->s > 0.0f;
+    case m3_planeShape:
+        return m3FiniteV3(geom->v) && m3FiniteF(geom->s) && m3Dot3(geom->v, geom->v) > 1.0e-12f;
+    case m3_capsuleShape:
+        return m3FiniteV3(geom->v) && m3FiniteV3(geom->v2) && m3FiniteF(geom->s) && geom->s > 0.0f;
+    case m3_hullShape:
+        return m3FiniteV3(geom->v) && geom->v.x > 0.0f && geom->v.y > 0.0f && geom->v.z > 0.0f;
+    default:
         return false;
     }
-    return true;
 }
 
-void m3HeightFieldDataFree(m3HeightFieldData* hf)
+static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uint8_t type,
+                           const m3ShapeGeom* geom, const m3ShapeDef* def)
 {
-    m3Free(hf->heights);
-    memset(hf, 0, sizeof(*hf));
-}
-
-int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
-                            int32_t cap)
-{
-    m3real inv = 1.0f / hf->cellSize;
-    int32_t cx0 = m3CellFromF(floorf(lo.x * inv), 2.0e9f);
-    int32_t cx1 = m3CellFromF(floorf(hi.x * inv), -2.0e9f);
-    int32_t cz0 = m3CellFromF(floorf(lo.z * inv), 2.0e9f);
-    int32_t cz1 = m3CellFromF(floorf(hi.z * inv), -2.0e9f);
-    cx0 = cx0 < 0 ? 0 : cx0;
-    cz0 = cz0 < 0 ? 0 : cz0;
-    cx1 = cx1 > hf->nx - 2 ? hf->nx - 2 : cx1;
-    cz1 = cz1 > hf->nz - 2 ? hf->nz - 2 : cz1;
-    int32_t count = 0;
-    for (int32_t cz = cz0; cz <= cz1; ++cz)
-    {
-        for (int32_t cx = cx0; cx <= cx1; ++cx)
-        {
-            if (count + 2 > cap)
-            {
-                return count; // bounded by contract
-            }
-            m3Vec3 cell[2][3];
-            m3HeightFieldCellTris(hf, cx, cz, cell);
-            for (int32_t t = 0; t < 2; ++t)
-            {
-                tris[count][0] = cell[t][0];
-                tris[count][1] = cell[t][1];
-                tris[count][2] = cell[t][2];
-                count += 1;
-            }
-        }
-    }
-    return count;
-}
-
-int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
-                              const m3ShapeGeom* geom, const m3ShapeDef* def,
-                              const m3HullData* prebuilt, const m3MeshData* meshPrebuilt,
-                              const m3VoxelChunkData* voxelPrebuilt,
-                              const m3HeightFieldData* hfPrebuilt)
-{
-    // Input checks live here because replay hands this function raw
-    // journal bytes.
-    // Materials and the compound pose wall every door; the plain
-    // m3ShapeGeom door (op 4) also walls its geometry per type.
-    // Interned slabs (hull, mesh, voxel) validate their payloads
-    // in their own decode paths.
-    float rotLen2 =
-        def->localRotation.x * def->localRotation.x + def->localRotation.y * def->localRotation.y +
-        def->localRotation.z * def->localRotation.z + def->localRotation.w * def->localRotation.w;
-    if (!m3FiniteV3(def->localPosition) || !m3FiniteQuat(def->localRotation) || rotLen2 < 0.99f ||
-        rotLen2 > 1.01f || !m3FiniteF(def->density) || !(def->density > 0.0f) ||
-        !m3FiniteF(def->friction) || def->friction < 0.0f || !m3FiniteF(def->restitution) ||
-        def->restitution < 0.0f || !m3FiniteF(def->rollingResistance) ||
-        def->rollingResistance < 0.0f)
-    {
-        return -1;
-    }
-    if (prebuilt == NULL && meshPrebuilt == NULL && voxelPrebuilt == NULL && hfPrebuilt == NULL)
-    {
-        if (type == (uint8_t)m3_sphereShape)
-        {
-            if (!m3FiniteV3(geom->v) || !m3FiniteF(geom->s) || !(geom->s > 0.0f))
-            {
-                return -1;
-            }
-        }
-        else if (type == (uint8_t)m3_planeShape)
-        {
-            if (!m3FiniteV3(geom->v) || !m3FiniteF(geom->s) ||
-                !(m3Dot3(geom->v, geom->v) > 1.0e-12f))
-            {
-                return -1;
-            }
-        }
-        else if (type == (uint8_t)m3_capsuleShape)
-        {
-            // v == v2 stays legal: a zero-height character capsule
-            // is a documented stance.
-            if (!m3FiniteV3(geom->v) || !m3FiniteV3(geom->v2) || !m3FiniteF(geom->s) ||
-                !(geom->s > 0.0f))
-            {
-                return -1;
-            }
-        }
-        else if (type == (uint8_t)m3_hullShape)
-        {
-            // The box-hull door: geom.v carries the half extents.
-            if (!m3FiniteV3(geom->v) || !(geom->v.x > 0.0f) || !(geom->v.y > 0.0f) ||
-                !(geom->v.z > 0.0f))
-            {
-                return -1;
-            }
-        }
-        else
-        {
-            return -1; // no other type rides the plain-geom door
-        }
-    }
-    int32_t index = m3IdPoolAlloc(&world->shapes.shapePool);
-    if (index < 0)
-    {
-        return -1;
-    }
-    world->shapes.shapeBody[index] = bodyIndex;
-    world->shapes.shapeType[index] = type;
-    world->shapes.shapeGeom[index] = *geom;
-    world->shapes.shapeDensity[index] = def->density;
-    world->shapes.shapeFriction[index] = def->friction;
-    world->shapes.shapeRestitution[index] = def->restitution;
-    world->shapes.shapeRollingResistance[index] = def->rollingResistance;
-    world->shapes.shapeCategory[index] = def->categoryBits;
-    world->shapes.shapeMask[index] = def->maskBits;
-    world->shapes.shapeGroup[index] = def->groupIndex;
-    world->shapes.shapeUserData[index] = def->userData;
-    world->shapes.shapeSensor[index] = def->isSensor ? 1 : 0;
-    world->shapes.shapeHitEvents[index] = def->enableHitEvents ? 1 : 0;
-    world->shapes.shapePreSolve[index] = def->enablePreSolveEvents ? 1 : 0;
-    world->shapes.shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapes.shapeLocalPos[index] = def->localPosition;
-    world->shapes.shapeLocalRot[index] = def->localRotation;
-    world->shapes.shapeHasOffset[index] =
-        (def->localPosition.x != 0.0f || def->localPosition.y != 0.0f ||
-         def->localPosition.z != 0.0f || def->localRotation.x != 0.0f ||
-         def->localRotation.y != 0.0f || def->localRotation.z != 0.0f ||
-         def->localRotation.w != 1.0f)
-            ? 1
-            : 0;
-    // Push onto the body's list head (canonical: creation order is
-    // recoverable because replay recreates in the same order).
-    world->shapes.shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
+    m3Shapes* sh = &world->shapes;
+    m3Vec3 p = def->localPosition;
+    m3Quat q = def->localRotation;
+    sh->shapeBody[index] = bodyIndex;
+    sh->shapeType[index] = type;
+    sh->shapeGeom[index] = *geom;
+    sh->shapeDensity[index] = def->density;
+    sh->shapeFriction[index] = def->friction;
+    sh->shapeRestitution[index] = def->restitution;
+    sh->shapeRollingResistance[index] = def->rollingResistance;
+    sh->shapeCategory[index] = def->categoryBits;
+    sh->shapeMask[index] = def->maskBits;
+    sh->shapeGroup[index] = def->groupIndex;
+    sh->shapeUserData[index] = def->userData;
+    sh->shapeSensor[index] = def->isSensor ? 1 : 0;
+    sh->shapeHitEvents[index] = def->enableHitEvents ? 1 : 0;
+    sh->shapePreSolve[index] = def->enablePreSolveEvents ? 1 : 0;
+    sh->shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sh->shapeLocalPos[index] = p;
+    sh->shapeLocalRot[index] = q;
+    sh->shapeHasOffset[index] = (p.x != 0.0f || p.y != 0.0f || p.z != 0.0f || q.x != 0.0f ||
+                                 q.y != 0.0f || q.z != 0.0f || q.w != 1.0f)
+                                    ? 1
+                                    : 0;
+    sh->shapeHullIndex[index] = -1;
+    sh->shapeMeshIndex[index] = -1;
+    sh->shapeHfIndex[index] = -1;
+    sh->shapeVoxelIndex[index] = -1;
+    // Push onto the body's list head; replay recreates in the same order.
+    sh->shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
     world->bodies.bodyShapeHead[bodyIndex] = index;
-    world->shapes.shapeHullIndex[index] = -1;
-    if (type == (uint8_t)m3_hullShape)
-    {
-        // Boxes rebuild from geom.v (the journaled half extents);
-        // general hulls arrive prebuilt from QuickHull (their recipe
-        // rides the dedicated journal op instead).
-        m3HullData data;
-        if (prebuilt == NULL)
-        {
-            m3BuildBoxHull(&data, geom->v);
-        }
-        world->shapes.shapeHullIndex[index] =
-            m3InternHull(world, prebuilt != NULL ? prebuilt : &data);
-        if (world->shapes.shapeHullIndex[index] < 0)
-        {
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeNext[index] = -1;
-            world->shapes.shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapes.shapePool, index);
-            return -1;
-        }
-    }
-    world->shapes.shapeMeshIndex[index] = -1;
-    if (type == (uint8_t)m3_meshShape)
-    {
-        // No content dedupe: meshes are big and user-authored; each
-        // create claims a fresh slot.
-        int32_t meshIndex = m3IdPoolAlloc(&world->meshes.meshPool);
-        if (meshIndex < 0)
-        {
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeNext[index] = -1;
-            world->shapes.shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapes.shapePool, index);
-            return -1; // mesh slots exhausted: loud at the caller
-        }
-        world->meshes.meshData[meshIndex] = *meshPrebuilt;
-        m3BakeMeshEdgeFlags(&world->meshes.meshData[meshIndex]);
-        m3MeshBvhBuild(&world->meshes.meshBvh[meshIndex], &world->meshes.meshData[meshIndex]);
-        world->meshes.meshRefCounts[meshIndex] = 1;
-        world->shapes.shapeMeshIndex[index] = meshIndex;
-    }
-    world->shapes.shapeHfIndex[index] = -1;
-    if (type == (uint8_t)m3_heightFieldShape)
-    {
-        // The mesh-slot pattern: fresh slot, the count-derived
-        // content TAKEN OVER from the caller's staging struct (the
-        // pointer moves, no copy of the sample block).
-        int32_t hfIndex = m3IdPoolAlloc(&world->heightFields.hfPool);
-        if (hfIndex < 0)
-        {
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeNext[index] = -1;
-            world->shapes.shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapes.shapePool, index);
-            return -1; // heightfield slots exhausted: loud
-        }
-        world->heightFields.hfData[hfIndex] = *hfPrebuilt;
-        world->heightFields.hfRefCounts[hfIndex] = 1;
-        world->shapes.shapeHfIndex[index] = hfIndex;
-    }
-    world->shapes.shapeVoxelIndex[index] = -1;
-    if (type == (uint8_t)m3_voxelShape)
-    {
-        // The mesh-slot pattern: fresh slot, state block copied in,
-        // the DERIVED surface built from it (the BVH law).
-        int32_t voxelIndex = m3IdPoolAlloc(&world->voxels.voxelPool);
-        if (voxelIndex < 0)
-        {
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeNext[index] = -1;
-            world->shapes.shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapes.shapePool, index);
-            return -1; // voxel slots exhausted: loud at the caller
-        }
-        world->voxels.voxelData[voxelIndex] = *voxelPrebuilt;
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[voxelIndex],
-                            &world->voxels.voxelData[voxelIndex]);
-        world->voxels.voxelRefCounts[voxelIndex] = 1;
-        world->shapes.shapeVoxelIndex[index] = voxelIndex;
-        world->voxels.voxelShape[voxelIndex] = index;
-        // A new chunk can weld to existing ones and change THEIR
-        // border coverage too: rebuild links, refresh the seam.
-        m3VoxelRebuildLinks(world);
-        m3VoxelCoverageRefreshAround(world, voxelIndex);
-    }
-    // Spheres and hulls enter the broadphase tree; infinite planes
-    // stay out and take the dedicated pair pass.
-    if (type != (uint8_t)m3_planeShape)
-    {
-        double lo[3];
-        double hi[3];
-        m3ShapeFatAabb(world, index, lo, hi);
-        world->broadphase.proxyIds[index] = m3TreeInsert(&world->broadphase.tree, lo, hi, index);
-        if (world->broadphase.proxyIds[index] == M3_TREE_NULL)
-        {
-            // Tree pool exhausted: undo loudly, never a half-created
-            // shape.
-            m3ReleaseHull(world, world->shapes.shapeHullIndex[index]);
-            world->shapes.shapeHullIndex[index] = -1;
-            if (world->shapes.shapeHfIndex[index] >= 0)
-            {
-                m3HeightFieldDataFree(
-                    &world->heightFields.hfData[world->shapes.shapeHfIndex[index]]);
-                m3IdPoolFree(&world->heightFields.hfPool, world->shapes.shapeHfIndex[index]);
-                world->shapes.shapeHfIndex[index] = -1;
-            }
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeNext[index] = -1;
-            world->shapes.shapeBody[index] = -1;
-            m3IdPoolFree(&world->shapes.shapePool, index);
-            return -1;
-        }
-    }
-    else
-    {
-        world->broadphase.proxyIds[index] = M3_TREE_NULL;
-    }
-    m3RecomputeMass(world, bodyIndex);
-    return index;
 }
 
-void m3DestroyShapeInternal(m3World* world, int32_t index)
+// Content a create hands over: an interned hull (boxes rebuild from the
+// journaled half extents, general hulls arrive from QuickHull), or a
+// fresh mesh, height field or voxel slot. Meshes are big and authored,
+// so they are never deduplicated. The mesh BVH and the voxel surface are
+// derived here from the content.
+static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeContent* content)
 {
-    int32_t bodyIndex = world->shapes.shapeBody[index];
-    // Unlink from the body's list.
-    int32_t* cursor = &world->bodies.bodyShapeHead[bodyIndex];
+    m3Shapes* sh = &world->shapes;
+    switch (sh->shapeType[index])
+    {
+    case m3_hullShape:
+    {
+        m3HullData box;
+        if (content->hull == NULL)
+        {
+            m3BuildBoxHull(&box, sh->shapeGeom[index].v);
+        }
+        sh->shapeHullIndex[index] =
+            m3InternHull(world, content->hull != NULL ? content->hull : &box);
+        return sh->shapeHullIndex[index] >= 0;
+    }
+    case m3_meshShape:
+    {
+        int32_t m = m3IdPoolAlloc(&world->meshes.meshPool);
+        if (m < 0)
+        {
+            return false;
+        }
+        world->meshes.meshData[m] = *content->mesh;
+        m3BakeMeshEdgeFlags(&world->meshes.meshData[m]);
+        m3MeshBvhBuild(&world->meshes.meshBvh[m], &world->meshes.meshData[m]);
+        world->meshes.meshRefCounts[m] = 1;
+        sh->shapeMeshIndex[index] = m;
+        return true;
+    }
+    case m3_heightFieldShape:
+    {
+        int32_t h = m3IdPoolAlloc(&world->heightFields.hfPool);
+        if (h < 0)
+        {
+            return false;
+        }
+        world->heightFields.hfData[h] = *content->heightField; // the sample block moves in
+        world->heightFields.hfRefCounts[h] = 1;
+        sh->shapeHfIndex[index] = h;
+        return true;
+    }
+    case m3_voxelShape:
+    {
+        int32_t v = m3IdPoolAlloc(&world->voxels.voxelPool);
+        if (v < 0)
+        {
+            return false;
+        }
+        world->voxels.voxelData[v] = *content->voxels;
+        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[v], &world->voxels.voxelData[v]);
+        world->voxels.voxelRefCounts[v] = 1;
+        sh->shapeVoxelIndex[index] = v;
+        world->voxels.voxelShape[v] = index;
+        // A new chunk can weld to existing ones and change their border
+        // coverage too.
+        m3VoxelRebuildLinks(world);
+        m3VoxelCoverageRefreshAround(world, v);
+        return true;
+    }
+    default:
+        return true;
+    }
+}
+
+static void UnlinkShape(m3World* world, int32_t index)
+{
+    int32_t* cursor = &world->bodies.bodyShapeHead[world->shapes.shapeBody[index]];
     while (*cursor != -1)
     {
         if (*cursor == index)
@@ -653,243 +202,140 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
         }
         cursor = &world->shapes.shapeNext[*cursor];
     }
-    world->shapes.shapeBody[index] = -1;
-    world->shapes.shapeType[index] = 0;
-    world->shapes.shapeGeom[index] =
-        (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
-    world->shapes.shapeDensity[index] = 0.0f;
-    world->shapes.shapeFriction[index] = 0.0f;
-    world->shapes.shapeRestitution[index] = 0.0f;
-    world->shapes.shapeRollingResistance[index] = 0.0f;
-    world->shapes.shapeCategory[index] = 0;
-    world->shapes.shapeMask[index] = 0;
-    world->shapes.shapeGroup[index] = 0;
-    world->shapes.shapeUserData[index] = 0;
-    world->shapes.shapeSensor[index] = 0;
-    world->shapes.shapeHitEvents[index] = 0;
-    world->shapes.shapePreSolve[index] = 0;
-    world->shapes.shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapes.shapeLocalPos[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->shapes.shapeLocalRot[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
-    world->shapes.shapeHasOffset[index] = 0;
     world->shapes.shapeNext[index] = -1;
+    world->shapes.shapeBody[index] = -1;
+}
+
+// Rebuilds voxel links and every chunk's coverage after a chunk vanished:
+// its neighbors' border faces just became exposed.
+static void RefreshAllVoxelCoverage(m3World* world)
+{
+    m3VoxelRebuildLinks(world);
+    for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
+    {
+        if (world->voxels.voxelPool.alive[v] != 0)
+        {
+            m3VoxelCoverageBuild(world, v);
+        }
+    }
+}
+
+// Releases a shape's content slots. With owned false the content was just
+// handed over by a failed create and stays the caller's: the slots are
+// cleared, not freed into.
+static void ReleaseShapeContent(m3World* world, int32_t index, bool owned)
+{
+    m3Shapes* sh = &world->shapes;
+    m3ReleaseHull(world, sh->shapeHullIndex[index]);
+    sh->shapeHullIndex[index] = -1;
+    int32_t m = sh->shapeMeshIndex[index];
+    if (m >= 0 && --world->meshes.meshRefCounts[m] == 0)
+    {
+        if (owned)
+        {
+            m3MeshDataFree(&world->meshes.meshData[m]);
+        }
+        memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
+        m3MeshBvhFree(&world->meshes.meshBvh[m]);
+        m3IdPoolFree(&world->meshes.meshPool, m);
+    }
+    int32_t h = sh->shapeHfIndex[index];
+    if (h >= 0 && --world->heightFields.hfRefCounts[h] == 0)
+    {
+        if (owned)
+        {
+            m3HeightFieldDataFree(&world->heightFields.hfData[h]);
+        }
+        memset(&world->heightFields.hfData[h], 0, sizeof(m3HeightFieldData));
+        m3IdPoolFree(&world->heightFields.hfPool, h);
+    }
+    int32_t v = sh->shapeVoxelIndex[index];
+    if (v >= 0 && --world->voxels.voxelRefCounts[v] == 0)
+    {
+        memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
+        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
+        memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
+        world->voxels.voxelShape[v] = -1;
+        m3IdPoolFree(&world->voxels.voxelPool, v);
+        RefreshAllVoxelCoverage(world);
+    }
+    sh->shapeMeshIndex[index] = -1;
+    sh->shapeHfIndex[index] = -1;
+    sh->shapeVoxelIndex[index] = -1;
+}
+
+// Input checks live here because replay hands this function raw journal
+// bytes. Content that arrives prebuilt (hull, mesh, voxel, height field)
+// validated in its own decode path. On failure nothing is left behind
+// and staged mesh and height field content is still the caller's.
+int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
+                              const m3ShapeGeom* geom, const m3ShapeDef* def,
+                              const m3ShapeContent* content)
+{
+    bool prebuilt = content->hull != NULL || content->mesh != NULL ||
+                    content->heightField != NULL || content->voxels != NULL;
+    if (!m3ShapeDefValid(def) || (!prebuilt && !m3PlainGeomValid(type, geom)))
+    {
+        return -1;
+    }
+    int32_t index = m3IdPoolAlloc(&world->shapes.shapePool);
+    if (index < 0)
+    {
+        return -1;
+    }
+    WriteShapeSlot(world, index, bodyIndex, type, geom, def);
+    bool ok = AttachShapeContent(world, index, content);
+    // Infinite planes stay out of the tree and take the dedicated pair pass.
+    world->broadphase.proxyIds[index] = M3_TREE_NULL;
+    if (ok && type != (uint8_t)m3_planeShape)
+    {
+        double lo[3];
+        double hi[3];
+        m3ShapeFatAabb(world, index, lo, hi);
+        world->broadphase.proxyIds[index] = m3TreeInsert(&world->broadphase.tree, lo, hi, index);
+        ok = world->broadphase.proxyIds[index] != M3_TREE_NULL;
+    }
+    if (!ok)
+    {
+        ReleaseShapeContent(world, index, false);
+        UnlinkShape(world, index);
+        m3IdPoolFree(&world->shapes.shapePool, index);
+        return -1;
+    }
+    m3RecomputeMass(world, bodyIndex);
+    return index;
+}
+
+void m3DestroyShapeInternal(m3World* world, int32_t index)
+{
+    int32_t bodyIndex = world->shapes.shapeBody[index];
+    UnlinkShape(world, index);
     if (world->broadphase.proxyIds[index] != M3_TREE_NULL)
     {
         m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[index]);
         world->broadphase.proxyIds[index] = M3_TREE_NULL;
     }
-    m3ReleaseHull(world, world->shapes.shapeHullIndex[index]);
-    world->shapes.shapeHullIndex[index] = -1;
-    if (world->shapes.shapeMeshIndex[index] >= 0)
-    {
-        int32_t meshIndex = world->shapes.shapeMeshIndex[index];
-        world->meshes.meshRefCounts[meshIndex] -= 1;
-        if (world->meshes.meshRefCounts[meshIndex] == 0)
-        {
-            m3MeshDataFree(&world->meshes.meshData[meshIndex]);
-            m3MeshBvhFree(&world->meshes.meshBvh[meshIndex]);
-            m3IdPoolFree(&world->meshes.meshPool, meshIndex);
-        }
-        world->shapes.shapeMeshIndex[index] = -1;
-    }
-    if (world->shapes.shapeHfIndex[index] >= 0)
-    {
-        int32_t hfIndex = world->shapes.shapeHfIndex[index];
-        world->heightFields.hfRefCounts[hfIndex] -= 1;
-        if (world->heightFields.hfRefCounts[hfIndex] == 0)
-        {
-            m3HeightFieldDataFree(&world->heightFields.hfData[hfIndex]);
-            m3IdPoolFree(&world->heightFields.hfPool, hfIndex);
-        }
-        world->shapes.shapeHfIndex[index] = -1;
-    }
-    if (world->shapes.shapeVoxelIndex[index] >= 0)
-    {
-        int32_t voxelIndex = world->shapes.shapeVoxelIndex[index];
-        world->voxels.voxelRefCounts[voxelIndex] -= 1;
-        if (world->voxels.voxelRefCounts[voxelIndex] == 0)
-        {
-            memset(&world->voxels.voxelData[voxelIndex], 0, sizeof(m3VoxelChunkData));
-            m3MeshBvhFree(&world->voxels.voxelSurface[voxelIndex].bvh);
-            memset(&world->voxels.voxelSurface[voxelIndex], 0, sizeof(m3VoxelSurface));
-            world->voxels.voxelShape[voxelIndex] = -1;
-            m3IdPoolFree(&world->voxels.voxelPool, voxelIndex);
-            // A vanished chunk un-welds its neighbors: their border
-            // faces just became exposed.
-            m3VoxelRebuildLinks(world);
-            for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
-            {
-                if (world->voxels.voxelPool.alive[v] != 0)
-                {
-                    m3VoxelCoverageBuild(world, v);
-                }
-            }
-        }
-        world->shapes.shapeVoxelIndex[index] = -1;
-    }
+    ReleaseShapeContent(world, index, true);
+    m3Shapes* sh = &world->shapes;
+    sh->shapeType[index] = 0;
+    sh->shapeGeom[index] = (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
+    sh->shapeDensity[index] = 0.0f;
+    sh->shapeFriction[index] = 0.0f;
+    sh->shapeRestitution[index] = 0.0f;
+    sh->shapeRollingResistance[index] = 0.0f;
+    sh->shapeCategory[index] = 0;
+    sh->shapeMask[index] = 0;
+    sh->shapeGroup[index] = 0;
+    sh->shapeUserData[index] = 0;
+    sh->shapeSensor[index] = 0;
+    sh->shapeHitEvents[index] = 0;
+    sh->shapePreSolve[index] = 0;
+    sh->shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sh->shapeLocalPos[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sh->shapeLocalRot[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+    sh->shapeHasOffset[index] = 0;
     m3IdPoolFree(&world->shapes.shapePool, index);
     m3RecomputeMass(world, bodyIndex);
-}
-
-static m3ShapeId CreateShapeCommon(m3BodyId bodyId, const m3ShapeDef* def, uint8_t type,
-                                   const m3ShapeGeom* geom)
-{
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE)
-    {
-        // Contract, not invariant: bad input returns the null id.
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    float rotLen2 =
-        def->localRotation.x * def->localRotation.x + def->localRotation.y * def->localRotation.y +
-        def->localRotation.z * def->localRotation.z + def->localRotation.w * def->localRotation.w;
-    if (!m3FiniteV3(def->localPosition) || !m3FiniteQuat(def->localRotation) || rotLen2 < 0.99f ||
-        rotLen2 > 1.01f)
-    {
-        // The compound offset demands a near-unit rotation.
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    if (!m3FiniteF(def->density) || !(def->density > 0.0f) || !m3FiniteF(def->friction) ||
-        def->friction < 0.0f || !m3FiniteF(def->restitution) || def->restitution < 0.0f ||
-        !m3FiniteF(def->rollingResistance) || def->rollingResistance < 0.0f)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId; // hostile material: refused loudly
-    }
-    int32_t index =
-        m3CreateShapeInternal(world, bodyIndex, type, geom, def, NULL, NULL, NULL, NULL);
-    if (index < 0)
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
-    if (world->recorder.journalActive != 0)
-    {
-        m3CreateShapeOp record;
-        memset(&record, 0, sizeof(record));
-        record.def = *def;
-        record.geom = *geom;
-        record.body = bodyId;
-        record.expected = id;
-        record.type = type;
-        m3JournalRecord(world, m3_opCreateShape, &record, (int32_t)sizeof(record));
-    }
-    return id;
-}
-
-m3ShapeId m3CreateSphereShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Sphere* sphere)
-{
-    if (sphere == NULL || !(sphere->radius > 0.0f) || !m3FiniteF(sphere->radius) ||
-        !m3FiniteV3(sphere->center))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    // The 2a off-origin refusal is gone: the full inertia tensor and
-    // center-of-mass bookkeeping make offset spheres exact.
-    m3ShapeGeom geom = {sphere->center, sphere->radius, {0.0f, 0.0f, 0.0f}, 0.0f};
-    return CreateShapeCommon(bodyId, def, (uint8_t)m3_sphereShape, &geom);
-}
-
-m3ShapeId m3CreatePlaneShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Plane* plane)
-{
-    if (plane == NULL || !m3FiniteV3(plane->normal) || !m3FiniteF(plane->offset) ||
-        !(m3Dot3(plane->normal, plane->normal) > 1.0e-12f))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId; // a zero or poisoned normal never
-                               // reaches the normalize below
-    }
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
-    {
-        // A plane on a dynamic body is refused loudly: an infinite
-        // shape has no mass.
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    m3ShapeGeom geom = {m3Normalize3(plane->normal), plane->offset, {0.0f, 0.0f, 0.0f}, 0.0f};
-    return CreateShapeCommon(bodyId, def, (uint8_t)m3_planeShape, &geom);
-}
-
-m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Capsule* capsule)
-{
-    if (capsule == NULL || !(capsule->radius > 0.0f) || !m3FiniteF(capsule->radius) ||
-        !m3FiniteV3(capsule->point1) || !m3FiniteV3(capsule->point2))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    m3Vec3 axis = m3Sub3(capsule->point2, capsule->point1);
-    if (!(m3Dot3(axis, axis) > 0.0f))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        // A zero-length capsule is a sphere; asking for one is a
-        // contract violation, refused loudly (use m3CreateSphereShape).
-        return m3_nullShapeId;
-    }
-    m3ShapeGeom geom;
-    geom.v = capsule->point1;
-    geom.s = capsule->radius;
-    geom.v2 = capsule->point2;
-    geom.s2 = 0.0f;
-    return CreateShapeCommon(bodyId, def, (uint8_t)m3_capsuleShape, &geom);
-}
-
-m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Cylinder* cylinder,
-                                int32_t segments)
-{
-    // The cylinder is a 2N-vertex prism through the interned hull
-    // path. Everything downstream (mass, SAT, casts, CCD, the blast's
-    // projected area) treats the prism exactly; the N-gon side is the
-    // documented trade.
-    if (cylinder == NULL || !(cylinder->radius > 0.0f) || !m3FiniteF(cylinder->radius) ||
-        !m3FiniteV3(cylinder->point1) || !m3FiniteV3(cylinder->point2))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    m3Vec3 axis = m3Sub3(cylinder->point2, cylinder->point1);
-    if (!(m3Dot3(axis, axis) > 0.0f))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId; // a flat cylinder is a disc, refused
-    }
-    if (segments < 3)
-    {
-        segments = 3; // a quality knob clamps, it does not refuse
-    }
-    if (segments > 32)
-    {
-        segments = 32; // 2N stays inside the 64-vertex hull law
-    }
-    m3Vec3 n = m3Normalize3(axis);
-    m3Vec3 t1;
-    m3Vec3 t2;
-    m3MakeTangentBasis(n, &t1, &t2);
-    m3Vec3 points[64];
-    m3real step = 2.0f * M3_PI / (m3real)segments;
-    for (int32_t k = 0; k < segments; ++k)
-    {
-        m3CosSin cs = m3ComputeCosSin(step * (m3real)k);
-        m3Vec3 rim =
-            m3Add3(m3MulSV3(cylinder->radius * cs.c, t1), m3MulSV3(cylinder->radius * cs.s, t2));
-        points[k] = m3Add3(cylinder->point1, rim);
-        points[segments + k] = m3Add3(cylinder->point2, rim);
-    }
-    return m3CreateHullShape(bodyId, def, points, 2 * segments);
 }
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)
@@ -1011,391 +457,6 @@ bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule)
     return SetShapeGeomPublic(shapeId, (uint8_t)m3_capsuleShape, &geom);
 }
 
-m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3* points,
-                            int32_t count)
-{
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    if (points == NULL || count <= 0)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    for (int32_t i = 0; i < count; ++i)
-    {
-        if (!m3FiniteV3(points[i]))
-        {
-            m3Refuse(world, m3_errorInvalid);
-            return m3_nullShapeId; // a poisoned cloud never reaches
-                                   // QuickHull's arithmetic
-        }
-    }
-    m3HullData data;
-    if (!m3ComputeHull(points, count, &data))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        // Degenerate cloud or over the caps: contract, null id.
-        return m3_nullShapeId;
-    }
-    m3ShapeGeom geom;
-    memset(&geom, 0, sizeof(geom));
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_hullShape, &geom, def,
-                                          &data, NULL, NULL, NULL);
-    if (index < 0)
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
-    if (world->recorder.journalActive != 0)
-    {
-        m3CreateHullShapeOp record;
-        memset(&record, 0, sizeof(record));
-        record.def = *def;
-        record.body = bodyId;
-        record.expected = id;
-        record.count = count;
-        memcpy(record.points, points, (size_t)count * sizeof(m3Vec3));
-        m3JournalRecord(world, m3_opCreateHullShape, &record, (int32_t)sizeof(record));
-    }
-    return id;
-}
-
-m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3* vertices,
-                            int32_t vertexCount, const uint16_t* indices, int32_t triangleCount)
-{
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE ||
-        world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        // Meshes are static world geometry: a dynamic mesh body is
-        // refused loudly (no mass model for triangle soup).
-        return m3_nullShapeId;
-    }
-    if (vertices == NULL || indices == NULL || vertexCount < 3 || vertexCount > M3_MESH_MAX_VERTS ||
-        triangleCount < 1 || triangleCount > M3_MESH_MAX_TRIS)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    for (int32_t i = 0; i < 3 * triangleCount; ++i)
-    {
-        if (indices[i] >= (uint16_t)vertexCount)
-        {
-            m3Refuse(world, m3_errorInvalid);
-            return m3_nullShapeId; // out-of-range index: contract
-        }
-    }
-    for (int32_t i = 0; i < vertexCount; ++i)
-    {
-        if (!m3FiniteV3(vertices[i]))
-        {
-            m3Refuse(world, m3_errorInvalid);
-            return m3_nullShapeId; // poisoned vertex: contract
-        }
-    }
-    m3MeshData mesh;
-    memset(&mesh, 0, sizeof(mesh));
-    mesh.vertexCount = vertexCount;
-    mesh.triangleCount = triangleCount;
-    if (!m3MeshDataAlloc(&mesh))
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    memcpy(mesh.vertices, vertices, (size_t)vertexCount * sizeof(m3Vec3));
-    memcpy(mesh.indices, indices, (size_t)(3 * triangleCount) * sizeof(uint16_t));
-    m3ShapeGeom geom;
-    memset(&geom, 0, sizeof(geom));
-    // The slot takes OWNERSHIP of the arrays on success (the struct
-    // copy carries the pointers); failure frees them here.
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_meshShape, &geom, def, NULL,
-                                          &mesh, NULL, NULL);
-    if (index < 0)
-    {
-        m3MeshDataFree(&mesh);
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
-    if (world->recorder.journalActive != 0)
-    {
-        // Exact-size payload: header, then the raw vertex and index
-        // arrays (the recipe; replay rebuilds and verifies the id).
-        int32_t vertexBytes = vertexCount * (int32_t)sizeof(m3Vec3);
-        int32_t indexBytes = 3 * triangleCount * (int32_t)sizeof(uint16_t);
-        int32_t payloadBytes = (int32_t)sizeof(m3CreateMeshShapeOp) + vertexBytes + indexBytes;
-        uint8_t* payload = (uint8_t*)m3AllocZeroed(payloadBytes);
-        if (payload == NULL)
-        {
-            m3JournalAbandon(world);
-        }
-        if (payload != NULL)
-        {
-            m3CreateMeshShapeOp record;
-            memset(&record, 0, sizeof(record));
-            record.def = *def;
-            record.body = bodyId;
-            record.expected = id;
-            record.vertexCount = vertexCount;
-            record.triangleCount = triangleCount;
-            memcpy(payload, &record, sizeof(record));
-            memcpy(payload + sizeof(record), vertices, (size_t)vertexBytes);
-            memcpy(payload + sizeof(record) + vertexBytes, indices, (size_t)indexBytes);
-            m3JournalRecord(world, m3_opCreateMeshShape, payload, payloadBytes);
-            m3Free(payload);
-        }
-    }
-    return id;
-}
-
-m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def, const float* heights,
-                                   int32_t nx, int32_t nz, m3real cellSize)
-{
-    if (heights == NULL || nx < 2 || nx > 32 || nz < 2 || nz > 32 || !(cellSize > 0.0f) ||
-        !m3FiniteF(cellSize))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId; // grid contract: chunks tile larger terrain
-    }
-    for (int32_t i = 0; i < nx * nz; ++i)
-    {
-        if (!m3FiniteF(heights[i]))
-        {
-            m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-            return m3_nullShapeId; // poisoned sample: contract
-        }
-    }
-    // Triangulate the grid (CCW seen from +y) and reuse the mesh
-    // path whole: welding, journaling, snapshotting all come free.
-    // Heap staging: 65k-scale grids no longer fit a stack.
-    m3Vec3* verts = (m3Vec3*)m3AllocZeroed(nx * nz * (int32_t)sizeof(m3Vec3));
-    uint16_t* tris = (uint16_t*)m3AllocZeroed(6 * (nx - 1) * (nz - 1) * (int32_t)sizeof(uint16_t));
-    if (verts == NULL || tris == NULL)
-    {
-        m3Free(verts);
-        m3Free(tris);
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    for (int32_t iz = 0; iz < nz; ++iz)
-    {
-        for (int32_t ix = 0; ix < nx; ++ix)
-        {
-            verts[iz * nx + ix] =
-                (m3Vec3){cellSize * (m3real)ix, heights[iz * nx + ix], cellSize * (m3real)iz};
-        }
-    }
-    int32_t n = 0;
-    for (int32_t iz = 0; iz < nz - 1; ++iz)
-    {
-        for (int32_t ix = 0; ix < nx - 1; ++ix)
-        {
-            uint16_t v00 = (uint16_t)(iz * nx + ix);
-            uint16_t v10 = (uint16_t)(iz * nx + ix + 1);
-            uint16_t v01 = (uint16_t)((iz + 1) * nx + ix);
-            uint16_t v11 = (uint16_t)((iz + 1) * nx + ix + 1);
-            tris[n++] = v00;
-            tris[n++] = v11;
-            tris[n++] = v10;
-            tris[n++] = v00;
-            tris[n++] = v01;
-            tris[n++] = v11;
-        }
-    }
-    m3ShapeId id = m3CreateMeshShape(bodyId, def, verts, nx * nz, tris, n / 3);
-    m3Free(verts);
-    m3Free(tris);
-    return id;
-}
-
-m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, const float* heights,
-                                       int32_t nx, int32_t nz, m3real cellSize)
-{
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE || heights == NULL ||
-        world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId; // static bodies only, like meshes
-    }
-    // The full content wall, mirrored into the decode: grid
-    // limits, finite samples, a positive cell.
-    if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
-        !m3FiniteF(cellSize) || !(cellSize > 0.0f))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    for (int32_t i = 0; i < nx * nz; ++i)
-    {
-        if (!m3FiniteF(heights[i]))
-        {
-            m3Refuse(world, m3_errorInvalid);
-            return m3_nullShapeId;
-        }
-    }
-    float rotLen2 =
-        def->localRotation.x * def->localRotation.x + def->localRotation.y * def->localRotation.y +
-        def->localRotation.z * def->localRotation.z + def->localRotation.w * def->localRotation.w;
-    if (!m3FiniteV3(def->localPosition) || !m3FiniteQuat(def->localRotation) || rotLen2 < 0.99f ||
-        rotLen2 > 1.01f || !m3FiniteF(def->density) || !(def->density > 0.0f) ||
-        !m3FiniteF(def->friction) || def->friction < 0.0f || !m3FiniteF(def->restitution) ||
-        def->restitution < 0.0f || !m3FiniteF(def->rollingResistance) ||
-        def->rollingResistance < 0.0f)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    m3HeightFieldData hf;
-    memset(&hf, 0, sizeof(hf));
-    hf.nx = nx;
-    hf.nz = nz;
-    hf.cellSize = cellSize;
-    if (!m3HeightFieldDataAlloc(&hf))
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    memcpy(hf.heights, heights, (size_t)(nx * nz) * sizeof(float));
-    float lo = heights[0];
-    float hi = heights[0];
-    for (int32_t i = 1; i < nx * nz; ++i)
-    {
-        lo = heights[i] < lo ? heights[i] : lo;
-        hi = heights[i] > hi ? heights[i] : hi;
-    }
-    hf.minHeight = lo;
-    hf.maxHeight = hi;
-    m3ShapeGeom geom;
-    memset(&geom, 0, sizeof(geom));
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_heightFieldShape, &geom,
-                                          def, NULL, NULL, NULL, &hf);
-    if (index < 0)
-    {
-        m3HeightFieldDataFree(&hf);
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
-    if (world->recorder.journalActive != 0)
-    {
-        // Variable payload: the fixed head, then the raw samples.
-        int32_t sampleBytes = nx * nz * (int32_t)sizeof(float);
-        int32_t bytes = (int32_t)sizeof(m3CreateHeightFieldGridOp) + sampleBytes;
-        uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
-        if (payload == NULL)
-        {
-            m3JournalAbandon(world);
-        }
-        if (payload != NULL)
-        {
-            m3CreateHeightFieldGridOp head;
-            memset(&head, 0, sizeof(head));
-            head.body = bodyId;
-            head.def = *def;
-            head.nx = nx;
-            head.nz = nz;
-            head.cellSize = cellSize;
-            head.expected = id;
-            memcpy(payload, &head, sizeof(head));
-            memcpy(payload + sizeof(head), heights, (size_t)sampleBytes);
-            m3JournalRecord(world, m3_opCreateHeightFieldGrid, payload, bytes);
-            m3Free(payload);
-        }
-    }
-    return id;
-}
-
-m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const uint8_t* voxels,
-                                  const uint16_t* payload, m3real cellSize)
-{
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
-    int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE || voxels == NULL ||
-        !(cellSize > 0.0f) || !m3FiniteF(cellSize))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullShapeId;
-    }
-    if (world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        // Voxel chunks are static level geometry, and sensors are
-        // convex volumes by contract: both are refused.
-        return m3_nullShapeId;
-    }
-    m3VoxelChunkData* chunk = (m3VoxelChunkData*)m3AllocZeroed((int32_t)sizeof(m3VoxelChunkData));
-    if (chunk == NULL)
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    int32_t filled = m3VoxelPack(chunk, voxels, payload, cellSize);
-    if (filled == 0)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        m3Free(chunk);
-        return m3_nullShapeId; // an empty chunk is a request for nothing
-    }
-    m3ShapeGeom geom;
-    memset(&geom, 0, sizeof(geom));
-    geom.s = cellSize;
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_voxelShape, &geom, def,
-                                          NULL, NULL, chunk, NULL);
-    m3Free(chunk);
-    if (index < 0)
-    {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullShapeId;
-    }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
-    if (world->recorder.journalActive != 0)
-    {
-        // Header + the packed grid (bitset and payload): the exact
-        // recipe, so replay rebuilds the identical chunk and surface.
-        m3OpCreateVoxelChunkShape record;
-        memset(&record, 0, sizeof(record));
-        record.def = *def;
-        record.body = bodyId;
-        record.expected = id;
-        record.cellSize = cellSize;
-        uint8_t payloadBuf[sizeof(record) + sizeof(((m3VoxelChunkData*)0)->occupancy) +
-                           sizeof(((m3VoxelChunkData*)0)->payload) +
-                           sizeof(((m3VoxelChunkData*)0)->fill)];
-        memcpy(payloadBuf, &record, sizeof(record));
-        const m3VoxelChunkData* stored =
-            &world->voxels.voxelData[world->shapes.shapeVoxelIndex[index]];
-        memcpy(payloadBuf + sizeof(record), stored->occupancy, sizeof(stored->occupancy));
-        memcpy(payloadBuf + sizeof(record) + sizeof(stored->occupancy), stored->payload,
-               sizeof(stored->payload));
-        memcpy(payloadBuf + sizeof(record) + sizeof(stored->occupancy) + sizeof(stored->payload),
-               stored->fill, sizeof(stored->fill));
-        m3JournalRecord(world, m3_opCreateVoxelChunkShape, payloadBuf, (int32_t)sizeof(payloadBuf));
-    }
-    return id;
-}
-
-m3ShapeId m3CreateBoxShape(m3BodyId bodyId, const m3ShapeDef* def, m3Vec3 halfExtents)
-{
-    if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
-        !m3FiniteV3(halfExtents))
-    {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
-        return m3_nullShapeId; // contract: bad extents return null
-    }
-    m3ShapeGeom geom = {halfExtents, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
-    return CreateShapeCommon(bodyId, def, (uint8_t)m3_hullShape, &geom);
-}
-
 bool m3Shape_IsValid(m3ShapeId shapeId)
 {
     m3World* world = m3WorldFromIndex0(shapeId.world0);
@@ -1437,362 +498,4 @@ void m3DestroyShape(m3ShapeId shapeId)
     {
         m3SetAwakeInternal(world, bodyIndex, 1);
     }
-}
-
-// --- Runtime materials ------------------------------------------------
-
-void m3SetShapeFrictionInternal(m3World* world, int32_t slot, float value)
-{
-    world->shapes.shapeFriction[slot] = value;
-}
-
-void m3SetShapeRestitutionInternal(m3World* world, int32_t slot, float value)
-{
-    world->shapes.shapeRestitution[slot] = value;
-}
-
-void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value)
-{
-    world->shapes.shapeRollingResistance[slot] = value;
-}
-
-void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_t updateMass)
-{
-    world->shapes.shapeDensity[slot] = value;
-    if (updateMass != 0)
-    {
-        m3RecomputeMass(world, world->shapes.shapeBody[slot]);
-    }
-}
-
-// One resolve + one journal + one internal, the body.c pattern.
-static m3World* ResolveShape(m3ShapeId shapeId, int32_t* outSlot)
-{
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
-    int32_t slot = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
-    if (slot < 0)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return NULL;
-    }
-    *outSlot = slot;
-    return world;
-}
-
-static void ShapeScalarOp(m3ShapeId shapeId, int32_t op, float value)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    if (world == NULL)
-    {
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpShapeScalar record;
-        memset(&record, 0, sizeof(record));
-        record.id = shapeId;
-        record.value = value;
-        m3JournalRecord(world, op, &record, (int32_t)sizeof(record));
-    }
-    if (op == m3_opSetShapeFriction)
-    {
-        m3SetShapeFrictionInternal(world, slot, value);
-    }
-    else if (op == m3_opSetShapeRestitution)
-    {
-        m3SetShapeRestitutionInternal(world, slot, value);
-    }
-    else
-    {
-        m3SetShapeRollingInternal(world, slot, value);
-    }
-}
-
-void m3Shape_SetFriction(m3ShapeId shapeId, float friction)
-{
-    if (!m3FiniteF(friction) || friction < 0.0f)
-    {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
-        return;
-    }
-    ShapeScalarOp(shapeId, m3_opSetShapeFriction, friction);
-}
-
-float m3Shape_GetFriction(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapes.shapeFriction[slot] : 0.0f;
-}
-
-void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution)
-{
-    if (!m3FiniteF(restitution) || restitution < 0.0f)
-    {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
-        return;
-    }
-    ShapeScalarOp(shapeId, m3_opSetShapeRestitution, restitution);
-}
-
-float m3Shape_GetRestitution(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapes.shapeRestitution[slot] : 0.0f;
-}
-
-void m3Shape_SetRollingResistance(m3ShapeId shapeId, float value)
-{
-    if (!m3FiniteF(value) || value < 0.0f)
-    {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
-        return;
-    }
-    ShapeScalarOp(shapeId, m3_opSetShapeRolling, value);
-}
-
-float m3Shape_GetRollingResistance(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapes.shapeRollingResistance[slot] : 0.0f;
-}
-
-void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    if (world == NULL || !m3FiniteF(density) || density <= 0.0f)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpSetShapeDensity record;
-        memset(&record, 0, sizeof(record));
-        record.id = shapeId;
-        record.value = density;
-        record.updateMass = updateBodyMass ? 1 : 0;
-        m3JournalRecord(world, m3_opSetShapeDensity, &record, (int32_t)sizeof(record));
-    }
-    m3SetShapeDensityInternal(world, slot, density, updateBodyMass ? 1 : 0);
-}
-
-float m3Shape_GetDensity(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL ? world->shapes.shapeDensity[slot] : 0.0f;
-}
-
-void m3EnableShapeHitEventsInternal(m3World* world, int32_t slot, int32_t on)
-{
-    world->shapes.shapeHitEvents[slot] = on != 0 ? 1 : 0;
-}
-
-void m3EnableShapePreSolveInternal(m3World* world, int32_t slot, int32_t on)
-{
-    world->shapes.shapePreSolve[slot] = on != 0 ? 1 : 0;
-}
-
-static void ShapeFlagOp(m3ShapeId shapeId, int32_t op, bool flag)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    if (world == NULL)
-    {
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpShapeFlag record;
-        memset(&record, 0, sizeof(record));
-        record.id = shapeId;
-        record.on = flag ? 1 : 0;
-        m3JournalRecord(world, op, &record, (int32_t)sizeof(record));
-    }
-    if (op == m3_opEnableShapeHitEvents)
-    {
-        m3EnableShapeHitEventsInternal(world, slot, flag ? 1 : 0);
-    }
-    else
-    {
-        m3EnableShapePreSolveInternal(world, slot, flag ? 1 : 0);
-    }
-}
-
-void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag)
-{
-    ShapeFlagOp(shapeId, m3_opEnableShapeHitEvents, flag);
-}
-
-bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL && world->shapes.shapeHitEvents[slot] != 0;
-}
-
-void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag)
-{
-    ShapeFlagOp(shapeId, m3_opEnableShapePreSolve, flag);
-}
-
-bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    return world != NULL && world->shapes.shapePreSolve[slot] != 0;
-}
-
-bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
-                                const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                                const uint8_t* triangleMaterials)
-{
-    // The full wall, here because replay hands this function
-    // raw journal bytes: hostile counts, values, or group indices
-    // refuse loudly and paint nothing.
-    if (meshIndex < 0 || materialCount < 1 || materialCount > M3_MESH_MAX_MATERIALS)
-    {
-        return false;
-    }
-    m3MeshData* mesh = &world->meshes.meshData[meshIndex];
-    if (mesh->triangleCount <= 0)
-    {
-        return false;
-    }
-    for (int32_t k = 0; k < materialCount; ++k)
-    {
-        const m3MeshSurfaceMaterial* m = &materials[k];
-        if (!m3FiniteF(m->friction) || m->friction < 0.0f || !m3FiniteF(m->restitution) ||
-            m->restitution < 0.0f || !m3FiniteF(m->rollingResistance) ||
-            m->rollingResistance < 0.0f || !m3FiniteV3(m->surfaceVelocity))
-        {
-            return false;
-        }
-    }
-    for (int32_t t = 0; t < mesh->triangleCount; ++t)
-    {
-        if (triangleMaterials[t] >= materialCount)
-        {
-            return false;
-        }
-    }
-    mesh->materialCount = materialCount;
-    memset(mesh->materials, 0, sizeof(mesh->materials));
-    memcpy(mesh->materials, materials, (size_t)materialCount * sizeof(m3MeshSurfaceMaterial));
-    memcpy(mesh->triMaterials, triangleMaterials, (size_t)mesh->triangleCount);
-    return true;
-}
-
-void m3Shape_SetMeshMaterials(m3ShapeId shapeId, const m3MeshSurfaceMaterial* materials,
-                              int32_t materialCount, const uint8_t* triangleMaterials)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    if (world == NULL || materials == NULL || triangleMaterials == NULL ||
-        world->shapes.shapeType[slot] != (uint8_t)m3_meshShape)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    int32_t meshIndex = world->shapes.shapeMeshIndex[slot];
-    if (!m3SetMeshMaterialsInternal(world, meshIndex, materials, materialCount, triangleMaterials))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return; // refused: nothing journals
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        int32_t triCount = world->meshes.meshData[meshIndex].triangleCount;
-        int32_t bytes = (int32_t)sizeof(m3SetMeshMaterialsOp) + triCount;
-        uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
-        if (payload == NULL)
-        {
-            return;
-        }
-        m3SetMeshMaterialsOp head;
-        memset(&head, 0, sizeof(head));
-        head.id = shapeId;
-        head.materialCount = materialCount;
-        head.triangleCount = triCount;
-        memcpy(head.materials, materials, (size_t)materialCount * sizeof(m3MeshSurfaceMaterial));
-        memcpy(payload, &head, sizeof(head));
-        memcpy(payload + sizeof(head), triangleMaterials, (size_t)triCount);
-        m3JournalRecord(world, m3_opSetMeshMaterials, payload, bytes);
-        m3Free(payload);
-    }
-}
-
-void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v)
-{
-    world->shapes.shapeSurfaceVel[slot] = v;
-    int32_t body = world->shapes.shapeBody[slot];
-    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
-    {
-        m3SetAwakeInternal(world, body, 1);
-    }
-}
-
-void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
-{
-    int32_t slot;
-    m3World* world = ResolveShape(shapeId, &slot);
-    if (world == NULL || !m3FiniteV3(velocity))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpSetSurfaceVelocity record;
-        memset(&record, 0, sizeof(record));
-        record.id = shapeId;
-        record.v = velocity;
-        m3JournalRecord(world, m3_opSetSurfaceVelocity, &record, (int32_t)sizeof(record));
-    }
-    m3SetSurfaceVelocityInternal(world, slot, velocity);
-}
-
-// --- Mesh content ownership ------------------------------------------
-
-bool m3MeshDataAlloc(m3MeshData* mesh)
-{
-    m3Free(mesh->vertices);
-    m3Free(mesh->indices);
-    m3Free(mesh->edgeFlags);
-    m3Free(mesh->triMaterials);
-    mesh->vertices = NULL;
-    mesh->indices = NULL;
-    mesh->edgeFlags = NULL;
-    mesh->triMaterials = NULL;
-    if (mesh->vertexCount <= 0 || mesh->triangleCount <= 0)
-    {
-        return mesh->vertexCount == 0 && mesh->triangleCount == 0; // an empty slot is legal
-    }
-    mesh->vertices = (m3Vec3*)m3AllocZeroed(mesh->vertexCount * (int32_t)sizeof(m3Vec3));
-    mesh->indices = (uint16_t*)m3AllocZeroed(3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
-    mesh->edgeFlags = (uint8_t*)m3AllocZeroed(mesh->triangleCount);
-    // Material groups ride beside the content: all-zero
-    // bytes and count 0 ARE the "shape material everywhere" state.
-    mesh->triMaterials = (uint8_t*)m3AllocZeroed(mesh->triangleCount);
-    if (mesh->vertices == NULL || mesh->indices == NULL || mesh->edgeFlags == NULL ||
-        mesh->triMaterials == NULL)
-    {
-        m3MeshDataFree(mesh);
-        return false;
-    }
-    return true;
-}
-
-void m3MeshDataFree(m3MeshData* mesh)
-{
-    m3Free(mesh->vertices);
-    m3Free(mesh->indices);
-    m3Free(mesh->edgeFlags);
-    m3Free(mesh->triMaterials);
-    memset(mesh, 0, sizeof(*mesh));
 }

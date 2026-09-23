@@ -211,3 +211,15 @@ Work toward 0.0.1, the first release of the reworked library.
   vehicle and soft body pools. They were missing from snapshots, so a
   soft body destroyed after a snapshot came back on restore, and the
   next create reused its slot and overwrote it.
+- Body extents for continuous collision are measured in each shape's
+  own frame. A body built from offset shapes, such as a dumbbell of
+  two spheres, reported the extent of one shape about its own center,
+  so the rotation arc bound was far too small.
+- The hull, mesh, height field and voxel constructors check the def's
+  materials and compound pose first. A NaN density or a negative
+  friction was refused as `m3_errorCapacity` instead of
+  `m3_errorInvalid`.
+- A shape create that fails after taking a content slot releases it
+  without freeing the caller's staged mesh or height field arrays. The
+  old rollback freed the height field samples the caller then freed
+  again, and left mesh and voxel slots allocated.

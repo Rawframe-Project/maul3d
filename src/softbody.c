@@ -450,29 +450,16 @@ m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, co
     m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
-        int32_t bytes = (int32_t)sizeof(m3CreateSoftBodyTetOp) +
-                        pointCount * (int32_t)sizeof(m3Vec3) +
-                        4 * tetCount * (int32_t)sizeof(uint16_t);
-        uint8_t* payload = (uint8_t*)m3AllocZeroed(bytes);
-        if (payload == NULL)
-        {
-            m3JournalAbandon(world);
-        }
-        if (payload != NULL)
-        {
-            m3CreateSoftBodyTetOp head;
-            memset(&head, 0, sizeof(head));
-            head.def = *def;
-            head.pointCount = pointCount;
-            head.tetCount = tetCount;
-            head.expected = id;
-            memcpy(payload, &head, sizeof(head));
-            memcpy(payload + sizeof(head), points, (size_t)pointCount * sizeof(m3Vec3));
-            memcpy(payload + sizeof(head) + (size_t)pointCount * sizeof(m3Vec3), tets,
-                   (size_t)(4 * tetCount) * sizeof(uint16_t));
-            m3JournalRecord(world, m3_opCreateSoftBodyTet, payload, bytes);
-            m3Free(payload);
-        }
+        m3CreateSoftBodyTetOp head;
+        memset(&head, 0, sizeof(head));
+        head.def = *def;
+        head.pointCount = pointCount;
+        head.tetCount = tetCount;
+        head.expected = id;
+        m3JournalPart parts[3] = {{&head, (int32_t)sizeof(head)},
+                                  {points, pointCount * (int32_t)sizeof(m3Vec3)},
+                                  {tets, 4 * tetCount * (int32_t)sizeof(uint16_t)}};
+        m3JournalRecordParts(world, m3_opCreateSoftBodyTet, parts, 3);
     }
     return id;
 }

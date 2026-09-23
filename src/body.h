@@ -29,6 +29,16 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
 
 void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3]);
 
+// Wakes a dynamic body; static and kinematic bodies never sleep.
+static inline void m3WakeIfDynamic(m3World* world, int32_t body)
+{
+    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
+    {
+        world->bodies.awake[body] = 1;
+        world->bodies.sleepTimes[body] = 0.0f;
+    }
+}
+
 // bodyLocks bit 6: this body bypasses the angular speed cap (the
 // reference allowFastRotation escape hatch). Bits 0..5 stay the
 // motion locks; the byte already snapshots and hashes off-default

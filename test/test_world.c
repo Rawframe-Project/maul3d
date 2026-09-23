@@ -13,6 +13,7 @@
 
 #include "maul3d/shape.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -587,6 +588,30 @@ static void TestMemoryUsage(void)
     m3DestroyWorld(world);
 }
 
+// Continuous collision bounds a body's rotation arc by its largest
+// extent. For a dumbbell of two offset spheres, the extent is measured
+// from the center of mass to the far rims, in the body frame.
+static void TestCompoundExtents(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId body = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.25f};
+    sd.localPosition = (m3Vec3){3.0f, 0.0f, 0.0f};
+    m3CreateSphereShape(body, &sd, &ball);
+    sd.localPosition = (m3Vec3){-3.0f, 0.0f, 0.0f};
+    m3CreateSphereShape(body, &sd, &ball);
+    m3World* w = m3WorldFromId(world);
+    int32_t slot = body.index1 - 1;
+    CHECK(fabsf(w->bodies.maxExtents[slot] - 3.25f) < 1.0e-5f,
+          "the dumbbell reaches 3.25 from its center of mass");
+    CHECK(fabsf(w->bodies.minExtents[slot] - 0.25f) < 1.0e-5f, "its thinnest part is a ball");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestGeometryCeilingConstants();
@@ -601,6 +626,7 @@ int main(void)
     TestPairs();
     TestTreeReferee();
     TestWorldHashGate();
+    TestCompoundExtents();
     if (s_failures == 0)
     {
         printf("test_world: all checks passed\n");

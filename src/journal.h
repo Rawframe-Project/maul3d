@@ -474,8 +474,18 @@ typedef struct m3CreateHullShapeOp
 
 // Recording: appends one op; an overflow latches and fails the recording.
 void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes);
-// Fails the active recording when an op cannot be encoded.
-void m3JournalAbandon(m3World* world);
+
+// One piece of an op payload that is recorded from several buffers.
+typedef struct m3JournalPart
+{
+    const void* data;
+    int32_t bytes;
+} m3JournalPart;
+
+// Appends one op whose payload is the parts back to back: a fixed head,
+// then the variable arrays it describes.
+void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts,
+                          int32_t partCount);
 
 // Applies a tape's ops in order through the command table and reports
 // the first refusal. Partial application is possible here;

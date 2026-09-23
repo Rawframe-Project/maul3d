@@ -14,6 +14,7 @@
 // an iteration.
 
 #include "voxel.h"
+#include "body.h"
 #include "character.h"
 #include "hull.h"
 #include "journal.h"
@@ -224,11 +225,7 @@ static bool VoxelWakeCallback(int32_t shape, void* userContext)
 {
     m3World* world = ((m3VoxelWakeContext*)userContext)->world;
     int32_t body = world->shapes.shapeBody[shape];
-    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
-    {
-        world->bodies.awake[body] = 1;
-        world->bodies.sleepTimes[body] = 0.0f;
-    }
+    m3WakeIfDynamic(world, body);
     return true;
 }
 
