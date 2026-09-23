@@ -10,6 +10,13 @@ snapshot and journal formats.
 
 Work toward 0.0.1, the first release of the reworked library.
 
+### Added
+
+- `samples/`: the stack, rollback, car and character programs from the
+  samples page are now real programs built with the library, so they
+  cannot drift from the API. `samples/minimal` is the installed-
+  package consumer, moved from `test/consumer`.
+
 ### Changed
 
 - The version history restarts at 0.0.1. Earlier numbered releases

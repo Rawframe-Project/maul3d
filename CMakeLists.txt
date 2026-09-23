@@ -68,10 +68,9 @@ if(NOT MSVC)
     target_link_libraries(maul3d PUBLIC m)
 endif()
 
-# The installable package (2d-4): headers, the library, an exported
-# CMake target (maul3d::maul3d), and a pkg-config file. The consumer
-# smoke test in test/consumer builds against the INSTALLED tree and
-# gates CI.
+# The installable package: headers, the library, an exported CMake
+# target (maul3d::maul3d) and a pkg-config file. samples/minimal builds
+# against the installed tree and gates CI.
 install(DIRECTORY include/maul3d DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(TARGETS maul3d EXPORT maul3dTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -96,6 +95,11 @@ install(FILES
 configure_file(cmake/maul3d.pc.in ${CMAKE_CURRENT_BINARY_DIR}/maul3d.pc @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/maul3d.pc
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+option(MAUL3D_SAMPLES "Build the sample programs" ON)
+if(MAUL3D_SAMPLES)
+    add_subdirectory(samples)
+endif()
 
 if(MAUL3D_BUILD_TESTBED)
     add_subdirectory(testbed)

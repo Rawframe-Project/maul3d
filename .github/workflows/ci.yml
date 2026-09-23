@@ -52,9 +52,9 @@ jobs:
         run: |
           cmake --install build --config ${{ matrix.build }} --prefix "$PWD/pkg"
           if [ "${{ matrix.cc }}" = "cl" ]; then
-            cmake -S test/consumer -B build-consumer -DCMAKE_PREFIX_PATH="$PWD/pkg"
+            cmake -S samples/minimal -B build-consumer -DCMAKE_PREFIX_PATH="$PWD/pkg"
           else
-            CC=${{ matrix.cc }} cmake -S test/consumer -B build-consumer \
+            CC=${{ matrix.cc }} cmake -S samples/minimal -B build-consumer \
               -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_PREFIX_PATH="$PWD/pkg"
           fi
           cmake --build build-consumer --config ${{ matrix.build }}
