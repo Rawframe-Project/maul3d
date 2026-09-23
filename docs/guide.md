@@ -423,7 +423,7 @@ the move each tick, netcode style.
 - Grounding: walkable contact grounds the character and records
   the body under its feet (`m3Character_GetGroundBody`). A
   descending character glues to floor within `snapDistance`; no
-  floor in reach means airborne, honestly.
+  floor in reach means airborne.
 - Riders: each step ends by carrying grounded characters along
   their ground body's rigid motion, THROUGH the slide casts, so a
   platform can ferry a walker into a wall and the wall wins.
@@ -446,7 +446,7 @@ the move each tick, netcode style.
 The engine's scale posture is measured, not promised: the bench
 binary's cityblock scene (nine welded voxel tower stacks, five
 thousand mixed bodies, a mid-run fracture wave) and the scale
-gauntlet behind it are the ledger; the scale suite proves the same
+gauntlet behind it are the record; the scale suite proves the same
 contracts at CI size with a real four-thread host pool.
 
 - Worker counts are performance knobs, never state inputs: serial
@@ -556,7 +556,7 @@ stays version + solver revision + precision + FP policy, because
 a config-hash knob would refuse the journal instead of replaying
 it.
 
-Painted mesh materials (17-2): m3Shape_SetMeshMaterials gives a
+Painted mesh materials: m3Shape_SetMeshMaterials gives a
 mesh shape up to eight surface materials and one group byte per
 triangle. The struck triangle's entry replaces the MESH side of
 the contact mix (friction, restitution, rolling resistance), and
@@ -567,7 +567,7 @@ id-canonical point picks it, documented v1 contract). Unpainted
 meshes keep using their shape material everywhere, bit-exactly
 as before. Journaled, snapshotted, hostile paint refused loudly.
 
-The broadphase rebuild (17-4): m3World_RebuildBroadphase replaces
+The broadphase rebuild: m3World_RebuildBroadphase replaces
 the incrementally grown tree with a balanced top-down build over
 the live shapes, in one deterministic, journaled pass. Bulk level
 construction inserts one shape at a time and can leave the tree
@@ -584,14 +584,14 @@ the blastyard, Save to .m3j, and play it back with the m3replay
 studio (verify replays to the recorded hash; seek scrubs to any
 step through keyframes). A cutscene in Maul3D is not a video: it
 is the same simulation, bit for bit, every time. The lockstep
-proof (tools/m3lockstep, a CI gate since 9-4) is the two-machine
+proof (tools/m3lockstep, run by CI) is the two-machine
 version of the same law: an online peer that predicts and rolls
 back lands on the offline peer's exact timeline.
 
 ## The rigid character recipe
 
 The kinematic controller is the engine path; when you want a
-character with real mass that trades momentum honestly, build the
+character with real mass that trades momentum, build the
 rigid variant ON the public API (the suite ships this exact loop
 as its proof): a dynamic capsule with angular locks (bits 3..5)
 so it never tumbles; FRICTIONLESS by recipe, because an
@@ -659,7 +659,7 @@ float when the flood arrives and fall when it leaves. Volumes
 journal (ops 74/75), snapshot (v48), and hash only while one is
 alive; a dry world keeps its exact pre-water bits.
 
-Snapshot economics (17-1): hull and mesh content travel
+Snapshot economics: hull and mesh content travel
 count-derived, so an empty slot costs bytes, not kilobytes, and a
 box hull costs its used prefix instead of a 5808-byte slab.
 Snapshot sizes GROW with world content: measure with
@@ -706,7 +706,7 @@ purpose: a host poll would race the journal under rollback.
 The four-state drive law: a velocity motor alone brakes, a
 position spring alone holds, and TOGETHER they share ONE budget,
 the motor's `maxMotorEffort`. A starved budget makes the drive
-sag honestly instead of borrowing force from nowhere; a zero
+sag instead of borrowing force from nowhere; a zero
 budget with the motor off leaves the spring unbudgeted. This is
 the difference between a servo that stalls under load and one
 that lies.
@@ -788,7 +788,7 @@ m3Joint_SetTargetTranslation) and spins freely about its axle
 (drive with m3Joint_SetMotor; read the spin with
 m3Joint_GetAngle and the travel with m3Joint_GetTranslation).
 
-Breakage is the 8-6 contract unchanged: the force cap snaps a
+Breakage works as for every joint: the force cap snaps a
 wheel torn sideways, the torque cap a drive axle overdriven,
 in-step, evented, and deterministic through rollback. The def
 grew nothing and there is no new state: a wheel joint is
@@ -816,7 +816,7 @@ force and upper = max torque, 0 = uncapped (for this type they
 are independent allowances, not a range). A fresh servo aims at
 its own create pose; without a spring it holds NOTHING and the
 bodies drift free. Use it for animated platforms, grabbers, and
-kinematic-feeling props that still lose honestly to a bigger
+kinematic-feeling props that still lose to a bigger
 force: a starved servo sags, it does not teleport.
 
 ## Gears and pulleys
@@ -862,7 +862,7 @@ m3Character_GetStance.
 
 ## The angular speed cap
 
-The linear speed cap (8-4) has an angular twin: every substep,
+The linear speed cap has an angular twin: every substep,
 any dynamic body spinning past the world cap is scaled back onto
 it. The default (800 rad/s) is a catastrophe guard in the same
 philosophy as the 400 m/s linear default: far above anything a
@@ -923,7 +923,7 @@ Both are PURE observers: reading them never touches the
 simulation, the snapshot, or the hash, and a suite holds that
 promise with a twin that polls every tick against a twin that
 never looks. Counter values are deterministic; profile times are
-honest wall-clock and never will be.
+wall-clock and never will be.
 
 m3World_DrawExtras adds the analysis layers on top of the base
 draw: island tint points (colors cycled by island root, sleeping
@@ -944,7 +944,7 @@ debug abort; returning nonzero declares the failure handled
 hook: the engine has no log stream to route, and a dead API is
 worse than a missing one.
 
-## The honest cylinder, reshaping, and the overlap family
+## The faceted cylinder, reshaping, and the overlap family
 
 m3CreateCylinderShape mints a cylinder as a 2N-vertex prism
 through the interned hull path (N = segments, clamped to 3..32
@@ -952,8 +952,7 @@ so 2N fits the 64-vertex hull law). Everything downstream (mass,
 contacts, casts, CCD, carving, the blast's projected area)
 treats the prism exactly; the documented trade is that the side
 is an N-gon, not a curve, and 24 segments roll visually smooth
-at meter scales. The analytic round cylinder stays on the ledger
-for the day a consumer needs true roundness.
+at meter scales.
 
 m3Shape_SetSphere and m3Shape_SetCapsule swap a shape's geometry
 in place, conversions between the two included (journaled, op
@@ -1002,7 +1001,7 @@ is that recipe as a runnable document. The shape:
 2. Keep a snapshot of the last frame whose inputs are ALL
    confirmed (m3World_Snapshot: one buffer is enough).
 3. Predict forward past the frontier with guessed remote inputs
-   (empty is the honest cheap guess).
+   (empty is the simplest guess).
 4. When a late input arrives, restore the frontier snapshot,
    re-apply confirmed inputs, re-predict to the present
    (m3World_Restore + your step loop; bit-exactness makes the
