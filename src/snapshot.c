@@ -11,6 +11,7 @@
 // MEANING of the bytes (engine version, solver revision, precision,
 // FP policy) and restore refuses a mismatch loudly.
 
+#include "joint_solver.h"
 #include "world_internal.h"
 #include "world_state.h"
 
@@ -1001,7 +1002,7 @@ uint64_t m3World_Hash(m3WorldId worldId)
             // eighth use).
             h = m3Hash64(h, &world->jointBreak[i], (int32_t)sizeof(m3Vec3));
         }
-        if ((world->jointFlags[i] & 8) != 0 || world->jointTargetScalar[i] != 0.0f ||
+        if ((world->jointFlags[i] & M3_JOINT_SPRING) != 0 || world->jointTargetScalar[i] != 0.0f ||
             world->jointTargetQ[i].x != 0.0f || world->jointTargetQ[i].y != 0.0f ||
             world->jointTargetQ[i].z != 0.0f || world->jointTargetQ[i].w != 1.0f ||
             world->jointSpringImpulse[i].x != 0.0f || world->jointSpringImpulse[i].y != 0.0f ||

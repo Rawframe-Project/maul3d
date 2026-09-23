@@ -6,6 +6,7 @@
 // drives the internals and verifies minted ids. The warm-start
 // impulse lives in the persistent arena and rides the snapshot.
 
+#include "joint_solver.h"
 #include "journal.h"
 #include "world_internal.h"
 
@@ -219,8 +220,9 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
         world->jointFrameQA[index] = QuatFromAxisZ(m3Normalize3(def->localAxisA));
         world->jointFrameQB[index] = QuatFromAxisZ(m3Normalize3(def->localAxisB));
     }
-    world->jointFlags[index] = (uint8_t)((def->enableLimit ? 1 : 0) | (def->enableMotor ? 2 : 0) |
-                                         (def->enableCone ? 4 : 0));
+    world->jointFlags[index] = (uint8_t)((def->enableLimit ? M3_JOINT_LIMIT : 0u) |
+                                         (def->enableMotor ? M3_JOINT_MOTOR : 0u) |
+                                         (def->enableCone ? M3_JOINT_CONE : 0u));
     world->jointMotor[index] = (m3Vec3){def->motorSpeed, def->maxMotorEffort, 0.0f};
     if (def->type == (int32_t)m3_motorJoint)
     {
@@ -585,7 +587,8 @@ static void JointWakeBodies(m3World* world, int32_t j)
 
 void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float lower, float upper)
 {
-    world->jointFlags[j] = (uint8_t)((world->jointFlags[j] & ~1u) | (enable != 0 ? 1u : 0u));
+    world->jointFlags[j] =
+        (uint8_t)((world->jointFlags[j] & ~M3_JOINT_LIMIT) | (enable != 0 ? M3_JOINT_LIMIT : 0u));
     // z carries the spherical cone angle: never clobbered here.
     world->jointLimits[j].x = lower;
     world->jointLimits[j].y = upper;
@@ -599,7 +602,8 @@ void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float l
 
 void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float speed, float effort)
 {
-    world->jointFlags[j] = (uint8_t)((world->jointFlags[j] & ~2u) | (enable != 0 ? 2u : 0u));
+    world->jointFlags[j] =
+        (uint8_t)((world->jointFlags[j] & ~M3_JOINT_MOTOR) | (enable != 0 ? M3_JOINT_MOTOR : 0u));
     world->jointMotor[j].x = speed;
     world->jointMotor[j].y = effort;
     if (world->jointType[j] == (uint8_t)m3_genericJoint)
@@ -616,10 +620,11 @@ void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float sp
 void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float target, float hertz,
                              float zeta, float maxEffort)
 {
-    // The wheel slot map: flags bit 4 (the cone bit, unused
+    // The wheel slot map: M3_JOINT_STEER (the cone bit, unused
     // on wheels), target in jointMotor.z, softness and budget in
     // the spherical target slots, warm impulse in spring slot y.
-    world->jointFlags[j] = (uint8_t)((world->jointFlags[j] & ~4u) | (enable != 0 ? 4u : 0u));
+    world->jointFlags[j] =
+        (uint8_t)((world->jointFlags[j] & ~M3_JOINT_STEER) | (enable != 0 ? M3_JOINT_STEER : 0u));
     world->jointMotor[j].z = target;
     world->jointTargetQ[j].x = hertz;
     world->jointTargetQ[j].y = zeta;
@@ -1042,7 +1047,8 @@ m3real m3Joint_GetTranslation(m3JointId jointId)
 
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta)
 {
-    world->jointFlags[j] = (uint8_t)((world->jointFlags[j] & ~8u) | (enable != 0 ? 8u : 0u));
+    world->jointFlags[j] =
+        (uint8_t)((world->jointFlags[j] & ~M3_JOINT_SPRING) | (enable != 0 ? M3_JOINT_SPRING : 0u));
     world->jointSpring[j] = (m3Vec3){hertz, zeta, 0.0f};
     // Any change invalidates the stored spring impulse: a stale
     // warm start toward an old target kicks.

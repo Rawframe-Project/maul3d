@@ -72,6 +72,13 @@ Work toward 0.0.1, the first release of the reworked library.
   (src/journal_replay.c) instead of a 1,660-line switch. world.c
   shrank from 3,300 to 1,170 lines. Snapshot bytes and hashes are
   unchanged.
+- Each joint type's solver rows live in src/joint_<kind>.c behind a
+  kind table, as in Maul2D: the 345-line prepare, 170-line warm start
+  and 1,500-line solve if-chains in solver.c became per-kind functions
+  plus shared pieces (the hinge frame, the angular-lock warm start,
+  the point constraint). Joint flag bits are named M3_JOINT_*.
+  solver.c shrank from 4,350 to 2,200 lines. Results are bit-
+  identical.
 
 ### Removed
 

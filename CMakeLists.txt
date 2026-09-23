@@ -50,6 +50,18 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/dynamic_tree.c
     src/hull.c
     src/joint.c
+    src/joint_distance.c
+    src/joint_fixed.c
+    src/joint_gear.c
+    src/joint_generic.c
+    src/joint_motor.c
+    src/joint_parallel.c
+    src/joint_prismatic.c
+    src/joint_pulley.c
+    src/joint_revolute.c
+    src/joint_solver.c
+    src/joint_spherical.c
+    src/joint_wheel.c
     src/journal_replay.c
     src/manifold.c
     src/math_functions.c
