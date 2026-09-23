@@ -146,8 +146,11 @@ static void TestDegenerateRefusals(void)
                            {4.0f, 4.0f, 4.0f}};
     CHECK(!m3ComputeHull(collinear, 5, &hull), "a collinear cloud is refused");
 
+    // Read through a volatile so the compiler does not fold, and warn
+    // about, the overflow this input is meant to provoke at run time.
+    static volatile float s_huge = 1.0e30f;
     m3Vec3 bad[4] = {
-        {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0e30f}};
+        {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, s_huge}};
     bad[3].z = bad[3].z * bad[3].z; // infinity
     CHECK(!m3ComputeHull(bad, 4, &hull), "non-finite input is refused");
 }

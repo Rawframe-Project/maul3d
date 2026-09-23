@@ -109,3 +109,11 @@ Work toward 0.0.1, the first release of the reworked library.
   no edges, which only malformed hull data can cause; they now produce
   no contact. GJK simplex caches are fully zero-initialized, and the
   time-of-impact setup no longer copies unused cache entries.
+- The inline math helpers in `core_math.h` returned compound literals,
+  which C++ does not have, so MSVC rejected the public headers in C++
+  code. They now build their results in named variables, valid in both
+  languages.
+- MSVC on arm64 ignores the `/fp:contract-` switch, so floating-point
+  contraction was not reliably off there. Every source now turns it
+  off with `#pragma fp_contract(off)` under MSVC, and the switch is
+  only passed where the compiler knows it.

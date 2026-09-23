@@ -60,17 +60,19 @@ extern "C"
     /// Column-major matrix times vector: cx*v.x + cy*v.y + cz*v.z.
     static inline m3Vec3 m3MulMV3(m3Mat3 m, m3Vec3 v)
     {
-        return (m3Vec3){m.cx.x * v.x + m.cy.x * v.y + m.cz.x * v.z,
-                        m.cx.y * v.x + m.cy.y * v.y + m.cz.y * v.z,
-                        m.cx.z * v.x + m.cy.z * v.y + m.cz.z * v.z};
+        m3Vec3 result = {m.cx.x * v.x + m.cy.x * v.y + m.cz.x * v.z,
+                         m.cx.y * v.x + m.cy.y * v.y + m.cz.y * v.z,
+                         m.cx.z * v.x + m.cy.z * v.y + m.cz.z * v.z};
+        return result;
     }
 
     static inline m3Mat3 m3MakeZeroMat3(void)
     {
         m3Mat3 m;
-        m.cx = (m3Vec3){0.0f, 0.0f, 0.0f};
-        m.cy = (m3Vec3){0.0f, 0.0f, 0.0f};
-        m.cz = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3Vec3 zero = {0.0f, 0.0f, 0.0f};
+        m.cx = zero;
+        m.cy = zero;
+        m.cz = zero;
         return m;
     }
 
@@ -101,22 +103,26 @@ extern "C"
 
     static inline m3Vec3 m3Add3(m3Vec3 a, m3Vec3 b)
     {
-        return (m3Vec3){a.x + b.x, a.y + b.y, a.z + b.z};
+        m3Vec3 result = {a.x + b.x, a.y + b.y, a.z + b.z};
+        return result;
     }
 
     static inline m3Vec3 m3Sub3(m3Vec3 a, m3Vec3 b)
     {
-        return (m3Vec3){a.x - b.x, a.y - b.y, a.z - b.z};
+        m3Vec3 result = {a.x - b.x, a.y - b.y, a.z - b.z};
+        return result;
     }
 
     static inline m3Vec3 m3MulSV3(m3real s, m3Vec3 v)
     {
-        return (m3Vec3){s * v.x, s * v.y, s * v.z};
+        m3Vec3 result = {s * v.x, s * v.y, s * v.z};
+        return result;
     }
 
     static inline m3Vec3 m3Neg3(m3Vec3 v)
     {
-        return (m3Vec3){-v.x, -v.y, -v.z};
+        m3Vec3 result = {-v.x, -v.y, -v.z};
+        return result;
     }
 
     static inline m3real m3Dot3(m3Vec3 a, m3Vec3 b)
@@ -126,7 +132,8 @@ extern "C"
 
     static inline m3Vec3 m3Cross3(m3Vec3 a, m3Vec3 b)
     {
-        return (m3Vec3){a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+        m3Vec3 result = {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+        return result;
     }
 
     static inline m3real m3LengthSquared3(m3Vec3 v)
@@ -149,10 +156,12 @@ extern "C"
         m3real length = m3Length3(v);
         if (length < 1.19209290e-7f)
         {
-            return (m3Vec3){0.0f, 1.0f, 0.0f};
+            m3Vec3 result = {0.0f, 1.0f, 0.0f};
+            return result;
         }
         m3real inv = 1.0f / length;
-        return (m3Vec3){inv * v.x, inv * v.y, inv * v.z};
+        m3Vec3 result = {inv * v.x, inv * v.y, inv * v.z};
+        return result;
     }
 
     /// Convert any angle into the range [-pi, pi]. remainderf is IEEE
@@ -164,7 +173,8 @@ extern "C"
 
     static inline m3Quat m3MakeIdentityQuat(void)
     {
-        return (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+        m3Quat result = {0.0f, 0.0f, 0.0f, 1.0f};
+        return result;
     }
 
     static inline m3Quat m3MulQuat(m3Quat a, m3Quat b)
@@ -186,7 +196,8 @@ extern "C"
             return m3MakeIdentityQuat();
         }
         m3real inv = 1.0f / mag;
-        return (m3Quat){inv * q.x, inv * q.y, inv * q.z, inv * q.w};
+        m3Quat result = {inv * q.x, inv * q.y, inv * q.z, inv * q.w};
+        return result;
     }
 
     /// Rotate a vector by a unit quaternion: v' = v + w*t + q x t with

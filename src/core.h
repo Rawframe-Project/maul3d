@@ -10,6 +10,14 @@
 
 #include "maul3d/base.h"
 
+// Floating-point contraction breaks bit-identical results. The build
+// turns it off for GCC and Clang; for MSVC the pragma does it in every
+// source, including on arm64, where the /fp:contract- switch is not
+// available.
+#if defined(_MSC_VER)
+#pragma fp_contract(off)
+#endif
+
 // Internal invariants only: states that cannot happen unless the engine
 // itself is wrong. Caller input is refused with m3Refuse, never asserted.
 #if defined(NDEBUG)
