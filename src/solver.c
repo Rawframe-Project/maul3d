@@ -823,11 +823,7 @@ void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
             m3JournalRecord(world, m3_opStepVetoes, world->contacts.stepVetoKeys,
                             world->contacts.stepVetoCount * (int32_t)sizeof(uint64_t));
         }
-        struct
-        {
-            float dt;
-            int32_t substeps;
-        } record;
+        m3OpStep record;
         memset(&record, 0, sizeof(record));
         record.dt = dt;
         record.substeps = substeps;

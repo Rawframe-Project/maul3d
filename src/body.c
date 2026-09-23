@@ -470,11 +470,7 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
     m3BodyId id = {index + 1, world->worldIndex0, world->bodies.bodyPool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyDef def;
-            m3BodyId expected;
-        } record;
+        m3OpCreateBody record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
@@ -564,11 +560,7 @@ void m3Body_SetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation)
     m3Transform pose = {position, rotation};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Transform pose;
-        } record;
+        m3OpBodyPose record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.pose = pose;
@@ -592,11 +584,7 @@ void m3Body_SetTargetTransform(m3BodyId bodyId, m3Pos3 position, m3Quat rotation
     m3Transform pose = {position, rotation};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Transform pose;
-        } record;
+        m3OpBodyPose record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.pose = pose;
@@ -617,14 +605,10 @@ void m3Body_SetType(m3BodyId bodyId, m3BodyType type)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            int32_t type;
-        } record;
+        m3OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
-        record.type = (int32_t)type;
+        record.value = (int32_t)type;
         m3JournalRecord(world, m3_opSetType, &record, (int32_t)sizeof(record));
     }
     m3SetTypeInternal(world, index, (uint8_t)type);
@@ -640,14 +624,10 @@ void m3Body_SetEnabled(m3BodyId bodyId, bool enabled)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            int32_t on;
-        } record;
+        m3OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
-        record.on = enabled ? 1 : 0;
+        record.value = enabled ? 1 : 0;
         m3JournalRecord(world, m3_opSetEnabled, &record, (int32_t)sizeof(record));
     }
     m3SetEnabledInternal(world, index, enabled ? 1 : 0);
@@ -671,11 +651,7 @@ void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            uint32_t locks;
-        } record;
+        m3OpSetMotionLocks record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.locks = locks;
@@ -714,11 +690,7 @@ void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            uint32_t allow;
-        } record;
+        m3OpSetAllowFastRotation record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.allow = allow ? 1u : 0u;
@@ -759,11 +731,7 @@ void m3Body_SetName(m3BodyId bodyId, const char* name)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            char name[M3_BODY_NAME_CAPACITY];
-        } record;
+        m3OpSetBodyName record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         if (name != NULL)
@@ -796,12 +764,7 @@ void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            float threshold;
-            int32_t canSleep;
-        } record;
+        m3OpSetSleepControls record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.threshold = threshold;
@@ -829,14 +792,10 @@ void m3Body_SetAwake(m3BodyId bodyId, bool awake)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            int32_t awake;
-        } record;
+        m3OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
-        record.awake = awake ? 1 : 0;
+        record.value = awake ? 1 : 0;
         m3JournalRecord(world, m3_opSetAwake, &record, (int32_t)sizeof(record));
     }
     m3SetAwakeInternal(world, index, awake ? 1 : 0);
@@ -853,11 +812,7 @@ void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = force;
@@ -877,11 +832,7 @@ void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = torque;
@@ -901,11 +852,7 @@ void m3Body_ApplyLinearImpulse(m3BodyId bodyId, m3Vec3 impulse)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = impulse;
@@ -925,11 +872,7 @@ void m3Body_ApplyAngularImpulse(m3BodyId bodyId, m3Vec3 impulse)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = impulse;
@@ -950,12 +893,7 @@ void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-            m3Pos3 p;
-        } record;
+        m3OpBodyVectorAtPoint record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = force;
@@ -977,12 +915,7 @@ void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 po
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-            m3Pos3 p;
-        } record;
+        m3OpBodyVectorAtPoint record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = impulse;
@@ -1007,11 +940,7 @@ void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpSetLinearVelocity record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = velocity;
@@ -1035,11 +964,7 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3BodyId id;
-            m3Vec3 v;
-        } record;
+        m3OpSetAngularVelocity record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
         record.v = velocity;

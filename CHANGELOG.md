@@ -94,6 +94,9 @@ Work toward 0.0.1, the first release of the reworked library.
   declarations moved to one header per module (body.h, shape.h,
   joint.h, voxel.h, distance.h, world.h and others). Results are bit-
   identical.
+- Journal payloads are declared once in src/journal.h and shared by
+  the recorders and replay (they were declared twice, as anonymous
+  structs on each side). The wire format is unchanged.
 
 ### Removed
 

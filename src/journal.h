@@ -101,6 +101,379 @@ typedef enum m3Op
     m3_opCount
 } m3Op;
 
+// Payloads: one struct per op family, shared by the recorders and the
+// replay. Recorders zero the struct before filling it, so padding bytes
+// are deterministic.
+typedef struct m3OpBodyByte
+{
+    m3BodyId id;
+    int32_t value;
+} m3OpBodyByte;
+
+typedef struct m3OpBodyPose
+{
+    m3BodyId id;
+    m3Transform pose;
+} m3OpBodyPose;
+
+typedef struct m3OpBodyVector
+{
+    m3BodyId id;
+    m3Vec3 v;
+} m3OpBodyVector;
+
+typedef struct m3OpBodyVectorAtPoint
+{
+    m3BodyId id;
+    m3Vec3 v;
+    m3Pos3 p;
+} m3OpBodyVectorAtPoint;
+
+typedef struct m3OpCharacterMove
+{
+    m3CharacterId id;
+    m3Vec3 translation;
+} m3OpCharacterMove;
+
+typedef struct m3OpCharacterStance
+{
+    m3CharacterId id;
+    m3real halfHeight;
+    m3real radius;
+} m3OpCharacterStance;
+
+typedef struct m3OpCreateBody
+{
+    m3BodyDef def;
+    m3BodyId expected;
+} m3OpCreateBody;
+
+typedef struct m3OpCreateCharacter
+{
+    m3CharacterDef def;
+    m3CharacterId expected;
+} m3OpCreateCharacter;
+
+typedef struct m3OpCreateSoftBody
+{
+    m3SoftBodyDef def;
+    m3SoftBodyId expected;
+} m3OpCreateSoftBody;
+
+typedef struct m3OpCreateVehicle
+{
+    m3VehicleDef def;
+    m3VehicleId expected;
+} m3OpCreateVehicle;
+
+typedef struct m3OpCreateVoxelChunkShape
+{
+    m3ShapeDef def;
+    m3BodyId body;
+    m3ShapeId expected;
+    m3real cellSize;
+} m3OpCreateVoxelChunkShape;
+
+typedef struct m3OpCreateWaterVolume
+{
+    m3WaterVolumeDef def;
+    m3WaterVolumeId expected;
+} m3OpCreateWaterVolume;
+
+typedef struct m3OpJointSetBreak
+{
+    m3JointId id;
+    float maxForce;
+    float maxTorque;
+} m3OpJointSetBreak;
+
+typedef struct m3OpJointSetCollide
+{
+    m3JointId id;
+    int32_t on;
+} m3OpJointSetCollide;
+
+typedef struct m3OpJointSetMotorPose
+{
+    m3JointId id;
+    m3Vec3 offset;
+    m3Quat rotation;
+} m3OpJointSetMotorPose;
+
+typedef struct m3OpJointSetSpring
+{
+    m3JointId id;
+    int32_t enable;
+    float hertz;
+    float zeta;
+} m3OpJointSetSpring;
+
+typedef struct m3OpJointSetSteer
+{
+    m3JointId id;
+    int32_t enable;
+    float target;
+    float hertz;
+    float zeta;
+    float effort;
+} m3OpJointSetSteer;
+
+typedef struct m3OpJointSetTarget
+{
+    m3JointId id;
+    float scalar;
+    m3Quat q;
+} m3OpJointSetTarget;
+
+typedef struct m3OpJointVector
+{
+    m3JointId id;
+    int32_t enable;
+    float a;
+    float b;
+} m3OpJointVector;
+
+typedef struct m3OpSetAllowFastRotation
+{
+    m3BodyId id;
+    uint32_t allow;
+} m3OpSetAllowFastRotation;
+
+typedef struct m3OpSetAngularVelocity
+{
+    m3BodyId id;
+    m3Vec3 v;
+} m3OpSetAngularVelocity;
+
+typedef struct m3OpSetBodyName
+{
+    m3BodyId id;
+    char name[M3_BODY_NAME_CAPACITY];
+} m3OpSetBodyName;
+
+typedef struct m3OpSetContactTuning
+{
+    float hertz;
+    float dampingRatio;
+    float pushSpeed;
+} m3OpSetContactTuning;
+
+typedef struct m3OpSetLinearVelocity
+{
+    m3BodyId id;
+    m3Vec3 v;
+} m3OpSetLinearVelocity;
+
+typedef struct m3OpSetMotionLocks
+{
+    m3BodyId id;
+    uint32_t locks;
+} m3OpSetMotionLocks;
+
+typedef struct m3OpSetShapeDensity
+{
+    m3ShapeId id;
+    float value;
+    int32_t updateMass;
+} m3OpSetShapeDensity;
+
+typedef struct m3OpSetShapeGeom
+{
+    m3ShapeId id;
+    uint32_t type;
+    m3ShapeGeom geom;
+} m3OpSetShapeGeom;
+
+typedef struct m3OpSetSleepControls
+{
+    m3BodyId id;
+    float threshold;
+    int32_t canSleep;
+} m3OpSetSleepControls;
+
+typedef struct m3OpSetSurfaceVelocity
+{
+    m3ShapeId id;
+    m3Vec3 v;
+} m3OpSetSurfaceVelocity;
+
+typedef struct m3OpSetWind
+{
+    m3Vec3 dir;
+    float speed;
+    float gustHertz;
+    float gustScale;
+} m3OpSetWind;
+
+typedef struct m3OpShapeFlag
+{
+    m3ShapeId id;
+    int32_t on;
+} m3OpShapeFlag;
+
+typedef struct m3OpShapeScalar
+{
+    m3ShapeId id;
+    float value;
+} m3OpShapeScalar;
+
+typedef struct m3OpSoftBodyAnchor
+{
+    m3SoftBodyId id;
+    int32_t particle;
+    m3BodyId body;
+} m3OpSoftBodyAnchor;
+
+typedef struct m3OpSoftBodyAnchorSoft
+{
+    m3SoftBodyId idA;
+    int32_t particleA;
+    m3SoftBodyId idB;
+    int32_t particleB;
+} m3OpSoftBodyAnchorSoft;
+
+typedef struct m3OpSoftBodyPin
+{
+    m3SoftBodyId id;
+    int32_t particle;
+} m3OpSoftBodyPin;
+
+typedef struct m3OpStep
+{
+    float dt;
+    int32_t substeps;
+} m3OpStep;
+
+typedef struct m3OpVehicleCommands
+{
+    m3VehicleId id;
+    m3real throttle;
+    m3real steer;
+    m3real brake;
+} m3OpVehicleCommands;
+
+typedef struct m3OpVehicleDrivetrain
+{
+    m3VehicleId id;
+    m3DrivetrainDef def;
+} m3OpVehicleDrivetrain;
+
+typedef struct m3OpVehicleGear
+{
+    m3VehicleId id;
+    int32_t gear;
+} m3OpVehicleGear;
+
+typedef struct m3OpVehicleTankCommands
+{
+    m3VehicleId id;
+    m3real left;
+    m3real right;
+    m3real brake;
+} m3OpVehicleTankCommands;
+
+typedef struct m3OpVoxelClear
+{
+    m3ShapeId id;
+    int32_t x, y, z;
+} m3OpVoxelClear;
+
+typedef struct m3OpVoxelClearBox
+{
+    m3ShapeId id;
+    int32_t lo[3];
+    int32_t hi[3];
+} m3OpVoxelClearBox;
+
+typedef struct m3OpVoxelSet
+{
+    m3ShapeId id;
+    int32_t x, y, z;
+    uint16_t payload;
+    uint16_t pad;
+} m3OpVoxelSet;
+
+typedef struct m3OpVoxelSetFill
+{
+    m3ShapeId id;
+    int32_t x, y, z;
+    uint8_t fill;
+    uint8_t pad[3];
+} m3OpVoxelSetFill;
+
+// Journal payload for mesh materials: the fixed head below,
+// followed by triangleCount group bytes.
+typedef struct m3SetMeshMaterialsOp
+{
+    m3ShapeId id;
+    int32_t materialCount;
+    int32_t triangleCount;
+    m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
+} m3SetMeshMaterialsOp;
+
+// Journal payload for tet soft bodies: the fixed head,
+// then pointCount m3Vec3 points, then 4 * tetCount uint16 ids.
+typedef struct m3CreateSoftBodyTetOp
+{
+    m3SoftBodyDef def;
+    int32_t pointCount;
+    int32_t tetCount;
+    m3SoftBodyId expected;
+} m3CreateSoftBodyTetOp;
+
+// Journal payload for the native heightfield: the fixed
+// head below, followed by nx * nz float samples.
+typedef struct m3CreateHeightFieldGridOp
+{
+    m3BodyId body;
+    m3ShapeDef def;
+    int32_t nx;
+    int32_t nz;
+    float cellSize;
+    m3ShapeId expected;
+} m3CreateHeightFieldGridOp;
+
+// Journal payload for shape creation (replay re-derives mass).
+typedef struct m3CreateShapeOp
+{
+    m3ShapeDef def;
+    m3ShapeGeom geom;
+    m3BodyId body;
+    m3ShapeId expected;
+    uint8_t type;
+    uint8_t pad[7];
+} m3CreateShapeOp;
+
+// Journal payload for general hull shapes: the raw input points are
+// the recipe; replay rebuilds through the same QuickHull, so the
+// derived hull data never has to ride the journal.
+// Journal header for mesh creation; the exact-size vertex and index
+// arrays follow it in the payload (a full-cap struct would bloat the
+// journal by 24 KB per mesh).
+typedef struct m3CreateMeshShapeOp
+{
+    m3ShapeDef def;
+    m3BodyId body;
+    m3ShapeId expected;
+    int32_t vertexCount;
+    int32_t triangleCount;
+} m3CreateMeshShapeOp;
+
+typedef struct m3CreateJointOp
+{
+    m3JointDef def;
+    m3JointId expected;
+} m3CreateJointOp;
+
+typedef struct m3CreateHullShapeOp
+{
+    m3ShapeDef def;
+    m3BodyId body;
+    m3ShapeId expected;
+    int32_t count;
+    m3Vec3 points[M3_HULL_MAX_INPUT];
+} m3CreateHullShapeOp;
+
 // Recording: appends one op; an overflow latches and fails the recording.
 void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t bytes);
 // Fails the active recording when an op cannot be encoded.

@@ -56,11 +56,7 @@ static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyDef def;
-        m3BodyId expected;
-    } record;
+    m3OpCreateBody record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -104,11 +100,7 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        m3Vec3 v;
-    } record;
+    m3OpSetLinearVelocity record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -128,11 +120,7 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        m3Vec3 v;
-    } record;
+    m3OpSetAngularVelocity record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -165,11 +153,7 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        float dt;
-        int32_t substeps;
-    } record;
+    m3OpStep record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -362,13 +346,7 @@ static bool ApplyCreateVoxelChunkShape(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeDef def;
-        m3BodyId body;
-        m3ShapeId expected;
-        m3real cellSize;
-    } record;
+    m3OpCreateVoxelChunkShape record;
     int32_t occBytes = (int32_t)(M3_VOXEL_COUNT / 8);
     int32_t payBytes = (int32_t)(M3_VOXEL_COUNT * sizeof(uint16_t));
     int32_t fillBytes = (int32_t)M3_VOXEL_COUNT;
@@ -418,13 +396,7 @@ static bool ApplyVoxelSet(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        int32_t x, y, z;
-        uint16_t payload;
-        uint16_t pad;
-    } record;
+    m3OpVoxelSet record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -444,11 +416,7 @@ static bool ApplyVoxelClear(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        int32_t x, y, z;
-    } record;
+    m3OpVoxelClear record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -468,13 +436,7 @@ static bool ApplyVoxelSetFill(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        int32_t x, y, z;
-        uint8_t fill;
-        uint8_t pad[3];
-    } record;
+    m3OpVoxelSetFill record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -494,12 +456,7 @@ static bool ApplyVoxelClearBox(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        int32_t lo[3];
-        int32_t hi[3];
-    } record;
+    m3OpVoxelClearBox record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -526,11 +483,7 @@ static bool ApplyCreateCharacter(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3CharacterDef def;
-        m3CharacterId expected;
-    } record;
+    m3OpCreateCharacter record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -569,11 +522,7 @@ static bool ApplyCharacterMove(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3CharacterId id;
-        m3Vec3 translation;
-    } record;
+    m3OpCharacterMove record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -593,12 +542,7 @@ static bool ApplyCharacterStance(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3CharacterId id;
-        m3real halfHeight;
-        m3real radius;
-    } record;
+    m3OpCharacterStance record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -620,11 +564,7 @@ static bool ApplyCreateVehicle(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3VehicleDef def;
-        m3VehicleId expected;
-    } record;
+    m3OpCreateVehicle record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -670,13 +610,7 @@ static bool ApplyVehicleTankCommands(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3VehicleId id;
-        m3real left;
-        m3real right;
-        m3real brake;
-    } record;
+    m3OpVehicleTankCommands record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -696,13 +630,7 @@ static bool ApplyVehicleCommands(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3VehicleId id;
-        m3real throttle;
-        m3real steer;
-        m3real brake;
-    } record;
+    m3OpVehicleCommands record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -723,11 +651,7 @@ static bool ApplyVehicleDrivetrain(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3VehicleId id;
-        m3DrivetrainDef def;
-    } record;
+    m3OpVehicleDrivetrain record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -747,11 +671,7 @@ static bool ApplyVehicleGear(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3VehicleId id;
-        int32_t gear;
-    } record;
+    m3OpVehicleGear record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -770,11 +690,7 @@ static bool ApplyCreateSoftBody(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3SoftBodyDef def;
-        m3SoftBodyId expected;
-    } record;
+    m3OpCreateSoftBody record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -813,11 +729,7 @@ static bool ApplySoftBodyPin(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3SoftBodyId id;
-        int32_t particle;
-    } record;
+    m3OpSoftBodyPin record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -838,12 +750,7 @@ static bool ApplySoftBodyAnchor(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3SoftBodyId id;
-        int32_t particle;
-        m3BodyId body;
-    } record;
+    m3OpSoftBodyAnchor record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -867,13 +774,7 @@ static bool ApplySoftBodyAnchorSoft(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3SoftBodyId idA;
-        int32_t particleA;
-        m3SoftBodyId idB;
-        int32_t particleB;
-    } record;
+    m3OpSoftBodyAnchorSoft record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -901,11 +802,7 @@ static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3BodyId id;
-        m3Vec3 v;
-    } record;
+    m3OpBodyVector record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -941,12 +838,7 @@ static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3BodyId id;
-        m3Vec3 v;
-        m3Pos3 p;
-    } record;
+    m3OpBodyVectorAtPoint record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -974,11 +866,7 @@ static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3BodyId id;
-        m3Transform pose;
-    } record;
+    m3OpBodyPose record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1009,11 +897,7 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3BodyId id;
-        int32_t value;
-    } record;
+    m3OpBodyByte record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1044,11 +928,7 @@ static bool ApplySetMotionLocks(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        uint32_t locks;
-    } record;
+    m3OpSetMotionLocks record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1068,12 +948,7 @@ static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        float threshold;
-        int32_t canSleep;
-    } record;
+    m3OpSetSleepControls record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1138,11 +1013,7 @@ static bool ApplyShapeScalar(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3ShapeId id;
-        float value;
-    } record;
+    m3OpShapeScalar record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1173,12 +1044,7 @@ static bool ApplySetShapeDensity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        float value;
-        int32_t updateMass;
-    } record;
+    m3OpSetShapeDensity record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1198,12 +1064,7 @@ static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        float hertz;
-        float dampingRatio;
-        float pushSpeed;
-    } record;
+    m3OpSetContactTuning record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1270,11 +1131,7 @@ static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        char name[M3_BODY_NAME_CAPACITY];
-    } record;
+    m3OpSetBodyName record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1396,11 +1253,7 @@ static bool ApplyCreateWaterVolume(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3WaterVolumeDef def;
-        m3WaterVolumeId expected;
-    } record;
+    m3OpCreateWaterVolume record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1481,12 +1334,7 @@ static bool ApplyJointSetMotorPose(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        m3Vec3 offset;
-        m3Quat rotation;
-    } record;
+    m3OpJointSetMotorPose record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1509,15 +1357,7 @@ static bool ApplyJointSetSteer(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        int32_t enable;
-        float target;
-        float hertz;
-        float zeta;
-        float effort;
-    } record;
+    m3OpJointSetSteer record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1542,12 +1382,7 @@ static bool ApplySetShapeGeom(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        uint32_t type;
-        m3ShapeGeom geom;
-    } record;
+    m3OpSetShapeGeom record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1576,11 +1411,7 @@ static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3BodyId id;
-        uint32_t allow;
-    } record;
+    m3OpSetAllowFastRotation record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1643,13 +1474,7 @@ static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3Vec3 dir;
-        float speed;
-        float gustHertz;
-        float gustScale;
-    } record;
+    m3OpSetWind record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1669,11 +1494,7 @@ static bool ApplySetSurfaceVelocity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3ShapeId id;
-        m3Vec3 v;
-    } record;
+    m3OpSetSurfaceVelocity record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1712,11 +1533,7 @@ static bool ApplyShapeFlag(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3ShapeId id;
-        int32_t on;
-    } record;
+    m3OpShapeFlag record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1744,13 +1561,7 @@ static bool ApplyJointVector(m3World* world, const m3ReplayRecord* r)
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
     int32_t op = r->op;
-    struct
-    {
-        m3JointId id;
-        int32_t enable;
-        float a;
-        float b;
-    } record;
+    m3OpJointVector record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1786,11 +1597,7 @@ static bool ApplyJointSetCollide(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        int32_t on;
-    } record;
+    m3OpJointSetCollide record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1810,12 +1617,7 @@ static bool ApplyJointSetBreak(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        float maxForce;
-        float maxTorque;
-    } record;
+    m3OpJointSetBreak record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1836,13 +1638,7 @@ static bool ApplyJointSetSpring(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        int32_t enable;
-        float hertz;
-        float zeta;
-    } record;
+    m3OpJointSetSpring record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -1863,12 +1659,7 @@ static bool ApplyJointSetTarget(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    struct
-    {
-        m3JointId id;
-        float scalar;
-        m3Quat q;
-    } record;
+    m3OpJointSetTarget record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;

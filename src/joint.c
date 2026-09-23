@@ -788,13 +788,7 @@ void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            int32_t enable;
-            float a;
-            float b;
-        } record;
+        m3OpJointVector record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.enable = enable ? 1 : 0;
@@ -820,15 +814,7 @@ void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float h
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            int32_t enable;
-            float target;
-            float hertz;
-            float zeta;
-            float effort;
-        } record;
+        m3OpJointSetSteer record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.enable = enable ? 1 : 0;
@@ -877,12 +863,7 @@ void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            m3Vec3 offset;
-            m3Quat rotation;
-        } record;
+        m3OpJointSetMotorPose record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.offset = offset;
@@ -903,13 +884,7 @@ void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffo
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            int32_t enable;
-            float a;
-            float b;
-        } record;
+        m3OpJointVector record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.enable = enable ? 1 : 0;
@@ -930,11 +905,7 @@ void m3Joint_SetCollideConnected(m3JointId jointId, bool collide)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            int32_t on;
-        } record;
+        m3OpJointSetCollide record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.on = collide ? 1 : 0;
@@ -962,12 +933,7 @@ void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorq
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            float maxForce;
-            float maxTorque;
-        } record;
+        m3OpJointSetBreak record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.maxForce = maxForce;
@@ -1093,13 +1059,7 @@ void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampin
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            int32_t enable;
-            float hertz;
-            float zeta;
-        } record;
+        m3OpJointSetSpring record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.enable = enable ? 1 : 0;
@@ -1114,12 +1074,7 @@ static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float
 {
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3JointId id;
-            float scalar;
-            m3Quat q;
-        } record;
+        m3OpJointSetTarget record;
         memset(&record, 0, sizeof(record));
         record.id = jointId;
         record.scalar = scalar;

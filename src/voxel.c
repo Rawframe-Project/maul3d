@@ -517,13 +517,7 @@ bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, u
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            int32_t x, y, z;
-            uint16_t payload;
-            uint16_t pad;
-        } record;
+        m3OpVoxelSet record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.x = x;
@@ -546,11 +540,7 @@ bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            int32_t x, y, z;
-        } record;
+        m3OpVoxelClear record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.x = x;
@@ -578,13 +568,7 @@ bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, ui
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            int32_t x, y, z;
-            uint8_t fill;
-            uint8_t pad[3];
-        } record;
+        m3OpVoxelSetFill record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.x = x;
@@ -614,12 +598,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            int32_t lo[3];
-            int32_t hi[3];
-        } record;
+        m3OpVoxelClearBox record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         for (int32_t k = 0; k < 3; ++k)

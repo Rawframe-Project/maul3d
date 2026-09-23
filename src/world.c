@@ -428,12 +428,7 @@ void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            float hertz;
-            float dampingRatio;
-            float pushSpeed;
-        } record;
+        m3OpSetContactTuning record;
         memset(&record, 0, sizeof(record));
         record.hertz = hertz;
         record.dampingRatio = dampingRatio;
@@ -725,13 +720,7 @@ void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gus
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3Vec3 dir;
-            float speed;
-            float gustHertz;
-            float gustScale;
-        } record;
+        m3OpSetWind record;
         memset(&record, 0, sizeof(record));
         record.dir = direction;
         record.speed = speed;
@@ -931,11 +920,7 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
     m3WaterVolumeId id = {slot + 1, world->worldIndex0, world->water.waterPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3WaterVolumeDef def;
-            m3WaterVolumeId expected;
-        } record;
+        m3OpCreateWaterVolume record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;

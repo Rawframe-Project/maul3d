@@ -479,11 +479,7 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
     m3CharacterId id = {slot + 1, world->worldIndex0, world->characters.charPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3CharacterDef def;
-            m3CharacterId expected;
-        } record;
+        m3OpCreateCharacter record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
@@ -529,11 +525,7 @@ void m3Character_Move(m3CharacterId characterId, m3Vec3 translation)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3CharacterId id;
-            m3Vec3 translation;
-        } record;
+        m3OpCharacterMove record;
         memset(&record, 0, sizeof(record));
         record.id = characterId;
         record.translation = translation;
@@ -653,12 +645,7 @@ bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real 
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3CharacterId id;
-            m3real halfHeight;
-            m3real radius;
-        } record;
+        m3OpCharacterStance record;
         memset(&record, 0, sizeof(record));
         record.id = characterId;
         record.halfHeight = halfHeight;

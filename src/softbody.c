@@ -1480,11 +1480,7 @@ m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
     m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3SoftBodyDef def;
-            m3SoftBodyId expected;
-        } record;
+        m3OpCreateSoftBody record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
@@ -1526,11 +1522,7 @@ void m3SoftBody_PinParticle(m3SoftBodyId softId, int32_t particle)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3SoftBodyId id;
-            int32_t particle;
-        } record;
+        m3OpSoftBodyPin record;
         memset(&record, 0, sizeof(record));
         record.id = softId;
         record.particle = particle;
@@ -1600,13 +1592,7 @@ void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBody
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3SoftBodyId idA;
-            int32_t particleA;
-            m3SoftBodyId idB;
-            int32_t particleB;
-        } record;
+        m3OpSoftBodyAnchorSoft record;
         memset(&record, 0, sizeof(record));
         record.idA = softIdA;
         record.particleA = particleA;
@@ -1631,12 +1617,7 @@ void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId b
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3SoftBodyId id;
-            int32_t particle;
-            m3BodyId body;
-        } record;
+        m3OpSoftBodyAnchor record;
         memset(&record, 0, sizeof(record));
         record.id = softId;
         record.particle = particle;

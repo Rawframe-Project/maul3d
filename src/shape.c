@@ -972,12 +972,7 @@ static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeo
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            uint32_t type;
-            m3ShapeGeom geom;
-        } record;
+        m3OpSetShapeGeom record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.type = type;
@@ -1367,13 +1362,7 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
     {
         // Header + the packed grid (bitset and payload): the exact
         // recipe, so replay rebuilds the identical chunk and surface.
-        struct
-        {
-            m3ShapeDef def;
-            m3BodyId body;
-            m3ShapeId expected;
-            m3real cellSize;
-        } record;
+        m3OpCreateVoxelChunkShape record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.body = bodyId;
@@ -1500,11 +1489,7 @@ static void ShapeScalarOp(m3ShapeId shapeId, int32_t op, float value)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            float value;
-        } record;
+        m3OpShapeScalar record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.value = value;
@@ -1586,12 +1571,7 @@ void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            float value;
-            int32_t updateMass;
-        } record;
+        m3OpSetShapeDensity record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.value = density;
@@ -1628,11 +1608,7 @@ static void ShapeFlagOp(m3ShapeId shapeId, int32_t op, bool flag)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            int32_t on;
-        } record;
+        m3OpShapeFlag record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.on = flag ? 1 : 0;
@@ -1772,11 +1748,7 @@ void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3ShapeId id;
-            m3Vec3 v;
-        } record;
+        m3OpSetSurfaceVelocity record;
         memset(&record, 0, sizeof(record));
         record.id = shapeId;
         record.v = velocity;

@@ -737,11 +737,7 @@ m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
     m3VehicleId id = {slot + 1, world->worldIndex0, world->vehicles.vehPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3VehicleDef def;
-            m3VehicleId expected;
-        } record;
+        m3OpCreateVehicle record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
@@ -795,13 +791,7 @@ void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3VehicleId id;
-            m3real throttle;
-            m3real steer;
-            m3real brake;
-        } record;
+        m3OpVehicleCommands record;
         memset(&record, 0, sizeof(record));
         record.id = vehicleId;
         record.throttle = throttle;
@@ -824,13 +814,7 @@ void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3VehicleId id;
-            m3real left;
-            m3real right;
-            m3real brake;
-        } record;
+        m3OpVehicleTankCommands record;
         memset(&record, 0, sizeof(record));
         record.id = vehicleId;
         record.left = left;
@@ -1007,11 +991,7 @@ void m3Vehicle_SetDrivetrain(m3VehicleId vehicleId, const m3DrivetrainDef* def)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3VehicleId id;
-            m3DrivetrainDef def;
-        } record;
+        m3OpVehicleDrivetrain record;
         memset(&record, 0, sizeof(record));
         record.id = vehicleId;
         record.def = *def;
@@ -1035,11 +1015,7 @@ void m3Vehicle_SelectGear(m3VehicleId vehicleId, int32_t gear)
     }
     if (world->recorder.journalActive != 0)
     {
-        struct
-        {
-            m3VehicleId id;
-            int32_t gear;
-        } record;
+        m3OpVehicleGear record;
         memset(&record, 0, sizeof(record));
         record.id = vehicleId;
         record.gear = gear;
