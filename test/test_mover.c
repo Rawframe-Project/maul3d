@@ -60,7 +60,7 @@ static void TestRigidWalkerRecipe(void)
         int onGround = 0;
         for (int32_t g = 0; g < gn; ++g)
         {
-            if (gp[g].normal.y > 0.7f && m3Shape_GetBody(gp[g].shape).index1 != hero.index1)
+            if (gp[g].normal.y > 0.7f && m3Shape_GetBody(gp[g].shapeId).index1 != hero.index1)
             {
                 onGround = 1;
             }
@@ -142,20 +142,35 @@ int main(void)
     m3MoverPlane fp;
     fp.normal = (m3Vec3){0.0f, 1.0f, 0.0f};
     fp.separation = 0.0f;
-    fp.shape = (m3ShapeId){0, 0, 0};
-    m3Vec3 solved = m3SolvePlanes((m3Vec3){1.0f, -0.5f, 0.0f}, &fp, 1, 8);
-    CHECK(fabsf(solved.x - 1.0f) < 1.0e-5f, "the slide survives");
-    CHECK(solved.y > -1.0e-5f, "the sink is absorbed");
+    fp.shapeId = (m3ShapeId){0, 0, 0};
+    m3MoverMove solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.0f}, &fp, 1);
+    CHECK(fabsf(solved.translation.x - 1.0f) < 1.0e-5f, "the slide survives");
+    CHECK(solved.translation.y > -1.0e-5f, "the sink is absorbed");
+    CHECK(solved.pressed == 1u, "the floor is pressed");
 
     // The corner: two planes leave only the free axis.
-    m3MoverPlane corner[2];
+    m3MoverPlane corner[3];
     corner[0] = fp;
     corner[1].normal = (m3Vec3){-1.0f, 0.0f, 0.0f};
     corner[1].separation = 0.0f;
-    corner[1].shape = (m3ShapeId){0, 0, 0};
-    solved = m3SolvePlanes((m3Vec3){1.0f, -0.5f, 0.7f}, corner, 2, 8);
-    CHECK(solved.x < 1.0e-5f && solved.y > -1.0e-5f && fabsf(solved.z - 0.7f) < 1.0e-5f,
+    corner[1].shapeId = (m3ShapeId){0, 0, 0};
+    solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.7f}, corner, 2);
+    CHECK(solved.translation.x < 1.0e-5f && solved.translation.y > -1.0e-5f &&
+              fabsf(solved.translation.z - 0.7f) < 1.0e-5f,
           "the corner leaves only the free axis");
+
+    // Three walls meeting at a corner of a box stop every component that
+    // points into them; the velocity clip keeps what slides.
+    corner[2].normal = (m3Vec3){0.0f, 0.0f, -1.0f};
+    corner[2].separation = 0.0f;
+    corner[2].shapeId = (m3ShapeId){0, 0, 0};
+    solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.7f}, corner, 3);
+    CHECK(fabsf(solved.translation.x) < 1.0e-5f && fabsf(solved.translation.y) < 1.0e-5f &&
+              fabsf(solved.translation.z) < 1.0e-5f,
+          "a box corner stops the move entirely");
+    m3Vec3 slide = m3ClipMoverVelocity((m3Vec3){1.0f, -0.5f, -0.3f}, corner, 3, solved.pressed);
+    CHECK(fabsf(slide.x) < 1.0e-5f && fabsf(slide.y) < 1.0e-5f && fabsf(slide.z + 0.3f) < 1.0e-5f,
+          "the clip keeps the part that leaves the corner");
 
     CHECK(m3World_Hash(world) == before, "the toolkit moved no bits");
     m3DestroyWorld(world);

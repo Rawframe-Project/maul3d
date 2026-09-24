@@ -768,10 +768,11 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     bool planesAscending = true;
     for (int32_t i = 1; i < p; ++i)
     {
-        planesAscending = planesAscending && planes[i - 1].shape.index1 < planes[i].shape.index1;
+        planesAscending =
+            planesAscending && planes[i - 1].shapeId.index1 < planes[i].shapeId.index1;
     }
     CHECK(p >= 2 && planesAscending, "mover planes arrive in ascending shape order");
-    CHECK(planes[0].shape.index1 == floorShape.index1, "the floor plane comes first");
+    CHECK(planes[0].shapeId.index1 == floorShape.index1, "the floor plane comes first");
     m3DestroyWorld(world);
 }
 

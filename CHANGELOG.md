@@ -159,6 +159,12 @@ Work toward 0.0.1, the first release of the reworked library.
   the buoyancy field in water.c, the contact and move events in
   world_events.c; solver.c keeps the step's order. Results are bit for
   bit unchanged.
+- Mover kit redesigned to match maul2d: m3SolveMover returns the
+  translation closest to the wish that no plane blocks, found exactly
+  (it rests on at most three planes), with a bitmask of the planes it
+  rests on; m3ClipMoverVelocity strips the velocity pointing into
+  those planes. m3SolvePlanes and its iteration count are gone;
+  m3MoverPlane's shape field is now shapeId.
 
 ### Removed
 

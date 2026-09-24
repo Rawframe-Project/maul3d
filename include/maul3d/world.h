@@ -370,10 +370,19 @@ extern "C"
     /// the cap centers, radius.
     typedef struct m3MoverPlane
     {
-        m3Vec3 normal;     // pushes the mover OUT of the shape
-        m3real separation; // negative = penetration depth
-        m3ShapeId shape;
+        m3ShapeId shapeId;
+        m3Vec3 normal;     // from the shape toward the mover
+        m3real separation; // gap along the normal; negative = overlap
     } m3MoverPlane;
+
+/// Planes past this count take no part in the solve.
+#define M3_MOVER_PLANES 16
+
+    typedef struct m3MoverMove
+    {
+        m3Vec3 translation;
+        uint32_t pressed; // bit i: plane i stops part of the wish
+    } m3MoverMove;
 
     /// Cast the mover capsule along a translation; the closest
     /// blocking hit (sensors are invisible to movers).
@@ -387,13 +396,15 @@ extern "C"
                                         m3real radius, m3real skin, m3MoverPlane* planes,
                                         int32_t capacity);
 
-    /// Clamp a desired translation against contact planes (the
-    /// reference's iterative accumulator): each iteration pushes
-    /// the translation out of every violated plane, push impulses
-    /// stay nonnegative per plane. Pure function, world-free. Only the
-    /// first 64 planes take part; later planes are ignored.
-    M3_API m3Vec3 m3SolvePlanes(m3Vec3 translation, const m3MoverPlane* planes, int32_t count,
-                                int32_t iterations);
+    /// The closest translation to the wish that no plane blocks, and
+    /// the planes it rests on. Pure function, world-free. Only the
+    /// first M3_MOVER_PLANES planes take part.
+    M3_API m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count);
+
+    /// The velocity closest to the given one that no pressed plane
+    /// opposes: what is left after hitting them. Pure function.
+    M3_API m3Vec3 m3ClipMoverVelocity(m3Vec3 velocity, const m3MoverPlane* planes, int32_t count,
+                                      uint32_t pressed);
 
     M3_API m3RayHit m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation);
     /// Filtered variants: the query carries an m3QueryFilter

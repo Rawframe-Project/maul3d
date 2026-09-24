@@ -328,9 +328,14 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
 Collect contact planes for the mover at rest: every shape within `skin` of the capsule contributes one plane. Returns the count written (ascending shape order, deterministic).
 
 ```c
-m3Vec3 m3SolvePlanes(m3Vec3 translation, const m3MoverPlane* planes, int32_t count, int32_t iterations);
+m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count);
 ```
-Clamp a desired translation against contact planes (the reference's iterative accumulator): each iteration pushes the translation out of every violated plane, push impulses stay nonnegative per plane. Pure function, world-free. Only the first 64 planes take part; later planes are ignored.
+The closest translation to the wish that no plane blocks, and the planes it rests on. Pure function, world-free. Only the first M3_MOVER_PLANES planes take part.
+
+```c
+m3Vec3 m3ClipMoverVelocity(m3Vec3 velocity, const m3MoverPlane* planes, int32_t count, uint32_t pressed);
+```
+The velocity closest to the given one that no pressed plane opposes: what is left after hitting them. Pure function.
 
 ```c
 m3RayHit m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation);
@@ -1104,4 +1109,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-233 functions across 11 headers.
+234 functions across 11 headers.

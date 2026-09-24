@@ -601,7 +601,7 @@ m3World_CollideMover's plane list, skipping your own shape via
 m3Shape_GetBody (a downward ray finds your own hull first); drive
 and brake with one force toward the target velocity, clamped to
 an actuator budget. The mover toolkit (m3World_CastMover,
-m3World_CollideMover, m3SolvePlanes) covers the rest of a custom
+m3World_CollideMover, m3SolveMover, m3ClipMoverVelocity) covers the rest of a custom
 mover's needs as pure queries.
 
 ## Soft body depth
