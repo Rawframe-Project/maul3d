@@ -194,6 +194,11 @@ Work toward 0.0.1, the first release of the reworked library.
   the same function as maul2d's: hashing a 5000-body world takes 0.74
   ms instead of 2.5. Every hash value changes; the golden hashes and
   bench pins are re-pinned, and gcc, clang and Debug agree.
+- The broadphase keeps the overlapping tree leaves between steps: only
+  shapes whose leaf moved query the tree, moved leaves are reinserted
+  0.1 m beyond their bounds, and static shapes no longer query. Pair
+  lists and hashes are unchanged; the city block steps in 13.6 ms
+  (16.8 before).
 
 ### Removed
 
