@@ -54,6 +54,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/dynamic_tree.c
     src/hull.c
     src/island.c
+    src/integrate.c
     src/joint.c
     src/joint_distance.c
     src/joint_fixed.c

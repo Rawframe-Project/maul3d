@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Water volumes: creation, destruction and the sleepers they wake. The
-// buoyancy itself runs in the step.
+// Water volumes: creation, destruction, the sleepers they wake and the
+// buoyancy field the step applies.
 
+#include "water.h"
 #include "body.h"
+#include "broad_phase.h"
 #include "journal.h"
 #include "query.h"
 #include "world.h"
@@ -145,4 +147,112 @@ void m3DestroyWaterVolume(m3WaterVolumeId id)
         m3JournalRecord(world, m3_opDestroyWaterVolume, &id, (int32_t)sizeof(id));
     }
     m3DestroyWaterVolumeInternal(world, slot);
+}
+
+// The part of one shape's box inside one water volume: buoyancy
+// opposing gravity at the clipped box's centroid (a half-submerged
+// crate rights itself, an off-center bite spins it), and the drag and
+// flow weighted by the submerged fraction. Returns that fraction.
+static float SubmergeShape(const m3World* world, int32_t k, const double slo[3],
+                           const double shi[3], const double com[3], m3Buoyancy* b, int32_t m)
+{
+    const double wlo[3] = {world->water.waterLo[k].x, world->water.waterLo[k].y,
+                           world->water.waterLo[k].z};
+    const double whi[3] = {world->water.waterHi[k].x, world->water.waterHi[k].y,
+                           world->water.waterHi[k].z};
+    double clo[3];
+    double chi[3];
+    for (int32_t a = 0; a < 3; ++a)
+    {
+        clo[a] = slo[a] > wlo[a] ? slo[a] : wlo[a];
+        chi[a] = shi[a] < whi[a] ? shi[a] : whi[a];
+    }
+    if (chi[0] <= clo[0] || chi[1] <= clo[1] || chi[2] <= clo[2])
+    {
+        return 0.0f;
+    }
+    double shapeVol = (shi[0] - slo[0]) * (shi[1] - slo[1]) * (shi[2] - slo[2]);
+    double subVol = (chi[0] - clo[0]) * (chi[1] - clo[1]) * (chi[2] - clo[2]);
+    float frac = (float)(subVol / shapeVol);
+    frac = frac > 1.0f ? 1.0f : frac;
+    m3Vec3 f = m3MulSV3(-(float)subVol * world->water.waterDensity[k], world->gravity);
+    m3Vec3 r = {(float)(0.5 * (clo[0] + chi[0]) - com[0]),
+                (float)(0.5 * (clo[1] + chi[1]) - com[1]),
+                (float)(0.5 * (clo[2] + chi[2]) - com[2])};
+    b->force[m] = m3Add3(b->force[m], f);
+    b->torque[m] = m3Add3(b->torque[m], m3Cross3(r, f));
+    b->flow[m] = m3Add3(b->flow[m], m3MulSV3(frac, world->water.waterFlow[k]));
+    b->lin[m] += world->water.waterLinDrag[k] * frac;
+    b->ang[m] += world->water.waterAngDrag[k] * frac;
+    return frac;
+}
+
+// One mover's field: every shape against every live volume, the flow
+// averaged over the submerged fractions.
+static void SubmergeBody(const m3World* world, int32_t i, m3Buoyancy* b, int32_t m)
+{
+    b->force[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    b->torque[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    b->flow[m] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    b->lin[m] = 0.0f;
+    b->ang[m] = 0.0f;
+    if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
+    {
+        return;
+    }
+    m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
+    const double com[3] = {world->bodies.transforms[i].p.x + (double)rlc.x,
+                           world->bodies.transforms[i].p.y + (double)rlc.y,
+                           world->bodies.transforms[i].p.z + (double)rlc.z};
+    float fracSum = 0.0f;
+    for (int32_t shape = world->bodies.bodyShapeHead[i]; shape >= 0;
+         shape = world->shapes.shapeNext[shape])
+    {
+        double slo[3];
+        double shi[3];
+        m3ShapeFatAabb(world, shape, slo, shi);
+        if (!((shi[0] - slo[0]) * (shi[1] - slo[1]) * (shi[2] - slo[2]) > 0.0))
+        {
+            continue; // a plane's infinite box never swims
+        }
+        for (int32_t k = 0; k < world->water.waterPool.maxIndex; ++k)
+        {
+            if (world->water.waterPool.alive[k] != 0)
+            {
+                fracSum += SubmergeShape(world, k, slo, shi, com, b, m);
+            }
+        }
+    }
+    if (fracSum > 0.0f)
+    {
+        b->flow[m] = m3MulSV3(1.0f / fracSum, b->flow[m]);
+    }
+}
+
+void m3PrepareBuoyancy(m3World* world, const int32_t* movers, int32_t moverCount, m3Buoyancy* b)
+{
+    memset(b, 0, sizeof(*b));
+    for (int32_t k = 0; k < world->water.waterPool.maxIndex; ++k)
+    {
+        b->active += world->water.waterPool.alive[k];
+    }
+    if (b->active == 0 || moverCount == 0)
+    {
+        return;
+    }
+    b->force = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+    b->torque = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+    b->flow = (m3Vec3*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(m3Vec3));
+    b->lin = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
+    b->ang = (float*)m3StackAlloc(&world->scratch, moverCount * (int32_t)sizeof(float));
+    if (b->force == NULL || b->torque == NULL || b->flow == NULL || b->lin == NULL ||
+        b->ang == NULL)
+    {
+        b->active = 0; // a scratch stall: a dry step
+        return;
+    }
+    for (int32_t m = 0; m < moverCount; ++m)
+    {
+        SubmergeBody(world, movers[m], b, m);
+    }
 }

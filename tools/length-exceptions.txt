@@ -20,10 +20,8 @@ query.c SphereReachesShape 128 numeric kernel: one pass in a fixed operation ord
 broad_phase.c SphereAabb 122 numeric kernel: one pass in a fixed operation order
 island.c m3IslandWakePass 110 numeric kernel: one pass in a fixed operation order
 voxel.c m3VoxelSurfaceBuild 110 numeric kernel: one pass in a fixed operation order
-solver.c PrepareBuoyancy 97 numeric kernel: solver rows in one fixed operation order
 voxel.c VoxelWakeRegion 96 numeric kernel: one pass in a fixed operation order
 destruction.c ExplodeCallback 93 numeric kernel: one pass in a fixed operation order
 voxel_fracture.c m3VoxelEscape 91 numeric kernel: one pass in a fixed operation order
 raycast.c RayTestShape 89 numeric kernel: one pass in a fixed operation order
-solver.c EmitContactEvents 86 numeric kernel: solver rows in one fixed operation order
 solver.c m3StepInternal 83 numeric kernel: solver rows in one fixed operation order

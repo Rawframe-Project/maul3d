@@ -41,6 +41,17 @@ void m3SetHitEventThresholdInternal(m3World* world, float value);
 // Joint breaks emit through this; capacity jointCapacity, cannot overflow.
 void m3AppendJointBreakEvent(m3World* world, m3JointId joint);
 
+// Empties every per-step event stream.
+void m3ResetStepEvents(m3World* world);
+
+// The step's contact begin and end events: a merge walk of the old and
+// new pair lists, both sorted, so events come out in pair order.
+void m3EmitContactEvents(m3World* world, const uint64_t* oldKeys, const m3Manifold* oldManifolds,
+                         int32_t oldCount);
+
+// One move event per mover, in the movers' ascending order.
+void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount);
+
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 
 void m3RebuildBroadphaseInternal(m3World* world);

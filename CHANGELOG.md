@@ -154,6 +154,11 @@ Work toward 0.0.1, the first release of the reworked library.
   derived from the relative rotation's rate; drive targets use the
   exact rotation error. The five stored impulse slots load and store
   whole, each kind documenting its slot map.
+- The step's pieces moved to where they belong: integration (movers,
+  velocities with the implicit gyroscopic step, poses) in integrate.c,
+  the buoyancy field in water.c, the contact and move events in
+  world_events.c; solver.c keeps the step's order. Results are bit for
+  bit unchanged.
 
 ### Removed
 
