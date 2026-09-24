@@ -456,8 +456,8 @@ static tbScene SceneMachines(void)
     m3CreateBoxShape(door, &sd, (m3Vec3){1.0f, 1.8f, 0.1f});
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
-    jd.bodyA = frame;
-    jd.bodyB = door;
+    jd.bodyIdA = frame;
+    jd.bodyIdB = door;
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -481,8 +481,8 @@ static tbScene SceneMachines(void)
         m3CreateCapsuleShape(link, &sd, &seg);
         m3JointDef cd = m3DefaultJointDef();
         cd.type = m3_sphericalJoint;
-        cd.bodyA = previous;
-        cd.bodyB = link;
+        cd.bodyIdA = previous;
+        cd.bodyIdB = link;
         cd.localAnchorA = previous.index1 == post.index1 ? (m3Vec3){0.0f, 0.0f, 0.0f}
                                                          : (m3Vec3){0.3f, 0.0f, 0.0f};
         cd.localAnchorB = (m3Vec3){-0.3f, 0.0f, 0.0f};
@@ -502,8 +502,8 @@ static tbScene SceneMachines(void)
     m3CreateCapsuleShape(arm, &sd, &armSeg);
     m3JointDef shoulder = m3DefaultJointDef();
     shoulder.type = m3_sphericalJoint;
-    shoulder.bodyA = anchor;
-    shoulder.bodyB = arm;
+    shoulder.bodyIdA = anchor;
+    shoulder.bodyIdB = arm;
     shoulder.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
     shoulder.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
     shoulder.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
@@ -522,8 +522,8 @@ static tbScene SceneMachines(void)
     m3CreateBoxShape(cart, &sd, (m3Vec3){0.35f, 0.25f, 0.25f});
     m3JointDef sj = m3DefaultJointDef();
     sj.type = m3_prismaticJoint;
-    sj.bodyA = rail;
-    sj.bodyB = cart;
+    sj.bodyIdA = rail;
+    sj.bodyIdB = cart;
     sj.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
     sj.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
     sj.enableLimit = true;
@@ -550,8 +550,8 @@ static tbScene SceneMachines(void)
     m3CreateBoxShape(small, &sd, (m3Vec3){0.25f, 0.25f, 0.08f});
     m3JointDef gh = m3DefaultJointDef();
     gh.type = m3_revoluteJoint;
-    gh.bodyA = gearPost;
-    gh.bodyB = big;
+    gh.bodyIdA = gearPost;
+    gh.bodyIdB = big;
     gh.localAnchorA = (m3Vec3){-0.6f, 0.0f, 0.0f};
     gh.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gh.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
@@ -559,14 +559,14 @@ static tbScene SceneMachines(void)
     gh.motorSpeed = 1.0f;
     gh.maxMotorEffort = 30.0f;
     m3CreateJoint(&gh);
-    gh.bodyB = small;
+    gh.bodyIdB = small;
     gh.localAnchorA = (m3Vec3){0.6f, 0.0f, 0.0f};
     gh.enableMotor = false;
     m3CreateJoint(&gh);
     m3JointDef mesh = m3DefaultJointDef();
     mesh.type = m3_gearJoint;
-    mesh.bodyA = big;
-    mesh.bodyB = small;
+    mesh.bodyIdA = big;
+    mesh.bodyIdB = small;
     mesh.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.ratio = 0.5f; // big drives: small turns twice as fast
@@ -584,8 +584,8 @@ static tbScene SceneMachines(void)
     m3CreateBoxShape(light, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
     m3JointDef rope = m3DefaultJointDef();
     rope.type = m3_pulleyJoint;
-    rope.bodyA = heavy;
-    rope.bodyB = light;
+    rope.bodyIdA = heavy;
+    rope.bodyIdB = light;
     rope.groundAnchorA = (m3Pos3){8.0, 6.5, -4.0};
     rope.groundAnchorB = (m3Pos3){10.0, 6.5, -4.0};
     rope.ratio = 1.0f;
@@ -603,8 +603,8 @@ static tbScene SceneMachines(void)
     m3CreateBoxShape(plate, &sd, (m3Vec3){0.6f, 0.08f, 0.6f});
     m3JointDef servo = m3DefaultJointDef();
     servo.type = m3_motorJoint;
-    servo.bodyA = servoPost;
-    servo.bodyB = plate;
+    servo.bodyIdA = servoPost;
+    servo.bodyIdB = plate;
     m3JointId hold = m3CreateJoint(&servo);
     m3Joint_SetSpring(hold, true, 5.0f, 1.0f);
     m3Joint_SetMotorPose(hold, (m3Vec3){0.0f, -1.0f, 0.0f},
@@ -776,7 +776,7 @@ static tbScene SceneCircuit(void)
     bodyShape.friction = 0.3f;
     m3CreateBoxShape(scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = scene.carBody;
+    vd.chassisId = scene.carBody;
     vd.wheelCount = 4;
     for (int32_t w = 0; w < 4; ++w)
     {
@@ -918,8 +918,8 @@ static tbScene SceneTower(void)
     m3CreateSphereShape(ball, &bs, &heavy);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_distanceJoint;
-    jd.bodyA = post;
-    jd.bodyB = ball;
+    jd.bodyIdA = post;
+    jd.bodyIdB = ball;
     jd.enableLimit = true;
     jd.lowerLimit = 0.0f;
     jd.upperLimit = 8.4f;
@@ -966,7 +966,7 @@ static tbScene SceneHill(void)
     bodyShape.friction = 0.3f;
     m3CreateBoxShape(scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = scene.carBody;
+    vd.chassisId = scene.carBody;
     vd.wheelCount = 4;
     vd.tireGrip = 2.2f;
     for (int32_t w = 0; w < 4; ++w)
@@ -1026,8 +1026,8 @@ static tbScene SceneJointCart(void)
         m3CreateSphereShape(wheel, &ws, &tire);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_wheelJoint;
-        jd.bodyA = scene.chaseBody;
-        jd.bodyB = wheel;
+        jd.bodyIdA = scene.chaseBody;
+        jd.bodyIdB = wheel;
         jd.localAnchorA = local;
         jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
@@ -1641,7 +1641,7 @@ int main(void)
             }
         }
         else if (IsKeyPressed(KEY_E) && look.hit && m3Shape_IsValid(scene.chunk) &&
-                 look.shape.index1 == scene.chunk.index1)
+                 look.shapeId.index1 == scene.chunk.index1)
         {
             int32_t cx = (int32_t)floor(look.point.x + 8.0);
             int32_t cy = (int32_t)floor(look.point.y);
