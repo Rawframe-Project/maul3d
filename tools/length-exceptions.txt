@@ -8,14 +8,13 @@ softbody_solver.c m3SoftBodyPass 394 numeric kernel: one pass in a fixed operati
 vehicle.c m3VehicleApplySuspension 459 numeric kernel: one pass in a fixed operation order
 manifold_mesh.c m3CollideVoxelConvex 283 numeric kernel: one pass in a fixed operation order
 shape_cast.c ShapeCastTestShape 235 numeric kernel: one pass in a fixed operation order
-broad_phase.c m3UpdatePairs 207 numeric kernel: one pass in a fixed operation order
+broad_phase.c m3UpdatePairs 203 numeric kernel: one pass in a fixed operation order
 softbody_solver.c SoftCollideParticle 213 numeric kernel: one pass in a fixed operation order
 character.c m3CharacterMoveInternal 187 numeric kernel: one pass in a fixed operation order
 voxel_fracture.c m3VoxelFractureSweep 158 numeric kernel: one pass in a fixed operation order
 manifold.c m3CollideSegmentHull 156 numeric kernel: one pass in a fixed operation order
 narrowphase.c CollideConvexGjkPair 140 numeric kernel: one pass in a fixed operation order
 query_proxy.c ProxyReachesShape 137 numeric kernel: one pass in a fixed operation order
-manifold_mesh.c m3CollideHeightFieldConvex 135 numeric kernel: one pass in a fixed operation order
 query.c SphereReachesShape 128 numeric kernel: one pass in a fixed operation order
 broad_phase.c SphereAabb 122 numeric kernel: one pass in a fixed operation order
 island.c m3IslandWakePass 110 numeric kernel: one pass in a fixed operation order

@@ -447,6 +447,82 @@ void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, i
 // resets when the window shifts a cell: deterministic, documented.
 #define M3_HF_WINDOW 16 // cells per axis, halo included
 
+// The height field cells [cx0, cx1] x [cz0, cz1] as a small mesh on the
+// step scratch, split by the diagonal parity rule, its edge flags baked.
+// False on a scratch stall.
+static bool HeightFieldWindow(m3World* world, const m3HeightFieldData* hf, int32_t cx0, int32_t cz0,
+                              int32_t cx1, int32_t cz1, m3MeshData* window)
+{
+    int32_t wx = cx1 - cx0 + 2; // window corners per axis
+    int32_t wz = cz1 - cz0 + 2;
+    int32_t vertCount = wx * wz;
+    int32_t triCount = 2 * (wx - 1) * (wz - 1);
+
+    m3Vec3* verts = (m3Vec3*)m3StackAlloc(&world->scratch, vertCount * (int32_t)sizeof(m3Vec3));
+    uint16_t* tris =
+        (uint16_t*)m3StackAlloc(&world->scratch, 3 * triCount * (int32_t)sizeof(uint16_t));
+    uint8_t* flags = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
+    uint8_t* mats = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
+    if (verts == NULL || tris == NULL || flags == NULL || mats == NULL)
+    {
+        return false;
+    }
+    for (int32_t z = 0; z < wz; ++z)
+    {
+        for (int32_t x = 0; x < wx; ++x)
+        {
+            int32_t gx = cx0 + x;
+            int32_t gz = cz0 + z;
+            verts[z * wx + x] = (m3Vec3){(m3real)gx * hf->cellSize, hf->heights[gz * hf->nx + gx],
+                                         (m3real)gz * hf->cellSize};
+        }
+    }
+    int32_t tw = 0;
+    for (int32_t z = 0; z + 1 < wz; ++z)
+    {
+        for (int32_t x = 0; x + 1 < wx; ++x)
+        {
+            uint16_t a = (uint16_t)(z * wx + x);
+            uint16_t bIdx = (uint16_t)(z * wx + x + 1);
+            uint16_t c = (uint16_t)((z + 1) * wx + x + 1);
+            uint16_t d = (uint16_t)((z + 1) * wx + x);
+            if (((cx0 + x) + (cz0 + z)) % 2 == 0)
+            {
+                tris[tw++] = a;
+                tris[tw++] = c;
+                tris[tw++] = bIdx;
+                tris[tw++] = a;
+                tris[tw++] = d;
+                tris[tw++] = c;
+            }
+            else
+            {
+                tris[tw++] = bIdx;
+                tris[tw++] = a;
+                tris[tw++] = d;
+                tris[tw++] = bIdx;
+                tris[tw++] = d;
+                tris[tw++] = c;
+            }
+        }
+    }
+    memset(window, 0, sizeof(*window));
+    window->vertexCount = vertCount;
+    window->triangleCount = triCount;
+    window->vertices = verts;
+    window->indices = tris;
+    window->edgeFlags = flags;
+    window->triMaterials = mats; // zeros: no painted terrain (yet)
+    int32_t* bake = (int32_t*)m3StackAlloc(&world->scratch, m3MeshEdgeScratchCount(window) *
+                                                                (int32_t)sizeof(int32_t));
+    if (bake == NULL)
+    {
+        return false;
+    }
+    m3BakeMeshEdgeFlags(window, bake);
+    return true;
+}
+
 void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfShape,
                                 int32_t otherShape, int hfIsA)
 {
@@ -522,74 +598,11 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
     {
         cz1 = cz0 + M3_HF_WINDOW - 1;
     }
-    int32_t wx = cx1 - cx0 + 2; // window corners per axis
-    int32_t wz = cz1 - cz0 + 2;
-    int32_t vertCount = wx * wz;
-    int32_t triCount = 2 * (wx - 1) * (wz - 1);
-
-    m3Vec3* verts = (m3Vec3*)m3StackAlloc(&world->scratch, vertCount * (int32_t)sizeof(m3Vec3));
-    uint16_t* tris =
-        (uint16_t*)m3StackAlloc(&world->scratch, 3 * triCount * (int32_t)sizeof(uint16_t));
-    uint8_t* flags = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
-    uint8_t* mats = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
-    if (verts == NULL || tris == NULL || flags == NULL || mats == NULL)
-    {
-        return; // transient scratch stall, grown next step
-    }
-    for (int32_t z = 0; z < wz; ++z)
-    {
-        for (int32_t x = 0; x < wx; ++x)
-        {
-            int32_t gx = cx0 + x;
-            int32_t gz = cz0 + z;
-            verts[z * wx + x] = (m3Vec3){(m3real)gx * hf->cellSize, hf->heights[gz * hf->nx + gx],
-                                         (m3real)gz * hf->cellSize};
-        }
-    }
-    int32_t tw = 0;
-    for (int32_t z = 0; z + 1 < wz; ++z)
-    {
-        for (int32_t x = 0; x + 1 < wx; ++x)
-        {
-            uint16_t a = (uint16_t)(z * wx + x);
-            uint16_t bIdx = (uint16_t)(z * wx + x + 1);
-            uint16_t c = (uint16_t)((z + 1) * wx + x + 1);
-            uint16_t d = (uint16_t)((z + 1) * wx + x);
-            if (((cx0 + x) + (cz0 + z)) % 2 == 0)
-            {
-                tris[tw++] = a;
-                tris[tw++] = c;
-                tris[tw++] = bIdx;
-                tris[tw++] = a;
-                tris[tw++] = d;
-                tris[tw++] = c;
-            }
-            else
-            {
-                tris[tw++] = bIdx;
-                tris[tw++] = a;
-                tris[tw++] = d;
-                tris[tw++] = bIdx;
-                tris[tw++] = d;
-                tris[tw++] = c;
-            }
-        }
-    }
     m3MeshData window;
-    memset(&window, 0, sizeof(window));
-    window.vertexCount = vertCount;
-    window.triangleCount = triCount;
-    window.vertices = verts;
-    window.indices = tris;
-    window.edgeFlags = flags;
-    window.triMaterials = mats; // zeros: no painted terrain (yet)
-    int32_t* bake = (int32_t*)m3StackAlloc(&world->scratch, m3MeshEdgeScratchCount(&window) *
-                                                                (int32_t)sizeof(int32_t));
-    if (bake == NULL)
+    if (!HeightFieldWindow(world, hf, cx0, cz0, cx1, cz1, &window))
     {
         return; // transient scratch stall, grown next step
     }
-    m3BakeMeshEdgeFlags(&window, bake);
     CollideMeshCore(world, fresh, &window, NULL, hfShape, otherShape, hfIsA);
 }
 
