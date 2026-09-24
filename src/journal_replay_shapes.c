@@ -503,6 +503,24 @@ bool m3ReplaySetSurfaceVelocity(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
+bool m3ReplaySetFilter(m3World* world, const m3ReplayRecord* r)
+{
+    m3OpSetFilter record;
+    if (r->bytes != (int32_t)sizeof(record))
+    {
+        return false;
+    }
+    memcpy(&record, r->payload, sizeof(record));
+    record.id.world = world->idWorld;
+    int32_t slot = m3ShapeSlot(world, record.id);
+    if (slot < 0)
+    {
+        return false; // hostile bytes fail loudly
+    }
+    m3SetFilterInternal(world, slot, record.categoryBits, record.maskBits, record.groupIndex);
+    return true;
+}
+
 bool m3ReplayShapeFlag(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;

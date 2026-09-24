@@ -54,6 +54,7 @@ m3ReplayApplyFn m3ReplayCreateHeightFieldGrid;
 m3ReplayApplyFn m3ReplaySetMeshMaterials;
 m3ReplayApplyFn m3ReplaySetShapeGeom;
 m3ReplayApplyFn m3ReplaySetSurfaceVelocity;
+m3ReplayApplyFn m3ReplaySetFilter;
 m3ReplayApplyFn m3ReplayShapeFlag;
 
 // journal_replay_joints.c: joints.

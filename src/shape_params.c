@@ -334,3 +334,72 @@ void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity)
     }
     m3SetSurfaceVelocityInternal(world, slot, velocity);
 }
+
+void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
+                         int32_t groupIndex)
+{
+    // Whoever this shape touches must notice its allegiance change:
+    // awake pairs are filtered again on the next pair update.
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
+    {
+        int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+        if ((a == slot || b == slot) && world->contacts.manifolds[i].pointCount > 0)
+        {
+            int32_t other = world->shapes.shapeBody[a == slot ? b : a];
+            if (world->bodies.types[other] == (uint8_t)m3_dynamicBody)
+            {
+                m3SetAwakeInternal(world, other, 1);
+            }
+        }
+    }
+    int32_t body = world->shapes.shapeBody[slot];
+    if (world->bodies.types[body] == (uint8_t)m3_dynamicBody)
+    {
+        m3SetAwakeInternal(world, body, 1);
+    }
+    world->shapes.shapeCategory[slot] = categoryBits;
+    world->shapes.shapeMask[slot] = maskBits;
+    world->shapes.shapeGroup[slot] = groupIndex;
+}
+
+void m3Shape_SetFilter(m3ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
+                       int32_t groupIndex)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    if (world == NULL)
+    {
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpSetFilter record;
+        memset(&record, 0, sizeof(record));
+        record.categoryBits = categoryBits;
+        record.maskBits = maskBits;
+        record.id = shapeId;
+        record.groupIndex = groupIndex;
+        m3JournalRecord(world, m3_opSetFilter, &record, (int32_t)sizeof(record));
+    }
+    m3SetFilterInternal(world, slot, categoryBits, maskBits, groupIndex);
+}
+
+void m3Shape_GetFilter(m3ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
+                       int32_t* groupIndex)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    if (categoryBits != NULL)
+    {
+        *categoryBits = world != NULL ? world->shapes.shapeCategory[slot] : 0u;
+    }
+    if (maskBits != NULL)
+    {
+        *maskBits = world != NULL ? world->shapes.shapeMask[slot] : 0u;
+    }
+    if (groupIndex != NULL)
+    {
+        *groupIndex = world != NULL ? world->shapes.shapeGroup[slot] : 0;
+    }
+}

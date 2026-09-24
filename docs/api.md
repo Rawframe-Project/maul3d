@@ -931,6 +931,15 @@ bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 ```
 
 ```c
+void m3Shape_SetFilter(m3ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits, int32_t groupIndex);
+```
+The collision filter, changed at runtime: shapes it touched wake and every pair is filtered again on the next step. Journaled. GetFilter's out pointers may be NULL.
+
+```c
+void m3Shape_GetFilter(m3ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits, int32_t* groupIndex);
+```
+
+```c
 void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity);
 ```
 Conveyor: a world-frame surface velocity on the shape. Contacts drive B's tangential speed relative to A toward the difference of the two surfaces. Journaled; state, hashed when nonzero.
@@ -1055,4 +1064,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-221 functions across 11 headers.
+223 functions across 11 headers.

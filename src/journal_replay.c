@@ -601,6 +601,7 @@ static m3ReplayApplyFn* const s_commands[m3_opCount] = {
     [m3_opEnableContinuous] = ApplyWorldFlag,
     [m3_opSetWind] = ApplySetWind,
     [m3_opSetSurfaceVelocity] = m3ReplaySetSurfaceVelocity,
+    [m3_opSetFilter] = m3ReplaySetFilter,
     [m3_opSetHitEventThreshold] = ApplySetHitEventThreshold,
     [m3_opEnableShapeHitEvents] = m3ReplayShapeFlag,
     [m3_opEnableShapePreSolve] = m3ReplayShapeFlag,

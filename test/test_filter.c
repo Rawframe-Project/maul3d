@@ -219,12 +219,63 @@ static void TestFilteredReplayAndRollback(void)
     CHECK(hashes[0] == hashes[1], "filtered twins are bit-identical");
 }
 
+static void TestRuntimeFilterChange(void)
+{
+    // A ball that has come to rest and fallen asleep turns ghost at
+    // runtime: it wakes and falls through. The session, recorded from
+    // creation and replayed into a fresh world, lands on the same bits.
+    static uint8_t tape[262144];
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 32;
+    def.shapeCapacity = 32;
+    m3WorldId world = m3CreateWorld(&def);
+    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "recording starts");
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &gd);
+    m3ShapeDef sg = m3DefaultShapeDef();
+    sg.categoryBits = CAT_GROUND;
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3CreatePlaneShape(ground, &sg, &floor);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId ball = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.categoryBits = CAT_DEBRIS;
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId shape = m3CreateSphereShape(ball, &sd, &sphere);
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m3Body_IsAwake(ball), "the ball rests and sleeps");
+    m3Shape_SetFilter(shape, CAT_GHOST, CAT_DEBRIS, 0);
+    uint64_t category = 0;
+    uint64_t mask = 0;
+    int32_t group = -1;
+    m3Shape_GetFilter(shape, &category, &mask, &group);
+    CHECK(category == CAT_GHOST && mask == CAT_DEBRIS && group == 0, "the filter reads back");
+    CHECK(m3Body_IsAwake(ball), "the change wakes the sleeper");
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3Body_GetPosition(ball).y < -3.0, "the ghost falls through the ground");
+    int32_t bytes = m3World_StopJournal(world);
+    m3WorldId twin = m3CreateWorld(&def);
+    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the session replays");
+    CHECK(m3World_Hash(twin) == m3World_Hash(world), "the replayed filter change lands the same");
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestMaskGate();
     TestGroupOverride();
     TestQueryFilters();
     TestFilteredReplayAndRollback();
+    TestRuntimeFilterChange();
     if (s_failures == 0)
     {
         printf("test_filter: all green\n");

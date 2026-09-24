@@ -73,7 +73,7 @@ typedef enum m3Op
     m3_opDestroyShape = 58,           // shape id
     m3_opSoftBodyAnchorSoft = 59,     // lattice<->lattice pin
     m3_opSetWind = 60,                // world wind field
-    m3_opSetSurfaceVelocity = 61,     // shape conveyor velocity        // world toggle
+    m3_opSetSurfaceVelocity = 61,     // shape conveyor velocity
     m3_opVehicleDrivetrain = 62,      // vehicle + drivetrain def
     m3_opVehicleGear = 63,            // vehicle + gear select
     m3_opCharacterStance = 64,        // character + halfHeight + radius
@@ -90,12 +90,13 @@ typedef enum m3Op
     m3_opDestroyWaterVolume = 75,     // the tide goes out
     m3_opCreateHeightFieldGrid = 76,  // native terrain chunk
     m3_opCreateSoftBodyTet = 77,      // the incompressible jelly
-    m3_opVehicleTankCommands = 78,
+    m3_opVehicleTankCommands = 78,    // skid steer
     // The pre-solve vetoes a step's callback made,
     // recorded BEFORE that step's own op so a bare replay applies
     // them without the host's callback. Payload: the vetoed pair
     // keys, canonical ascending (count = bytes / 8).
-    m3_opStepVetoes = 79, // skid steer
+    m3_opStepVetoes = 79,
+    m3_opSetFilter = 80, // shape + category, mask and group
     m3_opCount
 } m3Op;
 
@@ -294,6 +295,14 @@ typedef struct m3OpSetSurfaceVelocity
     m3ShapeId id;
     m3Vec3 v;
 } m3OpSetSurfaceVelocity;
+
+typedef struct m3OpSetFilter
+{
+    uint64_t categoryBits;
+    uint64_t maskBits;
+    m3ShapeId id;
+    int32_t groupIndex;
+} m3OpSetFilter;
 
 typedef struct m3OpSetWind
 {

@@ -41,6 +41,10 @@ Work toward 0.0.1, the first release of the reworked library.
   use AVX2 and FMA; -DMAUL3D_SIMD=scalar builds a portable library
   with identical results. A world is refused (m3_errorConfig) on a CPU
   that cannot run the backend.
+- m3Shape_SetFilter and m3Shape_GetFilter change and read a shape's
+  collision filter at runtime, as in Maul2D. The change is journaled,
+  wakes the shape's body and everything it touches, and every pair is
+  filtered again on the next step.
 
 ### Changed
 

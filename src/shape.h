@@ -85,5 +85,7 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId);
 
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
+void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
+                         int32_t groupIndex);
 
 #endif // MAUL3D_SRC_SHAPE_H

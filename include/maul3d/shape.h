@@ -304,6 +304,14 @@ extern "C"
     M3_API void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag);
     M3_API bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 
+    /// The collision filter, changed at runtime: shapes it touched wake
+    /// and every pair is filtered again on the next step. Journaled.
+    /// GetFilter's out pointers may be NULL.
+    M3_API void m3Shape_SetFilter(m3ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
+                                  int32_t groupIndex);
+    M3_API void m3Shape_GetFilter(m3ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
+                                  int32_t* groupIndex);
+
     /// Conveyor: a world-frame surface velocity on the
     /// shape. Contacts drive B's tangential speed relative to A
     /// toward the difference of the two surfaces. Journaled; state, hashed when
