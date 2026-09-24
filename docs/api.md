@@ -21,7 +21,7 @@ m3Result m3LastResult(void);
 ```
 
 ```c
-uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count);
+uint64_t m3Hash64(uint64_t seed, const void* data, int32_t byteCount);
 ```
 
 ```c

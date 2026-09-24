@@ -189,6 +189,11 @@ Work toward 0.0.1, the first release of the reworked library.
   surfaces, so its sweeps skip every subtree without one: the 10k-body
   smoke bench steps in 22 ms (30 before), the city block in 16.8 ms
   (18.3). Results are bit for bit unchanged.
+- m3Hash64 hashes eight bytes a round (xor, multiply by an odd
+  constant, fold the high half) and the leftover bytes one at a time,
+  the same function as maul2d's: hashing a 5000-body world takes 0.74
+  ms instead of 2.5. Every hash value changes; the golden hashes and
+  bench pins are re-pinned, and gcc, clang and Debug agree.
 
 ### Removed
 

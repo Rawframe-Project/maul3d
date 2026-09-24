@@ -112,11 +112,13 @@ extern "C"
 
     static const m3JointId m3_nullJointId = {0, 0, 0};
 
-    /// FNV-1a 64: the deterministic hash every gate is built on.
+    /// The 64-bit hash every determinism gate is built on: eight bytes a
+    /// round, xored in, multiplied by an odd constant and folded, the
+    /// leftover bytes one at a time (FNV-1a). Its constants are frozen.
     /// Seed with M3_HASH_INIT, fold bytes in canonical order.
 #define M3_HASH_INIT 0xCBF29CE484222325ull
 
-    M3_API uint64_t m3Hash64(uint64_t h, const void* bytes, int32_t count);
+    M3_API uint64_t m3Hash64(uint64_t seed, const void* data, int32_t byteCount);
 
     /// Host assert hook: called before the default print-and-abort for
     /// every failed internal invariant. Return nonzero to declare the
