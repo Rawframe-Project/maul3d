@@ -62,7 +62,9 @@ Maul3D.Native.DestroyWorld(world);
   carries a cookie; a zeroed or hand-rolled def is refused loudly
   by design.
 - Call `LayoutCheck()` at startup. It catches a struct mirror
-  drifting from the C headers before it can corrupt memory.
+  drifting from the C headers before it can corrupt memory. CI runs
+  the same check ahead of time: `tools/check_bindings.py` compares
+  every import and every mirrored field offset with the C side.
 - Bools inside defs are `byte` fields (C `_Bool` is one byte).
   Set them to 0 or 1.
 - Ids are value types and stay valid across snapshot restore;
