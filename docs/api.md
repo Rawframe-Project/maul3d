@@ -13,6 +13,16 @@ int m3GetVersion(void);
 The linked library's version as major * 10000 + minor * 100 + patch (0.3.0 returns 300). Compare against the M3_VERSION macros to catch a header/library mismatch at startup.
 
 ```c
+const char* m3GetSimdBackend(void);
+```
+The SIMD backend this library was COMPILED against: "avx2", "neon" or "scalar". It is a compile-time choice, and every backend produces bit-identical results by contract; this only reports which kernels the binary carries. Thread class: reader.
+
+```c
+int32_t m3CpuSupportsBackend(void);
+```
+Whether the CPU running this call actually supports the compiled backend: 1 if it can run, 0 if not. An "avx2" binary needs AVX2 and FMA3 with OS wide-register support; "neon" is architectural on arm64 and "scalar" runs anywhere, so both return 1. Creating a world on a CPU that returns 0 is refused (m3_errorConfig) rather than trapping on an illegal instruction; check this first for a graceful path, or build with -DMAUL3D_SIMD=scalar for a portable binary. Thread class: reader.
+
+```c
 void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context);
 ```
 
@@ -1109,4 +1119,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-234 functions across 11 headers.
+236 functions across 11 headers.

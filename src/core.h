@@ -31,6 +31,14 @@
 // unless the handler returns nonzero.
 void m3AssertFail(const char* condition, const char* file, int line);
 
+// Hands a message to the host's assert handler as a line-0 report.
+// Returns nonzero when the host took it.
+int m3ReportToHost(const char* message, const char* where);
+
+// Whether this CPU runs the SIMD backend the library was built for,
+// checked once; a failure is reported to the host or printed.
+int m3VerifyCpuBackend(void);
+
 typedef struct m3World m3World;
 
 // Refuses a caller's input: records the reason for m3LastResult on this

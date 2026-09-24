@@ -536,6 +536,9 @@ typedef struct m3Contacts
     int32_t sleepingPairCount;
     uint8_t pairsFullQuery;
     uint8_t frozenDirty;
+    // Test hook: solve every contact with the scalar rows, the reference
+    // the lane kernel must match bit for bit.
+    uint8_t scalarRows;
     // Veto bookkeeping. stepVeto* collects what the live
     // callback vetoed this step (journal fodder); replayVeto* is
     // the pending recorded set the NEXT step must apply, consumed

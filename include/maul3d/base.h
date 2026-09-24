@@ -42,6 +42,22 @@ extern "C"
     /// macros to catch a header/library mismatch at startup.
     M3_API int m3GetVersion(void);
 
+    /// The SIMD backend this library was COMPILED against: "avx2", "neon"
+    /// or "scalar". It is a compile-time choice, and every backend produces
+    /// bit-identical results by contract; this only reports which kernels
+    /// the binary carries. Thread class: reader.
+    M3_API const char* m3GetSimdBackend(void);
+
+    /// Whether the CPU running this call actually supports the compiled
+    /// backend: 1 if it can run, 0 if not. An "avx2" binary needs AVX2 and
+    /// FMA3 with OS wide-register support; "neon" is architectural on
+    /// arm64 and "scalar" runs anywhere, so both return 1. Creating a world
+    /// on a CPU that returns 0 is refused (m3_errorConfig) rather than
+    /// trapping on an illegal instruction; check this first for a graceful
+    /// path, or build with -DMAUL3D_SIMD=scalar for a portable binary.
+    /// Thread class: reader.
+    M3_API int32_t m3CpuSupportsBackend(void);
+
     /// Process-global allocator hook, the
     /// Maul2D-parity contract: install BEFORE the first world and
     /// never change it while any world lives. The alloc function

@@ -11,6 +11,7 @@
 
 #include "contact_solver.h"
 
+#include "contact_kernel.h"
 #include "solver.h"
 #include "world_internal.h"
 
@@ -314,6 +315,58 @@ static void Store(m3World* world, const m3ContactConstraint* c)
     manifold->rollingImpulse = c->rollingImpulse;
 }
 
+// Packs each color's constraints, in list order, into lane blocks. The
+// overflow stays scalar: its constraints share bodies and run in order.
+// A dynamic side is always awake (prepare keeps only awake islands'
+// contacts), so every such side is colored and no two lanes of a color
+// share one.
+static void PackBlocks(m3World* world, m3ContactPlan* plan)
+{
+    const m3SolverColoring* coloring = &plan->coloring;
+    int32_t blockCount = 0;
+    for (int32_t color = 0; color < M3_GRAPH_COLORS; ++color)
+    {
+        plan->blockStarts[color] = blockCount;
+        int32_t size = coloring->starts[color + 1] - coloring->starts[color];
+        blockCount += (size + M3_LANES - 1) / M3_LANES;
+    }
+    plan->blockStarts[M3_GRAPH_COLORS] = blockCount;
+    plan->blocks = NULL;
+    if (world->contacts.scalarRows != 0 || blockCount == 0)
+    {
+        return;
+    }
+    plan->blocks = (m3ContactBlock*)m3StackAlloc(&world->scratch,
+                                                 blockCount * (int32_t)sizeof(m3ContactBlock));
+    if (plan->blocks == NULL)
+    {
+        return; // the scalar rows give the same result
+    }
+    for (int32_t color = 0; color < M3_GRAPH_COLORS; ++color)
+    {
+        const int32_t* list = coloring->lists + coloring->starts[color];
+        int32_t size = coloring->starts[color + 1] - coloring->starts[color];
+        for (int32_t first = 0; first < size; first += M3_LANES)
+        {
+            m3ContactBlock* block = &plan->blocks[plan->blockStarts[color] + first / M3_LANES];
+            memset(block, 0, sizeof(*block));
+            block->lanes = size - first < M3_LANES ? size - first : M3_LANES;
+            for (int32_t lane = 0; lane < M3_LANES; ++lane)
+            {
+                if (lane < block->lanes)
+                {
+                    int32_t index = list[first + lane];
+                    m3PackContactLane(world, block, lane, &plan->constraints[index], index);
+                }
+                else
+                {
+                    m3PadContactLane(block, lane);
+                }
+            }
+        }
+    }
+}
+
 bool m3ColorContacts(m3World* world, m3ContactPlan* plan)
 {
     int32_t count = plan->count;
@@ -361,8 +414,13 @@ bool m3ColorContacts(m3World* world, m3ContactPlan* plan)
     memcpy(fill, out->starts, sizeof(fill));
     for (int32_t i = 0; i < count; ++i)
     {
+        M3_ASSERT(world->bodies.types[plan->constraints[i].bodyA] != (uint8_t)m3_dynamicBody ||
+                  world->bodies.awake[plan->constraints[i].bodyA] != 0);
+        M3_ASSERT(world->bodies.types[plan->constraints[i].bodyB] != (uint8_t)m3_dynamicBody ||
+                  world->bodies.awake[plan->constraints[i].bodyB] != 0);
         out->lists[fill[out->colors[i]]++] = i; // ascending within a color
     }
+    PackBlocks(world, plan);
     return true;
 }
 
@@ -371,6 +429,7 @@ typedef struct StageTask
     m3World* world;
     const m3ContactPlan* plan;
     const int32_t* list;
+    m3ContactBlock* blocks;
     m3ContactStage stage;
 } StageTask;
 
@@ -384,13 +443,57 @@ static void StageRange(int32_t begin, int32_t end, void* context)
     }
 }
 
-// Colors run in order with a barrier between them, each split among the
-// host's workers as it likes; the overflow always runs serially. Bounce
-// and store run once, serially, in canonical order.
+static void BlockRange(int32_t begin, int32_t end, void* context)
+{
+    StageTask* task = (StageTask*)context;
+    for (int32_t k = begin; k < end; ++k)
+    {
+        m3RunContactBlock(task->world, task->plan, &task->blocks[k], task->stage);
+    }
+}
+
+// One color of one stage: its lane blocks, or its constraints one by
+// one, split among the host's workers as it likes.
+static void RunColor(m3World* world, const m3ContactPlan* plan, int32_t color, m3ContactStage stage)
+{
+    int32_t start = plan->coloring.starts[color];
+    int32_t size = plan->coloring.starts[color + 1] - start;
+    StageTask task = {world, plan, plan->coloring.lists + start, NULL, stage};
+    m3TaskFn* fn = StageRange;
+    int32_t items = size;
+    int32_t minRange = 8;
+    if (plan->blocks != NULL && color < M3_GRAPH_COLORS)
+    {
+        task.blocks = plan->blocks + plan->blockStarts[color];
+        fn = BlockRange;
+        items = plan->blockStarts[color + 1] - plan->blockStarts[color];
+        minRange = 1;
+    }
+    if (world->enqueueTask != NULL && size >= 16 && color < M3_GRAPH_COLORS)
+    {
+        void* handle = world->enqueueTask(fn, items, minRange, &task, world->userTaskContext);
+        world->finishTask(handle, world->userTaskContext);
+    }
+    else if (items > 0)
+    {
+        fn(0, items, &task);
+    }
+}
+
+// Colors run in order with a barrier between them; the overflow always
+// runs serially. Bounce and store run once, serially, in canonical
+// order, on the constraints: the blocks hand their impulses back first.
 void m3RunContactStage(m3World* world, const m3ContactPlan* plan, m3ContactStage stage)
 {
     if (stage == m3_contactRestitution || stage == m3_contactStore)
     {
+        if (stage == m3_contactRestitution && plan->blocks != NULL)
+        {
+            for (int32_t k = 0; k < plan->blockStarts[M3_GRAPH_COLORS]; ++k)
+            {
+                m3UnpackContactBlock(&plan->blocks[k], plan->constraints);
+            }
+        }
         for (int32_t i = 0; i < plan->count; ++i)
         {
             if (stage == m3_contactRestitution)
@@ -406,17 +509,6 @@ void m3RunContactStage(m3World* world, const m3ContactPlan* plan, m3ContactStage
     }
     for (int32_t color = 0; color <= M3_GRAPH_COLORS; ++color)
     {
-        int32_t start = plan->coloring.starts[color];
-        int32_t size = plan->coloring.starts[color + 1] - start;
-        StageTask task = {world, plan, plan->coloring.lists + start, stage};
-        if (world->enqueueTask != NULL && size >= 16 && color < M3_GRAPH_COLORS)
-        {
-            void* handle = world->enqueueTask(StageRange, size, 8, &task, world->userTaskContext);
-            world->finishTask(handle, world->userTaskContext);
-        }
-        else if (size > 0)
-        {
-            StageRange(0, size, &task);
-        }
+        RunColor(world, plan, color, stage);
     }
 }

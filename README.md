@@ -38,8 +38,8 @@ m3World_Restore(world, buffer, size); // bit-exact resimulation from here
   the area it shows to the blast, carves voxel chunks and shoves soft
   particles, journaled and exact under rollback.
 - **Solver**: soft-step contacts with speculative margins, warm
-  starting, graph coloring and sub-steps; 64-bit positions keep worlds
-  exact far from the origin.
+  starting, graph-colored SIMD solving and sub-steps; 64-bit positions
+  keep worlds exact far from the origin.
 - **Seven joint types**: spherical (with cone and twist limits),
   revolute, prismatic, fixed, distance, a generic six-degree-of-freedom
   joint and a wheel joint, with limits, motors, springs with position
@@ -64,7 +64,7 @@ m3World_Restore(world, buffer, size); // bit-exact resimulation from here
   order.
 - **Continuous collision** for fast bodies, island sleeping and tuning
   settings.
-- **Integration**: 234 public functions, full state readback, debug
+- **Integration**: 236 public functions, full state readback, debug
   draw as wireframe and solid triangle streams, counters and
   profiling, allocator and assert hooks.
 
@@ -77,7 +77,11 @@ ctest --test-dir build
 ```
 
 A C17 compiler is required; with MSVC that means Visual Studio 2022 or
-newer. The engine is portable scalar C.
+newer, the first version that can turn off floating-point
+contraction. x64 builds use AVX2 and FMA (Haswell, 2013, and later);
+configure with `-DMAUL3D_SIMD=scalar` for a portable build that
+produces identical results. An AVX2 build started on a CPU without
+AVX2 refuses to create worlds instead of crashing.
 
 `cmake --install` installs the library, the headers, a CMake package
 and a pkg-config file, so `find_package(maul3d)` and

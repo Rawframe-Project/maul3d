@@ -17,7 +17,7 @@ env:
   PREFIX: MAUL3D
   HASH_PREFIX: M3
   # Engine-specific flags for the sanitizer cell.
-  SANITIZE_FLAGS: ""
+  SANITIZE_FLAGS: "-DMAUL3D_SIMD=scalar"
 
 jobs:
   # Every platform cell builds with warnings as errors, runs the whole

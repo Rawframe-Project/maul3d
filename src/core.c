@@ -83,6 +83,11 @@ void m3SetAssertHandler(m3AssertFn* handler, void* context)
     s_assertContext = context;
 }
 
+int m3ReportToHost(const char* message, const char* where)
+{
+    return s_assertHandler != NULL && s_assertHandler(message, where, 0, s_assertContext) != 0;
+}
+
 void m3AssertFail(const char* condition, const char* file, int line)
 {
     if (s_assertHandler != NULL && s_assertHandler(condition, file, line, s_assertContext) != 0)

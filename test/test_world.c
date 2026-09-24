@@ -475,6 +475,106 @@ static void TestTreeReferee(void)
     m3DestroyWorld(world);
 }
 
+// A scene for every contact row: box stacks (four points), capsules
+// (two), rolling spheres (one), a bouncing ball, a conveyor mesh, a
+// kinematic paddle, and a slab carrying enough boxes that its contacts
+// overflow the colors.
+static m3WorldId BuildLaneScene(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 128;
+    def.shapeCapacity = 128;
+    m3WorldId world = m3CreateWorld(&def);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &gd);
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3CreatePlaneShape(ground, &sd, &floor);
+
+    m3Vec3 belt[4] = {
+        {6.0f, 0.1f, -2.0f}, {10.0f, 0.1f, -2.0f}, {10.0f, 0.1f, 2.0f}, {6.0f, 0.1f, 2.0f}};
+    uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    m3ShapeId mesh = m3CreateMeshShape(ground, &sd, belt, 4, tris, 2);
+    m3MeshSurfaceMaterial moving = {0.8f, 0.0f, 0.0f, {1.5f, 0.0f, 0.5f}};
+    uint8_t groups[2] = {0, 0};
+    m3Shape_SetMeshMaterials(mesh, &moving, 1, groups);
+
+    for (int32_t i = 0; i < 40; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){-6.0 + 0.9 * (i % 8), 0.5 + 1.1 * (i / 8), -3.0 + 0.3 * (i % 3)};
+        bd.angularVelocity = (m3Vec3){0.3f * (float)(i % 5), 0.0f, 0.2f};
+        m3BodyId body = m3CreateBody(world, &bd);
+        sd.friction = 0.2f + 0.1f * (float)(i % 6);
+        sd.restitution = i % 7 == 0 ? 0.7f : 0.0f;
+        sd.rollingResistance = i % 3 == 0 ? 0.05f : 0.0f;
+        if (i % 4 == 0)
+        {
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
+            m3CreateSphereShape(body, &sd, &ball);
+        }
+        else if (i % 4 == 1)
+        {
+            m3Capsule cap = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.25f};
+            m3CreateCapsuleShape(body, &sd, &cap);
+        }
+        else
+        {
+            m3CreateBoxShape(body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+        }
+    }
+    sd = m3DefaultShapeDef();
+    m3BodyDef slabDef = m3DefaultBodyDef();
+    slabDef.type = m3_dynamicBody;
+    slabDef.position = (m3Pos3){0.0, 0.5, 6.0};
+    m3CreateBoxShape(m3CreateBody(world, &slabDef), &sd, (m3Vec3){3.0f, 0.25f, 3.0f});
+    for (int32_t i = 0; i < 25; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){-2.4 + 1.2 * (i % 5), 1.05, 3.6 + 1.2 * (i / 5)};
+        m3CreateBoxShape(m3CreateBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+    }
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){7.0 + 0.9 * i, 0.8, 0.0};
+        m3CreateBoxShape(m3CreateBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+    }
+    m3BodyDef paddle = m3DefaultBodyDef();
+    paddle.type = m3_kinematicBody;
+    paddle.position = (m3Pos3){-3.0, 0.6, -6.0};
+    paddle.linearVelocity = (m3Vec3){0.0f, 0.0f, 2.0f};
+    paddle.angularVelocity = (m3Vec3){0.0f, 1.0f, 0.0f};
+    m3CreateBoxShape(m3CreateBody(world, &paddle), &sd, (m3Vec3){2.0f, 0.5f, 0.3f});
+    return world;
+}
+
+static void TestContactLanesMatchScalar(void)
+{
+    // The lane kernel against the scalar rows it transcribes: the same
+    // scene stepped both ways must agree on every bit, every step.
+    m3WorldId lanes = BuildLaneScene();
+    m3WorldId rows = BuildLaneScene();
+    m3World* scalar = m3WorldFromIndex0((uint16_t)(rows.index1 - 1));
+    scalar->contacts.scalarRows = 1;
+    int32_t firstMismatch = -1;
+    for (int32_t step = 0; step < 240 && firstMismatch < 0; ++step)
+    {
+        m3World_Step(lanes, 1.0f / 60.0f, 4);
+        m3World_Step(rows, 1.0f / 60.0f, 4);
+        if (m3World_Hash(lanes) != m3World_Hash(rows))
+        {
+            firstMismatch = step;
+        }
+    }
+    CHECK(firstMismatch < 0, "the lane kernel matches the scalar rows bit for bit");
+    m3DestroyWorld(lanes);
+    m3DestroyWorld(rows);
+}
+
 static void TestHullSnapshotShrink(void)
 {
     // Hull content is count-derived in the snapshot. A world
@@ -659,6 +759,7 @@ int main(void)
     TestShapes();
     TestPairs();
     TestTreeReferee();
+    TestContactLanesMatchScalar();
     TestWorldHashGate();
     TestCompoundExtents();
     if (s_failures == 0)

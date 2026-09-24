@@ -22,6 +22,10 @@ option(MAUL3D_SANITIZE "Instrument with AddressSanitizer and UBSan" OFF)
 option(MAUL3D_TSAN "Instrument with ThreadSanitizer" OFF)
 option(MAUL3D_COVERAGE "Instrument for gcov coverage" OFF)
 
+# Engine-specific options.
+set(MAUL3D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
+set_property(CACHE MAUL3D_SIMD PROPERTY STRINGS auto scalar)
+
 # Every executable (tests, samples, benchmarks, tools) lands in the top
 # of the build tree, so scripts and CI find them in one place.
 if(PROJECT_IS_TOP_LEVEL)
@@ -33,6 +37,19 @@ include(cmake/CompilerFlags.cmake)
 include(cmake/Library.cmake)
 include(cmake/Testing.cmake)
 
+# x64 builds use AVX2 and FMA unless the portable scalar backend is
+# chosen; every backend produces identical results.
+if(MAUL3D_SIMD STREQUAL "scalar")
+    list(APPEND MAUL_EXTRA_DEFINITIONS MAUL3D_SIMD_FORCE_SCALAR=1)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    if(MSVC)
+        set(MAUL_ARCH_FLAGS /arch:AVX2)
+    else()
+        set(MAUL_ARCH_FLAGS -mavx2 -mfma)
+    endif()
+    list(APPEND MAUL_EXTRA_DEFINITIONS MAUL3D_BUILT_FOR_AVX2=1)
+endif()
+
 if(MAUL3D_BUILD_SHARED)
     set(MAUL_LIBRARY_KIND SHARED)
 else()
@@ -43,6 +60,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/body.c
     src/broad_phase.c
     src/character.c
+    src/contact_kernel.c
     src/contact_prepare.c
     src/contact_solver.c
     src/continuous.c
@@ -108,6 +126,20 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/world_hash.c
     src/world_state.c)
 maul_configure_library(maul3d)
+
+# The CPU check must run on CPUs the backend does not support, so it is
+# compiled without the architecture flags and linked into the library.
+add_library(maul3d_cpu OBJECT src/cpu.c)
+set(maul_saved_arch_flags "${MAUL_ARCH_FLAGS}")
+set(MAUL_ARCH_FLAGS "")
+maul_apply_flags(maul3d_cpu)
+set(MAUL_ARCH_FLAGS "${maul_saved_arch_flags}")
+target_include_directories(maul3d_cpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
+set_target_properties(maul3d_cpu PROPERTIES C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
+if(MAUL3D_BUILD_SHARED)
+    target_compile_definitions(maul3d_cpu PRIVATE MAUL3D_SHARED maul3d_EXPORTS)
+endif()
+target_sources(maul3d PRIVATE $<TARGET_OBJECTS:maul3d_cpu>)
 
 if(MAUL3D_BUILD_TESTS)
     enable_testing()

@@ -36,6 +36,11 @@ Work toward 0.0.1, the first release of the reworked library.
   covers has a golden value.
 - M3_JOINT_HASH: a golden hash over every joint kind with its limits,
   motors, springs and steering on.
+- m3GetSimdBackend and m3CpuSupportsBackend report the SIMD backend
+  the library was built for and whether this CPU runs it. x64 builds
+  use AVX2 and FMA; -DMAUL3D_SIMD=scalar builds a portable library
+  with identical results. A world is refused (m3_errorConfig) on a CPU
+  that cannot run the backend.
 
 ### Changed
 
@@ -199,6 +204,12 @@ Work toward 0.0.1, the first release of the reworked library.
   0.1 m beyond their bounds, and static shapes no longer query. Pair
   lists and hashes are unchanged; the city block steps in 13.6 ms
   (16.8 before).
+- Contacts of each graph color are solved eight at a time by a SIMD
+  kernel (AVX2, NEON, or eight-lane scalar code). The kernel does the
+  scalar rows' operations in the same order, so results are bit for
+  bit unchanged, and a test holds the kernel to the scalar rows every
+  step. The pyramid bench steps in 0.13 ms (0.22 before), the city
+  block in 10.6 ms (13.6).
 
 ### Removed
 

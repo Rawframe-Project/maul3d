@@ -76,12 +76,19 @@ typedef struct m3SolverColoring
     int32_t starts[M3_GRAPH_COLORS + 2];
 } m3SolverColoring;
 
-// A step's contact work.
+struct m3ContactBlock;
+
+// A step's contact work. The colored constraints also sit in lane
+// blocks (contact_kernel.h), which carry their impulses through the
+// substeps; without scratch for them every row runs scalar, with the
+// same result.
 typedef struct m3ContactPlan
 {
     m3ContactConstraint* constraints;
     int32_t count;
     m3SolverColoring coloring;
+    struct m3ContactBlock* blocks;            // NULL: scalar rows only
+    int32_t blockStarts[M3_GRAPH_COLORS + 1]; // per color, then the end
     const m3Vec3* deltaPos; // how far each body moved and turned since the step began
     const m3Quat* deltaRot;
     m3real invH;

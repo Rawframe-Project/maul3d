@@ -102,7 +102,7 @@ static void SizeScratchForStep(m3World* world)
     {
         int64_t need = 64 * 1024 + 128 * (int64_t)world->bodies.bodyPool.maxIndex +
                        64 * (int64_t)world->shapes.shapePool.maxIndex +
-                       1024 * (int64_t)world->contacts.pairCount +
+                       1536 * (int64_t)world->contacts.pairCount + 64 * 1024 +
                        1024 * (int64_t)world->joints.jointPool.maxIndex;
         if (need > (int64_t)world->scratch.capacity && world->scratch.capacity < (1 << 28))
         {

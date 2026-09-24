@@ -231,6 +231,14 @@ static bool CreatePools(m3World* world)
 m3WorldId m3CreateWorld(const m3WorldDef* def)
 {
     m3WorldId nullId = {0, 0};
+    // Before any solver kernel runs, make sure this CPU can execute the
+    // backend the binary was built for: a typed refusal beats a bare
+    // illegal-instruction trap on pre-Haswell hardware.
+    if (m3VerifyCpuBackend() == 0)
+    {
+        m3Refuse(NULL, m3_errorConfig);
+        return nullId;
+    }
     if (!ValidWorldDef(def))
     {
         m3Refuse(NULL, m3_errorInvalid);
