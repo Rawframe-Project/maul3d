@@ -45,6 +45,17 @@ Work toward 0.0.1, the first release of the reworked library.
   collision filter at runtime, as in Maul2D. The change is journaled,
   wakes the shape's body and everything it touches, and every pair is
   filtered again on the next step.
+- The readers and setters Maul2D offers: m3Body_GetWorld,
+  GetTransform, GetMass, GetRotationalInertia, GetLocalCenter,
+  GetWorldCenterOfMass, GetWorldPoint, GetLocalPoint, GetWorldVector,
+  GetLocalVector, GetWorldPointVelocity, GetLocalPointVelocity,
+  GetGravityScale, GetLinearDamping, GetAngularDamping, IsBullet,
+  ComputeAabb, GetShapes and GetJoints; m3Shape_GetWorld, GetType,
+  GetUserData, IsSensor and GetAabb; m3Joint_GetWorld, GetType,
+  GetBodyA and GetBodyB; m3World_GetBodies, GetJoints and
+  GetStepCount; and the journaled m3Body_SetGravityScale,
+  SetLinearDamping, SetAngularDamping, SetBullet, SetUserData and
+  m3Shape_SetUserData. m3AabbResult holds world bounds.
 
 ### Changed
 

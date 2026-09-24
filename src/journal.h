@@ -96,7 +96,11 @@ typedef enum m3Op
     // them without the host's callback. Payload: the vetoed pair
     // keys, canonical ascending (count = bytes / 8).
     m3_opStepVetoes = 79,
-    m3_opSetFilter = 80, // shape + category, mask and group
+    m3_opSetFilter = 80,        // shape + category, mask and group
+    m3_opSetBodyParam = 81,     // body + parameter + value
+    m3_opSetBullet = 82,        // body + 0/1
+    m3_opSetBodyUserData = 83,  // body + user data
+    m3_opSetShapeUserData = 84, // shape + user data
     m3_opCount
 } m3Op;
 
@@ -108,6 +112,27 @@ typedef struct m3OpBodyByte
     m3BodyId id;
     int32_t value;
 } m3OpBodyByte;
+
+// The body parameters one op carries.
+typedef enum m3BodyParam
+{
+    m3_bodyParamGravityScale = 0,
+    m3_bodyParamLinearDamping = 1,
+    m3_bodyParamAngularDamping = 2,
+} m3BodyParam;
+
+typedef struct m3OpBodyParam
+{
+    m3BodyId id;
+    int32_t param; // m3BodyParam
+    float value;
+} m3OpBodyParam;
+
+typedef struct m3OpUserData
+{
+    uint64_t userData;
+    m3BodyId id; // a shape id for m3_opSetShapeUserData: same layout
+} m3OpUserData;
 
 typedef struct m3OpBodyPose
 {

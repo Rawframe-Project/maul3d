@@ -79,4 +79,9 @@ void m3SetLinearVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity)
 
 void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity);
 
+// Gravity scale and damping (m3BodyParam), the bullet flag and user
+// data: the paths the setters and replay share.
+void m3SetBodyParamInternal(m3World* world, int32_t index, int32_t param, float value);
+void m3SetBulletInternal(m3World* world, int32_t index, int bullet);
+
 #endif // MAUL3D_SRC_BODY_H

@@ -403,3 +403,71 @@ void m3Shape_GetFilter(m3ShapeId shapeId, uint64_t* categoryBits, uint64_t* mask
         *groupIndex = world != NULL ? world->shapes.shapeGroup[slot] : 0;
     }
 }
+
+m3WorldId m3Shape_GetWorld(m3ShapeId shapeId)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    m3WorldId id = {0, 0};
+    if (world != NULL)
+    {
+        id = (m3WorldId){(uint16_t)(world->slot + 1), world->generation};
+    }
+    return id;
+}
+
+m3ShapeType m3Shape_GetType(m3ShapeId shapeId)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    return world != NULL ? (m3ShapeType)world->shapes.shapeType[slot] : m3_sphereShape;
+}
+
+uint64_t m3Shape_GetUserData(m3ShapeId shapeId)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    return world != NULL ? world->shapes.shapeUserData[slot] : 0u;
+}
+
+bool m3Shape_IsSensor(m3ShapeId shapeId)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    return world != NULL && world->shapes.shapeSensor[slot] != 0;
+}
+
+m3AabbResult m3Shape_GetAabb(m3ShapeId shapeId)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    m3AabbResult result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    if (world != NULL)
+    {
+        double lo[3];
+        double hi[3];
+        m3ShapeFatAabb(world, slot, lo, hi);
+        result.lowerBound = (m3Pos3){lo[0], lo[1], lo[2]};
+        result.upperBound = (m3Pos3){hi[0], hi[1], hi[2]};
+    }
+    return result;
+}
+
+void m3Shape_SetUserData(m3ShapeId shapeId, uint64_t userData)
+{
+    int32_t slot;
+    m3World* world = ResolveShape(shapeId, &slot);
+    if (world == NULL)
+    {
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpUserData record;
+        memset(&record, 0, sizeof(record));
+        record.userData = userData;
+        record.id = (m3BodyId){shapeId.index1, shapeId.world, shapeId.generation};
+        m3JournalRecord(world, m3_opSetShapeUserData, &record, (int32_t)sizeof(record));
+    }
+    world->shapes.shapeUserData[slot] = userData;
+}

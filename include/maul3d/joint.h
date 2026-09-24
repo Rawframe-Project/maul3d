@@ -173,6 +173,11 @@ extern "C"
     M3_API m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def);
     M3_API void m3DestroyJoint(m3JointId jointId);
     M3_API bool m3Joint_IsValid(m3JointId jointId);
+    /// Readback, as in Maul2D. Thread class: reader.
+    M3_API m3WorldId m3Joint_GetWorld(m3JointId jointId);
+    M3_API m3JointType m3Joint_GetType(m3JointId jointId);
+    M3_API m3BodyId m3Joint_GetBodyA(m3JointId jointId);
+    M3_API m3BodyId m3Joint_GetBodyB(m3JointId jointId);
 
     /// Runtime joint control. All journaled; both bodies wake
     /// on any change. Limits and motor reuse the def semantics per

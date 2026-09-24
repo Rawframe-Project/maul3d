@@ -239,6 +239,55 @@ static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
+static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
+{
+    m3OpBodyParam record;
+    if (r->bytes != (int32_t)sizeof(record))
+    {
+        return false;
+    }
+    memcpy(&record, r->payload, sizeof(record));
+    record.id.world = world->idWorld;
+    int32_t index = m3BodySlot(world, record.id);
+    if (index < 0 || record.param < m3_bodyParamGravityScale ||
+        record.param > m3_bodyParamAngularDamping || !m3FiniteF(record.value) ||
+        (record.param != m3_bodyParamGravityScale && record.value < 0.0f))
+    {
+        return false; // hostile bytes fail loudly
+    }
+    m3SetBodyParamInternal(world, index, record.param, record.value);
+    return true;
+}
+
+static bool ApplyUserData(m3World* world, const m3ReplayRecord* r)
+{
+    m3OpUserData record;
+    if (r->bytes != (int32_t)sizeof(record))
+    {
+        return false;
+    }
+    memcpy(&record, r->payload, sizeof(record));
+    record.id.world = world->idWorld;
+    if (r->op == m3_opSetBodyUserData)
+    {
+        int32_t index = m3BodySlot(world, record.id);
+        if (index < 0)
+        {
+            return false;
+        }
+        world->bodies.userData[index] = record.userData;
+        return true;
+    }
+    m3ShapeId shape = {record.id.index1, record.id.world, record.id.generation};
+    int32_t slot = m3ShapeSlot(world, shape);
+    if (slot < 0)
+    {
+        return false;
+    }
+    world->shapes.shapeUserData[slot] = record.userData;
+    return true;
+}
+
 static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
@@ -263,6 +312,10 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     else if (op == m3_opSetEnabled)
     {
         m3SetEnabledInternal(world, index, record.value);
+    }
+    else if (op == m3_opSetBullet)
+    {
+        m3SetBulletInternal(world, index, record.value);
     }
     else
     {
@@ -602,6 +655,10 @@ static m3ReplayApplyFn* const s_commands[m3_opCount] = {
     [m3_opSetWind] = ApplySetWind,
     [m3_opSetSurfaceVelocity] = m3ReplaySetSurfaceVelocity,
     [m3_opSetFilter] = m3ReplaySetFilter,
+    [m3_opSetBodyParam] = ApplyBodyParam,
+    [m3_opSetBullet] = ApplyBodyByte,
+    [m3_opSetBodyUserData] = ApplyUserData,
+    [m3_opSetShapeUserData] = ApplyUserData,
     [m3_opSetHitEventThreshold] = ApplySetHitEventThreshold,
     [m3_opEnableShapeHitEvents] = m3ReplayShapeFlag,
     [m3_opEnableShapePreSolve] = m3ReplayShapeFlag,

@@ -23,6 +23,13 @@ extern "C"
 
     /// Per-axis motion locks. A locked axis holds still: its velocity is
     /// zeroed every substep, so contacts cannot bank motion on it.
+    /// World-space bounds, double precision.
+    typedef struct m3AabbResult
+    {
+        m3Pos3 lowerBound;
+        m3Pos3 upperBound;
+    } m3AabbResult;
+
     typedef struct m3MotionLocks
     {
         bool linearX;
@@ -79,6 +86,40 @@ extern "C"
     M3_API m3Vec3 m3Body_GetAngularVelocity(m3BodyId bodyId);
     M3_API uint64_t m3Body_GetUserData(m3BodyId bodyId);
     M3_API m3BodyType m3Body_GetType(m3BodyId bodyId);
+
+    /// Readback, as in Maul2D. Thread class: reader. Mass and inertia
+    /// are about the center of mass, the inertia tensor in the body
+    /// frame; points and vectors convert between the body frame and
+    /// world space. ComputeAabb is the union of the shapes' broadphase
+    /// bounds (margin included), or the body origin for a shapeless
+    /// body. GetShapes and GetJoints fill up to capacity ids in
+    /// ascending slot order and return the total.
+    M3_API m3WorldId m3Body_GetWorld(m3BodyId bodyId);
+    M3_API m3Transform m3Body_GetTransform(m3BodyId bodyId);
+    M3_API float m3Body_GetMass(m3BodyId bodyId);
+    M3_API m3Mat3 m3Body_GetRotationalInertia(m3BodyId bodyId);
+    M3_API m3Vec3 m3Body_GetLocalCenter(m3BodyId bodyId);
+    M3_API m3Pos3 m3Body_GetWorldCenterOfMass(m3BodyId bodyId);
+    M3_API m3Pos3 m3Body_GetWorldPoint(m3BodyId bodyId, m3Vec3 localPoint);
+    M3_API m3Vec3 m3Body_GetLocalPoint(m3BodyId bodyId, m3Pos3 worldPoint);
+    M3_API m3Vec3 m3Body_GetWorldVector(m3BodyId bodyId, m3Vec3 localVector);
+    M3_API m3Vec3 m3Body_GetLocalVector(m3BodyId bodyId, m3Vec3 worldVector);
+    M3_API m3Vec3 m3Body_GetWorldPointVelocity(m3BodyId bodyId, m3Pos3 worldPoint);
+    M3_API m3Vec3 m3Body_GetLocalPointVelocity(m3BodyId bodyId, m3Vec3 localPoint);
+    M3_API float m3Body_GetGravityScale(m3BodyId bodyId);
+    M3_API float m3Body_GetLinearDamping(m3BodyId bodyId);
+    M3_API float m3Body_GetAngularDamping(m3BodyId bodyId);
+    M3_API bool m3Body_IsBullet(m3BodyId bodyId);
+    /// Journaled setters for what the def set, as in Maul2D. Damping
+    /// must be non-negative; every value finite. Thread class: writer.
+    M3_API void m3Body_SetGravityScale(m3BodyId bodyId, float scale);
+    M3_API void m3Body_SetLinearDamping(m3BodyId bodyId, float damping);
+    M3_API void m3Body_SetAngularDamping(m3BodyId bodyId, float damping);
+    M3_API void m3Body_SetBullet(m3BodyId bodyId, bool flag);
+    M3_API void m3Body_SetUserData(m3BodyId bodyId, uint64_t userData);
+    M3_API m3AabbResult m3Body_ComputeAabb(m3BodyId bodyId);
+    M3_API int32_t m3Body_GetShapes(m3BodyId bodyId, m3ShapeId* ids, int32_t capacity);
+    M3_API int32_t m3Body_GetJoints(m3BodyId bodyId, m3JointId* ids, int32_t capacity);
 
     /// Journaled setters: every mutation is a discrete op.
     /// Runtime control, all journaled. SetTransform is the

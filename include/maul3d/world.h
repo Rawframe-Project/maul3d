@@ -555,6 +555,13 @@ extern "C"
     /// order. The value every gate compares.
     M3_API uint64_t m3World_Hash(m3WorldId worldId);
 
+    /// Every live body or joint, up to capacity ids in ascending slot
+    /// order; returns the total. The step count is the number of steps
+    /// taken (snapshot state). Thread class: reader.
+    M3_API int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity);
+    M3_API int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity);
+    M3_API uint64_t m3World_GetStepCount(m3WorldId worldId);
+
     /// Live contact readback: one entry per manifold touching
     /// the queried body or shape, in canonical pair order. Pure
     /// observer data; points are world space at read time.

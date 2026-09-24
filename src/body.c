@@ -780,3 +780,22 @@ void m3Body_SetAwake(m3BodyId bodyId, bool awake)
     }
     m3SetAwakeInternal(world, index, awake ? 1 : 0);
 }
+
+void m3Body_SetUserData(m3BodyId bodyId, uint64_t userData)
+{
+    int32_t index;
+    m3World* world = m3ResolveBody(bodyId, &index);
+    if (world == NULL)
+    {
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpUserData record;
+        memset(&record, 0, sizeof(record));
+        record.userData = userData;
+        record.id = bodyId;
+        m3JournalRecord(world, m3_opSetBodyUserData, &record, (int32_t)sizeof(record));
+    }
+    world->bodies.userData[index] = userData;
+}

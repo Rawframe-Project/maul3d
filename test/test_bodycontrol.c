@@ -312,6 +312,51 @@ static void TestDefsCarrySettings(void)
     m3DestroyWorld(world);
 }
 
+static void TestSettersReplay(void)
+{
+    // Gravity scale, damping, the bullet flag and user data change at
+    // runtime, read back, and a recorded session replays them.
+    static uint8_t tape[262144];
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "recording starts");
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId body = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId shape = m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3Body_SetGravityScale(body, -0.5f);
+    m3Body_SetLinearDamping(body, 0.3f);
+    m3Body_SetAngularDamping(body, 0.6f);
+    m3Body_SetBullet(body, true);
+    m3Body_SetUserData(body, 7u);
+    m3Shape_SetUserData(shape, 9u);
+    m3Body_SetLinearDamping(body, -1.0f);
+    CHECK(m3LastResult() == m3_errorInvalid, "negative damping is refused");
+    CHECK(m3Body_GetGravityScale(body) == -0.5f && m3Body_GetLinearDamping(body) == 0.3f &&
+              m3Body_GetAngularDamping(body) == 0.6f && m3Body_IsBullet(body) &&
+              m3Body_GetUserData(body) == 7u && m3Shape_GetUserData(shape) == 9u,
+          "the setters read back");
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3Body_GetPosition(body).y > 0.1, "negative gravity scale lifts the body");
+    int32_t bytes = m3World_StopJournal(world);
+    m3WorldId twin = m3CreateWorld(&def);
+    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the session replays");
+    CHECK(m3World_Hash(twin) == m3World_Hash(world), "onto the same bits");
+    m3BodyId copy;
+    CHECK(m3World_GetBodies(twin, &copy, 1) == 1, "the twin has the body");
+    m3ShapeId copyShape;
+    m3Body_GetShapes(copy, &copyShape, 1);
+    CHECK(m3Body_GetLinearDamping(copy) == 0.3f && m3Body_IsBullet(copy) &&
+              m3Body_GetUserData(copy) == 7u && m3Shape_GetUserData(copyShape) == 9u,
+          "the replayed settings match");
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestTeleportWakes();
@@ -320,6 +365,7 @@ int main(void)
     TestMotionLocks();
     TestSleepKnobsAndControlReplay();
     TestDefsCarrySettings();
+    TestSettersReplay();
     if (s_failures == 0)
     {
         printf("test_bodycontrol: all green\n");

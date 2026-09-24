@@ -59,6 +59,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/allocator.c
     src/body.c
     src/body_motion.c
+    src/body_read.c
     src/broad_phase.c
     src/character.c
     src/contact_kernel.c

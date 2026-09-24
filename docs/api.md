@@ -390,6 +390,19 @@ uint64_t m3World_Hash(m3WorldId worldId);
 FNV-1a 64 over the curated deterministic state (transforms, velocities, mass, types, step count, gravity) in canonical slot order. The value every gate compares.
 
 ```c
+int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity);
+```
+Every live body or joint, up to capacity ids in ascending slot order; returns the total. The step count is the number of steps taken (snapshot state). Thread class: reader.
+
+```c
+int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity);
+```
+
+```c
+uint64_t m3World_GetStepCount(m3WorldId worldId);
+```
+
+```c
 m3Counters m3World_GetCounters(m3WorldId worldId);
 ```
 
@@ -460,6 +473,104 @@ uint64_t m3Body_GetUserData(m3BodyId bodyId);
 
 ```c
 m3BodyType m3Body_GetType(m3BodyId bodyId);
+```
+
+```c
+m3WorldId m3Body_GetWorld(m3BodyId bodyId);
+```
+Readback, as in Maul2D. Thread class: reader. Mass and inertia are about the center of mass, the inertia tensor in the body frame; points and vectors convert between the body frame and world space. ComputeAabb is the union of the shapes' broadphase bounds (margin included), or the body origin for a shapeless body. GetShapes and GetJoints fill up to capacity ids in ascending slot order and return the total.
+
+```c
+m3Transform m3Body_GetTransform(m3BodyId bodyId);
+```
+
+```c
+float m3Body_GetMass(m3BodyId bodyId);
+```
+
+```c
+m3Mat3 m3Body_GetRotationalInertia(m3BodyId bodyId);
+```
+
+```c
+m3Vec3 m3Body_GetLocalCenter(m3BodyId bodyId);
+```
+
+```c
+m3Pos3 m3Body_GetWorldCenterOfMass(m3BodyId bodyId);
+```
+
+```c
+m3Pos3 m3Body_GetWorldPoint(m3BodyId bodyId, m3Vec3 localPoint);
+```
+
+```c
+m3Vec3 m3Body_GetLocalPoint(m3BodyId bodyId, m3Pos3 worldPoint);
+```
+
+```c
+m3Vec3 m3Body_GetWorldVector(m3BodyId bodyId, m3Vec3 localVector);
+```
+
+```c
+m3Vec3 m3Body_GetLocalVector(m3BodyId bodyId, m3Vec3 worldVector);
+```
+
+```c
+m3Vec3 m3Body_GetWorldPointVelocity(m3BodyId bodyId, m3Pos3 worldPoint);
+```
+
+```c
+m3Vec3 m3Body_GetLocalPointVelocity(m3BodyId bodyId, m3Vec3 localPoint);
+```
+
+```c
+float m3Body_GetGravityScale(m3BodyId bodyId);
+```
+
+```c
+float m3Body_GetLinearDamping(m3BodyId bodyId);
+```
+
+```c
+float m3Body_GetAngularDamping(m3BodyId bodyId);
+```
+
+```c
+bool m3Body_IsBullet(m3BodyId bodyId);
+```
+
+```c
+void m3Body_SetGravityScale(m3BodyId bodyId, float scale);
+```
+Journaled setters for what the def set, as in Maul2D. Damping must be non-negative; every value finite. Thread class: writer.
+
+```c
+void m3Body_SetLinearDamping(m3BodyId bodyId, float damping);
+```
+
+```c
+void m3Body_SetAngularDamping(m3BodyId bodyId, float damping);
+```
+
+```c
+void m3Body_SetBullet(m3BodyId bodyId, bool flag);
+```
+
+```c
+void m3Body_SetUserData(m3BodyId bodyId, uint64_t userData);
+```
+
+```c
+m3AabbResult m3Body_ComputeAabb(m3BodyId bodyId);
+```
+
+```c
+int32_t m3Body_GetShapes(m3BodyId bodyId, m3ShapeId* ids, int32_t capacity);
+```
+
+```c
+int32_t m3Body_GetJoints(m3BodyId bodyId, m3JointId* ids, int32_t capacity);
 ```
 
 ```c
@@ -668,6 +779,23 @@ bool m3Joint_IsValid(m3JointId jointId);
 ```
 
 ```c
+m3WorldId m3Joint_GetWorld(m3JointId jointId);
+```
+Readback, as in Maul2D. Thread class: reader.
+
+```c
+m3JointType m3Joint_GetType(m3JointId jointId);
+```
+
+```c
+m3BodyId m3Joint_GetBodyA(m3JointId jointId);
+```
+
+```c
+m3BodyId m3Joint_GetBodyB(m3JointId jointId);
+```
+
+```c
 void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper);
 ```
 Runtime joint control. All journaled; both bodies wake on any change. Limits and motor reuse the def semantics per type (angles for revolute and spherical twist, meters for prismatic and distance); toggling zeroes the row's stored impulse so a stale warm start cannot kick.
@@ -870,6 +998,32 @@ m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
 The owning body, so a mover can tell its own shape from the world's. Null id for stale shapes.
 
 ```c
+m3WorldId m3Shape_GetWorld(m3ShapeId shapeId);
+```
+Readback, as in Maul2D. GetAabb is the shape's broadphase bounds (margin included). Thread class: reader.
+
+```c
+m3ShapeType m3Shape_GetType(m3ShapeId shapeId);
+```
+
+```c
+uint64_t m3Shape_GetUserData(m3ShapeId shapeId);
+```
+
+```c
+void m3Shape_SetUserData(m3ShapeId shapeId, uint64_t userData);
+```
+Journaled. Thread class: writer.
+
+```c
+bool m3Shape_IsSensor(m3ShapeId shapeId);
+```
+
+```c
+m3AabbResult m3Shape_GetAabb(m3ShapeId shapeId);
+```
+
+```c
 int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);
 ```
 Who touches this shape now: fills up to capacity entries and returns the count written. See m3ContactData.
@@ -1064,4 +1218,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-223 functions across 11 headers.
+260 functions across 11 headers.

@@ -225,6 +225,103 @@ static void TestContactReadback(void)
     m3DestroyWorld(world);
 }
 
+static bool Near(double a, double b, double tolerance)
+{
+    return a - b <= tolerance && b - a <= tolerance;
+}
+
+static bool NearF(float a, float b, float tolerance)
+{
+    return a - b <= tolerance && b - a <= tolerance;
+}
+
+static void TestReadback(void)
+{
+    // The readers Maul2D has, on a two-shape body with a joint.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){1.0, 2.0, 3.0};
+    bd.rotation = (m3Quat){0.0f, 0.70710678f, 0.0f, 0.70710678f}; // 90 degrees about y
+    bd.linearVelocity = (m3Vec3){1.0f, 0.0f, 0.0f};
+    bd.angularVelocity = (m3Vec3){0.0f, 2.0f, 0.0f};
+    bd.gravityScale = 0.5f;
+    bd.linearDamping = 0.25f;
+    bd.angularDamping = 0.75f;
+    bd.isBullet = true;
+    m3BodyId body = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = 2.0f;
+    sd.userData = 42u;
+    m3ShapeId box = m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(NearF(m3Body_GetMass(body), 2.0f, 1e-5f), "the unit box at density two weighs two");
+    sd.isSensor = true;
+    m3Sphere probe = {{0.0f, 0.0f, 0.0f}, 0.25f};
+    m3ShapeId sensor = m3CreateSphereShape(body, &sd, &probe);
+    m3BodyDef ad = m3DefaultBodyDef();
+    m3BodyId anchor = m3CreateBody(world, &ad);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_sphericalJoint;
+    jd.bodyIdA = anchor;
+    jd.bodyIdB = body;
+    m3JointId joint = m3CreateJoint(world, &jd);
+
+    m3WorldId owner = m3Body_GetWorld(body);
+    CHECK(owner.index1 == world.index1 && owner.generation == world.generation, "body world");
+    m3Transform xf = m3Body_GetTransform(body);
+    CHECK(xf.p.x == 1.0 && xf.p.y == 2.0 && xf.p.z == 3.0, "body transform");
+    m3Mat3 inertia = m3Body_GetRotationalInertia(body);
+    CHECK(inertia.cx.x > 0.0f && inertia.cy.y > 0.0f && inertia.cz.z > 0.0f, "inertia tensor");
+    m3Pos3 p = m3Body_GetWorldPoint(body, (m3Vec3){1.0f, 0.0f, 0.0f});
+    CHECK(Near(p.x, 1.0, 1e-5) && Near(p.z, 2.0, 1e-5), "local +x maps to world -z");
+    m3Vec3 back = m3Body_GetLocalPoint(body, p);
+    CHECK(NearF(back.x, 1.0f, 1e-5f) && NearF(back.z, 0.0f, 1e-5f), "and back");
+    m3Vec3 v = m3Body_GetWorldVector(body, (m3Vec3){0.0f, 0.0f, 1.0f});
+    CHECK(NearF(v.x, 1.0f, 1e-5f), "local +z points along world +x");
+    CHECK(NearF(m3Body_GetLocalVector(body, v).z, 1.0f, 1e-5f), "and back again");
+    m3Vec3 pv = m3Body_GetWorldPointVelocity(body, (m3Pos3){1.0, 2.0, 2.0});
+    CHECK(NearF(pv.x, -1.0f, 1e-5f), "v + w x r at a world point");
+    m3Vec3 lv = m3Body_GetLocalPointVelocity(body, (m3Vec3){1.0f, 0.0f, 0.0f});
+    CHECK(NearF(lv.x, pv.x, 1e-5f) && NearF(lv.z, pv.z, 1e-5f), "the same point, given locally");
+    CHECK(m3Body_GetGravityScale(body) == 0.5f && m3Body_GetLinearDamping(body) == 0.25f &&
+              m3Body_GetAngularDamping(body) == 0.75f && m3Body_IsBullet(body),
+          "def settings read back");
+    m3AabbResult bounds = m3Body_ComputeAabb(body);
+    CHECK(bounds.lowerBound.x <= 0.5 && bounds.upperBound.x >= 1.5 && bounds.lowerBound.y <= 1.5,
+          "the body bounds hold its box");
+    m3ShapeId shapes[4];
+    CHECK(m3Body_GetShapes(body, shapes, 4) == 2 && shapes[0].index1 == box.index1 &&
+              shapes[1].index1 == sensor.index1,
+          "both shapes, in slot order");
+    CHECK(m3Body_GetShapes(body, shapes, 1) == 2, "the total survives a short buffer");
+    m3JointId joints[2];
+    CHECK(m3Body_GetJoints(body, joints, 2) == 1 && joints[0].index1 == joint.index1,
+          "the joint on the body");
+
+    CHECK(m3Shape_GetType(box) == m3_hullShape && m3Shape_GetType(sensor) == m3_sphereShape,
+          "shape types");
+    CHECK(m3Shape_GetWorld(box).index1 == world.index1, "shape world");
+    CHECK(m3Shape_GetUserData(box) == 42u && m3Shape_IsSensor(sensor) && !m3Shape_IsSensor(box),
+          "shape settings read back");
+    m3AabbResult sb = m3Shape_GetAabb(sensor);
+    CHECK(sb.lowerBound.y <= 1.75 && sb.upperBound.y >= 2.25, "the sensor bounds hold it");
+
+    CHECK(m3Joint_GetType(joint) == m3_sphericalJoint, "joint type");
+    CHECK(m3Joint_GetBodyA(joint).index1 == anchor.index1 &&
+              m3Joint_GetBodyB(joint).index1 == body.index1,
+          "joint bodies");
+    CHECK(m3Joint_GetWorld(joint).index1 == world.index1, "joint world");
+
+    m3BodyId all[4];
+    CHECK(m3World_GetBodies(world, all, 4) == 2, "the world's bodies");
+    CHECK(m3World_GetJoints(world, NULL, 0) == 1, "the world's joints, counted");
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(m3World_GetStepCount(world) == 2u, "two steps taken");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCountsMatchTheScene();
@@ -232,6 +329,7 @@ int main(void)
     TestReadingIsPure();
     TestNamesAndHooks();
     TestContactReadback();
+    TestReadback();
     if (s_failures == 0)
     {
         printf("test_introspection: all passed\n");

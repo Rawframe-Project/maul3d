@@ -299,6 +299,60 @@ void m3DestroyWorld(m3WorldId worldId)
     s_worldGenerations[slot] += 1;
 }
 
+int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0;
+    }
+    int32_t total = 0;
+    for (int32_t b = 0; b < world->bodies.bodyPool.maxIndex; ++b)
+    {
+        if (world->bodies.bodyPool.alive[b] == 0)
+        {
+            continue;
+        }
+        if (ids != NULL && total < capacity)
+        {
+            ids[total] = (m3BodyId){b + 1, world->idWorld, world->bodies.bodyPool.generations[b]};
+        }
+        total += 1;
+    }
+    return total;
+}
+
+int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0;
+    }
+    int32_t total = 0;
+    for (int32_t j = 0; j < world->joints.jointPool.maxIndex; ++j)
+    {
+        if (world->joints.jointPool.alive[j] == 0)
+        {
+            continue;
+        }
+        if (ids != NULL && total < capacity)
+        {
+            ids[total] = (m3JointId){j + 1, world->idWorld, world->joints.jointPool.generations[j]};
+        }
+        total += 1;
+    }
+    return total;
+}
+
+uint64_t m3World_GetStepCount(m3WorldId worldId)
+{
+    m3World* world = m3WorldFromId(worldId);
+    return world != NULL ? world->stepCount : 0u;
+}
+
 bool m3World_IsValid(m3WorldId worldId)
 {
     return m3WorldFromId(worldId) != NULL;

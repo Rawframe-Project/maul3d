@@ -272,6 +272,15 @@ extern "C"
     /// The owning body, so a mover can tell its own shape from the
     /// world's. Null id for stale shapes.
     M3_API m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
+    /// Readback, as in Maul2D. GetAabb is the shape's broadphase bounds
+    /// (margin included). Thread class: reader.
+    M3_API m3WorldId m3Shape_GetWorld(m3ShapeId shapeId);
+    M3_API m3ShapeType m3Shape_GetType(m3ShapeId shapeId);
+    M3_API uint64_t m3Shape_GetUserData(m3ShapeId shapeId);
+    /// Journaled. Thread class: writer.
+    M3_API void m3Shape_SetUserData(m3ShapeId shapeId, uint64_t userData);
+    M3_API bool m3Shape_IsSensor(m3ShapeId shapeId);
+    M3_API m3AabbResult m3Shape_GetAabb(m3ShapeId shapeId);
     /// Who touches this shape now: fills up to capacity
     /// entries and returns the count written. See m3ContactData.
     M3_API int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);

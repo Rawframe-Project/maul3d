@@ -606,3 +606,60 @@ bool m3Joint_IsValid(m3JointId jointId)
     m3World* world = m3WorldFromTag(jointId.world);
     return world != NULL && m3JointSlot(world, jointId) >= 0;
 }
+
+// Resolves a joint id to its world and slot; for anything stale or
+// foreign, refuses and returns NULL.
+static m3World* ResolveJoint(m3JointId jointId, int32_t* outIndex)
+{
+    m3World* world = m3WorldFromTag(jointId.world);
+    int32_t index = world != NULL ? m3JointSlot(world, jointId) : -1;
+    if (index < 0)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return NULL;
+    }
+    *outIndex = index;
+    return world;
+}
+
+m3WorldId m3Joint_GetWorld(m3JointId jointId)
+{
+    int32_t index;
+    m3World* world = ResolveJoint(jointId, &index);
+    m3WorldId id = {0, 0};
+    if (world != NULL)
+    {
+        id = (m3WorldId){(uint16_t)(world->slot + 1), world->generation};
+    }
+    return id;
+}
+
+m3JointType m3Joint_GetType(m3JointId jointId)
+{
+    int32_t index;
+    m3World* world = ResolveJoint(jointId, &index);
+    return world != NULL ? (m3JointType)world->joints.jointType[index] : m3_sphericalJoint;
+}
+
+static m3BodyId JointBody(m3JointId jointId, bool sideB)
+{
+    int32_t index;
+    m3World* world = ResolveJoint(jointId, &index);
+    m3BodyId id = {0, 0, 0};
+    if (world != NULL)
+    {
+        int32_t body = sideB ? world->joints.jointBodyB[index] : world->joints.jointBodyA[index];
+        id = (m3BodyId){body + 1, world->idWorld, world->bodies.bodyPool.generations[body]};
+    }
+    return id;
+}
+
+m3BodyId m3Joint_GetBodyA(m3JointId jointId)
+{
+    return JointBody(jointId, false);
+}
+
+m3BodyId m3Joint_GetBodyB(m3JointId jointId)
+{
+    return JointBody(jointId, true);
+}

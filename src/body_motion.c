@@ -270,3 +270,83 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
     }
     m3SetAngularVelocityInternal(world, index, velocity);
 }
+
+void m3SetBodyParamInternal(m3World* world, int32_t index, int32_t param, float value)
+{
+    if (param == m3_bodyParamGravityScale)
+    {
+        world->bodies.gravityScales[index] = value;
+    }
+    else if (param == m3_bodyParamLinearDamping)
+    {
+        world->bodies.linearDamping[index] = value;
+    }
+    else
+    {
+        world->bodies.angularDamping[index] = value;
+    }
+}
+
+static void SetBodyParam(m3BodyId bodyId, int32_t param, float value, bool nonNegative)
+{
+    int32_t index;
+    m3World* world = m3ResolveBody(bodyId, &index);
+    if (world == NULL)
+    {
+        return;
+    }
+    if (!m3FiniteF(value) || (nonNegative && value < 0.0f))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpBodyParam record;
+        memset(&record, 0, sizeof(record));
+        record.id = bodyId;
+        record.param = param;
+        record.value = value;
+        m3JournalRecord(world, m3_opSetBodyParam, &record, (int32_t)sizeof(record));
+    }
+    m3SetBodyParamInternal(world, index, param, value);
+}
+
+void m3Body_SetGravityScale(m3BodyId bodyId, float scale)
+{
+    SetBodyParam(bodyId, m3_bodyParamGravityScale, scale, false);
+}
+
+void m3Body_SetLinearDamping(m3BodyId bodyId, float damping)
+{
+    SetBodyParam(bodyId, m3_bodyParamLinearDamping, damping, true);
+}
+
+void m3Body_SetAngularDamping(m3BodyId bodyId, float damping)
+{
+    SetBodyParam(bodyId, m3_bodyParamAngularDamping, damping, true);
+}
+
+void m3SetBulletInternal(m3World* world, int32_t index, int bullet)
+{
+    world->bodies.bulletFlags[index] = bullet ? 1 : 0;
+}
+
+void m3Body_SetBullet(m3BodyId bodyId, bool flag)
+{
+    int32_t index;
+    m3World* world = m3ResolveBody(bodyId, &index);
+    if (world == NULL)
+    {
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpBodyByte record;
+        memset(&record, 0, sizeof(record));
+        record.id = bodyId;
+        record.value = flag ? 1 : 0;
+        m3JournalRecord(world, m3_opSetBullet, &record, (int32_t)sizeof(record));
+    }
+    m3SetBulletInternal(world, index, flag ? 1 : 0);
+}
