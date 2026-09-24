@@ -41,17 +41,17 @@ static m3Pos3 ToWorld(const m3Transform* xf, m3Vec3 local)
 
 static void Segment(const m3DrawContext* ctx, m3Pos3 p1, m3Pos3 p2, uint32_t color)
 {
-    if (ctx->draw->DrawSegment != NULL)
+    if (ctx->draw->drawSegment != NULL)
     {
-        ctx->draw->DrawSegment(p1, p2, color, ctx->draw->context);
+        ctx->draw->drawSegment(p1, p2, color, ctx->draw->context);
     }
 }
 
 static void Point(const m3DrawContext* ctx, m3Pos3 p, m3real size, uint32_t color)
 {
-    if (ctx->draw->DrawPoint != NULL)
+    if (ctx->draw->drawPoint != NULL)
     {
-        ctx->draw->DrawPoint(p, size, color, ctx->draw->context);
+        ctx->draw->drawPoint(p, size, color, ctx->draw->context);
     }
 }
 
@@ -334,14 +334,8 @@ static void DrawJoints(const m3DrawContext* ctx)
     }
 }
 
-void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
+static void DrawWire(const m3World* world, const m3DebugDraw* draw)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || draw == NULL)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
     m3DrawContext ctx = {draw, world};
     for (int32_t s = 0; draw->drawShapes && s < world->shapes.shapePool.maxIndex; ++s)
     {
@@ -375,14 +369,14 @@ void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
 
 typedef struct m3SolidContext
 {
-    const m3SolidDraw* draw;
+    const m3DebugDraw* draw;
     const m3World* world;
 } m3SolidContext;
 
 static void SolidTri(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3 a, m3Vec3 b, m3Vec3 c,
                      uint32_t color)
 {
-    ctx->draw->DrawTriangle(ToWorld(xf, a), ToWorld(xf, b), ToWorld(xf, c), color,
+    ctx->draw->drawTriangle(ToWorld(xf, a), ToWorld(xf, b), ToWorld(xf, c), color,
                             ctx->draw->context);
 }
 
@@ -516,9 +510,7 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     const m3World* world = ctx->world;
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS;
-    m3DebugDraw tintProbe;
-    tintProbe.drawSleepTint = ctx->draw->drawSleepTint;
-    uint32_t color = ShapeColor(world, shape, &tintProbe);
+    uint32_t color = ShapeColor(world, shape, ctx->draw);
     uint8_t type = world->shapes.shapeType[shape];
 
     if (type == (uint8_t)m3_sphereShape)
@@ -593,14 +585,8 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     // Infinite planes are skipped: the viewer owns its ground.
 }
 
-void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw)
+static void DrawSolid(const m3World* world, const m3DebugDraw* draw)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || draw == NULL || draw->DrawTriangle == NULL)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
     m3SolidContext ctx = {draw, world};
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
@@ -614,7 +600,7 @@ void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw)
 
 // --- Extras ----------------------------------------------------------
 
-static void ExtraBoxEdges(const m3ExtraDraw* draw, const double lo[3], const double hi[3],
+static void ExtraBoxEdges(const m3DebugDraw* draw, const double lo[3], const double hi[3],
                           uint32_t color)
 {
     m3Pos3 c[8];
@@ -625,24 +611,18 @@ static void ExtraBoxEdges(const m3ExtraDraw* draw, const double lo[3], const dou
     }
     for (int32_t k = 0; k < 12; ++k)
     {
-        draw->DrawSegment(c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], color, draw->context);
+        draw->drawSegment(c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], color, draw->context);
     }
 }
 
-void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
+static void DrawExtras(const m3World* world, const m3DebugDraw* draw)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || draw == NULL)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
     // A fixed island palette, cycled by root slot: twins label the
     // same roots, so twins draw the same stream.
     static const uint32_t palette[8] = {0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x95E86E,
                                         0xB48BFF, 0xFF9F68, 0x6BC5FF, 0xF078B0};
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
-    if (draw->drawIslands && draw->DrawPoint != NULL)
+    if (draw->drawIslands && draw->drawPoint != NULL)
     {
         for (int32_t i = 0; i < maxBody; ++i)
         {
@@ -656,10 +636,10 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
             m3Pos3 com = {world->bodies.transforms[i].p.x + (double)rc.x,
                           world->bodies.transforms[i].p.y + (double)rc.y,
                           world->bodies.transforms[i].p.z + (double)rc.z};
-            draw->DrawPoint(com, 0.15f, palette[world->bodies.bodyIsland[i] & 7], draw->context);
+            draw->drawPoint(com, 0.15f, palette[world->bodies.bodyIsland[i] & 7], draw->context);
         }
     }
-    if (draw->drawMassAxes && draw->DrawSegment != NULL)
+    if (draw->drawMassAxes && draw->drawSegment != NULL)
     {
         for (int32_t i = 0; i < maxBody; ++i)
         {
@@ -681,11 +661,11 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
             {
                 m3Vec3 d = m3RotateVec3(q, axes[a]);
                 m3Pos3 tip = {o.x + (double)d.x, o.y + (double)d.y, o.z + (double)d.z};
-                draw->DrawSegment(o, tip, axisColors[a], draw->context);
+                draw->drawSegment(o, tip, axisColors[a], draw->context);
             }
         }
     }
-    if (draw->drawTreeBoxes && draw->DrawSegment != NULL)
+    if (draw->drawTreeBoxes && draw->drawSegment != NULL)
     {
         for (int32_t n = 0; n < world->broadphase.tree.capacity; ++n)
         {
@@ -700,4 +680,20 @@ void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw)
             ExtraBoxEdges(draw, node->lo, node->hi, color);
         }
     }
+}
+
+void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
+{
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL || draw == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return;
+    }
+    if (draw->drawSolidShapes && draw->drawTriangle != NULL)
+    {
+        DrawSolid(world, draw);
+    }
+    DrawWire(world, draw);
+    DrawExtras(world, draw);
 }

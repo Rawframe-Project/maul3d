@@ -109,8 +109,8 @@ static m3DebugDraw AllOn(DrawSink* sink)
 {
     m3DebugDraw draw;
     memset(&draw, 0, sizeof(draw));
-    draw.DrawSegment = SinkSegment;
-    draw.DrawPoint = SinkPoint;
+    draw.drawSegment = SinkSegment;
+    draw.drawPoint = SinkPoint;
     draw.context = sink;
     draw.drawShapes = true;
     draw.drawContacts = true;
@@ -221,14 +221,14 @@ static void TestDrawCoverage(void)
     DrawSink quiet = MakeSink();
     m3DebugDraw off;
     memset(&off, 0, sizeof(off));
-    off.DrawSegment = SinkSegment;
-    off.DrawPoint = SinkPoint;
+    off.drawSegment = SinkSegment;
+    off.drawPoint = SinkPoint;
     off.context = &quiet;
     m3World_Draw(world, &off);
     CHECK(quiet.segments == 0 && quiet.points == 0, "all flags off draws nothing");
 
     m3DebugDraw noPoints = AllOn(&sink);
-    noPoints.DrawPoint = NULL;
+    noPoints.drawPoint = NULL;
     m3World_Draw(world, &noPoints); // must not crash
     m3DestroyWorld(world);
 }
@@ -253,25 +253,26 @@ static void TestDrawIsPureObserver(void)
     m3DebugDraw draw = AllOn(&sink);
     m3World_Draw(world, &draw);
     m3World_Draw(world, &draw); // twice: a second pass is as pure as the first
-    m3SolidDraw solid;
+    m3DebugDraw solid;
     memset(&solid, 0, sizeof(solid));
-    solid.DrawTriangle = SinkTriangle;
+    solid.drawTriangle = SinkTriangle;
+    solid.drawSolidShapes = true;
     solid.context = &sink;
     solid.drawSleepTint = true;
-    m3World_DrawSolid(world, &solid); // the solid pass is held to the
-                                      // same purity law
-    m3World_DrawSolid(world, &solid);
-    m3ExtraDraw extras;
+    m3World_Draw(world, &solid); // the solid pass is held to the
+                                 // same purity law
+    m3World_Draw(world, &solid);
+    m3DebugDraw extras;
     memset(&extras, 0, sizeof(extras));
-    extras.DrawSegment = SinkSegment;
-    extras.DrawPoint = SinkPoint;
+    extras.drawSegment = SinkSegment;
+    extras.drawPoint = SinkPoint;
     extras.context = &sink;
     extras.drawIslands = true;
     extras.drawMassAxes = true;
     extras.drawTreeBoxes = true;
-    m3World_DrawExtras(world, &extras); // the extras walk obeys the
-                                        // same purity law
-    m3World_DrawExtras(world, &extras);
+    m3World_Draw(world, &extras); // the extras walk obeys the
+                                  // same purity law
+    m3World_Draw(world, &extras);
 
     CHECK(m3World_Snapshot(world, after, bytes) == bytes, "snapshot after writes");
     CHECK(memcmp(before, after, (size_t)bytes) == 0, "a draw pass moves no bits");
@@ -364,11 +365,12 @@ static void CheckConvexWinding(m3WorldId world, m3Pos3 center, const char* label
     WindingSink sink;
     memset(&sink, 0, sizeof(sink));
     sink.center = center;
-    m3SolidDraw solid;
+    m3DebugDraw solid;
     memset(&solid, 0, sizeof(solid));
-    solid.DrawTriangle = WindingTriangle;
+    solid.drawTriangle = WindingTriangle;
+    solid.drawSolidShapes = true;
     solid.context = &sink;
-    m3World_DrawSolid(world, &solid);
+    m3World_Draw(world, &solid);
     CHECK(sink.total > 0, label);
     if (sink.inward != 0)
     {
@@ -446,25 +448,25 @@ static void TestExtrasEmit(void)
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
         sinks[run] = MakeSink();
-        m3ExtraDraw extras;
+        m3DebugDraw extras;
         memset(&extras, 0, sizeof(extras));
-        extras.DrawSegment = SinkSegment;
-        extras.DrawPoint = SinkPoint;
+        extras.drawSegment = SinkSegment;
+        extras.drawPoint = SinkPoint;
         extras.context = &sinks[run];
         extras.drawIslands = true;
-        m3World_DrawExtras(world, &extras);
+        m3World_Draw(world, &extras);
         if (run == 0)
         {
             CHECK(sinks[0].points > 0, "islands mark the dynamic bodies");
             int32_t islandPoints = sinks[0].points;
             extras.drawIslands = false;
             extras.drawMassAxes = true;
-            m3World_DrawExtras(world, &extras);
+            m3World_Draw(world, &extras);
             CHECK(sinks[0].segments == 3 * islandPoints, "three axes per labeled dynamic body");
             int32_t axisSegments = sinks[0].segments;
             extras.drawMassAxes = false;
             extras.drawTreeBoxes = true;
-            m3World_DrawExtras(world, &extras);
+            m3World_Draw(world, &extras);
             CHECK(sinks[0].segments > axisSegments, "internal tree boxes emit");
             extras.drawIslands = true;
             extras.drawMassAxes = true;

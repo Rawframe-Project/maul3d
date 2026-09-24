@@ -926,12 +926,12 @@ promise with a twin that polls every tick against a twin that
 never looks. Counter values are deterministic; profile times are
 wall-clock and never will be.
 
-m3World_DrawExtras adds the analysis layers on top of the base
-draw: island tint points (colors cycled by island root, sleeping
-bodies keep the tint of the island they slept in), center-of-mass
-axis frames, and the broadphase tree's internal node boxes. A
-separate additive struct, the frozen m3DebugDraw and m3SolidDraw
-stay untouched, and the same purity gate covers the new walk.
+m3World_Draw draws everything through one m3DebugDraw: solid
+triangles (drawSolidShapes), wireframes, bounds, contacts and joints,
+and the analysis layers: island tint points (colors cycled by island
+root, sleeping bodies keep the tint of the island they slept in),
+center-of-mass axis frames, and the broadphase tree's internal node
+boxes. One purity gate covers every layer.
 
 Bodies take debug names (m3Body_SetName, 31 bytes plus the
 terminator, journaled, carried by snapshots, NEVER hashed) and

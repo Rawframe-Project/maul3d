@@ -1910,17 +1910,18 @@ int main(void)
             DrawGround();
         }
 
-        m3SolidDraw solid;
+        m3DebugDraw solid;
         memset(&solid, 0, sizeof(solid));
-        solid.DrawTriangle = SolidTriCb;
+        solid.drawTriangle = SolidTriCb;
+        solid.drawSolidShapes = true;
         solid.drawSleepTint = sleepTint;
-        m3World_DrawSolid(scene.world, &solid);
+        m3World_Draw(scene.world, &solid);
         FlushSolid(showShadows);
 
         m3DebugDraw draw;
         memset(&draw, 0, sizeof(draw));
-        draw.DrawSegment = DrawSegmentCb;
-        draw.DrawPoint = DrawPointCb;
+        draw.drawSegment = DrawSegmentCb;
+        draw.drawPoint = DrawPointCb;
         draw.drawShapes = showWire;
         draw.drawJoints = showJoints;
         draw.drawSleepTint = sleepTint;
@@ -1930,14 +1931,14 @@ int main(void)
 
         if (showIslands || showMassAxes || showTreeBoxes)
         {
-            m3ExtraDraw extras;
+            m3DebugDraw extras;
             memset(&extras, 0, sizeof(extras));
-            extras.DrawSegment = DrawSegmentCb;
-            extras.DrawPoint = DrawPointCb;
+            extras.drawSegment = DrawSegmentCb;
+            extras.drawPoint = DrawPointCb;
             extras.drawIslands = showIslands;
             extras.drawMassAxes = showMassAxes;
             extras.drawTreeBoxes = showTreeBoxes;
-            m3World_DrawExtras(scene.world, &extras);
+            m3World_Draw(scene.world, &extras);
         }
 
         for (int32_t soft = 0; soft < 2; ++soft)

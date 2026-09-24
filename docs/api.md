@@ -643,16 +643,7 @@ Debug draw: the world describes itself as segments, points and triangles through
 ```c
 void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw);
 ```
-Emit the world through the callbacks. Null callbacks are skipped; the call itself never mutates the world.
-
-```c
-void m3World_DrawSolid(m3WorldId worldId, const m3SolidDraw* draw);
-```
-Emit every live shape as triangles: spheres and capsules tessellate at fixed counts, hulls fan their face loops, meshes emit their stored triangles, voxel surfaces emit their merged-box faces. Infinite planes are SKIPPED (a viewer draws its own ground). Read-only like m3World_Draw and held by the same purity test: a draw pass never moves the world hash.
-
-```c
-void m3World_DrawExtras(m3WorldId worldId, const m3ExtraDraw* draw);
-```
+Draws what the flags ask for through the callbacks given; a missing callback skips what it would draw. Solid shapes come first, then wireframes, bounds, contacts, joints and the rest. Reads simulation state only. Thread class: reader.
 
 ## `joint.h`
 
@@ -1064,4 +1055,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-223 functions across 11 headers.
+221 functions across 11 headers.

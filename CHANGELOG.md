@@ -243,6 +243,12 @@ Work toward 0.0.1, the first release of the reworked library.
   the low bits of the world generation above them, so a world
   recycling a slot refuses the ids of the world before it. m3WorldId
   is four bytes, {uint16_t index1, uint16_t generation}, as in Maul2D.
+- Debug draw is one m3DebugDraw and one m3World_Draw, as in Maul2D:
+  the triangle callback and the drawSolidShapes, drawIslands,
+  drawMassAxes and drawTreeBoxes flags joined the struct, and
+  m3SolidDraw, m3ExtraDraw, m3World_DrawSolid and m3World_DrawExtras
+  are gone. They were split only to keep an old ABI. Callbacks are
+  camelCase fields (drawSegment, drawPoint, drawTriangle).
 
 ### Removed
 
