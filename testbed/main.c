@@ -1205,13 +1205,11 @@ static m3Pos3 s_blastAt;
 
 static void SpawnFragments(m3WorldId world)
 {
-    int32_t count = 0;
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
-    int32_t recipeTotal = 0;
-    const uint16_t* recipe = m3World_FragmentRecipe(world, &recipeTotal);
-    for (int32_t e = 0; e < count && e < 24; ++e)
+    m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
+    const uint16_t* recipe = fragments.recipe;
+    for (int32_t e = 0; e < fragments.fragmentCount && e < 24; ++e)
     {
-        const m3FragmentEvent* ev = &events[e];
+        const m3FragmentEvent* ev = &fragments.fragmentEvents[e];
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = ev->comWorld;

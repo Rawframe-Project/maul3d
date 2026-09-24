@@ -66,8 +66,8 @@ static void TestHitEvents(void)
         for (int32_t i = 0; i < 90; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t n = 0;
-            const m3HitEvent* ev = m3World_HitEvents(world, &n);
+            const m3ContactHitEvent* ev = m3World_GetContactEvents(world).hitEvents;
+            int32_t n = m3World_GetContactEvents(world).hitCount;
             if (n > 0)
             {
                 speed = (double)ev[0].approachSpeed;
@@ -91,7 +91,7 @@ static void TestHitEvents(void)
         {
             CHECK(totalHits == 0, "a raised threshold silences the hit");
         }
-        CHECK(m3World_HitEventsDropped(world) == 0, "nothing dropped");
+        CHECK(m3World_GetContactEvents(world).hitsDropped == 0, "nothing dropped");
         m3DestroyWorld(world);
     }
 }
@@ -114,12 +114,12 @@ static void TestBodyMoveEvents(void)
     for (int32_t i = 0; i < 400; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        int32_t n = 0;
-        const m3BodyMoveEvent* ev = m3World_BodyMoveEvents(world, &n);
+        const m3BodyMoveEvent* ev = m3World_GetBodyEvents(world).moveEvents;
+        int32_t n = m3World_GetBodyEvents(world).moveCount;
         bool found = false;
         for (int32_t k = 0; k < n; ++k)
         {
-            if (ev[k].body.index1 == crate.index1)
+            if (ev[k].bodyId.index1 == crate.index1)
             {
                 found = true;
                 m3Pos3 p = m3Body_GetPosition(crate);
@@ -235,18 +235,17 @@ static void TestEventTwinsAndJointStream(void)
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t n = 0;
-            const m3HitEvent* ev = m3World_HitEvents(world, &n);
+            const m3ContactHitEvent* ev = m3World_GetContactEvents(world).hitEvents;
+            int32_t n = m3World_GetContactEvents(world).hitCount;
             for (int32_t k = 0; k < n; ++k)
             {
                 const uint8_t* bytes = (const uint8_t*)&ev[k];
-                for (size_t j = 0; j < sizeof(m3HitEvent); ++j)
+                for (size_t j = 0; j < sizeof(m3ContactHitEvent); ++j)
                 {
                     digest = (digest ^ bytes[j]) * 1099511628211ull;
                 }
             }
-            int32_t jb = 0;
-            m3World_JointBreakEvents(world, &jb);
+            int32_t jb = m3World_GetJointEvents(world).breakCount;
             CHECK(jb == 0, "the joint break stream is armed and empty");
         }
         hitDigest[run] = digest;
@@ -265,9 +264,8 @@ static void TestHostileEvents(void)
     stale.index1 += 999;
     m3Shape_EnableHitEvents(stale, true);
     CHECK(!m3Shape_IsHitEventsEnabled(stale), "stale flag set refuses");
-    int32_t n = -1;
-    CHECK(m3World_HitEvents(world, &n) != NULL || n == 0, "empty stream reads clean");
-    CHECK(n == 0, "no events before any step");
+    m3ContactEvents none = m3World_GetContactEvents(world);
+    CHECK(none.hitCount == 0 && none.hitsDropped == 0, "no events before any step");
     m3DestroyWorld(world);
 }
 

@@ -38,7 +38,7 @@ int main(void)
     m3CreateBoxShape(chassis, &cs, (m3Vec3){1.0f, 0.25f, 0.5f});
 
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     for (int w = 0; w < 4; ++w)
     {

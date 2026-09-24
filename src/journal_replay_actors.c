@@ -120,7 +120,7 @@ bool m3ReplayCreateVehicle(m3World* world, const m3ReplayRecord* r)
         m3NormalizeBoolByte(&record.def, wheelBase + offsetof(m3WheelDef, steerable));
         m3NormalizeBoolByte(&record.def, wheelBase + offsetof(m3WheelDef, driven));
     }
-    record.def.chassis.world0 = world->worldIndex0;
+    record.def.chassisId.world0 = world->worldIndex0;
     int32_t slot = m3CreateVehicleInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
         world->vehicles.vehPool.generations[slot] != record.expected.generation)

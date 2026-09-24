@@ -263,7 +263,7 @@ static void TestFuzzPhase12Ops(void)
     sd.density = 300.0f;
     m3CreateBoxShape(chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     for (int32_t w = 0; w < 4; ++w)
     {
@@ -286,8 +286,8 @@ static void TestFuzzPhase12Ops(void)
     m3CreateSphereShape(rim, &sd, &ball);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_wheelJoint;
-    jd.bodyA = hub;
-    jd.bodyB = rim;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId axle = m3CreateJoint(&jd);
@@ -621,8 +621,8 @@ static void TestFuzzPhase16Ops(void)
     m3CreateSphereShape(rim, &sd, &ball);
     m3JointDef wj = m3DefaultJointDef();
     wj.type = m3_wheelJoint;
-    wj.bodyA = hub;
-    wj.bodyB = rim;
+    wj.bodyIdA = hub;
+    wj.bodyIdB = rim;
     wj.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     wj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = m3CreateJoint(&wj);
@@ -633,8 +633,8 @@ static void TestFuzzPhase16Ops(void)
     m3CreateBoxShape(cube, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
     m3JointDef mj = m3DefaultJointDef();
     mj.type = m3_motorJoint;
-    mj.bodyA = hub;
-    mj.bodyB = cube;
+    mj.bodyIdA = hub;
+    mj.bodyIdB = cube;
     m3JointId servo = m3CreateJoint(&mj);
     m3Joint_SetSpring(servo, true, 6.0f, 1.0f);
     m3Joint_SetLimits(servo, true, 40.0f, 5.0f);
@@ -648,19 +648,19 @@ static void TestFuzzPhase16Ops(void)
     m3CreateBoxShape(gb, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
     m3JointDef hj = m3DefaultJointDef();
     hj.type = m3_revoluteJoint;
-    hj.bodyA = ground;
-    hj.bodyB = ga;
+    hj.bodyIdA = ground;
+    hj.bodyIdB = ga;
     hj.localAnchorA = (m3Vec3){-2.5f, 2.0f, 0.0f};
     hj.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     hj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3CreateJoint(&hj);
-    hj.bodyB = gb;
+    hj.bodyIdB = gb;
     hj.localAnchorA = (m3Vec3){-1.5f, 2.0f, 0.0f};
     m3CreateJoint(&hj);
     m3JointDef gj = m3DefaultJointDef();
     gj.type = m3_gearJoint;
-    gj.bodyA = ga;
-    gj.bodyB = gb;
+    gj.bodyIdA = ga;
+    gj.bodyIdB = gb;
     gj.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     gj.ratio = 2.0f;
@@ -674,8 +674,8 @@ static void TestFuzzPhase16Ops(void)
     m3CreateBoxShape(crateB, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
     m3JointDef pj = m3DefaultJointDef();
     pj.type = m3_pulleyJoint;
-    pj.bodyA = crateA;
-    pj.bodyB = crateB;
+    pj.bodyIdA = crateA;
+    pj.bodyIdB = crateB;
     pj.groundAnchorA = (m3Pos3){4.0, 4.5, 0.0};
     pj.groundAnchorB = (m3Pos3){6.0, 4.5, 0.0};
     pj.ratio = 1.5f;

@@ -70,8 +70,8 @@ static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
         m3CreateSphereShape(cart.wheels[w], &ws, &tire);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_wheelJoint;
-        jd.bodyA = cart.chassis;
-        jd.bodyB = cart.wheels[w];
+        jd.bodyIdA = cart.chassis;
+        jd.bodyIdB = cart.wheels[w];
         jd.localAnchorA = local;
         jd.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut: chassis down
@@ -205,8 +205,7 @@ static void TestBrokenAxleDeterministic(void)
             if (breakStep < 0 && !m3Joint_IsValid(cart.joints[1]))
             {
                 breakStep = i;
-                int32_t count = 0;
-                m3World_JointBreakEvents(world, &count);
+                int32_t count = m3World_GetJointEvents(world).breakCount;
                 CHECK(count > 0, "the break emits its event");
             }
         }
@@ -282,8 +281,8 @@ static void TestHostileWall(void)
 
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_wheelJoint;
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f}; // axle along the strut
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "an axle along the strut refuses");
@@ -311,8 +310,8 @@ static void TestHostileWall(void)
     // readers and vice versa.
     m3JointDef rd = m3DefaultJointDef();
     rd.type = m3_revoluteJoint;
-    rd.bodyA = a;
-    rd.bodyB = b;
+    rd.bodyIdA = a;
+    rd.bodyIdB = b;
     rd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     rd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId hinge = m3CreateJoint(&rd);

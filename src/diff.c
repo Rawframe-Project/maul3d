@@ -33,7 +33,7 @@ static int DiffCompare(const void* pa, const void* pb)
     {
         return 1;
     }
-    return a->body.index1 < b->body.index1 ? -1 : (a->body.index1 > b->body.index1 ? 1 : 0);
+    return a->bodyId.index1 < b->bodyId.index1 ? -1 : (a->bodyId.index1 > b->bodyId.index1 ? 1 : 0);
 }
 
 int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity,
@@ -74,9 +74,9 @@ int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int
         }
         m3BodyDiff d;
         memset(&d, 0, sizeof(d));
-        d.body = (m3BodyId){i + 1, a->worldIndex0,
-                            aliveA ? a->bodies.bodyPool.generations[i]
-                                   : b->bodies.bodyPool.generations[i]};
+        d.bodyId = (m3BodyId){i + 1, a->worldIndex0,
+                              aliveA ? a->bodies.bodyPool.generations[i]
+                                     : b->bodies.bodyPool.generations[i]};
         if (aliveA != aliveB)
         {
             d.onlyInA = aliveA != 0;

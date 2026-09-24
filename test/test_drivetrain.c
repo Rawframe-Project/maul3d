@@ -67,7 +67,7 @@ static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
         *outChassis = chassis;
     }
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     for (int32_t w = 0; w < 4; ++w)
     {
@@ -575,7 +575,7 @@ static m3VehicleId MakeBike(m3WorldId world, m3Pos3 at, m3real leanGain, m3BodyI
         *outChassis = chassis;
     }
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 2;
     vd.driveForce = 400.0f;
     vd.leanStabilization = leanGain;

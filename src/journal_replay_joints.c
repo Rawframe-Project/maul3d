@@ -36,10 +36,10 @@ bool m3ReplayCreateJoint(m3World* world, const m3ReplayRecord* r)
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableMotor));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableCone));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, collideConnected));
-    record.def.bodyA.world0 = world->worldIndex0;
-    record.def.bodyB.world0 = world->worldIndex0;
-    int32_t bodyA = m3BodySlot(world, record.def.bodyA);
-    int32_t bodyB = m3BodySlot(world, record.def.bodyB);
+    record.def.bodyIdA.world0 = world->worldIndex0;
+    record.def.bodyIdB.world0 = world->worldIndex0;
+    int32_t bodyA = m3BodySlot(world, record.def.bodyIdA);
+    int32_t bodyB = m3BodySlot(world, record.def.bodyIdB);
     if (bodyA < 0 || bodyB < 0)
     {
         return false;

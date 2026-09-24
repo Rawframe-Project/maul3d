@@ -270,44 +270,16 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size);
 ```
 
 ```c
-const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* count);
-```
-Contact begin and end streams for the LAST step, in canonical deterministic order. Valid until the next step, restore, or world destruction (restore clears them: events are observations, not state). Pass a non-null count.
-
-```c
-const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count);
+m3ContactEvents m3World_GetContactEvents(m3WorldId worldId);
 ```
 
 ```c
-const m3FragmentEvent* m3World_FragmentEvents(m3WorldId worldId, int32_t* count);
+m3SensorEvents m3World_GetSensorEvents(m3WorldId worldId);
 ```
 
 ```c
-const uint16_t* m3World_FragmentRecipe(m3WorldId worldId, int32_t* count);
+m3FragmentEvents m3World_GetFragmentEvents(m3WorldId worldId);
 ```
-
-```c
-int32_t m3World_FragmentEventsDropped(m3WorldId worldId);
-```
-Islands beyond the event capacity are still removed from the grid (state transitions stay pure); only their EVENTS drop, and this counter says how many, loudly.
-
-```c
-const m3ContactEvent* m3World_SensorBeginEvents(m3WorldId worldId, int32_t* count);
-```
-Sensor overlap events, the same law as contact events but in their own streams (a sensor touch is not a contact). shapeA is the lower shape index; either side may be the sensor.
-
-```c
-const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count);
-```
-
-```c
-const m3HitEvent* m3World_HitEvents(m3WorldId worldId, int32_t* count);
-```
-
-```c
-int32_t m3World_HitEventsDropped(m3WorldId worldId);
-```
-Hits beyond capacity still simulate; only their events drop, and this counter says how many, loudly.
 
 ```c
 void m3World_SetHitEventThreshold(m3WorldId worldId, float value);
@@ -315,11 +287,11 @@ void m3World_SetHitEventThreshold(m3WorldId worldId, float value);
 Hit events require approach speed above this. Journaled.
 
 ```c
-const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count);
+m3BodyEvents m3World_GetBodyEvents(m3WorldId worldId);
 ```
 
 ```c
-const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* count);
+m3JointEvents m3World_GetJointEvents(m3WorldId worldId);
 ```
 
 ```c
@@ -1092,4 +1064,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-229 functions across 11 headers.
+223 functions across 11 headers.

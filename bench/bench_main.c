@@ -349,13 +349,10 @@ static void RunVoxfort(int32_t steps)
             int32_t hi[3] = {sx + 1 < 16 ? sx + 1 : 15, sy + 1, 2};
             m3VoxelChunk_ClearBox(keep, lo, hi);
             shells += 1;
-            int32_t count = 0;
-            const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
-            int32_t recipeCount = 0;
-            const uint16_t* recipe = m3World_FragmentRecipe(world, &recipeCount);
-            for (int32_t e = 0; e < count && e < 16; ++e)
+            m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
+            for (int32_t e = 0; e < fragments.fragmentCount && e < 16; ++e)
             {
-                SpawnFragment(world, &events[e], recipe);
+                SpawnFragment(world, &fragments.fragmentEvents[e], fragments.recipe);
             }
         }
         if (i % 45 == 20)
@@ -521,13 +518,10 @@ static uint64_t RunCityblockOnce(int32_t totalSteps, double phaseMs[3], int32_t 
             int32_t hi[3] = {10, cy, 10};
             m3VoxelChunk_ClearBox(victim, lo, hi);
             carves += 1;
-            int32_t count = 0;
-            const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
-            int32_t recipeCount = 0;
-            const uint16_t* recipe = m3World_FragmentRecipe(world, &recipeCount);
-            for (int32_t e = 0; e < count && e < 24; ++e)
+            m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
+            for (int32_t e = 0; e < fragments.fragmentCount && e < 24; ++e)
             {
-                SpawnFragment(world, &events[e], recipe);
+                SpawnFragment(world, &fragments.fragmentEvents[e], fragments.recipe);
             }
         }
         m3World_Step(world, 1.0f / 60.0f, 4);

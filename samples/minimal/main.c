@@ -85,8 +85,8 @@ int main(void)
         printf("M3_CONSUMER_FAIL voxel edit\n");
         return 1;
     }
-    int32_t fragments = 0;
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &fragments);
+    const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+    int32_t fragments = m3World_GetFragmentEvents(world).fragmentCount;
     if (fragments != 1 || events[0].voxelCount != 1)
     {
         printf("M3_CONSUMER_FAIL fracture\n");

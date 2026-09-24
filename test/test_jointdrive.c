@@ -52,8 +52,8 @@ static void TestRuntimeMotorAndLimits(void)
     m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
-    jd.bodyA = post;
-    jd.bodyB = door;
+    jd.bodyIdA = post;
+    jd.bodyIdB = door;
     jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -100,8 +100,8 @@ static void TestCollideToggle(void)
     m3BodyId b = Box(world, (m3Pos3){0.6, 0.5, 0.0}, 0.5f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){0.3f, 0.6f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.3f, 0.6f, 0.0f};
     m3JointId link = m3CreateJoint(&jd);
@@ -128,8 +128,8 @@ static void TestReadbackBand(void)
     m3BodyId crate = Box(world, (m3Pos3){0.0, 3.8, 0.0}, 0.5f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
-    jd.bodyA = anchor;
-    jd.bodyB = crate;
+    jd.bodyIdA = anchor;
+    jd.bodyIdB = crate;
     jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
     jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
     m3JointId rope = m3CreateJoint(&jd);
@@ -153,8 +153,8 @@ static void TestBreakage(void)
         m3BodyId crate = Box(world, (m3Pos3){0.0, 4.3, 0.0}, 1.0f, 1); // mass 8, weight 80
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_sphericalJoint;
-        jd.bodyA = anchor;
-        jd.bodyB = crate;
+        jd.bodyIdA = anchor;
+        jd.bodyIdB = crate;
         jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
         jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
         m3JointId rope = m3CreateJoint(&jd);
@@ -165,11 +165,11 @@ static void TestBreakage(void)
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t n = 0;
-            const m3JointBreakEvent* ev = m3World_JointBreakEvents(world, &n);
+            const m3JointBreakEvent* ev = m3World_GetJointEvents(world).breakEvents;
+            int32_t n = m3World_GetJointEvents(world).breakCount;
             for (int32_t k = 0; k < n; ++k)
             {
-                if (ev[k].joint.index1 != rope.index1)
+                if (ev[k].jointId.index1 != rope.index1)
                 {
                     idMatches = false;
                 }
@@ -202,8 +202,8 @@ static void TestSpringServo(void)
     m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
-    jd.bodyA = post;
-    jd.bodyB = door;
+    jd.bodyIdA = post;
+    jd.bodyIdB = door;
     jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -235,8 +235,8 @@ static void TestSpringDampingContrast(void)
         m3BodyId slider = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.3f, 1);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_prismaticJoint;
-        jd.bodyA = rail;
-        jd.bodyB = slider;
+        jd.bodyIdA = rail;
+        jd.bodyIdB = slider;
         jd.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
         jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
         m3JointId slide = m3CreateJoint(&jd);
@@ -275,8 +275,8 @@ static void TestSphericalRotationDrive(void)
     m3BodyId crate = Box(world, (m3Pos3){0.0, 2.0, 1.2}, 0.4f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
-    jd.bodyA = anchor;
-    jd.bodyB = crate;
+    jd.bodyIdA = anchor;
+    jd.bodyIdB = crate;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.6f};
     jd.localAnchorB = (m3Vec3){0.0f, 0.0f, -0.6f};
     // The target lives in the joint frames (frame z = the local
@@ -316,8 +316,8 @@ static void TestRuntimeOpsReplay(void)
         m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_revoluteJoint;
-        jd.bodyA = post;
-        jd.bodyB = door;
+        jd.bodyIdA = post;
+        jd.bodyIdB = door;
         jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
         jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -360,8 +360,8 @@ static void TestHostileRuntime(void)
     m3BodyId b = Box(world, (m3Pos3){1.0, 2.0, 0.0}, 0.4f, 1);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     m3JointId link = m3CreateJoint(&jd);
     m3Joint_SetLimits(link, true, 1.0f, -1.0f); // lower > upper refused
     m3Joint_SetMotor(link, true, NAN, 10.0f);

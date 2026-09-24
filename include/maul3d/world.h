@@ -220,18 +220,61 @@ extern "C"
     /// stream. Pointers are valid until the next step or restore.
     /// Destroying a shape emits no end event (the id would be stale);
     /// events are transient observers and never snapshot state.
-    typedef struct m3ContactEvent
+    typedef struct m3ContactBeginEvent
     {
-        m3ShapeId shapeA; // the lower shape index of the pair
-        m3ShapeId shapeB;
-    } m3ContactEvent;
+        m3ShapeId shapeIdA; // the lower shape index of the pair
+        m3ShapeId shapeIdB;
+    } m3ContactBeginEvent;
 
-    /// Contact begin and end streams for the LAST step, in canonical
-    /// deterministic order. Valid until the next step, restore, or
-    /// world destruction (restore clears them: events are
-    /// observations, not state). Pass a non-null count.
-    M3_API const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* count);
-    M3_API const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count);
+    typedef struct m3ContactEndEvent
+    {
+        m3ShapeId shapeIdA; // ids as they were when the touch ended
+        m3ShapeId shapeIdB;
+    } m3ContactEndEvent;
+
+    /// A hit event: two shapes collided with approach speed above the
+    /// world threshold. Emitted at most once per contact per step, for
+    /// the fastest-approaching manifold point, and only when either
+    /// shape opted in (m3Shape_EnableHitEvents).
+    typedef struct m3ContactHitEvent
+    {
+        m3ShapeId shapeIdA;
+        m3ShapeId shapeIdB;
+        m3Pos3 point;         // approximate contact point, world space
+        m3Vec3 normal;        // from shape A to shape B
+        m3real approachSpeed; // relative normal speed at impact, > 0
+    } m3ContactHitEvent;
+
+    /// The contact streams of the LAST step, in canonical deterministic
+    /// order. Arrays are world-owned and valid until the next step,
+    /// restore, or world destruction (restore clears them: events are
+    /// observations, not state). Hits beyond capacity still simulate;
+    /// only their events drop, and hitsDropped says how many.
+    typedef struct m3ContactEvents
+    {
+        const m3ContactBeginEvent* beginEvents;
+        const m3ContactEndEvent* endEvents;
+        const m3ContactHitEvent* hitEvents;
+        int32_t beginCount;
+        int32_t endCount;
+        int32_t hitCount;
+        int32_t hitsDropped;
+    } m3ContactEvents;
+
+    M3_API m3ContactEvents m3World_GetContactEvents(m3WorldId worldId);
+
+    /// Sensor overlap events, the same law as contact events but in
+    /// their own streams (a sensor touch is not a contact). shapeIdA
+    /// is the lower shape index; either side may be the sensor.
+    typedef struct m3SensorEvents
+    {
+        const m3ContactBeginEvent* beginEvents;
+        const m3ContactEndEvent* endEvents;
+        int32_t beginCount;
+        int32_t endCount;
+    } m3SensorEvents;
+
+    M3_API m3SensorEvents m3World_GetSensorEvents(m3WorldId worldId);
 
     /// A fragment-spawn event: a voxel edit disconnected an
     /// island from its chunk's base layer (y = 0 voxels anchor a
@@ -245,9 +288,9 @@ extern "C"
     /// boundary of your choosing; the next m3World_Step clears them.
     typedef struct m3FragmentEvent
     {
-        m3ShapeId chunkShape;
+        m3ShapeId chunkShapeId;
         int32_t voxelCount;
-        /// Range into m3World_FragmentRecipe: chunk-local linear
+        /// Range into m3FragmentEvents.recipe: chunk-local linear
         /// voxel indices (v = x + 16 * (y + 16 * z)). recipeStart is
         /// -1 when the recipe buffer overflowed (the event and the
         /// removal still happened; the bounds below still describe
@@ -262,37 +305,20 @@ extern "C"
         uint8_t pad[2];
     } m3FragmentEvent;
 
-    M3_API const m3FragmentEvent* m3World_FragmentEvents(m3WorldId worldId, int32_t* count);
-    M3_API const uint16_t* m3World_FragmentRecipe(m3WorldId worldId, int32_t* count);
+    /// The fragment events of the last step and their recipe buffer.
     /// Islands beyond the event capacity are still removed from the
-    /// grid (state transitions stay pure); only their EVENTS drop,
-    /// and this counter says how many, loudly.
-    M3_API int32_t m3World_FragmentEventsDropped(m3WorldId worldId);
-
-    /// Sensor overlap events, the same law as contact events but in
-    /// their own streams (a sensor touch is not a contact). shapeA
-    /// is the lower shape index; either side may be the sensor.
-    M3_API const m3ContactEvent* m3World_SensorBeginEvents(m3WorldId worldId, int32_t* count);
-    M3_API const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count);
-
-    /// A hit event: two shapes collided with approach speed
-    /// above the world threshold. Emitted at most once per contact
-    /// per step, for the fastest-approaching manifold point, and
-    /// only when either shape opted in (m3Shape_EnableHitEvents).
-    /// Streams are transient observers like contact events.
-    typedef struct m3HitEvent
+    /// grid (state transitions stay pure); only their events drop, and
+    /// fragmentsDropped says how many.
+    typedef struct m3FragmentEvents
     {
-        m3ShapeId shapeA;
-        m3ShapeId shapeB;
-        m3Pos3 point;         /// approximate contact point, world space
-        m3Vec3 normal;        /// from shape A to shape B
-        m3real approachSpeed; /// relative normal speed at impact, > 0
-    } m3HitEvent;
+        const m3FragmentEvent* fragmentEvents;
+        const uint16_t* recipe;
+        int32_t fragmentCount;
+        int32_t recipeCount;
+        int32_t fragmentsDropped;
+    } m3FragmentEvents;
 
-    M3_API const m3HitEvent* m3World_HitEvents(m3WorldId worldId, int32_t* count);
-    /// Hits beyond capacity still simulate; only their events drop,
-    /// and this counter says how many, loudly.
-    M3_API int32_t m3World_HitEventsDropped(m3WorldId worldId);
+    M3_API m3FragmentEvents m3World_GetFragmentEvents(m3WorldId worldId);
 
     /// Hit events require approach speed above this. Journaled.
     M3_API void m3World_SetHitEventThreshold(m3WorldId worldId, float value);
@@ -304,22 +330,34 @@ extern "C"
     /// this instead of polling every body.
     typedef struct m3BodyMoveEvent
     {
-        m3BodyId body;
+        m3BodyId bodyId;
         m3Transform transform;
         bool fellAsleep;
     } m3BodyMoveEvent;
 
-    M3_API const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count);
+    typedef struct m3BodyEvents
+    {
+        const m3BodyMoveEvent* moveEvents;
+        int32_t moveCount;
+    } m3BodyEvents;
+
+    M3_API m3BodyEvents m3World_GetBodyEvents(m3WorldId worldId);
 
     /// A joint break event. The id is already stale when the
     /// event is read: the joint destroyed itself. Use it as a key,
     /// not a handle.
     typedef struct m3JointBreakEvent
     {
-        m3JointId joint;
+        m3JointId jointId;
     } m3JointBreakEvent;
 
-    M3_API const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* count);
+    typedef struct m3JointEvents
+    {
+        const m3JointBreakEvent* breakEvents;
+        int32_t breakCount;
+    } m3JointEvents;
+
+    M3_API m3JointEvents m3World_GetJointEvents(m3WorldId worldId);
 
     /// Pre-solve veto: called during contact preparation, in
     /// canonical pair order, for pairs where either shape opted in
@@ -521,8 +559,8 @@ extern "C"
     /// observer data; points are world space at read time.
     typedef struct m3ContactData
     {
-        m3ShapeId shapeA;
-        m3ShapeId shapeB;
+        m3ShapeId shapeIdA;
+        m3ShapeId shapeIdB;
         m3Vec3 normal; // from shape A toward shape B
         int32_t pointCount;
         m3Pos3 points[4];

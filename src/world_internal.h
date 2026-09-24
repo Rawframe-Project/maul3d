@@ -777,15 +777,15 @@ typedef struct m3Events
 {
     // Contact events (transient observers, never snapshotted;
     // cleared on step and on restore).
-    m3HitEvent* hitEvents; // hit events, transient observers
+    m3ContactHitEvent* hitEvents; // hit events, transient observers
     int32_t hitEventCount;
     int32_t hitEventsDropped;
     m3BodyMoveEvent* moveEvents;
     int32_t moveEventCount;
-    m3ContactEvent* beginEvents;
-    m3ContactEvent* endEvents;
-    m3ContactEvent* sensorBeginEvents;
-    m3ContactEvent* sensorEndEvents;
+    m3ContactBeginEvent* beginEvents;
+    m3ContactEndEvent* endEvents;
+    m3ContactBeginEvent* sensorBeginEvents;
+    m3ContactEndEvent* sensorEndEvents;
     int32_t beginEventCount;
     int32_t endEventCount;
     // Fragment events: transient like every event stream;

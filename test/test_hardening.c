@@ -101,8 +101,8 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
 
     m3JointDef shoulder = m3DefaultJointDef();
     shoulder.type = m3_sphericalJoint;
-    shoulder.bodyA = post;
-    shoulder.bodyB = upperLink;
+    shoulder.bodyIdA = post;
+    shoulder.bodyIdB = upperLink;
     shoulder.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
     shoulder.localAnchorB = (m3Vec3){0.0f, 0.35f, 0.0f};
     shoulder.enableCone = true;
@@ -111,8 +111,8 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
 
     m3JointDef elbow = m3DefaultJointDef();
     elbow.type = m3_revoluteJoint;
-    elbow.bodyA = upperLink;
-    elbow.bodyB = lowerLink;
+    elbow.bodyIdA = upperLink;
+    elbow.bodyIdB = lowerLink;
     elbow.localAnchorA = (m3Vec3){0.0f, -0.35f, 0.0f};
     elbow.localAnchorB = (m3Vec3){0.0f, 0.35f, 0.0f};
     elbow.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
@@ -132,8 +132,8 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     m3CreateBoxShape(cart, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
     m3JointDef rail = m3DefaultJointDef();
     rail.type = m3_prismaticJoint;
-    rail.bodyA = railPost;
-    rail.bodyB = cart;
+    rail.bodyIdA = railPost;
+    rail.bodyIdB = cart;
     rail.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
     rail.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
     rail.enableLimit = true;
@@ -148,8 +148,8 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     // and then remove it, leaving the pool identity advanced.
     m3JointDef throwaway = m3DefaultJointDef();
     throwaway.type = m3_sphericalJoint;
-    throwaway.bodyA = post;
-    throwaway.bodyB = lowerLink;
+    throwaway.bodyIdA = post;
+    throwaway.bodyIdB = lowerLink;
     throwaway.localAnchorB = (m3Vec3){0.0f, -0.35f, 0.0f};
     m3JointId doomed = m3CreateJoint(&throwaway);
     m3DestroyJoint(doomed);
@@ -300,29 +300,29 @@ static void TestCapacityExhaustion(void)
     // that must never mint an id in the first place.
     m3JointDef pin = m3DefaultJointDef();
     pin.type = m3_sphericalJoint;
-    pin.bodyA = bodies[0];
-    pin.bodyB = bodies[1];
+    pin.bodyIdA = bodies[0];
+    pin.bodyIdB = bodies[1];
     m3JointId j1 = m3CreateJoint(&pin);
     CHECK(m3Joint_IsValid(j1), "joints up to capacity create");
-    pin.bodyA = bodies[1];
-    pin.bodyB = bodies[2];
+    pin.bodyIdA = bodies[1];
+    pin.bodyIdB = bodies[2];
     m3JointId j2 = m3CreateJoint(&pin);
     CHECK(m3Joint_IsValid(j2), "the second joint fills the pool");
-    pin.bodyA = bodies[2];
-    pin.bodyB = bodies[3];
+    pin.bodyIdA = bodies[2];
+    pin.bodyIdB = bodies[3];
     CHECK(!m3Joint_IsValid(m3CreateJoint(&pin)), "the joint pool refuses past capacity");
     m3DestroyJoint(j2);
     m3JointId j3 = m3CreateJoint(&pin);
     CHECK(m3Joint_IsValid(j3), "a freed joint slot recycles");
     CHECK(!m3Joint_IsValid(j2), "the destroyed joint id is stale");
 
-    pin.bodyA = bodies[0];
-    pin.bodyB = bodies[0];
+    pin.bodyIdA = bodies[0];
+    pin.bodyIdB = bodies[0];
     CHECK(!m3Joint_IsValid(m3CreateJoint(&pin)), "a self joint refuses");
     m3JointDef bad = m3DefaultJointDef();
     bad.type = m3_revoluteJoint;
-    bad.bodyA = bodies[0];
-    bad.bodyB = bodies[1];
+    bad.bodyIdA = bodies[0];
+    bad.bodyIdB = bodies[1];
     bad.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
     CHECK(!m3Joint_IsValid(m3CreateJoint(&bad)), "a hinge with no axis refuses");
 

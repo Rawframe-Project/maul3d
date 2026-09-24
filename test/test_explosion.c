@@ -301,8 +301,8 @@ static void TestVoxelCarveCoupling(void)
         def.impulsePerArea = 0.0f; // a pure carve: the bite is the test
         def.voxelCarve = 1.2f;
         m3World_Explode(world, &def);
-        int32_t eventCount = 0;
-        const m3FragmentEvent* events = m3World_FragmentEvents(world, &eventCount);
+        const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+        int32_t eventCount = m3World_GetFragmentEvents(world).fragmentCount;
         CHECK(eventCount == 1, "the freed top is exactly one island");
         if (eventCount == 1)
         {

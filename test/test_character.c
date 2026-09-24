@@ -497,8 +497,6 @@ static void TestFractureStorm(void)
                 m3VoxelChunk_ClearBox(deck, lo, hi);
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t count = 0;
-            (void)m3World_FragmentEvents(world, &count); // drained, never spawned
             m3Pos3 p = m3Character_GetPosition(hero);
             CHECK(isfinite(p.x) && isfinite(p.y) && isfinite(p.z), "the storm stays finite");
             if (i == 24 && run == 0)

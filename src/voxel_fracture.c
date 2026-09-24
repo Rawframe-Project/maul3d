@@ -138,7 +138,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         }
         m3FragmentEvent* ev = &world->events.fragmentEvents[world->events.fragmentEventCount];
         memset(ev, 0, sizeof(*ev));
-        ev->chunkShape =
+        ev->chunkShapeId =
             (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
         ev->voxelCount = count;
         if (world->events.fragmentRecipeCount + count <= M3_FRAGMENT_RECIPE_CAP)

@@ -45,8 +45,8 @@ extern "C"
 
     typedef struct m3VehicleDef
     {
-        m3BodyId chassis; // a dynamic body; destroying it destroys
-                          // the vehicle (the cascade rule)
+        m3BodyId chassisId; // a dynamic body; destroying it destroys
+                            // the vehicle (the cascade rule)
         int32_t wheelCount;
         m3WheelDef wheels[M3_VEHICLE_MAX_WHEELS];
         m3real maxSteerAngle;     // radians; full steer command turns

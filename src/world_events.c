@@ -33,52 +33,85 @@ void m3World_SetHitEventThreshold(m3WorldId worldId, float value)
     m3SetHitEventThresholdInternal(world, value);
 }
 
-const m3HitEvent* m3World_HitEvents(m3WorldId worldId, int32_t* count)
+m3ContactEvents m3World_GetContactEvents(m3WorldId worldId)
 {
+    m3ContactEvents events;
+    memset(&events, 0, sizeof(events));
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world != NULL)
     {
-        *count = 0;
-        return NULL;
+        events.beginEvents = world->events.beginEvents;
+        events.endEvents = world->events.endEvents;
+        events.hitEvents = world->events.hitEvents;
+        events.beginCount = world->events.beginEventCount;
+        events.endCount = world->events.endEventCount;
+        events.hitCount = world->events.hitEventCount;
+        events.hitsDropped = world->events.hitEventsDropped;
     }
-    *count = world->events.hitEventCount;
-    return world->events.hitEvents;
+    return events;
 }
 
-int32_t m3World_HitEventsDropped(m3WorldId worldId)
+m3SensorEvents m3World_GetSensorEvents(m3WorldId worldId)
 {
+    m3SensorEvents events;
+    memset(&events, 0, sizeof(events));
     m3World* world = m3WorldFromId(worldId);
-    return world != NULL ? world->events.hitEventsDropped : 0;
+    if (world != NULL)
+    {
+        events.beginEvents = world->events.sensorBeginEvents;
+        events.endEvents = world->events.sensorEndEvents;
+        events.beginCount = world->events.sensorBeginEventCount;
+        events.endCount = world->events.sensorEndEventCount;
+    }
+    return events;
 }
 
-const m3BodyMoveEvent* m3World_BodyMoveEvents(m3WorldId worldId, int32_t* count)
+m3FragmentEvents m3World_GetFragmentEvents(m3WorldId worldId)
 {
+    m3FragmentEvents events;
+    memset(&events, 0, sizeof(events));
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world != NULL)
     {
-        *count = 0;
-        return NULL;
+        events.fragmentEvents = world->events.fragmentEvents;
+        events.recipe = world->events.fragmentRecipe;
+        events.fragmentCount = world->events.fragmentEventCount;
+        events.recipeCount = world->events.fragmentRecipeCount;
+        events.fragmentsDropped = world->events.fragmentDropped;
     }
-    *count = world->events.moveEventCount;
-    return world->events.moveEvents;
+    return events;
 }
 
-const m3JointBreakEvent* m3World_JointBreakEvents(m3WorldId worldId, int32_t* count)
+m3BodyEvents m3World_GetBodyEvents(m3WorldId worldId)
 {
+    m3BodyEvents events;
+    memset(&events, 0, sizeof(events));
     m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world != NULL)
     {
-        *count = 0;
-        return NULL;
+        events.moveEvents = world->events.moveEvents;
+        events.moveCount = world->events.moveEventCount;
     }
-    *count = world->joints.jointBreakEventCount;
-    return world->joints.jointBreakEvents;
+    return events;
+}
+
+m3JointEvents m3World_GetJointEvents(m3WorldId worldId)
+{
+    m3JointEvents events;
+    memset(&events, 0, sizeof(events));
+    m3World* world = m3WorldFromId(worldId);
+    if (world != NULL)
+    {
+        events.breakEvents = world->joints.jointBreakEvents;
+        events.breakCount = world->joints.jointBreakEventCount;
+    }
+    return events;
 }
 
 void m3AppendJointBreakEvent(m3World* world, m3JointId joint)
 {
     // Capacity is jointCapacity: at most every joint breaks once.
-    world->joints.jointBreakEvents[world->joints.jointBreakEventCount].joint = joint;
+    world->joints.jointBreakEvents[world->joints.jointBreakEventCount].jointId = joint;
     world->joints.jointBreakEventCount += 1;
 }
 
@@ -92,108 +125,6 @@ void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* cont
     }
     world->preSolveFn = fn;
     world->preSolveContext = context;
-}
-
-const m3ContactEvent* m3World_SensorBeginEvents(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || count == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    *count = world->events.sensorBeginEventCount;
-    return world->events.sensorBeginEvents;
-}
-
-const m3ContactEvent* m3World_SensorEndEvents(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || count == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    *count = world->events.sensorEndEventCount;
-    return world->events.sensorEndEvents;
-}
-
-const m3FragmentEvent* m3World_FragmentEvents(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    if (count != NULL)
-    {
-        *count = world->events.fragmentEventCount;
-    }
-    return world->events.fragmentEvents;
-}
-
-const uint16_t* m3World_FragmentRecipe(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    if (count != NULL)
-    {
-        *count = world->events.fragmentRecipeCount;
-    }
-    return world->events.fragmentRecipe;
-}
-
-int32_t m3World_FragmentEventsDropped(m3WorldId worldId)
-{
-    m3World* world = m3WorldFromId(worldId);
-    return world != NULL ? world->events.fragmentDropped : 0;
-}
-
-const m3ContactEvent* m3World_ContactBeginEvents(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || count == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    *count = world->events.beginEventCount;
-    return world->events.beginEvents;
-}
-
-const m3ContactEvent* m3World_ContactEndEvents(m3WorldId worldId, int32_t* count)
-{
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || count == NULL)
-    {
-        if (count != NULL)
-        {
-            *count = 0;
-        }
-        return NULL;
-    }
-    *count = world->events.endEventCount;
-    return world->events.endEvents;
 }
 
 void m3ResetStepEvents(m3World* world)
@@ -221,29 +152,30 @@ static void EmitPairChange(m3World* world, uint64_t key, bool began)
     {
         return;
     }
-    m3ContactEvent event;
-    event.shapeA = (m3ShapeId){sA + 1, world->worldIndex0, world->shapes.shapePool.generations[sA]};
-    event.shapeB = (m3ShapeId){sB + 1, world->worldIndex0, world->shapes.shapePool.generations[sB]};
+    m3ShapeId idA = {sA + 1, world->worldIndex0, world->shapes.shapePool.generations[sA]};
+    m3ShapeId idB = {sB + 1, world->worldIndex0, world->shapes.shapePool.generations[sB]};
+    m3ContactBeginEvent begin = {idA, idB};
+    m3ContactEndEvent end = {idA, idB};
     int32_t room = world->contacts.pairCapacity;
     m3Events* ev = &world->events;
     if (world->shapes.shapeSensor[sA] != 0 || world->shapes.shapeSensor[sB] != 0)
     {
         if (began && ev->sensorBeginEventCount < room)
         {
-            ev->sensorBeginEvents[ev->sensorBeginEventCount++] = event;
+            ev->sensorBeginEvents[ev->sensorBeginEventCount++] = begin;
         }
         else if (!began && ev->sensorEndEventCount < room)
         {
-            ev->sensorEndEvents[ev->sensorEndEventCount++] = event;
+            ev->sensorEndEvents[ev->sensorEndEventCount++] = end;
         }
     }
     else if (began && ev->beginEventCount < room)
     {
-        ev->beginEvents[ev->beginEventCount++] = event;
+        ev->beginEvents[ev->beginEventCount++] = begin;
     }
     else if (!began && ev->endEventCount < room)
     {
-        ev->endEvents[ev->endEventCount++] = event;
+        ev->endEvents[ev->endEventCount++] = end;
     }
 }
 
@@ -289,7 +221,7 @@ void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
     {
         int32_t i = movers[m];
         m3BodyMoveEvent* e = &world->events.moveEvents[world->events.moveEventCount++];
-        e->body = (m3BodyId){i + 1, world->worldIndex0, world->bodies.bodyPool.generations[i]};
+        e->bodyId = (m3BodyId){i + 1, world->worldIndex0, world->bodies.bodyPool.generations[i]};
         e->transform = world->bodies.transforms[i];
         e->fellAsleep =
             world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] == 0;

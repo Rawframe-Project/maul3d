@@ -129,15 +129,15 @@ static void TestAnchorConventionPinned(void)
     // Clearing an EMPTY voxel is a no-op: no occupancy change, no
     // sweep (pinned as contract; the wake pass still runs).
     CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 15, 15, 15), "an empty clear is a quiet no-op");
-    int32_t count = 0;
-    m3World_FragmentEvents(world, &count);
+    int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a no-op clear does not sweep");
     CHECK(chunk->filledCount == 5, "a no-op clear moves nothing");
 
     // The first occupancy-changing clear sweeps the whole grid:
     // one platform voxel goes directly, the three others fragment.
     CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 4, 7, 4), "the platform corner clears");
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
+    const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+    count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "the rest of the unanchored platform fragments");
     CHECK(events[0].voxelCount == 3, "the island is the three remaining platform voxels");
     CHECK(chunk->filledCount == 1, "only the grounded stud remains");
@@ -158,15 +158,15 @@ static void TestFractureStorms(void)
     int32_t lo[3] = {0, 0, 0};
     int32_t hi[3] = {15, 0, 15};
     CHECK(m3VoxelChunk_ClearBox(full, lo, hi) == 256, "the anchor layer clears");
-    int32_t count = 0;
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
+    const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+    int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "everything above the anchor is one island");
     CHECK(events[0].voxelCount == 4096 - 256, "the island is the whole upper block");
     CHECK(events[0].recipeStart >= 0, "a 3840-voxel recipe still fits the buffer");
     m3World* wp = m3WorldFromId(world);
     CHECK(wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[full.index1 - 1]].filledCount == 0,
           "the storm empties the grid");
-    CHECK(m3World_FragmentEventsDropped(world) == 0, "storm one drops nothing");
+    CHECK(m3World_GetFragmentEvents(world).fragmentsDropped == 0, "storm one drops nothing");
     m3DestroyWorld(world);
 
     // Storm two: 448 isolated floating studs in one chunk; the
@@ -192,9 +192,10 @@ static void TestFractureStorms(void)
     m3ShapeId cloud = m3CreateVoxelChunkShape(ground2, &sd, voxels, NULL, 1.0f);
     CHECK(m3VoxelChunk_ClearVoxel(cloud, 0, 0, 0), "the trigger clear lands");
     count = 0;
-    events = m3World_FragmentEvents(world2, &count);
+    events = m3World_GetFragmentEvents(world2).fragmentEvents;
+    count = m3World_GetFragmentEvents(world2).fragmentCount;
     CHECK(count == M3_FRAGMENT_EVENT_CAP, "events fill to the cap");
-    CHECK(m3World_FragmentEventsDropped(world2) == 448 - M3_FRAGMENT_EVENT_CAP,
+    CHECK(m3World_GetFragmentEvents(world2).fragmentsDropped == 448 - M3_FRAGMENT_EVENT_CAP,
           "the surplus is counted loudly");
     m3World* wp2 = m3WorldFromId(world2);
     CHECK(wp2->voxels.voxelData[wp2->shapes.shapeVoxelIndex[cloud.index1 - 1]].filledCount == 0,

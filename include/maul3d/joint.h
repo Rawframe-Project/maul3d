@@ -79,8 +79,8 @@ extern "C"
     typedef struct m3JointDef
     {
         int32_t type; // m3JointType
-        m3BodyId bodyA;
-        m3BodyId bodyB;
+        m3BodyId bodyIdA;
+        m3BodyId bodyIdB;
         m3Vec3 localAnchorA;
         m3Vec3 localAnchorB;
         /// Hinge axis per body frame (unit; revolute only). The two

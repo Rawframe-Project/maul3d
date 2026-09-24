@@ -42,8 +42,8 @@ static void TestStaleIdsEverywhere(void)
     m3ShapeId shape = m3CreateSphereShape(body, &sd, &ball);
     m3BodyId other = m3CreateBody(world, &bd);
     m3JointDef jd = m3DefaultJointDef();
-    jd.bodyA = body;
-    jd.bodyB = other;
+    jd.bodyIdA = body;
+    jd.bodyIdB = other;
     m3JointId joint = m3CreateJoint(&jd);
 
     m3DestroyBody(body); // cascades the shape and the joint
@@ -63,8 +63,8 @@ static void TestStaleIdsEverywhere(void)
 
     CHECK(!m3Shape_IsValid(m3CreateSphereShape(body, &sd, &ball)),
           "a create on a stale body refuses");
-    jd.bodyA = body;
-    jd.bodyB = other;
+    jd.bodyIdA = body;
+    jd.bodyIdB = other;
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a joint on a stale body refuses");
 
     // A generation-stale id (slot recycled) must be just as dead.
@@ -87,13 +87,9 @@ static void TestStaleIdsEverywhere(void)
     CHECK(!m3World_StartJournal(world, buf, (int32_t)sizeof(buf)), "a dead world cannot journal");
     CHECK(m3World_StopJournal(world) == -1, "a dead world has no journal to end");
     CHECK(!m3World_ReplayJournal(world, buf, 16), "a dead world cannot replay");
-    CHECK(m3World_ContactBeginEvents(world, NULL) == NULL, "a dead world has no events");
-    m3WorldId live = SmallWorld();
-    CHECK(m3World_ContactBeginEvents(live, NULL) != NULL || 1, "a null count pointer is tolerated");
-    m3World_ContactEndEvents(live, NULL);
-    m3World_SensorBeginEvents(live, NULL);
-    m3World_SensorEndEvents(live, NULL);
-    m3DestroyWorld(live);
+    m3ContactEvents dead = m3World_GetContactEvents(world);
+    CHECK(dead.beginEvents == NULL && dead.beginCount == 0, "a dead world has no events");
+    CHECK(m3World_GetSensorEvents(world).endCount == 0, "nor sensor events");
 }
 
 static void TestSnapshotRefusals(void)
@@ -157,8 +153,8 @@ static int32_t RecordSession(m3WorldId world, uint8_t* journal, int32_t cap)
     m3CreateSphereShape(a, &sd, &ball);
     m3CreateSphereShape(b, &sd, &ball);
     m3JointDef jd = m3DefaultJointDef();
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     m3CreateJoint(&jd);
     m3Body_SetLinearVelocity(b, (m3Vec3){0.5f, 0.0f, 0.0f});
     m3Body_SetAngularVelocity(b, (m3Vec3){0.0f, 0.7f, 0.0f});
@@ -290,8 +286,8 @@ static void TestCascadeRaces(void)
         {
             bd.position = (m3Pos3){(double)i - 1.0, 1.0, 0.0};
             spokes[i] = m3CreateBody(world, &bd);
-            jd.bodyA = hub;
-            jd.bodyB = spokes[i];
+            jd.bodyIdA = hub;
+            jd.bodyIdB = spokes[i];
             joints[i] = m3CreateJoint(&jd);
         }
         m3DestroyJoint(joints[1]); // manual destroy first
@@ -299,12 +295,12 @@ static void TestCascadeRaces(void)
         CHECK(!m3Joint_IsValid(joints[0]) && !m3Joint_IsValid(joints[2]),
               "the cascade takes the hub's remaining joints");
         // The survivors joint among themselves: their lists are clean.
-        jd.bodyA = spokes[0];
-        jd.bodyB = spokes[1];
+        jd.bodyIdA = spokes[0];
+        jd.bodyIdB = spokes[1];
         CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "survivors accept new joints");
         // Destroy in the OTHER order too: joint then body then body.
-        jd.bodyA = spokes[1];
-        jd.bodyB = spokes[2];
+        jd.bodyIdA = spokes[1];
+        jd.bodyIdB = spokes[2];
         m3JointId last = m3CreateJoint(&jd);
         m3DestroyJoint(last);
         m3DestroyBody(spokes[2]);
@@ -520,8 +516,8 @@ static void TestRuntimeOpsRedTeam(void)
         }
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_revoluteJoint;
-        jd.bodyA = crates[0];
-        jd.bodyB = crates[1];
+        jd.bodyIdA = crates[0];
+        jd.bodyIdB = crates[1];
         jd.localAnchorA = (m3Vec3){0.7f, 0.0f, 0.0f};
         jd.localAnchorB = (m3Vec3){-0.7f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};

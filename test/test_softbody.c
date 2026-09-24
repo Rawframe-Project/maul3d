@@ -388,8 +388,8 @@ static void TestJellySeesaw(void)
     m3CreateBoxShape(plank, &sd, (m3Vec3){1.5f, 0.05f, 0.4f});
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
-    jd.bodyA = post;
-    jd.bodyB = plank;
+    jd.bodyIdA = post;
+    jd.bodyIdB = plank;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3CreateJoint(&jd);
@@ -588,8 +588,6 @@ static void TestSoftFractureStorm(void)
                 m3VoxelChunk_ClearBox(chunk, lo, hi);
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t count = 0;
-            (void)m3World_FragmentEvents(world, &count);
             for (int32_t pp = 0; pp < 125; pp += 31)
             {
                 m3Pos3 q = m3SoftBody_GetParticlePosition(jelly, pp);

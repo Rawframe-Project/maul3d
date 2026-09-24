@@ -46,7 +46,7 @@ static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
         *outChassis = chassis;
     }
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     for (int32_t w = 0; w < 4; ++w)
     {
@@ -533,8 +533,6 @@ static void TestStormUnderMovingCar(void)
                 }
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t count = 0;
-            (void)m3World_FragmentEvents(world, &count);
             m3Pos3 p = m3Body_GetPosition(chassis);
             CHECK(isfinite(p.x) && isfinite(p.y) && isfinite(p.z), "the storm drive stays finite");
         }
@@ -749,7 +747,7 @@ static void TestVehicleContracts(void)
     m3CreateBoxShape(chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
 
     m3VehicleDef vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 0;
     CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "zero wheels refuse");
     vd.wheelCount = M3_VEHICLE_MAX_WHEELS + 1;
@@ -758,17 +756,17 @@ static void TestVehicleContracts(void)
     vd.wheels[2].radius = 0.0f;
     CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a zero radius refuses");
     vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     vd.wheels[1].travel = vd.wheels[1].restLength + 0.1f;
     CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "travel past rest length refuses");
     vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     vd.wheels[0].direction = (m3Vec3){0.0f, 0.0f, 0.0f};
     CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a zero direction refuses");
     vd = m3DefaultVehicleDef();
-    vd.chassis = chassis;
+    vd.chassisId = chassis;
     vd.wheelCount = 4;
     float bad;
     uint32_t nanBits = 0x7FC00000u;
@@ -781,14 +779,14 @@ static void TestVehicleContracts(void)
     st.position = (m3Pos3){4.0, 1.0, 0.0};
     m3BodyId wallBody = m3CreateBody(world, &st);
     vd = m3DefaultVehicleDef();
-    vd.chassis = wallBody;
+    vd.chassisId = wallBody;
     vd.wheelCount = 4;
     CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a static chassis refuses");
 
     // The airborne contract: a car in the air reads zero compression
     // and no contact on every wheel.
     m3VehicleDef good = m3DefaultVehicleDef();
-    good.chassis = chassis;
+    good.chassisId = chassis;
     good.wheelCount = 4;
     for (int32_t w = 0; w < 4; ++w)
     {

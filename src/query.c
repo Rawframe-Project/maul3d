@@ -558,9 +558,9 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
     uint64_t key = world->contacts.pairKeys[pair];
     int32_t shapeA = (int32_t)(key >> 32);
     int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-    out->shapeA =
+    out->shapeIdA =
         (m3ShapeId){shapeA + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeA]};
-    out->shapeB =
+    out->shapeIdB =
         (m3ShapeId){shapeB + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeB]};
     out->normal = manifold->normal;
     int32_t count = manifold->pointCount;

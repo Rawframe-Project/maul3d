@@ -259,15 +259,15 @@ static void TestHostileJointDefsAndCommands(void)
     m3BodyId b = m3CreateBody(world, &bd);
 
     m3JointDef jd = m3DefaultJointDef();
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){M3_TEST_NAN, 0.0f, 0.0f};
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a poisoned anchor refuses");
 
     jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.enableLimit = true;
     jd.lowerLimit = 1.0f;
     jd.upperLimit = -1.0f;
@@ -275,8 +275,8 @@ static void TestHostileJointDefsAndCommands(void)
 
     jd = m3DefaultJointDef();
     jd.type = m3_prismaticJoint;
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.enableMotor = true;
     jd.motorSpeed = M3_TEST_INF;
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "an infinite motor refuses");
@@ -285,8 +285,8 @@ static void TestHostileJointDefsAndCommands(void)
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "negative motor effort refuses");
 
     jd = m3DefaultJointDef();
-    jd.bodyA = a;
-    jd.bodyB = b;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
     jd.enableCone = true;
     jd.coneAngle = -0.5f;
     CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a negative cone refuses");

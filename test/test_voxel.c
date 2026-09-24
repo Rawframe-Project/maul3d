@@ -551,7 +551,7 @@ static void TestFractureBridge(void)
     // Cut the left joint: still anchored through the right pillar.
     int32_t count = 0;
     CHECK(m3VoxelChunk_ClearVoxel(bridge, 3, 8, 8), "the left cut lands");
-    m3World_FragmentEvents(world, &count);
+    count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a span anchored through one pillar drops nothing");
 
     // Snapshot here: the rollback must re-derive the same fracture.
@@ -564,10 +564,11 @@ static void TestFractureBridge(void)
     {
         // Cut the right joint: the middle span (x = 4..11) hangs.
         CHECK(m3VoxelChunk_ClearVoxel(bridge, 12, 8, 8), "the right cut lands");
-        const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
+        const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+        count = m3World_GetFragmentEvents(world).fragmentCount;
         CHECK(count == 1, "the stranded span is exactly one island");
         CHECK(events[0].voxelCount == 8, "the island is the hand-counted eight voxels");
-        CHECK(events[0].chunkShape.index1 == bridge.index1, "the event names its chunk");
+        CHECK(events[0].chunkShapeId.index1 == bridge.index1, "the event names its chunk");
         CHECK(events[0].boundsLo[0] == 4 && events[0].boundsHi[0] == 11 &&
                   events[0].boundsLo[1] == 8 && events[0].boundsHi[1] == 8,
               "the island bounds are analytic");
@@ -576,8 +577,7 @@ static void TestFractureBridge(void)
                   events[0].comChunk.y > 8.49f && events[0].comChunk.y < 8.51f,
               "the island center of mass is analytic");
         CHECK(events[0].recipeStart >= 0 && events[0].recipeCount == 8, "the recipe fits");
-        int32_t recipeTotal = 0;
-        const uint16_t* recipe = m3World_FragmentRecipe(world, &recipeTotal);
+        const uint16_t* recipe = m3World_GetFragmentEvents(world).recipe;
         bool exact = true;
         for (int32_t k = 0; k < 8; ++k)
         {
@@ -592,7 +592,7 @@ static void TestFractureBridge(void)
         }
         CHECK(exact, "the recipe decodes to exactly the stranded voxels in canonical order");
         CHECK(chunk->filledCount == 18, "the island left the grid with the cut");
-        CHECK(m3World_FragmentEventsDropped(world) == 0, "nothing was dropped");
+        CHECK(m3World_GetFragmentEvents(world).fragmentsDropped == 0, "nothing was dropped");
 
         // The pillars remain and still collide: a ray finds one.
         m3RayCastResult hit = m3World_CastRayClosest(
@@ -604,11 +604,11 @@ static void TestFractureBridge(void)
         {
             // A step clears the transient streams.
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3World_FragmentEvents(world, &count);
+            count = m3World_GetFragmentEvents(world).fragmentCount;
             CHECK(count == 0, "the next step clears fragment events");
             // Roll back to before the second cut and do it again.
             CHECK(m3World_Restore(world, snap, snapBytes), "the fracture rollback lands");
-            m3World_FragmentEvents(world, &count);
+            count = m3World_GetFragmentEvents(world).fragmentCount;
             CHECK(count == 0, "restore clears fragment events");
             CHECK(chunk->filledCount == 27, "the rollback restores the pre-cut grid");
         }
@@ -641,8 +641,8 @@ static void TestFractureTwoIslands(void)
     CHECK(m3Shape_IsValid(tee), "the tee creates");
 
     CHECK(m3VoxelChunk_ClearVoxel(tee, 8, 5, 8), "the connector clears");
-    int32_t count = 0;
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
+    const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+    int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 2, "both arms strand in one edit");
     CHECK(events[0].voxelCount == 2 && events[1].voxelCount == 2, "each arm is two voxels");
     CHECK(events[0].boundsLo[0] == 6 && events[1].boundsLo[0] == 9,
@@ -993,8 +993,8 @@ static void TestFillWeightsFragments(void)
     CHECK(m3VoxelChunk_SetFill(tee, 10, 5, 8, 85), "the far arm wears to a third");
 
     CHECK(m3VoxelChunk_ClearVoxel(tee, 8, 5, 8), "the connector clears");
-    int32_t count = 0;
-    const m3FragmentEvent* events = m3World_FragmentEvents(world, &count);
+    const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
+    int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "the two-arm island strands as one fragment");
     // Mass: (255 + 85) / 255 cells = 4/3 of a unit cell.
     CHECK(events[0].mass > 1.32f && events[0].mass < 1.34f, "the fragment weighs its fills");

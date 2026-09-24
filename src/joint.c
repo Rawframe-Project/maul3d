@@ -543,19 +543,19 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId;
     }
-    m3World* world = m3WorldFromIndex0(def->bodyA.world0);
+    m3World* world = m3WorldFromIndex0(def->bodyIdA.world0);
     if (!JointDefIsValid(def))
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId;
     }
-    if (world == NULL || def->bodyB.world0 != def->bodyA.world0)
+    if (world == NULL || def->bodyIdB.world0 != def->bodyIdA.world0)
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId; // both bodies must share a world
     }
-    int32_t bodyA = m3BodySlot(world, def->bodyA);
-    int32_t bodyB = m3BodySlot(world, def->bodyB);
+    int32_t bodyA = m3BodySlot(world, def->bodyIdA);
+    int32_t bodyB = m3BodySlot(world, def->bodyIdB);
     if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
     {
         m3Refuse(world, m3_errorInvalid);

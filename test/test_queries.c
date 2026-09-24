@@ -36,35 +36,34 @@ static void TestContactEvents(void)
 
     int32_t begins = 0;
     int32_t ends = 0;
-    m3ContactEvent firstBegin;
+    m3ContactBeginEvent firstBegin;
     memset(&firstBegin, 0, sizeof(firstBegin));
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        int32_t n = 0;
-        const m3ContactEvent* ev = m3World_ContactBeginEvents(world, &n);
+        const m3ContactBeginEvent* ev = m3World_GetContactEvents(world).beginEvents;
+        int32_t n = m3World_GetContactEvents(world).beginCount;
         if (n > 0 && begins == 0)
         {
             firstBegin = ev[0];
         }
         begins += n;
-        m3World_ContactEndEvents(world, &n);
+        n = m3World_GetContactEvents(world).endCount;
         ends += n;
     }
     CHECK(begins == 1, "one begin event for the landing");
     CHECK(ends == 0, "no end event while resting");
-    CHECK(firstBegin.shapeA.index1 == floorShape.index1 &&
-              firstBegin.shapeB.index1 == ballShape.index1,
+    CHECK(firstBegin.shapeIdA.index1 == floorShape.index1 &&
+              firstBegin.shapeIdB.index1 == ballShape.index1,
           "the begin event names the pair in canonical order");
-    CHECK(m3Shape_IsValid(firstBegin.shapeA) && m3Shape_IsValid(firstBegin.shapeB),
+    CHECK(m3Shape_IsValid(firstBegin.shapeIdA) && m3Shape_IsValid(firstBegin.shapeIdB),
           "event ids are live handles");
 
     m3Body_SetLinearVelocity(ball, (m3Vec3){0.0f, 8.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        int32_t n = 0;
-        m3World_ContactEndEvents(world, &n);
+        int32_t n = m3World_GetContactEvents(world).endCount;
         ends += n;
     }
     CHECK(ends == 1, "one end event for the launch");
@@ -74,10 +73,9 @@ static void TestContactEvents(void)
     void* snap = malloc((size_t)snapBytes);
     CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "snapshot writes");
     CHECK(m3World_Restore(world, snap, snapBytes), "snapshot restores");
-    int32_t n = 1;
-    m3World_ContactBeginEvents(world, &n);
+    int32_t n = m3World_GetContactEvents(world).beginCount;
     CHECK(n == 0, "restore clears begin events");
-    m3World_ContactEndEvents(world, &n);
+    n = m3World_GetContactEvents(world).endCount;
     CHECK(n == 0, "restore clears end events");
     free(snap);
     m3DestroyWorld(world);
@@ -220,19 +218,20 @@ static void TestEventDeterminism(void)
         for (int32_t i = 0; i < 240; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t n = 0;
-            const m3ContactEvent* ev = m3World_ContactBeginEvents(world, &n);
+            const m3ContactBeginEvent* ev = m3World_GetContactEvents(world).beginEvents;
+            int32_t n = m3World_GetContactEvents(world).beginCount;
             for (int32_t k = 0; k < n; ++k)
             {
-                h = (h ^ (uint64_t)ev[k].shapeA.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)ev[k].shapeB.index1) * 0x100000001B3ull;
+                h = (h ^ (uint64_t)ev[k].shapeIdA.index1) * 0x100000001B3ull;
+                h = (h ^ (uint64_t)ev[k].shapeIdB.index1) * 0x100000001B3ull;
                 h = (h ^ (uint64_t)i) * 0x100000001B3ull;
             }
-            ev = m3World_ContactEndEvents(world, &n);
+            const m3ContactEndEvent* endEv = m3World_GetContactEvents(world).endEvents;
+            n = m3World_GetContactEvents(world).endCount;
             for (int32_t k = 0; k < n; ++k)
             {
-                h = (h ^ (uint64_t)ev[k].shapeA.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)ev[k].shapeB.index1) * 0x100000001B3ull;
+                h = (h ^ (uint64_t)endEv[k].shapeIdA.index1) * 0x100000001B3ull;
+                h = (h ^ (uint64_t)endEv[k].shapeIdB.index1) * 0x100000001B3ull;
                 h = (h ^ (uint64_t)(i + 7777)) * 0x100000001B3ull;
             }
         }
@@ -442,12 +441,11 @@ static void TestSensorPassThrough(void)
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        int32_t n = 0;
-        m3World_SensorBeginEvents(world, &n);
+        int32_t n = m3World_GetSensorEvents(world).beginCount;
         sensorBegins += n;
-        m3World_SensorEndEvents(world, &n);
+        n = m3World_GetSensorEvents(world).endCount;
         sensorEnds += n;
-        m3World_ContactBeginEvents(world, &n);
+        n = m3World_GetContactEvents(world).beginCount;
         contactBegins += n;
     }
     CHECK(sensorBegins == 1, "one sensor begin on entry");
@@ -494,10 +492,9 @@ static void TestSensorSleepAndBullets(void)
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        int32_t n = 0;
-        m3World_SensorBeginEvents(world, &n);
+        int32_t n = m3World_GetSensorEvents(world).beginCount;
         begins += n;
-        m3World_SensorEndEvents(world, &n);
+        n = m3World_GetSensorEvents(world).endCount;
         ends += n;
     }
     m3Vec3 v = m3Body_GetLinearVelocity(sleeper);

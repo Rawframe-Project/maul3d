@@ -71,7 +71,7 @@ extern "C"
     /// index ascending on ties).
     typedef struct m3BodyDiff
     {
-        m3BodyId body;        /// the id under world A's numbering
+        m3BodyId bodyId;      /// the id under world A's numbering
         m3real positionError; /// |pA - pB|, meters
         m3real rotationError; /// 1 - |dot(qA, qB)|, unitless
         m3real velocityError; /// |vA - vB| + |wA - wB|

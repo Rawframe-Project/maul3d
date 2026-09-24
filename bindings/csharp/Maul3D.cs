@@ -131,8 +131,8 @@ namespace Maul3D
     public struct JointDef
     {
         public int Type; // JointType
-        public BodyId BodyA;
-        public BodyId BodyB;
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
         public Vec3 LocalAnchorA;
         public Vec3 LocalAnchorB;
         public Vec3 LocalAxisA;

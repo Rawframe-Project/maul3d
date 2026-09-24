@@ -64,8 +64,8 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
         m3CreateBoxShape(door, &sd, (m3Vec3){0.8f, 1.0f, 0.1f});
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_revoluteJoint;
-        jd.bodyA = post;
-        jd.bodyB = door;
+        jd.bodyIdA = post;
+        jd.bodyIdB = door;
         jd.localAnchorA = (m3Vec3){0.2f, 0.0f, 0.0f};
         jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -542,7 +542,7 @@ static int DiffViews(const m3ReplayView* va, const m3ReplayView* vb)
     printf("m3replay: %d differing bodies, worst first:\n", total);
     for (int32_t i = 0; i < written; ++i)
     {
-        printf("  body %4d  pos %.6f  rot %.6f  vel %.6f%s%s\n", rows[i].body.index1,
+        printf("  body %4d  pos %.6f  rot %.6f  vel %.6f%s%s\n", rows[i].bodyId.index1,
                (double)rows[i].positionError, (double)rows[i].rotationError,
                (double)rows[i].velocityError, rows[i].onlyInA ? "  ONLY-A" : "",
                rows[i].onlyInB ? "  ONLY-B" : "");
@@ -645,10 +645,10 @@ static int DiffTest(void)
     }
     // The kicked door is body index 3 (ground, post, door, then
     // rain), reported first by error magnitude.
-    if (rows[0].body.index1 != 3)
+    if (rows[0].bodyId.index1 != 3)
     {
         fprintf(stderr, "difftest: expected the door (body 3) first, got %d\n",
-                rows[0].body.index1);
+                rows[0].bodyId.index1);
         return 1;
     }
     ScrubFree(&sa);

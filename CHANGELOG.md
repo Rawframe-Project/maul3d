@@ -227,6 +227,16 @@ Work toward 0.0.1, the first release of the reworked library.
   return an m3RayCastResult and m3World_CastRayAll fills m3RayHit
   entries without the hit flag, as in Maul2D; both name the shape
   field shapeId.
+- Events take Maul2D's form: m3World_GetContactEvents returns begin,
+  end and hit streams with their counts and the hit drop count
+  (m3ContactBeginEvent, m3ContactEndEvent, m3ContactHitEvent), and
+  m3World_GetSensorEvents, m3World_GetFragmentEvents (events, recipe
+  buffer and drop count), m3World_GetBodyEvents and
+  m3World_GetJointEvents do the same for their streams. They replace
+  eleven pointer-and-count functions. Struct fields that hold ids end
+  in Id: shapeIdA and shapeIdB in events and m3ContactData, bodyIdA
+  and bodyIdB in m3JointDef, bodyId in m3BodyMoveEvent and m3BodyDiff,
+  jointId, chunkShapeId and chassisId.
 
 ### Removed
 

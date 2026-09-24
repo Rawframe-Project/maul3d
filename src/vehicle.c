@@ -118,10 +118,10 @@ static bool VehicleDefValid(const m3World* world, const m3VehicleDef* def)
             return false;
         }
     }
-    int32_t chassis = def->chassis.index1 - 1;
+    int32_t chassis = def->chassisId.index1 - 1;
     return chassis >= 0 && chassis < world->bodies.bodyCapacity &&
            world->bodies.bodyPool.alive[chassis] != 0 &&
-           world->bodies.bodyPool.generations[chassis] == def->chassis.generation &&
+           world->bodies.bodyPool.generations[chassis] == def->chassisId.generation &&
            world->bodies.types[chassis] == (uint8_t)m3_dynamicBody;
 }
 
@@ -165,7 +165,7 @@ int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def)
         return -1;
     }
     m3Vehicles* v = &world->vehicles;
-    int32_t chassis = def->chassis.index1 - 1;
+    int32_t chassis = def->chassisId.index1 - 1;
     v->vehChassis[slot] = chassis;
     v->vehChassisGen[slot] = world->bodies.bodyPool.generations[chassis];
     v->vehWheelCount[slot] = def->wheelCount;

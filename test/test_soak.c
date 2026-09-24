@@ -72,8 +72,8 @@ static m3WorldId BuildSoakZoo(m3BodyId* kicker)
     m3BodyId link = m3CreateBody(world, &linkDef);
     m3CreateCapsuleShape(link, &sd, &(m3Capsule){{0.0f, 0.3f, 0.0f}, {0.0f, -0.3f, 0.0f}, 0.1f});
     m3JointDef jd = m3DefaultJointDef();
-    jd.bodyA = post;
-    jd.bodyB = link;
+    jd.bodyIdA = post;
+    jd.bodyIdB = link;
     jd.localAnchorB = (m3Vec3){0.0f, 0.35f, 0.0f};
     m3CreateJoint(&jd);
 
