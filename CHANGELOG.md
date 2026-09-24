@@ -249,6 +249,13 @@ Work toward 0.0.1, the first release of the reworked library.
   m3SolidDraw, m3ExtraDraw, m3World_DrawSolid and m3World_DrawExtras
   are gone. They were split only to keep an old ABI. Callbacks are
   camelCase fields (drawSegment, drawPoint, drawTriangle).
+- Defs carry every setting a setter changes, as Maul2D's do: m3BodyDef
+  gains motionLocks, enableSleep, sleepThreshold, isEnabled and
+  enableFastRotation, m3ShapeDef gains surfaceVelocity, and m3WorldDef
+  gains maximumAngularSpeed; its enableSleeping and enableContinuous
+  are bools. Motion locks are an m3MotionLocks struct of six flags
+  (like m2MotionLocks) instead of a bit mask. The C# binding's defs
+  follow.
 
 ### Removed
 

@@ -49,6 +49,9 @@ static inline void m3WakeIfDynamic(m3World* world, int32_t body)
 // as one block, so the flag rides for free.
 #define M3_LOCKS_ALLOW_FAST_ROTATION 0x40u
 
+// The six lock flags as bits 0..5: linear x, y, z, then angular x, y, z.
+uint8_t m3LockBits(m3MotionLocks locks);
+
 void m3SetAllowFastRotationInternal(m3World* world, int32_t index, int32_t allow);
 
 void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name);

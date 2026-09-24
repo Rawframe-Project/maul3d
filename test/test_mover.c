@@ -13,6 +13,14 @@
 #include <stdio.h>
 #include <string.h>
 
+// Motion locks from bits 0..5: linear x, y, z, then angular x, y, z.
+static m3MotionLocks Locks(uint32_t bits)
+{
+    m3MotionLocks l = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
+                       (bits & 0x08u) != 0, (bits & 0x10u) != 0, (bits & 0x20u) != 0};
+    return l;
+}
+
 static void TestRigidWalkerRecipe(void)
 {
     // The rigid character RECIPE on the public API alone: a
@@ -42,8 +50,8 @@ static void TestRigidWalkerRecipe(void)
     hs.friction = 0.0f;
     m3Capsule cap = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.35f};
     m3CreateCapsuleShape(hero, &hs, &cap);
-    m3Body_SetMotionLocks(hero, 0x38); // angular x, y, z: upright
-    float mass = 556.0f;               // the capsule at density 985
+    m3Body_SetMotionLocks(hero, Locks(0x38)); // angular x, y, z: upright
+    float mass = 556.0f;                      // the capsule at density 985
 
     for (int32_t i = 0; i < 300; ++i)
     {

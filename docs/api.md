@@ -422,7 +422,7 @@ Rigid bodies: creation and destruction, motion, forces and impulses, mass, sleep
 ```c
 m3BodyDef m3DefaultBodyDef(void);
 ```
-Returns a def with pinned defaults (identity rotation, gravity scale one) and a valid cookie.
+Returns a def with pinned defaults (identity rotation, gravity scale one, sleep and simulation enabled) and a valid cookie.
 
 ```c
 m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def);
@@ -491,12 +491,12 @@ bool m3Body_IsEnabled(m3BodyId bodyId);
 ```
 
 ```c
-void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks);
+void m3Body_SetMotionLocks(m3BodyId bodyId, m3MotionLocks locks);
 ```
-Motion locks: bits 0..2 freeze linear x, y, z; bits 3..5 freeze angular x, y, z. Locked components re-zero every substep, so 2.5D scenes and upright enemies stay exact.
+Motion locks: locked components re-zero every substep, so 2.5D scenes and upright enemies stay exact. Journaled.
 
 ```c
-uint32_t m3Body_GetMotionLocks(m3BodyId bodyId);
+m3MotionLocks m3Body_GetMotionLocks(m3BodyId bodyId);
 ```
 
 ```c

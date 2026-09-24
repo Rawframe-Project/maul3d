@@ -58,6 +58,9 @@ extern "C"
         /// 0.01 to 0.1 reads as soft ground. Without it a sphere
         /// pile literally never stops rolling or sleeping.
         float rollingResistance;
+        /// Conveyor velocity of the surface, world frame: contacts
+        /// drive the tangential speed toward it. Zero by default.
+        m3Vec3 surfaceVelocity;
         uint64_t userData;
         /// A sensor detects overlap and fires its own begin and end
         /// events but never produces contact response: bodies pass

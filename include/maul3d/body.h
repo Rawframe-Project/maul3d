@@ -21,6 +21,18 @@ extern "C"
         m3_dynamicBody = 2,
     } m3BodyType;
 
+    /// Per-axis motion locks. A locked axis holds still: its velocity is
+    /// zeroed every substep, so contacts cannot bank motion on it.
+    typedef struct m3MotionLocks
+    {
+        bool linearX;
+        bool linearY;
+        bool linearZ;
+        bool angularX;
+        bool angularY;
+        bool angularZ;
+    } m3MotionLocks;
+
     typedef struct m3BodyDef
     {
         int32_t type;           // m3BodyType
@@ -38,11 +50,16 @@ extern "C"
         /// flag buys the dynamic-target sweep. Bullet versus bullet
         /// is not resolved (a documented limitation).
         bool isBullet;
+        m3MotionLocks motionLocks;
+        bool enableSleep;        // false = this body never sleeps
+        float sleepThreshold;    // resting speed; zero = the world default
+        bool isEnabled;          // false = created outside simulation and queries
+        bool enableFastRotation; // may spin past the world's angular speed cap
         int32_t internalValue;
     } m3BodyDef;
 
     /// Returns a def with pinned defaults (identity rotation, gravity
-    /// scale one) and a valid cookie.
+    /// scale one, sleep and simulation enabled) and a valid cookie.
     M3_API m3BodyDef m3DefaultBodyDef(void);
 
     /// Create a body. Returns the null id on an invalid def, a stale
@@ -83,11 +100,10 @@ extern "C"
     M3_API void m3Body_Enable(m3BodyId bodyId);
     M3_API void m3Body_Disable(m3BodyId bodyId);
     M3_API bool m3Body_IsEnabled(m3BodyId bodyId);
-    /// Motion locks: bits 0..2 freeze linear x, y, z; bits 3..5
-    /// freeze angular x, y, z. Locked components re-zero every
-    /// substep, so 2.5D scenes and upright enemies stay exact.
-    M3_API void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks);
-    M3_API uint32_t m3Body_GetMotionLocks(m3BodyId bodyId);
+    /// Motion locks: locked components re-zero every substep, so 2.5D
+    /// scenes and upright enemies stay exact. Journaled.
+    M3_API void m3Body_SetMotionLocks(m3BodyId bodyId, m3MotionLocks locks);
+    M3_API m3MotionLocks m3Body_GetMotionLocks(m3BodyId bodyId);
     /// Let this body spin past the world's angular speed cap (for
     /// wheels and other legal fast spinners). Journaled.
     M3_API void m3Body_EnableFastRotation(m3BodyId bodyId, bool flag);

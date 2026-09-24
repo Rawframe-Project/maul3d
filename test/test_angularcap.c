@@ -16,6 +16,20 @@
 #include <stdio.h>
 #include <string.h>
 
+// Motion locks from bits 0..5: linear x, y, z, then angular x, y, z.
+static m3MotionLocks Locks(uint32_t bits)
+{
+    m3MotionLocks l = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
+                       (bits & 0x08u) != 0, (bits & 0x10u) != 0, (bits & 0x20u) != 0};
+    return l;
+}
+
+static uint32_t Bits(m3MotionLocks l)
+{
+    return (l.linearX ? 0x01u : 0u) | (l.linearY ? 0x02u : 0u) | (l.linearZ ? 0x04u : 0u) |
+           (l.angularX ? 0x08u : 0u) | (l.angularY ? 0x10u : 0u) | (l.angularZ ? 0x20u : 0u);
+}
+
 // Zero gravity, no contacts: spin evolves through damping, gyro,
 // and the cap alone. Cubes have isotropic inertia, so a clean spin
 // about any axis is gyroscopically silent.
@@ -55,7 +69,7 @@ static void TestCapAndEscape(void)
     m3Body_EnableFastRotation(wheel, true);
     CHECK(m3Body_IsFastRotationEnabled(wheel), "the flag reads back");
     CHECK(!m3Body_IsFastRotationEnabled(wild), "the default is off");
-    CHECK(m3Body_GetMotionLocks(wheel) == 0u, "the flag is not a motion lock");
+    CHECK(Bits(m3Body_GetMotionLocks(wheel)) == 0u, "the flag is not a motion lock");
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -89,14 +103,14 @@ static void TestRuntimeCapAndLockInterplay(void)
     // bits: lock writes preserve the flag, the flag write preserves
     // the locks, and the locks getter never leaks bit 6.
     m3Body_EnableFastRotation(top, true);
-    m3Body_SetMotionLocks(top, 0x3Fu);
+    m3Body_SetMotionLocks(top, Locks(0x3Fu));
     CHECK(m3Body_IsFastRotationEnabled(top), "locks do not clobber the flag");
-    CHECK(m3Body_GetMotionLocks(top) == 0x3Fu, "the locks read back clean");
-    m3Body_SetMotionLocks(top, 0u);
+    CHECK(Bits(m3Body_GetMotionLocks(top)) == 0x3Fu, "the locks read back clean");
+    m3Body_SetMotionLocks(top, Locks(0u));
     CHECK(m3Body_IsFastRotationEnabled(top), "clearing locks keeps the flag");
     m3Body_EnableFastRotation(top, false);
     CHECK(!m3Body_IsFastRotationEnabled(top), "the flag clears");
-    CHECK(m3Body_GetMotionLocks(top) == 0u, "the flag write left the locks alone");
+    CHECK(Bits(m3Body_GetMotionLocks(top)) == 0u, "the flag write left the locks alone");
     m3BodyId stale = {99, top.world, 7};
     m3Body_EnableFastRotation(stale, true);
     CHECK(!m3Body_IsFastRotationEnabled(stale), "a stale id bounces");

@@ -71,8 +71,9 @@ extern "C"
         float contactPushMaxSpeed;  // max depenetration speed (3)
         float restitutionThreshold; // impact speed under it: no bounce (1)
         float maximumLinearSpeed;   // hard velocity cap (400)
-        int32_t enableSleeping;     // 1 = islands may sleep (default 1)
-        int32_t enableContinuous;   // 1 = CCD phase runs (default 1)
+        float maximumAngularSpeed;  // spin cap, rad/s, unless a body opts out
+        bool enableSleeping;        // islands may sleep (default true)
+        bool enableContinuous;      // the continuous phase runs (default true)
         float hitEventThreshold;    // hit events need approach speed
                                     // above this (default 1)
         int32_t internalValue;

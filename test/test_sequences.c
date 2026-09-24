@@ -16,6 +16,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Motion locks from bits 0..5: linear x, y, z, then angular x, y, z.
+static m3MotionLocks Locks(uint32_t bits)
+{
+    m3MotionLocks l = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
+                       (bits & 0x08u) != 0, (bits & 0x10u) != 0, (bits & 0x20u) != 0};
+    return l;
+}
+
 static m3WorldId SmallWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -392,7 +400,7 @@ static void TestRuntimeOpsRedTeam(void)
             m3Body_SetTransform(staleB, (m3Pos3){9.0, 9.0, 9.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
             m3Body_SetType(staleB, m3_staticBody);
             m3Body_Disable(staleB);
-            m3Body_SetMotionLocks(staleB, 0x3Fu);
+            m3Body_SetMotionLocks(staleB, Locks(0x3Fu));
             m3Body_SetSleepThreshold(staleB, 0.5f);
             m3Body_EnableSleep(staleB, false);
             m3Body_SetAwake(staleB, false);
@@ -532,7 +540,7 @@ static void TestRuntimeOpsRedTeam(void)
         if (phase == 0)                                                                            \
             m3Body_ApplyLinearImpulse(crates[(i) % 3], (m3Vec3){0.4f, 0.0f, -0.2f});               \
         if (phase == 3)                                                                            \
-            m3Body_SetMotionLocks(crates[(i) % 3], (uint8_t)((i) % 64));                           \
+            m3Body_SetMotionLocks(crates[(i) % 3], Locks((uint8_t)((i) % 64)));                    \
         if (phase == 6)                                                                            \
             m3Shape_SetFriction(shapes[(i) % 3], 0.2f + 0.1f * (float)((i) % 5));                  \
         if (phase == 9)                                                                            \

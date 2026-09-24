@@ -15,6 +15,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Motion locks from bits 0..5: linear x, y, z, then angular x, y, z.
+static m3MotionLocks Locks(uint32_t bits)
+{
+    m3MotionLocks l = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
+                       (bits & 0x08u) != 0, (bits & 0x10u) != 0, (bits & 0x20u) != 0};
+    return l;
+}
+
+static uint32_t Bits(m3MotionLocks l)
+{
+    return (l.linearX ? 0x01u : 0u) | (l.linearY ? 0x02u : 0u) | (l.linearZ ? 0x04u : 0u) |
+           (l.angularX ? 0x08u : 0u) | (l.angularY ? 0x10u : 0u) | (l.angularZ ? 0x20u : 0u);
+}
+
 static m3WorldId PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -148,8 +162,8 @@ static void TestMotionLocks(void)
     m3WorldId world = PlaneWorld();
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 0.5, 0.0});
     // lock linear z (bit 2), angular x y z (bits 3, 4, 5).
-    m3Body_SetMotionLocks(crate, (1u << 2) | (1u << 3) | (1u << 4) | (1u << 5));
-    CHECK(m3Body_GetMotionLocks(crate) == 0x3Cu, "locks read back");
+    m3Body_SetMotionLocks(crate, Locks((1u << 2) | (1u << 3) | (1u << 4) | (1u << 5)));
+    CHECK(Bits(m3Body_GetMotionLocks(crate)) == 0x3Cu, "locks read back");
     m3Body_ApplyLinearImpulse(crate, (m3Vec3){3.0f, 0.0f, 3.0f});
     m3Body_ApplyAngularImpulse(crate, (m3Vec3){0.0f, 0.4f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
@@ -196,7 +210,7 @@ static void TestSleepKnobsAndControlReplay(void)
         {
             if (i == 40)
             {
-                m3Body_SetMotionLocks(normal, 1u << 4);
+                m3Body_SetMotionLocks(normal, Locks(1u << 4));
             }
             if (i == 80)
             {
@@ -242,6 +256,62 @@ static void TestSleepKnobsAndControlReplay(void)
     CHECK(hashes[0] == hashes[1], "control twins are bit-identical");
 }
 
+static void TestDefsCarrySettings(void)
+{
+    // Every body, shape and world setting a setter changes can also be
+    // given at creation, and lands the same way.
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.maximumAngularSpeed = 5.0f;
+    m3WorldId world = m3CreateWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &gd);
+    m3ShapeDef belt = m3DefaultShapeDef();
+    belt.surfaceVelocity = (m3Vec3){2.0f, 0.0f, 0.0f};
+    m3CreateBoxShape(ground, &belt, (m3Vec3){20.0f, 0.5f, 20.0f});
+
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    bd.motionLocks = Locks(0x28u); // linear z and angular y
+    bd.enableSleep = false;
+    bd.sleepThreshold = 0.25f;
+    m3BodyId crate = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(Bits(m3Body_GetMotionLocks(crate)) == 0x28u, "locks from the def");
+    CHECK(!m3Body_IsSleepEnabled(crate), "sleep switch from the def");
+    CHECK(m3Body_GetSleepThreshold(crate) == 0.25f, "sleep threshold from the def");
+
+    bd.position = (m3Pos3){6.0, 4.0, 0.0};
+    bd.motionLocks = Locks(0u);
+    bd.angularVelocity = (m3Vec3){0.0f, 50.0f, 0.0f};
+    m3BodyId spinner = m3CreateBody(world, &bd);
+    m3CreateBoxShape(spinner, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    bd.enableFastRotation = true;
+    bd.position = (m3Pos3){-6.0, 4.0, 0.0};
+    m3BodyId wheel = m3CreateBody(world, &bd);
+    m3CreateBoxShape(wheel, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(m3Body_IsFastRotationEnabled(wheel), "fast rotation from the def");
+
+    bd.isEnabled = false;
+    bd.position = (m3Pos3){0.0, 8.0, 6.0};
+    m3BodyId dormant = m3CreateBody(world, &bd);
+    CHECK(!m3Body_IsEnabled(dormant), "created disabled from the def");
+
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3Body_GetLinearVelocity(crate).x > 1.0f,
+          "the belt from the shape def carries the crate");
+    CHECK(m3Body_GetPosition(dormant).y == 8.0, "a disabled body does not fall");
+    m3Vec3 w = m3Body_GetAngularVelocity(spinner);
+    CHECK(w.x * w.x + w.y * w.y + w.z * w.z <= 25.0f * 1.0001f, "the world def caps angular speed");
+    m3Vec3 fast = m3Body_GetAngularVelocity(wheel);
+    CHECK(fast.y > 5.0f, "a fast-rotation body passes the cap");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestTeleportWakes();
@@ -249,6 +319,7 @@ int main(void)
     TestTypeFlipAndDisable();
     TestMotionLocks();
     TestSleepKnobsAndControlReplay();
+    TestDefsCarrySettings();
     if (s_failures == 0)
     {
         printf("test_bodycontrol: all green\n");

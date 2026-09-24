@@ -61,7 +61,7 @@ bool m3ShapeDefValid(const m3ShapeDef* def)
            rotLen2 <= 1.01f && m3FiniteF(def->density) && def->density > 0.0f &&
            m3FiniteF(def->friction) && def->friction >= 0.0f && m3FiniteF(def->restitution) &&
            def->restitution >= 0.0f && m3FiniteF(def->rollingResistance) &&
-           def->rollingResistance >= 0.0f;
+           def->rollingResistance >= 0.0f && m3FiniteV3(def->surfaceVelocity);
 }
 
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
@@ -104,7 +104,7 @@ static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uin
     sh->shapeSensor[index] = def->isSensor ? 1 : 0;
     sh->shapeHitEvents[index] = def->enableHitEvents ? 1 : 0;
     sh->shapePreSolve[index] = def->enablePreSolveEvents ? 1 : 0;
-    sh->shapeSurfaceVel[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sh->shapeSurfaceVel[index] = def->surfaceVelocity;
     sh->shapeLocalPos[index] = p;
     sh->shapeLocalRot[index] = q;
     sh->shapeHasOffset[index] = (p.x != 0.0f || p.y != 0.0f || p.z != 0.0f || q.x != 0.0f ||

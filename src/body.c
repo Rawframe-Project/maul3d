@@ -50,6 +50,8 @@ m3BodyDef m3DefaultBodyDef(void)
     def.type = m3_staticBody;
     def.rotation = m3MakeIdentityQuat();
     def.gravityScale = 1.0f;
+    def.enableSleep = true;
+    def.isEnabled = true;
     def.internalValue = M3_BODY_COOKIE;
     return def;
 }
@@ -68,7 +70,8 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
         !m3FiniteV3(def->linearVelocity) || !m3FiniteV3(def->angularVelocity) ||
         !m3FiniteF(def->gravityScale) || !m3FiniteF(def->linearDamping) ||
         !m3FiniteF(def->angularDamping) || def->linearDamping < 0.0f ||
-        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f))
+        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
+        !m3FiniteF(def->sleepThreshold) || def->sleepThreshold < 0.0f)
     {
         return -1;
     }
@@ -98,13 +101,16 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     world->bodies.types[index] = (uint8_t)def->type;
     world->bodies.bulletFlags[index] = def->isBullet ? 1 : 0;
     world->bodies.userData[index] = def->userData;
-    world->bodies.bodyEnabled[index] = 1;
-    world->bodies.bodyLocks[index] = 0;
+    world->bodies.bodyEnabled[index] = def->isEnabled ? 1 : 0;
+    world->bodies.bodyLocks[index] =
+        (uint8_t)(m3LockBits(def->motionLocks) |
+                  (def->enableFastRotation ? M3_LOCKS_ALLOW_FAST_ROTATION : 0u));
     world->bodies.bodyIsland[index] = -1; // observer label
     memset(world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY, 0,
            M3_BODY_NAME_CAPACITY);
-    world->bodies.bodySleepThreshold[index] = M3_SLEEP_VELOCITY_DEFAULT;
-    world->bodies.bodyCanSleep[index] = 1;
+    world->bodies.bodySleepThreshold[index] =
+        def->sleepThreshold > 0.0f ? def->sleepThreshold : M3_SLEEP_VELOCITY_DEFAULT;
+    world->bodies.bodyCanSleep[index] = def->enableSleep ? 1 : 0;
     world->bodies.bodyHasTarget[index] = 0;
     world->bodies.bodyTarget[index] = (m3Transform){{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
     world->bodies.bodyShapeHead[index] = -1;
@@ -377,7 +383,8 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         !m3FiniteV3(def->linearVelocity) || !m3FiniteV3(def->angularVelocity) ||
         !m3FiniteF(def->gravityScale) || !m3FiniteF(def->linearDamping) ||
         !m3FiniteF(def->angularDamping) || def->linearDamping < 0.0f ||
-        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f))
+        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
+        !m3FiniteF(def->sleepThreshold) || def->sleepThreshold < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullBodyId;
@@ -571,31 +578,41 @@ bool m3Body_IsEnabled(m3BodyId bodyId)
     return world != NULL && world->bodies.bodyEnabled[index] != 0;
 }
 
-void m3Body_SetMotionLocks(m3BodyId bodyId, uint32_t locks)
+uint8_t m3LockBits(m3MotionLocks locks)
+{
+    return (uint8_t)((locks.linearX ? 0x01u : 0u) | (locks.linearY ? 0x02u : 0u) |
+                     (locks.linearZ ? 0x04u : 0u) | (locks.angularX ? 0x08u : 0u) |
+                     (locks.angularY ? 0x10u : 0u) | (locks.angularZ ? 0x20u : 0u));
+}
+
+void m3Body_SetMotionLocks(m3BodyId bodyId, m3MotionLocks locks)
 {
     int32_t index;
     m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || (locks & ~0x3Fu) != 0)
+    if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // only the six lock bits exist
+        return;
     }
+    uint8_t bits = m3LockBits(locks);
     if (world->recorder.journalActive != 0)
     {
         m3OpSetMotionLocks record;
         memset(&record, 0, sizeof(record));
         record.id = bodyId;
-        record.locks = locks;
+        record.locks = bits;
         m3JournalRecord(world, m3_opSetMotionLocks, &record, (int32_t)sizeof(record));
     }
-    m3SetMotionLocksInternal(world, index, (uint8_t)locks);
+    m3SetMotionLocksInternal(world, index, bits);
 }
 
-uint32_t m3Body_GetMotionLocks(m3BodyId bodyId)
+m3MotionLocks m3Body_GetMotionLocks(m3BodyId bodyId)
 {
     int32_t index;
     m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL ? (uint32_t)(world->bodies.bodyLocks[index] & 0x3Fu) : 0u;
+    uint8_t bits = world != NULL ? world->bodies.bodyLocks[index] : 0u;
+    m3MotionLocks locks = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
+                           (bits & 0x08u) != 0, (bits & 0x10u) != 0, (bits & 0x20u) != 0};
+    return locks;
 }
 
 void m3SetAllowFastRotationInternal(m3World* world, int32_t index, int32_t allow)

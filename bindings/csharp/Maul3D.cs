@@ -86,8 +86,9 @@ namespace Maul3D
         public float ContactPushMaxSpeed;
         public float RestitutionThreshold;
         public float MaximumLinearSpeed;
-        public int EnableSleeping;
-        public int EnableContinuous;
+        public float MaximumAngularSpeed;
+        public byte EnableSleeping;   // C _Bool
+        public byte EnableContinuous; // C _Bool
         public float HitEventThreshold;
         public int InternalValue;
     }
@@ -105,7 +106,18 @@ namespace Maul3D
         public float AngularDamping;
         public ulong UserData;
         public byte IsBullet; // C _Bool: one byte, 0 or 1
+        public MotionLocks MotionLocks;
+        public byte EnableSleep;
+        public float SleepThreshold;
+        public byte IsEnabled;
+        public byte EnableFastRotation;
         public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MotionLocks
+    {
+        public byte LinearX, LinearY, LinearZ, AngularX, AngularY, AngularZ;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -118,6 +130,7 @@ namespace Maul3D
         public ulong MaskBits;
         public int GroupIndex;
         public float RollingResistance;
+        public Vec3 SurfaceVelocity;
         public ulong UserData;
         public byte IsSensor;
         public byte EnableHitEvents;
@@ -271,8 +284,8 @@ namespace Maul3D
         public static void LayoutCheck()
         {
             Check<WorldDef>(112);
-            Check<BodyDef>(104);
-            Check<ShapeDef>(88);
+            Check<BodyDef>(120);
+            Check<ShapeDef>(104);
             Check<JointDef>(224);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);

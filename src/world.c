@@ -60,8 +60,9 @@ m3WorldDef m3DefaultWorldDef(void)
     def.contactPushMaxSpeed = M3_CONTACT_PUSH_MAX_SPEED_DEFAULT;
     def.restitutionThreshold = M3_RESTITUTION_THRESHOLD_DEFAULT;
     def.maximumLinearSpeed = M3_MAX_LINEAR_SPEED_DEFAULT;
-    def.enableSleeping = 1;
-    def.enableContinuous = 1;
+    def.maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
+    def.enableSleeping = true;
+    def.enableContinuous = true;
     def.hitEventThreshold = M3_HIT_EVENT_THRESHOLD_DEFAULT;
     def.internalValue = M3_WORLD_COOKIE;
     return def;
@@ -125,7 +126,8 @@ static bool ValidWorldDef(const m3WorldDef* def)
                   def->contactDampingRatio > 0.0f && m3FiniteF(def->contactPushMaxSpeed) &&
                   def->contactPushMaxSpeed > 0.0f && m3FiniteF(def->restitutionThreshold) &&
                   def->restitutionThreshold >= 0.0f && m3FiniteF(def->maximumLinearSpeed) &&
-                  def->maximumLinearSpeed > 0.0f && m3FiniteF(def->hitEventThreshold) &&
+                  def->maximumLinearSpeed > 0.0f && m3FiniteF(def->maximumAngularSpeed) &&
+                  def->maximumAngularSpeed > 0.0f && m3FiniteF(def->hitEventThreshold) &&
                   def->hitEventThreshold >= 0.0f;
     return capacities && tasks && tuning;
 }
@@ -139,9 +141,9 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->contactPushMaxSpeed = def->contactPushMaxSpeed;
     world->restitutionThreshold = def->restitutionThreshold;
     world->maximumLinearSpeed = def->maximumLinearSpeed;
-    world->maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT; // set through its setter
-    world->sleepEnabled = def->enableSleeping != 0 ? 1 : 0;
-    world->continuousEnabled = def->enableContinuous != 0 ? 1 : 0;
+    world->maximumAngularSpeed = def->maximumAngularSpeed;
+    world->sleepEnabled = def->enableSleeping ? 1 : 0;
+    world->continuousEnabled = def->enableContinuous ? 1 : 0;
     world->hitEventThreshold = def->hitEventThreshold;
     world->bodies.bodyCapacity = def->bodyCapacity;
     world->shapes.shapeCapacity = def->shapeCapacity;
