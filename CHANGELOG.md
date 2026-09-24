@@ -209,7 +209,7 @@ Work toward 0.0.1, the first release of the reworked library.
   scalar rows' operations in the same order, so results are bit for
   bit unchanged, and a test holds the kernel to the scalar rows every
   step. The pyramid bench steps in 0.13 ms (0.22 before), the city
-  block in 10.6 ms (13.6).
+  block in 11.0 ms (13.6).
 
 ### Removed
 
