@@ -11,11 +11,18 @@
 // both paths must produce the same list, and a test holds that gate.
 
 #include "broad_phase.h"
+
 #include "shape.h"
 #include "world_internal.h"
 #include <string.h>
 
 #include <stdlib.h>
+
+// A moved leaf is reinserted this far beyond its fresh bounds, so a
+// slow body stays inside it for many steps. Only the tree shape and
+// the candidate list see this margin; pairs are decided on the fresh
+// bounds, so it moves no result.
+#define M3_TREE_MARGIN 0.1
 
 typedef struct m3Aabb3d
 {
@@ -194,6 +201,25 @@ static int Overlap(const m3Aabb3d* a, const m3Aabb3d* b)
            b->lo[1] <= a->hi[1] && a->lo[2] <= b->hi[2] && b->lo[2] <= a->hi[2];
 }
 
+// Fresh bounds of one shape for this step, memoized: a sleeping shape
+// skipped the prefill and fills on first touch. Same function, same
+// inputs, same bits as the prefill would have written; a scratch stall
+// (no cache) computes directly.
+static m3Aabb3d FreshBounds(const m3World* world, m3Aabb3d* cache, uint8_t* cacheValid,
+                            int32_t shape)
+{
+    if (cache == NULL)
+    {
+        return SphereAabb(world, shape);
+    }
+    if (cacheValid[shape] == 0)
+    {
+        cache[shape] = SphereAabb(world, shape);
+        cacheValid[shape] = 1;
+    }
+    return cache[shape];
+}
+
 // Shared pair filter: no self pairs, no static-static pairs.
 static int PairAllowed(const m3World* world, int32_t i, int32_t j)
 {
@@ -307,14 +333,14 @@ static bool QueryHit(int32_t other, void* context)
         return true;
     }
     // Emit each pair once. Both-awake pairs use the larger-index
-    // rule (both directions get queried, one emits). A sleeping
-    // shape never queries, so its awake partner emits from
-    // EITHER side; the referee caught pair (sleeper, awake) with
-    // the sleeper on the smaller index silently vanishing.
+    // rule (both directions get queried, one emits). Static and
+    // sleeping shapes never query, so their awake partner emits
+    // from EITHER side; the referee caught pair (sleeper, awake)
+    // with the sleeper on the smaller index silently vanishing.
     if (other < ctx->self)
     {
         int32_t otherBody = ctx->world->shapes.shapeBody[other];
-        int32_t otherQueries = ctx->world->bodies.types[otherBody] == (uint8_t)m3_staticBody ||
+        int32_t otherQueries = ctx->world->bodies.types[otherBody] != (uint8_t)m3_staticBody &&
                                ctx->world->bodies.awake[otherBody] != 0;
         if (otherQueries)
         {
@@ -329,30 +355,12 @@ static bool QueryHit(int32_t other, void* context)
     {
         return true; // cold: rides the frozen buffer
     }
-    // The stored leaf bounds can be stale-but-containing (a leaf only
+    // The stored leaf bounds are stale-but-containing (a leaf only
     // moves when its fresh bounds escape), so the tree can return a
     // SUPERSET of the true fat overlaps. Re-test with fresh bounds so
     // the pair list equals the brute-force referee STRUCTURALLY, not
-    // by luck. The bounds come from the per-step cache: the
-    // first shape of this profile recomputed a hull's 64-vertex box
-    // once PER HIT; memoized values are bit-identical by definition.
-    m3Aabb3d fresh;
-    if (ctx->cache != NULL)
-    {
-        if (ctx->cacheValid[other] == 0)
-        {
-            // A sleeping shape skipped the prefill; compute
-            // once on first touch. Same function, same inputs, same
-            // bits as the prefill would have written.
-            ctx->cache[other] = SphereAabb(ctx->world, other);
-            ctx->cacheValid[other] = 1;
-        }
-        fresh = ctx->cache[other];
-    }
-    else
-    {
-        fresh = SphereAabb(ctx->world, other);
-    }
+    // by luck.
+    m3Aabb3d fresh = FreshBounds(ctx->world, ctx->cache, ctx->cacheValid, other);
     if (!Overlap(&ctx->selfBounds, &fresh))
     {
         return true;
@@ -363,6 +371,141 @@ static bool QueryHit(int32_t other, void* context)
         return false;
     }
     return true;
+}
+
+// The direct tree pass: each awake shape queries the tree; the j > i
+// rule emits every overlap exactly once. A static shape only ever
+// pairs hot with an awake one, which finds it from its side.
+static m3Result QueryAwakeShapes(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
+{
+    for (int32_t i = 0; i < world->shapes.shapePool.maxIndex; ++i)
+    {
+        if (world->shapes.shapePool.alive[i] == 0 || world->broadphase.proxyIds[i] == M3_TREE_NULL)
+        {
+            continue;
+        }
+        if (world->bodies.types[world->shapes.shapeBody[i]] == (uint8_t)m3_staticBody ||
+            world->bodies.awake[world->shapes.shapeBody[i]] == 0)
+        {
+            continue; // a static or frozen shape discovers nothing new
+        }
+        m3QueryCtx ctx;
+        ctx.world = world;
+        ctx.cache = cache;
+        ctx.cacheValid = cacheValid;
+        ctx.selfBounds = FreshBounds(world, cache, cacheValid, i);
+        ctx.self = i;
+        ctx.overflow = 0;
+        m3TreeQuery(&world->broadphase.tree, ctx.selfBounds.lo, ctx.selfBounds.hi, QueryHit, &ctx);
+        if (ctx.overflow != 0)
+        {
+            return m3_errorCapacity;
+        }
+    }
+    return m3_success;
+}
+
+typedef struct m3CandidateCtx
+{
+    m3World* world;
+    int32_t self;
+    int32_t overflow;
+} m3CandidateCtx;
+
+static bool CandidateHit(int32_t other, void* context)
+{
+    m3CandidateCtx* ctx = (m3CandidateCtx*)context;
+    m3World* world = ctx->world;
+    m3Broadphase* bp = &world->broadphase;
+    if (other == ctx->self || (bp->moved[other] != 0 && other < ctx->self))
+    {
+        return true; // itself, or a pair the other mover already added
+    }
+    if (world->bodies.types[world->shapes.shapeBody[other]] == (uint8_t)m3_staticBody &&
+        world->bodies.types[world->shapes.shapeBody[ctx->self]] == (uint8_t)m3_staticBody)
+    {
+        return true;
+    }
+    if (bp->candidateCount == world->contacts.pairCapacity)
+    {
+        ctx->overflow = 1;
+        return false;
+    }
+    int32_t i = ctx->self;
+    uint64_t key = i < other ? (((uint64_t)i << 32) | (uint64_t)other)
+                             : (((uint64_t)other << 32) | (uint64_t)i);
+    bp->candidateKeys[bp->candidateCount++] = key;
+    return true;
+}
+
+// Brings the candidate list up to date: every pair of tree leaves that
+// overlap, static-static aside. A leaf changes only when it moves, so
+// only pairs touching a moved leaf are dropped and requeried, and a
+// body resting inside its leaf costs no query at all. Returns 0 when
+// the list does not fit; the next update then starts over.
+static int UpdateCandidates(m3World* world)
+{
+    m3Broadphase* bp = &world->broadphase;
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
+    if (bp->candidatesFresh == 0)
+    {
+        bp->candidateCount = 0;
+        memset(bp->moved, 1, (size_t)world->shapes.shapeCapacity);
+    }
+    int32_t kept = 0;
+    for (int32_t k = 0; k < bp->candidateCount; ++k)
+    {
+        uint64_t key = bp->candidateKeys[k];
+        if (bp->moved[key >> 32] == 0 && bp->moved[key & 0xFFFFFFFFu] == 0)
+        {
+            bp->candidateKeys[kept++] = key;
+        }
+    }
+    bp->candidateCount = kept;
+    int fits = 1;
+    for (int32_t i = 0; i < maxShape && fits; ++i)
+    {
+        if (bp->moved[i] == 0 || world->shapes.shapePool.alive[i] == 0 ||
+            bp->proxyIds[i] == M3_TREE_NULL)
+        {
+            continue;
+        }
+        const m3TreeNode* leaf = &bp->tree.nodes[bp->proxyIds[i]];
+        uint32_t targets = (leaf->mask & M3_PROXY_STATIC) != 0
+                               ? (M3_PROXY_KINEMATIC | M3_PROXY_DYNAMIC)
+                               : 0xFFFFFFFFu;
+        m3CandidateCtx ctx = {world, i, 0};
+        m3TreeQueryMask(&bp->tree, leaf->lo, leaf->hi, targets, CandidateHit, &ctx);
+        fits = ctx.overflow == 0;
+    }
+    memset(bp->moved, 0, (size_t)world->shapes.shapeCapacity);
+    bp->candidatesFresh = (uint8_t)fits;
+    return fits;
+}
+
+// Emits the hot candidates whose fresh bounds overlap: the same pairs
+// the direct pass finds.
+static int EmitCandidates(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
+{
+    const m3Broadphase* bp = &world->broadphase;
+    for (int32_t k = 0; k < bp->candidateCount; ++k)
+    {
+        int32_t i = (int32_t)(bp->candidateKeys[k] >> 32);
+        int32_t j = (int32_t)(bp->candidateKeys[k] & 0xFFFFFFFFu);
+        // A destroy marks its shape moved, so no dead shape survives.
+        M3_ASSERT(world->shapes.shapePool.alive[i] != 0 && world->shapes.shapePool.alive[j] != 0);
+        if (!PairHot(world, i, j) || !PairAllowed(world, i, j))
+        {
+            continue; // cold pairs ride the frozen buffer
+        }
+        m3Aabb3d a = FreshBounds(world, cache, cacheValid, i);
+        m3Aabb3d b = FreshBounds(world, cache, cacheValid, j);
+        if (Overlap(&a, &b) && !EmitPair(world, i, j))
+        {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 typedef struct m3FreezeCtx
@@ -547,10 +690,11 @@ m3Result m3UpdatePairs(m3World* world)
             m3Aabb3d fat = tight;
             for (int32_t k = 0; k < 3; ++k)
             {
-                fat.lo[k] -= (double)M3_AABB_MARGIN;
-                fat.hi[k] += (double)M3_AABB_MARGIN;
+                fat.lo[k] -= (double)M3_TREE_MARGIN;
+                fat.hi[k] += (double)M3_TREE_MARGIN;
             }
             m3TreeMove(&world->broadphase.tree, world->broadphase.proxyIds[i], fat.lo, fat.hi);
+            world->broadphase.moved[i] = 1;
         }
     }
 
@@ -576,45 +720,18 @@ m3Result m3UpdatePairs(m3World* world)
         }
     }
 
-    // Tree pass: each sphere queries the tree; the j > i rule emits
-    // every overlap exactly once.
-    for (int32_t i = 0; i < maxShape; ++i)
+    // Tree pass: the candidate list when it fits, else every awake
+    // shape queries the tree directly. Both yield the same pairs.
+    if (UpdateCandidates(world))
     {
-        if (world->shapes.shapePool.alive[i] == 0 || world->broadphase.proxyIds[i] == M3_TREE_NULL)
-        {
-            continue;
-        }
-        if (world->bodies.types[world->shapes.shapeBody[i]] != (uint8_t)m3_staticBody &&
-            world->bodies.awake[world->shapes.shapeBody[i]] == 0)
-        {
-            continue; // a frozen shape discovers nothing new
-        }
-        m3Aabb3d fat;
-        if (cache != NULL)
-        {
-            if (cacheValid[i] == 0)
-            {
-                cache[i] = SphereAabb(world, i);
-                cacheValid[i] = 1;
-            }
-            fat = cache[i];
-        }
-        else
-        {
-            fat = SphereAabb(world, i);
-        }
-        m3QueryCtx ctx;
-        ctx.world = world;
-        ctx.cache = cache;
-        ctx.cacheValid = cacheValid;
-        ctx.selfBounds = fat;
-        ctx.self = i;
-        ctx.overflow = 0;
-        m3TreeQuery(&world->broadphase.tree, fat.lo, fat.hi, QueryHit, &ctx);
-        if (ctx.overflow != 0)
+        if (!EmitCandidates(world, cache, cacheValid))
         {
             return m3_errorCapacity;
         }
+    }
+    else if (QueryAwakeShapes(world, cache, cacheValid) != m3_success)
+    {
+        return m3_errorCapacity;
     }
 
     // Merge the frozen buffer: only pairs that are STILL

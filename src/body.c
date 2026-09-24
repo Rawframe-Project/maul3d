@@ -257,6 +257,7 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
         {
             m3TreeSetMask(&world->broadphase.tree, world->broadphase.proxyIds[s],
                           m3ProxyMask(world, s));
+            world->broadphase.moved[s] = 1; // static pairs come and go
         }
     }
     if (type == (uint8_t)m3_staticBody)

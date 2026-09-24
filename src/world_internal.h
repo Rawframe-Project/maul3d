@@ -502,6 +502,13 @@ typedef struct m3Broadphase
     // persistent snapshot state.
     m3Tree tree;
     int32_t* proxyIds; // M3_TREE_NULL for planes and dead shapes
+    // Derived: every pair of overlapping leaves (static-static aside)
+    // and the shapes whose leaf changed since the last update. A
+    // restore clears candidatesFresh and the next update requeries.
+    uint64_t* candidateKeys;
+    uint8_t* moved;
+    int32_t candidateCount;
+    uint8_t candidatesFresh;
 } m3Broadphase;
 
 // Contacts: candidate pairs in ascending key order and their manifolds

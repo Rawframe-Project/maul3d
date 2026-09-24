@@ -447,6 +447,7 @@ static void RebuildDerived(m3World* world)
 {
     world->contacts.sleepingPairCount = 0;
     world->contacts.pairsFullQuery = 1;
+    world->broadphase.candidatesFresh = 0;
     m3RebuildPlaneList(world);
     for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
     {

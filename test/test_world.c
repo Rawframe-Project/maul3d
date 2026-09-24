@@ -378,6 +378,19 @@ static double RefRange(double lo, double hi)
     return lo + (hi - lo) * ((double)(RefNext() >> 8) * (1.0 / 16777216.0));
 }
 
+// The tree-backed pair scan against the brute-force referee.
+static void CheckReferee(m3World* w)
+{
+    uint64_t refKeys[512];
+    CHECK(m3UpdatePairsBruteForce(w) == m3_success, "referee scan");
+    int32_t refCount = w->contacts.pairCount;
+    memcpy(refKeys, w->contacts.pairKeys, (size_t)refCount * sizeof(uint64_t));
+    CHECK(m3UpdatePairs(w) == m3_success, "tree scan");
+    CHECK(w->contacts.pairCount == refCount, "tree and referee agree on the count");
+    CHECK(memcmp(w->contacts.pairKeys, refKeys, (size_t)refCount * sizeof(uint64_t)) == 0,
+          "tree and referee agree on every key");
+}
+
 static void TestTreeReferee(void)
 {
     // The module-contract gate: the tree-backed pair scan must produce
@@ -417,16 +430,20 @@ static void TestTreeReferee(void)
         }
     }
 
-    uint64_t refKeys[512];
-    for (int32_t round = 0; round < 4; ++round)
+    // Two overlapping static boxes: no pair while both are static, a
+    // pair the moment one turns dynamic.
+    m3BodyId walls[2];
+    for (int32_t i = 0; i < 2; ++i)
     {
-        CHECK(m3UpdatePairsBruteForce(w) == m3_success, "referee scan");
-        int32_t refCount = w->contacts.pairCount;
-        memcpy(refKeys, w->contacts.pairKeys, (size_t)refCount * sizeof(uint64_t));
-        CHECK(m3UpdatePairs(w) == m3_success, "tree scan");
-        CHECK(w->contacts.pairCount == refCount, "tree and referee agree on the count");
-        CHECK(memcmp(w->contacts.pairKeys, refKeys, (size_t)refCount * sizeof(uint64_t)) == 0,
-              "tree and referee agree on every key");
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.position = (m3Pos3){8.0 + 0.5 * i, 1.0, 8.0};
+        walls[i] = m3CreateBody(world, &bd);
+        m3CreateBoxShape(walls[i], &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    }
+
+    for (int32_t round = 0; round < 7; ++round)
+    {
+        CheckReferee(w);
 
         if (round == 1)
         {
@@ -435,6 +452,23 @@ static void TestTreeReferee(void)
                 m3DestroyBody(bodies[i]); // cascades shapes, removes proxies
             }
         }
+        if (round == 2)
+        {
+            m3Body_SetType(walls[1], m3_dynamicBody);
+        }
+        if (round == 3)
+        {
+            m3Body_SetTransform(bodies[20], (m3Pos3){8.0, 2.0, 8.0}, (m3Quat){0, 0, 0, 1});
+        }
+        if (round == 4)
+        {
+            m3BodyDef bd = m3DefaultBodyDef();
+            bd.type = m3_dynamicBody;
+            bd.position = (m3Pos3){7.5, 1.0, 8.0};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+            m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball);
+        }
+        CheckReferee(w);                      // the change alone, before any motion hides it
         m3World_Step(world, 1.0f / 60.0f, 4); // real motion between rounds
     }
 

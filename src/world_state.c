@@ -455,6 +455,8 @@ static const m3StateArray s_state[] = {
     // its own walk, event buffers and step scratch.
     M3_STATE_ARRAY(bodies.bodyIsland, int32_t, body, 0),
     M3_STATE_ARRAY(shapes.planeShapes, int32_t, shape, 0),
+    M3_STATE_ARRAY(broadphase.candidateKeys, uint64_t, pair, 0),
+    M3_STATE_ARRAY(broadphase.moved, uint8_t, shape, 0),
     M3_STATE_ARRAY(hulls.hullData, m3HullData, shape, 0),
     M3_STATE_ARRAY(heightFields.hfData, m3HeightFieldData, shape, 0),
     M3_STATE_ARRAY(meshes.meshData, m3MeshData, mesh, 0),

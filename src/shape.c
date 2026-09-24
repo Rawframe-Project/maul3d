@@ -356,6 +356,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
         world->broadphase.proxyIds[index] =
             m3TreeInsert(&world->broadphase.tree, lo, hi, index, m3ProxyMask(world, index));
         ok = world->broadphase.proxyIds[index] != M3_TREE_NULL;
+        world->broadphase.moved[index] = 1;
     }
     if (!ok)
     {
@@ -392,6 +393,7 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
     {
         m3TreeRemove(&world->broadphase.tree, world->broadphase.proxyIds[index]);
         world->broadphase.proxyIds[index] = M3_TREE_NULL;
+        world->broadphase.moved[index] = 1;
     }
     ReleaseShapeContent(world, index);
     m3Shapes* sh = &world->shapes;
