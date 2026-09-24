@@ -65,6 +65,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/joint_prismatic.c
     src/joint_pulley.c
     src/joint_revolute.c
+    src/joint_row.c
     src/joint_solver.c
     src/joint_spherical.c
     src/joint_wheel.c

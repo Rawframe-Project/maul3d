@@ -9,6 +9,11 @@
 #include "world_internal.h"
 
 // A soft constraint's bias rate and its mass and impulse scales.
+// Joint rows without a user softness: stiff, and damped well past
+// critical so they settle without ringing.
+#define M3_JOINT_HERTZ         60.0f
+#define M3_JOINT_DAMPING_RATIO 2.0f
+
 typedef struct m3Softness
 {
     m3real biasRate;

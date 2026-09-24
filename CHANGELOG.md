@@ -34,6 +34,8 @@ Work toward 0.0.1, the first release of the reworked library.
 - `test/hashes.txt` pins soft body, soft-to-soft, vehicle, drivetrain,
   water, character and voxel scenes, so every subsystem the world hash
   covers has a golden value.
+- M3_JOINT_HASH: a golden hash over every joint kind with its limits,
+  motors, springs and steering on.
 
 ### Changed
 
@@ -143,6 +145,15 @@ Work toward 0.0.1, the first release of the reworked library.
   on the pair's velocities loaded once per constraint and stored once,
   and one stage runner covers warm start, solve, relax, restitution
   and store. Results are bit for bit unchanged.
+- Joint solver rewritten on rows: every kind builds its scalar rows (a
+  Jacobian and a drive: rigid, held, spring or limit) from the pose
+  the substep reached, and one row solver, a coupled pair, a point
+  block and a rotation block serve all eleven kinds. Frames, slide
+  axes and hinge axes now turn with the bodies within a step. The
+  spherical twist row uses the exact gradient of the twist angle,
+  derived from the relative rotation's rate; drive targets use the
+  exact rotation error. The five stored impulse slots load and store
+  whole, each kind documenting its slot map.
 
 ### Removed
 
@@ -265,3 +276,6 @@ Work toward 0.0.1, the first release of the reworked library.
   a point travels, which is shorter than its arc; a fast spinning body
   could pass the test or overshoot a plane. Both now use the arc bound
   of the swept rotation.
+- The prismatic joint's rows across the slide ran along half-length
+  axes, so the reported constraint force for them was twice the true
+  value; they now run along the unit frame axes.

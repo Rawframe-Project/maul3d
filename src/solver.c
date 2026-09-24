@@ -791,12 +791,14 @@ static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
     for (int32_t sub = 0; sub < substeps; ++sub)
     {
         IntegrateVelocities(world, s->movers, s->moverCount, &s->buoy, s->h);
-        m3WarmStartJoints(world, s->joints, s->jointCount, s->deltaRot);
+        m3WarmStartJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot);
         m3RunContactStage(world, &s->contacts, m3_contactWarmStart);
-        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 1);
+        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH,
+                      true);
         m3RunContactStage(world, &s->contacts, m3_contactSolve);
         IntegratePositions(world, s->movers, s->moverCount, s->deltaPos, s->deltaRot, s->h);
-        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH, 0);
+        m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH,
+                      false);
         m3RunContactStage(world, &s->contacts, m3_contactRelax);
     }
 }

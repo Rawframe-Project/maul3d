@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The joint solver's stages: the setup every joint shares, dispatch to
-// the kind table (one joint_<kind>.c per type), impulse storage, and the
-// helpers the kinds share.
+// The joint solver's stages. Prepare fills what every joint shares and
+// hands the rest to its kind. Each pass then loads the two bodies,
+// works out where the substep has taken the joint, lets the kind solve
+// its rows against that pose, and stores the dynamic bodies back.
+// Joints run serially in slot order.
+//
+// The angular rows rest on one identity. With the relative rotation
+// q = conj(qA) qB and the relative spin u = conj(qA) (wB - wA) qA seen in
+// A's frame, dq/dt = (1/2) (0, u) q, and the product expands to
+//   d(q.w)/dt = -(1/2) u . v,   d(q.v)/dt = (1/2) (w u + u x v),
+// where q = (v, w). Every angle and alignment row below takes its
+// gradient from this.
 
 #include "joint_solver.h"
 
@@ -24,187 +33,159 @@ static const m3JointKind* const s_kinds[] = {
     [m3_gearJoint] = &m3_gearJointKind,           [m3_pulleyJoint] = &m3_pulleyJointKind,
 };
 
-// Twist about z with the polarity guard, and the all-squared swing
-// (the reference math_functions forms).
-// Pseudo angular velocity from a quaternion target (the reference
-// math_internal form): w = 2 * vec((target - s) * conj(s)), polarity
-// corrected.
-m3Vec3 m3JointDeltaQuatToRotation(m3Quat q, m3Quat target)
+m3Softness m3StiffJointSoftness(m3real h)
 {
-    m3Quat s = q;
-    if (q.x * target.x + q.y * target.y + q.z * target.z + q.w * target.w < 0.0f)
+    return m3MakeSoft(M3_JOINT_HERTZ, M3_JOINT_DAMPING_RATIO, h);
+}
+
+static bool AwakeDynamic(const m3World* world, int32_t body)
+{
+    return world->bodies.types[body] == (uint8_t)m3_dynamicBody && world->bodies.awake[body] != 0;
+}
+
+static m3real DynamicMass(const m3World* world, int32_t body)
+{
+    return world->bodies.types[body] == (uint8_t)m3_dynamicBody ? world->bodies.invMass[body]
+                                                                : 0.0f;
+}
+
+static void PrepareCommon(const m3World* world, m3JointConstraint* c, int32_t j, m3real h,
+                          m3JointFrame* frame)
+{
+    const m3Joints* joints = &world->joints;
+    memset(c, 0, sizeof(*c));
+    c->joint = j;
+    c->type = joints->jointType[j];
+    c->flags = joints->jointFlags[j];
+    c->bodyA = joints->jointBodyA[j];
+    c->bodyB = joints->jointBodyB[j];
+    const m3Transform* xfA = &world->bodies.transforms[c->bodyA];
+    const m3Transform* xfB = &world->bodies.transforms[c->bodyB];
+    c->rA =
+        m3RotateVec3(xfA->q, m3Sub3(joints->jointLocalA[j], world->bodies.localCenters[c->bodyA]));
+    c->rB =
+        m3RotateVec3(xfB->q, m3Sub3(joints->jointLocalB[j], world->bodies.localCenters[c->bodyB]));
+    m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[c->bodyA]);
+    m3Vec3 rlcB = m3RotateVec3(xfB->q, world->bodies.localCenters[c->bodyB]);
+    c->deltaCenter = (m3Vec3){(m3real)(xfB->p.x + (double)rlcB.x - xfA->p.x - (double)rlcA.x),
+                              (m3real)(xfB->p.y + (double)rlcB.y - xfA->p.y - (double)rlcA.y),
+                              (m3real)(xfB->p.z + (double)rlcB.z - xfA->p.z - (double)rlcA.z)};
+    c->invMassA = DynamicMass(world, c->bodyA);
+    c->invMassB = DynamicMass(world, c->bodyB);
+    c->invIA = m3WorldInvInertia(world, c->bodyA);
+    c->invIB = m3WorldInvInertia(world, c->bodyB);
+    c->frameQA = m3MulQuat(xfA->q, joints->jointFrameQA[j]);
+    c->frameQB = m3MulQuat(xfB->q, joints->jointFrameQB[j]);
+    c->softness = m3StiffJointSoftness(h);
+    if ((c->flags & M3_JOINT_SPRING) != 0)
     {
-        s = (m3Quat){-q.x, -q.y, -q.z, -q.w};
+        c->springSoft = m3MakeSoft(joints->jointSpring[j].x, joints->jointSpring[j].y, h);
     }
-    m3Quat diff = {target.x - s.x, target.y - s.y, target.z - s.z, target.w - s.w};
-    m3Quat conjS = {-s.x, -s.y, -s.z, s.w};
-    m3Quat product = m3MulQuat(diff, conjS);
-    return (m3Vec3){2.0f * product.x, 2.0f * product.y, 2.0f * product.z};
-}
-
-m3real m3JointTwistAngle(m3Quat q)
-{
-    m3real twist = q.w < 0.0f ? m3Atan2(-q.z, -q.w) : m3Atan2(q.z, q.w);
-    return 2.0f * twist;
-}
-
-m3real m3JointSwingAngle(m3Quat q)
-{
-    m3real x = sqrtf(q.z * q.z + q.w * q.w);
-    m3real y = sqrtf(q.x * q.x + q.y * q.y);
-    return 2.0f * m3Atan2(y, x);
-}
-
-// Rotation vector of a relative quaternion (robust: exact angle via
-// atan2, small angles fall back to the linear form).
-m3Vec3 m3JointQuatToRotationVec(m3Quat relQ)
-{
-    if (relQ.w < 0.0f)
-    {
-        relQ = (m3Quat){-relQ.x, -relQ.y, -relQ.z, -relQ.w};
-    }
-    m3Vec3 v = {relQ.x, relQ.y, relQ.z};
-    m3real len = sqrtf(m3Dot3(v, v));
-    if (len < 1.0e-9f)
-    {
-        return m3MulSV3(2.0f, v);
-    }
-    m3real angle = 2.0f * m3Atan2(len, relQ.w);
-    return m3MulSV3(angle / len, v);
-}
-
-// Half-quaternion rotation of a frame axis, the reference form for
-// the collinearity Jacobian columns.
-m3Vec3 m3JointPerpColumn(m3Quat qA, m3Quat relQ, m3Vec3 axis)
-{
-    m3Vec3 rv = {relQ.x, relQ.y, relQ.z};
-    m3Vec3 inner = m3Add3(m3MulSV3(relQ.w, axis), m3Cross3(rv, axis));
-    return m3MulSV3(0.5f, m3RotateVec3(qA, inner));
+    c->motorSpeed = joints->jointMotor[j].x;
+    c->maxMotorEffort = joints->jointMotor[j].y;
+    c->lowerLimit = joints->jointLimits[j].x;
+    c->upperLimit = joints->jointLimits[j].y;
+    c->coneAngle = joints->jointLimits[j].z;
+    c->target = joints->jointTargetScalar[j];
+    c->targetQ = joints->jointTargetQ[j];
+    c->impulse = joints->jointImpulse[j];
+    c->perpImpulse = joints->jointPerpImpulse[j];
+    c->limitImpulse = joints->jointLimitImpulse[j];
+    c->angularImpulse = joints->jointAngularImpulse[j];
+    c->springImpulse = joints->jointSpringImpulse[j];
+    *frame = (m3JointFrame){j, h, xfA, xfB, rlcA, rlcB};
 }
 
 int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h)
 {
     int32_t count = 0;
-    int32_t maxJoint = world->joints.jointPool.maxIndex;
-    for (int32_t j = 0; j < maxJoint; ++j)
+    for (int32_t j = 0; j < world->joints.jointPool.maxIndex; ++j)
     {
-        if (world->joints.jointPool.alive[j] == 0)
+        if (world->joints.jointPool.alive[j] == 0 ||
+            world->joints.jointType[j] == (uint8_t)m3_filterJoint)
         {
-            continue;
+            continue; // gone, or the filter joint, which has no rows
         }
-        if (world->joints.jointType[j] == (uint8_t)m3_filterJoint)
+        if (!AwakeDynamic(world, world->joints.jointBodyA[j]) &&
+            !AwakeDynamic(world, world->joints.jointBodyB[j]))
         {
-            // The filter joint is rowless BY LAW: it never
-            // enters the constraint array, because every type that
-            // does and fails to continue inherits the shared point
-            // weld below.
-            continue;
-        }
-        int32_t bodyA = world->joints.jointBodyA[j];
-        int32_t bodyB = world->joints.jointBodyB[j];
-        int awakeDynA =
-            world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody && world->bodies.awake[bodyA];
-        int awakeDynB =
-            world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody && world->bodies.awake[bodyB];
-        if (!awakeDynA && !awakeDynB)
-        {
-            continue; // both sides frozen or immovable
+            continue; // nothing awake to move
         }
         m3JointConstraint* c = &joints[count];
         count += 1;
-        memset(c, 0, sizeof(*c)); // every field defined for every type:
-                                  // the store writes them all back
-        c->joint = j;
-        c->bodyA = bodyA;
-        c->bodyB = bodyB;
-        const m3Transform* xfA = &world->bodies.transforms[bodyA];
-        const m3Transform* xfB = &world->bodies.transforms[bodyB];
-        c->rA = m3RotateVec3(
-            xfA->q, m3Sub3(world->joints.jointLocalA[j], world->bodies.localCenters[bodyA]));
-        c->rB = m3RotateVec3(
-            xfB->q, m3Sub3(world->joints.jointLocalB[j], world->bodies.localCenters[bodyB]));
-        m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[bodyA]);
-        m3Vec3 rlcB = m3RotateVec3(xfB->q, world->bodies.localCenters[bodyB]);
-        c->deltaCenter = (m3Vec3){(m3real)(xfB->p.x + (double)rlcB.x - xfA->p.x - (double)rlcA.x),
-                                  (m3real)(xfB->p.y + (double)rlcB.y - xfA->p.y - (double)rlcA.y),
-                                  (m3real)(xfB->p.z + (double)rlcB.z - xfA->p.z - (double)rlcA.z)};
-        c->invMassA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody
-                          ? world->bodies.invMass[bodyA]
-                          : 0.0f;
-        c->invMassB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody
-                          ? world->bodies.invMass[bodyB]
-                          : 0.0f;
-        c->invIA = m3WorldInvInertia(world, bodyA);
-        c->invIB = m3WorldInvInertia(world, bodyB);
-        c->softness = m3MakeSoft(60.0f, 2.0f, h); // the reference joint stiffness
-        c->impulse = world->joints.jointImpulse[j];
-        c->type = world->joints.jointType[j];
-        c->flags = world->joints.jointFlags[j];
-        c->targetScalar = world->joints.jointTargetScalar[j];
-        c->targetQ = world->joints.jointTargetQ[j];
-        c->springImpulseV = world->joints.jointSpringImpulse[j];
-        if ((c->flags & M3_JOINT_SPRING) != 0)
-        {
-            // The drive spring: reference softness from the
-            // runtime hertz and damping ratio. The distance joint's
-            // spring reuse cannot reach here (flag 8 refuses it).
-            c->springSoft =
-                m3MakeSoft(world->joints.jointSpring[j].x, world->joints.jointSpring[j].y, h);
-            m3Mat3 sum = c->invIA;
-            sum.cx = m3Add3(sum.cx, c->invIB.cx);
-            sum.cy = m3Add3(sum.cy, c->invIB.cy);
-            sum.cz = m3Add3(sum.cz, c->invIB.cz);
-            c->springK = sum;
-        }
-        const m3JointKind* kind = s_kinds[c->type];
-        m3JointFrame frame = {j, h, xfA, xfB, rlcA, rlcB};
-        kind->prepare(world, c, &frame);
+        m3JointFrame frame;
+        PrepareCommon(world, c, j, h, &frame);
+        s_kinds[c->type]->prepare(world, c, &frame);
     }
     return count;
 }
 
+static m3JointBodies LoadBodies(const m3World* world, const m3JointConstraint* c)
+{
+    m3JointBodies b = {world->bodies.linearVelocities[c->bodyA],
+                       world->bodies.angularVelocities[c->bodyA],
+                       world->bodies.linearVelocities[c->bodyB],
+                       world->bodies.angularVelocities[c->bodyB],
+                       c->invMassA,
+                       c->invMassB,
+                       c->invIA,
+                       c->invIB};
+    return b;
+}
+
+static void StoreBodies(m3World* world, const m3JointConstraint* c, const m3JointBodies* b)
+{
+    if (world->bodies.types[c->bodyA] == (uint8_t)m3_dynamicBody)
+    {
+        world->bodies.linearVelocities[c->bodyA] = b->vA;
+        world->bodies.angularVelocities[c->bodyA] = b->wA;
+    }
+    if (world->bodies.types[c->bodyB] == (uint8_t)m3_dynamicBody)
+    {
+        world->bodies.linearVelocities[c->bodyB] = b->vB;
+        world->bodies.angularVelocities[c->bodyB] = b->wB;
+    }
+}
+
+static m3JointPose CurrentPose(const m3JointConstraint* c, const m3Vec3* deltaPos,
+                               const m3Quat* deltaRot)
+{
+    m3JointPose pose;
+    pose.moveA = deltaPos[c->bodyA];
+    pose.moveB = deltaPos[c->bodyB];
+    pose.turnA = deltaRot[c->bodyA];
+    pose.turnB = deltaRot[c->bodyB];
+    pose.armA = m3RotateVec3(pose.turnA, c->rA);
+    pose.armB = m3RotateVec3(pose.turnB, c->rB);
+    pose.gap = m3Add3(m3Add3(m3Sub3(pose.moveB, pose.moveA), m3Sub3(pose.armB, pose.armA)),
+                      c->deltaCenter);
+    return pose;
+}
+
 void m3WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t count,
-                       const m3Quat* deltaRot)
+                       const m3Vec3* deltaPos, const m3Quat* deltaRot)
 {
     for (int32_t i = 0; i < count; ++i)
     {
         m3JointConstraint* c = &joints[i];
-        m3Vec3 rA = m3RotateVec3(deltaRot[c->bodyA], c->rA);
-        m3Vec3 rB = m3RotateVec3(deltaRot[c->bodyB], c->rB);
-        // A kind adds its extra linear and angular impulse to these.
-        m3JointWarmContext w = {rA, rB, deltaRot, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
-        s_kinds[c->type]->warmStart(world, c, &w);
-        m3Vec3 totalLinear = m3Add3(c->impulse, w.linearExtra);
-        world->bodies.linearVelocities[c->bodyA] =
-            m3Sub3(world->bodies.linearVelocities[c->bodyA], m3MulSV3(c->invMassA, totalLinear));
-        world->bodies.angularVelocities[c->bodyA] =
-            m3Sub3(world->bodies.angularVelocities[c->bodyA],
-                   m3MulMV3(c->invIA, m3Add3(m3Cross3(rA, totalLinear), w.angularImpulse)));
-        world->bodies.linearVelocities[c->bodyB] =
-            m3Add3(world->bodies.linearVelocities[c->bodyB], m3MulSV3(c->invMassB, totalLinear));
-        world->bodies.angularVelocities[c->bodyB] =
-            m3Add3(world->bodies.angularVelocities[c->bodyB],
-                   m3MulMV3(c->invIB, m3Add3(m3Cross3(rB, totalLinear), w.angularImpulse)));
+        m3JointPose pose = CurrentPose(c, deltaPos, deltaRot);
+        m3JointBodies b = LoadBodies(world, c);
+        s_kinds[c->type]->warmStart(c, &pose, &b);
+        StoreBodies(world, c, &b);
     }
 }
 
 void m3SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count, const m3Vec3* deltaPos,
-                   const m3Quat* deltaRot, m3real hSub, m3real invHSub, int useBias)
+                   const m3Quat* deltaRot, m3real h, m3real invH, bool biased)
 {
+    m3JointPass pass = {biased, h, invH};
     for (int32_t i = 0; i < count; ++i)
     {
         m3JointConstraint* c = &joints[i];
-        m3Vec3 rA = m3RotateVec3(deltaRot[c->bodyA], c->rA);
-        m3Vec3 rB = m3RotateVec3(deltaRot[c->bodyB], c->rB);
-
-        m3Vec3 vA = world->bodies.linearVelocities[c->bodyA];
-        m3Vec3 wA = world->bodies.angularVelocities[c->bodyA];
-        m3Vec3 vB = world->bodies.linearVelocities[c->bodyB];
-        m3Vec3 wB = world->bodies.angularVelocities[c->bodyB];
-
-        m3JointSolveContext ctx = {rA,       rB,       vA,   wA,      vB,     wB,
-                                   deltaPos, deltaRot, hSub, invHSub, useBias};
-        s_kinds[c->type]->solve(world, c, &ctx);
+        m3JointPose pose = CurrentPose(c, deltaPos, deltaRot);
+        m3JointBodies b = LoadBodies(world, c);
+        s_kinds[c->type]->solve(c, &pose, &b, &pass);
+        StoreBodies(world, c, &b);
     }
 }
 
@@ -214,131 +195,134 @@ void m3StoreJointImpulses(m3World* world, m3JointConstraint* joints, int32_t cou
     {
         const m3JointConstraint* c = &joints[i];
         world->joints.jointImpulse[c->joint] = c->impulse;
-        if (c->type == (uint8_t)m3_genericJoint)
-        {
-            // The generic slot map: linear uppers ride the
-            // perp slots, the angular upper and the motor ride the
-            // limit slots.
-            world->joints.jointPerpImpulse[c->joint] =
-                (m3Vec3){c->perpImpulseX, c->perpImpulseY, c->swingImpulse};
-            world->joints.jointLimitImpulse[c->joint] =
-                (m3Vec3){c->upperImpulse, c->motorImpulse, 0.0f};
-        }
-        else
-        {
-            world->joints.jointPerpImpulse[c->joint] =
-                (m3Vec3){c->perpImpulseX, c->perpImpulseY, c->motorImpulse};
-            world->joints.jointLimitImpulse[c->joint] =
-                (m3Vec3){c->lowerImpulse, c->upperImpulse,
-                         c->type == (uint8_t)m3_sphericalJoint ? c->swingImpulse : 0.0f};
-        }
+        world->joints.jointPerpImpulse[c->joint] = c->perpImpulse;
+        world->joints.jointLimitImpulse[c->joint] = c->limitImpulse;
         world->joints.jointAngularImpulse[c->joint] = c->angularImpulse;
-        world->joints.jointSpringImpulse[c->joint] = c->springImpulseV;
+        world->joints.jointSpringImpulse[c->joint] = c->springImpulse;
     }
 }
 
 // --- Shared by the kinds -----------------------------------------------------
 
-void m3PrepareHingeFrame(m3World* world, m3JointConstraint* c, const m3JointFrame* f)
+m3Vec3 m3FrameAxis(m3Quat frame, int32_t k)
 {
-    int32_t j = f->joint;
-    const m3Transform* xfA = f->xfA;
-    const m3Transform* xfB = f->xfB;
-    c->frameQA = m3MulQuat(xfA->q, world->joints.jointFrameQA[j]);
-    c->frameQB = m3MulQuat(xfB->q, world->joints.jointFrameQB[j]);
-    m3Vec3 axis = m3RotateVec3(c->frameQA, (m3Vec3){0.0f, 0.0f, 1.0f});
-    c->rotationAxis = axis;
-    m3Vec3 sum = m3Add3(m3MulMV3(c->invIA, axis), m3MulMV3(c->invIB, axis));
-    m3real k = m3Dot3(axis, sum);
-    c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
-    m3Quat conjA = {-c->frameQA.x, -c->frameQA.y, -c->frameQA.z, c->frameQA.w};
-    m3Quat relQ = m3MulQuat(conjA, c->frameQB);
-    c->perpAxisX = m3JointPerpColumn(c->frameQA, relQ, (m3Vec3){1.0f, 0.0f, 0.0f});
-    c->perpAxisY = m3JointPerpColumn(c->frameQA, relQ, (m3Vec3){0.0f, 1.0f, 0.0f});
-    c->perpImpulseX = world->joints.jointPerpImpulse[j].x;
-    c->perpImpulseY = world->joints.jointPerpImpulse[j].y;
-    c->motorImpulse = world->joints.jointPerpImpulse[j].z;
-    c->lowerImpulse = world->joints.jointLimitImpulse[j].x;
-    c->upperImpulse = world->joints.jointLimitImpulse[j].y;
-    c->motorSpeed = world->joints.jointMotor[j].x;
-    c->maxMotorEffort = world->joints.jointMotor[j].y;
-    c->lowerLimit = world->joints.jointLimits[j].x;
-    c->upperLimit = world->joints.jointLimits[j].y;
-    c->angularImpulse = world->joints.jointAngularImpulse[j];
+    m3Vec3 e = {k == 0 ? 1.0f : 0.0f, k == 1 ? 1.0f : 0.0f, k == 2 ? 1.0f : 0.0f};
+    return m3RotateVec3(frame, e);
 }
 
-void m3WarmStartHinge(const m3World* world, const m3JointConstraint* c, m3JointWarmContext* w)
+m3JointFrames m3PoseFrames(const m3JointConstraint* c, const m3JointPose* pose)
 {
-    (void)world; // the shared tail applies the impulse
-    // The parallel joint rides this branch with every axial
-    // term zero: only the perp locks carry warm impulse.
-    m3real axial = c->springImpulseV.x + c->motorImpulse + c->lowerImpulse - c->upperImpulse;
-    w->angularImpulse =
-        m3Add3(m3MulSV3(c->perpImpulseX, c->perpAxisX), m3MulSV3(c->perpImpulseY, c->perpAxisY));
-    w->angularImpulse = m3Add3(w->angularImpulse, m3MulSV3(axial, c->rotationAxis));
-}
-
-void m3WarmStartAngularLock(const m3World* world, const m3JointConstraint* c, m3JointWarmContext* w)
-{
-    (void)world; // the shared tail applies the impulse
-    // The weld's lock; the servo weld rides the same
-    // slots (prepare zeroed them when springless) and its
-    // translation row is c->impulse in the shared tail.
-    w->angularImpulse = c->angularImpulse;
-}
-
-// The shared point constraint: the anchors coincide. The spherical,
-// revolute and fixed joints end their solve here, with the velocities
-// their own rows left behind.
-void m3SolveJointPoint(m3World* world, m3JointConstraint* c, const m3JointSolveContext* s,
-                       m3Vec3 vA, m3Vec3 wA, m3Vec3 vB, m3Vec3 wB)
-{
-    m3Vec3 rA = s->rA;
-    m3Vec3 rB = s->rB;
-    const m3Vec3* deltaPos = s->deltaPos;
-    int useBias = s->useBias;
-    m3Vec3 cdot = m3Sub3(m3Add3(vB, m3Cross3(wB, rB)), m3Add3(vA, m3Cross3(wA, rA)));
-
-    m3Vec3 bias = {0.0f, 0.0f, 0.0f};
-    m3real massScale = 1.0f;
-    m3real impulseScale = 0.0f;
-    if (useBias)
+    m3JointFrames f;
+    f.a = m3MulQuat(pose->turnA, c->frameQA);
+    f.b = m3MulQuat(pose->turnB, c->frameQB);
+    m3Quat conjA = {-f.a.x, -f.a.y, -f.a.z, f.a.w};
+    f.rel = m3MulQuat(conjA, f.b);
+    if (f.rel.w < 0.0f)
     {
-        // The raw anchor violation, the reference form: current
-        // anchor delta = COM drift + rotated anchors + the
-        // prepare-time center offset. No baseline subtraction:
-        // a satisfied joint has deltaCenter = rA0 - rB0 and the
-        // sum vanishes by itself.
-        m3Vec3 separation = m3Add3(
-            m3Add3(m3Sub3(deltaPos[c->bodyB], deltaPos[c->bodyA]), m3Sub3(rB, rA)), c->deltaCenter);
-        bias = m3MulSV3(c->softness.biasRate, separation);
-        massScale = c->softness.massScale;
-        impulseScale = c->softness.impulseScale;
+        f.b = (m3Quat){-f.b.x, -f.b.y, -f.b.z, -f.b.w};
+        f.rel = (m3Quat){-f.rel.x, -f.rel.y, -f.rel.z, -f.rel.w};
     }
+    return f;
+}
 
-    // K = (mA + mB) I - skew(rA) iA skew(rA) - skew(rB) iB skew(rB),
-    // built column by column by applying the operator to the basis
-    // (no matrix-matrix helpers needed).
-    m3Mat3 k;
-    m3Vec3 basis[3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
-    m3Vec3* cols[3] = {&k.cx, &k.cy, &k.cz};
-    for (int32_t a = 0; a < 3; ++a)
+m3JointRow m3SlideRow(const m3JointPose* pose, m3Vec3 axis)
+{
+    return m3LineRow(m3Add3(pose->armA, pose->gap), pose->armB, axis);
+}
+
+// From the identity above, the part of d(q.v)/dt along e is
+// (1/2) u . (w e + v x e); in the world that is the gradient below.
+m3Vec3 m3RelativeGradient(const m3JointFrames* f, int32_t k)
+{
+    m3Vec3 e = {k == 0 ? 1.0f : 0.0f, k == 1 ? 1.0f : 0.0f, k == 2 ? 1.0f : 0.0f};
+    m3Vec3 v = {f->rel.x, f->rel.y, f->rel.z};
+    m3Vec3 local = m3Add3(m3MulSV3(f->rel.w, e), m3Cross3(v, e));
+    return m3MulSV3(0.5f, m3RotateVec3(f->a, local));
+}
+
+m3Vec3 m3RotationVector(m3Quat q)
+{
+    if (q.w < 0.0f)
     {
-        m3Vec3 e = basis[a];
-        m3Vec3 tA = m3Cross3(rA, m3MulMV3(c->invIA, m3Cross3(rA, e)));
-        m3Vec3 tB = m3Cross3(rB, m3MulMV3(c->invIB, m3Cross3(rB, e)));
-        m3Vec3 col = m3Sub3(m3MulSV3(c->invMassA + c->invMassB, e), m3Add3(tA, tB));
-        *cols[a] = col;
+        q = (m3Quat){-q.x, -q.y, -q.z, -q.w};
     }
+    m3Vec3 v = {q.x, q.y, q.z};
+    m3real length = sqrtf(m3Dot3(v, v));
+    return length < 1.0e-9f ? m3MulSV3(2.0f, v) : m3MulSV3(2.0f * m3Atan2(length, q.w) / length, v);
+}
 
-    m3Vec3 b = m3Solve3(&k, m3Add3(cdot, bias));
-    m3Vec3 impulse = m3Sub3(m3MulSV3(-massScale, b), m3MulSV3(impulseScale, c->impulse));
-    c->impulse = m3Add3(c->impulse, impulse);
+// E = q conj(target) obeys the same identity as q, so its rotation
+// vector, turned into the world by A's frame, changes at wB - wA.
+m3Vec3 m3RotationError(const m3JointFrames* f, m3Quat target)
+{
+    m3Quat conjT = {-target.x, -target.y, -target.z, target.w};
+    return m3RotateVec3(f->a, m3RotationVector(m3MulQuat(f->rel, conjT)));
+}
 
-    world->bodies.linearVelocities[c->bodyA] = m3Sub3(vA, m3MulSV3(c->invMassA, impulse));
-    world->bodies.angularVelocities[c->bodyA] =
-        m3Sub3(wA, m3MulMV3(c->invIA, m3Cross3(rA, impulse)));
-    world->bodies.linearVelocities[c->bodyB] = m3Add3(vB, m3MulSV3(c->invMassB, impulse));
-    world->bodies.angularVelocities[c->bodyB] =
-        m3Add3(wB, m3MulMV3(c->invIB, m3Cross3(rB, impulse)));
+void m3SolveLimits(const m3JointRow* row, m3real value, m3real lower, m3real upper, m3Softness soft,
+                   m3real* lowerImpulse, m3real* upperImpulse, m3JointBodies* b,
+                   const m3JointPass* pass)
+{
+    m3RowDrive low = m3LimitDrive(soft, value - lower, pass->invH, pass->biased);
+    m3SolveRow(row, b, low, lowerImpulse, 0.0f, M3_ROW_FREE);
+    m3JointRow back = m3ScaleRow(*row, -1.0f);
+    m3RowDrive high = m3LimitDrive(soft, upper - value, pass->invH, pass->biased);
+    m3SolveRow(&back, b, high, upperImpulse, 0.0f, M3_ROW_FREE);
+}
+
+void m3WarmStartLimits(const m3JointRow* row, m3real lowerImpulse, m3real upperImpulse,
+                       m3JointBodies* b)
+{
+    m3PushRow(row, b, lowerImpulse - upperImpulse);
+}
+
+m3Vec3 m3BlockBias(m3RowDrive unit, m3Vec3 C)
+{
+    return m3MulSV3(unit.bias, C);
+}
+
+m3real* m3Component(m3Vec3* v, int32_t k)
+{
+    return k == 0 ? &v->x : (k == 1 ? &v->y : &v->z);
+}
+
+void m3SolveDrive(const m3JointRow* row, m3real value, const m3JointConstraint* c, m3JointBodies* b,
+                  const m3JointPass* pass, m3real* spring, m3real* motor)
+{
+    bool motorOn = (c->flags & M3_JOINT_MOTOR) != 0;
+    m3real budget = c->maxMotorEffort * pass->h;
+    if ((c->flags & M3_JOINT_SPRING) != 0)
+    {
+        m3real room = motorOn ? m3MaxF(budget - m3AbsF(*motor), 0.0f) : M3_ROW_FREE;
+        m3SolveRow(row, b, m3SpringDrive(c->springSoft, value - c->target), spring, -room, room);
+    }
+    if (motorOn)
+    {
+        m3SolveRow(row, b, m3RigidDrive(-c->motorSpeed), motor, -budget, budget);
+    }
+}
+
+void m3SolveAlignment(const m3JointFrames* f, m3JointBodies* b, m3Softness soft, bool biased,
+                      m3real* first, m3real* second)
+{
+    m3JointRow rows[2] = {m3TurnRow(m3RelativeGradient(f, 0)), m3TurnRow(m3RelativeGradient(f, 1))};
+    m3RowDrive unit = m3HeldDrive(soft, 1.0f, biased);
+    m3real bias[2] = {unit.bias * f->rel.x, unit.bias * f->rel.y};
+    m3SolveRowPair(rows, b, bias, unit, first, second);
+}
+
+void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first, m3real second)
+{
+    m3JointRow x = m3TurnRow(m3RelativeGradient(f, 0));
+    m3JointRow y = m3TurnRow(m3RelativeGradient(f, 1));
+    m3PushRow(&x, b, first);
+    m3PushRow(&y, b, second);
+}
+
+void m3SolveJointPoint(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
+                       const m3JointPass* pass)
+{
+    m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
+    m3SolvePointBlock(pose->armA, pose->armB, b, m3BlockBias(unit, pose->gap), unit, &c->impulse,
+                      M3_ROW_FREE);
 }
