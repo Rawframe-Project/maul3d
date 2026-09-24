@@ -330,7 +330,7 @@ m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count)
     }
     count = count < M3_MOVER_PLANES ? count : M3_MOVER_PLANES;
     MoverCandidate best = {wish, -FLT_MAX, 0};
-    int32_t set[3];
+    int32_t set[3] = {0, 0, 0};
     Consider(wish, planes, count, set, 0, &best);
     for (set[0] = 0; set[0] < count; ++set[0])
     {
