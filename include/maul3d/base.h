@@ -64,7 +64,7 @@ extern "C"
     /// may return uninitialized memory (the engine zeroes what
     /// needs zeroing); returning NULL is a loud refusal upstream.
     /// Pass NULLs to restore the libc default. Hosts that need
-    /// per-world budgets meter with m3World_MemoryUsage and
+    /// per-world budgets meter with m3World_GetMemoryUsage and
     /// enforce in their hook via the context.
     typedef void* m3AllocFn(int32_t bytes, void* context);
     typedef void m3FreeFn(void* memory, void* context);

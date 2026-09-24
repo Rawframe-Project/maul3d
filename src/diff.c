@@ -36,8 +36,8 @@ static int DiffCompare(const void* pa, const void* pb)
     return a->body.index1 < b->body.index1 ? -1 : (a->body.index1 > b->body.index1 ? 1 : 0);
 }
 
-int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity,
-                           int32_t* outCount)
+int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity,
+                        int32_t* outCount)
 {
     m3World* a = m3WorldFromId(worldA);
     m3World* b = m3WorldFromId(worldB);

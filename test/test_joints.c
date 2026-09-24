@@ -164,7 +164,7 @@ static void TestJointDeterminismSpine(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
 
     m3BodyDef ad = m3DefaultBodyDef();
     m3BodyId anchor = m3CreateBody(world, &ad);
@@ -187,10 +187,10 @@ static void TestJointDeterminismSpine(void)
     StepN(world, 30);
 
     uint64_t h1 = m3World_Hash(world);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the joint session recorded");
     m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(twin, journal, bytes), "the joint session replays");
+    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the joint session replays");
     CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical, joint ids included");
     m3DestroyWorld(twin);
 

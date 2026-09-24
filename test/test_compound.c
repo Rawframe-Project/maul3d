@@ -164,7 +164,7 @@ static void TestOffsetsReplayAndRollback(void)
         def.bodyCapacity = 16;
         def.shapeCapacity = 16;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
@@ -198,13 +198,13 @@ static void TestOffsetsReplayAndRollback(void)
         hashes[run] = final;
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the compound session records");
             m3WorldDef fdef = m3DefaultWorldDef();
             fdef.bodyCapacity = 16;
             fdef.shapeCapacity = 16;
             m3WorldId fresh = m3CreateWorld(&fdef);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the compound session replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the compound session replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
             CHECK(m3World_Restore(world, snap, snapBytes), "the compound restore lands");

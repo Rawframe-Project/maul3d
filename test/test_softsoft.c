@@ -265,7 +265,7 @@ static void TestAnchorDeathStorm(void)
         def.shapeCapacity = 16;
         def.softBodyCapacity = 4;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
@@ -303,14 +303,14 @@ static void TestAnchorDeathStorm(void)
         hashes[run] = final;
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the death storm records");
             m3WorldDef fdef = m3DefaultWorldDef();
             fdef.bodyCapacity = 16;
             fdef.shapeCapacity = 16;
             fdef.softBodyCapacity = 4;
             m3WorldId fresh = m3CreateWorld(&fdef);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the death storm replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the death storm replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
         }

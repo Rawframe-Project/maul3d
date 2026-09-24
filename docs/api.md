@@ -224,7 +224,7 @@ Hard cap on any body's linear speed, applied every substep. Journaled.
 ```c
 void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value);
 ```
-Hard cap on any body's angular speed in rad/s, applied every substep. The default (800) is a catastrophe guard, not a gameplay clamp; bodies flagged with m3Body_SetAllowFastRotation bypass it. Journaled.
+Hard cap on any body's angular speed in rad/s, applied every substep. The default (800) is a catastrophe guard, not a gameplay clamp; bodies flagged with m3Body_EnableFastRotation bypass it. Journaled.
 
 ```c
 void m3World_EnableSleeping(m3WorldId worldId, bool flag);
@@ -399,7 +399,7 @@ m3RayHit m3World_CastCapsuleClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 p
 ```
 
 ```c
-m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point);
+m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point);
 ```
 The first shape (lowest index) whose volume contains the point, or the null id. Meshes are open surfaces and never contain points; planes are solid half spaces.
 
@@ -466,7 +466,7 @@ m3Counters m3World_GetCounters(m3WorldId worldId);
 ```
 
 ```c
-m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId);
+m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId);
 ```
 
 ```c
@@ -474,16 +474,16 @@ m3Profile m3World_GetProfile(m3WorldId worldId);
 ```
 
 ```c
-bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity);
+bool m3World_StartJournal(m3WorldId worldId, void* buffer, int32_t capacity);
 ```
 Journal: every mutation of the world is a discrete recorded op, and replaying the stream through the same internal functions reproduces the world bit for bit. Begin hands the world a caller-owned buffer; End returns the bytes written (or -1 after an overflow, loudly); Replay applies a stream to this world.
 
 ```c
-int32_t m3World_JournalEnd(m3WorldId worldId);
+int32_t m3World_StopJournal(m3WorldId worldId);
 ```
 
 ```c
-bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size);
+bool m3World_ReplayJournal(m3WorldId worldId, const void* data, int32_t size);
 ```
 Replay a recorded session into this world. ATOMIC: on any refusal (truncation, corruption, an op that cannot re-mint its recorded id) the world is restored to its pre-call state and false returns; a half-applied session is impossible.
 
@@ -550,9 +550,13 @@ void m3Body_SetType(m3BodyId bodyId, m3BodyType type);
 Switch dynamic, kinematic, static at runtime. Mass rebuilds from shapes when turning dynamic; velocities zero when turning static; the neighborhood wakes.
 
 ```c
-void m3Body_SetEnabled(m3BodyId bodyId, bool enabled);
+void m3Body_Enable(m3BodyId bodyId);
 ```
-A disabled body vanishes from simulation AND queries without being destroyed; enabling wakes its neighborhood.
+A disabled body vanishes from simulation AND queries without being destroyed; enabling wakes its neighborhood. Journaled.
+
+```c
+void m3Body_Disable(m3BodyId bodyId);
+```
 
 ```c
 bool m3Body_IsEnabled(m3BodyId bodyId);
@@ -568,12 +572,12 @@ uint32_t m3Body_GetMotionLocks(m3BodyId bodyId);
 ```
 
 ```c
-void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow);
+void m3Body_EnableFastRotation(m3BodyId bodyId, bool flag);
 ```
 Let this body spin past the world's angular speed cap (for wheels and other legal fast spinners). Journaled.
 
 ```c
-bool m3Body_GetAllowFastRotation(m3BodyId bodyId);
+bool m3Body_IsFastRotationEnabled(m3BodyId bodyId);
 ```
 
 ```c
@@ -591,9 +595,22 @@ int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capac
 Who touches me now: fills up to capacity entries and returns the count written. See m3ContactData in world.h.
 
 ```c
-void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep);
+void m3Body_EnableSleep(m3BodyId bodyId, bool flag);
 ```
-Sleep controls: a per-body velocity threshold (zero restores the world default) and a can-sleep switch.
+Whether this body may fall asleep; turning it off wakes it. Journaled.
+
+```c
+bool m3Body_IsSleepEnabled(m3BodyId bodyId);
+```
+
+```c
+void m3Body_SetSleepThreshold(m3BodyId bodyId, float threshold);
+```
+The speed below which this body counts as resting; zero restores the world default. Journaled.
+
+```c
+float m3Body_GetSleepThreshold(m3BodyId bodyId);
+```
 
 ```c
 bool m3Body_IsAwake(m3BodyId bodyId);
@@ -810,26 +827,26 @@ The target must be a unit rotation; garbage refuses loudly by doing nothing. The
 Replays: the M3J1 container that seals a snapshot, a journal and the final hash into one artifact, and the functions that write, verify, seek and compare replays.
 
 ```c
-bool m3JournalDescribe(const void* journal, int32_t bytes, m3JournalInfo* out);
+bool m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* out);
 ```
 
 ```c
-int32_t m3ReplayEncodeSize(int32_t snapshotBytes, int32_t journalBytes);
+int32_t m3GetEncodedReplaySize(int32_t snapshotBytes, int32_t journalBytes);
 ```
 Exact encoded size for the given payload sizes.
 
 ```c
-int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* journal, int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity);
+int32_t m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal, int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity);
 ```
 Encode a container. finalHash is the recorder's end hash (m3World_Hash after the session); verifiers compare against it. Returns bytes written, or 0 on refusal (bad sizes, small capacity, malformed journal).
 
 ```c
-bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out);
+bool m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* out);
 ```
 Decode and validate framing (magic, version, lengths, journal record walk). Returns false on any corruption; the view is untouched on refusal.
 
 ```c
-int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity, int32_t* outCount);
+int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity, int32_t* outCount);
 ```
 Compare every body slot of two worlds (same capacities expected; mismatched capacities refuse). Writes up to capacity rows sorted worst-first, sets outCount to the number written, and returns the TOTAL number of differing slots (which may exceed capacity), or -1 on refusal. Zero means the worlds agree body-for-body.
 
@@ -983,7 +1000,7 @@ void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag);
 Opt a shape into hit events / the pre-solve veto. Journaled; the flags are state and snapshot with the world.
 
 ```c
-bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId);
+bool m3Shape_IsHitEventsEnabled(m3ShapeId shapeId);
 ```
 
 ```c
@@ -1119,4 +1136,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-236 functions across 11 headers.
+240 functions across 11 headers.

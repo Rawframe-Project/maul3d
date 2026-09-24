@@ -163,7 +163,7 @@ static void TestDriveDeterminism(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = PlaneWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, NULL);
         float bad;
         uint32_t nanBits = 0x7FC00000u;
@@ -197,10 +197,10 @@ static void TestDriveDeterminism(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the drive session records");
             m3WorldId replayed = PlaneWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the drive session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drive session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replayed drive is bit-identical");
             m3DestroyWorld(replayed);
 
@@ -268,7 +268,7 @@ static void TestBounceTwinsAndRollback(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = PlaneWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 2.5, 0.0}, NULL);
         CHECK(m3Vehicle_IsValid(car), "the twin car creates");
         int32_t snapBytes = 0;
@@ -284,10 +284,10 @@ static void TestBounceTwinsAndRollback(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the drop session records");
             m3WorldId replayed = PlaneWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the drop session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drop session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replayed drop is bit-identical");
             m3DestroyWorld(replayed);
 

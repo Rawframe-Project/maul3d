@@ -157,7 +157,7 @@ static void TestWallsTwinsAndReplay(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId w = Yard();
-        bool recording = run == 0 && m3World_JournalBegin(w, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
         m3ShapeDef sd = m3DefaultShapeDef();
         m3BodyDef cd = m3DefaultBodyDef();
         cd.type = m3_dynamicBody;
@@ -189,10 +189,10 @@ static void TestWallsTwinsAndReplay(void)
         hashes[run] = m3World_Hash(w);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(w);
+            int32_t bytes = m3World_StopJournal(w);
             CHECK(bytes > 0, "the joint session records");
             m3WorldId replayed = Yard();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");
@@ -289,7 +289,7 @@ static void TestWheelSteering(void)
         wd.shapeCapacity = 8;
         wd.jointCapacity = 4;
         m3WorldId world = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef hd = m3DefaultBodyDef();
         hd.position = (m3Pos3){0.0, 2.0, 0.0};
         m3BodyId hub = m3CreateBody(world, &hd);
@@ -328,11 +328,11 @@ static void TestWheelSteering(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the steering session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the steering replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the steering replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
         }
@@ -493,7 +493,7 @@ static void TestMotorJointServo(void)
         wd.shapeCapacity = 8;
         wd.jointCapacity = 4;
         m3WorldId world = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef ad = m3DefaultBodyDef();
         ad.position = (m3Pos3){0.0, 2.0, 0.0};
         m3BodyId anchor = m3CreateBody(world, &ad);
@@ -528,11 +528,11 @@ static void TestMotorJointServo(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the servo session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the servo session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the servo session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
         }

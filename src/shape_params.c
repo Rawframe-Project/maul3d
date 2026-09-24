@@ -207,7 +207,7 @@ void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag)
     ShapeFlagOp(shapeId, m3_opEnableShapeHitEvents, flag);
 }
 
-bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId)
+bool m3Shape_IsHitEventsEnabled(m3ShapeId shapeId)
 {
     int32_t slot;
     m3World* world = ResolveShape(shapeId, &slot);

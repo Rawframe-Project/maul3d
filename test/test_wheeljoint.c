@@ -237,7 +237,7 @@ static void TestJournalReplay(void)
     // hash with zero divergence.
     static uint8_t journal[131072];
     m3WorldId world = PlaneWorld();
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "the journal opens");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal opens");
     JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
     m3Joint_SetBreakThresholds(cart.joints[2], 0.0f, 25.0f);
     for (int32_t i = 0; i < 360; ++i)
@@ -253,10 +253,10 @@ static void TestJournalReplay(void)
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t final = m3World_Hash(world);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the cart session records");
     m3WorldId replayed = PlaneWorld();
-    CHECK(m3World_JournalReplay(replayed, journal, bytes), "the cart session replays");
+    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the cart session replays");
     CHECK(m3World_Hash(replayed) == final, "the replayed cart is bit-identical");
     m3DestroyWorld(replayed);
     m3DestroyWorld(world);

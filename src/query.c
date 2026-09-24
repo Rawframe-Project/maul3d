@@ -220,7 +220,7 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     return m3VoxelGet(&world->voxels.voxelData[slot], x, y, z) ? 1 : 0;
 }
 
-m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point)
+m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FinitePos3(point))

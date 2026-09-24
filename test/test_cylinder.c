@@ -125,7 +125,7 @@ static void TestCapsStackAndReplay(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = FlatWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.friction = 0.6f;
         m3Cylinder drum = {{0.0f, -0.4f, 0.0f}, {0.0f, 0.4f, 0.0f}, 0.5f};
@@ -153,10 +153,10 @@ static void TestCapsStackAndReplay(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the drum session records");
             m3WorldId replayed = FlatWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the drums replay");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drums replay");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
         }

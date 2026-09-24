@@ -297,7 +297,7 @@ extern "C"
     /// Opt a shape into hit events / the pre-solve veto.
     /// Journaled; the flags are state and snapshot with the world.
     M3_API void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag);
-    M3_API bool m3Shape_AreHitEventsEnabled(m3ShapeId shapeId);
+    M3_API bool m3Shape_IsHitEventsEnabled(m3ShapeId shapeId);
     M3_API void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag);
     M3_API bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 

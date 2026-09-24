@@ -376,11 +376,11 @@ static void TestPointAndOverlaps(void)
     m3ShapeId boxShape = m3CreateBoxShape(boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
 
     // Point containment per family.
-    m3ShapeId inBox = m3World_PointInside(world, (m3Pos3){5.2, 2.3, 0.4});
+    m3ShapeId inBox = m3World_TestPoint(world, (m3Pos3){5.2, 2.3, 0.4});
     CHECK(inBox.index1 == boxShape.index1, "the point inside the box finds the box");
-    m3ShapeId below = m3World_PointInside(world, (m3Pos3){100.0, -0.5, 0.0});
+    m3ShapeId below = m3World_TestPoint(world, (m3Pos3){100.0, -0.5, 0.0});
     CHECK(below.index1 == floorShape.index1, "a point below the floor is inside the half space");
-    m3ShapeId nowhere = m3World_PointInside(world, (m3Pos3){5.0, 8.0, 0.0});
+    m3ShapeId nowhere = m3World_TestPoint(world, (m3Pos3){5.0, 8.0, 0.0});
     CHECK(nowhere.index1 == 0, "open air contains nothing");
 
     // Overlaps: the AABB box catches the box, the sphere probes reach.
@@ -624,15 +624,15 @@ static void TestOverlapAndInsideFamilies(void)
 
     // Point-inside for the remaining families: capsule (cylinder
     // and cap regions), hull, and the mesh open-surface rule.
-    m3ShapeId inside = m3World_PointInside(world, (m3Pos3){-4.0, 1.2, 0.1});
+    m3ShapeId inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.2, 0.1});
     CHECK(inside.index1 == pillShape.index1, "a point in the capsule cylinder is inside");
-    inside = m3World_PointInside(world, (m3Pos3){-4.0, 1.8, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.8, 0.0});
     CHECK(inside.index1 == pillShape.index1, "a point in the capsule cap is inside");
-    inside = m3World_PointInside(world, (m3Pos3){-4.0, 2.5, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 2.5, 0.0});
     CHECK(inside.index1 == 0, "above the capsule is outside");
-    inside = m3World_PointInside(world, (m3Pos3){-8.0, 1.1, 0.1});
+    inside = m3World_TestPoint(world, (m3Pos3){-8.0, 1.1, 0.1});
     CHECK(inside.index1 == rockShape.index1, "a point in the hull is inside");
-    inside = m3World_PointInside(world, (m3Pos3){6.0, 2.0, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){6.0, 2.0, 0.0});
     CHECK(inside.index1 == 0, "a point ON a mesh is outside: meshes are open surfaces");
 
     m3DestroyWorld(world);

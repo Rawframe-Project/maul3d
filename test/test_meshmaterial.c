@@ -156,7 +156,7 @@ static void TestPaintTwinsReplayRollback(void)
         wd.bodyCapacity = 8;
         wd.shapeCapacity = 8;
         m3WorldId w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(w, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
         m3ShapeId floor = Quad(w);
         m3MeshSurfaceMaterial mats[2];
         memset(mats, 0, sizeof(mats));
@@ -185,11 +185,11 @@ static void TestPaintTwinsReplayRollback(void)
         hashes[run] = m3World_Hash(w);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(w);
+            int32_t bytes = m3World_StopJournal(w);
             CHECK(bytes > 0, "the painted session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the paint replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the paint replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(w, snap, snapBytes), "the painted restore lands");

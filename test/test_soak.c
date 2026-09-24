@@ -147,7 +147,7 @@ int main(int argc, char** argv)
     {
         // Segment: snapshot the start, journal the life.
         CHECK(m3World_Snapshot(live, snap, snapBytes) == snapBytes, "segment snapshot writes");
-        CHECK(m3World_JournalBegin(live, journal, JOURNAL_CAP), "segment journal arms");
+        CHECK(m3World_StartJournal(live, journal, JOURNAL_CAP), "segment journal arms");
         for (int32_t i = 0; i < SEGMENT_STEPS; ++i)
         {
             if (i % 125 == 0)
@@ -160,14 +160,14 @@ int main(int argc, char** argv)
             }
             m3World_Step(live, 1.0f / 60.0f, 4);
         }
-        int32_t journalBytes = m3World_JournalEnd(live);
+        int32_t journalBytes = m3World_StopJournal(live);
         CHECK(journalBytes > 0, "the segment fits its journal");
         totalSteps += SEGMENT_STEPS;
 
         // The replay twin: restore the segment start, replay the
         // recorded life, land on the live world's exact bits.
         CHECK(m3World_Restore(scratch, snap, snapBytes), "the twin restores the segment start");
-        CHECK(m3World_JournalReplay(scratch, journal, journalBytes), "the segment replays");
+        CHECK(m3World_ReplayJournal(scratch, journal, journalBytes), "the segment replays");
         CHECK(m3World_Hash(scratch) == m3World_Hash(live),
               "the replayed segment lands on the live hash");
 

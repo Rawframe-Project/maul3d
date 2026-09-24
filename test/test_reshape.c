@@ -132,7 +132,7 @@ static void TestTwinsReplayRollback(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = Yard();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3ShapeDef sd = m3DefaultShapeDef();
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
@@ -163,10 +163,10 @@ static void TestTwinsReplayRollback(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the swap session records");
             m3WorldId replayed = Yard();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the swaps replay");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the swaps replay");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(world, snap, snapBytes), "the mid-swap restore lands");

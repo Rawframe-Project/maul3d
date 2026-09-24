@@ -227,20 +227,20 @@ static void TestJournalCompositionRefusal(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "the seed snapshot writes");
 
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
     CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 0, 0, 0), "the journaled edit lands");
     m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the edits-only session records");
     uint64_t liveHash = m3World_Hash(world);
 
     m3WorldId fresh = StormWorld(1);
     uint64_t freshHash = m3World_Hash(fresh);
-    CHECK(!m3World_JournalReplay(fresh, journal, bytes),
+    CHECK(!m3World_ReplayJournal(fresh, journal, bytes),
           "an edits-only journal refuses a world without its chunk");
     CHECK(m3World_Hash(fresh) == freshHash, "the refusal is atomic");
     CHECK(m3World_Restore(fresh, snap, snapBytes), "the seed restores");
-    CHECK(m3World_JournalReplay(fresh, journal, bytes), "the seeded replay lands");
+    CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the seeded replay lands");
     CHECK(m3World_Hash(fresh) == liveHash, "seed plus journal equals the live world");
     m3DestroyWorld(fresh);
     free(snap);

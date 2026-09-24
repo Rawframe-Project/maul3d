@@ -210,6 +210,17 @@ Work toward 0.0.1, the first release of the reworked library.
   bit unchanged, and a test holds the kernel to the scalar rows every
   step. The pyramid bench steps in 0.13 ms (0.22 before), the city
   block in 11.0 ms (13.6).
+- Public names follow the family rules and match Maul2D where the
+  concept is shared: m3World_StartJournal, m3World_StopJournal and
+  m3World_ReplayJournal (were JournalBegin, JournalEnd,
+  JournalReplay), m3DescribeJournal, m3EncodeReplay, m3DecodeReplay,
+  m3GetEncodedReplaySize, m3World_GetMemoryUsage, m3World_TestPoint
+  (was PointInside), m3World_Compare (was DiffReport),
+  m3Shape_IsHitEventsEnabled, m3Body_EnableFastRotation and
+  m3Body_IsFastRotationEnabled. m3Body_SetEnabled is now m3Body_Enable
+  and m3Body_Disable, and m3Body_SetSleepControls is now
+  m3Body_EnableSleep, m3Body_IsSleepEnabled, m3Body_SetSleepThreshold
+  and m3Body_GetSleepThreshold.
 
 ### Removed
 

@@ -151,7 +151,7 @@ static void TestNamesAndHooks(void)
     static uint8_t journal[65536];
     static uint8_t snap[2097152];
     m3WorldId world = BuildYard();
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "the tape opens");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the tape opens");
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){5.0, 1.0, 0.0};
@@ -165,10 +165,10 @@ static void TestNamesAndHooks(void)
     uint64_t before = m3World_Hash(world);
     m3Body_SetName(hero, "renamed");
     CHECK(m3World_Hash(world) == before, "a name is never a hash input");
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the naming session records");
     m3WorldId twin = BuildYard();
-    CHECK(m3World_JournalReplay(twin, journal, bytes), "the naming session replays");
+    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the naming session replays");
     m3BodyId twinHero = {hero.index1, (uint16_t)(twin.index1 - 1), hero.generation};
     CHECK(strcmp(m3Body_GetName(twinHero), "renamed") == 0, "the replayed name lands");
     m3DestroyWorld(twin);

@@ -226,7 +226,7 @@ static void TestJournalReplay(void)
     // (a garbage def, an out-of-range gear) and journal NOTHING.
     static uint8_t journal[65536];
     m3WorldId world = PlaneWorld();
-    bool recording = m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    bool recording = m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
     CHECK(recording, "the journal opens");
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, NULL);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
@@ -266,10 +266,10 @@ static void TestJournalReplay(void)
     }
     CHECK(m3Vehicle_GetGear(car) == -1, "the session ends in reverse");
     uint64_t final = m3World_Hash(world);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the session records");
     m3WorldId replayed = PlaneWorld();
-    CHECK(m3World_JournalReplay(replayed, journal, bytes), "the session replays");
+    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
     CHECK(m3World_Hash(replayed) == final, "the replayed session is bit-identical");
     m3DestroyWorld(replayed);
     m3DestroyWorld(world);

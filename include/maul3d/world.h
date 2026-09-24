@@ -153,7 +153,7 @@ extern "C"
     /// Hard cap on any body's angular speed in rad/s, applied every
     /// substep. The default (800) is a catastrophe guard, not a
     /// gameplay clamp; bodies flagged with
-    /// m3Body_SetAllowFastRotation bypass it. Journaled.
+    /// m3Body_EnableFastRotation bypass it. Journaled.
     M3_API void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
@@ -363,7 +363,7 @@ extern "C"
 
     /// The closest front-face hit along origin + t * translation for
     /// t in [0, 1]. Rays MISS shapes they start inside or exactly on
-    /// (front faces only); ask m3World_PointInside for containment.
+    /// (front faces only); ask m3World_TestPoint for containment.
     /// The mover toolkit: pure queries and a pure plane
     /// solver for hosts that roll their own character movers (the
     /// engine's kinematic controller remains the built-in path).
@@ -457,7 +457,7 @@ extern "C"
     /// The first shape (lowest index) whose volume contains the
     /// point, or the null id. Meshes are open surfaces and never
     /// contain points; planes are solid half spaces.
-    M3_API m3ShapeId m3World_PointInside(m3WorldId worldId, m3Pos3 point);
+    M3_API m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point);
 
     /// Shapes whose tight bounds overlap the box, in ascending shape
     /// index order. Returns the count written.
@@ -590,7 +590,7 @@ extern "C"
         int32_t scratchCapacity;
         int32_t scratchPeak;
     } m3MemoryUsage;
-    M3_API m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId);
+    M3_API m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId);
 
     /// Wall-clock milliseconds per phase of the last completed step,
     /// measured with a monotonic clock for observation only. Never
@@ -619,13 +619,13 @@ extern "C"
     /// reproduces the world bit for bit. Begin hands the world a
     /// caller-owned buffer; End returns the bytes written (or -1 after
     /// an overflow, loudly); Replay applies a stream to this world.
-    M3_API bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity);
-    M3_API int32_t m3World_JournalEnd(m3WorldId worldId);
+    M3_API bool m3World_StartJournal(m3WorldId worldId, void* buffer, int32_t capacity);
+    M3_API int32_t m3World_StopJournal(m3WorldId worldId);
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal (truncation, corruption, an op that cannot re-mint
     /// its recorded id) the world is restored to its pre-call state
     /// and false returns; a half-applied session is impossible.
-    M3_API bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size);
+    M3_API bool m3World_ReplayJournal(m3WorldId worldId, const void* data, int32_t size);
 
 #ifdef __cplusplus
 }

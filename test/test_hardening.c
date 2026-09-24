@@ -41,7 +41,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     m3WorldId world = m3CreateWorld(&def);
     if (journal != NULL)
     {
-        m3World_JournalBegin(world, journal, journalBytes);
+        m3World_StartJournal(world, journal, journalBytes);
     }
 
     m3BodyDef gd = m3DefaultBodyDef();
@@ -239,13 +239,13 @@ static void TestZoo(void)
     // The journal closes BEFORE the rollback block: a restore is not
     // an op, so a journal spanning one would replay a longer history
     // than the world lived (the composition rule, worth this comment).
-    int32_t bytes = m3World_JournalEnd(a);
+    int32_t bytes = m3World_StopJournal(a);
     CHECK(bytes > 0, "the zoo session recorded");
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
     m3WorldId c = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(c, journal, bytes), "the zoo session replays");
+    CHECK(m3World_ReplayJournal(c, journal, bytes), "the zoo session replays");
     CHECK(m3World_Hash(c) == m3World_Hash(a), "the zoo replay is bit-identical");
 
     // Rollback in the thick of it.
@@ -373,14 +373,14 @@ static void TestJournalOverflowIsLoud(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_JournalBegin(world, tiny, (int32_t)sizeof(tiny)), "the tiny journal arms");
+    CHECK(m3World_StartJournal(world, tiny, (int32_t)sizeof(tiny)), "the tiny journal arms");
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     for (int32_t i = 0; i < 4; ++i)
     {
         m3CreateBody(world, &bd); // each op needs more than 64 bytes
     }
-    CHECK(m3World_JournalEnd(world) == -1, "journal overflow reports -1, loudly");
+    CHECK(m3World_StopJournal(world) == -1, "journal overflow reports -1, loudly");
     m3World_Step(world, 1.0f / 60.0f, 4); // the world itself is fine
     m3DestroyWorld(world);
 }

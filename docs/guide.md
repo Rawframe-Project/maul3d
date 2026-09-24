@@ -135,11 +135,11 @@ their full recipes: hull input points, mesh vertex and index
 payloads), destroys, velocity commands, and steps (dt and substep
 count). Getters and queries are not ops.
 
-`m3World_JournalBegin(world, buffer, capacity)` arms recording into a
-caller-owned buffer. `m3World_JournalEnd` returns the bytes written,
+`m3World_StartJournal(world, buffer, capacity)` arms recording into a
+caller-owned buffer. `m3World_StopJournal` returns the bytes written,
 or -1 if the buffer overflowed (an overflowed journal records
 nothing more and can never be mistaken for a good one).
-`m3World_JournalReplay(world, data, size)` applies a recorded session
+`m3World_ReplayJournal(world, data, size)` applies a recorded session
 to a world and verifies that every minted id matches the recorded
 one; a world that starts from the same state WILL mint the same ids,
 so a mismatch means the session does not belong to this starting
@@ -202,7 +202,7 @@ the pointer).
 
 - Rays (`m3World_CastRayClosest`, `m3World_CastRayAll`) hit front
   faces only. A ray starting inside or exactly on a surface reports
-  a miss for that shape; use `m3World_PointInside` to ask about
+  a miss for that shape; use `m3World_TestPoint` to ask about
   containment. All-hits results are sorted by fraction, ties by
   shape index; when the output array fills, the farthest hit drops.
 - Shape casts (`m3World_CastSphereClosest`,
@@ -215,7 +215,7 @@ the pointer).
   ray). Any translation component beyond 1e18 misses by contract:
   past that, the kernels' float arithmetic would overflow (the
   caster's float budget).
-- `m3World_PointInside` treats planes as solid half-spaces and
+- `m3World_TestPoint` treats planes as solid half-spaces and
   meshes as open surfaces (a point is never "inside" a mesh).
 - Overlap queries (`m3World_OverlapAabb`, `m3World_OverlapSphere`)
   return exact shape-level results, planes included.
@@ -530,13 +530,14 @@ arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
 servo: the body lands exactly on the target next step and the
 order clears; the exit velocity stays yours by contract.
 `m3Body_SetType` flips dynamic/kinematic/static with a full mass
-rebuild. `m3Body_SetEnabled(false)` removes the body from
+rebuild. `m3Body_Disable` removes the body from
 contacts, CCD, rays, casts, overlaps, and soft-lattice collision.
 `m3Body_SetMotionLocks` freezes any subset of the six axes (bits
 0..2 linear xyz, 3..5 angular xyz), re-zeroed every substep so
 contacts cannot bank motion on a frozen axis.
-`m3Body_SetSleepControls` gives a per-body threshold and a
-canSleep override; `m3Body_SetAwake` forces either edge.
+`m3Body_SetSleepThreshold` gives a per-body threshold and
+`m3Body_EnableSleep` keeps a body awake; `m3Body_SetAwake` forces
+either edge.
 
 ## Materials and world tuning
 
@@ -579,7 +580,7 @@ its unrebuilt twin (the suite proves it by hash equality).
 ## The destruction cinematic
 
 Record a storm, replay it as a cutscene: arm the testbed's
-Record button (or m3World_JournalBegin in your host), detonate
+Record button (or m3World_StartJournal in your host), detonate
 the blastyard, Save to .m3j, and play it back with the m3replay
 studio (verify replays to the recorded hash; seek scrubs to any
 step through keyframes). A cutscene in Maul3D is not a video: it
@@ -870,9 +871,9 @@ legal scene does, it exists to stop solver-explosion artifacts,
 not gameplay. Hosts that want a tight clamp set a
 low cap with m3World_SetMaximumAngularSpeed (journaled, hashed
 only off-default) and flag their legal fast spinners, wheels
-above all, with m3Body_SetAllowFastRotation (journaled). The
+above all, with m3Body_EnableFastRotation (journaled). The
 flag lives beside the motion locks, survives lock writes, and
-reads back with m3Body_GetAllowFastRotation.
+reads back with m3Body_IsFastRotationEnabled.
 
 ## Explosions
 
@@ -989,7 +990,7 @@ scrubber in m3replay keyframes every 30 steps and re-steps to
 seek anywhere, proving each landing against a straight-run
 prefix hash. When two sessions disagree, m3replay diff finds the
 first divergent step by prefix-hash binary search and
-m3World_DiffReport names the worst bodies at it. Corrupt
+m3World_Compare names the worst bodies at it. Corrupt
 containers refuse loudly: the codec validates magic, version,
 exact lengths, record framing, and that the header's counts match
 its own stream.

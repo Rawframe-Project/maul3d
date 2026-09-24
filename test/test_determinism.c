@@ -214,13 +214,13 @@ static void GateGoldenAndReplay(void)
     // Gate 2b: a journaled session replays bit for bit.
     m3WorldId a = MakeGoldenWorld(1, 0);
     uint8_t* journal = (uint8_t*)malloc(1 << 20);
-    CHECK(m3World_JournalBegin(a, journal, 1 << 20), "journal begins");
+    CHECK(m3World_StartJournal(a, journal, 1 << 20), "journal begins");
     BuildGoldenScene(a);
     StepN(a, 150);
-    int32_t bytes = m3World_JournalEnd(a);
+    int32_t bytes = m3World_StopJournal(a);
     CHECK(bytes > 0, "the session fits the journal");
     m3WorldId b = MakeGoldenWorld(1, 0);
-    CHECK(m3World_JournalReplay(b, journal, bytes), "the session replays");
+    CHECK(m3World_ReplayJournal(b, journal, bytes), "the session replays");
     CHECK(m3World_Hash(a) == m3World_Hash(b), "gate 2b: journal replay is bit-identical");
     free(journal);
     m3DestroyWorld(a);

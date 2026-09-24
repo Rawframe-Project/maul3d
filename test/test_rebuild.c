@@ -101,7 +101,7 @@ static void TestRebuildTwinsReplayRollback(void)
         wd.bodyCapacity = 64;
         wd.shapeCapacity = 64;
         w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(w, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
         m3ShapeDef sd = m3DefaultShapeDef();
         m3BodyDef bd = m3DefaultBodyDef();
         for (int32_t i = 0; i < 16; ++i)
@@ -133,11 +133,11 @@ static void TestRebuildTwinsReplayRollback(void)
         hashes[run] = m3World_Hash(w);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(w);
+            int32_t bytes = m3World_StopJournal(w);
             CHECK(bytes > 0, "the rebuild session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the rebuild replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the rebuild replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");

@@ -182,7 +182,7 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
 {
     static uint8_t journal[262144];
     m3WorldId world = SmallWorld();
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -207,12 +207,12 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the voxel session records");
 
     // Journal replay re-mints the chunk and rebuilds the surface.
     m3WorldId replayed = SmallWorld();
-    CHECK(m3World_JournalReplay(replayed, journal, bytes), "the voxel session replays");
+    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the voxel session replays");
     CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the replay is bit-identical");
     CHECK(SurfaceSame(SurfaceOf(replayed, chunkShape), SurfaceOf(world, chunkShape)),
           "the replayed surface is byte-identical");
@@ -272,11 +272,11 @@ static void TestQueriesAgainstVoxels(void)
     CHECK(!hit.hit, "a ray born inside reports a miss");
 
     // Containment: inside a filled voxel, above the slab, outside.
-    CHECK(m3World_PointInside(world, (m3Pos3){8.0, 3.5, 8.0}).index1 == chunkShape.index1,
+    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 3.5, 8.0}).index1 == chunkShape.index1,
           "a point in a filled voxel is inside");
-    CHECK(m3World_PointInside(world, (m3Pos3){8.0, 4.5, 8.0}).index1 == 0,
+    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 4.5, 8.0}).index1 == 0,
           "a point above the slab is outside");
-    CHECK(m3World_PointInside(world, (m3Pos3){-1.0, 1.0, 8.0}).index1 == 0,
+    CHECK(m3World_TestPoint(world, (m3Pos3){-1.0, 1.0, 8.0}).index1 == 0,
           "a point before the chunk origin is outside");
 
     // Overlaps: the sphere reach and the AABB both see the chunk.
@@ -402,7 +402,7 @@ static void TestEditRollbackReedit(void)
     // with a byte-identical derived surface.
     static uint8_t journal[262144];
     m3WorldId world = SmallWorld();
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
@@ -429,10 +429,10 @@ static void TestEditRollbackReedit(void)
     // history than the world lived. The first draft of this test
     // violated the rule and the engine correctly refused to make
     // the mismatched timelines agree.
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the edit session records");
     m3WorldId replayed = SmallWorld();
-    CHECK(m3World_JournalReplay(replayed, journal, bytes), "the edit session replays");
+    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the edit session replays");
     CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the edit replay is bit-identical");
     m3DestroyWorld(replayed);
 
@@ -1077,7 +1077,7 @@ static void TestEmbeddedRecovery(void)
         // PointInside finds the ball's own sphere (a center is
         // always inside its own shape); the assertion is that the
         // CHUNK no longer contains it.
-        CHECK(m3World_PointInside(world, p).index1 != block.index1,
+        CHECK(m3World_TestPoint(world, p).index1 != block.index1,
               "the rest position is outside the solid block");
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);

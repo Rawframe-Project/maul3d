@@ -53,7 +53,7 @@ static void TestHitEvents(void)
         if (mode >= 1)
         {
             m3Shape_EnableHitEvents(floor, true);
-            CHECK(m3Shape_AreHitEventsEnabled(floor), "hit flag reads back");
+            CHECK(m3Shape_IsHitEventsEnabled(floor), "hit flag reads back");
         }
         if (mode == 2)
         {
@@ -264,7 +264,7 @@ static void TestHostileEvents(void)
     m3ShapeId stale = floor;
     stale.index1 += 999;
     m3Shape_EnableHitEvents(stale, true);
-    CHECK(!m3Shape_AreHitEventsEnabled(stale), "stale flag set refuses");
+    CHECK(!m3Shape_IsHitEventsEnabled(stale), "stale flag set refuses");
     int32_t n = -1;
     CHECK(m3World_HitEvents(world, &n) != NULL || n == 0, "empty stream reads clean");
     CHECK(n == 0, "no events before any step");

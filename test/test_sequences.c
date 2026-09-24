@@ -84,9 +84,9 @@ static void TestStaleIdsEverywhere(void)
     // The journal entries and event getters refuse the dead world
     // and a null count pointer without ceremony.
     static uint8_t buf[256];
-    CHECK(!m3World_JournalBegin(world, buf, (int32_t)sizeof(buf)), "a dead world cannot journal");
-    CHECK(m3World_JournalEnd(world) == -1, "a dead world has no journal to end");
-    CHECK(!m3World_JournalReplay(world, buf, 16), "a dead world cannot replay");
+    CHECK(!m3World_StartJournal(world, buf, (int32_t)sizeof(buf)), "a dead world cannot journal");
+    CHECK(m3World_StopJournal(world) == -1, "a dead world has no journal to end");
+    CHECK(!m3World_ReplayJournal(world, buf, 16), "a dead world cannot replay");
     CHECK(m3World_ContactBeginEvents(world, NULL) == NULL, "a dead world has no events");
     m3WorldId live = SmallWorld();
     CHECK(m3World_ContactBeginEvents(live, NULL) != NULL || 1, "a null count pointer is tolerated");
@@ -145,7 +145,7 @@ static void TestSnapshotRefusals(void)
 // cascade destroy, and steps. Returns the byte count.
 static int32_t RecordSession(m3WorldId world, uint8_t* journal, int32_t cap)
 {
-    CHECK(m3World_JournalBegin(world, journal, cap), "the journal arms");
+    CHECK(m3World_StartJournal(world, journal, cap), "the journal arms");
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
@@ -165,7 +165,7 @@ static int32_t RecordSession(m3WorldId world, uint8_t* journal, int32_t cap)
     // The mid-journal cascade: destroying `a` takes its shape and
     // the joint with it, all inside the recording.
     m3DestroyBody(a);
-    return m3World_JournalEnd(world);
+    return m3World_StopJournal(world);
 }
 
 static void TestJournalCorruptionIsAtomic(void)
@@ -179,7 +179,7 @@ static void TestJournalCorruptionIsAtomic(void)
 
     // The clean replay reproduces the cascade world bit for bit.
     m3WorldId clean = SmallWorld();
-    CHECK(m3World_JournalReplay(clean, journal, bytes), "the clean session replays");
+    CHECK(m3World_ReplayJournal(clean, journal, bytes), "the clean session replays");
     CHECK(m3World_Hash(clean) == sourceHash, "the mid-journal cascade replays bit-exact");
     m3DestroyWorld(clean);
 
@@ -199,16 +199,16 @@ static void TestJournalCorruptionIsAtomic(void)
         if (attack == 0)
         {
             evil[bytes / 2] ^= 0xA5; // corrupt a middle byte
-            refused = !m3World_JournalReplay(target, evil, bytes);
+            refused = !m3World_ReplayJournal(target, evil, bytes);
         }
         else if (attack == 1)
         {
-            refused = !m3World_JournalReplay(target, evil, bytes - 7); // truncate
+            refused = !m3World_ReplayJournal(target, evil, bytes - 7); // truncate
         }
         else
         {
             memset(evil, 0x7F, 8); // unknown op in the first header
-            refused = !m3World_JournalReplay(target, evil, bytes);
+            refused = !m3World_ReplayJournal(target, evil, bytes);
         }
         CHECK(refused, "a damaged journal refuses");
         CHECK(m3World_Hash(target) == before, "the refused replay left no fingerprints");
@@ -249,7 +249,7 @@ static void TestReplayWrongSizePayloads(void)
 
         m3WorldId target = SmallWorld();
         uint64_t before = m3World_Hash(target);
-        CHECK(!m3World_JournalReplay(target, evil, bytes + 4), "an inflated op refuses");
+        CHECK(!m3World_ReplayJournal(target, evil, bytes + 4), "an inflated op refuses");
         CHECK(m3World_Hash(target) == before, "the inflated-op refusal is atomic");
         m3DestroyWorld(target);
         attacked += 1;
@@ -264,7 +264,7 @@ static void TestReplayWrongSizePayloads(void)
     m3BodyDef rd = m3DefaultBodyDef();
     m3BodyId resident = m3CreateBody(occupied, &rd);
     uint64_t before = m3World_Hash(occupied);
-    CHECK(!m3World_JournalReplay(occupied, journal, bytes),
+    CHECK(!m3World_ReplayJournal(occupied, journal, bytes),
           "an occupied world refuses the id-shifted session");
     CHECK(m3World_Hash(occupied) == before && m3Body_IsValid(resident),
           "the id-determinism refusal is atomic");
@@ -395,9 +395,10 @@ static void TestRuntimeOpsRedTeam(void)
             m3JointId staleJ = {5, staleS.world0, 7};
             m3Body_SetTransform(staleB, (m3Pos3){9.0, 9.0, 9.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
             m3Body_SetType(staleB, m3_staticBody);
-            m3Body_SetEnabled(staleB, false);
+            m3Body_Disable(staleB);
             m3Body_SetMotionLocks(staleB, 0x3Fu);
-            m3Body_SetSleepControls(staleB, 0.5f, false);
+            m3Body_SetSleepThreshold(staleB, 0.5f);
+            m3Body_EnableSleep(staleB, false);
             m3Body_SetAwake(staleB, false);
             m3Shape_SetFriction(staleS, 0.1f);
             m3Shape_SetRestitution(staleS, 0.9f);
@@ -458,7 +459,7 @@ static void TestRuntimeOpsRedTeam(void)
             (void)cats;
             if (mode == 2)
             {
-                m3Body_SetEnabled(wall, false);
+                m3Body_Disable(wall);
             }
             if (mode == 3)
             {
@@ -477,7 +478,7 @@ static void TestRuntimeOpsRedTeam(void)
             else if (mode == 2)
             {
                 CHECK(x > 6.0, "disabled wall: the bullet passes");
-                m3Body_SetEnabled(wall, true);
+                m3Body_Enable(wall);
             }
             else if (mode == 3)
             {
@@ -549,8 +550,10 @@ static void TestRuntimeOpsRedTeam(void)
         if (phase == 18)                                                                           \
             m3World_SetContactTuning(world, 30.0f + (float)((i) % 8), 10.0f, 3.0f);                \
         if (phase == 21)                                                                           \
-            m3Body_SetSleepControls(crates[(i) % 3], 0.05f + 0.01f * (float)((i) % 4),             \
-                                    ((i) / 24) % 2 == 0);                                          \
+        {                                                                                          \
+            m3Body_SetSleepThreshold(crates[(i) % 3], 0.05f + 0.01f * (float)((i) % 4));           \
+            m3Body_EnableSleep(crates[(i) % 3], ((i) / 24) % 2 == 0);                              \
+        }                                                                                          \
     } while (0)
 
         for (int32_t i = 0; i < 120; ++i)

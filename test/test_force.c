@@ -122,7 +122,7 @@ static void TestForceReplayAndRollback(void)
         def.bodyCapacity = 16;
         def.shapeCapacity = 16;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
@@ -164,10 +164,10 @@ static void TestForceReplayAndRollback(void)
         uint64_t final = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the force session records");
             m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the force session replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the force session replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
             CHECK(m3World_Restore(world, snap, snapBytes), "the mid-script restore lands");

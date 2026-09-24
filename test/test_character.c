@@ -173,7 +173,7 @@ static void TestMoveDeterminismAndJournal(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = ArenaWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3CharacterDef cd = m3DefaultCharacterDef();
         cd.position = (m3Pos3){0.0, 2.0, 0.0};
         m3CharacterId hero = m3CreateCharacter(world, &cd);
@@ -194,10 +194,10 @@ static void TestMoveDeterminismAndJournal(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the walk session records");
             m3WorldId replayed = ArenaWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the walk session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the walk session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replayed walk is bit-identical");
             m3DestroyWorld(replayed);
 

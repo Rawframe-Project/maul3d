@@ -35,7 +35,7 @@ extern "C"
         int32_t stepCount;
     } m3JournalInfo;
 
-    M3_API bool m3JournalDescribe(const void* journal, int32_t bytes, m3JournalInfo* out);
+    M3_API bool m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* out);
 
     /// A decoded view into an encoded container: pointers alias the
     /// input buffer, nothing is copied.
@@ -50,20 +50,20 @@ extern "C"
     } m3ReplayView;
 
     /// Exact encoded size for the given payload sizes.
-    M3_API int32_t m3ReplayEncodeSize(int32_t snapshotBytes, int32_t journalBytes);
+    M3_API int32_t m3GetEncodedReplaySize(int32_t snapshotBytes, int32_t journalBytes);
 
     /// Encode a container. finalHash is the recorder's end hash
     /// (m3World_Hash after the session); verifiers compare against
     /// it. Returns bytes written, or 0 on refusal (bad sizes, small
     /// capacity, malformed journal).
-    M3_API int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* journal,
+    M3_API int32_t m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
                                   int32_t journalBytes, uint64_t finalHash, void* out,
                                   int32_t capacity);
 
     /// Decode and validate framing (magic, version, lengths, journal
     /// record walk). Returns false on any corruption; the view is
     /// untouched on refusal.
-    M3_API bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out);
+    M3_API bool m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* out);
 
     /// One row of a world-versus-world body comparison. A
     /// DEBUG READ for the divergence finder: never state, never
@@ -85,8 +85,8 @@ extern "C"
     /// number written, and returns the TOTAL number of differing
     /// slots (which may exceed capacity), or -1 on refusal. Zero
     /// means the worlds agree body-for-body.
-    M3_API int32_t m3World_DiffReport(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out,
-                                      int32_t capacity, int32_t* outCount);
+    M3_API int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out,
+                                   int32_t capacity, int32_t* outCount);
 
 #ifdef __cplusplus
 }

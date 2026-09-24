@@ -14,7 +14,7 @@
 #define M3_REPLAY_VERSION      1u
 #define M3_REPLAY_HEADER_BYTES 32
 
-bool m3JournalDescribe(const void* journal, int32_t bytes, m3JournalInfo* out)
+bool m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* out)
 {
     if (journal == NULL || bytes < 0 || out == NULL)
     {
@@ -51,7 +51,7 @@ bool m3JournalDescribe(const void* journal, int32_t bytes, m3JournalInfo* out)
     return true;
 }
 
-int32_t m3ReplayEncodeSize(int32_t snapshotBytes, int32_t journalBytes)
+int32_t m3GetEncodedReplaySize(int32_t snapshotBytes, int32_t journalBytes)
 {
     if (snapshotBytes <= 0 || journalBytes < 0)
     {
@@ -61,10 +61,10 @@ int32_t m3ReplayEncodeSize(int32_t snapshotBytes, int32_t journalBytes)
     return M3_REPLAY_HEADER_BYTES + snapshotBytes + journalBytes;
 }
 
-int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* journal,
+int32_t m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
                        int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity)
 {
-    int32_t need = m3ReplayEncodeSize(snapshotBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapshotBytes, journalBytes);
     if (need == 0 || snapshot == NULL || (journal == NULL && journalBytes > 0) || out == NULL ||
         capacity < need)
     {
@@ -72,7 +72,7 @@ int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* 
         return 0;
     }
     m3JournalInfo info;
-    if (!m3JournalDescribe(journal, journalBytes, &info))
+    if (!m3DescribeJournal(journal, journalBytes, &info))
     {
         m3Refuse(NULL, m3_errorInvalid);
         return 0; // a container never wraps a malformed stream
@@ -95,7 +95,7 @@ int32_t m3ReplayEncode(const void* snapshot, int32_t snapshotBytes, const void* 
     return need;
 }
 
-bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out)
+bool m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* out)
 {
     if (data == NULL || bytes < M3_REPLAY_HEADER_BYTES || out == NULL)
     {
@@ -126,7 +126,7 @@ bool m3ReplayDecode(const void* data, int32_t bytes, m3ReplayView* out)
     }
     m3JournalInfo info;
     const uint8_t* journal = p + M3_REPLAY_HEADER_BYTES + snapshotBytes;
-    if (!m3JournalDescribe(journal, journalBytes, &info))
+    if (!m3DescribeJournal(journal, journalBytes, &info))
     {
         m3Refuse(NULL, m3_errorInvalid);
         return false;

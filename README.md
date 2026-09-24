@@ -64,7 +64,7 @@ m3World_Restore(world, buffer, size); // bit-exact resimulation from here
   order.
 - **Continuous collision** for fast bodies, island sleeping and tuning
   settings.
-- **Integration**: 236 public functions, full state readback, debug
+- **Integration**: 240 public functions, full state readback, debug
   draw as wireframe and solid triangle streams, counters and
   profiling, allocator and assert hooks.
 

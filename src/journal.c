@@ -50,7 +50,7 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
     m3JournalRecordParts(world, op, &part, 1);
 }
 
-bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)
+bool m3World_StartJournal(m3WorldId worldId, void* buffer, int32_t capacity)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || buffer == NULL || capacity < 8 || world->recorder.journalActive != 0)
@@ -66,7 +66,7 @@ bool m3World_JournalBegin(m3WorldId worldId, void* buffer, int32_t capacity)
     return true;
 }
 
-int32_t m3World_JournalEnd(m3WorldId worldId)
+int32_t m3World_StopJournal(m3WorldId worldId)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
@@ -83,7 +83,7 @@ int32_t m3World_JournalEnd(m3WorldId worldId)
     return bytes;
 }
 
-bool m3World_JournalReplay(m3WorldId worldId, const void* data, int32_t size)
+bool m3World_ReplayJournal(m3WorldId worldId, const void* data, int32_t size)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || data == NULL || size < 0)

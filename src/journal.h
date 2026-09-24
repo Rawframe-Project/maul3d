@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The command journal's vocabulary and entry points: the op codes, the
-// recorder, and the replay worker behind m3World_JournalReplay.
+// recorder, and the replay worker behind m3World_ReplayJournal.
 
 #ifndef MAUL3D_SRC_JOURNAL_H
 #define MAUL3D_SRC_JOURNAL_H
@@ -489,7 +489,7 @@ void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts
 
 // Applies a tape's ops in order through the command table and reports
 // the first refusal. Partial application is possible here;
-// m3World_JournalReplay makes the whole call atomic.
+// m3World_ReplayJournal makes the whole call atomic.
 bool m3JournalReplayApply(m3World* world, const void* data, int32_t size);
 
 #endif // MAUL3D_SRC_JOURNAL_H

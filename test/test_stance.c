@@ -77,7 +77,7 @@ static void TestDuckWalkStand(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = TunnelWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3CharacterDef cd = m3DefaultCharacterDef();
         cd.position = (m3Pos3){0.0, 3.0, 0.0};
         m3CharacterId hero = m3CreateCharacter(world, &cd);
@@ -127,10 +127,10 @@ static void TestDuckWalkStand(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the tunnel run records");
             m3WorldId replayed = TunnelWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the tunnel run replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the tunnel run replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replayed run is bit-identical");
             // The refused stand at tick 240 journaled NOTHING: the
             // replay just proved it by landing (a phantom op 64

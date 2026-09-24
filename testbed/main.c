@@ -1376,7 +1376,7 @@ static void RecordArm(m3WorldId world, m3WorldDef def)
     free(s_recordSnap);
     s_recordSnap = (uint8_t*)malloc((size_t)s_recordSnapBytes);
     m3World_Snapshot(world, s_recordSnap, s_recordSnapBytes);
-    s_recording = m3World_JournalBegin(world, s_journal, TB_JOURNAL_BYTES);
+    s_recording = m3World_StartJournal(world, s_journal, TB_JOURNAL_BYTES);
     snprintf(s_recordStatus, sizeof(s_recordStatus), s_recording ? "recording..." : "arm failed");
 }
 
@@ -1386,7 +1386,7 @@ static void RecordSave(m3WorldId world)
     {
         return;
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     s_recording = false;
     if (journalBytes <= 0)
     {
@@ -1394,10 +1394,10 @@ static void RecordSave(m3WorldId world)
         return;
     }
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(s_recordSnapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(s_recordSnapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
     int32_t wrote =
-        m3ReplayEncode(s_recordSnap, s_recordSnapBytes, s_journal, journalBytes, final, blob, need);
+        m3EncodeReplay(s_recordSnap, s_recordSnapBytes, s_journal, journalBytes, final, blob, need);
     if (wrote != need)
     {
         free(blob);
@@ -1433,7 +1433,7 @@ static void RecordVerify(void)
     size_t got = fread(blob, 1, (size_t)size, f);
     fclose(f);
     m3ReplayView view;
-    if (got != (size_t)size || !m3ReplayDecode(blob, (int32_t)size, &view))
+    if (got != (size_t)size || !m3DecodeReplay(blob, (int32_t)size, &view))
     {
         free(blob);
         snprintf(s_recordStatus, sizeof(s_recordStatus), "decode refused");
@@ -1441,7 +1441,7 @@ static void RecordVerify(void)
     }
     m3WorldId probe = m3CreateWorld(&s_recordDef);
     bool ok = m3World_Restore(probe, view.snapshot, view.snapshotBytes) &&
-              m3World_JournalReplay(probe, view.journal, view.journalBytes) &&
+              m3World_ReplayJournal(probe, view.journal, view.journalBytes) &&
               m3World_Hash(probe) == view.finalHash;
     m3DestroyWorld(probe);
     free(blob);

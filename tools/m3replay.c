@@ -123,13 +123,13 @@ static int Record(const char* path)
 
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    if (journal == NULL || !m3World_JournalBegin(world, journal, journalCap))
+    if (journal == NULL || !m3World_StartJournal(world, journal, journalCap))
     {
         fprintf(stderr, "m3replay: journal begin failed\n");
         return 1;
     }
     DemoSession(world, 300);
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     if (journalBytes < 0)
     {
         fprintf(stderr, "m3replay: journal overflowed\n");
@@ -137,9 +137,9 @@ static int Record(const char* path)
     }
     uint64_t finalHash = m3World_Hash(world);
 
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = m3ReplayEncode(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    int32_t wrote = m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     if (wrote != need)
     {
         fprintf(stderr, "m3replay: encode failed\n");
@@ -193,7 +193,7 @@ static int Info(const char* path)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3ReplayDecode(data, bytes, &view))
+    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -211,7 +211,7 @@ static int Verify(const char* path)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3ReplayDecode(data, bytes, &view))
+    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -223,7 +223,7 @@ static int Verify(const char* path)
         fprintf(stderr, "m3replay: the embedded snapshot refused (config or capacity)\n");
         return 1;
     }
-    if (!m3World_JournalReplay(world, view.journal, view.journalBytes))
+    if (!m3World_ReplayJournal(world, view.journal, view.journalBytes))
     {
         fprintf(stderr, "m3replay: the journal refused\n");
         return 1;
@@ -316,7 +316,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     {
         int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
         int32_t to = s->stepEnds[i];
-        if (!m3World_JournalReplay(s->world, s->journal + from, to - from))
+        if (!m3World_ReplayJournal(s->world, s->journal + from, to - from))
         {
             return false;
         }
@@ -355,7 +355,7 @@ static bool ScrubSeek(Scrub* s, int32_t stepN)
     {
         int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
         int32_t to = s->stepEnds[i];
-        if (!m3World_JournalReplay(s->world, s->journal + from, to - from))
+        if (!m3World_ReplayJournal(s->world, s->journal + from, to - from))
         {
             return false;
         }
@@ -374,7 +374,7 @@ static bool PrefixHash(const m3ReplayView* view, const Scrub* s, int32_t stepN, 
         return false;
     }
     int32_t bytes = stepN == 0 ? 0 : s->stepEnds[stepN - 1];
-    if (bytes > 0 && !m3World_JournalReplay(world, view->journal, bytes))
+    if (bytes > 0 && !m3World_ReplayJournal(world, view->journal, bytes))
     {
         return false;
     }
@@ -400,7 +400,7 @@ static int Seek(const char* path, int32_t stepN)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3ReplayDecode(data, bytes, &view))
+    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -432,7 +432,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3ReplayDecode(data, bytes, &view))
+    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -450,7 +450,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
         if (i < s.stepCount)
         {
             int32_t from = i == 0 ? 0 : s.stepEnds[i - 1];
-            m3World_JournalReplay(s.world, s.journal + from, s.stepEnds[i] - from);
+            m3World_ReplayJournal(s.world, s.journal + from, s.stepEnds[i] - from);
         }
     }
     ScrubFree(&s);
@@ -469,13 +469,13 @@ static uint8_t* RecordBlob(int32_t steps, int32_t injectStep, int32_t* outBytes)
     m3World_Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    m3World_JournalBegin(world, journal, journalCap);
+    m3World_StartJournal(world, journal, journalCap);
     DemoSessionEx(world, steps, injectStep);
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    m3ReplayEncode(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);
     free(journal);
     free(snap);
@@ -538,7 +538,7 @@ static int DiffViews(const m3ReplayView* va, const m3ReplayView* vb)
     ScrubSeek(&sb, hi);
     m3BodyDiff rows[10];
     int32_t written = 0;
-    int32_t total = m3World_DiffReport(sa.world, sb.world, rows, 10, &written);
+    int32_t total = m3World_Compare(sa.world, sb.world, rows, 10, &written);
     printf("m3replay: %d differing bodies, worst first:\n", total);
     for (int32_t i = 0; i < written; ++i)
     {
@@ -560,8 +560,8 @@ static int Diff(const char* pathA, const char* pathB)
     uint8_t* dataB = ReadAll(pathB, &bytesB);
     m3ReplayView va;
     m3ReplayView vb;
-    if (dataA == NULL || dataB == NULL || !m3ReplayDecode(dataA, bytesA, &va) ||
-        !m3ReplayDecode(dataB, bytesB, &vb))
+    if (dataA == NULL || dataB == NULL || !m3DecodeReplay(dataA, bytesA, &va) ||
+        !m3DecodeReplay(dataB, bytesB, &vb))
     {
         fprintf(stderr, "m3replay: diff needs two valid M3J1 containers\n");
         return 1;
@@ -586,8 +586,8 @@ static int DiffTest(void)
     m3ReplayView va;
     m3ReplayView vb;
     m3ReplayView vc;
-    if (!m3ReplayDecode(a, bytesA, &va) || !m3ReplayDecode(b, bytesB, &vb) ||
-        !m3ReplayDecode(c, bytesC, &vc))
+    if (!m3DecodeReplay(a, bytesA, &va) || !m3DecodeReplay(b, bytesB, &vb) ||
+        !m3DecodeReplay(c, bytesC, &vc))
     {
         fprintf(stderr, "difftest: decode failed\n");
         return 1;
@@ -637,7 +637,7 @@ static int DiffTest(void)
     ScrubSeek(&sc, hi);
     m3BodyDiff rows[4];
     int32_t written = 0;
-    int32_t total = m3World_DiffReport(sa.world, sc.world, rows, 4, &written);
+    int32_t total = m3World_Compare(sa.world, sc.world, rows, 4, &written);
     if (total <= 0 || written <= 0)
     {
         fprintf(stderr, "difftest: no body diff at the divergent step\n");
@@ -672,17 +672,17 @@ static int SelfTest(void)
     m3World_Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    m3World_JournalBegin(world, journal, journalCap);
+    m3World_StartJournal(world, journal, journalCap);
     DemoSession(world, 300);
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    m3ReplayEncode(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);
 
     m3ReplayView view;
-    if (!m3ReplayDecode(blob, need, &view))
+    if (!m3DecodeReplay(blob, need, &view))
     {
         fprintf(stderr, "selftest: decode failed\n");
         return 1;

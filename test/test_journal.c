@@ -34,7 +34,7 @@ static void TestRefusedCreatesMoveNoIds(void)
     def.bodyCapacity = 16;
     m3WorldId world = m3CreateWorld(&def);
     static uint8_t tape[65536];
-    CHECK(m3World_JournalBegin(world, tape, (int32_t)sizeof(tape)), "the tape starts");
+    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape starts");
 
     m3BodyDef bd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &bd);
@@ -100,11 +100,11 @@ static void TestRefusedCreatesMoveNoIds(void)
     m3DestroyBody(filler[fillers - 1]);
     CHECK(m3Character_IsValid(m3CreateCharacter(world, &cd)), "and fits once one frees up");
     m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the tape closes");
 
     m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(twin, tape, bytes), "the tape replays with the same ids");
+    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the tape replays with the same ids");
     CHECK(m3World_Hash(twin) == m3World_Hash(world), "into the same world");
     m3DestroyWorld(twin);
     m3DestroyWorld(world);
@@ -120,7 +120,7 @@ int main(void)
     // recreate into the recycled slot.
     m3WorldId a = m3CreateWorld(&def);
     uint8_t buffer[4096];
-    CHECK(m3World_JournalBegin(a, buffer, (int32_t)sizeof(buffer)), "journal begins");
+    CHECK(m3World_StartJournal(a, buffer, (int32_t)sizeof(buffer)), "journal begins");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -139,12 +139,12 @@ int main(void)
     m3BodyId a2 = m3CreateBody(a, &bd); // recycles a0's slot, new generation
     CHECK(a2.index1 == a0.index1 && a2.generation != a0.generation, "recycle in the journal");
 
-    int32_t bytes = m3World_JournalEnd(a);
+    int32_t bytes = m3World_StopJournal(a);
     CHECK(bytes > 0, "journal ends with bytes");
 
     // Replay into a fresh world B: identical ids, identical state.
     m3WorldId b = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(b, buffer, bytes), "replay succeeds");
+    CHECK(m3World_ReplayJournal(b, buffer, bytes), "replay succeeds");
 
     m3BodyId b1 = {a1.index1, b.index1 - 1 == 0 ? 0 : (uint16_t)(b.index1 - 1), a1.generation};
     b1.world0 = (uint16_t)(b.index1 - 1);
@@ -160,14 +160,14 @@ int main(void)
     // A truncated stream is rejected loudly and never half-applies
     // silently.
     m3WorldId c = m3CreateWorld(&def);
-    CHECK(!m3World_JournalReplay(c, buffer, bytes - 3), "a truncated journal is rejected");
+    CHECK(!m3World_ReplayJournal(c, buffer, bytes - 3), "a truncated journal is rejected");
 
     // Overflow: a too-small buffer latches and End reports -1.
     m3WorldId d = m3CreateWorld(&def);
     uint8_t tiny[16];
-    CHECK(m3World_JournalBegin(d, tiny, (int32_t)sizeof(tiny)), "tiny journal begins");
+    CHECK(m3World_StartJournal(d, tiny, (int32_t)sizeof(tiny)), "tiny journal begins");
     m3CreateBody(d, &bd);
-    CHECK(m3World_JournalEnd(d) == -1, "journal overflow reports -1, never silence");
+    CHECK(m3World_StopJournal(d) == -1, "journal overflow reports -1, never silence");
 
     m3DestroyWorld(a);
     m3DestroyWorld(b);

@@ -311,7 +311,7 @@ static void TestRuntimeOpsReplay(void)
         def.shapeCapacity = 16;
         def.jointCapacity = 8;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyId post = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
         m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
         m3JointDef jd = m3DefaultJointDef();
@@ -337,14 +337,14 @@ static void TestRuntimeOpsReplay(void)
         hashes[run] = final;
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the runtime session records");
             m3WorldDef freshDef = m3DefaultWorldDef();
             freshDef.bodyCapacity = 16;
             freshDef.shapeCapacity = 16;
             freshDef.jointCapacity = 8;
             m3WorldId fresh = m3CreateWorld(&freshDef);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the runtime session replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the runtime session replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
         }

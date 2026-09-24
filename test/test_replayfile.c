@@ -37,7 +37,7 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
     m3World_Snapshot(world, snap, snapBytes);
 
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
@@ -56,15 +56,15 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
 
     // 4 creates + 1 impulse + 90 steps = 95 records.
     *outOps = 95;
     *outSteps = 90;
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need);
+    int32_t wrote = m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need);
     CHECK(wrote == need, "the encode fills its own quoted size");
     *outBytes = wrote;
     *outHash = final;
@@ -82,7 +82,7 @@ static void TestRoundTrip(void)
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
 
     m3ReplayView view;
-    CHECK(m3ReplayDecode(blob, bytes, &view), "the container decodes");
+    CHECK(m3DecodeReplay(blob, bytes, &view), "the container decodes");
     CHECK(view.info.opCount == ops, "the op count matches the script");
     CHECK(view.info.stepCount == steps, "the step count matches the script");
     CHECK(view.finalHash == recorded, "the header carries the recorder's hash");
@@ -91,7 +91,7 @@ static void TestRoundTrip(void)
     m3WorldId world = m3CreateWorld(&def);
     CHECK(m3World_Restore(world, view.snapshot, view.snapshotBytes),
           "the embedded snapshot restores");
-    CHECK(m3World_JournalReplay(world, view.journal, view.journalBytes),
+    CHECK(m3World_ReplayJournal(world, view.journal, view.journalBytes),
           "the embedded journal replays");
     CHECK(m3World_Hash(world) == recorded, "the round trip lands on the recorder's hash");
     m3DestroyWorld(world);
@@ -111,38 +111,38 @@ static void TestRefusals(void)
     uint8_t* bad = (uint8_t*)malloc((size_t)bytes);
     memcpy(bad, blob, (size_t)bytes);
     bad[0] ^= 0xFF;
-    CHECK(!m3ReplayDecode(bad, bytes, &view), "bad magic refuses");
+    CHECK(!m3DecodeReplay(bad, bytes, &view), "bad magic refuses");
 
     // Truncation, three depths.
     memcpy(bad, blob, (size_t)bytes);
-    CHECK(!m3ReplayDecode(bad, bytes - 1, &view), "truncated tail refuses");
-    CHECK(!m3ReplayDecode(bad, 16, &view), "truncated header refuses");
-    CHECK(!m3ReplayDecode(bad, 0, &view), "empty refuses");
+    CHECK(!m3DecodeReplay(bad, bytes - 1, &view), "truncated tail refuses");
+    CHECK(!m3DecodeReplay(bad, 16, &view), "truncated header refuses");
+    CHECK(!m3DecodeReplay(bad, 0, &view), "empty refuses");
 
     // A corrupted record length inside the journal.
     memcpy(bad, blob, (size_t)bytes);
-    m3ReplayDecode(blob, bytes, &view);
+    m3DecodeReplay(blob, bytes, &view);
     int32_t journalOffset = (int32_t)((const uint8_t*)view.journal - blob);
     int32_t huge = 1 << 30;
     memcpy(bad + journalOffset + 4, &huge, 4); // first record's length
-    CHECK(!m3ReplayDecode(bad, bytes, &view), "a corrupt record length refuses");
+    CHECK(!m3DecodeReplay(bad, bytes, &view), "a corrupt record length refuses");
 
     // A header that lies about its counts.
     memcpy(bad, blob, (size_t)bytes);
     int32_t lie = 9999;
     memcpy(bad + 16, &lie, 4);
-    CHECK(!m3ReplayDecode(bad, bytes, &view), "a lying step count refuses");
+    CHECK(!m3DecodeReplay(bad, bytes, &view), "a lying step count refuses");
 
     // Describe on garbage.
     m3JournalInfo info;
     uint8_t garbage[16] = {7, 0, 0, 0, 99, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    CHECK(!m3JournalDescribe(garbage, (int32_t)sizeof(garbage), &info),
+    CHECK(!m3DescribeJournal(garbage, (int32_t)sizeof(garbage), &info),
           "an overlong payload refuses");
-    CHECK(m3JournalDescribe(NULL, 0, &info) == false, "null journal refuses");
-    CHECK(m3ReplayEncode(blob, 10, NULL, 4, 0, bad, bytes) == 0,
+    CHECK(m3DescribeJournal(NULL, 0, &info) == false, "null journal refuses");
+    CHECK(m3EncodeReplay(blob, 10, NULL, 4, 0, bad, bytes) == 0,
           "a null journal with bytes refuses");
-    CHECK(m3ReplayEncode(NULL, 10, NULL, 0, 0, bad, bytes) == 0, "a null snapshot refuses");
-    CHECK(m3ReplayEncodeSize(-5, 10) == 0, "negative sizes refuse");
+    CHECK(m3EncodeReplay(NULL, 10, NULL, 0, 0, bad, bytes) == 0, "a null snapshot refuses");
+    CHECK(m3GetEncodedReplaySize(-5, 10) == 0, "negative sizes refuse");
 
     free(bad);
     free(blob);
@@ -156,9 +156,9 @@ static void TestSmallCapacity(void)
     int32_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     m3ReplayView view;
-    CHECK(m3ReplayDecode(blob, bytes, &view), "decode for the capacity test");
+    CHECK(m3DecodeReplay(blob, bytes, &view), "decode for the capacity test");
     uint8_t* out = (uint8_t*)malloc((size_t)bytes);
-    CHECK(m3ReplayEncode(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
+    CHECK(m3EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
                          view.finalHash, out, bytes - 1) == 0,
           "one byte short refuses");
     free(out);
@@ -185,7 +185,7 @@ static void TestFuzz(void)
     // Half the mutations aim at the framing on purpose; the other
     // half roam the whole container.
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, bytes, &valid), "decode for the fuzz split");
+    CHECK(m3DecodeReplay(blob, bytes, &valid), "decode for the fuzz split");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint32_t rng = 87654321u;
     int32_t refused = 0;
@@ -208,7 +208,7 @@ static void TestFuzz(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, bytes, &view))
+        if (!m3DecodeReplay(mutant, bytes, &view))
         {
             refused += 1;
             continue;
@@ -217,7 +217,7 @@ static void TestFuzz(void)
         m3WorldId world = m3CreateWorld(&def);
         if (m3World_Restore(world, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(world, view.journal, view.journalBytes);
+            m3World_ReplayJournal(world, view.journal, view.journalBytes);
         }
         m3DestroyWorld(world);
         survived += 1;
@@ -248,7 +248,7 @@ static void TestFuzzPhase12Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -315,16 +315,16 @@ static void TestFuzzPhase12Ops(void)
         m3Character_Move(hero, (m3Vec3){0.02f, -0.1f, 0.0f});
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 12 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 12 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 12 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 246813579u;
@@ -338,7 +338,7 @@ static void TestFuzzPhase12Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -350,7 +350,7 @@ static void TestFuzzPhase12Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -379,7 +379,7 @@ static void TestFuzzPhase13Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -425,7 +425,7 @@ static void TestFuzzPhase13Ops(void)
     {
         if (i % 10 == 3)
         {
-            m3Body_SetAllowFastRotation(spinner, (i / 10) % 2 == 0); // op 65 spray
+            m3Body_EnableFastRotation(spinner, (i / 10) % 2 == 0); // op 65 spray
         }
         if (i % 25 == 7)
         {
@@ -443,16 +443,16 @@ static void TestFuzzPhase13Ops(void)
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 13 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 13 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 13 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 135792468u;
@@ -466,7 +466,7 @@ static void TestFuzzPhase13Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -479,7 +479,7 @@ static void TestFuzzPhase13Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -503,7 +503,7 @@ static void TestFuzzPhase15Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -541,16 +541,16 @@ static void TestFuzzPhase15Ops(void)
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 15 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 15 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 15 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 468135792u;
@@ -564,7 +564,7 @@ static void TestFuzzPhase15Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -575,7 +575,7 @@ static void TestFuzzPhase15Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -602,7 +602,7 @@ static void TestFuzzPhase16Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -693,16 +693,16 @@ static void TestFuzzPhase16Ops(void)
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 16 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 16 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 16 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 579246813u;
@@ -716,7 +716,7 @@ static void TestFuzzPhase16Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -728,7 +728,7 @@ static void TestFuzzPhase16Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -753,7 +753,7 @@ static void TestFuzzPhase17Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -790,16 +790,16 @@ static void TestFuzzPhase17Ops(void)
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 17 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 17 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 17 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 691358247u;
@@ -813,7 +813,7 @@ static void TestFuzzPhase17Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -824,7 +824,7 @@ static void TestFuzzPhase17Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -848,7 +848,7 @@ static void TestFuzzPhase18Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -883,16 +883,16 @@ static void TestFuzzPhase18Ops(void)
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 18 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 18 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 18 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 802470369u;
@@ -906,7 +906,7 @@ static void TestFuzzPhase18Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -917,7 +917,7 @@ static void TestFuzzPhase18Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -941,7 +941,7 @@ static void TestFuzzPhase19Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-4.0, 0.0, -4.0};
@@ -966,16 +966,16 @@ static void TestFuzzPhase19Ops(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 19 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 19 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 19 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 913582460u;
@@ -989,7 +989,7 @@ static void TestFuzzPhase19Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -1000,7 +1000,7 @@ static void TestFuzzPhase19Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -1025,7 +1025,7 @@ static void TestFuzzPhase20Ops(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[131072];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -1064,16 +1064,16 @@ static void TestFuzzPhase20Ops(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3ReplayEncodeSize(snapBytes, journalBytes);
+    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    CHECK(m3ReplayEncode(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
+    CHECK(m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need) == need,
           "the phase 20 session encodes");
     m3DestroyWorld(world);
 
     m3ReplayView valid;
-    CHECK(m3ReplayDecode(blob, need, &valid), "the phase 20 session decodes");
+    CHECK(m3DecodeReplay(blob, need, &valid), "the phase 20 session decodes");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint8_t* mutant = (uint8_t*)malloc((size_t)need);
     uint32_t rng = 246813579u;
@@ -1087,7 +1087,7 @@ static void TestFuzzPhase20Ops(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3ReplayDecode(mutant, need, &view))
+        if (!m3DecodeReplay(mutant, need, &view))
         {
             refused += 1;
             continue;
@@ -1098,7 +1098,7 @@ static void TestFuzzPhase20Ops(void)
         m3WorldId probe = m3CreateWorld(&fresh);
         if (m3World_Restore(probe, view.snapshot, view.snapshotBytes))
         {
-            m3World_JournalReplay(probe, view.journal, view.journalBytes);
+            m3World_ReplayJournal(probe, view.journal, view.journalBytes);
         }
         m3DestroyWorld(probe);
         survived += 1;
@@ -1131,7 +1131,7 @@ static void TestPreSolveReplay(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     m3World_Snapshot(world, snap, snapBytes);
     static uint8_t journal[262144];
-    m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -1150,7 +1150,7 @@ static void TestPreSolveReplay(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_JournalEnd(world);
+    int32_t journalBytes = m3World_StopJournal(world);
     uint64_t recorded = m3World_Hash(world);
     CHECK(calls > 0, "the callback actually ran");
     CHECK(m3Body_GetPosition(faller).y < -1.0, "the veto let the box fall through the floor");
@@ -1159,7 +1159,7 @@ static void TestPreSolveReplay(void)
     // The bare replay: no callback anywhere, the annex drives.
     m3WorldId replay = m3CreateWorld(&def);
     CHECK(m3World_Restore(replay, snap, snapBytes), "the base snapshot restores");
-    CHECK(m3World_JournalReplay(replay, journal, journalBytes), "the veto tape replays");
+    CHECK(m3World_ReplayJournal(replay, journal, journalBytes), "the veto tape replays");
     CHECK(m3World_Hash(replay) == recorded, "a bare replay lands on the recorded bits");
     m3DestroyWorld(replay);
     free(snap);

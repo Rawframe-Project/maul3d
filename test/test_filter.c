@@ -178,7 +178,7 @@ static void TestFilteredReplayAndRollback(void)
         def.bodyCapacity = 32;
         def.shapeCapacity = 32;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
@@ -201,10 +201,10 @@ static void TestFilteredReplayAndRollback(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the filtered session records");
             m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the filtered session replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the filtered session replays");
             CHECK(m3World_Hash(fresh) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(fresh);
             CHECK(m3World_Restore(world, snap, snapBytes), "the filtered restore lands");

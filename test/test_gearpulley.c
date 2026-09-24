@@ -185,7 +185,7 @@ static void TestTransmissionTwinsAndReplay(void)
         wd.shapeCapacity = 16;
         wd.jointCapacity = 8;
         m3WorldId w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(w, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
         m3BodyDef fd = m3DefaultBodyDef();
         m3BodyId frame = m3CreateBody(w, &fd);
         m3BodyDef bd = m3DefaultBodyDef();
@@ -246,11 +246,11 @@ static void TestTransmissionTwinsAndReplay(void)
         hashes[run] = m3World_Hash(w);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(w);
+            int32_t bytes = m3World_StopJournal(w);
             CHECK(bytes > 0, "the transmission session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the session replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");

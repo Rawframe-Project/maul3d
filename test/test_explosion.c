@@ -174,7 +174,7 @@ static void TestTwinsReplayRollback(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = BlastWorld();
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyId a = Crate(world, 4.0, 0.0, 0.0);
         m3BodyId b = Crate(world, -4.0, 0.0, 1.0);
         Crate(world, 0.0, 4.0, -2.0);
@@ -210,10 +210,10 @@ static void TestTwinsReplayRollback(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the storm records");
             m3WorldId replayed = BlastWorld();
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the storm replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the storm replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             // Rollback: restore to tick 60 and re-run through the
@@ -246,12 +246,12 @@ static void TestHostileTape(void)
     static uint8_t tape[256];
     m3WorldId world = BlastWorld();
     Crate(world, 3.0, 0.0, 0.0);
-    CHECK(m3World_JournalBegin(world, tape, (int32_t)sizeof(tape)), "the tape opens");
+    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
     m3ExplosionDef def = m3DefaultExplosionDef();
     def.position = (m3Pos3){0.0, 0.0, 0.0};
     def.impulsePerArea = 2.0f;
     m3World_Explode(world, &def);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes == 8 + (int32_t)sizeof(m3ExplosionDef), "one blast op is header plus def");
     m3DestroyWorld(world);
 
@@ -263,13 +263,13 @@ static void TestHostileTape(void)
     uint64_t nanBits = 0x7FF8000000000000ull;
     memcpy(&nanD, &nanBits, sizeof(nanD));
     memcpy(hostile + 8, &nanD, sizeof(nanD)); // position.x
-    CHECK(!m3World_JournalReplay(twin, hostile, bytes), "a NaN center bounces");
+    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
     memcpy(hostile, tape, (size_t)bytes);
     float negative = -2.0f;
     memcpy(hostile + 8 + 40, &negative, sizeof(negative)); // radius
-    CHECK(!m3World_JournalReplay(twin, hostile, bytes), "a negative radius bounces");
+    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
     CHECK(Speed(crate) == 0.0f, "the bounced tapes moved nothing");
-    CHECK(m3World_JournalReplay(twin, tape, bytes), "the clean tape lands");
+    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the clean tape lands");
     CHECK(Speed(crate) > 0.0f, "the replayed blast pushes the twin crate");
     m3DestroyWorld(twin);
 }

@@ -79,8 +79,9 @@ extern "C"
     /// turning static; the neighborhood wakes.
     M3_API void m3Body_SetType(m3BodyId bodyId, m3BodyType type);
     /// A disabled body vanishes from simulation AND queries without
-    /// being destroyed; enabling wakes its neighborhood.
-    M3_API void m3Body_SetEnabled(m3BodyId bodyId, bool enabled);
+    /// being destroyed; enabling wakes its neighborhood. Journaled.
+    M3_API void m3Body_Enable(m3BodyId bodyId);
+    M3_API void m3Body_Disable(m3BodyId bodyId);
     M3_API bool m3Body_IsEnabled(m3BodyId bodyId);
     /// Motion locks: bits 0..2 freeze linear x, y, z; bits 3..5
     /// freeze angular x, y, z. Locked components re-zero every
@@ -89,8 +90,8 @@ extern "C"
     M3_API uint32_t m3Body_GetMotionLocks(m3BodyId bodyId);
     /// Let this body spin past the world's angular speed cap (for
     /// wheels and other legal fast spinners). Journaled.
-    M3_API void m3Body_SetAllowFastRotation(m3BodyId bodyId, bool allow);
-    M3_API bool m3Body_GetAllowFastRotation(m3BodyId bodyId);
+    M3_API void m3Body_EnableFastRotation(m3BodyId bodyId, bool flag);
+    M3_API bool m3Body_IsFastRotationEnabled(m3BodyId bodyId);
     /// Debug name, up to 31 bytes plus the terminator; longer names
     /// truncate silently. Journaled and carried by snapshots, never
     /// part of the hash (a label moves no matter). GetName returns
@@ -100,9 +101,14 @@ extern "C"
     /// Who touches me now: fills up to capacity entries and
     /// returns the count written. See m3ContactData in world.h.
     M3_API int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capacity);
-    /// Sleep controls: a per-body velocity threshold (zero restores
-    /// the world default) and a can-sleep switch.
-    M3_API void m3Body_SetSleepControls(m3BodyId bodyId, float threshold, bool canSleep);
+    /// Whether this body may fall asleep; turning it off wakes it.
+    /// Journaled.
+    M3_API void m3Body_EnableSleep(m3BodyId bodyId, bool flag);
+    M3_API bool m3Body_IsSleepEnabled(m3BodyId bodyId);
+    /// The speed below which this body counts as resting; zero
+    /// restores the world default. Journaled.
+    M3_API void m3Body_SetSleepThreshold(m3BodyId bodyId, float threshold);
+    M3_API float m3Body_GetSleepThreshold(m3BodyId bodyId);
     M3_API bool m3Body_IsAwake(m3BodyId bodyId);
     /// SetAwake(true) wakes; SetAwake(false) puts the single body
     /// to sleep and zeroes its velocities.

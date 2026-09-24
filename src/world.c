@@ -443,7 +443,7 @@ static int32_t PoolLive(const m3IdPool* pool)
     return pool->maxIndex - pool->freeCount - pool->retiredCount;
 }
 
-m3MemoryUsage m3World_MemoryUsage(m3WorldId worldId)
+m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId)
 {
     m3MemoryUsage usage;
     memset(&usage, 0, sizeof(usage));

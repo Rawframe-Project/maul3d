@@ -692,7 +692,7 @@ static void TestMemoryUsage(void)
     def.shapeCapacity = 128;
     def.meshCapacity = 2;
     m3WorldId world = m3CreateWorld(&def);
-    m3MemoryUsage before = m3World_MemoryUsage(world);
+    m3MemoryUsage before = m3World_GetMemoryUsage(world);
     CHECK(before.persistentBytes > 0, "a world weighs something");
     CHECK(before.contentBytes == 0, "no content yet");
     m3BodyDef gd = m3DefaultBodyDef();
@@ -702,7 +702,7 @@ static void TestMemoryUsage(void)
         {-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f}, {-5.0f, 0.0f, 5.0f}};
     uint16_t tris[6] = {0, 1, 2, 0, 2, 3};
     m3CreateMeshShape(ground, &sd, verts, 4, tris, 2);
-    m3MemoryUsage after = m3World_MemoryUsage(world);
+    m3MemoryUsage after = m3World_GetMemoryUsage(world);
     CHECK(after.contentBytes > 0, "mesh content is on the ledger");
     CHECK(after.persistentBytes == before.persistentBytes,
           "the fixed footprint does not move after create");
@@ -716,7 +716,7 @@ static void TestMemoryUsage(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3MemoryUsage stepped = m3World_MemoryUsage(world);
+    m3MemoryUsage stepped = m3World_GetMemoryUsage(world);
     CHECK(stepped.scratchPeak > 0, "the step scratch reports its high water");
     CHECK(stepped.persistentBytes == before.persistentBytes, "steps allocate nothing persistent");
     m3DestroyWorld(world);

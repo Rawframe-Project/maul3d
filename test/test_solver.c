@@ -230,14 +230,14 @@ static void TestReplayEquality(void)
 
     m3WorldId a = MakeWorld();
     uint8_t* journal = (uint8_t*)malloc(1 << 20);
-    CHECK(m3World_JournalBegin(a, journal, 1 << 20), "journal begins");
+    CHECK(m3World_StartJournal(a, journal, 1 << 20), "journal begins");
     AddGroundPlane(a, 0.7f);
     AddBall(a, 0.1, 2.0, -0.2, 0.5f, 0.7f, 0.3f);
     StepN(a, 60);
-    int32_t bytes = m3World_JournalEnd(a);
+    int32_t bytes = m3World_StopJournal(a);
     CHECK(bytes > 0, "journal captured the session");
     m3WorldId b = MakeWorld();
-    CHECK(m3World_JournalReplay(b, journal, bytes), "the session replays");
+    CHECK(m3World_ReplayJournal(b, journal, bytes), "the session replays");
     CHECK(m3World_Hash(a) == m3World_Hash(b), "a journaled run replays bit for bit");
     free(journal);
     m3DestroyWorld(a);
@@ -612,7 +612,7 @@ static void TestQuickHullRockRests(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
@@ -639,12 +639,12 @@ static void TestQuickHullRockRests(void)
     m3Vec3 v = m3Body_GetLinearVelocity(rock);
     CHECK(v.x * v.x + v.y * v.y + v.z * v.z < 0.01f, "the rock has come to rest");
 
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the session recorded");
     uint64_t h1 = m3World_Hash(world);
 
     m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(twin, journal, bytes), "the hull session replays");
+    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the hull session replays");
     CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical");
     m3DestroyWorld(twin);
     m3DestroyWorld(world);
@@ -765,7 +765,7 @@ static void TestCcdDeterminism(void)
         m3WorldId world = m3CreateWorld(&def);
         if (run == 0)
         {
-            CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "journal arms");
+            CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
         }
         AddGroundPlane(world, 0.6f);
         m3BodyDef bd = m3DefaultBodyDef();
@@ -789,10 +789,10 @@ static void TestCcdDeterminism(void)
         hashes[run] = m3World_Hash(world);
         if (run == 0)
         {
-            journalBytes = m3World_JournalEnd(world);
+            journalBytes = m3World_StopJournal(world);
             CHECK(journalBytes > 0, "the ccd session recorded");
             m3WorldId twin = m3CreateWorld(&def);
-            CHECK(m3World_JournalReplay(twin, journal, journalBytes), "the ccd session replays");
+            CHECK(m3World_ReplayJournal(twin, journal, journalBytes), "the ccd session replays");
             CHECK(m3World_Hash(twin) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(twin);
         }
@@ -985,7 +985,7 @@ static void TestMeshJournalAndRollback(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "journal arms");
+    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
     CHECK(m3Shape_IsValid(AddMeshFloor(world)), "the mesh floor builds");
 
     m3BodyDef bd = m3DefaultBodyDef();
@@ -998,11 +998,11 @@ static void TestMeshJournalAndRollback(void)
 
     StepN(world, 120);
     uint64_t h1 = m3World_Hash(world);
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the mesh session recorded");
 
     m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_JournalReplay(twin, journal, bytes), "the mesh session replays");
+    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the mesh session replays");
     CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical");
 
     // Rollback: snapshot the twin, run on, restore, rerun.
@@ -1112,7 +1112,7 @@ static void TestSleepDeterminism(void)
         m3WorldId world = m3CreateWorld(&def);
         if (run == 0)
         {
-            CHECK(m3World_JournalBegin(world, journal, (int32_t)sizeof(journal)), "journal arms");
+            CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
         }
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
@@ -1138,10 +1138,10 @@ static void TestSleepDeterminism(void)
         hashes[run] = m3World_Hash(world);
         if (run == 0)
         {
-            bytes = m3World_JournalEnd(world);
+            bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the sleep session recorded");
             m3WorldId twin = m3CreateWorld(&def);
-            CHECK(m3World_JournalReplay(twin, journal, bytes), "the sleep session replays");
+            CHECK(m3World_ReplayJournal(twin, journal, bytes), "the sleep session replays");
             CHECK(m3World_Hash(twin) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(twin);
         }

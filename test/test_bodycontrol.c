@@ -129,12 +129,12 @@ static void TestTypeFlipAndDisable(void)
     m3RayHit before =
         m3World_CastRayClosest(world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
     CHECK(before.hit && before.point.y > 0.9, "the ray sees the enabled crate");
-    m3Body_SetEnabled(lid, false);
+    m3Body_Disable(lid);
     CHECK(!m3Body_IsEnabled(lid), "disabled reads back");
     m3RayHit after =
         m3World_CastRayClosest(world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
     CHECK(after.hit && after.point.y < 0.1, "the ray passes through the disabled crate");
-    m3Body_SetEnabled(lid, true);
+    m3Body_Enable(lid);
     CHECK(m3Body_IsEnabled(lid) && m3Body_IsAwake(lid), "enabling wakes the body");
     m3DestroyWorld(world);
 }
@@ -181,7 +181,7 @@ static void TestSleepKnobsAndControlReplay(void)
         def.bodyCapacity = 32;
         def.shapeCapacity = 32;
         m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
@@ -189,7 +189,7 @@ static void TestSleepKnobsAndControlReplay(void)
         m3CreatePlaneShape(ground, &sg, &floor);
         m3BodyId restless = Crate(world, (m3Pos3){0.0, 0.5, 0.0});
         m3BodyId normal = Crate(world, (m3Pos3){3.0, 0.5, 0.0});
-        m3Body_SetSleepControls(restless, 0.0f, false);
+        m3Body_EnableSleep(restless, false);
 
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 260; ++i)
@@ -219,10 +219,10 @@ static void TestSleepKnobsAndControlReplay(void)
         uint64_t final = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(world);
+            int32_t bytes = m3World_StopJournal(world);
             CHECK(bytes > 0, "the control session records");
             m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_JournalReplay(fresh, journal, bytes), "the control session replays");
+            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the control session replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
             CHECK(m3World_Restore(world, snap, snapBytes), "the control restore lands");

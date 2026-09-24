@@ -178,7 +178,7 @@ static void TestWaterTwinsReplayRollback(void)
         wd.bodyCapacity = 16;
         wd.shapeCapacity = 16;
         m3WorldId w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_JournalBegin(w, journal, (int32_t)sizeof(journal));
+        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
         m3BodyId ground = m3CreateBody(w, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
@@ -213,11 +213,11 @@ static void TestWaterTwinsReplayRollback(void)
         hashes[run] = m3World_Hash(w);
         if (recording)
         {
-            int32_t bytes = m3World_JournalEnd(w);
+            int32_t bytes = m3World_StopJournal(w);
             CHECK(bytes > 0, "the wet session records");
             m3WorldDef fresh = wd;
             m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_JournalReplay(replayed, journal, bytes), "the water replays");
+            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the water replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
             CHECK(m3World_Restore(w, snap, snapBytes), "the wet restore lands");

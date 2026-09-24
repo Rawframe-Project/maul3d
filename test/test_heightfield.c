@@ -73,7 +73,7 @@ static void TestSnapshotAndReplay(void)
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&wd);
-    bool recording = m3World_JournalBegin(world, journal, (int32_t)sizeof(journal));
+    bool recording = m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
     CHECK(recording, "the terrain session records");
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -86,7 +86,7 @@ static void TestSnapshotAndReplay(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = m3World_JournalEnd(world);
+    int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the session closes");
 
     int32_t sizeA = m3World_Snapshot(world, snapA, (int32_t)sizeof(snapA));
@@ -98,7 +98,7 @@ static void TestSnapshotAndReplay(void)
 
     m3WorldDef fresh = wd;
     m3WorldId replayed = m3CreateWorld(&fresh);
-    CHECK(m3World_JournalReplay(replayed, journal, bytes), "the terrain session replays");
+    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the terrain session replays");
     CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the replay is bit-identical");
     m3DestroyWorld(replayed);
     m3DestroyWorld(world);
