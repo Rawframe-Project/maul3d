@@ -262,7 +262,7 @@ static void TestHostileJointDefsAndCommands(void)
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){M3_TEST_NAN, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a poisoned anchor refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a poisoned anchor refuses");
 
     jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
@@ -271,7 +271,7 @@ static void TestHostileJointDefsAndCommands(void)
     jd.enableLimit = true;
     jd.lowerLimit = 1.0f;
     jd.upperLimit = -1.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "inverted limits refuse");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "inverted limits refuse");
 
     jd = m3DefaultJointDef();
     jd.type = m3_prismaticJoint;
@@ -279,17 +279,17 @@ static void TestHostileJointDefsAndCommands(void)
     jd.bodyIdB = b;
     jd.enableMotor = true;
     jd.motorSpeed = M3_TEST_INF;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "an infinite motor refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "an infinite motor refuses");
     jd.motorSpeed = 1.0f;
     jd.maxMotorEffort = -5.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "negative motor effort refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "negative motor effort refuses");
 
     jd = m3DefaultJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.enableCone = true;
     jd.coneAngle = -0.5f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a negative cone refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a negative cone refuses");
 
     // Hostile commands are no-ops: the velocity before is the
     // velocity after, and the world never sees the poison.

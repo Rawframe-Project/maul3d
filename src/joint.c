@@ -536,23 +536,23 @@ static bool JointDefIsValid(const m3JointDef* def)
            !(def->enableCone && def->coneAngle < 0.0f);
 }
 
-m3JointId m3CreateJoint(const m3JointDef* def)
+m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def)
 {
-    if (def == NULL)
+    m3World* world = m3WorldFromId(worldId);
+    if (world == NULL || def == NULL)
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId;
     }
-    m3World* world = m3WorldFromTag(def->bodyIdA.world);
     if (!JointDefIsValid(def))
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId;
     }
-    if (world == NULL || def->bodyIdB.world != def->bodyIdA.world)
+    if (def->bodyIdA.world != world->idWorld || def->bodyIdB.world != world->idWorld)
     {
         m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId; // both bodies must share a world
+        return m3_nullJointId; // both bodies must live in this world
     }
     int32_t bodyA = m3BodySlot(world, def->bodyIdA);
     int32_t bodyB = m3BodySlot(world, def->bodyIdB);

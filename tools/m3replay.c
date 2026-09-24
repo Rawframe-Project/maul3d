@@ -70,7 +70,7 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
         jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        hinge = m3CreateJoint(&jd);
+        hinge = m3CreateJoint(world, &jd);
         injectTarget = door;
     }
 

@@ -107,7 +107,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     shoulder.localAnchorB = (m3Vec3){0.0f, 0.35f, 0.0f};
     shoulder.enableCone = true;
     shoulder.coneAngle = 0.9f;
-    m3CreateJoint(&shoulder);
+    m3CreateJoint(world, &shoulder);
 
     m3JointDef elbow = m3DefaultJointDef();
     elbow.type = m3_revoluteJoint;
@@ -120,7 +120,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     elbow.enableLimit = true;
     elbow.lowerLimit = -2.0f;
     elbow.upperLimit = 0.1f;
-    m3CreateJoint(&elbow);
+    m3CreateJoint(world, &elbow);
 
     m3BodyDef railDef = m3DefaultBodyDef();
     railDef.position = (m3Pos3){-5.5, 2.0, 5.5};
@@ -142,7 +142,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     rail.enableMotor = true;
     rail.motorSpeed = 0.8f;
     rail.maxMotorEffort = 30.0f;
-    m3CreateJoint(&rail);
+    m3CreateJoint(world, &rail);
 
     // Journaled create AND destroy: replay must verify the minted id
     // and then remove it, leaving the pool identity advanced.
@@ -151,7 +151,7 @@ static m3WorldId BuildZoo(uint64_t seed, uint8_t* journal, int32_t journalBytes)
     throwaway.bodyIdA = post;
     throwaway.bodyIdB = lowerLink;
     throwaway.localAnchorB = (m3Vec3){0.0f, -0.35f, 0.0f};
-    m3JointId doomed = m3CreateJoint(&throwaway);
+    m3JointId doomed = m3CreateJoint(world, &throwaway);
     m3DestroyJoint(doomed);
 
     m3BodyDef bd = m3DefaultBodyDef();
@@ -302,29 +302,29 @@ static void TestCapacityExhaustion(void)
     pin.type = m3_sphericalJoint;
     pin.bodyIdA = bodies[0];
     pin.bodyIdB = bodies[1];
-    m3JointId j1 = m3CreateJoint(&pin);
+    m3JointId j1 = m3CreateJoint(world, &pin);
     CHECK(m3Joint_IsValid(j1), "joints up to capacity create");
     pin.bodyIdA = bodies[1];
     pin.bodyIdB = bodies[2];
-    m3JointId j2 = m3CreateJoint(&pin);
+    m3JointId j2 = m3CreateJoint(world, &pin);
     CHECK(m3Joint_IsValid(j2), "the second joint fills the pool");
     pin.bodyIdA = bodies[2];
     pin.bodyIdB = bodies[3];
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&pin)), "the joint pool refuses past capacity");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &pin)), "the joint pool refuses past capacity");
     m3DestroyJoint(j2);
-    m3JointId j3 = m3CreateJoint(&pin);
+    m3JointId j3 = m3CreateJoint(world, &pin);
     CHECK(m3Joint_IsValid(j3), "a freed joint slot recycles");
     CHECK(!m3Joint_IsValid(j2), "the destroyed joint id is stale");
 
     pin.bodyIdA = bodies[0];
     pin.bodyIdB = bodies[0];
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&pin)), "a self joint refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &pin)), "a self joint refuses");
     m3JointDef bad = m3DefaultJointDef();
     bad.type = m3_revoluteJoint;
     bad.bodyIdA = bodies[0];
     bad.bodyIdB = bodies[1];
     bad.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&bad)), "a hinge with no axis refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &bad)), "a hinge with no axis refuses");
 
     m3DestroyWorld(world);
 

@@ -655,7 +655,7 @@ m3JointDef m3DefaultJointDef(void);
 The pinned joint defaults: spherical type, zero anchors, unit z axes, everything disabled, collideConnected off, and the def cookie every create demands.
 
 ```c
-m3JointId m3CreateJoint(const m3JointDef* def);
+m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def);
 ```
 Create a joint between two distinct bodies of the same world (at least one dynamic). Returns the null id on a bad def, a stale body, or an exhausted pool. Journaled; replay verifies the minted id. Destroying either body destroys the joint.
 

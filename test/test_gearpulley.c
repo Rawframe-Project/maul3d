@@ -46,10 +46,10 @@ static void TestGearCouplesSpin(void)
     hd.localAnchorA = (m3Vec3){-0.5f, 2.0f, 0.0f};
     hd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     hd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    CHECK(m3Joint_IsValid(m3CreateJoint(&hd)), "hinge A creates");
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &hd)), "hinge A creates");
     hd.bodyIdB = gearB;
     hd.localAnchorA = (m3Vec3){0.5f, 2.0f, 0.0f};
-    CHECK(m3Joint_IsValid(m3CreateJoint(&hd)), "hinge B creates");
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &hd)), "hinge B creates");
     m3JointDef gd = m3DefaultJointDef();
     gd.type = m3_gearJoint;
     gd.bodyIdA = gearA;
@@ -57,7 +57,7 @@ static void TestGearCouplesSpin(void)
     gd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.ratio = 2.0f;
-    CHECK(m3Joint_IsValid(m3CreateJoint(&gd)), "the gear creates");
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &gd)), "the gear creates");
     m3Body_ApplyAngularImpulse(gearA, (m3Vec3){0.0f, 0.0f, 0.05f});
     for (int32_t i = 0; i < 120; ++i)
     {
@@ -112,7 +112,7 @@ static void TestPulleyTradesRope(void)
         jd.groundAnchorA = (m3Pos3){-1.0, 4.0, 0.0};
         jd.groundAnchorB = (m3Pos3){1.0, 4.0, 0.0};
         jd.ratio = ratio;
-        CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "the pulley creates");
+        CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "the pulley creates");
         double constant = 2.0 + (double)ratio * 2.0;
         for (int32_t i = 0; i < 150; ++i)
         {
@@ -148,10 +148,10 @@ static void TestTransmissionWalls(void)
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.ratio = 0.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a zero-ratio gear refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-ratio gear refuses");
     jd.ratio = 1.0f;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a zero-axis gear refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-axis gear refuses");
     jd = m3DefaultJointDef();
     jd.type = m3_pulleyJoint;
     jd.bodyIdA = a;
@@ -159,14 +159,14 @@ static void TestTransmissionWalls(void)
     jd.groundAnchorA = (m3Pos3){0.0, 4.0, 0.0};
     jd.groundAnchorB = (m3Pos3){1.0, 4.0, 0.0};
     jd.ratio = -1.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a negative-ratio pulley refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a negative-ratio pulley refuses");
     jd.ratio = 0.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a zero-ratio pulley refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-ratio pulley refuses");
     jd.ratio = 1.0f;
     jd.groundAnchorA = (m3Pos3){(double)NAN, 4.0, 0.0};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a NaN world anchor refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a NaN world anchor refuses");
     jd.groundAnchorA = (m3Pos3){0.0, 2.0, 0.0}; // ON the body anchor
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a rope end on its pulley refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a rope end on its pulley refuses");
     m3DestroyWorld(world);
 }
 
@@ -205,10 +205,10 @@ static void TestTransmissionTwinsAndReplay(void)
         hd.localAnchorA = (m3Vec3){-0.5f, 2.0f, 0.0f};
         hd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
         hd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-        m3CreateJoint(&hd);
+        m3CreateJoint(w, &hd);
         hd.bodyIdB = gb;
         hd.localAnchorA = (m3Vec3){0.5f, 2.0f, 0.0f};
-        m3CreateJoint(&hd);
+        m3CreateJoint(w, &hd);
         m3JointDef gd = m3DefaultJointDef();
         gd.type = m3_gearJoint;
         gd.bodyIdA = ga;
@@ -216,7 +216,7 @@ static void TestTransmissionTwinsAndReplay(void)
         gd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
         gd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
         gd.ratio = 2.0f;
-        m3CreateJoint(&gd);
+        m3CreateJoint(w, &gd);
         m3Body_ApplyAngularImpulse(ga, (m3Vec3){0.0f, 0.0f, 0.05f});
         // The pulley pair beside it.
         bd.position = (m3Pos3){-3.0, 2.0, 0.0};
@@ -232,7 +232,7 @@ static void TestTransmissionTwinsAndReplay(void)
         pd.groundAnchorA = (m3Pos3){-3.0, 4.0, 0.0};
         pd.groundAnchorB = (m3Pos3){3.0, 4.0, 0.0};
         pd.ratio = 1.5f;
-        m3CreateJoint(&pd);
+        m3CreateJoint(w, &pd);
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 180; ++i)
         {

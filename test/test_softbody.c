@@ -392,7 +392,7 @@ static void TestJellySeesaw(void)
     jd.bodyIdB = plank;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3CreateJoint(&jd);
+    m3CreateJoint(world, &jd);
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){0.75, 1.6, -0.3};

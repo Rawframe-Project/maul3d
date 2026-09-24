@@ -58,7 +58,7 @@ static void TestRuntimeMotorAndLimits(void)
     jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3JointId hinge = m3CreateJoint(&jd);
+    m3JointId hinge = m3CreateJoint(world, &jd);
     StepN(world, 30);
     CHECK(fabsf(m3Joint_GetAngle(hinge)) < 0.05f, "the unmotored door hangs still");
 
@@ -104,7 +104,7 @@ static void TestCollideToggle(void)
     jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){0.3f, 0.6f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.3f, 0.6f, 0.0f};
-    m3JointId link = m3CreateJoint(&jd);
+    m3JointId link = m3CreateJoint(world, &jd);
     StepN(world, 60);
     double gap0 = CenterDistance(a, b);
     CHECK(gap0 < 0.95, "connected boxes overlap in peace");
@@ -132,7 +132,7 @@ static void TestReadbackBand(void)
     jd.bodyIdB = crate;
     jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
     jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
-    m3JointId rope = m3CreateJoint(&jd);
+    m3JointId rope = m3CreateJoint(world, &jd);
     StepN(world, 180);
     m3real force = m3Joint_GetConstraintForce(rope);
     m3real torque = m3Joint_GetConstraintTorque(rope);
@@ -157,7 +157,7 @@ static void TestBreakage(void)
         jd.bodyIdB = crate;
         jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
         jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3JointId rope = m3CreateJoint(&jd);
+        m3JointId rope = m3CreateJoint(world, &jd);
         StepN(world, 60); // settle first, break laws read clean loads
         m3Joint_SetBreakThresholds(rope, pass == 0 ? 200.0f : 40.0f, 0.0f);
         int32_t breaks = 0;
@@ -208,7 +208,7 @@ static void TestSpringServo(void)
     jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3JointId hinge = m3CreateJoint(&jd);
+    m3JointId hinge = m3CreateJoint(world, &jd);
     m3Joint_SetSpring(hinge, true, 8.0f, 1.0f);
     m3Joint_SetTargetAngle(hinge, 0.6f);
     StepN(world, 240);
@@ -239,7 +239,7 @@ static void TestSpringDampingContrast(void)
         jd.bodyIdB = slider;
         jd.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
         jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
-        m3JointId slide = m3CreateJoint(&jd);
+        m3JointId slide = m3CreateJoint(world, &jd);
         m3Joint_SetSpring(slide, true, 2.0f, pass == 0 ? 0.05f : 1.5f);
         m3Joint_SetTargetTranslation(slide, 1.0f);
         double peak = 0.0;
@@ -284,7 +284,7 @@ static void TestSphericalRotationDrive(void)
     // on world y, so a frame-z target turns the crate about y.
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3JointId ball = m3CreateJoint(&jd);
+    m3JointId ball = m3CreateJoint(world, &jd);
     float s = sinf(0.25f * M3_PI * 0.5f);
     float c = cosf(0.25f * M3_PI * 0.5f);
     m3Quat target = {0.0f, 0.0f, s, c}; // 45 degrees about frame z
@@ -322,7 +322,7 @@ static void TestRuntimeOpsReplay(void)
         jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3JointId hinge = m3CreateJoint(&jd);
+        m3JointId hinge = m3CreateJoint(world, &jd);
         StepN(world, 20);
         m3Joint_SetMotor(hinge, true, 3.0f, 50.0f);
         StepN(world, 20);
@@ -362,7 +362,7 @@ static void TestHostileRuntime(void)
     jd.type = m3_sphericalJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    m3JointId link = m3CreateJoint(&jd);
+    m3JointId link = m3CreateJoint(world, &jd);
     m3Joint_SetLimits(link, true, 1.0f, -1.0f); // lower > upper refused
     m3Joint_SetMotor(link, true, NAN, 10.0f);
     m3Joint_SetMotor(link, true, 1.0f, -5.0f);

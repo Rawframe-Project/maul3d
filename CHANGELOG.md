@@ -260,6 +260,8 @@ Work toward 0.0.1, the first release of the reworked library.
   are bools. Motion locks are an m3MotionLocks struct of six flags
   (like m2MotionLocks) instead of a bit mask. The C# binding's defs
   follow.
+- m3CreateJoint takes the world id first, like every other create
+  function; the joint's bodies must live in that world.
 
 ### Removed
 

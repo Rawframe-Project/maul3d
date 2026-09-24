@@ -170,7 +170,7 @@ extern "C"
     /// (at least one dynamic). Returns the null id on a bad def, a
     /// stale body, or an exhausted pool. Journaled; replay verifies
     /// the minted id. Destroying either body destroys the joint.
-    M3_API m3JointId m3CreateJoint(const m3JointDef* def);
+    M3_API m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def);
     M3_API void m3DestroyJoint(m3JointId jointId);
     M3_API bool m3Joint_IsValid(m3JointId jointId);
 

@@ -52,7 +52,7 @@ static void TestStaleIdsEverywhere(void)
     m3JointDef jd = m3DefaultJointDef();
     jd.bodyIdA = body;
     jd.bodyIdB = other;
-    m3JointId joint = m3CreateJoint(&jd);
+    m3JointId joint = m3CreateJoint(world, &jd);
 
     m3DestroyBody(body); // cascades the shape and the joint
 
@@ -73,7 +73,7 @@ static void TestStaleIdsEverywhere(void)
           "a create on a stale body refuses");
     jd.bodyIdA = body;
     jd.bodyIdB = other;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a joint on a stale body refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a joint on a stale body refuses");
 
     // A generation-stale id (slot recycled) must be just as dead.
     m3BodyId recycled = m3CreateBody(world, &bd);
@@ -163,7 +163,7 @@ static int32_t RecordSession(m3WorldId world, uint8_t* journal, int32_t cap)
     m3JointDef jd = m3DefaultJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    m3CreateJoint(&jd);
+    m3CreateJoint(world, &jd);
     m3Body_SetLinearVelocity(b, (m3Vec3){0.5f, 0.0f, 0.0f});
     m3Body_SetAngularVelocity(b, (m3Vec3){0.0f, 0.7f, 0.0f});
     // The mid-journal cascade: destroying `a` takes its shape and
@@ -296,7 +296,7 @@ static void TestCascadeRaces(void)
             spokes[i] = m3CreateBody(world, &bd);
             jd.bodyIdA = hub;
             jd.bodyIdB = spokes[i];
-            joints[i] = m3CreateJoint(&jd);
+            joints[i] = m3CreateJoint(world, &jd);
         }
         m3DestroyJoint(joints[1]); // manual destroy first
         m3DestroyBody(hub);        // cascades the other two
@@ -305,11 +305,11 @@ static void TestCascadeRaces(void)
         // The survivors joint among themselves: their lists are clean.
         jd.bodyIdA = spokes[0];
         jd.bodyIdB = spokes[1];
-        CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "survivors accept new joints");
+        CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "survivors accept new joints");
         // Destroy in the OTHER order too: joint then body then body.
         jd.bodyIdA = spokes[1];
         jd.bodyIdB = spokes[2];
-        m3JointId last = m3CreateJoint(&jd);
+        m3JointId last = m3CreateJoint(world, &jd);
         m3DestroyJoint(last);
         m3DestroyBody(spokes[2]);
         for (int32_t i = 0; i < 30; ++i)
@@ -530,7 +530,7 @@ static void TestRuntimeOpsRedTeam(void)
         jd.localAnchorB = (m3Vec3){-0.7f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3JointId hinge = m3CreateJoint(&jd);
+        m3JointId hinge = m3CreateJoint(world, &jd);
 
         int32_t snapBytes = 0;
 #define M3_STORM_OPS(i)                                                                            \

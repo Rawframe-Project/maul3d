@@ -65,7 +65,7 @@ static void TestCountsMatchTheScene(void)
     jd.type = m3_sphericalJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    m3JointId link = m3CreateJoint(&jd);
+    m3JointId link = m3CreateJoint(world, &jd);
     m3SoftBodyDef sbd = m3DefaultSoftBodyDef();
     sbd.position = (m3Pos3){-4.0, 3.0, 0.0};
     sbd.countX = 2;

@@ -267,7 +267,7 @@ namespace Maul3D
         [DllImport(Lib, EntryPoint = "m3DefaultJointDef")]
         public static extern JointDef DefaultJointDef();
         [DllImport(Lib, EntryPoint = "m3CreateJoint")]
-        public static extern JointId CreateJoint(ref JointDef def);
+        public static extern JointId CreateJoint(WorldId world, ref JointDef def);
         [DllImport(Lib, EntryPoint = "m3DestroyJoint")]
         public static extern void DestroyJoint(JointId joint);
 

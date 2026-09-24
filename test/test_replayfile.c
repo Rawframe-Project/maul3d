@@ -290,7 +290,7 @@ static void TestFuzzPhase12Ops(void)
     jd.bodyIdB = rim;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3JointId axle = m3CreateJoint(&jd);
+    m3JointId axle = m3CreateJoint(world, &jd);
     m3Joint_SetMotor(axle, true, -15.0f, 40.0f);
     m3Joint_SetBreakThresholds(axle, 0.0f, 30.0f);
 
@@ -625,7 +625,7 @@ static void TestFuzzPhase16Ops(void)
     wj.bodyIdB = rim;
     wj.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     wj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3JointId wheel = m3CreateJoint(&wj);
+    m3JointId wheel = m3CreateJoint(world, &wj);
 
     // The servo weld (op 71 sprayer) with budgets (motor SetLimits).
     bd.position = (m3Pos3){2.0, 1.5, 0.0};
@@ -635,7 +635,7 @@ static void TestFuzzPhase16Ops(void)
     mj.type = m3_motorJoint;
     mj.bodyIdA = hub;
     mj.bodyIdB = cube;
-    m3JointId servo = m3CreateJoint(&mj);
+    m3JointId servo = m3CreateJoint(world, &mj);
     m3Joint_SetSpring(servo, true, 6.0f, 1.0f);
     m3Joint_SetLimits(servo, true, 40.0f, 5.0f);
 
@@ -653,10 +653,10 @@ static void TestFuzzPhase16Ops(void)
     hj.localAnchorA = (m3Vec3){-2.5f, 2.0f, 0.0f};
     hj.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     hj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3CreateJoint(&hj);
+    m3CreateJoint(world, &hj);
     hj.bodyIdB = gb;
     hj.localAnchorA = (m3Vec3){-1.5f, 2.0f, 0.0f};
-    m3CreateJoint(&hj);
+    m3CreateJoint(world, &hj);
     m3JointDef gj = m3DefaultJointDef();
     gj.type = m3_gearJoint;
     gj.bodyIdA = ga;
@@ -664,7 +664,7 @@ static void TestFuzzPhase16Ops(void)
     gj.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gj.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     gj.ratio = 2.0f;
-    m3CreateJoint(&gj);
+    m3CreateJoint(world, &gj);
     m3Body_ApplyAngularImpulse(ga, (m3Vec3){0.0f, 0.0f, 0.05f});
     bd.position = (m3Pos3){4.0, 2.0, 0.0};
     m3BodyId crateA = m3CreateBody(world, &bd);
@@ -679,7 +679,7 @@ static void TestFuzzPhase16Ops(void)
     pj.groundAnchorA = (m3Pos3){4.0, 4.5, 0.0};
     pj.groundAnchorB = (m3Pos3){6.0, 4.5, 0.0};
     pj.ratio = 1.5f;
-    m3CreateJoint(&pj);
+    m3CreateJoint(world, &pj);
 
     for (int32_t i = 0; i < 120; ++i)
     {

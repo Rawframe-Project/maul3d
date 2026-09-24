@@ -79,7 +79,7 @@ static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
         jd.enableLimit = true;
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
-        cart.joints[w] = m3CreateJoint(&jd);
+        cart.joints[w] = m3CreateJoint(world, &jd);
         m3Joint_SetSpring(cart.joints[w], true, 4.0f, 0.7f);
         m3Joint_SetTargetTranslation(cart.joints[w], 0.0f);
     }
@@ -285,13 +285,13 @@ static void TestHostileWall(void)
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f}; // axle along the strut
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "an axle along the strut refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "an axle along the strut refuses");
 
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a zero axle refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero axle refuses");
 
     jd.localAxisB = (m3Vec3){0.0f, 0.05f, 1.0f}; // ~2.9 degrees of skew
-    m3JointId wheel = m3CreateJoint(&jd);
+    m3JointId wheel = m3CreateJoint(world, &jd);
     CHECK(m3Joint_IsValid(wheel), "a small skew snaps and lands");
     CHECK(m3Joint_GetAngle(wheel) == 0.0f, "the spin angle starts at the create pose");
 
@@ -314,7 +314,7 @@ static void TestHostileWall(void)
     rd.bodyIdB = b;
     rd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     rd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3JointId hinge = m3CreateJoint(&rd);
+    m3JointId hinge = m3CreateJoint(world, &rd);
     CHECK(m3Joint_GetTranslation(hinge) == 0.0f, "a hinge has no translation to read");
     m3DestroyWorld(world);
 }

@@ -188,7 +188,7 @@ static m3WorldId MakeZoo(void)
     jd.bodyIdB = box;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3CreateJoint(&jd);
+    m3CreateJoint(world, &jd);
 
     return world;
 }

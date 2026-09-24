@@ -464,7 +464,7 @@ static tbScene SceneMachines(void)
     jd.enableMotor = true;
     jd.motorSpeed = 1.2f;
     jd.maxMotorEffort = 60.0f;
-    m3CreateJoint(&jd);
+    m3CreateJoint(scene.world, &jd);
 
     // The chain: five spherical links from a high post.
     m3BodyDef pd = m3DefaultBodyDef();
@@ -486,7 +486,7 @@ static tbScene SceneMachines(void)
         cd.localAnchorA = previous.index1 == post.index1 ? (m3Vec3){0.0f, 0.0f, 0.0f}
                                                          : (m3Vec3){0.3f, 0.0f, 0.0f};
         cd.localAnchorB = (m3Vec3){-0.3f, 0.0f, 0.0f};
-        m3CreateJoint(&cd);
+        m3CreateJoint(scene.world, &cd);
         previous = link;
     }
 
@@ -509,7 +509,7 @@ static tbScene SceneMachines(void)
     shoulder.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
     shoulder.enableCone = true;
     shoulder.coneAngle = 0.7f;
-    m3CreateJoint(&shoulder);
+    m3CreateJoint(scene.world, &shoulder);
 
     // The slider: a motored cart on a rail.
     m3BodyDef rd = m3DefaultBodyDef();
@@ -532,7 +532,7 @@ static tbScene SceneMachines(void)
     sj.enableMotor = true;
     sj.motorSpeed = 1.5f;
     sj.maxMotorEffort = 40.0f;
-    m3CreateJoint(&sj);
+    m3CreateJoint(scene.world, &sj);
 
     // The gear pair: the motor door's hinge work echoed
     // through a 2:1 mesh; the small wheel spins twice as fast,
@@ -558,11 +558,11 @@ static tbScene SceneMachines(void)
     gh.enableMotor = true;
     gh.motorSpeed = 1.0f;
     gh.maxMotorEffort = 30.0f;
-    m3CreateJoint(&gh);
+    m3CreateJoint(scene.world, &gh);
     gh.bodyIdB = small;
     gh.localAnchorA = (m3Vec3){0.6f, 0.0f, 0.0f};
     gh.enableMotor = false;
-    m3CreateJoint(&gh);
+    m3CreateJoint(scene.world, &gh);
     m3JointDef mesh = m3DefaultJointDef();
     mesh.type = m3_gearJoint;
     mesh.bodyIdA = big;
@@ -570,7 +570,7 @@ static tbScene SceneMachines(void)
     mesh.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.ratio = 0.5f; // big drives: small turns twice as fast
-    m3CreateJoint(&mesh);
+    m3CreateJoint(scene.world, &mesh);
 
     // The pulley: a heavy crate and a light one trade rope
     // over two fixed points.
@@ -589,7 +589,7 @@ static tbScene SceneMachines(void)
     rope.groundAnchorA = (m3Pos3){8.0, 6.5, -4.0};
     rope.groundAnchorB = (m3Pos3){10.0, 6.5, -4.0};
     rope.ratio = 1.0f;
-    m3CreateJoint(&rope);
+    m3CreateJoint(scene.world, &rope);
 
     // The servo weld: a plate held in the air by pure
     // budgeted drive, no rows of steel.
@@ -605,7 +605,7 @@ static tbScene SceneMachines(void)
     servo.type = m3_motorJoint;
     servo.bodyIdA = servoPost;
     servo.bodyIdB = plate;
-    m3JointId hold = m3CreateJoint(&servo);
+    m3JointId hold = m3CreateJoint(scene.world, &servo);
     m3Joint_SetSpring(hold, true, 5.0f, 1.0f);
     m3Joint_SetMotorPose(hold, (m3Vec3){0.0f, -1.0f, 0.0f},
                          (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
@@ -923,7 +923,7 @@ static tbScene SceneTower(void)
     jd.enableLimit = true;
     jd.lowerLimit = 0.0f;
     jd.upperLimit = 8.4f;
-    m3JointId rope = m3CreateJoint(&jd);
+    m3JointId rope = m3CreateJoint(scene.world, &jd);
     m3Joint_SetBreakThresholds(rope, 2200.0f, 0.0f);
     return scene;
 }
@@ -1034,7 +1034,7 @@ static tbScene SceneJointCart(void)
         jd.enableLimit = true;
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
-        scene.axles[w] = m3CreateJoint(&jd);
+        scene.axles[w] = m3CreateJoint(scene.world, &jd);
         m3Joint_SetSpring(scene.axles[w], true, 4.0f, 0.7f);
         m3Joint_SetTargetTranslation(scene.axles[w], 0.0f);
         // The break cap sits ABOVE the drive torque: plain driving

@@ -50,7 +50,7 @@ static void TestFilterIsRowlessAndFilters(void)
     jd.type = m3_filterJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    m3JointId filter = m3CreateJoint(&jd);
+    m3JointId filter = m3CreateJoint(world, &jd);
     CHECK(m3Joint_IsValid(filter), "the filter creates");
     for (int32_t i = 0; i < 180; ++i)
     {
@@ -99,7 +99,7 @@ static void TestParallelKeepsAxesParallel(void)
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "the parallel joint creates");
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "the parallel joint creates");
     // Translation stays free: a shove separates them further.
     m3Body_ApplyLinearImpulse(b, (m3Vec3){2.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
@@ -145,9 +145,9 @@ static void TestWallsTwinsAndReplay(void)
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(&jd)), "a zero-axis parallel refuses");
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-axis parallel refuses");
     jd.type = m3_filterJoint;
-    CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "a filter needs no axes");
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "a filter needs no axes");
     m3DestroyWorld(world);
 
     // Twins and replay through both types plus a mid-run rollback.
@@ -173,9 +173,9 @@ static void TestWallsTwinsAndReplay(void)
         pj.bodyIdB = q;
         pj.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         pj.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3CreateJoint(&pj);
+        m3CreateJoint(world, &pj);
         pj.type = m3_filterJoint;
-        m3CreateJoint(&pj);
+        m3CreateJoint(world, &pj);
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 180; ++i)
         {
@@ -236,7 +236,7 @@ static double ArmDroop(bool spring, bool motor, float budget)
     jd.enableMotor = motor;
     jd.motorSpeed = 0.0f;
     jd.maxMotorEffort = budget;
-    m3JointId joint = m3CreateJoint(&jd);
+    m3JointId joint = m3CreateJoint(world, &jd);
     if (spring)
     {
         m3Joint_SetSpring(joint, true, 6.0f, 1.0f);
@@ -306,7 +306,7 @@ static void TestWheelSteering(void)
         jd.bodyIdB = rim;
         jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut down
         jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
-        m3JointId wheel = m3CreateJoint(&jd);
+        m3JointId wheel = m3CreateJoint(world, &jd);
         CHECK(m3Joint_IsValid(wheel), "the wheel creates");
         m3Joint_SetSteer(wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 120; ++i)
@@ -356,7 +356,7 @@ static void TestWheelSteering(void)
     m3JointDef jd = m3DefaultJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    m3JointId ball = m3CreateJoint(&jd);
+    m3JointId ball = m3CreateJoint(world, &jd);
     uint64_t before = m3World_Hash(world);
     m3Joint_SetSteer(ball, true, 0.3f, 8.0f, 1.0f, 0.0f);
     CHECK(m3Joint_GetSteerAngle(ball) == 0.0f, "a spherical never steers");
@@ -387,7 +387,7 @@ static double ServoDroop(float maxForce)
     jd.type = m3_motorJoint;
     jd.bodyIdA = anchor;
     jd.bodyIdB = cube;
-    m3JointId servo = m3CreateJoint(&jd);
+    m3JointId servo = m3CreateJoint(world, &jd);
     m3Joint_SetSpring(servo, true, 8.0f, 1.0f);
     if (maxForce > 0.0f)
     {
@@ -429,7 +429,7 @@ static void TestMotorJointServo(void)
         jd.type = m3_motorJoint;
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
-        CHECK(m3Joint_IsValid(m3CreateJoint(&jd)), "the servo creates");
+        CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "the servo creates");
         for (int32_t i = 0; i < 60; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
@@ -459,7 +459,7 @@ static void TestMotorJointServo(void)
         jd.type = m3_motorJoint;
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
-        m3JointId servo = m3CreateJoint(&jd);
+        m3JointId servo = m3CreateJoint(world, &jd);
         m3Joint_SetSpring(servo, true, 6.0f, 1.0f);
         m3Quat aim = {0.0f, 0.0f, 0.70710678f, 0.70710678f}; // 90 deg about z
         m3Joint_SetMotorPose(servo, (m3Vec3){0.6f, -1.0f, 0.0f}, aim);
@@ -507,7 +507,7 @@ static void TestMotorJointServo(void)
         jd.type = m3_motorJoint;
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
-        m3JointId servo = m3CreateJoint(&jd);
+        m3JointId servo = m3CreateJoint(world, &jd);
         m3Joint_SetSpring(servo, true, 6.0f, 1.0f);
         m3Joint_SetMotorPose(servo, (m3Vec3){0.3f, -1.0f, 0.0f},
                              (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
@@ -557,7 +557,7 @@ static void TestMotorJointServo(void)
         m3JointDef jd = m3DefaultJointDef();
         jd.bodyIdA = a;
         jd.bodyIdB = b;
-        m3JointId ball = m3CreateJoint(&jd);
+        m3JointId ball = m3CreateJoint(world, &jd);
         uint64_t before = m3World_Hash(world);
         m3Joint_SetMotorPose(ball, (m3Vec3){0.1f, 0.0f, 0.0f}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         CHECK(m3World_Hash(world) == before, "the refused aim moved no bits");
