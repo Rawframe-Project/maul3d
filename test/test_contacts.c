@@ -84,7 +84,7 @@ static void TestWarmStartCarry(void)
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
     m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromIndex0((uint16_t)(world.index1 - 1));
+    m3World* w = m3WorldFromId(world);
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);

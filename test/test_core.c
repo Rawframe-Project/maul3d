@@ -83,8 +83,28 @@ static void TestIdShapes(void)
     // the snapshot can rely on.
     m3BodyId null = {0, 0, 0};
     CHECK(null.index1 == 0, "null id");
-    CHECK(sizeof(m3WorldId) == 8 && sizeof(m3BodyId) == 8 && sizeof(m3ShapeId) == 8,
-          "ids are 8 bytes");
+    CHECK(sizeof(m3WorldId) == 4 && sizeof(m3BodyId) == 8 && sizeof(m3ShapeId) == 8,
+          "world ids are 4 bytes, object ids 8");
+}
+
+static void TestIdsOutliveNoWorld(void)
+{
+    // A world recycling a slot refuses the ids of the world before it,
+    // even when the object slot and generation line up exactly.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId first = m3CreateWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId old = m3CreateBody(first, &bd);
+    m3DestroyWorld(first);
+    m3WorldId second = m3CreateWorld(&def);
+    CHECK(second.index1 == first.index1 && second.generation != first.generation,
+          "the new world takes the same slot");
+    m3BodyId fresh = m3CreateBody(second, &bd);
+    CHECK(fresh.index1 == old.index1 && fresh.generation == old.generation,
+          "the new body takes the same slot and generation");
+    CHECK(!m3Body_IsValid(old), "the old world's id is refused");
+    CHECK(m3Body_IsValid(fresh), "the new world's id resolves");
+    m3DestroyWorld(second);
 }
 
 static int s_handled = 0;
@@ -174,6 +194,7 @@ int main(void)
     TestStack();
     TestIdPool();
     TestIdShapes();
+    TestIdsOutliveNoWorld();
     if (s_failures == 0)
     {
         printf("test_core: all checks passed\n");

@@ -282,9 +282,9 @@ static void HitEvent(m3World* world, const m3ContactConstraint* c, int32_t shape
     }
     m3ContactHitEvent* e = &world->events.hitEvents[world->events.hitEventCount++];
     e->shapeIdA =
-        (m3ShapeId){shapeA + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeA]};
+        (m3ShapeId){shapeA + 1, world->idWorld, world->shapes.shapePool.generations[shapeA]};
     e->shapeIdB =
-        (m3ShapeId){shapeB + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeB]};
+        (m3ShapeId){shapeB + 1, world->idWorld, world->shapes.shapePool.generations[shapeB]};
     m3Transform t = world->bodies.transforms[c->bodyA];
     m3Vec3 center = m3RotateVec3(t.q, world->bodies.localCenters[c->bodyA]);
     m3Vec3 arm = c->points[best].rA;

@@ -35,6 +35,7 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 }
 
 #define M3_MAX_WORLDS 64
+_Static_assert(M3_MAX_WORLDS <= (1 << M3_WORLD_SLOT_BITS), "a world slot fits the id bits");
 
 // Bumped on any change that alters simulation behavior (solver math,
 // integration order, constants). It is part of the snapshot config hash,
@@ -845,8 +846,9 @@ typedef struct m3World
     m3EnqueueTaskFn* enqueueTask; // host threading hooks (never state)
     m3FinishTaskFn* finishTask;
     void* userTaskContext;
-    uint16_t generation;  // this world slot's generation
-    uint16_t worldIndex0; // 0-based slot in the world table
+    uint16_t generation; // this world slot's generation
+    uint16_t slot;       // 0-based slot in the world table
+    uint16_t idWorld;    // the world field of every id this world hands out
     // Persistent bytes this world holds (arrays at create plus
     // count-derived content while it lives) and the step scratch
     // capacity; the scratch PEAK already rides m3Counters.

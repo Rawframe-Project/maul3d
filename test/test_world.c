@@ -96,7 +96,7 @@ static void TestTwoWorldsIsolation(void)
     m3BodyDef bd = m3DefaultBodyDef();
     m3BodyId b1 = m3CreateBody(w1, &bd);
     m3BodyId b2 = m3CreateBody(w2, &bd);
-    CHECK(b1.world0 != b2.world0, "ids carry their world slot");
+    CHECK(b1.world != b2.world, "ids carry their world slot");
     CHECK(m3Body_IsValid(b1) && m3Body_IsValid(b2), "both bodies are live");
     m3DestroyWorld(w1);
     CHECK(!m3Body_IsValid(b1) && m3Body_IsValid(b2), "destroying one world spares the other");
@@ -216,7 +216,7 @@ static void TestShapes(void)
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
     m3ShapeId s = m3CreateSphereShape(body, &sd, &ball);
     CHECK(m3Shape_IsValid(s), "sphere created");
-    m3World* w = m3WorldFromIndex0((uint16_t)(world.index1 - 1));
+    m3World* w = m3WorldFromId(world);
     float expectedMass = 2.0f * (4.0f / 3.0f) * M3_PI * 0.125f;
     float gotMass = 1.0f / w->bodies.invMass[body.index1 - 1];
     CHECK(gotMass > expectedMass - 1.0e-4f && gotMass < expectedMass + 1.0e-4f,
@@ -321,7 +321,7 @@ static void TestPairs(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromIndex0((uint16_t)(world.index1 - 1));
+    m3World* w = m3WorldFromId(world);
 
     m3BodyDef ground = m3DefaultBodyDef();
     m3BodyId groundBody = m3CreateBody(world, &ground);
@@ -400,7 +400,7 @@ static void TestTreeReferee(void)
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
     m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromIndex0((uint16_t)(world.index1 - 1));
+    m3World* w = m3WorldFromId(world);
 
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = m3CreateBody(world, &gd);
@@ -558,7 +558,7 @@ static void TestContactLanesMatchScalar(void)
     // scene stepped both ways must agree on every bit, every step.
     m3WorldId lanes = BuildLaneScene();
     m3WorldId rows = BuildLaneScene();
-    m3World* scalar = m3WorldFromIndex0((uint16_t)(rows.index1 - 1));
+    m3World* scalar = m3WorldFromId(rows);
     scalar->contacts.scalarRows = 1;
     int32_t firstMismatch = -1;
     for (int32_t step = 0; step < 240 && firstMismatch < 0; ++step)

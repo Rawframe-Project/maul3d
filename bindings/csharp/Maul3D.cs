@@ -43,16 +43,16 @@ namespace Maul3D
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct WorldId { public int Index1; public ushort Generation; }
+    public struct WorldId { public ushort Index1; public ushort Generation; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct BodyId { public int Index1; public ushort World0; public ushort Generation; }
+    public struct BodyId { public int Index1; public ushort World; public ushort Generation; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct ShapeId { public int Index1; public ushort World0; public ushort Generation; }
+    public struct ShapeId { public int Index1; public ushort World; public ushort Generation; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct JointId { public int Index1; public ushort World0; public ushort Generation; }
+    public struct JointId { public int Index1; public ushort World; public ushort Generation; }
 
     public enum BodyType : int { Static = 0, Kinematic = 1, Dynamic = 2 }
 
@@ -276,7 +276,7 @@ namespace Maul3D
             Check<JointDef>(224);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);
-            Check<WorldId>(8);
+            Check<WorldId>(4);
             Check<BodyId>(8);
             Check<Sphere>(16);
             Check<Capsule>(28);

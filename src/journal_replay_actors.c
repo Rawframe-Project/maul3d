@@ -52,7 +52,7 @@ bool m3ReplayDestroyCharacter(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t slot = m3CharacterSlot(world, id);
     if (slot < 0)
     {
@@ -72,7 +72,7 @@ bool m3ReplayCharacterMove(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3CharacterSlot(world, record.id);
     if (slot < 0 || !m3FiniteV3(record.translation))
     {
@@ -92,7 +92,7 @@ bool m3ReplayCharacterStance(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3CharacterSlot(world, record.id);
     if (slot < 0 || !m3CharacterStanceInternal(world, slot, record.halfHeight, record.radius))
     {
@@ -120,7 +120,7 @@ bool m3ReplayCreateVehicle(m3World* world, const m3ReplayRecord* r)
         m3NormalizeBoolByte(&record.def, wheelBase + offsetof(m3WheelDef, steerable));
         m3NormalizeBoolByte(&record.def, wheelBase + offsetof(m3WheelDef, driven));
     }
-    record.def.chassisId.world0 = world->worldIndex0;
+    record.def.chassisId.world = world->idWorld;
     int32_t slot = m3CreateVehicleInternal(world, &record.def);
     if (slot < 0 || slot + 1 != record.expected.index1 ||
         world->vehicles.vehPool.generations[slot] != record.expected.generation)
@@ -140,7 +140,7 @@ bool m3ReplayDestroyVehicle(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t slot = m3VehicleSlot(world, id);
     if (slot < 0)
     {
@@ -160,7 +160,7 @@ bool m3ReplayVehicleTankCommands(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3VehicleSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.left) || !m3FiniteF(record.right) || !m3FiniteF(record.brake))
     {
@@ -180,7 +180,7 @@ bool m3ReplayVehicleCommands(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3VehicleSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.throttle) || !m3FiniteF(record.steer) ||
         !m3FiniteF(record.brake))
@@ -202,7 +202,7 @@ bool m3ReplayVehicleDrivetrain(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     m3NormalizeBoolByte(&record.def, offsetof(m3DrivetrainDef, autoShift));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3VehicleSlot(world, record.id);
     if (slot < 0 || !m3VehicleDrivetrainInternal(world, slot, &record.def))
     {
@@ -221,7 +221,7 @@ bool m3ReplayVehicleGear(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3VehicleSlot(world, record.id);
     if (slot < 0 || !m3VehicleGearInternal(world, slot, record.gear))
     {
@@ -259,7 +259,7 @@ bool m3ReplayDestroySoftBody(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t slot = m3SoftBodySlot(world, id);
     if (slot < 0)
     {
@@ -279,7 +279,7 @@ bool m3ReplaySoftBodyPin(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3SoftBodySlot(world, record.id);
     if (slot < 0 || record.particle < 0 ||
         record.particle >= world->softBodies.softParticleCount[slot])
@@ -300,8 +300,8 @@ bool m3ReplaySoftBodyAnchor(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
-    record.body.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
+    record.body.world = world->idWorld;
     int32_t slot = m3SoftBodySlot(world, record.id);
     int32_t body = m3BodySlot(world, record.body);
     if (slot < 0 || body < 0 || record.particle < 0 ||
@@ -324,8 +324,8 @@ bool m3ReplaySoftBodyAnchorSoft(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.idA.world0 = world->worldIndex0;
-    record.idB.world0 = world->worldIndex0;
+    record.idA.world = world->idWorld;
+    record.idB.world = world->idWorld;
     int32_t slotA = m3SoftBodySlot(world, record.idA);
     int32_t slotB = m3SoftBodySlot(world, record.idB);
     if (slotA < 0 || slotB < 0 || slotA == slotB || record.particleA < 0 || record.particleB < 0 ||
@@ -406,7 +406,7 @@ bool m3ReplayDestroyWaterVolume(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t index = id.index1 - 1;
     if (!m3IdPoolValid(&world->water.waterPool, index, id.generation))
     {

@@ -88,7 +88,7 @@ static m3Quat QuatFromAxisZ(m3Vec3 axis)
 int32_t m3JointSlot(const m3World* world, m3JointId jointId)
 {
     int32_t index = jointId.index1 - 1;
-    if (world == NULL || jointId.world0 != world->worldIndex0 ||
+    if (world == NULL || jointId.world != world->idWorld ||
         !m3IdPoolValid(&world->joints.jointPool, index, jointId.generation))
     {
         return -1;
@@ -543,13 +543,13 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         m3Refuse(NULL, m3_errorInvalid);
         return m3_nullJointId;
     }
-    m3World* world = m3WorldFromIndex0(def->bodyIdA.world0);
+    m3World* world = m3WorldFromTag(def->bodyIdA.world);
     if (!JointDefIsValid(def))
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId;
     }
-    if (world == NULL || def->bodyIdB.world0 != def->bodyIdA.world0)
+    if (world == NULL || def->bodyIdB.world != def->bodyIdA.world)
     {
         m3Refuse(world, m3_errorInvalid);
         return m3_nullJointId; // both bodies must share a world
@@ -573,7 +573,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullJointId;
     }
-    m3JointId id = {index + 1, world->worldIndex0, world->joints.jointPool.generations[index]};
+    m3JointId id = {index + 1, world->idWorld, world->joints.jointPool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateJointOp record;
@@ -587,7 +587,7 @@ m3JointId m3CreateJoint(const m3JointDef* def)
 
 void m3DestroyJoint(m3JointId jointId)
 {
-    m3World* world = m3WorldFromIndex0(jointId.world0);
+    m3World* world = m3WorldFromTag(jointId.world);
     int32_t index = world != NULL ? m3JointSlot(world, jointId) : -1;
     if (index < 0)
     {
@@ -603,6 +603,6 @@ void m3DestroyJoint(m3JointId jointId)
 
 bool m3Joint_IsValid(m3JointId jointId)
 {
-    m3World* world = m3WorldFromIndex0(jointId.world0);
+    m3World* world = m3WorldFromTag(jointId.world);
     return world != NULL && m3JointSlot(world, jointId) >= 0;
 }

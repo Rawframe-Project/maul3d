@@ -104,7 +104,7 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
         m3Refuse(world, m3_errorCapacity);
         return null;
     }
-    m3WaterVolumeId id = {slot + 1, world->worldIndex0, world->water.waterPool.generations[slot]};
+    m3WaterVolumeId id = {slot + 1, world->idWorld, world->water.waterPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateWaterVolume record;
@@ -119,7 +119,7 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
 static int32_t WaterSlot(const m3World* world, m3WaterVolumeId id)
 {
     int32_t index = id.index1 - 1;
-    if (world == NULL || id.world0 != world->worldIndex0 ||
+    if (world == NULL || id.world != world->idWorld ||
         !m3IdPoolValid(&world->water.waterPool, index, id.generation))
     {
         return -1;
@@ -129,13 +129,13 @@ static int32_t WaterSlot(const m3World* world, m3WaterVolumeId id)
 
 bool m3WaterVolume_IsValid(m3WaterVolumeId id)
 {
-    m3World* world = m3WorldFromIndex0(id.world0);
+    m3World* world = m3WorldFromTag(id.world);
     return world != NULL && WaterSlot(world, id) >= 0;
 }
 
 void m3DestroyWaterVolume(m3WaterVolumeId id)
 {
-    m3World* world = m3WorldFromIndex0(id.world0);
+    m3World* world = m3WorldFromTag(id.world);
     int32_t slot = world != NULL ? WaterSlot(world, id) : -1;
     if (slot < 0)
     {

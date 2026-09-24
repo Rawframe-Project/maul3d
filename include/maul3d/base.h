@@ -85,36 +85,35 @@ extern "C"
     M3_API m3Result m3LastResult(void);
 
     /// Opaque generation-tagged handles: the only identity, public and
-    /// internal. index1 is 1-based (0 means null), the generation
-    /// detects stale handles after slot reuse, world0 pins an id to its
-    /// world. Handles encode no address, so they survive snapshot
-    /// restore unchanged.
+    /// internal. index1 is 1-based (0 means null) and the generation
+    /// detects stale handles after slot reuse. Handles encode no
+    /// address, so they survive snapshot restore unchanged.
     typedef struct m3WorldId
     {
-        int32_t index1;
+        uint16_t index1;
         uint16_t generation;
     } m3WorldId;
 
-    /// Id lifetime rule: an id is valid until its object or its
-    /// WORLD is destroyed. Body, shape, and joint ids name their
-    /// world by slot (not generation), so after a world is
-    /// destroyed its ids must be dropped by the caller; a new
-    /// world recycling the slot cannot tell foreign stale ids
-    /// from its own. Using
-    /// a stale id is a contract violation that never crashes:
-    /// getters return zeros, commands and destroys no-op,
-    /// creates refuse.
+    /// Ids of objects inside a world. world names the world that
+    /// handed the id out: its slot in the low M3_WORLD_SLOT_BITS bits
+    /// and the low bits of its generation above them, so an id from a
+    /// destroyed world is refused by the next world in the same slot
+    /// (until the slot has been reused 1024 times). An id is valid
+    /// until its object or its world is destroyed. Using a stale id is
+    /// a contract violation that never crashes: getters return zeros,
+    /// commands and destroys no-op, creates refuse.
+#define M3_WORLD_SLOT_BITS 6
     typedef struct m3BodyId
     {
         int32_t index1;
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m3BodyId;
 
     typedef struct m3ShapeId
     {
         int32_t index1;
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m3ShapeId;
 
@@ -122,7 +121,7 @@ extern "C"
     typedef struct m3JointId
     {
         int32_t index1; // 1-based, 0 = null
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m3JointId;
 

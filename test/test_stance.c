@@ -249,7 +249,7 @@ static void TestHostileWall(void)
     m3real r;
     m3Character_GetStance(hero, &hh, &r);
     CHECK(hh == 0.5f && r == 0.4f, "four hostile calls changed nothing");
-    m3CharacterId stale = {99, hero.world0, 7};
+    m3CharacterId stale = {99, hero.world, 7};
     CHECK(!m3Character_SetStance(stale, 0.5f, 0.4f), "a stale id bounces");
     m3Character_GetStance(stale, &hh, &r);
     CHECK(hh == 0.0f && r == 0.0f, "a stale stance reads zeros");

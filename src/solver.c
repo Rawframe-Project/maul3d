@@ -175,7 +175,7 @@ static void BreakJoints(m3World* world, m3real invH)
             m3JointReactionMagnitudes(world, j, invH, &force, &torque);
             if ((maxForce > 0.0f && force > maxForce) || (maxTorque > 0.0f && torque > maxTorque))
             {
-                m3JointId id = {j + 1, world->worldIndex0, world->joints.jointPool.generations[j]};
+                m3JointId id = {j + 1, world->idWorld, world->joints.jointPool.generations[j]};
                 m3AppendJointBreakEvent(world, id);
                 m3DestroyJointInternal(world, j);
             }

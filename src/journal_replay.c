@@ -59,7 +59,7 @@ static bool ApplyDestroyBody(m3World* world, const m3ReplayRecord* r)
     memcpy(&id, payload, sizeof(id));
     // Recorded ids carry the ORIGINAL world's slot; replay
     // retargets them to this world (the Maul2D rule).
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t index = m3BodySlot(world, id);
     if (index < 0)
     {
@@ -79,7 +79,7 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || !m3FiniteV3(record.v))
     {
@@ -99,7 +99,7 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || !m3FiniteV3(record.v))
     {
@@ -155,7 +155,7 @@ static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || !m3FiniteV3(record.v))
     {
@@ -191,7 +191,7 @@ static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || !m3FiniteV3(record.v) || !m3FinitePos3(record.p))
     {
@@ -219,7 +219,7 @@ static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     float qq = record.pose.q.x * record.pose.q.x + record.pose.q.y * record.pose.q.y +
                record.pose.q.z * record.pose.q.z + record.pose.q.w * record.pose.q.w;
@@ -250,7 +250,7 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0)
     {
@@ -281,7 +281,7 @@ static bool ApplySetMotionLocks(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0)
     {
@@ -301,7 +301,7 @@ static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0)
     {
@@ -406,7 +406,7 @@ static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0)
     {
@@ -443,7 +443,7 @@ static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0)
     {

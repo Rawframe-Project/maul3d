@@ -147,7 +147,7 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
     }
     plane.separation = gap;
     plane.shapeId =
-        (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
+        (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
     MoverOfferPlane(ctx, plane);
     return true;
 }
@@ -199,8 +199,7 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
         m3MoverPlane plane;
         plane.normal = n;
         plane.separation = gap;
-        plane.shapeId =
-            (m3ShapeId){s + 1, world->worldIndex0, world->shapes.shapePool.generations[s]};
+        plane.shapeId = (m3ShapeId){s + 1, world->idWorld, world->shapes.shapePool.generations[s]};
         MoverOfferPlane(&ctx, plane);
     }
     // Ascending shape order keeps the plane list canonical.

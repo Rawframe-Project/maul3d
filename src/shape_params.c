@@ -46,7 +46,7 @@ void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_
 // One resolve + one journal + one internal, the body.c pattern.
 static m3World* ResolveShape(m3ShapeId shapeId, int32_t* outSlot)
 {
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     int32_t slot = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (slot < 0)
     {
@@ -91,7 +91,7 @@ void m3Shape_SetFriction(m3ShapeId shapeId, float friction)
 {
     if (!m3FiniteF(friction) || friction < 0.0f)
     {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeFriction, friction);
@@ -108,7 +108,7 @@ void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution)
 {
     if (!m3FiniteF(restitution) || restitution < 0.0f)
     {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeRestitution, restitution);
@@ -125,7 +125,7 @@ void m3Shape_SetRollingResistance(m3ShapeId shapeId, float value)
 {
     if (!m3FiniteF(value) || value < 0.0f)
     {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
         return;
     }
     ShapeScalarOp(shapeId, m3_opSetShapeRolling, value);

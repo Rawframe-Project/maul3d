@@ -145,7 +145,7 @@ bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear)
 
 void m3Vehicle_SetDrivetrain(m3VehicleId vehicleId, const m3DrivetrainDef* def)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || def == NULL || def->internalValue != M3_DRIVETRAIN_COOKIE)
     {
@@ -169,7 +169,7 @@ void m3Vehicle_SetDrivetrain(m3VehicleId vehicleId, const m3DrivetrainDef* def)
 
 void m3Vehicle_SelectGear(m3VehicleId vehicleId, int32_t gear)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0)
     {
@@ -193,7 +193,7 @@ void m3Vehicle_SelectGear(m3VehicleId vehicleId, int32_t gear)
 
 int32_t m3Vehicle_GetGear(m3VehicleId vehicleId)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || world->vehicles.vehDtActive[slot] == 0)
     {
@@ -204,7 +204,7 @@ int32_t m3Vehicle_GetGear(m3VehicleId vehicleId)
 
 m3real m3Vehicle_GetEngineRpm(m3VehicleId vehicleId)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || world->vehicles.vehDtActive[slot] == 0)
     {

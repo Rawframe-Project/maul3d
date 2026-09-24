@@ -33,7 +33,7 @@ bool m3ReplayCreateShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.body.world0 = world->worldIndex0;
+    record.body.world = world->idWorld;
     int32_t bodyIndex = m3BodySlot(world, record.body);
     if (bodyIndex < 0)
     {
@@ -71,7 +71,7 @@ bool m3ReplayCreateMeshShape(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    record.body.world0 = world->worldIndex0;
+    record.body.world = world->idWorld;
     int32_t bodyIndex = m3BodySlot(world, record.body);
     if (bodyIndex < 0)
     {
@@ -119,7 +119,7 @@ bool m3ReplayCreateHullShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.body.world0 = world->worldIndex0;
+    record.body.world = world->idWorld;
     int32_t bodyIndex = m3BodySlot(world, record.body);
     if (bodyIndex < 0)
     {
@@ -157,7 +157,7 @@ bool m3ReplayCreateVoxelChunkShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.body.world0 = world->worldIndex0;
+    record.body.world = world->idWorld;
     int32_t bodyIndex = m3BodySlot(world, record.body);
     if (bodyIndex < 0 || !(record.cellSize > 0.0f))
     {
@@ -204,7 +204,7 @@ bool m3ReplayVoxelSet(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t shape = m3ShapeSlot(world, record.id);
     if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
@@ -224,7 +224,7 @@ bool m3ReplayVoxelClear(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t shape = m3ShapeSlot(world, record.id);
     if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
@@ -244,7 +244,7 @@ bool m3ReplayVoxelSetFill(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t shape = m3ShapeSlot(world, record.id);
     if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape || record.fill == 0)
     {
@@ -264,7 +264,7 @@ bool m3ReplayVoxelClearBox(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t shape = m3ShapeSlot(world, record.id);
     if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
@@ -291,7 +291,7 @@ bool m3ReplayDestroyShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t index = m3ShapeSlot(world, id);
     if (index < 0)
     {
@@ -318,7 +318,7 @@ bool m3ReplayShapeScalar(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3ShapeSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.value) || record.value < 0.0f)
     {
@@ -349,7 +349,7 @@ bool m3ReplaySetShapeDensity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3ShapeSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.value) || record.value <= 0.0f)
     {
@@ -370,7 +370,7 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&head, payload, sizeof(head));
     m3NormalizeShapeDefBools(&head.def);
-    head.body.world0 = world->worldIndex0;
+    head.body.world = world->idWorld;
     int32_t bodyIndex = m3BodySlot(world, head.body);
     if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || head.nx < 2 ||
         head.nx > M3_HEIGHTFIELD_MAX_DIM || head.nz < 2 || head.nz > M3_HEIGHTFIELD_MAX_DIM ||
@@ -434,7 +434,7 @@ bool m3ReplaySetMeshMaterials(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&head, payload, sizeof(head));
-    head.id.world0 = world->worldIndex0;
+    head.id.world = world->idWorld;
     int32_t slot = m3ShapeSlot(world, head.id);
     if (slot < 0 || world->shapes.shapeType[slot] != (uint8_t)m3_meshShape)
     {
@@ -468,7 +468,7 @@ bool m3ReplaySetShapeGeom(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = record.id.index1 - 1;
     if (slot < 0 || slot >= world->shapes.shapePool.maxIndex ||
         world->shapes.shapePool.alive[slot] == 0 ||
@@ -493,7 +493,7 @@ bool m3ReplaySetSurfaceVelocity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3ShapeSlot(world, record.id);
     if (slot < 0 || !m3FiniteV3(record.v))
     {
@@ -514,7 +514,7 @@ bool m3ReplayShapeFlag(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3ShapeSlot(world, record.id);
     if (slot < 0)
     {

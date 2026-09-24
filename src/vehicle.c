@@ -80,7 +80,7 @@ m3VehicleDef m3DefaultVehicleDef(void)
 int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
 {
     int32_t index = vehicleId.index1 - 1;
-    if (world == NULL || vehicleId.world0 != world->worldIndex0 ||
+    if (world == NULL || vehicleId.world != world->idWorld ||
         !m3IdPoolValid(&world->vehicles.vehPool, index, vehicleId.generation))
     {
         return -1;
@@ -740,7 +740,7 @@ m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullVehicleId;
     }
-    m3VehicleId id = {slot + 1, world->worldIndex0, world->vehicles.vehPool.generations[slot]};
+    m3VehicleId id = {slot + 1, world->idWorld, world->vehicles.vehPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateVehicle record;
@@ -754,7 +754,7 @@ m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
 
 void m3DestroyVehicle(m3VehicleId vehicleId)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0)
     {
@@ -770,13 +770,13 @@ void m3DestroyVehicle(m3VehicleId vehicleId)
 
 bool m3Vehicle_IsValid(m3VehicleId vehicleId)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     return world != NULL && m3VehicleSlot(world, vehicleId) >= 0;
 }
 
 m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {
@@ -788,7 +788,7 @@ m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel)
 
 void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer, m3real brake)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || !m3FiniteF(throttle) || !m3FiniteF(steer) || !m3FiniteF(brake))
     {
@@ -810,7 +810,7 @@ void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
 
 void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right, m3real brake)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || !m3FiniteF(left) || !m3FiniteF(right) || !m3FiniteF(brake) ||
         world->vehicles.vehDtActive[slot] != 0)
@@ -833,7 +833,7 @@ void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
 
 m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {
@@ -845,7 +845,7 @@ m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel)
 
 bool m3Vehicle_IsWheelGrounded(m3VehicleId vehicleId, int32_t wheel)
 {
-    m3World* world = m3WorldFromIndex0(vehicleId.world0);
+    m3World* world = m3WorldFromTag(vehicleId.world);
     int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {

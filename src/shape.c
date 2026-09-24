@@ -21,7 +21,7 @@
 int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId)
 {
     int32_t index = shapeId.index1 - 1;
-    if (world == NULL || shapeId.world0 != world->worldIndex0 ||
+    if (world == NULL || shapeId.world != world->idWorld ||
         !m3IdPoolValid(&world->shapes.shapePool, index, shapeId.generation))
     {
         return -1;
@@ -484,7 +484,7 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
 
 static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeom* geom)
 {
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     if (world == NULL)
     {
         return false;
@@ -516,7 +516,7 @@ bool m3Shape_SetSphere(m3ShapeId shapeId, const m3Sphere* sphere)
 {
     if (sphere == NULL)
     {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
         return false;
     }
     m3ShapeGeom geom;
@@ -530,7 +530,7 @@ bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule)
 {
     if (capsule == NULL)
     {
-        m3Refuse(m3WorldFromIndex0(shapeId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
         return false;
     }
     m3ShapeGeom geom;
@@ -543,14 +543,14 @@ bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule)
 
 bool m3Shape_IsValid(m3ShapeId shapeId)
 {
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     return world != NULL && m3ShapeSlot(world, shapeId) >= 0;
 }
 
 m3BodyId m3Shape_GetBody(m3ShapeId shapeId)
 {
     m3BodyId null = {0, 0, 0};
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     int32_t slot = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (slot < 0)
     {
@@ -558,13 +558,13 @@ m3BodyId m3Shape_GetBody(m3ShapeId shapeId)
         return null;
     }
     int32_t body = world->shapes.shapeBody[slot];
-    m3BodyId id = {body + 1, world->worldIndex0, world->bodies.bodyPool.generations[body]};
+    m3BodyId id = {body + 1, world->idWorld, world->bodies.bodyPool.generations[body]};
     return id;
 }
 
 void m3DestroyShape(m3ShapeId shapeId)
 {
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {

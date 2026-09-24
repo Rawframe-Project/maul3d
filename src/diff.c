@@ -74,7 +74,7 @@ int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int
         }
         m3BodyDiff d;
         memset(&d, 0, sizeof(d));
-        d.bodyId = (m3BodyId){i + 1, a->worldIndex0,
+        d.bodyId = (m3BodyId){i + 1, a->idWorld,
                               aliveA ? a->bodies.bodyPool.generations[i]
                                      : b->bodies.bodyPool.generations[i]};
         if (aliveA != aliveB)

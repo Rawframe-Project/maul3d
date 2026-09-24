@@ -11,10 +11,9 @@
 // Registry lookup: NULL for a stale or null id.
 m3World* m3WorldFromId(m3WorldId worldId);
 
-// Registry lookup by slot only (no generation check): body and shape
-// ids carry their own generation, so their world reference resolves by
-// slot, the Maul2D FromIndex0 pattern.
-m3World* m3WorldFromIndex0(uint16_t index0);
+// The world an object id names (its world field: slot and generation),
+// or NULL when that world is gone.
+m3World* m3WorldFromTag(uint16_t tag);
 
 // Tuning defaults, shared by the def,
 // the solver reads, and the off-default hash folds.

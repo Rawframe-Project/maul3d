@@ -188,7 +188,7 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
 
 static m3World* ResolveJoint(m3JointId jointId, int32_t* outSlot)
 {
-    m3World* world = m3WorldFromIndex0(jointId.world0);
+    m3World* world = m3WorldFromTag(jointId.world);
     int32_t slot = world != NULL ? m3JointSlot(world, jointId) : -1;
     if (slot < 0)
     {

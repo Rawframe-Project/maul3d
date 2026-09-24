@@ -97,7 +97,7 @@ static void TestRuntimeCapAndLockInterplay(void)
     m3Body_EnableFastRotation(top, false);
     CHECK(!m3Body_IsFastRotationEnabled(top), "the flag clears");
     CHECK(m3Body_GetMotionLocks(top) == 0u, "the flag write left the locks alone");
-    m3BodyId stale = {99, top.world0, 7};
+    m3BodyId stale = {99, top.world, 7};
     m3Body_EnableFastRotation(stale, true);
     CHECK(!m3Body_IsFastRotationEnabled(stale), "a stale id bounces");
     m3DestroyWorld(world);

@@ -36,8 +36,8 @@ bool m3ReplayCreateJoint(m3World* world, const m3ReplayRecord* r)
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableMotor));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableCone));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, collideConnected));
-    record.def.bodyIdA.world0 = world->worldIndex0;
-    record.def.bodyIdB.world0 = world->worldIndex0;
+    record.def.bodyIdA.world = world->idWorld;
+    record.def.bodyIdB.world = world->idWorld;
     int32_t bodyA = m3BodySlot(world, record.def.bodyIdA);
     int32_t bodyB = m3BodySlot(world, record.def.bodyIdB);
     if (bodyA < 0 || bodyB < 0)
@@ -63,7 +63,7 @@ bool m3ReplayDestroyJoint(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&id, payload, sizeof(id));
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     int32_t index = m3JointSlot(world, id);
     if (index < 0)
     {
@@ -83,7 +83,7 @@ bool m3ReplayJointSetMotorPose(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     float q2 = record.rotation.x * record.rotation.x + record.rotation.y * record.rotation.y +
                record.rotation.z * record.rotation.z + record.rotation.w * record.rotation.w;
@@ -106,7 +106,7 @@ bool m3ReplayJointSetSteer(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_wheelJoint ||
         !m3FiniteF(record.target) || m3AbsF(record.target) > 1.0f || !m3FiniteF(record.hertz) ||
@@ -132,7 +132,7 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.a) || !m3FiniteF(record.b))
     {
@@ -168,7 +168,7 @@ bool m3ReplayJointSetCollide(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0)
     {
@@ -188,7 +188,7 @@ bool m3ReplayJointSetBreak(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.maxForce) || !m3FiniteF(record.maxTorque) ||
         record.maxForce < 0.0f || record.maxTorque < 0.0f)
@@ -209,7 +209,7 @@ bool m3ReplayJointSetSpring(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.hertz) || record.hertz <= 0.0f || !m3FiniteF(record.zeta) ||
         record.zeta < 0.0f)
@@ -230,7 +230,7 @@ bool m3ReplayJointSetTarget(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    record.id.world0 = world->worldIndex0;
+    record.id.world = world->idWorld;
     int32_t slot = m3JointSlot(world, record.id);
     if (slot < 0 || !m3FiniteF(record.scalar) || !m3FiniteQuat(record.q))
     {

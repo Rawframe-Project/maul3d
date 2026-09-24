@@ -464,7 +464,7 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     ctx->best.point.y = ctx->origin.y + (double)(local.fraction * ctx->translation.y);
     ctx->best.point.z = ctx->origin.z + (double)(local.fraction * ctx->translation.z);
     ctx->best.shapeId =
-        (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
+        (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
     ctx->bestShape = shape;
 }
 

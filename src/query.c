@@ -225,7 +225,7 @@ m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point)
     {
         if (world->shapes.shapePool.alive[s] != 0 && PointInShape(world, s, point))
         {
-            return (m3ShapeId){s + 1, world->worldIndex0, world->shapes.shapePool.generations[s]};
+            return (m3ShapeId){s + 1, world->idWorld, world->shapes.shapePool.generations[s]};
         }
     }
     return m3_nullShapeId;
@@ -264,7 +264,7 @@ static void SelectionSiftDown(m3ShapeId* heap, int32_t size, int32_t i)
 
 void m3SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape)
 {
-    m3ShapeId id = {shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
+    m3ShapeId id = {shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
     if (sel->size < sel->capacity)
     {
         int32_t i = sel->size++;
@@ -559,9 +559,9 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
     int32_t shapeA = (int32_t)(key >> 32);
     int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
     out->shapeIdA =
-        (m3ShapeId){shapeA + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeA]};
+        (m3ShapeId){shapeA + 1, world->idWorld, world->shapes.shapePool.generations[shapeA]};
     out->shapeIdB =
-        (m3ShapeId){shapeB + 1, world->worldIndex0, world->shapes.shapePool.generations[shapeB]};
+        (m3ShapeId){shapeB + 1, world->idWorld, world->shapes.shapePool.generations[shapeB]};
     out->normal = manifold->normal;
     int32_t count = manifold->pointCount;
     out->pointCount = count;
@@ -589,7 +589,7 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
 
 int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity)
 {
-    m3World* world = m3WorldFromIndex0(shapeId.world0);
+    m3World* world = m3WorldFromTag(shapeId.world);
     if (world == NULL || out == NULL || capacity <= 0)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -620,7 +620,7 @@ int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t ca
 
 int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capacity)
 {
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     if (world == NULL || out == NULL || capacity <= 0)
     {
         m3Refuse(world, m3_errorInvalid);

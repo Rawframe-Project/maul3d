@@ -22,7 +22,7 @@
 // world, or NULL after refusing.
 static m3World* ShapeTarget(m3BodyId bodyId, const m3ShapeDef* def, int32_t* bodyIndex)
 {
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     *bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (*bodyIndex < 0 || def == NULL || def->internalValue != M3_SHAPE_COOKIE ||
         !m3ShapeDefValid(def))
@@ -54,7 +54,7 @@ static m3ShapeId CreateShapeCommon(m3BodyId bodyId, const m3ShapeDef* def, uint8
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    m3ShapeId id = {index + 1, world->idWorld, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateShapeOp record;
@@ -74,10 +74,10 @@ m3ShapeId m3CreateSphereShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Sp
     if (sphere == NULL || !(sphere->radius > 0.0f) || !m3FiniteF(sphere->radius) ||
         !m3FiniteV3(sphere->center))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId;
     }
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0)
     {
@@ -95,11 +95,11 @@ m3ShapeId m3CreatePlaneShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Pla
     if (plane == NULL || !m3FiniteV3(plane->normal) || !m3FiniteF(plane->offset) ||
         !(m3Dot3(plane->normal, plane->normal) > 1.0e-12f))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId; // a zero or poisoned normal never
                                // reaches the normalize below
     }
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     int32_t bodyIndex = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
@@ -117,13 +117,13 @@ m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def, const m3C
     if (capsule == NULL || !(capsule->radius > 0.0f) || !m3FiniteF(capsule->radius) ||
         !m3FiniteV3(capsule->point1) || !m3FiniteV3(capsule->point2))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3Vec3 axis = m3Sub3(capsule->point2, capsule->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         // A zero-length capsule is a sphere; asking for one is a
         // contract violation, refused loudly (use m3CreateSphereShape).
         return m3_nullShapeId;
@@ -146,13 +146,13 @@ m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def, const m3
     if (cylinder == NULL || !(cylinder->radius > 0.0f) || !m3FiniteF(cylinder->radius) ||
         !m3FiniteV3(cylinder->point1) || !m3FiniteV3(cylinder->point2))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId;
     }
     m3Vec3 axis = m3Sub3(cylinder->point2, cylinder->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId; // a flat cylinder is a disc, refused
     }
     if (segments < 3)
@@ -219,7 +219,7 @@ m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    m3ShapeId id = {index + 1, world->idWorld, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateHullShapeOp record;
@@ -295,7 +295,7 @@ m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    m3ShapeId id = {index + 1, world->idWorld, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         // The recipe: the header, then the raw vertex and index arrays.
@@ -321,14 +321,14 @@ m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def, const
     if (heights == NULL || nx < 2 || nx > 32 || nz < 2 || nz > 32 || !(cellSize > 0.0f) ||
         !m3FiniteF(cellSize))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId; // grid contract: chunks tile larger terrain
     }
     for (int32_t i = 0; i < nx * nz; ++i)
     {
         if (!m3FiniteF(heights[i]))
         {
-            m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+            m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
             return m3_nullShapeId; // poisoned sample: contract
         }
     }
@@ -341,7 +341,7 @@ m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def, const
     {
         m3Free(verts);
         m3Free(tris);
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorCapacity);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorCapacity);
         return m3_nullShapeId;
     }
     for (int32_t iz = 0; iz < nz; ++iz)
@@ -435,7 +435,7 @@ m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def, c
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    m3ShapeId id = {index + 1, world->idWorld, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         // The fixed head, then the raw samples.
@@ -499,7 +499,7 @@ m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def, const 
         m3Refuse(world, m3_errorCapacity);
         return m3_nullShapeId;
     }
-    m3ShapeId id = {index + 1, world->worldIndex0, world->shapes.shapePool.generations[index]};
+    m3ShapeId id = {index + 1, world->idWorld, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         // Header + the packed grid (bitset and payload): the exact
@@ -531,7 +531,7 @@ m3ShapeId m3CreateBoxShape(m3BodyId bodyId, const m3ShapeDef* def, m3Vec3 halfEx
     if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
         !m3FiniteV3(halfExtents))
     {
-        m3Refuse(m3WorldFromIndex0(bodyId.world0), m3_errorInvalid);
+        m3Refuse(m3WorldFromTag(bodyId.world), m3_errorInvalid);
         return m3_nullShapeId; // contract: bad extents return null
     }
     m3ShapeGeom geom = {halfExtents, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};

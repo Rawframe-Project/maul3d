@@ -44,7 +44,7 @@ m3CharacterDef m3DefaultCharacterDef(void)
 int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId)
 {
     int32_t index = characterId.index1 - 1;
-    if (world == NULL || characterId.world0 != world->worldIndex0 ||
+    if (world == NULL || characterId.world != world->idWorld ||
         !m3IdPoolValid(&world->characters.charPool, index, characterId.generation))
     {
         return -1;
@@ -477,7 +477,7 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullCharacterId;
     }
-    m3CharacterId id = {slot + 1, world->worldIndex0, world->characters.charPool.generations[slot]};
+    m3CharacterId id = {slot + 1, world->idWorld, world->characters.charPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateCharacter record;
@@ -491,7 +491,7 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
 
 void m3DestroyCharacter(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
@@ -507,13 +507,13 @@ void m3DestroyCharacter(m3CharacterId characterId)
 
 bool m3Character_IsValid(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     return world != NULL && m3CharacterSlot(world, characterId) >= 0;
 }
 
 void m3Character_Move(m3CharacterId characterId, m3Vec3 translation)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0 || !m3FiniteV3(translation) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
@@ -537,7 +537,7 @@ void m3Character_Move(m3CharacterId characterId, m3Vec3 translation)
 
 m3Pos3 m3Character_GetPosition(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
@@ -549,14 +549,14 @@ m3Pos3 m3Character_GetPosition(m3CharacterId characterId)
 
 bool m3Character_IsGrounded(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     return slot >= 0 && world->characters.charGrounded[slot] != 0;
 }
 
 m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
@@ -568,7 +568,7 @@ m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId)
 
 m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0 || world->characters.charGrounded[slot] == 0)
     {
@@ -580,7 +580,7 @@ m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
     {
         return m3_nullBodyId; // destroyed or recycled: no impostors
     }
-    return (m3BodyId){under + 1, world->worldIndex0, world->bodies.bodyPool.generations[under]};
+    return (m3BodyId){under + 1, world->idWorld, world->bodies.bodyPool.generations[under]};
 }
 
 // The stance change: resize the capsule FEET ANCHORED. The
@@ -633,7 +633,7 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
 
 bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real radius)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (slot < 0)
     {
@@ -658,7 +658,7 @@ bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real 
 
 void m3Character_GetStance(m3CharacterId characterId, m3real* halfHeight, m3real* radius)
 {
-    m3World* world = m3WorldFromIndex0(characterId.world0);
+    m3World* world = m3WorldFromTag(characterId.world);
     int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
     if (halfHeight != NULL)
     {

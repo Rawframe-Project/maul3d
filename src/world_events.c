@@ -152,8 +152,8 @@ static void EmitPairChange(m3World* world, uint64_t key, bool began)
     {
         return;
     }
-    m3ShapeId idA = {sA + 1, world->worldIndex0, world->shapes.shapePool.generations[sA]};
-    m3ShapeId idB = {sB + 1, world->worldIndex0, world->shapes.shapePool.generations[sB]};
+    m3ShapeId idA = {sA + 1, world->idWorld, world->shapes.shapePool.generations[sA]};
+    m3ShapeId idB = {sB + 1, world->idWorld, world->shapes.shapePool.generations[sB]};
     m3ContactBeginEvent begin = {idA, idB};
     m3ContactEndEvent end = {idA, idB};
     int32_t room = world->contacts.pairCapacity;
@@ -221,7 +221,7 @@ void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
     {
         int32_t i = movers[m];
         m3BodyMoveEvent* e = &world->events.moveEvents[world->events.moveEventCount++];
-        e->bodyId = (m3BodyId){i + 1, world->worldIndex0, world->bodies.bodyPool.generations[i]};
+        e->bodyId = (m3BodyId){i + 1, world->idWorld, world->bodies.bodyPool.generations[i]};
         e->transform = world->bodies.transforms[i];
         e->fellAsleep =
             world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] == 0;

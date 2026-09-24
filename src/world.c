@@ -30,9 +30,10 @@ m3World* m3WorldFromId(m3WorldId worldId)
     return s_worlds[index];
 }
 
-m3World* m3WorldFromIndex0(uint16_t index0)
+m3World* m3WorldFromTag(uint16_t tag)
 {
-    return index0 < M3_MAX_WORLDS ? s_worlds[index0] : NULL;
+    m3World* world = s_worlds[tag & ((1u << M3_WORLD_SLOT_BITS) - 1u)];
+    return world != NULL && world->idWorld == tag ? world : NULL;
 }
 
 m3WorldDef m3DefaultWorldDef(void)
@@ -257,7 +258,9 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     }
     ApplyWorldDef(world, def);
     world->generation = s_worldGenerations[slot];
-    world->worldIndex0 = (uint16_t)slot;
+    world->slot = (uint16_t)slot;
+    world->idWorld =
+        (uint16_t)(((uint32_t)world->generation << M3_WORLD_SLOT_BITS) | (uint32_t)slot);
     bool ok = m3StateAllocate(world);
     ok = ok && CreatePools(world);
     if (!ok)
@@ -270,7 +273,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     }
     ClearLinks(world);
     s_worlds[slot] = world;
-    return (m3WorldId){slot + 1, world->generation};
+    return (m3WorldId){(uint16_t)(slot + 1), world->generation};
 }
 
 void m3DestroyWorld(m3WorldId worldId)
@@ -281,7 +284,7 @@ void m3DestroyWorld(m3WorldId worldId)
         m3Refuse(world, m3_errorInvalid);
         return; // stale or foreign id: contract, not invariant
     }
-    int32_t slot = world->worldIndex0;
+    int32_t slot = world->slot;
 
     FreeWorldStorage(world);
 

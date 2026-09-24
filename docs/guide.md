@@ -32,18 +32,18 @@ reached from outside).
 
 ### Id lifecycle
 
-Ids are generation-tagged: `{index1, world0, generation}`. A slot's
+Ids are generation-tagged: `{index1, world, generation}`. A slot's
 generation bumps when the object is destroyed, so a stale id can
 never alias a recycled slot. At generation 0xFFFF the slot retires
 instead of wrapping; a pool whose slots have all retired refuses
 forever, loudly. The rule for staleness is uniform: getters return
 zeros, commands and destroys no-op, creates refuse.
 
-One id is valid until its object or its WORLD is destroyed. Body,
-shape, and joint ids name their world by slot, not generation, so
-after `m3DestroyWorld` the caller must drop every id minted from
-that world; a new world recycling the slot cannot tell foreign
-stale ids from its own. Nothing crashes either way.
+One id is valid until its object or its world is destroyed. The
+`world` field names the world by its slot and the low bits of its
+generation, so a new world recycling the slot refuses the old
+world's ids (for the first 1024 reuses of that slot). Nothing
+crashes either way.
 
 Destroying a body cascades: its shapes and its joints go with it.
 Destroy of an already-stale id is a quiet no-op (the destroy

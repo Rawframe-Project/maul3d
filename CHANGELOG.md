@@ -238,6 +238,11 @@ Work toward 0.0.1, the first release of the reworked library.
   and bodyIdB in m3JointDef, bodyId in m3BodyMoveEvent and m3BodyDiff,
   jointId, chunkShapeId and chassisId.
 - The allocator hook's size argument is a size_t, as in Maul2D.
+- Object ids carry their world's generation: the world field (was
+  world0) holds the world slot in its low M3_WORLD_SLOT_BITS bits and
+  the low bits of the world generation above them, so a world
+  recycling a slot refuses the ids of the world before it. m3WorldId
+  is four bytes, {uint16_t index1, uint16_t generation}, as in Maul2D.
 
 ### Removed
 

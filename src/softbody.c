@@ -43,7 +43,7 @@ m3SoftBodyDef m3DefaultSoftBodyDef(void)
 int32_t m3SoftBodySlot(const m3World* world, m3SoftBodyId softId)
 {
     int32_t index = softId.index1 - 1;
-    if (world == NULL || softId.world0 != world->worldIndex0 ||
+    if (world == NULL || softId.world != world->idWorld ||
         !m3IdPoolValid(&world->softBodies.softPool, index, softId.generation))
     {
         return -1;
@@ -486,7 +486,7 @@ m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, co
         m3Refuse(world, m3_errorCapacity);
         return null;
     }
-    m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softBodies.softPool.generations[slot]};
+    m3SoftBodyId id = {slot + 1, world->idWorld, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateSoftBodyTetOp head;
@@ -517,7 +517,7 @@ m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullSoftBodyId;
     }
-    m3SoftBodyId id = {slot + 1, world->worldIndex0, world->softBodies.softPool.generations[slot]};
+    m3SoftBodyId id = {slot + 1, world->idWorld, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateSoftBody record;
@@ -531,7 +531,7 @@ m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
 
 void m3DestroySoftBody(m3SoftBodyId softId)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0)
     {
@@ -547,13 +547,13 @@ void m3DestroySoftBody(m3SoftBodyId softId)
 
 bool m3SoftBody_IsValid(m3SoftBodyId softId)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     return world != NULL && m3SoftBodySlot(world, softId) >= 0;
 }
 
 void m3SoftBody_PinParticle(m3SoftBodyId softId, int32_t particle)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
@@ -619,7 +619,7 @@ void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particl
 void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBodyId softIdB,
                              int32_t particleB)
 {
-    m3World* world = m3WorldFromIndex0(softIdA.world0);
+    m3World* world = m3WorldFromTag(softIdA.world);
     int32_t slotA = world != NULL ? m3SoftBodySlot(world, softIdA) : -1;
     int32_t slotB = world != NULL ? m3SoftBodySlot(world, softIdB) : -1;
     if (slotA < 0 || slotB < 0 || slotA == slotB || particleA < 0 || particleB < 0 ||
@@ -645,7 +645,7 @@ void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBody
 
 void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId bodyId)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     int32_t body = world != NULL ? m3BodySlot(world, bodyId) : -1;
     if (slot < 0 || body < 0 || particle < 0 ||
@@ -669,14 +669,14 @@ void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId b
 
 int32_t m3SoftBody_GetParticleCount(m3SoftBodyId softId)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     return slot >= 0 ? world->softBodies.softParticleCount[slot] : 0;
 }
 
 m3Pos3 m3SoftBody_GetParticlePosition(m3SoftBodyId softId, int32_t particle)
 {
-    m3World* world = m3WorldFromIndex0(softId.world0);
+    m3World* world = m3WorldFromTag(softId.world);
     int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {

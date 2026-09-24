@@ -22,7 +22,7 @@
 int32_t m3BodySlot(const m3World* world, m3BodyId bodyId)
 {
     int32_t index = bodyId.index1 - 1;
-    if (world == NULL || bodyId.world0 != world->worldIndex0 ||
+    if (world == NULL || bodyId.world != world->idWorld ||
         !m3IdPoolValid(&world->bodies.bodyPool, index, bodyId.generation))
     {
         return -1;
@@ -32,7 +32,7 @@ int32_t m3BodySlot(const m3World* world, m3BodyId bodyId)
 
 m3World* m3ResolveBody(m3BodyId bodyId, int32_t* indexOut)
 {
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     int32_t index = world != NULL ? m3BodySlot(world, bodyId) : -1;
     *indexOut = index;
     if (index < 0)
@@ -388,7 +388,7 @@ m3BodyId m3CreateBody(m3WorldId worldId, const m3BodyDef* def)
         m3Refuse(world, m3_errorCapacity);
         return m3_nullBodyId;
     }
-    m3BodyId id = {index + 1, world->worldIndex0, world->bodies.bodyPool.generations[index]};
+    m3BodyId id = {index + 1, world->idWorld, world->bodies.bodyPool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateBody record;
@@ -417,7 +417,7 @@ void m3DestroyBody(m3BodyId bodyId)
 
 bool m3Body_IsValid(m3BodyId bodyId)
 {
-    m3World* world = m3WorldFromIndex0(bodyId.world0);
+    m3World* world = m3WorldFromTag(bodyId.world);
     return world != NULL && m3BodySlot(world, bodyId) >= 0;
 }
 

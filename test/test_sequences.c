@@ -388,7 +388,7 @@ static void TestRuntimeOpsRedTeam(void)
             staleB.index1 += 100;
             m3ShapeId staleS = crateShape;
             staleS.index1 += 100;
-            m3JointId staleJ = {5, staleS.world0, 7};
+            m3JointId staleJ = {5, staleS.world, 7};
             m3Body_SetTransform(staleB, (m3Pos3){9.0, 9.0, 9.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
             m3Body_SetType(staleB, m3_staticBody);
             m3Body_Disable(staleB);

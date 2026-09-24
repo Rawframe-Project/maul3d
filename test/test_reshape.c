@@ -55,7 +55,7 @@ static void TestSwapWall(void)
     m3Capsule squashed = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, 0.3f};
     CHECK(!m3Shape_SetCapsule(orb, &squashed), "a zero-length capsule refuses");
     CHECK(m3World_Hash(world) == before, "refused swaps changed nothing");
-    m3ShapeId stale = {99, orb.world0, 7};
+    m3ShapeId stale = {99, orb.world, 7};
     CHECK(!m3Shape_SetSphere(stale, &ball), "a stale id refuses");
     CHECK(m3Shape_SetSphere(orb, &ball), "the same-geometry swap re-applies");
     m3DestroyWorld(world);

@@ -114,7 +114,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                 world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
@@ -125,7 +125,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f; // the start-overlapped contract
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                 world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
@@ -201,7 +201,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                 world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
@@ -212,7 +212,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f;
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                 world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
@@ -254,7 +254,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         ctx->best.fraction = out.fraction;
         ctx->best.normal = out.normal;
         ctx->best.shapeId =
-            (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
+            (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
         ctx->bestShape = shape;
     }
     else if (out.state == m3_toiStateOverlapped)
@@ -265,8 +265,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
             ctx->best.hit = true;
             ctx->best.fraction = 0.0f; // the start-overlapped contract
             ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-            ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
-                                            world->shapes.shapePool.generations[shape]};
+            ctx->best.shapeId =
+                (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
             ctx->bestShape = shape;
         }
     }
@@ -329,7 +329,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                     ctx->best.hit = true;
                     ctx->best.fraction = 0.0f;
                     ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                    ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                    ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                     world->shapes.shapePool.generations[shape]};
                     ctx->bestShape = shape;
                 }
@@ -343,7 +343,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = t;
                 ctx->best.normal = n;
-                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->idWorld,
                                                 world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }

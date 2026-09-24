@@ -22,7 +22,7 @@ extern "C"
     typedef struct m3VehicleId
     {
         int32_t index1;
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m3VehicleId;
 

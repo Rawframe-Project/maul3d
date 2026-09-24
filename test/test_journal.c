@@ -146,9 +146,10 @@ int main(void)
     m3WorldId b = m3CreateWorld(&def);
     CHECK(m3World_ReplayJournal(b, buffer, bytes), "replay succeeds");
 
-    m3BodyId b1 = {a1.index1, b.index1 - 1 == 0 ? 0 : (uint16_t)(b.index1 - 1), a1.generation};
-    b1.world0 = (uint16_t)(b.index1 - 1);
-    m3BodyId b2 = {a2.index1, (uint16_t)(b.index1 - 1), a2.generation};
+    // Object ids name their world by slot and generation.
+    uint16_t worldB = (uint16_t)((b.generation << M3_WORLD_SLOT_BITS) | (b.index1 - 1));
+    m3BodyId b1 = {a1.index1, worldB, a1.generation};
+    m3BodyId b2 = {a2.index1, worldB, a2.generation};
     CHECK(m3Body_IsValid(b1) && m3Body_IsValid(b2), "replayed ids validate in world B");
     CHECK(SamePos(m3Body_GetPosition(b1), m3Body_GetPosition(a1)), "b1 position matches");
     CHECK(SamePos(m3Body_GetPosition(b2), m3Body_GetPosition(a2)), "b2 position matches");

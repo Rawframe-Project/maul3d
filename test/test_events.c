@@ -239,7 +239,12 @@ static void TestEventTwinsAndJointStream(void)
             int32_t n = m3World_GetContactEvents(world).hitCount;
             for (int32_t k = 0; k < n; ++k)
             {
-                const uint8_t* bytes = (const uint8_t*)&ev[k];
+                // The twins are different worlds, so ids differ in
+                // their world field and nothing else.
+                m3ContactHitEvent hit = ev[k];
+                hit.shapeIdA.world = 0;
+                hit.shapeIdB.world = 0;
+                const uint8_t* bytes = (const uint8_t*)&hit;
                 for (size_t j = 0; j < sizeof(m3ContactHitEvent); ++j)
                 {
                     digest = (digest ^ bytes[j]) * 1099511628211ull;

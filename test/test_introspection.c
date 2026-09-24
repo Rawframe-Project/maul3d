@@ -177,7 +177,7 @@ static void TestNamesAndHooks(void)
     m3Body_SetName(hero, "clobbered");
     CHECK(m3World_Restore(world, snap, snapBytes), "the restore lands");
     CHECK(strcmp(m3Body_GetName(hero), "renamed") == 0, "the snapshot carries the name");
-    m3BodyId stale = {99, hero.world0, 7};
+    m3BodyId stale = {99, hero.world, 7};
     m3Body_SetName(stale, "ghost");
     CHECK(m3Body_GetName(stale)[0] == 0, "a stale id stays nameless");
     m3DestroyWorld(world);
@@ -220,7 +220,7 @@ static void TestContactReadback(void)
     int32_t viaShape = m3Shape_GetContactData(shapeA, data, 8);
     CHECK(viaShape == total, "the shape view agrees with the body view");
     m3ContactData none[2];
-    m3BodyId stale = {99, a.world0, 7};
+    m3BodyId stale = {99, a.world, 7};
     CHECK(m3Body_GetContactData(stale, none, 2) == 0, "a stale id reads zero contacts");
     m3DestroyWorld(world);
 }
