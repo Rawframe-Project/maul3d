@@ -283,6 +283,9 @@ namespace Maul3D
         /// a header drifted; fail before anything corrupts.
         public static void LayoutCheck()
         {
+            Check<Vec3>(12);
+            Check<Quat>(16);
+            Check<Pos3>(24);
             Check<WorldDef>(112);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
@@ -291,6 +294,9 @@ namespace Maul3D
             Check<QueryFilter>(16);
             Check<WorldId>(4);
             Check<BodyId>(8);
+            Check<ShapeId>(8);
+            Check<JointId>(8);
+            Check<MotionLocks>(6);
             Check<Sphere>(16);
             Check<Capsule>(28);
             Check<Plane>(16);

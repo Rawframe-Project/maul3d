@@ -56,6 +56,10 @@ Work toward 0.0.1, the first release of the reworked library.
   GetStepCount; and the journaled m3Body_SetGravityScale,
   SetLinearDamping, SetAngularDamping, SetBullet, SetUserData and
   m3Shape_SetUserData. m3AabbResult holds world bounds.
+- tools/check_bindings.py checks the C# and Godot bindings against the
+  C API in CI: every imported or called function exists with that many
+  parameters, and every C# struct has the size and field offsets of
+  the C struct it mirrors. The C# layout check covers every struct.
 
 ### Changed
 
