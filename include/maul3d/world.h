@@ -65,7 +65,7 @@ extern "C"
         void* userTaskContext;
         // Tuning knobs. All journaled-settable at runtime too;
         // they are engine STATE: snapshots carry them and replays
-        // reproduce them. Defaults are the reference values.
+        // reproduce them.
         float contactHertz;         // contact softness frequency (30)
         float contactDampingRatio;  // contact softness damping (10)
         float contactPushMaxSpeed;  // max depenetration speed (3)
@@ -91,7 +91,7 @@ extern "C"
     M3_API bool m3World_IsValid(m3WorldId worldId);
 
     /// Set the gravity vector. Journaled; sleeping islands stay
-    /// asleep until disturbed (the reference behavior).
+    /// asleep until disturbed.
     M3_API void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity);
 
     /// Rebuild the broadphase tree top-down into a balanced shape
@@ -138,7 +138,8 @@ extern "C"
 
     /// Contact softness tuning: frequency (hertz), damping ratio and
     /// the maximum depenetration speed. Journaled. Static contacts
-    /// use twice the frequency, like the reference.
+    /// use twice the frequency: a soft row against something
+    /// immovable stores energy under a tall stack.
     M3_API void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio,
                                          float pushMaxSpeed);
 
@@ -156,7 +157,7 @@ extern "C"
     M3_API void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
-    /// sleeping body (the reference behavior). Journaled.
+    /// sleeping body. Journaled.
     M3_API void m3World_EnableSleeping(m3WorldId worldId, bool flag);
 
     /// Whether island sleeping is enabled.
@@ -238,7 +239,7 @@ extern "C"
     /// engine REMOVES the island from the grid as part of the edit's
     /// state transition and emits this event; it never spawns bodies
     /// (what a fragment becomes is the host's decision; the
-    /// reference recipe feeds the island's voxels to the built-in
+    /// usual recipe feeds the island's voxels to the built-in
     /// QuickHull and creates a hull body). Events and recipes are
     /// valid until the next step, restore, or edit-free frame
     /// boundary of your choosing; the next m3World_Step clears them.
@@ -498,7 +499,7 @@ extern "C"
 
     /// Explosion definition: one journaled call pushes every
     /// dynamic convex shape in range. The impulse scales with the
-    /// area the shape shows to the blast (the reference model),
+    /// area the shape shows to the blast,
     /// fades linearly to zero across the falloff band past the
     /// radius, wakes everything it reaches, and may be negative for
     /// an implosion. Spheres, capsules, and hulls respond; meshes

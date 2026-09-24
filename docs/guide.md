@@ -229,7 +229,7 @@ Every fast dynamic body sweeps against static geometry, so nothing
 tunnels through a floor. A body flagged `isBullet` additionally
 sweeps against dynamic and kinematic targets, with both bodies'
 sweeps in the time-of-impact kernel. Bullet versus bullet is not
-resolved (the reference's limitation, shared and documented).
+resolved (a documented limitation).
 Sensors neither stop nor are stopped.
 
 ## Debug draw
@@ -297,7 +297,7 @@ at density one), the center of mass in chunk and world frames, the
 island bounds, and a recipe: chunk-local voxel indices
 (v = x + 16 * (y + 16 * z)) in a transient buffer. The engine
 NEVER spawns bodies; what a fragment becomes is yours. The
-reference recipe feeds small islands' voxel corners to the
+usual recipe feeds small islands' voxel corners to the
 built-in QuickHull and gives large ones their bounds box, with
 density matched to the event mass (see the voxfort scene in
 bench/).
@@ -867,7 +867,7 @@ any dynamic body spinning past the world cap is scaled back onto
 it. The default (800 rad/s) is a catastrophe guard in the same
 philosophy as the 400 m/s linear default: far above anything a
 legal scene does, it exists to stop solver-explosion artifacts,
-not gameplay. Hosts that want the reference's tight clamp set a
+not gameplay. Hosts that want a tight clamp set a
 low cap with m3World_SetMaximumAngularSpeed (journaled, hashed
 only off-default) and flag their legal fast spinners, wheels
 above all, with m3Body_SetAllowFastRotation (journaled). The
@@ -881,8 +881,8 @@ demolition. Fill an m3ExplosionDef (from m3DefaultExplosionDef,
 cookie included): position, radius, falloff, impulsePerArea,
 optionally voxelCarve and softPush, optionally a query filter.
 Every dynamic sphere, capsule, and hull in range takes an
-impulse scaled by the AREA it shows to the blast (the reference
-projected-area model), directed from the center through the
+impulse scaled by the AREA it shows to the blast (its projected
+area), directed from the center through the
 closest point on the shape, which means off-center hits spin
 their targets through the real lever arm. Past the radius the
 impulse fades linearly to zero across the falloff band. The
@@ -980,7 +980,7 @@ the observer purity law throughout.
 
 An M3J1 file is [header | initial snapshot | journal], encoded
 and decoded by pure-memory calls in maul3d/replay.h; file IO
-belongs to hosts and tools (tools/m3replay is the reference
+belongs to hosts and tools (tools/m3replay is the model
 consumer). The header carries step and op counts and the
 recorder's final hash, so verification is self-contained: restore
 the snapshot, replay the journal, compare hashes. A journal

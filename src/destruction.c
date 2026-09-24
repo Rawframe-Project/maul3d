@@ -21,8 +21,8 @@
 #define M3_EXPLOSION_COOKIE ((int32_t)(M3_COOKIE ^ ((int32_t)sizeof(m3ExplosionDef) << 8) ^ 13))
 
 // Projected area of a convex shape onto a plane facing `direction`
-// (a unit vector in the shape's local frame): the reference scales
-// blast impulse by the area the shape shows to the front.
+// (a unit vector in the shape's local frame): a blast's impulse scales
+// with the area the shape shows to the front.
 static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 direction)
 {
     uint8_t type = world->shapes.shapeType[shape];
@@ -122,7 +122,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
         return true;
     }
     // Work in the shape's local frame so distance and direction stay
-    // precise far from the origin (the reference recentering).
+    // precise far from the origin.
     m3Transform xf = m3ShapeWorldTransform(world, shape);
     m3Vec3 local = m3InvRotateVec3(xf.q, (m3Vec3){(m3real)(def->position.x - xf.p.x),
                                                   (m3real)(def->position.y - xf.p.y),
@@ -157,7 +157,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     else
     {
         // The center sits inside the shape: push through the
-        // centroid (the reference fallback), fixed axis when even
+        // centroid, a fixed axis when even
         // that is degenerate.
         m3Vec3 centroid = ShapeLocalCentroid(world, shape);
         m3Vec3 d = m3Sub3(centroid, point);

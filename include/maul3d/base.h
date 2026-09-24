@@ -84,7 +84,7 @@ extern "C"
     /// world by slot (not generation), so after a world is
     /// destroyed its ids must be dropped by the caller; a new
     /// world recycling the slot cannot tell foreign stale ids
-    /// from its own (the reference shares this limitation). Using
+    /// from its own. Using
     /// a stale id is a contract violation that never crashes:
     /// getters return zeros, commands and destroys no-op,
     /// creates refuse.

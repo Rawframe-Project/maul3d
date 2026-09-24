@@ -201,7 +201,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
         return 0;
     }
 
-    // Sensors do not sense other sensors (the reference rule).
+    // Sensors do not sense other sensors.
     if (world->shapes.shapeSensor[i] != 0 && world->shapes.shapeSensor[j] != 0)
     {
         return 0;
@@ -645,7 +645,7 @@ m3Result m3UpdatePairs(m3World* world)
     return m3_success;
 }
 
-// The brute-force scan: the reference result the tree must match.
+// The brute-force scan: the result the tree must match.
 m3Result m3UpdatePairsBruteForce(m3World* world)
 {
     world->contacts.pairCount = 0;

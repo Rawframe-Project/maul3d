@@ -181,8 +181,8 @@ static void TestGravityAndSpeedCap(void)
     m3World_SetGravity(world, (m3Vec3){0.0f, 20.0f, 0.0f});
     m3Vec3 g = m3World_GetGravity(world);
     CHECK(g.y == 20.0f, "gravity reads back");
-    // Contract: gravity does not wake sleepers (the reference
-    // behavior); the crate napped during the settle, so disturb it.
+    // Contract: gravity does not wake sleepers; the crate napped
+    // during the settle, so disturb it.
     m3Body_SetAwake(crate, true);
     StepN(world, 60);
     CHECK(m3Body_GetPosition(crate).y > 3.0, "flipped gravity lifts the crate");

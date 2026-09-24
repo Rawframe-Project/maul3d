@@ -199,7 +199,7 @@ static void DrawSky(int width, int height)
 
 static void DrawGround(void)
 {
-    // A lit slab and a modest grid: the Box3D stage, not a void.
+    // A lit slab and a modest grid: a stage, not a void.
     DrawPlane((Vector3){0.0f, -0.015f, 0.0f}, (Vector2){240.0f, 240.0f},
               (Color){157, 157, 159, 255});
     Color minor = {143, 143, 146, 255};
@@ -1268,7 +1268,7 @@ static void SpawnFragments(m3WorldId world)
 
 // ------------------------------------------------------------------ ui
 // A tiny immediate-mode panel: rows, buttons, checkboxes, steppers.
-// Enough for the Box3D-style side panel without a dependency.
+// Enough for the side panel without a dependency.
 
 typedef struct tbUi
 {

@@ -36,7 +36,7 @@ extern "C"
         /// against static AND dynamic targets. Every fast
         /// dynamic body already sweeps against statics; the bullet
         /// flag buys the dynamic-target sweep. Bullet versus bullet
-        /// is not resolved (the reference limitation, documented).
+        /// is not resolved (a documented limitation).
         bool isBullet;
         int32_t internalValue;
     } m3BodyDef;

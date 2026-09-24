@@ -39,8 +39,8 @@ static inline void m3WakeIfDynamic(m3World* world, int32_t body)
     }
 }
 
-// bodyLocks bit 6: this body bypasses the angular speed cap (the
-// reference allowFastRotation escape hatch). Bits 0..5 stay the
+// bodyLocks bit 6: this body bypasses the angular speed cap (fast
+// rotation allowed, for wheels). Bits 0..5 stay the
 // motion locks; the byte already snapshots and hashes off-default
 // as one block, so the flag rides for free.
 #define M3_LOCKS_ALLOW_FAST_ROTATION 0x40u

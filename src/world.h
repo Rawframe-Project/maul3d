@@ -16,7 +16,7 @@ m3World* m3WorldFromId(m3WorldId worldId);
 // slot, the Maul2D FromIndex0 pattern.
 m3World* m3WorldFromIndex0(uint16_t index0);
 
-// Tuning defaults: the reference values, shared by the def,
+// Tuning defaults, shared by the def,
 // the solver reads, and the off-default hash folds.
 #define M3_CONTACT_HERTZ_DEFAULT 30.0f
 
@@ -29,9 +29,9 @@ m3World* m3WorldFromIndex0(uint16_t index0);
 #define M3_MAX_LINEAR_SPEED_DEFAULT 400.0f
 
 // The angular twin keeps the linear cap's philosophy: a
-// catastrophe guard far above legal tumbling, not the reference's
-// aggressive dt-derived clamp. Hosts wanting the tight reference
-// behavior set a low cap and flag their wheels.
+// catastrophe guard far above legal tumbling, not a tight clamp
+// derived from the step. Hosts wanting a tight clamp set a low cap and
+// flag their wheels.
 #define M3_MAX_ANGULAR_SPEED_DEFAULT 800.0f
 
 #define M3_HIT_EVENT_THRESHOLD_DEFAULT 1.0f

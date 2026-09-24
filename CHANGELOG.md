@@ -165,6 +165,13 @@ Work toward 0.0.1, the first release of the reworked library.
   rests on; m3ClipMoverVelocity strips the velocity pointing into
   those planes. m3SolvePlanes and its iteration count are gone;
   m3MoverPlane's shape field is now shapeId.
+- THIRD_PARTY.md now lists only the testbed's raylib: the solver,
+  joints, collision, ray casts and trigonometry once adapted from
+  Box2D and Box3D have been replaced by the engine's own code, and a
+  token-level similarity scan against those projects finds nothing
+  beyond trivial shared idioms. The README credits the published work
+  in docs/references.md; comments and docs that measured the engine
+  against another engine now state its own rules.
 
 ### Removed
 
@@ -290,3 +297,6 @@ Work toward 0.0.1, the first release of the reworked library.
 - The prismatic joint's rows across the slide ran along half-length
   axes, so the reported constraint force for them was twice the true
   value; they now run along the unit frame axes.
+- m3ComputeCosSin's documentation described a Bhaskara rational form
+  and a minimax atan2 that the engine no longer uses; it now describes
+  the quarter-turn reduction and the Taylor series.

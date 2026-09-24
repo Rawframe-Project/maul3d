@@ -32,8 +32,7 @@ extern "C"
     } m3Sphere;
 
     /// Half-space: points p with dot(normal, p) <= offset are solid.
-    /// A native plane is a deliberate addition over the reference
-    /// (which fakes one with a huge box or a height field).
+    /// A native plane, instead of a huge box or a height field.
     typedef struct m3Plane
     {
         m3Vec3 normal; // normalized on create
@@ -48,15 +47,14 @@ extern "C"
         /// Collision filtering. A pair collides when each
         /// side's category intersects the other's mask, unless a
         /// shared nonzero groupIndex overrides: positive forces
-        /// collision, negative forbids it (the reference rule).
+        /// collision, negative forbids it.
         /// Defaults: category 1, mask all bits, group 0.
         uint64_t categoryBits;
         uint64_t maskBits;
         int32_t groupIndex;
         /// Rolling resistance: a dimensionless material knob
         /// braking relative rotation at contacts, mixed by maximum
-        /// across the pair and scaled by the pair's extent (the
-        /// reference recipe). Zero (the default) rolls free; around
+        /// across the pair and scaled by the pair's extent. Zero (the default) rolls free; around
         /// 0.01 to 0.1 reads as soft ground. Without it a sphere
         /// pile literally never stops rolling or sleeping.
         float rollingResistance;
@@ -278,13 +276,12 @@ extern "C"
     /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
-    /// mass (the reference convention).
+    /// mass.
     M3_API void m3DestroyShape(m3ShapeId shapeId);
 
     /// Runtime material setters. Journaled; contacts read
     /// materials at prepare, so changes bind from the next step. A
-    /// sleeping stack keeps its old mix until something wakes it
-    /// (the reference behavior, documented).
+    /// sleeping stack keeps its old mix until something wakes it.
     M3_API void m3Shape_SetFriction(m3ShapeId shapeId, float friction);
     M3_API float m3Shape_GetFriction(m3ShapeId shapeId);
     M3_API void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution);
@@ -305,9 +302,8 @@ extern "C"
     M3_API bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 
     /// Conveyor: a world-frame surface velocity on the
-    /// shape. Contacts drive the tangential target toward it, the
-    /// reference tangentVelocity semantic the central-friction port
-    /// carried at zero until now. Journaled; state, hashed when
+    /// shape. Contacts drive B's tangential speed relative to A
+    /// toward the difference of the two surfaces. Journaled; state, hashed when
     /// nonzero.
     M3_API void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity);
 

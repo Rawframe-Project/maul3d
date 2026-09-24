@@ -99,7 +99,7 @@ Normalize with a fixed degenerate fallback of {0, 1, 0}: one rule, documented, s
 ```c
 static inline m3real m3UnwindAngle(m3real radians);
 ```
-Convert any angle into the range [-pi, pi]. remainderf is IEEE exact (like sqrt), so this is deterministic (reference note).
+Convert any angle into the range [-pi, pi]. remainderf is IEEE exact (like sqrt), so this is deterministic.
 
 ```c
 static inline m3Quat m3MakeIdentityQuat(void);
@@ -127,12 +127,12 @@ Rotate by the conjugate (inverse for unit quaternions).
 ```c
 static inline m3Quat m3IntegrateRotation(m3Quat q, m3Vec3 deltaRotation);
 ```
-Integrate a rotation by an angular displacement (radians, world frame): q2 = normalize(q1 + 0.5 * (dr, 0) * q1), the reference quaternion-derivative form. Renormalization every call is the 3D numeric contract: drift never accumulates.
+Integrate a rotation by an angular displacement (radians, world frame): q2 = normalize(q1 + 0.5 * (dr, 0) * q1), the first-order step of the quaternion derivative. Renormalization every call is the 3D numeric contract: drift never accumulates.
 
 ```c
 m3CosSin m3ComputeCosSin(m3real radians);
 ```
-Deterministic cosine and sine (Bhaskara I rational form) and atan2 (minimax polynomial): hand rolled because platform libm implementations disagree in the last bits. Reference technique.
+Deterministic cosine and sine (a quarter-turn reduction with a split pi/2, then Taylor series) and atan2 (a pi/6 argument shift, then the Taylor series): hand rolled because platform libm implementations disagree in the last bits.
 
 ```c
 m3real m3Atan2(m3real y, m3real x);
@@ -167,7 +167,7 @@ bool m3World_IsValid(m3WorldId worldId);
 ```c
 void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity);
 ```
-Set the gravity vector. Journaled; sleeping islands stay asleep until disturbed (the reference behavior).
+Set the gravity vector. Journaled; sleeping islands stay asleep until disturbed.
 
 ```c
 void m3World_RebuildBroadphase(m3WorldId worldId);
@@ -199,7 +199,7 @@ Current gravity.
 ```c
 void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio, float pushMaxSpeed);
 ```
-Contact softness tuning: frequency (hertz), damping ratio and the maximum depenetration speed. Journaled. Static contacts use twice the frequency, like the reference.
+Contact softness tuning: frequency (hertz), damping ratio and the maximum depenetration speed. Journaled. Static contacts use twice the frequency: a soft row against something immovable stores energy under a tall stack.
 
 ```c
 void m3World_SetRestitutionThreshold(m3WorldId worldId, float value);
@@ -219,7 +219,7 @@ Hard cap on any body's angular speed in rad/s, applied every substep. The defaul
 ```c
 void m3World_EnableSleeping(m3WorldId worldId, bool flag);
 ```
-Turn island sleeping on or off. Turning it OFF wakes every sleeping body (the reference behavior). Journaled.
+Turn island sleeping on or off. Turning it OFF wakes every sleeping body. Journaled.
 
 ```c
 bool m3World_IsSleepingEnabled(m3WorldId worldId);
@@ -757,12 +757,12 @@ bool m3Joint_GetCollideConnected(m3JointId jointId);
 ```c
 void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorque);
 ```
-Breakage, a deliberate addition over the reference: rollback games need breakage as a deterministic in-step state transition, not a host poll racing the journal. When either reaction magnitude exceeds its cap at the end of a step, the joint destroys itself and emits the joint break event (see world.h). Zero disables a cap; both zero (the default) means unbreakable.
+Breakage: rollback games need breakage as a deterministic in-step state transition, not a host poll racing the journal. When either reaction magnitude exceeds its cap at the end of a step, the joint destroys itself and emits the joint break event (see world.h). Zero disables a cap; both zero (the default) means unbreakable.
 
 ```c
 m3real m3Joint_GetConstraintForce(m3JointId jointId);
 ```
-Reaction readback: MAGNITUDES of the last step's constraint reactions, assembled per type from the stored solver rows (linear rows into force, angular rows into torque; the generic joint reports a conservative sum). Reads 0 before the first step after a restore (documented transient). The reference's vector form waits for a consumer with a direction to point at (argued in the plan).
+Reaction readback: MAGNITUDES of the last step's constraint reactions, assembled per type from the stored solver rows (linear rows into force, angular rows into torque; the generic joint reports a conservative sum). Reads 0 before the first step after a restore (documented transient).
 
 ```c
 m3real m3Joint_GetConstraintTorque(m3JointId jointId);
@@ -780,7 +780,7 @@ m3real m3Joint_GetTranslation(m3JointId jointId);
 ```c
 void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampingRatio);
 ```
-Position drive, the reference spring rows: a soft constraint with the given frequency and damping ratio pulls the joint toward its target. Revolute drives the hinge angle, prismatic the translation, spherical the relative rotation; other types refuse. Toggling zeroes the spring's stored impulse. All journaled; both bodies wake.
+Position drive: a soft constraint with the given frequency and damping ratio pulls the joint toward its target. Revolute drives the hinge angle, prismatic the translation, spherical the relative rotation; other types refuse. Toggling zeroes the spring's stored impulse. All journaled; both bodies wake.
 
 ```c
 void m3Joint_SetTargetAngle(m3JointId jointId, float radians);
@@ -793,7 +793,7 @@ void m3Joint_SetTargetTranslation(m3JointId jointId, float meters);
 ```c
 void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target);
 ```
-The target must be a unit rotation; garbage refuses loudly by doing nothing. The target lives in the JOINT FRAMES (frame z is the create-time local axis): it is the desired rotation of frame B relative to frame A, the reference semantic. Pick your axes at create time so the frame reads naturally.
+The target must be a unit rotation; garbage refuses loudly by doing nothing. The target lives in the JOINT FRAMES (frame z is the create-time local axis): it is the desired rotation of frame B relative to frame A. Pick your axes at create time so the frame reads naturally.
 
 ## `replay.h`
 
@@ -931,12 +931,12 @@ Who touches this shape now: fills up to capacity entries and returns the count w
 ```c
 void m3DestroyShape(m3ShapeId shapeId);
 ```
-Destroy one shape and rebuild the owner's mass books. Journaled; contacts involving the shape dissolve at the next step. The last shape leaves a shapeless dynamic body at unit mass (the reference convention).
+Destroy one shape and rebuild the owner's mass books. Journaled; contacts involving the shape dissolve at the next step. The last shape leaves a shapeless dynamic body at unit mass.
 
 ```c
 void m3Shape_SetFriction(m3ShapeId shapeId, float friction);
 ```
-Runtime material setters. Journaled; contacts read materials at prepare, so changes bind from the next step. A sleeping stack keeps its old mix until something wakes it (the reference behavior, documented).
+Runtime material setters. Journaled; contacts read materials at prepare, so changes bind from the next step. A sleeping stack keeps its old mix until something wakes it.
 
 ```c
 float m3Shape_GetFriction(m3ShapeId shapeId);
@@ -987,7 +987,7 @@ bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
 ```c
 void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity);
 ```
-Conveyor: a world-frame surface velocity on the shape. Contacts drive the tangential target toward it, the reference tangentVelocity semantic the central-friction port carried at zero until now. Journaled; state, hashed when nonzero.
+Conveyor: a world-frame surface velocity on the shape. Contacts drive B's tangential speed relative to A toward the difference of the two surfaces. Journaled; state, hashed when nonzero.
 
 ## `softbody.h`
 

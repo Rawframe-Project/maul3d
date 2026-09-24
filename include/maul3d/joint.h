@@ -205,8 +205,7 @@ extern "C"
     M3_API void m3Joint_SetCollideConnected(m3JointId jointId, bool collide);
     M3_API bool m3Joint_GetCollideConnected(m3JointId jointId);
 
-    /// Breakage, a deliberate addition over the reference:
-    /// rollback games need breakage as a deterministic in-step
+    /// Breakage: rollback games need breakage as a deterministic in-step
     /// state transition, not a host poll racing the journal. When
     /// either reaction magnitude exceeds its cap at the end of a
     /// step, the joint destroys itself and emits the joint break
@@ -219,8 +218,7 @@ extern "C"
     /// solver rows (linear rows into force, angular rows into
     /// torque; the generic joint reports a conservative sum). Reads
     /// 0 before the first step after a restore (documented
-    /// transient). The reference's vector form waits for a consumer
-    /// with a direction to point at (argued in the plan).
+    /// transient).
     M3_API m3real m3Joint_GetConstraintForce(m3JointId jointId);
     M3_API m3real m3Joint_GetConstraintTorque(m3JointId jointId);
 
@@ -230,7 +228,7 @@ extern "C"
     M3_API m3real m3Joint_GetAngle(m3JointId jointId);
     M3_API m3real m3Joint_GetTranslation(m3JointId jointId);
 
-    /// Position drive, the reference spring rows: a soft
+    /// Position drive: a soft
     /// constraint with the given frequency and damping ratio pulls
     /// the joint toward its target. Revolute drives the hinge angle,
     /// prismatic the translation, spherical the relative rotation;
@@ -242,7 +240,7 @@ extern "C"
     /// The target must be a unit rotation; garbage refuses loudly by
     /// doing nothing. The target lives in the JOINT FRAMES (frame z
     /// is the create-time local axis): it is the desired rotation of
-    /// frame B relative to frame A, the reference semantic. Pick
+    /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
     M3_API void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target);
 

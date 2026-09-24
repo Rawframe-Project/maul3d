@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// World lifecycle and the journal. Structure follows Maul2D's proven
-// world.c (itself adapted from Box2D v3, MIT, Erin Catto): a static
-// world table with generations, def-cookie validation, SoA arrays
-// described once in the state table (world_state.c), and a journal whose replay goes through the
-// same internal functions the public API uses.
+// World lifecycle and the journal: a static world table with
+// generations, def-cookie validation, SoA arrays described once in the
+// state table (world_state.c), and a journal whose replay goes through
+// the same internal functions the public API uses, the same shape as
+// maul2d's.
 
 #include "world.h"
 #include "body.h"
@@ -320,8 +320,8 @@ void m3EnableSleepingInternal(m3World* world, int32_t on)
     world->sleepEnabled = on != 0 ? 1 : 0;
     if (on == 0)
     {
-        // The reference wakes every sleeping set when sleeping turns
-        // off; nothing may keep napping through the new regime.
+        // Turning sleep off wakes every sleeper; nothing may keep
+        // napping through the new regime.
         int32_t maxBody = world->bodies.bodyPool.maxIndex;
         for (int32_t i = 0; i < maxBody; ++i)
         {

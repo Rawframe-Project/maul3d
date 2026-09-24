@@ -146,9 +146,11 @@ library version and are refused by any other.
 
 ## Acknowledgments
 
-The solver stage structure, joint formulations and several collision
-kernels were adapted from the Box2D and Box3D projects by Erin Catto. Each adaptation is noted in
-its source file, and the license is reproduced in
+The engine's algorithms follow published work: the soft step schedule
+and soft constraints, the collision, distance and hull methods, the
+mass properties and the particle model. [docs/references.md](docs/references.md)
+lists each source. The interactive testbed is built on
+[raylib](https://github.com/raysan5/raylib); see
 [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## License

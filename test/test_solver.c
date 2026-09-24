@@ -167,9 +167,7 @@ static void TestSlideDistanceLaw(void)
     // rebounds. Rev 20 summed the friction budget across the eight
     // solve passes of a step, inflating the cone up to 8x: the
     // crate stuck in centimeters, dug its leading edge, and hopped.
-    // Convicted against Maul2D (textbook decay on the identical
-    // scene) and the box3d reference (pass-local budget, central
-    // friction).
+    // maul2d, on the identical scene, decays as the textbook says.
     double slides[2];
     const double shoves[2] = {3.0, 0.5};
     for (int32_t pass = 0; pass < 2; ++pass)

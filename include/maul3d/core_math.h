@@ -165,7 +165,7 @@ extern "C"
     }
 
     /// Convert any angle into the range [-pi, pi]. remainderf is IEEE
-    /// exact (like sqrt), so this is deterministic (reference note).
+    /// exact (like sqrt), so this is deterministic.
     static inline m3real m3UnwindAngle(m3real radians)
     {
         return remainderf(radians, 2.0f * M3_PI);
@@ -217,8 +217,8 @@ extern "C"
     }
 
     /// Integrate a rotation by an angular displacement (radians, world
-    /// frame): q2 = normalize(q1 + 0.5 * (dr, 0) * q1), the reference
-    /// quaternion-derivative form. Renormalization every call is the
+    /// frame): q2 = normalize(q1 + 0.5 * (dr, 0) * q1), the first-order
+    /// step of the quaternion derivative. Renormalization every call is the
     /// 3D numeric contract: drift never accumulates.
     static inline m3Quat m3IntegrateRotation(m3Quat q, m3Vec3 deltaRotation)
     {
@@ -234,9 +234,10 @@ extern "C"
         return m3NormalizeQuat(q2);
     }
 
-    /// Deterministic cosine and sine (Bhaskara I rational form) and
-    /// atan2 (minimax polynomial): hand rolled because platform libm
-    /// implementations disagree in the last bits. Reference technique.
+    /// Deterministic cosine and sine (a quarter-turn reduction with a
+    /// split pi/2, then Taylor series) and atan2 (a pi/6 argument shift,
+    /// then the Taylor series): hand rolled because platform libm
+    /// implementations disagree in the last bits.
     M3_API m3CosSin m3ComputeCosSin(m3real radians);
     M3_API m3real m3Atan2(m3real y, m3real x);
 

@@ -280,7 +280,7 @@ static void TestSphericalRotationDrive(void)
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.6f};
     jd.localAnchorB = (m3Vec3){0.0f, 0.0f, -0.6f};
     // The target lives in the joint frames (frame z = the local
-    // axis, the documented reference semantic). Put the frame's z
+    // axis, as documented). Put the frame's z
     // on world y, so a frame-z target turns the crate about y.
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
