@@ -183,6 +183,12 @@ Work toward 0.0.1, the first release of the reworked library.
   fraction of the time (the bench suite, setup included, runs 25%
   faster), and every height field collision builds its window's flags
   without the quadratic scan. Results are bit for bit unchanged.
+- Tree nodes carry the kind bits of the leaves below them (the body
+  type, and whether the shape is a static surface). Continuous
+  collision for ordinary fast bodies only meets statics and static
+  surfaces, so its sweeps skip every subtree without one: the 10k-body
+  smoke bench steps in 22 ms (30 before), the city block in 16.8 ms
+  (18.3). Results are bit for bit unchanged.
 
 ### Removed
 

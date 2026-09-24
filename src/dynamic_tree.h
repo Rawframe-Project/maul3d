@@ -23,7 +23,7 @@ typedef struct m3TreeNode
     int32_t child2;
     int32_t userData; // the shape index on leaves, -1 on interior nodes
     int32_t height;   // -1 = free, 0 = leaf
-    int32_t pad;      // keeps the node padding-free at 8 alignment
+    uint32_t mask;    // the leaf's kind bits; for a subtree, all of its leaves' OR'd
 } m3TreeNode;
 
 _Static_assert(sizeof(m3TreeNode) == 72, "tree node must be padding-free");
@@ -46,12 +46,16 @@ void m3TreeDestroy(m3Tree* tree);
 
 /// Insert a leaf with fat bounds. Returns the node id, or M3_TREE_NULL
 /// when the pool is exhausted (loud at the caller).
-int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32_t userData);
+int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32_t userData,
+                     uint32_t mask);
 void m3TreeRemove(m3Tree* tree, int32_t nodeId);
 
 /// Moves a leaf to new fat bounds. The node id stays the same, and a move
 /// never needs a free node.
 void m3TreeMove(m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3]);
+
+/// Changes a leaf's kind bits.
+void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask);
 
 /// True when the leaf's fat bounds still contain the given tight
 /// bounds (no move needed).
@@ -63,6 +67,11 @@ typedef bool (*m3TreeQueryFn)(int32_t userData, void* context);
 void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
                  void* context);
 
+/// The same, visiting only leaves whose kind bits meet mask; a subtree
+/// without such a leaf is skipped whole.
+void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3], uint32_t mask,
+                     m3TreeQueryFn fn, void* context);
+
 /// Rebuilds the whole tree top down from leaf bounds and payloads given
 /// in canonical order: a median split along the axis where the centroids
 /// spread widest (ties keep the input order), so the shape is a pure
@@ -70,7 +79,8 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
 /// outNodes. Returns false, with the old tree untouched, when count
 /// exceeds the capacity or memory runs out.
 bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
-                   const int32_t* userDatas, int32_t count, int32_t* outNodes);
+                   const int32_t* userDatas, const uint32_t* masks, int32_t count,
+                   int32_t* outNodes);
 
 /// Test oracle: links both ways, heights, AVL balance, box containment
 /// and the node count.

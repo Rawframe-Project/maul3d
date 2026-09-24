@@ -20,6 +20,14 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body);
 m3Result m3UpdatePairsBruteForce(m3World* world);
 
 // Fat world bounds of a sphere shape (double, margin included).
+// A proxy's kind bits in the tree: its body's type, and whether it is a
+// static surface (mesh or voxel chunk) that sweeps must always see.
+#define M3_PROXY_STATIC    1u
+#define M3_PROXY_KINEMATIC 2u
+#define M3_PROXY_DYNAMIC   4u
+#define M3_PROXY_SURFACE   8u
+uint32_t m3ProxyMask(const m3World* world, int32_t shape);
+
 void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi[3]);
 
 #endif // MAUL3D_SRC_BROAD_PHASE_H

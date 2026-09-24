@@ -69,19 +69,26 @@ enum
 
 static Box s_boxes[N];
 static int32_t s_proxies[N];
+static uint32_t s_masks[N];
 
+// Plain and masked queries against brute force: a masked query must
+// find exactly the overlapping leaves whose kind bits meet the mask.
 static int32_t QueryMismatches(const m3Tree* tree, int32_t queries)
 {
     int32_t mismatches = 0;
     for (int32_t q = 0; q < queries; ++q)
     {
         Box query = RandomBox();
+        uint32_t mask = q % 2 == 0 ? 0xFFFFFFFFu : 1u + (uint32_t)(NextRandom() % 7);
         int32_t hits = 0;
-        m3TreeQuery(tree, query.lo, query.hi, CountHit, &hits);
+        m3TreeQueryMask(tree, query.lo, query.hi, mask, CountHit, &hits);
         int32_t brute = 0;
         for (int32_t i = 0; i < N; ++i)
         {
-            brute += s_proxies[i] != M3_TREE_NULL && Overlaps(&s_boxes[i], &query) ? 1 : 0;
+            brute += s_proxies[i] != M3_TREE_NULL && (s_masks[i] & mask) != 0 &&
+                             Overlaps(&s_boxes[i], &query)
+                         ? 1
+                         : 0;
         }
         mismatches += hits != brute ? 1 : 0;
     }
@@ -98,8 +105,14 @@ static void TestChurn(m3Tree* tree)
         Box box = RandomBox();
         if (s_proxies[i] == M3_TREE_NULL)
         {
-            s_proxies[i] = m3TreeInsert(tree, box.lo, box.hi, i);
+            s_masks[i] = 1u << (NextRandom() % 3);
+            s_proxies[i] = m3TreeInsert(tree, box.lo, box.hi, i, s_masks[i]);
             s_boxes[i] = box;
+        }
+        else if (NextRandom() % 7 == 0)
+        {
+            s_masks[i] = 1u << (NextRandom() % 3);
+            m3TreeSetMask(tree, s_proxies[i], s_masks[i]);
         }
         else if (NextRandom() % 3 == 0)
         {
@@ -115,7 +128,7 @@ static void TestChurn(m3Tree* tree)
         }
         valid = valid && m3TreeValidate(tree);
     }
-    CHECK(valid, "the tree stays a valid AVL tree through the churn");
+    CHECK(valid, "the tree stays a valid AVL tree, kind bits included, through the churn");
     CHECK(stable, "moves keep node ids");
     CHECK(QueryMismatches(tree, 50) == 0, "queries match brute force");
 }
@@ -125,6 +138,7 @@ static void TestRebuild(m3Tree* tree)
     double los[N][3];
     double his[N][3];
     int32_t users[N];
+    uint32_t masks[N];
     int32_t out[N];
     int32_t count = 0;
     for (int32_t i = 0; i < N; ++i)
@@ -136,12 +150,13 @@ static void TestRebuild(m3Tree* tree)
                 los[count][k] = s_boxes[i].lo[k];
                 his[count][k] = s_boxes[i].hi[k];
             }
+            masks[count] = s_masks[i];
             users[count++] = i;
         }
     }
-    CHECK(
-        m3TreeRebuild(tree, (const double (*)[3])los, (const double (*)[3])his, users, count, out),
-        "the rebuild fits");
+    CHECK(m3TreeRebuild(tree, (const double (*)[3])los, (const double (*)[3])his, users, masks,
+                        count, out),
+          "the rebuild fits");
     for (int32_t j = 0; j < count; ++j)
     {
         s_proxies[users[j]] = out[j];

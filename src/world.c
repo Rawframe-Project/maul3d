@@ -634,12 +634,14 @@ void m3RebuildBroadphaseInternal(m3World* world)
     double (*los)[3] = (double (*)[3])m3AllocZeroed(count * 3 * (int32_t)sizeof(double));
     double (*his)[3] = (double (*)[3])m3AllocZeroed(count * 3 * (int32_t)sizeof(double));
     int32_t* uds = (int32_t*)m3AllocZeroed(count * (int32_t)sizeof(int32_t));
+    uint32_t* masks = (uint32_t*)m3AllocZeroed(count * (int32_t)sizeof(uint32_t));
     int32_t* outNodes = (int32_t*)m3AllocZeroed(count * (int32_t)sizeof(int32_t));
-    if (los == NULL || his == NULL || uds == NULL || outNodes == NULL)
+    if (los == NULL || his == NULL || uds == NULL || masks == NULL || outNodes == NULL)
     {
         m3Free(los);
         m3Free(his);
         m3Free(uds);
+        m3Free(masks);
         m3Free(outNodes);
         return; // no memory: the old tree stays, correct either way
     }
@@ -657,9 +659,10 @@ void m3RebuildBroadphaseInternal(m3World* world)
             his[n][k] = leaf->hi[k];
         }
         uds[n] = s;
+        masks[n] = leaf->mask;
         n += 1;
     }
-    if (m3TreeRebuild(&world->broadphase.tree, los, his, uds, n, outNodes))
+    if (m3TreeRebuild(&world->broadphase.tree, los, his, uds, masks, n, outNodes))
     {
         for (int32_t i = 0; i < n; ++i)
         {
@@ -669,6 +672,7 @@ void m3RebuildBroadphaseInternal(m3World* world)
     m3Free(los);
     m3Free(his);
     m3Free(uds);
+    m3Free(masks);
     m3Free(outNodes);
 }
 

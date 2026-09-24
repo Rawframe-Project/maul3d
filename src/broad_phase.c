@@ -149,6 +149,18 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
     return box;
 }
 
+uint32_t m3ProxyMask(const m3World* world, int32_t shape)
+{
+    uint8_t bodyType = world->bodies.types[world->shapes.shapeBody[shape]];
+    uint8_t type = world->shapes.shapeType[shape];
+    uint32_t kind =
+        bodyType == (uint8_t)m3_staticBody
+            ? M3_PROXY_STATIC
+            : (bodyType == (uint8_t)m3_kinematicBody ? M3_PROXY_KINEMATIC : M3_PROXY_DYNAMIC);
+    bool surface = type == (uint8_t)m3_meshShape || type == (uint8_t)m3_voxelShape;
+    return kind | (surface ? M3_PROXY_SURFACE : 0u);
+}
+
 void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi[3])
 {
     if (world->shapes.shapeType[shape] == (uint8_t)m3_heightFieldShape)

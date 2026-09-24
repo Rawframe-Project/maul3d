@@ -353,7 +353,8 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
         double lo[3];
         double hi[3];
         m3ShapeFatAabb(world, index, lo, hi);
-        world->broadphase.proxyIds[index] = m3TreeInsert(&world->broadphase.tree, lo, hi, index);
+        world->broadphase.proxyIds[index] =
+            m3TreeInsert(&world->broadphase.tree, lo, hi, index, m3ProxyMask(world, index));
         ok = world->broadphase.proxyIds[index] != M3_TREE_NULL;
     }
     if (!ok)

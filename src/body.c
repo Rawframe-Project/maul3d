@@ -251,6 +251,14 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi);
     world->bodies.types[index] = type;
+    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
+    {
+        if (world->broadphase.proxyIds[s] != M3_TREE_NULL)
+        {
+            m3TreeSetMask(&world->broadphase.tree, world->broadphase.proxyIds[s],
+                          m3ProxyMask(world, s));
+        }
+    }
     if (type == (uint8_t)m3_staticBody)
     {
         world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};

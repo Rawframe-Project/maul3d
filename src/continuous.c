@@ -12,6 +12,8 @@
 
 #include "continuous.h"
 
+#include "broad_phase.h"
+
 #include "distance.h"
 #include "manifold.h"
 #include "shape.h"
@@ -302,7 +304,12 @@ static void SweepShape(Sweeper* sw, int32_t shape)
                 sw->base.z + (double)sw->sweep.c2.z};
     double lo[3] = {fmin(a.x, b.x) - pad, fmin(a.y, b.y) - pad, fmin(a.z, b.z) - pad};
     double hi[3] = {fmax(a.x, b.x) + pad, fmax(a.y, b.y) + pad, fmax(a.z, b.z) + pad};
-    m3TreeQuery(&world->broadphase.tree, lo, hi, SweepCallback, sw);
+    // Only a bullet sweeps against moving bodies; everything else meets
+    // statics and static surfaces, and skips subtrees holding neither.
+    uint32_t targets = world->bodies.bulletFlags[sw->body] != 0
+                           ? 0xFFFFFFFFu
+                           : (M3_PROXY_STATIC | M3_PROXY_SURFACE);
+    m3TreeQueryMask(&world->broadphase.tree, lo, hi, targets, SweepCallback, sw);
     for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
         SweepPlane(world, sw, world->shapes.planeShapes[k]);

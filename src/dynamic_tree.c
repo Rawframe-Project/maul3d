@@ -157,6 +157,7 @@ static void Refit(m3TreeNode* nodes, int32_t id)
     m3TreeNode* node = nodes + id;
     Union(nodes + node->child1, nodes[node->child2].lo, nodes[node->child2].hi, node->lo, node->hi);
     node->height = 1 + MaxHeight(nodes, node->child1, node->child2);
+    node->mask = nodes[node->child1].mask | nodes[node->child2].mask;
 }
 
 // Lifts the child on the given side (1 or 2) of top into its place. The
@@ -323,7 +324,8 @@ static void SetBounds(m3TreeNode* node, const double lo[3], const double hi[3])
     }
 }
 
-int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32_t userData)
+int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32_t userData,
+                     uint32_t mask)
 {
     // A non-empty tree needs a junction node besides the leaf; both are
     // taken up front so a full pool refuses with the tree untouched.
@@ -336,6 +338,7 @@ int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32
     SetBounds(tree->nodes + leaf, lo, hi);
     tree->nodes[leaf].userData = userData;
     tree->nodes[leaf].height = 0;
+    tree->nodes[leaf].mask = mask;
     Attach(tree, leaf, empty ? M3_TREE_NULL : TakeNode(tree));
     return leaf;
 }
@@ -357,6 +360,21 @@ void m3TreeMove(m3Tree* tree, int32_t nodeId, const double lo[3], const double h
     Attach(tree, nodeId, junction);
 }
 
+void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask)
+{
+    tree->nodes[nodeId].mask = mask;
+    for (int32_t id = tree->nodes[nodeId].parent; id != M3_TREE_NULL; id = tree->nodes[id].parent)
+    {
+        m3TreeNode* node = tree->nodes + id;
+        uint32_t merged = tree->nodes[node->child1].mask | tree->nodes[node->child2].mask;
+        if (merged == node->mask)
+        {
+            break; // nothing above can change
+        }
+        node->mask = merged;
+    }
+}
+
 bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
 {
     const m3TreeNode* node = tree->nodes + nodeId;
@@ -367,8 +385,8 @@ bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], cons
 // Depth first, first child first. The stack holds at most one pending
 // sibling per level plus the node in hand, and an AVL tree over any
 // int32 node count is under 64 levels deep.
-void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
-                 void* context)
+void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3], uint32_t mask,
+                     m3TreeQueryFn fn, void* context)
 {
     int32_t stack[M3_TREE_STACK_CAPACITY];
     int32_t top = 0;
@@ -379,7 +397,7 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
     while (top > 0)
     {
         const m3TreeNode* node = tree->nodes + stack[--top];
-        if (!Overlap(node->lo, node->hi, lo, hi))
+        if ((node->mask & mask) == 0 || !Overlap(node->lo, node->hi, lo, hi))
         {
             continue;
         }
@@ -395,6 +413,12 @@ void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3T
         stack[top++] = node->child2;
         stack[top++] = node->child1;
     }
+}
+
+void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
+                 void* context)
+{
+    m3TreeQueryMask(tree, lo, hi, 0xFFFFFFFFu, fn, context);
 }
 
 // Checks one subtree and returns its leaf count, or -1 on any breach:
@@ -413,7 +437,8 @@ static int32_t CheckSubtree(const m3Tree* tree, int32_t id)
         nodes[b].parent != id || n->height != 1 + MaxHeight(nodes, a, b) ||
         nodes[a].height - nodes[b].height > 1 || nodes[b].height - nodes[a].height > 1 ||
         !m3TreeContains(tree, id, nodes[a].lo, nodes[a].hi) ||
-        !m3TreeContains(tree, id, nodes[b].lo, nodes[b].hi))
+        !m3TreeContains(tree, id, nodes[b].lo, nodes[b].hi) ||
+        n->mask != (nodes[a].mask | nodes[b].mask))
     {
         return -1;
     }
@@ -443,6 +468,7 @@ typedef struct RebuildInput
     const double (*los)[3];
     const double (*his)[3];
     const int32_t* userDatas;
+    const uint32_t* masks;
     int32_t* order;   // input indices, sorted range by range
     int32_t* scratch; // merge buffer, as long as order
     int32_t* outNodes;
@@ -516,6 +542,7 @@ static int32_t BuildRange(m3Tree* tree, RebuildInput* in, int32_t s, int32_t e)
         int32_t input = in->order[s];
         SetBounds(tree->nodes + id, in->los[input], in->his[input]);
         tree->nodes[id].userData = in->userDatas[input];
+        tree->nodes[id].mask = in->masks[input];
         in->outNodes[input] = id;
         return id;
     }
@@ -533,7 +560,8 @@ static int32_t BuildRange(m3Tree* tree, RebuildInput* in, int32_t s, int32_t e)
 }
 
 bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
-                   const int32_t* userDatas, int32_t count, int32_t* outNodes)
+                   const int32_t* userDatas, const uint32_t* masks, int32_t count,
+                   int32_t* outNodes)
 {
     if (count < 0 || (count > 0 && 2 * count - 1 > tree->capacity))
     {
@@ -551,7 +579,7 @@ bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
     {
         order[i] = i;
     }
-    RebuildInput in = {los, his, userDatas, order, order + count, outNodes, 0};
+    RebuildInput in = {los, his, userDatas, masks, order, order + count, outNodes, 0};
     if (count > 0)
     {
         tree->root = BuildRange(tree, &in, 0, count);
