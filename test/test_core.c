@@ -145,18 +145,19 @@ static void TestEveryRefusalHasAReason(void)
     // Query inputs are caller data too: non-finite origins, radii and
     // boxes refuse and count instead of walking the broadphase.
     m3ShapeId found[4];
-    CHECK(
-        !m3World_CastRayClosest(world, (m3Pos3){(double)NAN, 0.0, 0.0}, (m3Vec3){0.0f, -1.0f, 0.0f})
-             .hit,
-        "a NaN ray origin hits nothing");
-    CHECK(
-        !m3World_CastSphereClosest(world, (m3Pos3){0.0, 2.0, 0.0}, NAN, (m3Vec3){0.0f, -4.0f, 0.0f})
-             .hit,
-        "a NaN sphere radius casts nothing");
+    CHECK(!m3World_CastRayClosest(world, (m3Pos3){(double)NAN, 0.0, 0.0},
+                                  (m3Vec3){0.0f, -1.0f, 0.0f}, m3DefaultQueryFilter())
+               .hit,
+          "a NaN ray origin hits nothing");
+    CHECK(!m3World_CastSphereClosest(world, (m3Pos3){0.0, 2.0, 0.0}, NAN,
+                                     (m3Vec3){0.0f, -4.0f, 0.0f}, m3DefaultQueryFilter())
+               .hit,
+          "a NaN sphere radius casts nothing");
     CHECK(m3World_OverlapAabb(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Pos3){(double)INFINITY, 1.0, 1.0},
-                              found, 4) == 0,
+                              found, 4, m3DefaultQueryFilter()) == 0,
           "an infinite box overlaps nothing");
-    CHECK(m3World_OverlapSphere(world, (m3Pos3){0.0, (double)NAN, 0.0}, 1.0f, found, 4) == 0,
+    CHECK(m3World_OverlapSphere(world, (m3Pos3){0.0, (double)NAN, 0.0}, 1.0f, found, 4,
+                                m3DefaultQueryFilter()) == 0,
           "a NaN sphere center overlaps nothing");
     m3World_Step(world, INFINITY, 4);
     CHECK(m3World_GetCounters(world).misuse == misuse + 8, "each refuses once");

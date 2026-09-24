@@ -28,7 +28,7 @@ typedef struct m3ShapeCastContext
     int32_t castPointCount;
     m3real castRadius;
     m3Vec3 translation;
-    m3RayHit best;
+    m3RayCastResult best;
     int32_t bestShape;
     m3QueryFilter filter;
 } m3ShapeCastContext;
@@ -114,8 +114,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                              world->shapes.shapePool.generations[shape]};
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             else if (out.state == m3_toiStateOverlapped &&
@@ -125,8 +125,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f; // the start-overlapped contract
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                              world->shapes.shapePool.generations[shape]};
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
         }
@@ -201,8 +201,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = out.fraction;
                 ctx->best.normal = out.normal;
-                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                              world->shapes.shapePool.generations[shape]};
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             else if (out.state == m3_toiStateOverlapped &&
@@ -212,8 +212,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = 0.0f;
                 ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                              world->shapes.shapePool.generations[shape]};
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
         }
@@ -253,7 +253,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         ctx->best.hit = true;
         ctx->best.fraction = out.fraction;
         ctx->best.normal = out.normal;
-        ctx->best.shape =
+        ctx->best.shapeId =
             (m3ShapeId){shape + 1, world->worldIndex0, world->shapes.shapePool.generations[shape]};
         ctx->bestShape = shape;
     }
@@ -265,8 +265,8 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
             ctx->best.hit = true;
             ctx->best.fraction = 0.0f; // the start-overlapped contract
             ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-            ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                          world->shapes.shapePool.generations[shape]};
+            ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                            world->shapes.shapePool.generations[shape]};
             ctx->bestShape = shape;
         }
     }
@@ -329,8 +329,8 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                     ctx->best.hit = true;
                     ctx->best.fraction = 0.0f;
                     ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                    ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                                  world->shapes.shapePool.generations[shape]};
+                    ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                    world->shapes.shapePool.generations[shape]};
                     ctx->bestShape = shape;
                 }
             }
@@ -343,8 +343,8 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
                 ctx->best.hit = true;
                 ctx->best.fraction = t;
                 ctx->best.normal = n;
-                ctx->best.shape = (m3ShapeId){shape + 1, world->worldIndex0,
-                                              world->shapes.shapePool.generations[shape]};
+                ctx->best.shapeId = (m3ShapeId){shape + 1, world->worldIndex0,
+                                                world->shapes.shapePool.generations[shape]};
                 ctx->bestShape = shape;
             }
             return;
@@ -363,9 +363,9 @@ static bool ShapeCastCallback(int32_t shape, void* userContext)
     return true;
 }
 
-static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                                   int32_t pointCount, m3real radius, m3Vec3 translation,
-                                   int32_t ignoreBody, m3QueryFilter filter)
+static m3RayCastResult CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
+                                          int32_t pointCount, m3real radius, m3Vec3 translation,
+                                          int32_t ignoreBody, m3QueryFilter filter)
 {
     m3ShapeCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -435,10 +435,10 @@ static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3*
     return ctx.best;
 }
 
-m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
-                                  m3Quat rotation, m3Vec3 translation, m3QueryFilter filter)
+m3RayCastResult m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
+                                       m3Quat rotation, m3Vec3 translation, m3QueryFilter filter)
 {
-    m3RayHit miss;
+    m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
     m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
                 rotation.w * rotation.w;
@@ -467,17 +467,10 @@ m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfE
     return CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter);
 }
 
-m3RayHit m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
-                                m3Quat rotation, m3Vec3 translation)
+m3RayCastResult m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
+                                        int32_t count, m3Vec3 translation, m3QueryFilter filter)
 {
-    return m3World_CastBoxClosestEx(worldId, center, halfExtents, rotation, translation,
-                                    m3DefaultQueryFilter());
-}
-
-m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
-                                   int32_t count, m3Vec3 translation, m3QueryFilter filter)
-{
-    m3RayHit miss;
+    m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
     if (points == NULL || count < 2 || count > M3_HULL_MAX_VERTS || !m3FinitePos3(base) ||
         !m3FiniteV3(translation))
@@ -501,48 +494,27 @@ m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3*
     return CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter);
 }
 
-m3RayHit m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
-                                 int32_t count, m3Vec3 translation)
-{
-    return m3World_CastHullClosestEx(worldId, base, points, count, translation,
-                                     m3DefaultQueryFilter());
-}
-
-m3RayHit m3CastConvexClosestEx(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                               int32_t pointCount, m3real radius, m3Vec3 translation,
-                               int32_t ignoreBody)
+m3RayCastResult m3CastConvexClosestEx(m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
+                                      int32_t pointCount, m3real radius, m3Vec3 translation,
+                                      int32_t ignoreBody)
 {
     return CastConvexFiltered(worldPtr, base, points, pointCount, radius, translation, ignoreBody,
                               m3DefaultQueryFilter());
 }
 
-m3RayHit m3World_CastSphereClosestEx(m3WorldId worldId, m3Pos3 center, m3real radius,
-                                     m3Vec3 translation, m3QueryFilter filter)
+m3RayCastResult m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center, m3real radius,
+                                          m3Vec3 translation, m3QueryFilter filter)
 {
     m3Vec3 point = {0.0f, 0.0f, 0.0f};
     m3World* world = m3WorldFromId(worldId);
     return CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
 }
 
-m3RayHit m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center, m3real radius,
-                                   m3Vec3 translation)
-{
-    return m3World_CastSphereClosestEx(worldId, center, radius, translation,
-                                       m3DefaultQueryFilter());
-}
-
-m3RayHit m3World_CastCapsuleClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 point1,
-                                      m3Vec3 point2, m3real radius, m3Vec3 translation,
-                                      m3QueryFilter filter)
+m3RayCastResult m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 point1,
+                                           m3Vec3 point2, m3real radius, m3Vec3 translation,
+                                           m3QueryFilter filter)
 {
     m3Vec3 points[2] = {point1, point2};
     m3World* world = m3WorldFromId(worldId);
     return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
-}
-
-m3RayHit m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
-                                    m3real radius, m3Vec3 translation)
-{
-    return m3World_CastCapsuleClosestEx(worldId, center, point1, point2, radius, translation,
-                                        m3DefaultQueryFilter());
 }

@@ -170,14 +170,17 @@ namespace Maul3D
     public struct Plane { public Vec3 Normal; public float Offset; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct RayHit
+    public struct RayCastResult
     {
-        public ShapeId Shape;
+        public ShapeId ShapeId;
         public Pos3 Point;
         public Vec3 Normal;
         public float Fraction;
         public byte Hit;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct QueryFilter { public ulong CategoryBits; public ulong MaskBits; }
 
     public static class Native
     {
@@ -256,8 +259,11 @@ namespace Maul3D
         public static extern void DestroyJoint(JointId joint);
 
         // Queries
+        [DllImport(Lib, EntryPoint = "m3DefaultQueryFilter")]
+        public static extern QueryFilter DefaultQueryFilter();
         [DllImport(Lib, EntryPoint = "m3World_CastRayClosest")]
-        public static extern RayHit CastRayClosest(WorldId world, Pos3 origin, Vec3 translation);
+        public static extern RayCastResult CastRayClosest(WorldId world, Pos3 origin,
+                                                          Vec3 translation, QueryFilter filter);
 
         /// Sizes probed from the C compiler (x86-64 System V and
         /// Windows x64 agree on all of these). A mismatch here means
@@ -268,7 +274,8 @@ namespace Maul3D
             Check<BodyDef>(104);
             Check<ShapeDef>(88);
             Check<JointDef>(224);
-            Check<RayHit>(56);
+            Check<RayCastResult>(56);
+            Check<QueryFilter>(16);
             Check<WorldId>(8);
             Check<BodyId>(8);
             Check<Sphere>(16);

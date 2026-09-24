@@ -254,21 +254,23 @@ static void TestRayAndOverlap(void)
     // can lose the watertight edge test by one float ulp, the same
     // contract as the mesh path): local x = 4.1 on the y = 0.4 x
     // plane gives 1.64.
-    m3RayHit hit =
-        m3World_CastRayClosest(world, (m3Pos3){0.1, 5.0, 0.05}, (m3Vec3){0.0f, -10.0f, 0.0f});
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){0.1, 5.0, 0.05}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(hit.hit, "the ray finds the terrain");
     CHECK(fabs(hit.point.y - 1.64) < 0.02, "the ray lands on the sampled height");
     CHECK(hit.normal.y > 0.9f, "the slope normal points mostly up");
 
     // A miss beside the grid stays a miss.
-    m3RayHit miss =
-        m3World_CastRayClosest(world, (m3Pos3){40.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f});
+    m3RayCastResult miss = m3World_CastRayClosest(
+        world, (m3Pos3){40.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(!miss.hit, "a ray beside the grid misses");
 
     m3ShapeId found[8];
-    int32_t n = m3World_OverlapSphere(world, (m3Pos3){0.0, 1.6, 0.0}, 0.5f, found, 8);
+    int32_t n = m3World_OverlapSphere(world, (m3Pos3){0.0, 1.6, 0.0}, 0.5f, found, 8,
+                                      m3DefaultQueryFilter());
     CHECK(n == 1 && found[0].index1 == terrain.index1, "the overlap family sees terrain");
-    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 6.0, 0.0}, 0.5f, found, 8);
+    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 6.0, 0.0}, 0.5f, found, 8,
+                              m3DefaultQueryFilter());
     CHECK(n == 0, "a sphere above the ramp sees nothing");
     m3DestroyWorld(world);
 }

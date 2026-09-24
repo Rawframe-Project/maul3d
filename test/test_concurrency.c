@@ -111,8 +111,9 @@ static void* ReaderMain(void* arg)
     ReaderJob* job = (ReaderJob*)arg;
     for (int32_t i = 0; i < job->rounds; ++i)
     {
-        m3RayHit hit = m3World_CastRayClosest(job->world, (m3Pos3){0.0, 8.0, 0.0},
-                                              (m3Vec3){0.0f, -16.0f, 0.0f});
+        m3RayCastResult hit =
+            m3World_CastRayClosest(job->world, (m3Pos3){0.0, 8.0, 0.0},
+                                   (m3Vec3){0.0f, -16.0f, 0.0f}, m3DefaultQueryFilter());
         job->hits += hit.hit ? 1 : 0;
     }
     return NULL;

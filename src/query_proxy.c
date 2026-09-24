@@ -232,9 +232,9 @@ static int32_t ProxyOverlapGather(m3World* world, m3ProxyOverlapContext* ctx, m3
     return m3SelectionFinish(&ctx->selection);
 }
 
-int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
-                                    int32_t count, m3real radius, m3ShapeId* shapes,
-                                    int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapHullPoints(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
+                                  int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity,
+                                  m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || points == NULL || count < 1 || count > 64 || shapes == NULL ||
@@ -285,15 +285,8 @@ int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3
     return ProxyOverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapHullPoints(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
-                                  int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity)
-{
-    return m3World_OverlapHullPointsEx(worldId, base, points, count, radius, shapes, capacity,
-                                       m3DefaultQueryFilter());
-}
-
-int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius,
-                                 m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius,
+                               m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
@@ -302,18 +295,11 @@ int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real
     }
     m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
                      {(m3real)(p2.x - p1.x), (m3real)(p2.y - p1.y), (m3real)(p2.z - p1.z)}};
-    return m3World_OverlapHullPointsEx(worldId, p1, pts, 2, radius, shapes, capacity, filter);
+    return m3World_OverlapHullPoints(worldId, p1, pts, 2, radius, shapes, capacity, filter);
 }
 
-int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius,
-                               m3ShapeId* shapes, int32_t capacity)
-{
-    return m3World_OverlapCapsuleEx(worldId, p1, p2, radius, shapes, capacity,
-                                    m3DefaultQueryFilter());
-}
-
-int32_t m3World_OverlapBoxEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
-                             m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
+                           m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
 {
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
@@ -329,12 +315,5 @@ int32_t m3World_OverlapBoxEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtent
                     (c & 4) != 0 ? halfExtents.z : -halfExtents.z};
         corners[c] = m3RotateVec3(rotation, e);
     }
-    return m3World_OverlapHullPointsEx(worldId, center, corners, 8, 0.0f, shapes, capacity, filter);
-}
-
-int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
-                           m3ShapeId* shapes, int32_t capacity)
-{
-    return m3World_OverlapBoxEx(worldId, center, halfExtents, rotation, shapes, capacity,
-                                m3DefaultQueryFilter());
+    return m3World_OverlapHullPoints(worldId, center, corners, 8, 0.0f, shapes, capacity, filter);
 }

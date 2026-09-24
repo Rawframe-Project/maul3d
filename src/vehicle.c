@@ -420,7 +420,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                              xf->p.z + (double)anchorR.z};
             m3Vec3 dir = m3RotateVec3(xf->q, world->vehicles.vehWheelDir[k]);
             m3real reach = world->vehicles.vehWheelRest[k] + world->vehicles.vehWheelRadius[k];
-            m3RayHit hit = m3RayClosestInternalEx(world, anchor, m3MulSV3(reach, dir), chassis);
+            m3RayCastResult hit = m3RayClosestExcept(world, anchor, m3MulSV3(reach, dir), chassis);
             if (!hit.hit)
             {
                 world->vehicles.vehWheelCompression[k] = 0.0f;
@@ -497,7 +497,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 // the wheel: a car parked on a ferry must ride the
                 // ferry, not fight it (an absolute kill drags every
                 // moving platform to a halt under its passenger).
-                int32_t hitShape = hit.shape.index1 - 1;
+                int32_t hitShape = hit.shapeId.index1 - 1;
                 int32_t hitBody = world->shapes.shapeBody[hitShape];
                 m3Vec3 vSurf = {0.0f, 0.0f, 0.0f};
                 if (world->bodies.types[hitBody] != (uint8_t)m3_staticBody)
@@ -601,7 +601,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             // Newton's third law for dynamic ground: a wheel
             // pressing or driving on a fragment pushes the fragment
             // back, or cars would mint momentum from loose rubble.
-            int32_t under = world->shapes.shapeBody[hit.shape.index1 - 1];
+            int32_t under = world->shapes.shapeBody[hit.shapeId.index1 - 1];
             if (world->bodies.types[under] == (uint8_t)m3_dynamicBody &&
                 world->bodies.invMass[under] > 0.0f)
             {

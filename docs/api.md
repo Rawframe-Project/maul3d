@@ -328,7 +328,7 @@ void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* cont
 Register (or clear with NULL) the pre-solve callback. The REGISTRATION is host wiring (never journaled, never snapshot state), but the DECISIONS are not: every veto a step makes is journaled as that step's annex, so a bare replay (m3replay verify included) applies the recorded vetoes with no callback installed and lands on the recorded bits. During such a step the recorded set wins and any installed callback stays silent; do not expect callbacks to fire under replay.
 
 ```c
-m3RayHit m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, m3real radius, m3Vec3 translation);
+m3RayCastResult m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, m3real radius, m3Vec3 translation);
 ```
 Cast the mover capsule along a translation; the closest blocking hit (sensors are invisible to movers).
 
@@ -348,54 +348,30 @@ m3Vec3 m3ClipMoverVelocity(m3Vec3 velocity, const m3MoverPlane* planes, int32_t 
 The velocity closest to the given one that no pressed plane opposes: what is left after hitting them. Pure function.
 
 ```c
-m3RayHit m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation);
+m3RayCastResult m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3QueryFilter filter);
 ```
+Every query takes an m3QueryFilter and sees the shapes a shape with those bits would touch; m3DefaultQueryFilter sees them all. The closest front-face hit along origin + t * translation for t in [0, 1]: rays MISS shapes they start inside or exactly on (front faces only); ask m3World_TestPoint for containment.
 
 ```c
-m3RayHit m3World_CastRayClosestEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3QueryFilter filter);
-```
-Filtered variants: the query carries an m3QueryFilter (defined in shape.h) and behaves like a shape with those bits; the unfiltered forms see everything.
-
-```c
-int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits, int32_t capacity);
+int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits, int32_t capacity, m3QueryFilter filter);
 ```
 Every ray hit along the translation, one entry point per shape, sorted by fraction (ties to the lower shape index). Returns the count written (never more than capacity; excess hits are dropped from the FAR end, deterministically).
 
 ```c
-int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits, int32_t capacity, m3QueryFilter filter);
-```
-
-```c
-m3RayHit m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3Vec3 translation);
+m3RayCastResult m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3Vec3 translation, m3QueryFilter filter);
 ```
 Closest-hit shape casts: sweep a sphere or a capsule along a translation. fraction is the earliest touch in [0, 1]; a cast that STARTS overlapped hits at fraction zero with a zero normal (the documented start-inside contract; rays instead MISS shapes they start inside, front faces only). Generic convex casts: a box (with orientation) or a caller point cloud (2..24 points, base-relative) swept along a translation, skinless. Same contracts as every cast: the earliest touch in [0, 1], start-overlapped reports fraction zero with a zero normal, hostile inputs miss. A single point is a ray: use the ray casts.
 
 ```c
-m3RayHit m3World_CastBoxClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3Vec3 translation, m3QueryFilter filter);
+m3RayCastResult m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3Vec3 translation, m3QueryFilter filter);
 ```
 
 ```c
-m3RayHit m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3Vec3 translation);
+m3RayCastResult m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center, m3real radius, m3Vec3 translation, m3QueryFilter filter);
 ```
 
 ```c
-m3RayHit m3World_CastHullClosestEx(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3Vec3 translation, m3QueryFilter filter);
-```
-
-```c
-m3RayHit m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center, m3real radius, m3Vec3 translation);
-```
-
-```c
-m3RayHit m3World_CastSphereClosestEx(m3WorldId worldId, m3Pos3 center, m3real radius, m3Vec3 translation, m3QueryFilter filter);
-```
-
-```c
-m3RayHit m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 point1, m3Vec3 point2, m3real radius, m3Vec3 translation);
-```
-
-```c
-m3RayHit m3World_CastCapsuleClosestEx(m3WorldId worldId, m3Pos3 center, m3Vec3 point1, m3Vec3 point2, m3real radius, m3Vec3 translation, m3QueryFilter filter);
+m3RayCastResult m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center, m3Vec3 point1, m3Vec3 point2, m3real radius, m3Vec3 translation, m3QueryFilter filter);
 ```
 
 ```c
@@ -404,46 +380,26 @@ m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point);
 The first shape (lowest index) whose volume contains the point, or the null id. Meshes are open surfaces and never contain points; planes are solid half spaces.
 
 ```c
-int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes, int32_t capacity);
+int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 ```
 Shapes whose tight bounds overlap the box, in ascending shape index order. Returns the count written.
 
 ```c
-int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
-```
-
-```c
-int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes, int32_t capacity);
+int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 ```
 Shapes within reach of the sphere (exact per family), in ascending shape index order. Returns the count written.
 
 ```c
-int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
-```
-
-```c
-int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius, m3ShapeId* shapes, int32_t capacity);
+int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 ```
 The exact overlap family: capsule, oriented box, and raw convex cloud queries with the same contract as the sphere: shapes within EXACT reach (GJK per candidate, planes and voxel/mesh handled per family), ascending shape index, filtered, read-only. Clouds carry base-relative points (the cast convention), at most 64 of them.
 
 ```c
-int32_t m3World_OverlapCapsuleEx(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
+int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 ```
 
 ```c
-int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3ShapeId* shapes, int32_t capacity);
-```
-
-```c
-int32_t m3World_OverlapBoxEx(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
-```
-
-```c
-int32_t m3World_OverlapHullPoints(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity);
-```
-
-```c
-int32_t m3World_OverlapHullPointsEx(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
+int32_t m3World_OverlapHullPoints(m3WorldId worldId, m3Pos3 base, const m3Vec3* points, int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 ```
 
 ```c
@@ -1136,4 +1092,4 @@ Engine speed computed by the last step, idle-floored like the torque lookup (a t
 
 ---
 
-240 functions across 11 headers.
+229 functions across 11 headers.

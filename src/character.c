@@ -140,11 +140,11 @@ void m3DestroyCharacterInternal(m3World* world, int32_t slot)
 // capsule, and the ray contract (start-inside misses) filters self
 // for free.
 static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, m3real reach,
-                          m3RayHit* outHit)
+                          m3RayCastResult* outHit)
 {
     m3real depth = world->characters.charHalfHeight[slot] + world->characters.charRadius[slot] +
                    reach + world->characters.charSkin[slot];
-    m3RayHit hit = m3RayClosestInternal(world, center, (m3Vec3){0.0f, -depth, 0.0f});
+    m3RayCastResult hit = m3RayClosestInternal(world, center, (m3Vec3){0.0f, -depth, 0.0f});
     if (hit.hit && hit.normal.y >= world->characters.charCosSlope[slot])
     {
         *outHit = hit;
@@ -156,9 +156,9 @@ static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, m3real re
 // Grounding is recorded WITH the body under the surface: the
 // carry pass ferries riders by that body's step motion, and the
 // generation guards against a recycled slot impersonating a floor.
-static void RecordGround(m3World* world, int32_t slot, const m3RayHit* hit)
+static void RecordGround(m3World* world, int32_t slot, const m3RayCastResult* hit)
 {
-    int32_t shape = hit->shape.index1 - 1;
+    int32_t shape = hit->shapeId.index1 - 1;
     int32_t under = world->shapes.shapeBody[shape];
     world->characters.charGrounded[slot] = 1;
     world->characters.charGroundNormal[slot] = hit->normal;
@@ -176,7 +176,8 @@ static void ClearGround(m3World* world, int32_t slot)
 
 // One capsule cast from the character's center, excluding its own
 // body (the internal caster's ignore hook exists for exactly this).
-static m3RayHit CharacterCast(m3World* world, int32_t slot, m3Pos3 center, m3Vec3 translation)
+static m3RayCastResult CharacterCast(m3World* world, int32_t slot, m3Pos3 center,
+                                     m3Vec3 translation)
 {
     m3Vec3 points[2] = {{0.0f, world->characters.charHalfHeight[slot], 0.0f},
                         {0.0f, -world->characters.charHalfHeight[slot], 0.0f}};
@@ -203,7 +204,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         {
             break;
         }
-        m3RayHit hit = CharacterCast(world, slot, pos, remaining);
+        m3RayCastResult hit = CharacterCast(world, slot, pos, remaining);
         if (!hit.hit)
         {
             pos.x += (double)remaining.x;
@@ -219,12 +220,12 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         if (wasGrounded && stepHeight > 0.0f && hit.normal.y < cosSlope &&
             (remaining.x != 0.0f || remaining.z != 0.0f))
         {
-            m3RayHit up = CharacterCast(world, slot, pos, (m3Vec3){0.0f, stepHeight, 0.0f});
+            m3RayCastResult up = CharacterCast(world, slot, pos, (m3Vec3){0.0f, stepHeight, 0.0f});
             m3real lift = up.hit ? m3MaxF(up.fraction * stepHeight - skin, 0.0f) : stepHeight;
             m3Pos3 lifted = {pos.x, pos.y + (double)lift, pos.z};
             m3Vec3 horizontal = {remaining.x, 0.0f, remaining.z};
             m3real hLen2 = m3Dot3(horizontal, horizontal);
-            m3RayHit fwd = CharacterCast(world, slot, lifted, horizontal);
+            m3RayCastResult fwd = CharacterCast(world, slot, lifted, horizontal);
             m3real hLen = sqrtf(hLen2);
             m3real go = fwd.hit ? m3MaxF(fwd.fraction * hLen - skin, 0.0f) : hLen;
             if (go > skin)
@@ -233,9 +234,9 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
                 m3Pos3 advanced = {lifted.x + (double)(horizontal.x * invH * go), lifted.y,
                                    lifted.z + (double)(horizontal.z * invH * go)};
                 m3real reach = lift + stepHeight;
-                m3RayHit land = CharacterCast(world, slot, advanced, (m3Vec3){0.0f, -reach, 0.0f});
-                m3RayHit floorHit;
-                memset(&floorHit, 0, sizeof(floorHit));
+                m3RayCastResult land =
+                    CharacterCast(world, slot, advanced, (m3Vec3){0.0f, -reach, 0.0f});
+                m3RayCastResult floorHit = {0};
                 // Acceptance is the RAY'S alone, and the ray probes
                 // HALF A RADIUS AHEAD of the landing axis. A steep
                 // ramp rising out of a walkable floor blocks the
@@ -295,7 +296,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         // pushing (weight is not modeled), and bodies heavier than
         // pushMaxMassRatio * mass are walls by contract.
         {
-            int32_t hitShape = hit.shape.index1 - 1;
+            int32_t hitShape = hit.shapeId.index1 - 1;
             int32_t hitBody = world->shapes.shapeBody[hitShape];
             m3real blocked = len - advance;
             m3real into = -m3Dot3(remaining, n) * inv;
@@ -341,9 +342,9 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
     // no floor in reach means airborne.
     if (wasDescending || world->characters.charGrounded[slot] != 0)
     {
-        m3RayHit down = CharacterCast(world, slot, pos,
-                                      (m3Vec3){0.0f, -world->characters.charSnap[slot], 0.0f});
-        m3RayHit floorHit;
+        m3RayCastResult down = CharacterCast(
+            world, slot, pos, (m3Vec3){0.0f, -world->characters.charSnap[slot], 0.0f});
+        m3RayCastResult floorHit;
         memset(&floorHit, 0, sizeof(floorHit));
         if (down.hit &&
             (down.normal.y >= cosSlope ||
@@ -378,9 +379,9 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
 static void RefreshGroundingCore(m3World* world, int32_t slot)
 {
     m3Pos3 pos = world->bodies.transforms[world->characters.charBody[slot]].p;
-    m3RayHit down =
+    m3RayCastResult down =
         CharacterCast(world, slot, pos, (m3Vec3){0.0f, -world->characters.charSnap[slot], 0.0f});
-    m3RayHit floorHit;
+    m3RayCastResult floorHit;
     memset(&floorHit, 0, sizeof(floorHit));
     if (down.hit && down.normal.y >= world->characters.charCosSlope[slot])
     {
@@ -607,7 +608,7 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
     if (grows)
     {
         m3Vec3 points[2] = {{0.0f, halfHeight, 0.0f}, {0.0f, -halfHeight, 0.0f}};
-        m3RayHit hit =
+        m3RayCastResult hit =
             m3CastConvexClosestEx(world, newCenter, points, 2, radius,
                                   (m3Vec3){0.0f, world->characters.charSkin[slot], 0.0f}, body);
         if (hit.hit)

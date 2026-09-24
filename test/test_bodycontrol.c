@@ -126,13 +126,13 @@ static void TestTypeFlipAndDisable(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3RayHit before =
-        m3World_CastRayClosest(world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
+    m3RayCastResult before = m3World_CastRayClosest(
+        world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(before.hit && before.point.y > 0.9, "the ray sees the enabled crate");
     m3Body_Disable(lid);
     CHECK(!m3Body_IsEnabled(lid), "disabled reads back");
-    m3RayHit after =
-        m3World_CastRayClosest(world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
+    m3RayCastResult after = m3World_CastRayClosest(
+        world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(after.hit && after.point.y < 0.1, "the ray passes through the disabled crate");
     m3Body_Enable(lid);
     CHECK(m3Body_IsEnabled(lid) && m3Body_IsAwake(lid), "enabling wakes the body");

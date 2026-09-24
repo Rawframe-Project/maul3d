@@ -24,10 +24,10 @@
 // or hashes. Hosts compose them into their own movers; the engine
 // keeps its kinematic controller as the built-in path.
 
-m3RayHit m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, m3real radius,
-                           m3Vec3 translation)
+m3RayCastResult m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight,
+                                  m3real radius, m3Vec3 translation)
 {
-    m3RayHit miss;
+    m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
     miss.fraction = 1.0f;
     m3World* world = m3WorldFromId(worldId);

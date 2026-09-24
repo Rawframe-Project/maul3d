@@ -10,9 +10,9 @@
 
 bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def);
 
-m3RayHit m3CastConvexClosestEx(m3World* world, m3Pos3 base, const m3Vec3* points,
-                               int32_t pointCount, m3real radius, m3Vec3 translation,
-                               int32_t ignoreBody);
+m3RayCastResult m3CastConvexClosestEx(m3World* world, m3Pos3 base, const m3Vec3* points,
+                                      int32_t pointCount, m3real radius, m3Vec3 translation,
+                                      int32_t ignoreBody);
 
 // A bounded selection of the lowest shape ids, kept as a max-heap while
 // candidates arrive in any order, then sorted ascending.

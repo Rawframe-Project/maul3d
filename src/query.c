@@ -40,7 +40,7 @@ typedef struct m3RayAllContext
 // The single-shape ray test lives in raycast.c; queries reuse it
 // through this internal hook.
 
-static void RayAllInsert(m3RayAllContext* ctx, const m3RayHit* hit, int32_t shapeIndex)
+static void RayAllInsert(m3RayAllContext* ctx, const m3RayCastResult* hit, int32_t shapeIndex)
 {
     // Insertion sort by (fraction, shape index): capacities are
     // small and the order is the contract.
@@ -49,7 +49,7 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3RayHit* hit, int32_t shap
     {
         const m3RayHit* prev = &ctx->hits[pos - 1];
         int after = hit->fraction > prev->fraction ||
-                    (hit->fraction == prev->fraction && shapeIndex > prev->shape.index1 - 1);
+                    (hit->fraction == prev->fraction && shapeIndex > prev->shapeId.index1 - 1);
         if (after)
         {
             break;
@@ -65,7 +65,7 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3RayHit* hit, int32_t shap
     {
         ctx->hits[k] = ctx->hits[k - 1];
     }
-    ctx->hits[pos] = *hit;
+    ctx->hits[pos] = (m3RayHit){hit->shapeId, hit->point, hit->normal, hit->fraction};
     if (ctx->count < ctx->capacity)
     {
         ctx->count += 1;
@@ -84,7 +84,7 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     {
         return true; // filtered out
     }
-    m3RayHit hit = m3RayTestOneShape(ctx->world, shape, ctx->origin, ctx->translation);
+    m3RayCastResult hit = m3RayTestOneShape(ctx->world, shape, ctx->origin, ctx->translation);
     if (hit.hit)
     {
         RayAllInsert(ctx, &hit, shape);
@@ -93,14 +93,7 @@ static bool RayAllCallback(int32_t shape, void* userContext)
 }
 
 int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
-                           int32_t capacity)
-{
-    return m3World_CastRayAllEx(worldId, origin, translation, hits, capacity,
-                                m3DefaultQueryFilter());
-}
-
-int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
-                             int32_t capacity, m3QueryFilter filter)
+                           int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
@@ -112,8 +105,7 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    m3RayAllContext ctx = {world, origin, translation, hits, capacity, 0, m3DefaultQueryFilter()};
-    ctx.filter = filter;
+    m3RayAllContext ctx = {world, origin, translation, hits, capacity, 0, filter};
     double lo[3];
     double hi[3];
     double ex = origin.x + (double)translation.x;
@@ -132,7 +124,7 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
         if (m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
                          world->shapes.shapeMask[s]))
         {
-            m3RayHit hit = m3RayTestOneShape(world, s, origin, translation);
+            m3RayCastResult hit = m3RayTestOneShape(world, s, origin, translation);
             if (hit.hit)
             {
                 RayAllInsert(&ctx, &hit, s);
@@ -509,8 +501,8 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
     return m3SelectionFinish(&ctx->selection);
 }
 
-int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
-                              int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
+                            int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
@@ -533,14 +525,8 @@ int32_t m3World_OverlapAabbEx(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId
     return OverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
-                            int32_t capacity)
-{
-    return m3World_OverlapAabbEx(worldId, lo, hi, shapes, capacity, m3DefaultQueryFilter());
-}
-
-int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes,
-                                int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes,
+                              int32_t capacity, m3QueryFilter filter)
 {
     m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FiniteF(radius) ||
@@ -562,13 +548,6 @@ int32_t m3World_OverlapSphereEx(m3WorldId worldId, m3Pos3 center, m3real radius,
     ctx.hi[1] = center.y + (double)radius;
     ctx.hi[2] = center.z + (double)radius;
     return OverlapGather(world, &ctx, shapes, capacity);
-}
-
-int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes,
-                              int32_t capacity)
-{
-    return m3World_OverlapSphereEx(worldId, center, radius, shapes, capacity,
-                                   m3DefaultQueryFilter());
 }
 
 // --- Contact readback ------------------------------------------------

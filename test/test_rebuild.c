@@ -56,10 +56,12 @@ static void TestRebuildChangesNoAnswer(void)
     m3WorldId rebuilt = City();
 
     m3ShapeId before[64];
-    int32_t beforeCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, before, 64);
+    int32_t beforeCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, before, 64,
+                                                m3DefaultQueryFilter());
     m3World_RebuildBroadphase(rebuilt);
     m3ShapeId after[64];
-    int32_t afterCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, after, 64);
+    int32_t afterCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, after, 64,
+                                               m3DefaultQueryFilter());
     CHECK(beforeCount == afterCount, "the rebuild keeps the overlap count");
     bool same = beforeCount == afterCount;
     for (int32_t i = 0; same && i < beforeCount; ++i)
@@ -68,11 +70,11 @@ static void TestRebuildChangesNoAnswer(void)
     }
     CHECK(same, "the rebuild keeps the overlap list, in order");
 
-    m3RayHit h1 =
-        m3World_CastRayClosest(plain, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f});
-    m3RayHit h2 =
-        m3World_CastRayClosest(rebuilt, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f});
-    CHECK(h1.hit && h2.hit && h1.shape.index1 == h2.shape.index1 && h1.fraction == h2.fraction,
+    m3RayCastResult h1 = m3World_CastRayClosest(
+        plain, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
+    m3RayCastResult h2 = m3World_CastRayClosest(
+        rebuilt, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(h1.hit && h2.hit && h1.shapeId.index1 == h2.shapeId.index1 && h1.fraction == h2.fraction,
           "the rebuilt tree casts the same ray");
 
     for (int32_t i = 0; i < 180; ++i)

@@ -261,14 +261,15 @@ static void TestQueriesAgainstVoxels(void)
     CHECK(m3Shape_IsValid(chunkShape), "the query chunk creates");
 
     // A downward ray hits the top face at the analytic fraction.
-    m3RayHit hit =
-        m3World_CastRayClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.0f, -10.0f, 0.0f});
-    CHECK(hit.hit && hit.shape.index1 == chunkShape.index1, "the ray hits the chunk");
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the ray hits the chunk");
     CHECK(hit.fraction > 0.599f && hit.fraction < 0.601f, "the ray fraction is analytic");
     CHECK(hit.normal.y > 0.99f, "the entry normal is the top face");
 
     // A ray born inside the slab misses (the ray contract).
-    hit = m3World_CastRayClosest(world, (m3Pos3){8.0, 2.0, 8.0}, (m3Vec3){0.0f, -5.0f, 0.0f});
+    hit = m3World_CastRayClosest(world, (m3Pos3){8.0, 2.0, 8.0}, (m3Vec3){0.0f, -5.0f, 0.0f},
+                                 m3DefaultQueryFilter());
     CHECK(!hit.hit, "a ray born inside reports a miss");
 
     // Containment: inside a filled voxel, above the slab, outside.
@@ -281,9 +282,11 @@ static void TestQueriesAgainstVoxels(void)
 
     // Overlaps: the sphere reach and the AABB both see the chunk.
     m3ShapeId found[4];
-    int32_t n = m3World_OverlapSphere(world, (m3Pos3){8.0, 4.3, 8.0}, 0.5f, found, 4);
+    int32_t n = m3World_OverlapSphere(world, (m3Pos3){8.0, 4.3, 8.0}, 0.5f, found, 4,
+                                      m3DefaultQueryFilter());
     CHECK(n == 1 && found[0].index1 == chunkShape.index1, "the sphere reach finds the chunk");
-    n = m3World_OverlapSphere(world, (m3Pos3){8.0, 5.5, 8.0}, 0.5f, found, 4);
+    n = m3World_OverlapSphere(world, (m3Pos3){8.0, 5.5, 8.0}, 0.5f, found, 4,
+                              m3DefaultQueryFilter());
     CHECK(n == 0, "out of reach finds nothing");
     m3DestroyWorld(world);
 }
@@ -592,8 +595,8 @@ static void TestFractureBridge(void)
         CHECK(m3World_FragmentEventsDropped(world) == 0, "nothing was dropped");
 
         // The pillars remain and still collide: a ray finds one.
-        m3RayHit hit =
-            m3World_CastRayClosest(world, (m3Pos3){2.5, 20.0, 8.5}, (m3Vec3){0.0f, -15.0f, 0.0f});
+        m3RayCastResult hit = m3World_CastRayClosest(
+            world, (m3Pos3){2.5, 20.0, 8.5}, (m3Vec3){0.0f, -15.0f, 0.0f}, m3DefaultQueryFilter());
         CHECK(hit.hit, "the surviving pillar still answers rays");
 
         hashes[run] = m3World_Hash(world);
@@ -935,18 +938,19 @@ static void TestShapeCastsAgainstVoxels(void)
 
     // A sphere cast straight down: center stops at 4 + r, so the
     // fraction is (10 - 4.3 - slop band) / 8 within the TOI band.
-    m3RayHit hit = m3World_CastSphereClosest(world, (m3Pos3){8.0, 10.0, 8.0}, 0.3f,
-                                             (m3Vec3){0.0f, -8.0f, 0.0f});
-    CHECK(hit.hit && hit.shape.index1 == chunkShape.index1, "the sphere cast hits the chunk");
+    m3RayCastResult hit = m3World_CastSphereClosest(
+        world, (m3Pos3){8.0, 10.0, 8.0}, 0.3f, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the sphere cast hits the chunk");
     CHECK(hit.fraction > 0.70f && hit.fraction < 0.72f, "the voxel cast fraction is analytic");
 
     // A capsule cast onto the top face, and a start-overlapped cast.
     hit = m3World_CastCapsuleClosest(world, (m3Pos3){8.0, 6.0, 8.0}, (m3Vec3){-0.4f, 0.0f, 0.0f},
-                                     (m3Vec3){0.4f, 0.0f, 0.0f}, 0.2f, (m3Vec3){0.0f, -4.0f, 0.0f});
+                                     (m3Vec3){0.4f, 0.0f, 0.0f}, 0.2f, (m3Vec3){0.0f, -4.0f, 0.0f},
+                                     m3DefaultQueryFilter());
     CHECK(hit.hit && hit.fraction > 0.44f && hit.fraction < 0.46f,
           "the capsule cast fraction is analytic");
     hit = m3World_CastSphereClosest(world, (m3Pos3){8.0, 3.9, 8.0}, 0.3f,
-                                    (m3Vec3){0.0f, -2.0f, 0.0f});
+                                    (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(hit.hit && hit.fraction == 0.0f, "a cast born inside the chunk reports zero");
 
     // A box cast lands on the chunk face at the same analytic
@@ -954,13 +958,13 @@ static void TestShapeCastsAgainstVoxels(void)
     // the shared branch).
     m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
     hit = m3World_CastBoxClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.4f, 0.4f, 0.4f},
-                                 identity, (m3Vec3){0.0f, -8.0f, 0.0f});
-    CHECK(hit.hit && hit.shape.index1 == chunkShape.index1, "the box cast hits the chunk");
+                                 identity, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the box cast hits the chunk");
     CHECK(hit.fraction > 0.69f && hit.fraction < 0.71f, "the voxel box-cast fraction is analytic");
 
     // A cast that misses the chunk entirely.
     hit = m3World_CastSphereClosest(world, (m3Pos3){40.0, 10.0, 8.0}, 0.3f,
-                                    (m3Vec3){0.0f, -8.0f, 0.0f});
+                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(!hit.hit, "a cast beside the chunk misses");
     m3DestroyWorld(world);
 }

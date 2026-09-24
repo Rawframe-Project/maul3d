@@ -55,8 +55,8 @@ static void TestOffsetEquivalence(void)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3RayHit hit =
-            m3World_CastRayClosest(world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
+        m3RayCastResult hit = m3World_CastRayClosest(
+            world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
         CHECK(hit.hit, "the settled box answers the ray");
         if (pass == 0)
         {
@@ -143,11 +143,11 @@ static void TestQueriesSeeOffsets(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.localPosition = (m3Vec3){3.0f, 1.0f, 0.0f};
     m3CreateBoxShape(post, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    m3RayHit at3 =
-        m3World_CastRayClosest(world, (m3Pos3){3.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
+    m3RayCastResult at3 = m3World_CastRayClosest(
+        world, (m3Pos3){3.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(at3.hit && fabs(at3.point.y - 1.5) < 1.0e-6, "the ray hits the box where it sits");
-    m3RayHit at0 =
-        m3World_CastRayClosest(world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f});
+    m3RayCastResult at0 = m3World_CastRayClosest(
+        world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(at0.hit && at0.point.y < 0.01, "the body origin is empty space");
     m3DestroyWorld(world);
 }
@@ -429,8 +429,8 @@ static void TestGrandMesh(void)
     }
     double y = m3Body_GetPosition(crate).y;
     CHECK(y > -1.0 && y < 1.5, "the crate lands on the far side of the terrain");
-    m3RayHit hit =
-        m3World_CastRayClosest(world, (m3Pos3){21.0, 5.0, 21.0}, (m3Vec3){0.0f, -10.0f, 0.0f});
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){21.0, 5.0, 21.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(hit.hit && fabs(hit.point.y) < 0.5, "a mid-terrain ray lands on the surface");
 
     int32_t snapBytes = m3World_SnapshotSize(world);

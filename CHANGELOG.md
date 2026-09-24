@@ -221,6 +221,12 @@ Work toward 0.0.1, the first release of the reworked library.
   and m3Body_Disable, and m3Body_SetSleepControls is now
   m3Body_EnableSleep, m3Body_IsSleepEnabled, m3Body_SetSleepThreshold
   and m3Body_GetSleepThreshold.
+- Queries take Maul2D's form: every ray, cast and overlap takes an
+  m3QueryFilter as its last argument (m3DefaultQueryFilter() sees
+  everything), and the separate Ex variants are gone. Closest casts
+  return an m3RayCastResult and m3World_CastRayAll fills m3RayHit
+  entries without the hit flag, as in Maul2D; both name the shape
+  field shapeId.
 
 ### Removed
 

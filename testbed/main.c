@@ -1608,7 +1608,8 @@ int main(void)
         m3Pos3 rayOrigin = {pick.position.x, pick.position.y, pick.position.z};
         m3Vec3 rayDir = {pick.direction.x * 120.0f, pick.direction.y * 120.0f,
                          pick.direction.z * 120.0f};
-        m3RayHit look = m3World_CastRayClosest(scene.world, rayOrigin, rayDir);
+        m3RayCastResult look =
+            m3World_CastRayClosest(scene.world, rayOrigin, rayDir, m3DefaultQueryFilter());
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !mouseInPanel)
         {

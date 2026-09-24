@@ -108,7 +108,7 @@ int main(void)
     uint64_t before = m3World_Hash(world);
 
     // Cast: a mover dropped from above strikes the floor.
-    m3RayHit hit =
+    m3RayCastResult hit =
         m3World_CastMover(world, (m3Pos3){0.0, 3.0, 0.0}, 0.5f, 0.4f, (m3Vec3){0.0f, -5.0f, 0.0f});
     CHECK(hit.hit, "the falling mover strikes the floor");
     CHECK(hit.normal.y > 0.9f, "the strike normal points up");

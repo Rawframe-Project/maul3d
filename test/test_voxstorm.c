@@ -91,9 +91,9 @@ static void TestNegativeAndEdgeCoordinates(void)
 
     // A ray from deeper negative space finds the floor (aimed away
     // from the resting ball, which would otherwise catch it first).
-    m3RayHit hit =
-        m3World_CastRayClosest(world, (m3Pos3){-28.0, -5.0, -28.0}, (m3Vec3){0.0f, -20.0f, 0.0f});
-    CHECK(hit.hit && hit.shape.index1 == chunkA.index1, "the negative-side ray lands");
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){-28.0, -5.0, -28.0}, (m3Vec3){0.0f, -20.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit && hit.shapeId.index1 == chunkA.index1, "the negative-side ray lands");
     CHECK(hit.fraction > 0.49f && hit.fraction < 0.51f, "the negative-side fraction is analytic");
     m3DestroyWorld(world);
 }

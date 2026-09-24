@@ -508,9 +508,10 @@ Every shape carries `categoryBits` (default 1), `maskBits`
 when each one's category intersects the other's mask, both ways; a
 shared positive group forces collision, a shared negative group
 forbids it. One chokepoint gates ordinary pairs, sensors, and the
-continuous phase alike. Queries behave like shapes: the `Ex`
-variants of every ray, cast, and overlap take an `m3QueryFilter`.
-Filters are state (snapshot v29) and hash only off-default.
+continuous phase alike. Queries behave like shapes: every ray,
+cast, and overlap takes an `m3QueryFilter`, and
+`m3DefaultQueryFilter()` sees everything. Filters are state and
+hash only off-default.
 
 ## Forces and impulses
 

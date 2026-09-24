@@ -54,9 +54,11 @@ static void TestBoxBeatsTheSphereAtCorners(void)
     // A tilted-free box reaching exactly into the corner: the crate
     // sits 4.24 m out diagonally, inside the box's long arm but
     // outside the 3 m sphere.
-    int32_t viaBox = m3World_OverlapBox(world, (m3Pos3){0.0, 0.5, 0.0}, (m3Vec3){3.5f, 1.0f, 3.5f},
-                                        (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, hits, 8);
-    int32_t viaSphere = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, hits, 8);
+    int32_t viaBox =
+        m3World_OverlapBox(world, (m3Pos3){0.0, 0.5, 0.0}, (m3Vec3){3.5f, 1.0f, 3.5f},
+                           (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, hits, 8, m3DefaultQueryFilter());
+    int32_t viaSphere = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, hits, 8,
+                                              m3DefaultQueryFilter());
     // The floor plane answers both queries; the crate only the box.
     CHECK(viaBox == 2, "the box finds the plane and the corner crate");
     CHECK(viaSphere == 1, "the sphere of the inradius finds only the plane");
@@ -73,7 +75,7 @@ static void TestCorridorCapsuleAndOrder(void)
     (void)near;
     m3ShapeId hits[8];
     int32_t n = m3World_OverlapCapsule(world, (m3Pos3){-10.0, 0.5, 0.0}, (m3Pos3){10.0, 0.5, 0.0},
-                                       0.6f, hits, 8);
+                                       0.6f, hits, 8, m3DefaultQueryFilter());
     // Plane + the two corridor crates; the side crate stays out.
     CHECK(n == 3, "the corridor capsule finds the plane and both ends");
     for (int32_t k = 1; k < n; ++k)
@@ -92,24 +94,26 @@ static void TestCloudFilterAndPurity(void)
     m3Vec3 tetra[4] = {
         {0.0f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {-4.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}};
     m3ShapeId hits[8];
-    int32_t all =
-        m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, hits, 8);
+    int32_t all = m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, hits, 8,
+                                            m3DefaultQueryFilter());
     // The cloud floats half a meter over the floor with a 0.1
     // skin: the plane is OUT of reach, both crates in.
     CHECK(all == 2, "the cloud reaches exactly the two crates");
     m3QueryFilter filter = m3DefaultQueryFilter();
     filter.maskBits = ~2ull;
-    int32_t masked = m3World_OverlapHullPointsEx(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f,
-                                                 hits, 8, filter);
+    int32_t masked =
+        m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, hits, 8, filter);
     CHECK(masked == 1, "the filter hides the category-2 crate");
     // Hostile clouds refuse quietly with zero hits.
     float bad;
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
     m3Vec3 cursed[2] = {{0.0f, 0.0f, 0.0f}, {bad, 0.0f, 0.0f}};
-    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, cursed, 2, 0.1f, hits, 8) == 0,
+    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, cursed, 2, 0.1f, hits, 8,
+                                    m3DefaultQueryFilter()) == 0,
           "a NaN cloud reads zero");
-    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 0, 0.1f, hits, 8) == 0,
+    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 0, 0.1f, hits, 8,
+                                    m3DefaultQueryFilter()) == 0,
           "an empty cloud reads zero");
     CHECK(m3World_Hash(world) == before, "overlap queries move no bits");
     m3DestroyWorld(world);
@@ -135,10 +139,11 @@ static void TestVoxelWallExactness(void)
     m3ShapeId hits[8];
     // A capsule hugging the wall face touches it; the same capsule
     // pulled a meter back does not (exactness, not AABB slop).
-    int32_t touching = m3World_OverlapCapsule(world, (m3Pos3){-4.0, 2.0, 0.7},
-                                              (m3Pos3){4.0, 2.0, 0.7}, 0.4f, hits, 8);
+    int32_t touching =
+        m3World_OverlapCapsule(world, (m3Pos3){-4.0, 2.0, 0.7}, (m3Pos3){4.0, 2.0, 0.7}, 0.4f, hits,
+                               8, m3DefaultQueryFilter());
     int32_t clear = m3World_OverlapCapsule(world, (m3Pos3){-4.0, 2.0, 2.0}, (m3Pos3){4.0, 2.0, 2.0},
-                                           0.4f, hits, 8);
+                                           0.4f, hits, 8, m3DefaultQueryFilter());
     CHECK(touching == 1, "the hugging capsule touches the wall");
     CHECK(clear == 0, "a meter of air is a miss, not an AABB hit");
     m3DestroyWorld(world);
