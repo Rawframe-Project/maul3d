@@ -72,6 +72,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/hash.c
     src/hull.c
     src/island.c
     src/integrate.c
