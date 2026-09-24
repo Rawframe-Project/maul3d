@@ -421,14 +421,9 @@ static m3RayHit CastConvexFiltered(m3World* worldPtr, m3Pos3 base, const m3Vec3*
     hi[2] = (base.z > ez ? base.z : ez) + (double)extent;
     m3TreeQuery(&world->broadphase.tree, lo, hi, ShapeCastCallback, &ctx);
 
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] != 0 &&
-            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
-        {
-            ShapeCastTestPlane(&ctx, s);
-        }
+        ShapeCastTestPlane(&ctx, world->shapes.planeShapes[k]);
     }
 
     if (ctx.best.hit)

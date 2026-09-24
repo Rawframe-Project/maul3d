@@ -352,12 +352,30 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
         return -1;
     }
     m3RecomputeMass(world, bodyIndex);
+    if (type == (uint8_t)m3_planeShape)
+    {
+        m3RebuildPlaneList(world);
+    }
     return index;
+}
+
+void m3RebuildPlaneList(m3World* world)
+{
+    m3Shapes* sh = &world->shapes;
+    sh->planeCount = 0;
+    for (int32_t s = 0; s < sh->shapePool.maxIndex; ++s)
+    {
+        if (sh->shapePool.alive[s] != 0 && sh->shapeType[s] == (uint8_t)m3_planeShape)
+        {
+            sh->planeShapes[sh->planeCount++] = s;
+        }
+    }
 }
 
 void m3DestroyShapeInternal(m3World* world, int32_t index)
 {
     int32_t bodyIndex = world->shapes.shapeBody[index];
+    bool plane = world->shapes.shapeType[index] == (uint8_t)m3_planeShape;
     UnlinkShape(world, index);
     if (world->broadphase.proxyIds[index] != M3_TREE_NULL)
     {
@@ -385,6 +403,10 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
     sh->shapeHasOffset[index] = 0;
     m3IdPoolFree(&world->shapes.shapePool, index);
     m3RecomputeMass(world, bodyIndex);
+    if (plane)
+    {
+        m3RebuildPlaneList(world);
+    }
 }
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)

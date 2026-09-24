@@ -126,12 +126,10 @@ int32_t m3World_CastRayAllEx(m3WorldId worldId, m3Pos3 origin, m3Vec3 translatio
     hi[1] = origin.y > ey ? origin.y : ey;
     hi[2] = origin.z > ez ? origin.z : ez;
     m3TreeQuery(&world->broadphase.tree, lo, hi, RayAllCallback, &ctx);
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] != 0 &&
-            world->shapes.shapeType[s] == (uint8_t)m3_planeShape &&
-            m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
+        int32_t s = world->shapes.planeShapes[k];
+        if (m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
                          world->shapes.shapeMask[s]))
         {
             m3RayHit hit = m3RayTestOneShape(world, s, origin, translation);
@@ -479,11 +477,9 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
 {
     ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
     m3TreeQuery(&world->broadphase.tree, ctx->lo, ctx->hi, OverlapCallback, ctx);
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] != 0 &&
-            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
+        int32_t s = world->shapes.planeShapes[k];
         {
             int include;
             if (ctx->radius >= 0.0f)

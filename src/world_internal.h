@@ -435,6 +435,10 @@ typedef struct m3Shapes
     int32_t* shapeVoxelIndex; // voxel chunk slot, -1 otherwise
     uint8_t* shapeSensor;     // 1 = overlap detector, never contact response
     int32_t* shapeHfIndex;
+    // Derived: the live plane shapes in slot order. Planes stay out of
+    // the tree, so every query that must see them walks this list.
+    int32_t* planeShapes;
+    int32_t planeCount;
 } m3Shapes;
 
 // The interned hull pool: immutable content, refcounted.

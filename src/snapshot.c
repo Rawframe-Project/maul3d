@@ -13,6 +13,7 @@
 
 #include "body.h"
 #include "joint_solver.h"
+#include "shape.h"
 #include "voxel.h"
 #include "world.h"
 #include "world_internal.h"
@@ -446,6 +447,7 @@ static void RebuildDerived(m3World* world)
 {
     world->contacts.sleepingPairCount = 0;
     world->contacts.pairsFullQuery = 1;
+    m3RebuildPlaneList(world);
     for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
     {
         if (world->meshes.meshPool.alive[m] != 0)

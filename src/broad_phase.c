@@ -413,12 +413,10 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
         }
         // Planes live outside the tree and pair unconditionally: a
         // frozen body keeps its ground pair through the buffer.
-        int32_t maxShape = world->shapes.shapePool.maxIndex;
-        for (int32_t p2 = 0; p2 < maxShape; ++p2)
+        for (int32_t k = 0; k < world->shapes.planeCount; ++k)
         {
-            if (world->shapes.shapePool.alive[p2] == 0 ||
-                world->shapes.shapeType[p2] != (uint8_t)m3_planeShape ||
-                !PairAllowed(world, p2, sh))
+            int32_t p2 = world->shapes.planeShapes[k];
+            if (!PairAllowed(world, p2, sh))
             {
                 continue;
             }
@@ -545,13 +543,9 @@ m3Result m3UpdatePairs(m3World* world)
     }
 
     // Plane pass: infinite shapes pair with every allowed sphere.
-    for (int32_t p = 0; p < maxShape; ++p)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[p] == 0 ||
-            world->shapes.shapeType[p] != (uint8_t)m3_planeShape)
-        {
-            continue;
-        }
+        int32_t p = world->shapes.planeShapes[k];
         for (int32_t s = 0; s < maxShape; ++s)
         {
             if (world->shapes.shapePool.alive[s] == 0 ||

@@ -218,12 +218,10 @@ static int32_t ProxyOverlapGather(m3World* world, m3ProxyOverlapContext* ctx, m3
 {
     ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
     m3TreeQuery(&world->broadphase.tree, ctx->lo, ctx->hi, ProxyOverlapCallback, ctx);
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] != 0 &&
-            world->shapes.shapeType[s] == (uint8_t)m3_planeShape &&
-            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
+        int32_t s = world->shapes.planeShapes[k];
+        if (world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
             m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
                          world->shapes.shapeCategory[s], world->shapes.shapeMask[s]) &&
             ProxyReachesShape(ctx, s))

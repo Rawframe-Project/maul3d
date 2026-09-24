@@ -303,13 +303,9 @@ static void SweepShape(Sweeper* sw, int32_t shape)
     double lo[3] = {fmin(a.x, b.x) - pad, fmin(a.y, b.y) - pad, fmin(a.z, b.z) - pad};
     double hi[3] = {fmax(a.x, b.x) + pad, fmax(a.y, b.y) + pad, fmax(a.z, b.z) + pad};
     m3TreeQuery(&world->broadphase.tree, lo, hi, SweepCallback, sw);
-    for (int32_t p = 0; p < world->shapes.shapePool.maxIndex; ++p)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[p] != 0 &&
-            world->shapes.shapeType[p] == (uint8_t)m3_planeShape)
-        {
-            SweepPlane(world, sw, p);
-        }
+        SweepPlane(world, sw, world->shapes.planeShapes[k]);
     }
 }
 

@@ -177,12 +177,10 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
     double hi[3] = {center.x + reach, center.y + reach, center.z + reach};
     m3TreeQuery(&world->broadphase.tree, lo, hi, MoverGatherCallback, &ctx);
     // The infinite planes never enter the tree: test them directly.
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] == 0 ||
-            world->shapes.shapeType[s] != (uint8_t)m3_planeShape ||
-            world->shapes.shapeSensor[s] != 0 ||
+        int32_t s = world->shapes.planeShapes[k];
+        if (world->shapes.shapeSensor[s] != 0 ||
             world->bodies.bodyEnabled[world->shapes.shapeBody[s]] == 0)
         {
             continue;

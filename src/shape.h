@@ -77,6 +77,9 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
 
 void m3DestroyShapeInternal(m3World* world, int32_t index);
 
+// Rebuilds the list of live plane shapes (world->shapes.planeShapes).
+void m3RebuildPlaneList(m3World* world);
+
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
 int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId);

@@ -172,6 +172,12 @@ Work toward 0.0.1, the first release of the reworked library.
   beyond trivial shared idioms. The README credits the published work
   in docs/references.md; comments and docs that measured the engine
   against another engine now state its own rules.
+- Planes are kept in a derived list, rebuilt when a plane is created
+  or destroyed and after a restore. Continuous collision, shape casts,
+  ray casts, overlaps, the mover and the broadphase walk that list
+  instead of scanning every shape for planes: the 10k-body smoke bench
+  steps 59% faster, the city block 18%. Results are bit for bit
+  unchanged.
 
 ### Removed
 

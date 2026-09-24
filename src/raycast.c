@@ -531,14 +531,9 @@ m3RayHit m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
     hi[2] = origin.z > ez ? origin.z : ez;
     m3TreeQuery(&world->broadphase.tree, lo, hi, RayQueryCallback, &ctx);
 
-    int32_t maxShape = world->shapes.shapePool.maxIndex;
-    for (int32_t s = 0; s < maxShape; ++s)
+    for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        if (world->shapes.shapePool.alive[s] != 0 &&
-            world->shapes.shapeType[s] == (uint8_t)m3_planeShape)
-        {
-            RayTestShape(&ctx, s);
-        }
+        RayTestShape(&ctx, world->shapes.planeShapes[k]);
     }
     return ctx.best;
 }
