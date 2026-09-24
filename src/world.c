@@ -33,7 +33,12 @@ m3World* m3WorldFromId(m3WorldId worldId)
 m3World* m3WorldFromTag(uint16_t tag)
 {
     m3World* world = s_worlds[tag & ((1u << M3_WORLD_SLOT_BITS) - 1u)];
-    return world != NULL && world->idWorld == tag ? world : NULL;
+    if (world == NULL || world->idWorld != tag)
+    {
+        m3Refuse(NULL, m3_errorInvalid); // an id of a world that is gone
+        return NULL;
+    }
+    return world;
 }
 
 m3WorldDef m3DefaultWorldDef(void)

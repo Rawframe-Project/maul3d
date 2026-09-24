@@ -371,3 +371,5 @@ Work toward 0.0.1, the first release of the reworked library.
 - m3ComputeCosSin's documentation described a Bhaskara rational form
   and a minimax atan2 that the engine no longer uses; it now describes
   the quarter-turn reduction and the Taylor series.
+- An id naming no live world records m3_errorInvalid on every path;
+  some returned silently.
