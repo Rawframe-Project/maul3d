@@ -17,55 +17,81 @@
 
 #include <string.h>
 
-// Edge convexity for the welding filter: for every triangle edge,
-// find the neighbor sharing the undirected vertex pair. No neighbor
-// (a boundary) or a neighbor bending away (convex ridge) marks a
-// REAL feature; flat and concave edges stay ghost candidates.
-void m3BakeMeshEdgeFlags(m3MeshData* mesh)
+int32_t m3MeshEdgeScratchCount(const m3MeshData* mesh)
+{
+    return 2 * (mesh->vertexCount + 1) + 3 * mesh->triangleCount;
+}
+
+// The first other triangle, by index, that shares the edge v1 v2 in
+// either direction, from v1's list of triangles; its vertex opposite the
+// edge, or -1 when the edge is a boundary.
+static int32_t OppositeVertex(const m3MeshData* mesh, const int32_t* start, const int32_t* list,
+                              int32_t t, int32_t v1, int32_t v2)
+{
+    for (int32_t i = start[v1]; i < start[v1 + 1]; ++i)
+    {
+        int32_t u = list[i];
+        if (u == t)
+        {
+            continue;
+        }
+        for (int32_t j = 0; j < 3; ++j)
+        {
+            int32_t w1 = mesh->indices[3 * u + j];
+            int32_t w2 = mesh->indices[3 * u + (j + 1) % 3];
+            if ((w1 == v2 && w2 == v1) || (w1 == v1 && w2 == v2))
+            {
+                return mesh->indices[3 * u + (j + 2) % 3];
+            }
+        }
+    }
+    return -1;
+}
+
+// An edge is a real contact feature when it is a boundary or a convex
+// ridge: the neighbor's far vertex lies below this triangle's plane.
+// Flat and concave edges stay clear, ghost candidates for the welding.
+// Each vertex lists the triangles that use it in ascending order (a
+// counting sort into scratch), so the neighbor across an edge is found
+// among the few triangles around its first vertex.
+void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
 {
     const m3real tol = 0.005f;
+    int32_t vertexCount = mesh->vertexCount;
     int32_t triCount = mesh->triangleCount;
+    int32_t* start = scratch;
+    int32_t* cursor = scratch + vertexCount + 1;
+    int32_t* list = cursor + vertexCount + 1;
+    memset(start, 0, (size_t)(vertexCount + 1) * sizeof(int32_t));
+    for (int32_t i = 0; i < 3 * triCount; ++i)
+    {
+        start[mesh->indices[i] + 1] += 1;
+    }
+    for (int32_t v = 0; v < vertexCount; ++v)
+    {
+        start[v + 1] += start[v];
+        cursor[v] = start[v];
+    }
+    for (int32_t i = 0; i < 3 * triCount; ++i)
+    {
+        list[cursor[mesh->indices[i]]++] = i / 3;
+    }
     for (int32_t t = 0; t < triCount; ++t)
     {
-        mesh->edgeFlags[t] = 0;
         m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
         m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
         m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
         m3Vec3 n = m3Normalize3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)));
         m3real off = m3Dot3(n, a);
+        mesh->edgeFlags[t] = 0;
         for (int32_t k = 0; k < 3; ++k)
         {
-            int32_t v1 = mesh->indices[3 * t + k];
-            int32_t v2 = mesh->indices[3 * t + (k + 1) % 3];
-            int32_t neighborOpp = -1;
-            for (int32_t u = 0; u < triCount && neighborOpp < 0; ++u)
+            int32_t far = OppositeVertex(mesh, start, list, t, mesh->indices[3 * t + k],
+                                         mesh->indices[3 * t + (k + 1) % 3]);
+            if (far < 0 || m3Dot3(n, mesh->vertices[far]) - off < -tol)
             {
-                if (u == t)
-                {
-                    continue;
-                }
-                for (int32_t j = 0; j < 3; ++j)
-                {
-                    int32_t w1 = mesh->indices[3 * u + j];
-                    int32_t w2 = mesh->indices[3 * u + (j + 1) % 3];
-                    if ((w1 == v2 && w2 == v1) || (w1 == v1 && w2 == v2))
-                    {
-                        neighborOpp = mesh->indices[3 * u + (j + 2) % 3];
-                        break;
-                    }
-                }
+                mesh->edgeFlags[t] |= (uint8_t)(1 << k);
             }
-            if (neighborOpp < 0)
-            {
-                mesh->edgeFlags[t] |= (uint8_t)(1 << k); // boundary: real
-                continue;
-            }
-            m3real d = m3Dot3(n, mesh->vertices[neighborOpp]) - off;
-            if (d < -tol)
-            {
-                mesh->edgeFlags[t] |= (uint8_t)(1 << k); // convex ridge: real
-            }
-            // Flat or concave: stays zero, a ghost candidate.
         }
     }
 }

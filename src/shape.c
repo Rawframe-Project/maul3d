@@ -149,7 +149,17 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
             return false;
         }
         world->meshes.meshData[m] = *content->mesh;
-        m3BakeMeshEdgeFlags(&world->meshes.meshData[m]);
+        int32_t* scratch = (int32_t*)m3AllocArray(
+            m3MeshEdgeScratchCount(&world->meshes.meshData[m]), (int64_t)sizeof(int32_t));
+        if (scratch == NULL)
+        {
+            // The caller keeps its content.
+            memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
+            m3IdPoolFree(&world->meshes.meshPool, m);
+            return false;
+        }
+        m3BakeMeshEdgeFlags(&world->meshes.meshData[m], scratch);
+        m3Free(scratch);
         m3MeshBvhBuild(&world->meshes.meshBvh[m], &world->meshes.meshData[m]);
         world->meshes.meshRefCounts[m] = 1;
         sh->shapeMeshIndex[index] = m;

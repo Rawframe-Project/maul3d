@@ -583,7 +583,13 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
     window.indices = tris;
     window.edgeFlags = flags;
     window.triMaterials = mats; // zeros: no painted terrain (yet)
-    m3BakeMeshEdgeFlags(&window);
+    int32_t* bake = (int32_t*)m3StackAlloc(&world->scratch, m3MeshEdgeScratchCount(&window) *
+                                                                (int32_t)sizeof(int32_t));
+    if (bake == NULL)
+    {
+        return; // transient scratch stall, grown next step
+    }
+    m3BakeMeshEdgeFlags(&window, bake);
     CollideMeshCore(world, fresh, &window, NULL, hfShape, otherShape, hfIsA);
 }
 

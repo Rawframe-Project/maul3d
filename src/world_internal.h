@@ -150,9 +150,9 @@ typedef struct m3MeshData
 bool m3MeshDataAlloc(m3MeshData* mesh);
 void m3MeshDataFree(m3MeshData* mesh);
 
-// Bake the edge-convexity flags (a bounded pair scan; the BVH slice
-// will speed it up if profiles ever ask).
-void m3BakeMeshEdgeFlags(m3MeshData* mesh);
+// Bakes the edge flags. The scratch holds m3MeshEdgeScratchCount ints.
+int32_t m3MeshEdgeScratchCount(const m3MeshData* mesh);
+void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch);
 
 // Native heightfield content: immutable, count-derived raw
 // samples, the low-memory terrain path beside meshes. The cell at

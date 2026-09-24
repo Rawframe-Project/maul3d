@@ -178,6 +178,11 @@ Work toward 0.0.1, the first release of the reworked library.
   instead of scanning every shape for planes: the 10k-body smoke bench
   steps 59% faster, the city block 18%. Results are bit for bit
   unchanged.
+- Mesh edge flags bake from per-vertex triangle lists instead of a
+  pass over every triangle for every edge: large meshes create in a
+  fraction of the time (the bench suite, setup included, runs 25%
+  faster), and every height field collision builds its window's flags
+  without the quadratic scan. Results are bit for bit unchanged.
 
 ### Removed
 
