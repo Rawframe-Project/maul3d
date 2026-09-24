@@ -69,7 +69,7 @@ void* m3AllocZeroed(int32_t bytes)
     void* memory;
     if (s_hookAlloc != NULL)
     {
-        memory = s_hookAlloc(bytes, s_hookContext);
+        memory = s_hookAlloc((size_t)bytes, s_hookContext);
         if (memory != NULL)
         {
             memset(memory, 0, (size_t)bytes);

@@ -393,7 +393,7 @@ typedef struct FailingAllocator
     int32_t live;
 } FailingAllocator;
 
-static void* FailingAlloc(int32_t bytes, void* context)
+static void* FailingAlloc(size_t bytes, void* context)
 {
     FailingAllocator* fa = (FailingAllocator*)context;
     if (fa->budget <= 0)
@@ -401,7 +401,7 @@ static void* FailingAlloc(int32_t bytes, void* context)
         return NULL;
     }
     fa->budget -= 1;
-    void* memory = malloc((size_t)bytes);
+    void* memory = malloc(bytes);
     if (memory != NULL)
     {
         fa->live += 1;

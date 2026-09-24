@@ -237,6 +237,7 @@ Work toward 0.0.1, the first release of the reworked library.
   in Id: shapeIdA and shapeIdB in events and m3ContactData, bodyIdA
   and bodyIdB in m3JointDef, bodyId in m3BodyMoveEvent and m3BodyDiff,
   jointId, chunkShapeId and chassisId.
+- The allocator hook's size argument is a size_t, as in Maul2D.
 
 ### Removed
 

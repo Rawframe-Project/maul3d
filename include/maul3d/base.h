@@ -9,6 +9,7 @@
 #define MAUL3D_BASE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -58,15 +59,14 @@ extern "C"
     /// Thread class: reader.
     M3_API int32_t m3CpuSupportsBackend(void);
 
-    /// Process-global allocator hook, the
-    /// Maul2D-parity contract: install BEFORE the first world and
-    /// never change it while any world lives. The alloc function
-    /// may return uninitialized memory (the engine zeroes what
-    /// needs zeroing); returning NULL is a loud refusal upstream.
-    /// Pass NULLs to restore the libc default. Hosts that need
-    /// per-world budgets meter with m3World_GetMemoryUsage and
-    /// enforce in their hook via the context.
-    typedef void* m3AllocFn(int32_t bytes, void* context);
+    /// Routes every internal allocation through your hooks. Install them
+    /// BEFORE the first world and never change them while any world
+    /// lives. The alloc hook may return uninitialized memory (the engine
+    /// zeroes what it needs); a NULL return is refused loudly upstream.
+    /// Pass both hooks or neither: NULLs restore the C library's calloc
+    /// and free. The context is handed back to both hooks, so hosts can
+    /// meter or budget per arena.
+    typedef void* m3AllocFn(size_t bytes, void* context);
     typedef void m3FreeFn(void* memory, void* context);
     M3_API void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context);
 
@@ -80,7 +80,7 @@ extern "C"
         m3_success = 0,
         m3_errorInvalid = 1,  // bad def or argument, stale id, wrong body or joint type
         m3_errorCapacity = 2, // a fixed pool, slot table or allocation ran out
-        m3_errorConfig = 3,   // a snapshot or journal from a different build
+        m3_errorConfig = 3,   // another build or world shape, or a CPU without the SIMD backend
     } m3Result;
     M3_API m3Result m3LastResult(void);
 

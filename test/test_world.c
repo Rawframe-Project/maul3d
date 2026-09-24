@@ -636,13 +636,12 @@ static void TestGeometryCeilingConstants(void)
 static int64_t s_hookLive = 0;
 static int64_t s_hookCalls = 0;
 
-static void* HookAlloc(int32_t bytes, void* context)
+static void* HookAlloc(size_t bytes, void* context)
 {
-    (void)bytes;
     (void)context;
     s_hookLive += 1;
     s_hookCalls += 1;
-    return malloc((size_t)bytes);
+    return malloc(bytes);
 }
 
 static void HookFree(void* memory, void* context)
