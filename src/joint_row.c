@@ -66,6 +66,9 @@ m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3r
     m3real old = *accumulated;
     m3real speed = m3RowSpeed(row, b);
     m3real next = old - mass * (drive.scale * speed + drive.bias) - drive.leak * old;
+    m3real bound = mass * M3_ROW_SPEED_BOUND;
+    lo = m3MaxF(lo, -bound);
+    hi = m3MinF(hi, bound);
     next = next < lo ? lo : (next > hi ? hi : next);
     *accumulated = next;
     m3PushRow(row, b, next - old);
@@ -92,24 +95,39 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
     m3real inv = 1.0f / det;
     m3real dx = -inv * (k22 * x - k12 * y) - drive.leak * *first;
     m3real dy = -inv * (k11 * y - k12 * x) - drive.leak * *second;
+    // Each row's share held within the speed bound at the row's own mass.
+    m3real boundX = M3_ROW_SPEED_BOUND / k11;
+    m3real boundY = M3_ROW_SPEED_BOUND / k22;
+    m3real nextX = *first + dx;
+    m3real nextY = *second + dy;
+    if (m3AbsF(nextX) > boundX)
+    {
+        dx = m3ClampF(nextX, -boundX, boundX) - *first;
+    }
+    if (m3AbsF(nextY) > boundY)
+    {
+        dy = m3ClampF(nextY, -boundY, boundY) - *second;
+    }
     *first += dx;
     *second += dy;
     m3PushRow(&rows[0], b, dx);
     m3PushRow(&rows[1], b, dy);
 }
 
-// Keeps an accumulated impulse within a ball; returns the applied part.
-static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, m3real budget)
+// Keeps an accumulated impulse within a ball: the budget, and the speed
+// bound at the largest mass the block shows along a single axis (k is
+// the block's inverse mass). Returns the applied part.
+static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, m3real budget, const m3Mat3* k)
 {
+    m3real minInverse = m3MinF(k->cx.x, m3MinF(k->cy.y, k->cz.z));
+    m3real bound = minInverse > 0.0f ? M3_ROW_SPEED_BOUND / minInverse : M3_ROW_FREE;
+    m3real limit = m3MinF(budget, bound);
     m3Vec3 old = *accumulated;
     m3Vec3 next = m3Add3(old, impulse);
-    if (budget < M3_ROW_FREE)
+    m3real length2 = m3Dot3(next, next);
+    if (length2 > limit * limit)
     {
-        m3real length2 = m3Dot3(next, next);
-        if (length2 > budget * budget)
-        {
-            next = m3MulSV3(budget / sqrtf(length2), next);
-        }
+        next = m3MulSV3(limit / sqrtf(length2), next);
     }
     *accumulated = next;
     return m3Sub3(next, old);
@@ -141,7 +159,7 @@ void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, 
         m3Sub3(m3Add3(b->vB, m3Cross3(b->wB, armB)), m3Add3(b->vA, m3Cross3(b->wA, armA)));
     m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, speed), bias);
     m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, m3Solve3(&k, rhs)), m3MulSV3(drive.leak, *accumulated));
-    m3PushPoint(armA, armB, b, WithinBall(accumulated, impulse, budget));
+    m3PushPoint(armA, armB, b, WithinBall(accumulated, impulse, budget, &k));
 }
 
 void m3PushTurn(m3JointBodies* b, m3Vec3 impulse)
@@ -156,7 +174,7 @@ void m3SolveTurnBlock(m3JointBodies* b, m3Vec3 bias, m3RowDrive drive, m3Vec3* a
     m3Mat3 k = {m3Add3(b->iA.cx, b->iB.cx), m3Add3(b->iA.cy, b->iB.cy), m3Add3(b->iA.cz, b->iB.cz)};
     m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, m3Sub3(b->wB, b->wA)), bias);
     m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, m3Solve3(&k, rhs)), m3MulSV3(drive.leak, *accumulated));
-    m3PushTurn(b, WithinBall(accumulated, impulse, budget));
+    m3PushTurn(b, WithinBall(accumulated, impulse, budget, &k));
 }
 
 m3RowDrive m3RigidDrive(m3real bias)

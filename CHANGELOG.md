@@ -20,6 +20,12 @@ snapshot and journal formats.
 
 - The Godot kit's README claimed the kit was compile-checked against
   the headers; it says what CI actually checks.
+- Two joints that can never both hold no longer risk turning the world
+  to NaN through impulses that fight without limit: every joint row
+  now holds its accumulated impulse within a bound no ordinary scene
+  reaches, so the results of existing scenes are unchanged. Maul2D's
+  weekly deep fuzz found the overflow; the joint solvers share the
+  design.
 
 ## [0.0.1] - 2026-09-24
 

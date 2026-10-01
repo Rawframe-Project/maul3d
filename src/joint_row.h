@@ -48,6 +48,14 @@ typedef struct m3RowDrive
 // No bound on an accumulated impulse.
 #define M3_ROW_FREE 3.0e38f
 
+// A safety bound, like the solver's speed caps: no accumulated impulse
+// may change its row's speed by more than this. Rows that contradict
+// each other (two joints that cannot both hold) fight through the
+// softness leak and grow their impulses without limit; this holds them
+// finite instead of letting them overflow into a NaN. Ordinary scenes
+// never come near it.
+#define M3_ROW_SPEED_BOUND 1.0e8f
+
 // B's point minus A's point moving along u, where u is fixed in the world
 // (leverA = A's arm) or turns with A (leverA = A's arm plus the gap).
 m3JointRow m3LineRow(m3Vec3 leverA, m3Vec3 armB, m3Vec3 u);
@@ -64,8 +72,8 @@ m3real m3RowMass(const m3JointRow* row, const m3JointBodies* b);
 
 void m3PushRow(const m3JointRow* row, m3JointBodies* b, m3real impulse);
 
-// Solves one row with its accumulated impulse held in [lo, hi]. Returns
-// the impulse applied.
+// Solves one row with its accumulated impulse held in [lo, hi] and
+// within M3_ROW_SPEED_BOUND. Returns the impulse applied.
 m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3real* accumulated,
                   m3real lo, m3real hi);
 
