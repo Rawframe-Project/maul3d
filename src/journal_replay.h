@@ -31,6 +31,20 @@ static inline void m3NormalizeBoolByte(void* base, size_t offset)
     *b = *b != 0 ? 1 : 0;
 }
 
+static inline void m3NormalizeBodyDefBools(m3BodyDef* def)
+{
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.linearX));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.linearY));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.linearZ));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularX));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularY));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularZ));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, isBullet));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, enableSleep));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, isEnabled));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, enableFastRotation));
+}
+
 static inline void m3NormalizeShapeDefBools(m3ShapeDef* def)
 {
     m3NormalizeBoolByte(def, offsetof(m3ShapeDef, isSensor));
