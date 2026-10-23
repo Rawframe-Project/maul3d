@@ -180,26 +180,30 @@ static inline m3f8 m3F8NegMulAdd(m3f8 a, m3f8 b, m3f8 c)
 }
 static inline m3f8 m3F8Select(m3f8 mask, m3f8 a, m3f8 b)
 {
-    m3f8 r = {vbslq_f32(vreinterpretq_u32_f32(mask.lo), a.lo, b.lo),
-              vbslq_f32(vreinterpretq_u32_f32(mask.hi), a.hi, b.hi)};
+    m3f8 r;
+    r.lo = vbslq_f32(vreinterpretq_u32_f32(mask.lo), a.lo, b.lo);
+    r.hi = vbslq_f32(vreinterpretq_u32_f32(mask.hi), a.hi, b.hi);
     return r;
 }
 static inline m3f8 m3F8GT(m3f8 a, m3f8 b)
 {
-    m3f8 r = {vreinterpretq_f32_u32(vcgtq_f32(a.lo, b.lo)),
-              vreinterpretq_f32_u32(vcgtq_f32(a.hi, b.hi))};
+    m3f8 r;
+    r.lo = vreinterpretq_f32_u32(vcgtq_f32(a.lo, b.lo));
+    r.hi = vreinterpretq_f32_u32(vcgtq_f32(a.hi, b.hi));
     return r;
 }
 static inline m3f8 m3F8LT(m3f8 a, m3f8 b)
 {
-    m3f8 r = {vreinterpretq_f32_u32(vcltq_f32(a.lo, b.lo)),
-              vreinterpretq_f32_u32(vcltq_f32(a.hi, b.hi))};
+    m3f8 r;
+    r.lo = vreinterpretq_f32_u32(vcltq_f32(a.lo, b.lo));
+    r.hi = vreinterpretq_f32_u32(vcltq_f32(a.hi, b.hi));
     return r;
 }
 static inline m3f8 m3F8EQ(m3f8 a, m3f8 b)
 {
-    m3f8 r = {vreinterpretq_f32_u32(vceqq_f32(a.lo, b.lo)),
-              vreinterpretq_f32_u32(vceqq_f32(a.hi, b.hi))};
+    m3f8 r;
+    r.lo = vreinterpretq_f32_u32(vceqq_f32(a.lo, b.lo));
+    r.hi = vreinterpretq_f32_u32(vceqq_f32(a.hi, b.hi));
     return r;
 }
 static inline m3f8 m3F8Div(m3f8 a, m3f8 b)
