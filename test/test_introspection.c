@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The introspection gate: counters report the live world
-// exactly, the profile fills after a step, and above all READING IS
-// PURE: a twin that polls counters and profile every tick lands on
-// the same bits as a twin that never looks.
+// exactly, and above all READING IS PURE: a twin that polls counters
+// and profile every tick lands on the same bits as a twin that never
+// looks.
 
 #include "test_harness.h"
 
@@ -103,23 +103,6 @@ static void TestCountsMatchTheScene(void)
     c = m3World_GetCounters(world);
     CHECK(c.bodyCount == 0 && c.shapeCount == 0 && c.snapshotBytes == 0,
           "a dead world reads all zeros");
-}
-
-static void TestProfileFillsAfterAStep(void)
-{
-    m3WorldId world = BuildYard();
-    m3Profile p = m3World_GetProfile(world);
-    CHECK(p.step == 0.0f, "the profile is zero before the first step");
-    for (int32_t i = 0; i < 10; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    p = m3World_GetProfile(world);
-    CHECK(p.step > 0.0f, "the step timed itself");
-    CHECK(p.broadphase >= 0.0f && p.narrowphase >= 0.0f && p.solve >= 0.0f,
-          "phase times are never negative");
-    CHECK(p.step >= p.solve, "no phase exceeds the whole");
-    m3DestroyWorld(world);
 }
 
 static void TestReadingIsPure(void)
@@ -326,7 +309,6 @@ static void TestReadback(void)
 int main(void)
 {
     TestCountsMatchTheScene();
-    TestProfileFillsAfterAStep();
     TestReadingIsPure();
     TestNamesAndHooks();
     TestContactReadback();

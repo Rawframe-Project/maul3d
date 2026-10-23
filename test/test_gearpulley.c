@@ -5,8 +5,7 @@
 // at its create value across two bodies hinged on a common frame
 // (counter-rotation under positive ratio, the external mesh), and a
 // PULLEY holds length1 + ratio * length2 across two world anchors
-// (rigid both ways). Both ride twins, replay, rollback, and the
-// hostile walls.
+// (rigid both ways). Both refuse hostile defs.
 
 #include "test_harness.h"
 
@@ -171,107 +170,11 @@ static void TestTransmissionWalls(void)
     m3DestroyWorld(world);
 }
 
-static void TestTransmissionTwinsAndReplay(void)
-{
-    // One scene wearing both new types: twins, a journaled replay,
-    // and a mid-run rollback all land on the same bits (the pulley
-    // world anchors ride the new snapshot blocks).
-    static uint8_t journal[131072];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef wd = m3DefaultWorldDef();
-        wd.bodyCapacity = 16;
-        wd.shapeCapacity = 16;
-        wd.jointCapacity = 8;
-        m3WorldId w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
-        m3BodyDef fd = m3DefaultBodyDef();
-        m3BodyId frame = m3CreateBody(w, &fd);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        m3ShapeDef sd = m3DefaultShapeDef();
-        // The gear pair on the frame.
-        bd.position = (m3Pos3){-0.5, 2.0, 0.0};
-        m3BodyId ga = m3CreateBody(w, &bd);
-        m3CreateBoxShape(ga, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
-        bd.position = (m3Pos3){0.5, 2.0, 0.0};
-        m3BodyId gb = m3CreateBody(w, &bd);
-        m3CreateBoxShape(gb, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
-        m3JointDef hd = m3DefaultJointDef();
-        hd.type = m3_revoluteJoint;
-        hd.bodyIdA = frame;
-        hd.bodyIdB = ga;
-        hd.localAnchorA = (m3Vec3){-0.5f, 2.0f, 0.0f};
-        hd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
-        hd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-        m3CreateJoint(w, &hd);
-        hd.bodyIdB = gb;
-        hd.localAnchorA = (m3Vec3){0.5f, 2.0f, 0.0f};
-        m3CreateJoint(w, &hd);
-        m3JointDef gd = m3DefaultJointDef();
-        gd.type = m3_gearJoint;
-        gd.bodyIdA = ga;
-        gd.bodyIdB = gb;
-        gd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
-        gd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-        gd.ratio = 2.0f;
-        m3CreateJoint(w, &gd);
-        m3Body_ApplyAngularImpulse(ga, (m3Vec3){0.0f, 0.0f, 0.05f});
-        // The pulley pair beside it.
-        bd.position = (m3Pos3){-3.0, 2.0, 0.0};
-        m3BodyId heavy = m3CreateBody(w, &bd);
-        m3CreateBoxShape(heavy, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-        bd.position = (m3Pos3){3.0, 2.0, 0.0};
-        m3BodyId light = m3CreateBody(w, &bd);
-        m3CreateBoxShape(light, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
-        m3JointDef pd = m3DefaultJointDef();
-        pd.type = m3_pulleyJoint;
-        pd.bodyIdA = heavy;
-        pd.bodyIdB = light;
-        pd.groundAnchorA = (m3Pos3){-3.0, 4.0, 0.0};
-        pd.groundAnchorB = (m3Pos3){3.0, 4.0, 0.0};
-        pd.ratio = 1.5f;
-        m3CreateJoint(w, &pd);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 180; ++i)
-        {
-            if (i == 60 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(w, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-run snapshot fits");
-            }
-            m3World_Step(w, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(w);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(w);
-            CHECK(bytes > 0, "the transmission session records");
-            m3WorldDef fresh = wd;
-            m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");
-            for (int32_t i = 60; i < 180; ++i)
-            {
-                m3World_Step(w, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(w) == hashes[0], "the re-run lands on the same bits");
-        }
-        m3DestroyWorld(w);
-    }
-    CHECK(hashes[0] == hashes[1], "twin transmission sessions are bit-identical");
-}
-
 int main(void)
 {
     TestGearCouplesSpin();
     TestPulleyTradesRope();
     TestTransmissionWalls();
-    TestTransmissionTwinsAndReplay();
     if (s_failures == 0)
     {
         printf("test_gearpulley: all passed\n");

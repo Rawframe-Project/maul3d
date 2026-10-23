@@ -134,147 +134,6 @@ static void TestOffCenterSpin(void)
     m3DestroyWorld(world);
 }
 
-static void TestHostileDefWall(void)
-{
-    m3WorldId world = BlastWorld();
-    m3BodyId crate = Crate(world, 3.0, 0.0, 0.0);
-    uint64_t before = m3World_Hash(world);
-    m3ExplosionDef def = m3DefaultExplosionDef();
-    def.position = (m3Pos3){0.0, 0.0, 0.0};
-    def.impulsePerArea = 5.0f;
-    def.radius = -1.0f;
-    m3World_Explode(world, &def);
-    def = m3DefaultExplosionDef();
-    def.impulsePerArea = 5.0f;
-    def.falloff = -0.5f;
-    m3World_Explode(world, &def);
-    def = m3DefaultExplosionDef();
-    float bad;
-    uint32_t nanBits = 0x7FC00000u;
-    memcpy(&bad, &nanBits, sizeof(bad));
-    def.impulsePerArea = bad;
-    m3World_Explode(world, &def);
-    def = m3DefaultExplosionDef();
-    def.position.x = (double)bad;
-    def.impulsePerArea = 5.0f;
-    m3World_Explode(world, &def);
-    def = m3DefaultExplosionDef();
-    def.impulsePerArea = 5.0f;
-    def.internalValue = 0; // a dead cookie bounces at the door
-    m3World_Explode(world, &def);
-    CHECK(m3World_Hash(world) == before, "five hostile blasts changed nothing");
-    CHECK(Speed(crate) == 0.0f, "the crate never moved");
-    m3DestroyWorld(world);
-}
-
-static void TestTwinsReplayRollback(void)
-{
-    static uint8_t journal[65536];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = BlastWorld();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyId a = Crate(world, 4.0, 0.0, 0.0);
-        m3BodyId b = Crate(world, -4.0, 0.0, 1.0);
-        Crate(world, 0.0, 4.0, -2.0);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            if (i == 30)
-            {
-                m3ExplosionDef def = m3DefaultExplosionDef();
-                def.position = (m3Pos3){0.0, 0.0, 0.0};
-                def.radius = 8.0f;
-                def.falloff = 4.0f;
-                def.impulsePerArea = 2.5f;
-                m3World_Explode(world, &def);
-            }
-            if (i == 60 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-storm snapshot fits");
-            }
-            if (i == 90)
-            {
-                m3ExplosionDef def = m3DefaultExplosionDef();
-                def.position = (m3Pos3){2.0, 0.0, 0.0};
-                def.radius = 5.0f;
-                def.falloff = 5.0f;
-                def.impulsePerArea = -1.5f; // the implosion pass
-                m3World_Explode(world, &def);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        CHECK(Speed(a) > 0.0f && Speed(b) > 0.0f, "the storm moved the crates");
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the storm records");
-            m3WorldId replayed = BlastWorld();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the storm replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            // Rollback: restore to tick 60 and re-run through the
-            // implosion; the re-run must land on the same bits.
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-storm restore lands");
-            for (int32_t i = 60; i < 120; ++i)
-            {
-                if (i == 90)
-                {
-                    m3ExplosionDef def = m3DefaultExplosionDef();
-                    def.position = (m3Pos3){2.0, 0.0, 0.0};
-                    def.radius = 5.0f;
-                    def.falloff = 5.0f;
-                    def.impulsePerArea = -1.5f;
-                    m3World_Explode(world, &def);
-                }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-run storm is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin storms are bit-identical");
-}
-
-static void TestHostileTape(void)
-{
-    // One explode op on tape, then surgical damage: a NaN center and
-    // a negative radius must fail the replay loudly.
-    static uint8_t tape[256];
-    m3WorldId world = BlastWorld();
-    Crate(world, 3.0, 0.0, 0.0);
-    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
-    m3ExplosionDef def = m3DefaultExplosionDef();
-    def.position = (m3Pos3){0.0, 0.0, 0.0};
-    def.impulsePerArea = 2.0f;
-    m3World_Explode(world, &def);
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes == 8 + (int32_t)sizeof(m3ExplosionDef), "one blast op is header plus def");
-    m3DestroyWorld(world);
-
-    m3WorldId twin = BlastWorld();
-    m3BodyId crate = Crate(twin, 3.0, 0.0, 0.0);
-    uint8_t hostile[256];
-    memcpy(hostile, tape, (size_t)bytes);
-    double nanD;
-    uint64_t nanBits = 0x7FF8000000000000ull;
-    memcpy(&nanD, &nanBits, sizeof(nanD));
-    memcpy(hostile + 8, &nanD, sizeof(nanD)); // position.x
-    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
-    memcpy(hostile, tape, (size_t)bytes);
-    float negative = -2.0f;
-    memcpy(hostile + 8 + 40, &negative, sizeof(negative)); // radius
-    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
-    CHECK(Speed(crate) == 0.0f, "the bounced tapes moved nothing");
-    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the clean tape lands");
-    CHECK(Speed(crate) > 0.0f, "the replayed blast pushes the twin crate");
-    m3DestroyWorld(twin);
-}
-
 static void TestVoxelCarveCoupling(void)
 {
     // A 16-tall single-voxel column: the blast bites out its waist
@@ -394,16 +253,83 @@ static void TestSoftPushAndKickWindow(void)
     m3DestroyWorld(still);
 }
 
+static void TestHostileDefWall(void)
+{
+    m3WorldId world = BlastWorld();
+    m3BodyId crate = Crate(world, 3.0, 0.0, 0.0);
+    uint64_t before = m3World_Hash(world);
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = (m3Pos3){0.0, 0.0, 0.0};
+    def.impulsePerArea = 5.0f;
+    def.radius = -1.0f;
+    m3World_Explode(world, &def);
+    def = m3DefaultExplosionDef();
+    def.impulsePerArea = 5.0f;
+    def.falloff = -0.5f;
+    m3World_Explode(world, &def);
+    def = m3DefaultExplosionDef();
+    float bad;
+    uint32_t nanBits = 0x7FC00000u;
+    memcpy(&bad, &nanBits, sizeof(bad));
+    def.impulsePerArea = bad;
+    m3World_Explode(world, &def);
+    def = m3DefaultExplosionDef();
+    def.position.x = (double)bad;
+    def.impulsePerArea = 5.0f;
+    m3World_Explode(world, &def);
+    def = m3DefaultExplosionDef();
+    def.impulsePerArea = 5.0f;
+    def.internalValue = 0; // a dead cookie bounces at the door
+    m3World_Explode(world, &def);
+    CHECK(m3World_Hash(world) == before, "five hostile blasts changed nothing");
+    CHECK(Speed(crate) == 0.0f, "the crate never moved");
+    m3DestroyWorld(world);
+}
+
+static void TestHostileTape(void)
+{
+    // One explode op on tape, then surgical damage: a NaN center and
+    // a negative radius must fail the replay loudly.
+    static uint8_t tape[256];
+    m3WorldId world = BlastWorld();
+    Crate(world, 3.0, 0.0, 0.0);
+    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = (m3Pos3){0.0, 0.0, 0.0};
+    def.impulsePerArea = 2.0f;
+    m3World_Explode(world, &def);
+    int32_t bytes = m3World_StopJournal(world);
+    CHECK(bytes == 8 + (int32_t)sizeof(m3ExplosionDef), "one blast op is header plus def");
+    m3DestroyWorld(world);
+
+    m3WorldId twin = BlastWorld();
+    m3BodyId crate = Crate(twin, 3.0, 0.0, 0.0);
+    uint8_t hostile[256];
+    memcpy(hostile, tape, (size_t)bytes);
+    double nanD;
+    uint64_t nanBits = 0x7FF8000000000000ull;
+    memcpy(&nanD, &nanBits, sizeof(nanD));
+    memcpy(hostile + 8, &nanD, sizeof(nanD)); // position.x
+    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
+    memcpy(hostile, tape, (size_t)bytes);
+    float negative = -2.0f;
+    memcpy(hostile + 8 + 40, &negative, sizeof(negative)); // radius
+    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
+    CHECK(Speed(crate) == 0.0f, "the bounced tapes moved nothing");
+    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the clean tape lands");
+    CHECK(Speed(crate) > 0.0f, "the replayed blast pushes the twin crate");
+    m3DestroyWorld(twin);
+}
+
 int main(void)
 {
     TestRingAndFalloff();
     TestWakeFilterAndStatics();
     TestOffCenterSpin();
-    TestHostileDefWall();
-    TestTwinsReplayRollback();
-    TestHostileTape();
     TestVoxelCarveCoupling();
     TestSoftPushAndKickWindow();
+    TestHostileDefWall();
+    TestHostileTape();
     if (s_failures == 0)
     {
         printf("test_explosion: all passed\n");

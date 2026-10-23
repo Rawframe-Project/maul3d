@@ -102,9 +102,7 @@ jobs:
           - { preset: linux-gcc-14 }
           - { preset: linux-gcc-14, runner: ubuntu-24.04-arm }
           - { preset: linux-clang-20 }
-          # One run and a longer limit until the tests pull request prunes
-          # the long scale and soak suites.
-          - { preset: linux-clang-20-asan, timeout: 45 }
+          - { preset: linux-clang-20-asan, repeat: 3 }
           - { preset: linux-clang-20-tsan }
           - { preset: linux-shared }
           - { preset: macos-clang, runner: macos-15 }
@@ -118,6 +116,31 @@ jobs:
       runner: ${{ matrix.runner || 'ubuntu-24.04' }}
       repeat: ${{ matrix.repeat || 1 }}
       timeout: ${{ matrix.timeout || 20 }}
+
+  # The benchmark scenes, pinned like the golden scenes: five and ten
+  # thousand bodies, destruction at scale and a 5k-body rollback, in Release
+  # on every native platform. Each cell adds a Release build and about
+  # twenty seconds of scenes, so they run on main and every night, never in
+  # the pull request check.
+  bench:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { preset: linux-gcc-14-bench }
+          - { preset: linux-gcc-14-bench, runner: ubuntu-24.04-arm }
+          - { preset: linux-clang-20-bench }
+          - { preset: macos-clang-bench, runner: macos-15 }
+          - { preset: windows-clang-cl-bench, runner: windows-2025 }
+          - { preset: windows-arm64-clang-cl-bench, runner: windows-11-arm }
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      contents: read
+    with:
+      preset: ${{ matrix.preset }}
+      runner: ${{ matrix.runner || 'ubuntu-24.04' }}
+      timeout: 60
 
   # The public headers alone under MSVC's cl, as C17 and C++17 with /W4 /WX:
   # consumers may compile them with it, though it cannot build the library.
@@ -200,7 +223,7 @@ jobs:
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, msvc-headers, web, testbed]
+    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, testbed]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}

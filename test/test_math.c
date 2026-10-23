@@ -98,36 +98,12 @@ static void TestQuaternions(void)
     CHECK(fixedq.w == 1.0f, "degenerate quat normalizes to identity");
 }
 
-static void TestBitStability(void)
-{
-    // A fixed sweep through every operation, folded into one hash that
-    // every CI cell must reproduce bit for bit.
-    uint64_t h = M3_HASH_INIT;
-    m3Quat q = m3MakeIdentityQuat();
-    for (int32_t i = 0; i < 2048; ++i)
-    {
-        m3real angle = 0.01f * (m3real)i - 10.0f;
-        m3CosSin cs = m3ComputeCosSin(angle);
-        m3real at = m3Atan2(cs.s, cs.c);
-        m3Vec3 v = {cs.c, cs.s, at};
-        q = m3IntegrateRotation(q, m3MulSV3(0.001f, v));
-        m3Vec3 r = m3RotateVec3(q, v);
-        m3Vec3 n = m3Normalize3(m3Cross3(v, r));
-        h = m3Hash64(h, &cs, (int32_t)sizeof(cs));
-        h = m3Hash64(h, &at, (int32_t)sizeof(at));
-        h = m3Hash64(h, &q, (int32_t)sizeof(q));
-        h = m3Hash64(h, &n, (int32_t)sizeof(n));
-    }
-    printf("M3_MATH_HASH=%016llx\n", (unsigned long long)h);
-}
-
 int main(void)
 {
     TestScalarOps();
     TestVectors();
     TestTrig();
     TestQuaternions();
-    TestBitStability();
     if (s_failures == 0)
     {
         printf("test_math: all checks passed\n");

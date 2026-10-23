@@ -160,6 +160,31 @@
         "MAUL3D_BUILD_BENCH": "OFF",
         "MAUL3D_BUILD_TOOLS": "OFF"
       }
+    },
+    {
+      "name": "linux-gcc-14-bench",
+      "displayName": "The bench scenes on linux-gcc-14",
+      "inherits": "linux-gcc-14"
+    },
+    {
+      "name": "linux-clang-20-bench",
+      "displayName": "The bench scenes on linux-clang-20",
+      "inherits": "linux-clang-20"
+    },
+    {
+      "name": "macos-clang-bench",
+      "displayName": "The bench scenes on macos-clang",
+      "inherits": "macos-clang"
+    },
+    {
+      "name": "windows-clang-cl-bench",
+      "displayName": "The bench scenes on windows-clang-cl",
+      "inherits": "windows-clang-cl"
+    },
+    {
+      "name": "windows-arm64-clang-cl-bench",
+      "displayName": "The bench scenes on windows-arm64-clang-cl",
+      "inherits": "windows-arm64-clang-cl"
     }
   ],
   "buildPresets": [
@@ -200,6 +225,28 @@
     {
       "name": "wasm-node",
       "configurePreset": "wasm-node"
+    },
+    {
+      "name": "linux-gcc-14-bench",
+      "configurePreset": "linux-gcc-14-bench"
+    },
+    {
+      "name": "linux-clang-20-bench",
+      "configurePreset": "linux-clang-20-bench"
+    },
+    {
+      "name": "macos-clang-bench",
+      "configurePreset": "macos-clang-bench"
+    },
+    {
+      "name": "windows-clang-cl-bench",
+      "configurePreset": "windows-clang-cl-bench",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-arm64-clang-cl-bench",
+      "configurePreset": "windows-arm64-clang-cl-bench",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -211,8 +258,13 @@
       },
       "execution": {
         "noTestsAction": "error",
-        "timeout": 900,
+        "timeout": 300,
         "jobs": 4
+      },
+      "filter": {
+        "exclude": {
+          "label": "^bench$"
+        }
       }
     },
     {
@@ -261,6 +313,88 @@
       "name": "wasm-node",
       "inherits": "base",
       "configurePreset": "wasm-node"
+    },
+    {
+      "name": "linux-gcc-14-bench",
+      "configurePreset": "linux-gcc-14-bench",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 1800
+      },
+      "filter": {
+        "include": {
+          "label": "^bench$"
+        }
+      }
+    },
+    {
+      "name": "linux-clang-20-bench",
+      "configurePreset": "linux-clang-20-bench",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 1800
+      },
+      "filter": {
+        "include": {
+          "label": "^bench$"
+        }
+      }
+    },
+    {
+      "name": "macos-clang-bench",
+      "configurePreset": "macos-clang-bench",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 1800
+      },
+      "filter": {
+        "include": {
+          "label": "^bench$"
+        }
+      }
+    },
+    {
+      "name": "windows-clang-cl-bench",
+      "configurePreset": "windows-clang-cl-bench",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 1800
+      },
+      "filter": {
+        "include": {
+          "label": "^bench$"
+        }
+      },
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-arm64-clang-cl-bench",
+      "configurePreset": "windows-arm64-clang-cl-bench",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "timeout": 1800
+      },
+      "filter": {
+        "include": {
+          "label": "^bench$"
+        }
+      },
+      "configuration": "Release"
     }
   ]
 }

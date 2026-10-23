@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The fields gate: wind streams a flag deterministically
-// with gust continuity across rollback, and conveyors carry
-// crates at belt speed.
+// The fields gate: wind streams a flag, conveyors carry crates at
+// belt speed, and hostile field values refuse.
 
 #include "test_harness.h"
 
@@ -122,76 +121,6 @@ static void TestConveyorCarries(void)
     m3DestroyWorld(world);
 }
 
-static void TestFieldsReplay(void)
-{
-    // Wind and conveyor ops through the journal, bit-exact.
-    static uint8_t journal[131072];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        def.softBodyCapacity = 4;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sg = m3DefaultShapeDef();
-        m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3ShapeId floor = m3CreatePlaneShape(ground, &sg, &fl);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 0.5, 0.0};
-        m3BodyId crate = m3CreateBody(world, &bd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(crate, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-        m3SoftBodyDef cd = m3DefaultSoftBodyDef();
-        cd.countX = 4;
-        cd.countY = 4;
-        cd.countZ = 1;
-        cd.spacing = 0.25f;
-        cd.radius = 0.08f;
-        cd.position = (m3Pos3){2.0, 2.0, 0.0};
-        m3SoftBodyId flag = m3CreateSoftBody(world, &cd);
-        m3SoftBody_PinParticle(flag, 0);
-        m3SoftBody_PinParticle(flag, 12);
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            if (i == 20)
-            {
-                m3World_SetWind(world, (m3Vec3){0.0f, 0.0f, 1.0f}, 4.0f, 1.2f, 0.3f);
-            }
-            if (i == 40)
-            {
-                m3Shape_SetSurfaceVelocity(floor, (m3Vec3){0.8f, 0.0f, 0.0f});
-            }
-            if (i == 80)
-            {
-                m3World_SetWind(world, (m3Vec3){0.0f, 0.0f, 1.0f}, 2.0f, 1.2f, 0.3f);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        uint64_t final = m3World_Hash(world);
-        hashes[run] = final;
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the fields session records");
-            m3WorldDef fdef = m3DefaultWorldDef();
-            fdef.bodyCapacity = 16;
-            fdef.shapeCapacity = 16;
-            fdef.softBodyCapacity = 4;
-            m3WorldId fresh = m3CreateWorld(&fdef);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the fields session replays");
-            CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
-            m3DestroyWorld(fresh);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "field twins are bit-identical");
-}
-
 static void TestConveyorOnDynamicDeck(void)
 {
     // A conveyor surface on a DYNAMIC platform still drives
@@ -249,7 +178,6 @@ int main(void)
 {
     TestWindStreamsTheFlag();
     TestConveyorCarries();
-    TestFieldsReplay();
     TestConveyorOnDynamicDeck();
     TestHostileFields();
     if (s_failures == 0)

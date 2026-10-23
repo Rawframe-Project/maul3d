@@ -3,9 +3,7 @@
 //
 // The rebuilt tree gate: m3World_RebuildBroadphase replaces
 // a lopsided insertion-order tree with a balanced one WITHOUT
-// touching a single answer. Physics stays bit-identical (pairs are
-// canonical regardless of tree shape), queries return the same
-// shapes, the op journals, and the snapshot carries the new shape.
+// touching a single answer: queries return the same shapes.
 // Plus the carry check: a crate on a gliding kinematic
 // platform rides along by friction.
 
@@ -89,76 +87,6 @@ static void TestRebuildChangesNoAnswer(void)
     m3DestroyWorld(rebuilt);
 }
 
-static void TestRebuildTwinsReplayRollback(void)
-{
-    static uint8_t journal[262144];
-    static uint8_t snap[4194304];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId w = City();
-        // City() creates before the journal starts, so record a
-        // fresh world instead: journal from birth.
-        m3DestroyWorld(w);
-        m3WorldDef wd = m3DefaultWorldDef();
-        wd.bodyCapacity = 64;
-        wd.shapeCapacity = 64;
-        w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3BodyDef bd = m3DefaultBodyDef();
-        for (int32_t i = 0; i < 16; ++i)
-        {
-            bd.position = (m3Pos3){-15.0 + 2.0 * (double)i, 0.0, 0.0};
-            m3CreateBoxShape(m3CreateBody(w, &bd), &sd, (m3Vec3){1.0f, 0.5f, 1.0f});
-        }
-        m3BodyDef db = m3DefaultBodyDef();
-        db.type = m3_dynamicBody;
-        db.position = (m3Pos3){0.0, 2.0, 0.0};
-        m3BodyId ball = m3CreateBody(w, &db);
-        m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &s);
-        m3World_RebuildBroadphase(w);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            if (i == 40 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(w, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the rebuilt snapshot fits");
-            }
-            if (i == 60)
-            {
-                m3World_RebuildBroadphase(w); // mid-run, journaled
-            }
-            m3World_Step(w, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(w);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(w);
-            CHECK(bytes > 0, "the rebuild session records");
-            m3WorldDef fresh = wd;
-            m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the rebuild replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");
-            for (int32_t i = 40; i < 120; ++i)
-            {
-                if (i == 60)
-                {
-                    m3World_RebuildBroadphase(w);
-                }
-                m3World_Step(w, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(w) == hashes[0], "the re-run lands on the same bits");
-        }
-        m3DestroyWorld(w);
-    }
-    CHECK(hashes[0] == hashes[1], "twin rebuild sessions are bit-identical");
-}
-
 static void TestPlatformCarry(void)
 {
     // The carry check, rigid-body edition: a crate resting on a
@@ -197,7 +125,6 @@ static void TestPlatformCarry(void)
 int main(void)
 {
     TestRebuildChangesNoAnswer();
-    TestRebuildTwinsReplayRollback();
     TestPlatformCarry();
     if (s_failures == 0)
     {

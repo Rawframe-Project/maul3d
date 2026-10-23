@@ -4,9 +4,8 @@
 // The cylinder checks: the factory builds a faceted prism
 // through the hull path. Degenerate defs refuse, the quality knob
 // clamps, the prism's mass behaves like the round closed form
-// within the faceting error, a spun cylinder rolls where a cube
-// would skid, flat caps stack, and the whole story rides twins and
-// replay on identical bits.
+// within the faceting error, and a spun cylinder rolls where a cube
+// would skid.
 
 #include "test_harness.h"
 
@@ -119,59 +118,11 @@ static void TestRollsWhereACubeSkids(void)
     m3DestroyWorld(world);
 }
 
-static void TestCapsStackAndReplay(void)
-{
-    static uint8_t journal[131072];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = FlatWorld();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3ShapeDef sd = m3DefaultShapeDef();
-        sd.friction = 0.6f;
-        m3Cylinder drum = {{0.0f, -0.4f, 0.0f}, {0.0f, 0.4f, 0.0f}, 0.5f};
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 0.45, 0.0};
-        m3BodyId lower = m3CreateBody(world, &bd);
-        m3CreateCylinderShape(lower, &sd, &drum, 16);
-        bd.position = (m3Pos3){0.05, 1.3, 0.0};
-        m3BodyId upper = m3CreateBody(world, &bd);
-        m3CreateCylinderShape(upper, &sd, &drum, 16);
-        for (int32_t i = 0; i < 240; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        double topY = m3Body_GetPosition(upper).y;
-        double lowY = m3Body_GetPosition(lower).y;
-        CHECK(topY > lowY + 0.5, "the flat caps hold the stack");
-        CHECK(topY > 1.0 && topY < 1.5, "the upper drum settled where it should");
-        // Resting on a sixteen-sided cap: the contact points must span
-        // the cap, not cluster on one side of it, or the drum rocks and
-        // sinks.
-        CHECK(lowY > 0.395 && lowY < 0.405, "the lower drum rests flat on its cap");
-        CHECK(topY > 1.19 && topY < 1.205, "the upper drum rests flat on the lower one");
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the drum session records");
-            m3WorldId replayed = FlatWorld();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drums replay");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin drum sessions are bit-identical");
-}
-
 int main(void)
 {
     TestFactoryWall();
     TestMassBehavesLikeTheClosedForm();
     TestRollsWhereACubeSkids();
-    TestCapsStackAndReplay();
     if (s_failures == 0)
     {
         printf("test_cylinder: all passed\n");

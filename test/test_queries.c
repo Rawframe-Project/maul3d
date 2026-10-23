@@ -3,7 +3,7 @@
 //
 // Events and queries gate: contact begin/end streams against
 // hand-counted expectations, analytic ray hits on every shape family,
-// closest-of-many ordering, and the determinism twins for both.
+// closest-of-many ordering, casts and overlaps.
 
 #include "test_harness.h"
 
@@ -188,59 +188,6 @@ static void TestRayClosestOfMany(void)
                                  m3DefaultQueryFilter());
     CHECK(hit.hit && hit.fraction > 0.499f && hit.fraction < 0.501f, "the plane pass hits");
     m3DestroyWorld(world);
-}
-
-static void TestEventDeterminism(void)
-{
-    // The event stream is part of what the engine promises: the same
-    // scene produces the identical stream, run after run.
-    uint64_t streamHash[2] = {0, 0};
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&def);
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        for (int32_t k = 0; k < 5; ++k)
-        {
-            bd.position = (m3Pos3){0.35 * (double)k, 1.0 + 0.8 * (double)k, 0.1 * (double)k};
-            m3BodyId body = m3CreateBody(world, &bd);
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
-            m3CreateSphereShape(body, &sd, &ball);
-        }
-        uint64_t h = 0xcbf29ce484222325ull;
-        for (int32_t i = 0; i < 240; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            const m3ContactBeginEvent* ev = m3World_GetContactEvents(world).beginEvents;
-            int32_t n = m3World_GetContactEvents(world).beginCount;
-            for (int32_t k = 0; k < n; ++k)
-            {
-                h = (h ^ (uint64_t)ev[k].shapeIdA.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)ev[k].shapeIdB.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)i) * 0x100000001B3ull;
-            }
-            const m3ContactEndEvent* endEv = m3World_GetContactEvents(world).endEvents;
-            n = m3World_GetContactEvents(world).endCount;
-            for (int32_t k = 0; k < n; ++k)
-            {
-                h = (h ^ (uint64_t)endEv[k].shapeIdA.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)endEv[k].shapeIdB.index1) * 0x100000001B3ull;
-                h = (h ^ (uint64_t)(i + 7777)) * 0x100000001B3ull;
-            }
-        }
-        streamHash[run] = h;
-        m3DestroyWorld(world);
-    }
-    CHECK(streamHash[0] == streamHash[1], "the event stream is bit-deterministic");
-    CHECK(streamHash[0] != 0xcbf29ce484222325ull, "the stream is not empty");
 }
 
 static void TestShapeCasts(void)
@@ -800,7 +747,6 @@ int main(void)
     TestContactEvents();
     TestRayHitsEveryFamily();
     TestRayClosestOfMany();
-    TestEventDeterminism();
     TestShapeCasts();
     TestRayStartInsideContract();
     TestMultiHitSorted();

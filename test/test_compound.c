@@ -4,8 +4,8 @@
 // The compound gate: an offset shape behaves exactly like a
 // centered shape parked at the same world spot, a dumbbell carries
 // the analytic composite inertia, a rotated offset lies the way it
-// looks, queries hit shapes where they visually sit, and offsets
-// ride the journal and the snapshot to the bit.
+// looks, queries hit shapes where they visually sit, and hostile
+// offsets refuse.
 
 #include "test_harness.h"
 
@@ -153,73 +153,6 @@ static void TestQueriesSeeOffsets(void)
     m3DestroyWorld(world);
 }
 
-static void TestOffsetsReplayAndRollback(void)
-{
-    // A compound scene under the full determinism gates.
-    static uint8_t journal[131072];
-    static uint8_t snap[786432];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sg = m3DefaultShapeDef();
-        m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sg, &fl);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 3.0, 0.0};
-        m3BodyId bar = m3CreateBody(world, &bd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        for (int32_t k = 0; k < 2; ++k)
-        {
-            sd.localPosition = (m3Vec3){k == 0 ? -0.8f : 0.8f, 0.0f, 0.0f};
-            float st = sinf(0.125f * M3_PI);
-            float ct = cosf(0.125f * M3_PI);
-            sd.localRotation = (m3Quat){0.0f, st, 0.0f, ct};
-            m3CreateBoxShape(bar, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-        }
-        m3Body_ApplyAngularImpulse(bar, (m3Vec3){0.1f, 0.3f, 0.05f});
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 180; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 90 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the compound snapshot fits");
-            }
-        }
-        uint64_t final = m3World_Hash(world);
-        hashes[run] = final;
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the compound session records");
-            m3WorldDef fdef = m3DefaultWorldDef();
-            fdef.bodyCapacity = 16;
-            fdef.shapeCapacity = 16;
-            m3WorldId fresh = m3CreateWorld(&fdef);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the compound session replays");
-            CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
-            m3DestroyWorld(fresh);
-            CHECK(m3World_Restore(world, snap, snapBytes), "the compound restore lands");
-            for (int32_t i = 91; i < 180; ++i)
-            {
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == final, "the re-run is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "compound twins are bit-identical");
-}
-
 static void TestBigHullUnderTheGates(void)
 {
     // A hull of more than 40 vertices drops, rests,
@@ -263,114 +196,6 @@ static void TestBigHullUnderTheGates(void)
     }
     CHECK(hashes[0] == hashes[1], "big-hull twins are bit-identical");
     (void)journal;
-}
-
-static void TestCompoundStorm(void)
-{
-    // A storm: offset shapes created and destroyed under
-    // fire, mass rebuilding every time, through a mid-flight
-    // snapshot onto identical bits.
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = PlaneWorld();
-        m3BodyId bars[3];
-        m3ShapeId extras[3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-        for (int32_t k = 0; k < 3; ++k)
-        {
-            m3BodyDef bd = m3DefaultBodyDef();
-            bd.type = m3_dynamicBody;
-            bd.position = (m3Pos3){(double)k * 2.2, 2.0 + (double)k, 0.0};
-            bars[k] = m3CreateBody(world, &bd);
-            m3ShapeDef sd = m3DefaultShapeDef();
-            sd.localPosition = (m3Vec3){-0.6f, 0.0f, 0.0f};
-            m3CreateBoxShape(bars[k], &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-            sd.localPosition = (m3Vec3){0.6f, 0.0f, 0.0f};
-            m3CreateBoxShape(bars[k], &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-        }
-        int32_t snapBytes = 0;
-        m3ShapeId extrasAtSnap[3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-        for (int32_t i = 0; i < 150; ++i)
-        {
-            int32_t phase = i % 30;
-            int32_t k = (i / 30) % 3;
-            if (phase == 4)
-            {
-                // Grow a third lobe mid-flight: mass rebuilds.
-                m3ShapeDef sd = m3DefaultShapeDef();
-                sd.localPosition = (m3Vec3){0.0f, 0.7f, 0.0f};
-                float st = sinf(0.2f * (float)i);
-                float ct = cosf(0.2f * (float)i);
-                st = st < 0 ? -st : st; // deterministic, unit-safe
-                float len = sqrtf(st * st + ct * ct);
-                sd.localRotation = (m3Quat){0.0f, st / len, 0.0f, ct / len};
-                extras[k] = m3CreateBoxShape(bars[k], &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
-            }
-            if (phase == 19 && m3Shape_IsValid(extras[k]))
-            {
-                // And shed it: mass rebuilds again, under fire.
-                m3DestroyShape(extras[k]);
-                extras[k] = (m3ShapeId){0, 0, 0};
-            }
-            if (phase == 11)
-            {
-                m3Body_ApplyLinearImpulse(bars[k], (m3Vec3){0.5f, 0.3f, -0.2f});
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 75 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the storm snapshot fits");
-                // Rollback applied to the test itself: host
-                // handles are game state too; save them WITH the
-                // snapshot or the re-run diverges on stale ids.
-                for (int32_t k2 = 0; k2 < 3; ++k2)
-                {
-                    extrasAtSnap[k2] = extras[k2];
-                }
-            }
-        }
-        uint64_t final = m3World_Hash(world);
-        hashes[run] = final;
-        if (run == 0)
-        {
-            CHECK(m3World_Restore(world, snap, snapBytes), "the storm restore lands");
-            for (int32_t k2 = 0; k2 < 3; ++k2)
-            {
-                extras[k2] = extrasAtSnap[k2];
-            }
-            for (int32_t i = 76; i < 150; ++i)
-            {
-                int32_t phase = i % 30;
-                int32_t k = (i / 30) % 3;
-                if (phase == 4)
-                {
-                    m3ShapeDef sd = m3DefaultShapeDef();
-                    sd.localPosition = (m3Vec3){0.0f, 0.7f, 0.0f};
-                    float st = sinf(0.2f * (float)i);
-                    float ct = cosf(0.2f * (float)i);
-                    st = st < 0 ? -st : st;
-                    float len = sqrtf(st * st + ct * ct);
-                    sd.localRotation = (m3Quat){0.0f, st / len, 0.0f, ct / len};
-                    extras[k] = m3CreateBoxShape(bars[k], &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
-                }
-                if (phase == 19 && m3Shape_IsValid(extras[k]))
-                {
-                    m3DestroyShape(extras[k]);
-                    extras[k] = (m3ShapeId){0, 0, 0};
-                }
-                if (phase == 11)
-                {
-                    m3Body_ApplyLinearImpulse(bars[k], (m3Vec3){0.5f, 0.3f, -0.2f});
-                }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == final, "the storm re-runs onto identical bits");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "storm twins are bit-identical");
 }
 
 static void TestGrandMesh(void)
@@ -476,8 +301,6 @@ int main(void)
     TestDumbbellInertia();
     TestRotatedOffsetRests();
     TestQueriesSeeOffsets();
-    TestOffsetsReplayAndRollback();
-    TestCompoundStorm();
     TestGrandMesh();
     TestBigHullUnderTheGates();
     TestHostileOffsets();

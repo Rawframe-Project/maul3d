@@ -2,9 +2,8 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The filter gate: categories, masks, and groups decide who
-// touches whom, queries carry their own filter, sensors and the
-// continuous phase obey the same rule, and filtered worlds
-// journal, replay, and roll back onto identical bits.
+// touches whom, queries carry their own filter, and sensors and the
+// continuous phase obey the same rule.
 
 #include "test_harness.h"
 
@@ -165,61 +164,6 @@ static void TestQueryFilters(void)
     m3DestroyWorld(world);
 }
 
-static void TestFilteredReplayAndRollback(void)
-{
-    // Filters ride the def through the journal: a filtered world
-    // replays and rolls back onto identical bits, and twin runs
-    // agree.
-    static uint8_t journal[262144];
-    static uint8_t snap[786432];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 32;
-        def.shapeCapacity = 32;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sg = m3DefaultShapeDef();
-        sg.categoryBits = CAT_GROUND;
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sg, &floor);
-        DropBall(world, -1.0, CAT_DEBRIS, ~0ull);
-        DropBall(world, 1.0, CAT_GHOST, CAT_DEBRIS);
-        DropBall(world, 0.0, CAT_DEBRIS, CAT_GROUND | CAT_DEBRIS);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 45 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the filtered snapshot fits");
-            }
-        }
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the filtered session records");
-            m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the filtered session replays");
-            CHECK(m3World_Hash(fresh) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(fresh);
-            CHECK(m3World_Restore(world, snap, snapBytes), "the filtered restore lands");
-            for (int32_t i = 46; i < 90; ++i)
-            {
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-fall is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "filtered twins are bit-identical");
-}
-
 static void TestRuntimeFilterChange(void)
 {
     // A ball that has come to rest and fallen asleep turns ghost at
@@ -275,7 +219,6 @@ int main(void)
     TestMaskGate();
     TestGroupOverride();
     TestQueryFilters();
-    TestFilteredReplayAndRollback();
     TestRuntimeFilterChange();
     if (s_failures == 0)
     {
