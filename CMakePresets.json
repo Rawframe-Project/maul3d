@@ -233,7 +233,10 @@
     {
       "name": "linux-clang-20-tsan",
       "inherits": "base",
-      "configurePreset": "linux-clang-20-tsan"
+      "configurePreset": "linux-clang-20-tsan",
+      "execution": {
+        "timeout": 1800
+      }
     },
     {
       "name": "linux-shared",

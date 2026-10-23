@@ -106,10 +106,11 @@ jobs:
           - { preset: linux-gcc-14 }
           - { preset: linux-gcc-14, runner: ubuntu-24.04-arm }
           - { preset: linux-clang-20 }
-          # One run and a longer limit until the tests pull request prunes
-          # the long scale and soak suites.
+          # One run and longer limits until the tests pull request prunes
+          # the long scale and soak suites: under TSan, scale alone ran
+          # past its 900-second test limit on three runs.
           - { preset: linux-clang-20-asan, timeout: 45 }
-          - { preset: linux-clang-20-tsan }
+          - { preset: linux-clang-20-tsan, timeout: 45 }
           - { preset: linux-shared }
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
