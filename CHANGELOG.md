@@ -26,6 +26,11 @@ snapshot and journal formats.
   reaches, so the results of existing scenes are unchanged. Maul2D's
   weekly deep fuzz found the overflow; the joint solvers share the
   design.
+- Replaying a damaged journal tape no longer hands the engine a body
+  def whose motion locks, `enableSleep`, `isEnabled` or
+  `enableFastRotation` hold a byte other than 0 or 1, which was
+  undefined behavior. Any nonzero byte now reads as true, as it already
+  did for `isBullet` and the shape, joint and vehicle flags.
 
 ## [0.0.1] - 2026-09-24
 

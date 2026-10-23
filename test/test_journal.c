@@ -12,6 +12,7 @@
 #include "maul3d/softbody.h"
 #include "test_harness.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -110,9 +111,108 @@ static void TestRefusedCreatesMoveNoIds(void)
     m3DestroyWorld(world);
 }
 
+// Records one dynamic body with a sphere, with the body def's bool at
+// `offset` set to `value`, and returns the tape's size.
+static int32_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset, bool value)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    m3World_StartJournal(world, tape, capacity);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    memcpy((uint8_t*)&bd + offset, &value, sizeof(value));
+    m3BodyId body = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3CreateSphereShape(body, &sd, &sphere);
+    int32_t bytes = m3World_StopJournal(world);
+    m3DestroyWorld(world);
+    return bytes;
+}
+
+// Replays a tape into a fresh world, steps it, and returns its hash, or
+// 0 when the replay refuses.
+static uint64_t ReplayAndStep(const uint8_t* tape, int32_t bytes)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3WorldId world = m3CreateWorld(&def);
+    uint64_t hash = 0;
+    if (m3World_ReplayJournal(world, tape, bytes))
+    {
+        for (int i = 0; i < 30; ++i)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        hash = m3World_Hash(world);
+    }
+    m3DestroyWorld(world);
+    return hash;
+}
+
+// A tape is untrusted bytes: a bool of an embedded body def that holds
+// neither 0 nor 1 reads as true, exactly as if it held 1.
+static void TestBodyDefBoolBytesReadAsTrue(void)
+{
+    static const struct
+    {
+        size_t offset;
+        const char* name;
+    } fields[] = {
+        {offsetof(m3BodyDef, motionLocks.linearX), "motionLocks.linearX"},
+        {offsetof(m3BodyDef, motionLocks.linearY), "motionLocks.linearY"},
+        {offsetof(m3BodyDef, motionLocks.linearZ), "motionLocks.linearZ"},
+        {offsetof(m3BodyDef, motionLocks.angularX), "motionLocks.angularX"},
+        {offsetof(m3BodyDef, motionLocks.angularY), "motionLocks.angularY"},
+        {offsetof(m3BodyDef, motionLocks.angularZ), "motionLocks.angularZ"},
+        {offsetof(m3BodyDef, isBullet), "isBullet"},
+        {offsetof(m3BodyDef, enableSleep), "enableSleep"},
+        {offsetof(m3BodyDef, isEnabled), "isEnabled"},
+        {offsetof(m3BodyDef, enableFastRotation), "enableFastRotation"},
+    };
+    static uint8_t on[4096];
+    static uint8_t off[4096];
+    static uint8_t again[4096];
+    for (size_t f = 0; f < sizeof(fields) / sizeof(fields[0]); ++f)
+    {
+        // Each recording runs in a new world generation, which the ids
+        // on the tape carry; a second "on" tape tells those bytes apart
+        // from the field's own byte.
+        int32_t bytes = RecordBodyWithFlag(on, (int32_t)sizeof(on), fields[f].offset, true);
+        int32_t offBytes = RecordBodyWithFlag(off, (int32_t)sizeof(off), fields[f].offset, false);
+        int32_t againBytes =
+            RecordBodyWithFlag(again, (int32_t)sizeof(again), fields[f].offset, true);
+        int32_t at = -1;
+        int32_t differing = 0;
+        for (int32_t i = 0; bytes > 0 && bytes == offBytes && bytes == againBytes && i < bytes; ++i)
+        {
+            if (on[i] != off[i] && on[i] == again[i])
+            {
+                at = i;
+                differing += 1;
+            }
+        }
+        if (differing != 1)
+        {
+            printf("FAIL: %s is not one byte apart on the tape (%d)\n", fields[f].name, differing);
+            s_failures += 1;
+            continue;
+        }
+        uint64_t expected = ReplayAndStep(on, bytes);
+        on[at] = 0x81;
+        uint64_t damaged = ReplayAndStep(on, bytes);
+        if (expected == 0 || damaged != expected)
+        {
+            printf("FAIL: %s = 0x81 on the tape does not replay as true\n", fields[f].name);
+            s_failures += 1;
+        }
+    }
+}
+
 int main(void)
 {
     TestRefusedCreatesMoveNoIds();
+    TestBodyDefBoolBytesReadAsTrue();
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
 

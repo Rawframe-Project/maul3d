@@ -35,7 +35,7 @@ static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    m3NormalizeBoolByte(&record.def, offsetof(m3BodyDef, isBullet));
+    m3NormalizeBodyDefBools(&record.def);
     int32_t index = m3CreateBodyInternal(world, &record.def);
     // Id determinism: the replayed world must mint the exact
     // id the original minted, or the replay is invalid.
