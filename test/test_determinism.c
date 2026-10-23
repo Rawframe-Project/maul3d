@@ -13,6 +13,7 @@
 //   4. Worker twins: worker counts 1 and 4 produce identical bits
 //      (trivially serial today; the gate is armed for 2b threading).
 
+#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -210,7 +211,7 @@ static void GateGoldenAndReplay(void)
     uint64_t h1 = RunGolden(300, 1);
     uint64_t h2 = RunGolden(300, 1);
     CHECK(h1 == h2, "gate 2a: the same run twice is bit-identical");
-    printf("M3_DET_HASH=%016llx\n", (unsigned long long)h1);
+    CheckHash("DET", h1, M3_GOLDEN_DET);
 
     // Gate 2b: a journaled session replays bit for bit.
     m3WorldId a = MakeGoldenWorld(1, 0);

@@ -1,9 +1,9 @@
 # Continuous integration: the pull request check, and the full check on
 # main and every night. Each build cell is a CMake preset built by the
-# organization's shared workflow, and every cell checks its world hashes
-# against test/hashes.txt, so the cells agree bit for bit. The other jobs
-# run in the same CI image. docs/operations/checks.md explains each job,
-# and tools/check.sh runs the Linux ones locally.
+# organization's shared workflow. Twelve suites compare their world hash
+# with test/hashes.txt in every cell, and the bench-pins job compares the
+# benchmark scenes with bench/pins.txt, so the cells agree bit for bit and
+# no result moves unnoticed. The other jobs run in the same CI image.
 name: ci
 
 on:
@@ -46,10 +46,10 @@ jobs:
     permissions:
       contents: read
 
-  # The rules no compiler checks: formatting, the family's source, module,
-  # length, API documentation and snippet checks, the bindings against the
-  # C API, the documentation site, and clang-tidy. It runs on documentation
-  # changes too, since the snippet check and the site read docs/.
+  # The rules no compiler checks: formatting, the module, length and
+  # snippet checks, the bindings against the C API, the documentation
+  # site, and clang-tidy. It runs on documentation changes too, since the
+  # snippet check and the site read docs/.
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -64,8 +64,12 @@ jobs:
         run: |
           clang-format --version
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git ls-files 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' 'tools/*.[ch]' 'bench/*.[ch]' 'samples/*.[ch]' \
-            'testbed/*.[ch]' | xargs clang-format --dry-run -Werror
+          # An empty list would make xargs run clang-format on stdin and
+          # pass with nothing checked.
+          files=$(git ls-files 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' 'tools/*.[ch]' 'bench/*.[ch]' \
+            'samples/*.[ch]' 'testbed/*.[ch]')
+          [ -n "$files" ] || { echo "::error::no C sources found"; exit 1; }
+          echo "$files" | xargs clang-format --dry-run -Werror
       - name: Family checks
         # check_source and check_docs arrive with the API that meets the
         # family conventions.
@@ -78,8 +82,8 @@ jobs:
       - name: The documentation site builds
         run: python3 tools/build_docs.py
       - name: clang-tidy
-        # Cognitive complexity is checked once the functions above it are
-        # split or listed.
+        # Cognitive complexity is checked once the functions above its
+        # limit are split or listed.
         run: |
           cmake -B out/tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -D${PREFIX}_BUILD_TESTS=OFF
@@ -88,10 +92,11 @@ jobs:
               --checks=-readability-function-cognitive-complexity "$f"
           done
 
-  # Every cell builds with warnings as errors and runs the whole suite, the
-  # header tests and the golden scenes included. linux-gcc-14 also runs on
-  # arm64, where the NEON kernels must give the same bits as AVX2 and the
-  # scalar backend of the sanitizer cell.
+  # Every cell builds with warnings as errors and runs the whole suite and
+  # the header tests; twelve suites check their world hash against
+  # test/hashes.txt. linux-gcc-14 also runs on arm64, where the NEON kernels
+  # must give the same bits as AVX2 and the scalar backend of the sanitizer
+  # cell.
   build:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -138,7 +143,7 @@ jobs:
           cmake --build out/headers --config Release
 
   # The library and its tests under Emscripten with threads, run by Node: the
-  # golden scenes hold there too. The CI image has no Emscripten, so this job
+  # committed world hashes hold there too. The CI image has no Emscripten, so this job
   # uses the runner and the emsdk action.
   web:
     needs: changes
@@ -175,6 +180,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The benchmark scenes, too large for the suites, end on world hashes
+  # pinned in bench/pins.txt. One Release cell runs them; the suites' hashes
+  # already hold the platforms together.
+  bench-pins:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: |
+          cmake --preset linux-gcc-14 -D${PREFIX}_BUILD_TESTS=OFF
+          cmake --build --preset linux-gcc-14 --target maul3d_bench
+      - name: Compare with bench/pins.txt
+        run: |
+          ./out/linux-gcc-14/maul3d_bench | tee bench.out
+          [ -s bench/pins.txt ] || { echo "::error::bench/pins.txt is empty"; exit 1; }
+          fail=0
+          while read -r scene pin; do
+            if ! grep -q "M3_BENCH $scene .*hash=$pin" bench.out; then
+              echo "::error::the $scene pin moved: expected $pin"
+              fail=1
+            fi
+          done < bench/pins.txt
+          exit $fail
+
   # The interactive testbed builds against raylib, which it fetches; only on
   # main and at night, since the library cells already compile every source
   # it calls.
@@ -200,7 +237,7 @@ jobs:
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, msvc-headers, web, testbed]
+    needs: [changes, docs, zizmor, checks, build, msvc-headers, web, bench-pins, testbed]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
