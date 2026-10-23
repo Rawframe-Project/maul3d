@@ -19,6 +19,11 @@
 #include "maul3d/softbody.h"
 #include "maul3d/vehicle.h"
 
+// Only for the op enum: the journal scene requires the tape to hold every
+// op the journal defines. No internal function is called, so the suite
+// still runs against the shared library.
+#include "../src/journal.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -695,6 +700,7 @@ typedef struct Tour
     m3SoftBodyId rope;
     m3SoftBodyId tet;
     m3WaterVolumeId tide;
+    bool refusalSeen;
 } Tour;
 
 // Keeps the deck's contacts on its near half only: the far half lets
@@ -961,6 +967,15 @@ static void TourFrame(Tour* t, int32_t frame)
     {
         m3Character_Move(t->guest, (m3Vec3){0.0f, -0.02f, 0.02f});
     }
+    // The tour's calls are all valid: a refused one would silently drop
+    // its op from the tape and its state from the rollback. Creates are
+    // checked for valid ids where they happen.
+    if (m3World_GetCounters(t->world).misuse != 0 && !t->refusalSeen)
+    {
+        printf("FAIL: a tour call was refused by frame %d\n", frame);
+        s_failures += 1;
+        t->refusalSeen = true;
+    }
     m3World_Step(t->world, DT, 4);
 }
 
@@ -1206,6 +1221,39 @@ static uint64_t RunWalk(Walk* w, m3WorldId world, uint64_t seed)
     return m3World_Hash(world);
 }
 
+// Requires every op the journal defines on the tape, and the tape to be a
+// sequence of well-formed [i32 op][i32 size][payload] records. The tour
+// makes every journaled call, so an op added without a tour call fails
+// here instead of quietly going unreplayed.
+static void CheckTapeHoldsEveryOp(const uint8_t* tape, int32_t bytes)
+{
+    bool seen[m3_opCount];
+    memset(seen, 0, sizeof(seen));
+    int32_t at = 0;
+    while (at + 8 <= bytes)
+    {
+        int32_t op;
+        int32_t size;
+        memcpy(&op, tape + at, 4);
+        memcpy(&size, tape + at + 4, 4);
+        if (op <= 0 || op >= m3_opCount || size < 0 || size > bytes - at - 8)
+        {
+            break;
+        }
+        seen[op] = true;
+        at += 8 + size;
+    }
+    CHECK(at == bytes, "the tape is a sequence of well-formed records");
+    for (int32_t op = 1; op < m3_opCount; ++op)
+    {
+        if (!seen[op])
+        {
+            printf("FAIL: journal op %d never reaches the tape; give it a tour call\n", op);
+            s_failures += 1;
+        }
+    }
+}
+
 // The tour and then the walk in one world, recorded from its birth.
 static uint64_t RunSession(m3WorldId world, Walk* w)
 {
@@ -1236,6 +1284,7 @@ static uint64_t SceneJournal(void)
     int32_t bytes = m3World_StopJournal(world);
     CHECK(bytes > 0, "the session fits its journal");
     s_tapeBytesHash = HashBytes(tape, bytes);
+    CheckTapeHoldsEveryOp(tape, bytes);
     m3DestroyWorld(world);
 
     world = MakeWorld(0);

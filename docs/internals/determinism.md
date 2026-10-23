@@ -1,6 +1,6 @@
 # Determinism
 
-maul3d promises that the same world, given the same calls, reaches the same bits on every supported platform, compiler, build type, SIMD backend and worker count. This page describes how the tests hold that promise. The documentation pull request of the migration completes the page.
+maul3d promises that the same world, given the same calls, reaches the same bits on every supported platform, compiler, build type, SIMD backend and worker count. This page describes how the tests hold that promise.
 
 ## Golden scenes
 
@@ -16,7 +16,7 @@ Five scenes pin simulation results. `STACK`, `ROLLBACK` and `JOURNAL` do the sam
 | `ROLLBACK` | The tour (below), snapshotted halfway. | After a restore the rerun must land on the same bits, a re-snapshot must be byte-equal, and a different continuation must diverge. |
 | `JOURNAL` | The tour, then a seeded random walk of creates, joints, impulses, destroys, voxel edits and explosions, all recorded from the world's birth. | The replay into a fresh world and the same session on four workers must both land on the recorded bits. |
 
-The tour is one world holding the terrain, the joints, the vehicles and the voxel wall of the other scenes, and a script that makes every journaled call at least once: each create and destroy, each setter, each command and each world knob, a pre-solve veto included. So `ROLLBACK` checks that every subsystem's state rides the snapshot, and `JOURNAL` checks that every op replays. A new journaled call joins the tour.
+The tour is one world holding the terrain, the joints, the vehicles and the voxel wall of the other scenes, and a script that makes every journaled call at least once: each create and destroy, each setter, each command and each world knob, a pre-solve veto included. So `ROLLBACK` checks that every subsystem's state rides the snapshot, and `JOURNAL` checks that every op replays. Two checks keep that coverage from eroding: the journal scene requires every op code the journal defines to appear on its tape, so a new op without a tour call fails, and the tour fails when any of its calls is refused, which the world's `misuse` counter shows.
 
 Two lines pin formats rather than results:
 
