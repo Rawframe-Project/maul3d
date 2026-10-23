@@ -4,16 +4,14 @@
 // Shape casts: spheres, capsules, boxes and hulls swept through the
 // world with the shared time-of-impact kernel, closest hit first.
 
-#include "body.h"
 #include "distance.h"
-#include "journal.h"
 #include "manifold.h"
+#include "misuse.h"
 #include "query.h"
 #include "raycast.h"
-#include "shape.h"
-#include "voxel.h"
-#include "world.h"
+#include "shape_state.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <float.h>
 #include <string.h>

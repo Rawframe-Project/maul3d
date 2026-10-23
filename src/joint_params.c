@@ -5,13 +5,13 @@
 // breakage, and the joint readback. Public functions validate and
 // journal; the internal setters mutate and are what replay drives.
 
-#include "body.h"
+#include "body_state.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
-#include "manifold.h"
-#include "world.h"
+#include "misuse.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
 

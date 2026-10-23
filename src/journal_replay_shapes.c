@@ -4,19 +4,13 @@
 // Journal replay for shape ops: creates of every shape kind, voxel
 // edits, materials, flags and geometry updates.
 
-#include "body.h"
-#include "character.h"
-#include "joint.h"
+#include "body_state.h"
 #include "journal.h"
 #include "journal_replay.h"
-#include "query.h"
 #include "quickhull.h"
 #include "shape.h"
-#include "softbody.h"
-#include "solver.h"
-#include "vehicle.h"
+#include "shape_state.h"
 #include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include <stddef.h>

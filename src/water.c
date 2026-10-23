@@ -6,12 +6,12 @@
 
 #include "water.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "broad_phase.h"
 #include "journal.h"
-#include "query.h"
-#include "world.h"
+#include "misuse.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>

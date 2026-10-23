@@ -13,7 +13,7 @@
 #ifndef MAUL3D_SRC_JOINT_ROW_H
 #define MAUL3D_SRC_JOINT_ROW_H
 
-#include "solver.h"
+#include "solver_math.h"
 
 // The two bodies of a joint as one pass sees them.
 typedef struct m3JointBodies

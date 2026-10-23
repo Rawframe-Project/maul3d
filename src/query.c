@@ -10,15 +10,14 @@
 
 #include "query.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "distance.h"
-#include "journal.h"
 #include "manifold.h"
+#include "misuse.h"
 #include "raycast.h"
-#include "shape.h"
-#include "voxel.h"
-#include "world.h"
+#include "shape_state.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <float.h>
 #include <string.h>

@@ -17,7 +17,7 @@
 // (springImpulse.x) and the steering drive (springImpulse.y).
 
 #include "joint_solver.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 static void PrepareWheel(m3World* world, m3JointConstraint* c, const m3JointFrame* f)

@@ -9,39 +9,16 @@
 
 #include "world.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "cpu.h"
 #include "journal.h"
+#include "misuse.h"
 #include "world_internal.h"
 #include "world_state.h"
+#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>
-
-static m3World* s_worlds[M3_MAX_WORLDS];
-static uint16_t s_worldGenerations[M3_MAX_WORLDS];
-
-m3World* m3WorldFromId(m3WorldId worldId)
-{
-    int32_t index = worldId.index1 - 1;
-    if (index < 0 || index >= M3_MAX_WORLDS || s_worlds[index] == NULL ||
-        s_worldGenerations[index] != worldId.generation)
-    {
-        return NULL;
-    }
-    return s_worlds[index];
-}
-
-m3World* m3WorldFromTag(uint16_t tag)
-{
-    m3World* world = s_worlds[tag & ((1u << M3_WORLD_SLOT_BITS) - 1u)];
-    if (world == NULL || world->idWorld != tag)
-    {
-        m3Refuse(NULL, m3_errorInvalid); // an id of a world that is gone
-        return NULL;
-    }
-    return world;
-}
 
 m3WorldDef m3DefaultWorldDef(void)
 {
@@ -254,11 +231,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
         m3Refuse(NULL, m3_errorInvalid);
         return nullId;
     }
-    int32_t slot = -1;
-    for (int32_t i = 0; i < M3_MAX_WORLDS && slot < 0; ++i)
-    {
-        slot = s_worlds[i] == NULL ? i : -1;
-    }
+    int32_t slot = m3WorldTableFreeSlot();
     m3World* world = slot < 0 ? NULL : (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
     if (world == NULL)
     {
@@ -266,7 +239,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
         return nullId;
     }
     ApplyWorldDef(world, def);
-    world->generation = s_worldGenerations[slot];
+    world->generation = m3WorldTableGeneration(slot);
     world->slot = (uint16_t)slot;
     world->idWorld =
         (uint16_t)(((uint32_t)world->generation << M3_WORLD_SLOT_BITS) | (uint32_t)slot);
@@ -281,7 +254,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
         return nullId;
     }
     ClearLinks(world);
-    s_worlds[slot] = world;
+    m3WorldTableSet(slot, world);
     return (m3WorldId){(uint16_t)(slot + 1), world->generation};
 }
 
@@ -297,8 +270,7 @@ void m3DestroyWorld(m3WorldId worldId)
 
     FreeWorldStorage(world);
 
-    s_worlds[slot] = NULL;
-    s_worldGenerations[slot] += 1;
+    m3WorldTableRelease(slot);
 }
 
 int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity)

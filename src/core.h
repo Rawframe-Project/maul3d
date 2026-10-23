@@ -27,13 +27,8 @@ void m3AssertFail(const char* condition, const char* file, int line);
 // Returns nonzero when the host took it.
 int m3ReportToHost(const char* message, const char* where);
 
-typedef struct m3World m3World;
-
-// Refuses a caller's input: records the reason for m3LastResult on this
-// thread and, for an invalid argument against a live world, counts it in
-// m3Counters.misuse. world may be NULL.
-void m3Refuse(m3World* world, m3Result reason);
-uint64_t m3MisuseCount(const m3World* world);
+// Records the reason for m3LastResult on this thread.
+void m3NoteResult(m3Result reason);
 
 // Monotonic milliseconds for the step profile: observation only, never a
 // hash input.

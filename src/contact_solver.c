@@ -12,7 +12,7 @@
 #include "contact_solver.h"
 
 #include "contact_kernel.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 #include <math.h>

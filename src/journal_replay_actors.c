@@ -4,19 +4,13 @@
 // Journal replay for characters, vehicles, soft bodies and water
 // volumes.
 
-#include "body.h"
+#include "body_state.h"
 #include "character.h"
-#include "joint.h"
 #include "journal.h"
 #include "journal_replay.h"
-#include "query.h"
-#include "quickhull.h"
-#include "shape.h"
 #include "softbody.h"
-#include "solver.h"
 #include "vehicle.h"
-#include "voxel.h"
-#include "world.h"
+#include "water.h"
 #include "world_internal.h"
 
 #include <stddef.h>

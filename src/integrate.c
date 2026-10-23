@@ -5,8 +5,8 @@
 
 #include "integrate.h"
 
-#include "body.h"
-#include "solver.h"
+#include "body_state.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 #include <math.h>

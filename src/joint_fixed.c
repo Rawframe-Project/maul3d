@@ -8,7 +8,6 @@
 // (impulse).
 
 #include "joint_solver.h"
-#include "solver.h"
 #include "world_internal.h"
 
 static const m3Quat s_identity = {0.0f, 0.0f, 0.0f, 1.0f};

@@ -6,10 +6,9 @@
 
 #include "journal.h"
 
-#include "body.h"
-#include "query.h"
-#include "world.h"
+#include "misuse.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>

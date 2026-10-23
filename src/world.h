@@ -8,13 +8,6 @@
 
 #include "world_internal.h"
 
-// Registry lookup: NULL for a stale or null id.
-m3World* m3WorldFromId(m3WorldId worldId);
-
-// The world an object id names (its world field: slot and generation),
-// or NULL when that world is gone.
-m3World* m3WorldFromTag(uint16_t tag);
-
 // Tuning defaults, shared by the def,
 // the solver reads, and the off-default hash folds.
 #define M3_CONTACT_HERTZ_DEFAULT 30.0f
@@ -54,10 +47,6 @@ void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 
 void m3RebuildBroadphaseInternal(m3World* world);
-
-int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def);
-
-void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot);
 
 void m3SetContactTuningInternal(m3World* world, float hertz, float dampingRatio, float pushSpeed);
 

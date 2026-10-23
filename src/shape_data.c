@@ -4,15 +4,6 @@
 // Mesh and height field content: allocation, release, edge flags and
 // the height field triangle gather.
 
-#include "body.h"
-#include "broad_phase.h"
-#include "hull.h"
-#include "journal.h"
-#include "manifold.h"
-#include "quickhull.h"
-#include "shape.h"
-#include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>

@@ -10,6 +10,7 @@
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include "maul3d/shape.h"
 

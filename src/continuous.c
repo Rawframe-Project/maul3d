@@ -15,8 +15,7 @@
 #include "broad_phase.h"
 #include "distance.h"
 #include "manifold.h"
-#include "shape.h"
-#include "solver.h"
+#include "shape_state.h"
 #include "world_internal.h"
 
 #include <float.h>

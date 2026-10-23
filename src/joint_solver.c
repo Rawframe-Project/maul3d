@@ -16,7 +16,7 @@
 
 #include "joint_solver.h"
 
-#include "solver.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 #include <math.h>

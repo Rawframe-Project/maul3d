@@ -9,40 +9,17 @@
 
 #include "body.h"
 
+#include "body_state.h"
 #include "broad_phase.h"
 #include "joint.h"
 #include "journal.h"
+#include "misuse.h"
 #include "shape.h"
-#include "solver.h"
 #include "vehicle.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
-
-int32_t m3BodySlot(const m3World* world, m3BodyId bodyId)
-{
-    int32_t index = bodyId.index1 - 1;
-    if (world == NULL || bodyId.world != world->idWorld ||
-        !m3IdPoolValid(&world->bodies.bodyPool, index, bodyId.generation))
-    {
-        return -1;
-    }
-    return index;
-}
-
-m3World* m3ResolveBody(m3BodyId bodyId, int32_t* indexOut)
-{
-    m3World* world = m3WorldFromTag(bodyId.world);
-    int32_t index = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    *indexOut = index;
-    if (index < 0)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return NULL;
-    }
-    return world;
-}
 
 m3BodyDef m3DefaultBodyDef(void)
 {
@@ -187,31 +164,6 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
 
 // Runtime control internals: replay and the wrappers share
 // one path each.
-void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3])
-{
-    // Wake every sleeping dynamic body whose own extent box
-    // overlaps the region (the voxel-edit wake idea without the
-    // tree: position plus max extent is a fair, deterministic
-    // over-approximation). Serial, ascending slots: canonical.
-    int32_t maxBody = world->bodies.bodyPool.maxIndex;
-    for (int32_t b = 0; b < maxBody; ++b)
-    {
-        if (world->bodies.bodyPool.alive[b] == 0 ||
-            world->bodies.types[b] != (uint8_t)m3_dynamicBody || world->bodies.awake[b] != 0)
-        {
-            continue;
-        }
-        double r = (double)world->bodies.maxExtents[b] + (double)M3_AABB_MARGIN;
-        const m3Pos3* pp = &world->bodies.transforms[b].p;
-        if (pp->x - r <= hi[0] && pp->x + r >= lo[0] && pp->y - r <= hi[1] && pp->y + r >= lo[1] &&
-            pp->z - r <= hi[2] && pp->z + r >= lo[2])
-        {
-            world->bodies.awake[b] = 1;
-            world->bodies.sleepTimes[b] = 0.0f;
-        }
-    }
-}
-
 static void BodyRegion(m3World* world, int32_t index, double lo[3], double hi[3])
 {
     // A generous body region: position plus max extent plus margin.
@@ -353,25 +305,6 @@ void m3SetSleepControlsInternal(m3World* world, int32_t index, float threshold, 
     {
         world->bodies.awake[index] = 1;
         world->bodies.sleepTimes[index] = 0.0f;
-    }
-}
-
-void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
-{
-    if (awake)
-    {
-        world->bodies.awake[index] = 1;
-        world->bodies.sleepTimes[index] = 0.0f;
-    }
-    else
-    {
-        world->bodies.awake[index] = 0;
-        world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        // Every freeze, API-forced ones included, records its
-        // cold pairs or the frozen buffer stops being a pure
-        // function of the sleeping state.
-        m3FreezeDiscoverPairs(world, index);
     }
 }
 

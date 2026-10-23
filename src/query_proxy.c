@@ -4,16 +4,13 @@
 // Overlaps of convex proxies (hull point clouds, capsules and boxes)
 // against every shape kind, gathered in ascending shape order.
 
-#include "body.h"
 #include "distance.h"
-#include "journal.h"
 #include "manifold.h"
+#include "misuse.h"
 #include "query.h"
-#include "raycast.h"
-#include "shape.h"
-#include "voxel.h"
-#include "world.h"
+#include "shape_state.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <float.h>
 #include <string.h>

@@ -6,9 +6,8 @@
 // voxel-surface front ends. The per-triangle kernels live in
 // triangle_contact.c.
 
-#include "distance.h"
 #include "manifold.h"
-#include "shape.h"
+#include "shape_state.h"
 #include "triangle_contact.h"
 #include "voxel.h"
 #include "world_internal.h"

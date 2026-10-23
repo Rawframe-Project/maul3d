@@ -5,15 +5,16 @@
 // area a shape shows the blast and its distance from the center.
 
 #include "body.h"
+#include "body_state.h"
 #include "distance.h"
 #include "journal.h"
 #include "manifold.h"
+#include "misuse.h"
 #include "query.h"
-#include "raycast.h"
-#include "shape.h"
+#include "shape_state.h"
 #include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <float.h>
 #include <string.h>

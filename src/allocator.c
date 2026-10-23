@@ -51,7 +51,7 @@ void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context)
     // authority.
     if ((allocFn == NULL) != (freeFn == NULL))
     {
-        m3Refuse(NULL, m3_errorInvalid);
+        m3NoteResult(m3_errorInvalid);
         return;
     }
     s_hookAlloc = allocFn;

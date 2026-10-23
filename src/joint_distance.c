@@ -9,7 +9,7 @@
 // (perpImpulse.z) and the range (limitImpulse.x and .y).
 
 #include "joint_solver.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 #include <math.h>

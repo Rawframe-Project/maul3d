@@ -11,13 +11,14 @@
 
 #include "maul3d/vehicle.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "journal.h"
+#include "misuse.h"
 #include "raycast.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "vehicle.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <math.h>
 #include <string.h>

@@ -24,4 +24,8 @@ typedef struct m3Buoyancy
 // The field for the step's movers, from the step-start pose.
 void m3PrepareBuoyancy(m3World* world, const int32_t* movers, int32_t moverCount, m3Buoyancy* b);
 
+int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def);
+
+void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot);
+
 #endif // MAUL3D_SRC_WATER_H

@@ -9,7 +9,7 @@
 #define MAUL3D_SRC_JOINT_SOLVER_H
 
 #include "joint_row.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 // Joint flags (world->joints.jointFlags). The cone bit is the wheel's steer bit.

@@ -10,7 +10,7 @@
 
 #include "distance.h"
 #include "manifold.h"
-#include "shape.h"
+#include "shape_state.h"
 #include "world_internal.h"
 
 #include <string.h>

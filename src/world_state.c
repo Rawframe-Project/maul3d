@@ -8,7 +8,6 @@
 
 #include "allocator.h"
 #include "manifold.h"
-#include "voxel.h"
 #include "world_internal.h"
 
 #include <stddef.h>
