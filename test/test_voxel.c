@@ -333,6 +333,36 @@ static void TestVoxelRefusals(void)
     m3DestroyWorld(world);
 }
 
+// A snapshot is untrusted input: a chunk whose filled count disagrees
+// with its occupancy bits is refused, and the target world is untouched.
+static void TestSnapshotRefusesInconsistentChunk(void)
+{
+    m3WorldId world = SmallWorld();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = m3CreateBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    FillSlab(voxels, 2);
+    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 0.5f);
+    CHECK(m3Shape_IsValid(chunkShape), "the slab creates");
+    m3World* wp = m3WorldFromId(world);
+    m3VoxelChunkData* chunk =
+        &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
+    chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1; // a bit the count does not know
+    int32_t size = m3World_SnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    CHECK(m3World_Snapshot(world, snap, size) == size, "the damaged world still snapshots");
+    chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1;
+
+    m3WorldId twin = SmallWorld();
+    uint64_t untouched = m3World_Hash(twin);
+    CHECK(!m3World_Restore(twin, snap, size), "a chunk whose count disagrees is refused");
+    CHECK(m3World_Hash(twin) == untouched, "the refused restore leaves the world untouched");
+    free(snap);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 static void TestEditsCarveAndWake(void)
 {
     // The headline: a crate sleeps on a voxel floor, the
@@ -1097,6 +1127,7 @@ int main(void)
     TestSnapshotJournalAndDerivedRebuild();
     TestQueriesAgainstVoxels();
     TestVoxelRefusals();
+    TestSnapshotRefusesInconsistentChunk();
     TestEditsCarveAndWake();
     TestEditRollbackReedit();
     TestEditRefusalsAndEmptyEnd();

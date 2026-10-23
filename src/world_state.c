@@ -730,7 +730,18 @@ static bool CheckStructs(const m3World* world, const m3StateArray* array, const 
             memcpy(&chunk.cellSize, at + offsetof(m3VoxelChunkData, cellSize), sizeof(m3real));
             memcpy(&chunk.filledCount, at + offsetof(m3VoxelChunkData, filledCount),
                    sizeof(int32_t));
-            ok = m3FiniteF(chunk.cellSize) && InRange(chunk.filledCount, 0, M3_VOXEL_COUNT);
+            // The count is derived from the occupancy bits, and fracture and
+            // mass read it without recounting, so the two must agree.
+            const uint8_t* occupancy = at + offsetof(m3VoxelChunkData, occupancy);
+            int32_t filled = 0;
+            for (int32_t byte = 0; byte < M3_VOXEL_COUNT / 8; ++byte)
+            {
+                for (uint32_t bits = occupancy[byte]; bits != 0; bits &= bits - 1)
+                {
+                    filled += 1;
+                }
+            }
+            ok = m3FiniteF(chunk.cellSize) && chunk.filledCount == filled;
             break;
         }
         case m3_check_transform:
