@@ -6,6 +6,7 @@
 // and mid-contact rollbacks land on identical bits. The gap the
 // competitors' own documentation admits, closed under the law.
 
+#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -139,7 +140,7 @@ static void TestRopeDrapesOverCloth(void)
         }
     }
     CHECK(ropeLow > 1.2, "the rope drapes over the cloth instead of falling through");
-    printf("M3_SOFTSOFT_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("SOFTSOFT", m3World_Hash(world), M3_GOLDEN_SOFTSOFT);
     m3DestroyWorld(world);
 }
 

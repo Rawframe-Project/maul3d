@@ -8,6 +8,7 @@
 // other state, a rollback re-derives the identical surface, and the
 // refusals are loud.
 
+#include "hash_check.h"
 #include "test_harness.h"
 #include "voxel.h"
 #include "world.h"
@@ -176,7 +177,7 @@ static void TestRestingOnVoxelFloor(void)
         m3DestroyWorld(world);
     }
     CHECK(hashes[0] == hashes[1], "voxel resting scenes are bit-deterministic twins");
-    printf("M3_VOXEL_HASH=%016llx\n", (unsigned long long)hashes[0]);
+    CheckHash("VOXEL", hashes[0], M3_GOLDEN_VOXEL);
 }
 
 static void TestSnapshotJournalAndDerivedRebuild(void)

@@ -7,6 +7,7 @@
 // rest, ceilings stop it, ledges drop it, and every move
 // is a journaled command that replays and rolls back bit for bit.
 
+#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/character.h"
@@ -791,7 +792,7 @@ static void TestVoxelStairs(void)
     double stand = 1.25 + (double)(cd.halfHeight + cd.radius + cd.skin);
     CHECK(p.y > stand - 0.05 && p.y < stand + 0.05, "the character stands on the fourth step");
     CHECK(m3Character_IsGrounded(hero), "stairs never break grounding");
-    printf("M3_CHARACTER_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("CHARACTER", m3World_Hash(world), M3_GOLDEN_CHARACTER);
     m3DestroyWorld(world);
 }
 

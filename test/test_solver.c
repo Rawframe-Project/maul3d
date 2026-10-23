@@ -7,6 +7,7 @@
 // replay equality, and the fixed M3_SOLVER_HASH scene that joins the
 // cross-platform CI gate. Black box: public headers only.
 
+#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -1284,7 +1285,7 @@ static void TestSolverHashGate(void)
     }
     AddBall(world, 0.3, 5.0, 0.2, 0.5f, 0.6f, 0.1f);
     StepN(world, 120);
-    printf("M3_SOLVER_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("SOLVER", m3World_Hash(world), M3_GOLDEN_SOLVER);
     m3DestroyWorld(world);
 }
 

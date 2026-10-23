@@ -7,6 +7,7 @@
 // and replays bit-exact, and a mid-sag rollback re-sags onto
 // identical bits. Hostile defs refuse loudly.
 
+#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
@@ -93,7 +94,7 @@ static void TestJellyRest(void)
     }
     CHECK(minY > 0.05 && minY < 0.15, "the bottom layer rests at particle radius");
     CHECK(maxY - minY > 0.7 && maxY - minY < 1.0, "the cube keeps its height, squash tolerated");
-    printf("M3_SOFTBODY_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("SOFTBODY", m3World_Hash(world), M3_GOLDEN_SOFTBODY);
     m3DestroyWorld(world);
 }
 
