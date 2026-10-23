@@ -6,9 +6,10 @@
 // and mid-contact rollbacks land on identical bits. The gap the
 // competitors' own documentation admits, closed under the law.
 
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

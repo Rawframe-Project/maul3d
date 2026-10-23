@@ -6,9 +6,10 @@
 // in the m*g band on a hanging load, breakage fires exactly once
 // at the analytic threshold, and every op replays bit-exact.
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

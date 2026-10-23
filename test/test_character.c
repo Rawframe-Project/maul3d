@@ -7,9 +7,10 @@
 // rest, ceilings stop it, ledges drop it, and every move
 // is a journaled command that replays and rolls back bit for bit.
 
+#include "test_harness.h"
+
 #include "maul3d/character.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

@@ -7,10 +7,11 @@
 // and replays bit-exact, and a mid-sag rollback re-sags onto
 // identical bits. Hostile defs refuse loudly.
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

@@ -9,10 +9,11 @@
 // target, and the whole storm rides twins, replay, rollback, and a
 // hostile tape without losing a bit.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

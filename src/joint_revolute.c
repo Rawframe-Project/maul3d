@@ -10,7 +10,6 @@
 // the point block pins the anchors (impulse).
 
 #include "joint_solver.h"
-
 #include "solver.h"
 #include "world_internal.h"
 

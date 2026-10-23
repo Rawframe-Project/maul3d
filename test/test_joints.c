@@ -5,9 +5,10 @@
 // pendulum physics, a hanging chain, and the determinism spine
 // (rollback, replay with minted joint ids, sleep coupling).
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

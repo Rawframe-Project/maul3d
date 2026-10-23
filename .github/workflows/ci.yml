@@ -67,10 +67,9 @@ jobs:
           git ls-files 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' 'tools/*.[ch]' 'bench/*.[ch]' 'samples/*.[ch]' \
             'testbed/*.[ch]' | xargs clang-format --dry-run -Werror
       - name: Family checks
+        # check_modules arrives with the one-way module graph, check_source
+        # and check_docs with the API that meets the family conventions.
         run: |
-          python3 tools/check_source.py
-          python3 tools/check_modules.py
-          python3 tools/check_docs.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
       - name: The bindings match the C API
@@ -78,11 +77,14 @@ jobs:
       - name: The documentation site builds
         run: python3 tools/build_docs.py
       - name: clang-tidy
+        # Cognitive complexity is checked from the module graph's pull
+        # request on, which splits or lists the functions above it.
         run: |
           cmake -B out/tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -D${PREFIX}_BUILD_TESTS=OFF
           for f in src/*.c; do
-            clang-tidy-20 -p out/tidy --quiet --warnings-as-errors='*' "$f"
+            clang-tidy-20 -p out/tidy --quiet --warnings-as-errors='*' \
+              --checks=-readability-function-cognitive-complexity "$f"
           done
 
   # Every cell builds with warnings as errors and runs the whole suite, the

@@ -5,12 +5,12 @@
 // engine readback. Public functions validate and journal; replay drives
 // the internal setters.
 
-#include "maul3d/vehicle.h"
-
 #include "journal.h"
 #include "vehicle.h"
 #include "world.h"
 #include "world_internal.h"
+
+#include "maul3d/vehicle.h"
 
 #include <math.h>
 #include <string.h>

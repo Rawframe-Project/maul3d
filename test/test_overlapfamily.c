@@ -8,9 +8,10 @@
 // both ends, planes and voxel walls answer per family, and reading
 // never moves a bit.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

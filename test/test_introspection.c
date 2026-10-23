@@ -6,11 +6,12 @@
 // PURE: a twin that polls counters and profile every tick lands on
 // the same bits as a twin that never looks.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <stdio.h>
 #include <string.h>

@@ -7,8 +7,9 @@
 // replay equality, and the fixed M3_SOLVER_HASH scene that joins the
 // cross-platform CI gate. Black box: public headers only.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

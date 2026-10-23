@@ -6,7 +6,6 @@
 // the step's starting pose.
 
 #include "contact_solver.h"
-
 #include "manifold.h"
 #include "solver.h"
 #include "world_internal.h"

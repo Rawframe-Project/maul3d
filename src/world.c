@@ -8,6 +8,7 @@
 // maul2d's.
 
 #include "world.h"
+
 #include "body.h"
 #include "cpu.h"
 #include "journal.h"

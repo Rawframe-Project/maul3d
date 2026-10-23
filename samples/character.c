@@ -6,6 +6,7 @@
 // controller collides, slides and steps up the risers.
 
 #include "maul3d/character.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/world.h"

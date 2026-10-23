@@ -8,9 +8,10 @@
 // slot, and drags the whole story through journal replay and a mid
 // tunnel rollback on identical bits. Hostile dimensions bounce.
 
+#include "test_harness.h"
+
 #include "maul3d/character.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

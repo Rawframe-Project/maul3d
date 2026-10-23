@@ -8,9 +8,10 @@
 // flag survives motion-lock writes and rollback, twins and replays
 // land on identical bits, and hostile tape bytes bounce loudly.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

@@ -7,9 +7,10 @@
 // is refused, and a destroyed chassis takes its vehicle with
 // it. Wheels are casts, not bodies: nothing here touches contacts.
 
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/vehicle.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

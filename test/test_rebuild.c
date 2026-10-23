@@ -9,9 +9,10 @@
 // Plus the carry check: a crate on a gliding kinematic
 // platform rides along by friction.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

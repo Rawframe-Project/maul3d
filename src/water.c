@@ -5,6 +5,7 @@
 // buoyancy field the step applies.
 
 #include "water.h"
+
 #include "body.h"
 #include "broad_phase.h"
 #include "journal.h"

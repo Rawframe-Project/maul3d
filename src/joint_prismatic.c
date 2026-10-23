@@ -12,7 +12,6 @@
 // the rotation lock (angularImpulse).
 
 #include "joint_solver.h"
-
 #include "solver.h"
 #include "world_internal.h"
 

@@ -6,13 +6,14 @@
 // stream, and every kind of corruption refuses loudly without
 // touching a world.
 
+#include "test_harness.h"
+
 #include "maul3d/character.h"
 #include "maul3d/joint.h"
 #include "maul3d/replay.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
 #include "maul3d/vehicle.h"
-#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>

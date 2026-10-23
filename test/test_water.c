@@ -6,10 +6,11 @@
 // its current, wakes sleepers when the tide arrives or leaves, and
 // rides twins, the journal, and the snapshot. No fluid sim BY LAW.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

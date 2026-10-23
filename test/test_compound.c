@@ -7,8 +7,9 @@
 // looks, queries hit shapes where they visually sit, and offsets
 // ride the journal and the snapshot to the bit.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

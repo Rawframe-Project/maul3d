@@ -17,7 +17,6 @@
 // (springImpulse.x) and the steering drive (springImpulse.y).
 
 #include "joint_solver.h"
-
 #include "solver.h"
 #include "world_internal.h"
 

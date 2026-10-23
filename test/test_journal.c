@@ -6,11 +6,12 @@
 // determinism). Equality is
 // checked field by field with memcmp. Black box: public headers only.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/character.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <stddef.h>
 #include <stdio.h>

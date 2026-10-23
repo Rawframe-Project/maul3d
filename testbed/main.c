@@ -23,6 +23,9 @@
 // simulation stays untouched (the solid walk is read-only and held
 // by the same purity test as the wireframe one).
 
+#include "raylib.h"
+#include "rlgl.h"
+
 #include "maul3d/character.h"
 #include "maul3d/draw.h"
 #include "maul3d/joint.h"
@@ -30,8 +33,6 @@
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
 #include "maul3d/vehicle.h"
-#include "raylib.h"
-#include "rlgl.h"
 
 #include <math.h>
 #include <stdio.h>

@@ -9,9 +9,10 @@
 // replays every def and gear select, and hostile defs bounce off
 // the validation wall without touching state.
 
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/vehicle.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

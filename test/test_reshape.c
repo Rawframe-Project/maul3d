@@ -7,9 +7,10 @@
 // on the old silhouette and wakes the sleepers, mass follows the
 // new volume, and swaps ride twins, replay, and rollback bit-exact.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

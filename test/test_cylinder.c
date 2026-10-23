@@ -8,9 +8,10 @@
 // would skid, flat caps stack, and the whole story rides twins and
 // replay on identical bits.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

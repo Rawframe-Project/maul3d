@@ -13,8 +13,9 @@
 //   4. Worker twins: worker counts 1 and 4 produce identical bits
 //      (trivially serial today; the gate is armed for 2b threading).
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <stdio.h>
 #include <stdlib.h>

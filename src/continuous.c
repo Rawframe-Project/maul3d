@@ -13,7 +13,6 @@
 #include "continuous.h"
 
 #include "broad_phase.h"
-
 #include "distance.h"
 #include "manifold.h"
 #include "shape.h"

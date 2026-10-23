@@ -8,10 +8,11 @@
 // nothing. One writer per world remains the law; create/destroy
 // stay host-serialized. The TSAN CI cell runs this suite to turn
 // any data race into a red build.
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/world.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <pthread.h>

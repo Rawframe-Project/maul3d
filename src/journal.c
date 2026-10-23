@@ -5,6 +5,7 @@
 // handlers live in journal_replay*.c.
 
 #include "journal.h"
+
 #include "body.h"
 #include "query.h"
 #include "world.h"
