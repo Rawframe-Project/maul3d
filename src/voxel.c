@@ -60,6 +60,20 @@ int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16
     return filled;
 }
 
+// Counts the occupancy bits. Every occupancy edit rebuilds the surface, so
+// the build checks the edit's filled count against them.
+#ifndef NDEBUG
+static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
+{
+    int32_t filled = 0;
+    for (int32_t v = 0; v < M3_VOXEL_COUNT; ++v)
+    {
+        filled += (chunk->occupancy[v >> 3] >> (v & 7)) & 1;
+    }
+    return filled;
+}
+#endif
+
 // The greedy merge: scan in canonical order (x fastest, then y,
 // then z); from each unclaimed filled voxel grow a run along x,
 // widen it along y, then deepen it along z, claiming as it goes.
@@ -68,10 +82,10 @@ int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16
 // unnecessary).
 void m3VoxelSurfaceBuild(m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
 {
-    // The embedded BVH owns heap arrays now: release them
-    // before the wipe or the rebuild leaks the previous build.
-    // CONTRACT: the surface must be zeroed or a previous build;
-    // garbage pointers here are the caller's crash.
+    M3_ASSERT(FilledVoxels(chunk) == chunk->filledCount);
+    // The embedded BVH owns heap arrays: release them before the wipe or the
+    // rebuild leaks the previous build. The surface must be zeroed or a
+    // previous build; garbage pointers here are the caller's crash.
     m3MeshBvhFree(&surface->bvh);
     memset(surface, 0, sizeof(*surface));
     uint8_t claimed[M3_VOXEL_COUNT];

@@ -589,6 +589,9 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
 
 m3Result m3UpdatePairs(m3World* world)
 {
+    // Once a step, not after every move: a full walk per insert would
+    // make large debug scenes quadratic.
+    M3_ASSERT(m3TreeValidate(&world->broadphase.tree));
     if (world->contacts.pairsFullQuery != 0)
     {
         // A restore invalidated the buffer: rebuild it as the pure
