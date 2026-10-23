@@ -32,17 +32,17 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@6880b317526459b0a1032bebd8a7bdec4148af23 # v0.0.7
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
     permissions:
       pull-requests: read
 
   docs:
-    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@6880b317526459b0a1032bebd8a7bdec4148af23 # v0.0.7
+    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
     permissions:
       contents: read
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@6880b317526459b0a1032bebd8a7bdec4148af23 # v0.0.7
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
     permissions:
       contents: read
 
@@ -73,7 +73,7 @@ jobs:
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
       - name: The bindings match the C API
-        run: python3 tools/check_bindings.py
+        run: python3 tools/check_bindings.py clang-20
       - name: The documentation site builds
         run: python3 tools/build_docs.py
       - name: clang-tidy
@@ -101,19 +101,22 @@ jobs:
           - { preset: linux-gcc-14 }
           - { preset: linux-gcc-14, runner: ubuntu-24.04-arm }
           - { preset: linux-clang-20 }
-          - { preset: linux-clang-20-asan, repeat: 3 }
+          # One run and a longer limit until the tests pull request prunes
+          # the long scale and soak suites.
+          - { preset: linux-clang-20-asan, timeout: 45 }
           - { preset: linux-clang-20-tsan }
           - { preset: linux-shared }
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@6880b317526459b0a1032bebd8a7bdec4148af23 # v0.0.7
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
     permissions:
       contents: read
     with:
       preset: ${{ matrix.preset }}
       runner: ${{ matrix.runner || 'ubuntu-24.04' }}
       repeat: ${{ matrix.repeat || 1 }}
+      timeout: ${{ matrix.timeout || 20 }}
 
   # The public headers alone under MSVC's cl, as C17 and C++17 with /W4 /WX:
   # consumers may compile them with it, though it cannot build the library.

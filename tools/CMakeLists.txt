@@ -4,6 +4,11 @@ foreach(tool m3replay m3lockstep)
     add_executable(${tool} ${tool}.c)
     target_link_libraries(${tool} PRIVATE maul3d)
     maul_apply_flags(${tool})
+    # The tools read and write files with standard fopen, which the Windows
+    # C runtime reports as deprecated in favor of its own fopen_s.
+    if(WIN32)
+        target_compile_definitions(${tool} PRIVATE _CRT_SECURE_NO_WARNINGS)
+    endif()
 endforeach()
 if(MAUL3D_INSTALL)
     install(TARGETS m3replay m3lockstep RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
