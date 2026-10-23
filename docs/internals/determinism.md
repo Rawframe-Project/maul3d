@@ -27,6 +27,8 @@ They sit on their own lines because the snapshot and the tape record public stru
 
 The scenes draw every random number in a statement of its own. C leaves the evaluation order of function arguments and initializers to the compiler, and GCC and Clang choose differently, so two draws in one call give different scenes on different compilers.
 
+The scenes never call the host's math library for anything that shapes a scene. The platforms' `sinf`, `cosf` and the like differ in the last bits (the Windows x64 C runtime against glibc and macOS, for one), so a terrain built from them differs before the engine runs a step. Scene code uses `m3ComputeCosSin` and `m3Atan2`, which give the same bits everywhere.
+
 ## Benchmark scenes
 
 The seven `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../bench/scenes.c), which the benchmark and [`test/test_bench.c`](../../test/test_bench.c) share:
