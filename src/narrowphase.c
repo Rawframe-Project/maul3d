@@ -7,6 +7,7 @@
 // writes only its own manifold, so any split of the range is safe.
 
 #include "narrowphase.h"
+
 #include "distance.h"
 #include "manifold.h"
 #include "shape.h"

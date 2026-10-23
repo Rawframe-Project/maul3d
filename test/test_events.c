@@ -7,8 +7,9 @@
 // pre-solve veto builds a one-way platform under the loud purity
 // contract; streams replay identically on twins.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

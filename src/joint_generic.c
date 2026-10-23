@@ -15,7 +15,6 @@
 // angular axis at most is limited); the motor (limitImpulse.y).
 
 #include "joint_solver.h"
-
 #include "solver.h"
 #include "world_internal.h"
 

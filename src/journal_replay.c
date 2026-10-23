@@ -8,6 +8,7 @@
 // the ids the recording minted.
 
 #include "journal_replay.h"
+
 #include "body.h"
 #include "character.h"
 #include "joint.h"

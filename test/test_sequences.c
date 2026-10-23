@@ -8,9 +8,10 @@
 // destroy cascades racing joint lists, and a pool churned all the
 // way to generation retirement.
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>

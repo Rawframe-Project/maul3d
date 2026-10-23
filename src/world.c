@@ -8,7 +8,9 @@
 // maul2d's.
 
 #include "world.h"
+
 #include "body.h"
+#include "cpu.h"
 #include "journal.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -242,7 +244,7 @@ m3WorldId m3CreateWorld(const m3WorldDef* def)
     // Before any solver kernel runs, make sure this CPU can execute the
     // backend the binary was built for: a typed refusal beats a bare
     // illegal-instruction trap on pre-Haswell hardware.
-    if (m3VerifyCpuBackend() == 0)
+    if (m3CheckCpu(NULL) == 0)
     {
         m3Refuse(NULL, m3_errorConfig);
         return nullId;

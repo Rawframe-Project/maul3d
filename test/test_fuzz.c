@@ -11,9 +11,10 @@
 // ASan and UBSan cells turn every out-of-contract memory touch
 // into a loud failure.
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>

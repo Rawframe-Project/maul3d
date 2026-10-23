@@ -11,14 +11,6 @@
 #include "maul3d/base.h"
 #include "maul3d/core_math.h"
 
-// Floating-point contraction breaks bit-identical results. The build
-// turns it off for GCC and Clang; for MSVC the pragma does it in every
-// source, including on arm64, where the /fp:contract- switch is not
-// available.
-#if defined(_MSC_VER)
-#pragma fp_contract(off)
-#endif
-
 // Internal invariants only: states that cannot happen unless the engine
 // itself is wrong. Caller input is refused with m3Refuse, never asserted.
 #if defined(NDEBUG)
@@ -34,10 +26,6 @@ void m3AssertFail(const char* condition, const char* file, int line);
 // Hands a message to the host's assert handler as a line-0 report.
 // Returns nonzero when the host took it.
 int m3ReportToHost(const char* message, const char* where);
-
-// Whether this CPU runs the SIMD backend the library was built for,
-// checked once; a failure is reported to the host or printed.
-int m3VerifyCpuBackend(void);
 
 typedef struct m3World m3World;
 

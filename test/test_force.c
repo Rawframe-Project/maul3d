@@ -7,8 +7,9 @@
 // when they are forces, journal and roll back to the bit, and
 // refuse hostile or non-dynamic targets quietly.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

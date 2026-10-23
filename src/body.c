@@ -8,6 +8,7 @@
 // id carries its own generation, the world slot does not need one.
 
 #include "body.h"
+
 #include "broad_phase.h"
 #include "joint.h"
 #include "journal.h"
@@ -318,17 +319,29 @@ void m3SetMotionLocksInternal(m3World* world, int32_t index, uint8_t locks)
     m3Vec3* v = &world->bodies.linearVelocities[index];
     m3Vec3* w = &world->bodies.angularVelocities[index];
     if (locks & 1u)
+    {
         v->x = 0.0f;
+    }
     if (locks & 2u)
+    {
         v->y = 0.0f;
+    }
     if (locks & 4u)
+    {
         v->z = 0.0f;
+    }
     if (locks & 8u)
+    {
         w->x = 0.0f;
+    }
     if (locks & 16u)
+    {
         w->y = 0.0f;
+    }
     if (locks & 32u)
+    {
         w->z = 0.0f;
+    }
 }
 
 void m3SetSleepControlsInternal(m3World* world, int32_t index, float threshold, int canSleep)

@@ -9,9 +9,11 @@
 // replays every def and gear select, and hostile defs bounce off
 // the validation wall without touching state.
 
+#include "hash_check.h"
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/vehicle.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -109,7 +111,7 @@ static void TestUphillBogAndClimb(void)
         CHECK(m3Vehicle_GetGear(car) == (attempt == 0 ? 5 : 1), "the manual gear holds");
         if (attempt == 1)
         {
-            printf("M3_DRIVETRAIN_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+            CheckHash("DRIVETRAIN", m3World_Hash(world), M3_GOLDEN_DRIVETRAIN);
         }
         m3DestroyWorld(world);
     }

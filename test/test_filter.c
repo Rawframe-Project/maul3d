@@ -6,8 +6,9 @@
 // continuous phase obey the same rule, and filtered worlds
 // journal, replay, and roll back onto identical bits.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

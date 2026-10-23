@@ -14,9 +14,9 @@
 
 #include "shape.h"
 #include "world_internal.h"
-#include <string.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 // A moved leaf is reinserted this far beyond its fresh bounds, so a
 // slow body stays inside it for many steps. Only the tree shape and

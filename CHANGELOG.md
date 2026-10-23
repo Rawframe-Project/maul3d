@@ -10,6 +10,12 @@ snapshot and journal formats.
 
 ### Changed
 
+- The library is built as C23 and needs GCC 14 or Clang 19 or newer; on
+  Windows it is built with clang-cl, which Visual Studio installs, since
+  MSVC's cl cannot compile C23. The public headers stay C17 and C++17,
+  and MSVC's cl still compiles them. A shared library's SOVERSION is
+  now the whole version, and the CMake package accepts only its exact
+  version, because before 1.0 any release may change the ABI.
 - The README is rewritten. A new section introduces the Maul family:
   what each engine is built for, and the contract, vocabulary, rules
   and tools the two share; both libraries link into one program.

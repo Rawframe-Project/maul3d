@@ -6,9 +6,10 @@
 // (every pool exhausted on purpose; every refusal loud and clean,
 // the world never corrupted).
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

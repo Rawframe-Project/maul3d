@@ -5,9 +5,11 @@
 // pendulum physics, a hanging chain, and the determinism spine
 // (rollback, replay with minted joint ids, sleep coupling).
 
+#include "hash_check.h"
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -1455,7 +1457,7 @@ static void TestJointHashGate(void)
         calm = calm && p.x == p.x && p.y == p.y && p.z == p.z && m3Dot3(v, v) < 2500.0f;
     }
     CHECK(calm, "every jointed body stays finite and below 50 m/s");
-    printf("M3_JOINT_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("JOINT", m3World_Hash(world), M3_GOLDEN_JOINT);
     m3DestroyWorld(world);
 }
 

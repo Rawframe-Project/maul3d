@@ -34,9 +34,15 @@ extern "C"
 #endif
 
     /// Library version, encoded as major * 10000 + minor * 100 + patch.
+// x-release-please-start-major
 #define M3_VERSION_MAJOR 0
+// x-release-please-end
+// x-release-please-start-minor
 #define M3_VERSION_MINOR 0
+// x-release-please-end
+// x-release-please-start-patch
 #define M3_VERSION_PATCH 1
+    // x-release-please-end
 
     /// The linked library's version as major * 10000 + minor * 100 +
     /// patch (0.3.0 returns 300). Compare against the M3_VERSION

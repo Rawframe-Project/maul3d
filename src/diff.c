@@ -5,10 +5,10 @@
 // read over two worlds' body books. Never state, never hashed,
 // never inside the step.
 
-#include "maul3d/replay.h"
-
 #include "world.h"
 #include "world_internal.h"
+
+#include "maul3d/replay.h"
 
 #include <stdlib.h>
 #include <string.h>

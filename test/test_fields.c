@@ -5,9 +5,10 @@
 // with gust continuity across rollback, and conveyors carry
 // crates at belt speed.
 
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

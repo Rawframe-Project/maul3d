@@ -9,9 +9,10 @@
 // refuses geometry that is not a wheel. The raycast vehicle is
 // untouched by all of it.
 
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

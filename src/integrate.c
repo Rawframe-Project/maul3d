@@ -191,17 +191,29 @@ void m3IntegratePositions(m3World* world, const int32_t* movers, int32_t moverCo
             // every substep, in the STORED velocity too, so
             // contacts cannot bank motion on a frozen axis.
             if (locks & 1u)
+            {
                 v.x = 0.0f;
+            }
             if (locks & 2u)
+            {
                 v.y = 0.0f;
+            }
             if (locks & 4u)
+            {
                 v.z = 0.0f;
+            }
             if (locks & 8u)
+            {
                 w.x = 0.0f;
+            }
             if (locks & 16u)
+            {
                 w.y = 0.0f;
+            }
             if (locks & 32u)
+            {
                 w.z = 0.0f;
+            }
             world->bodies.linearVelocities[i] = v;
             world->bodies.angularVelocities[i] = w;
         }

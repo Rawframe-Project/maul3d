@@ -11,6 +11,7 @@
 // Front faces only, everywhere: winding is a contract.
 
 #include "raycast.h"
+
 #include "shape.h"
 #include "world.h"
 #include "world_internal.h"

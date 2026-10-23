@@ -7,7 +7,6 @@
 // Slots: the alignment pair (perpImpulse.x and .y).
 
 #include "joint_solver.h"
-
 #include "solver.h"
 #include "world_internal.h"
 

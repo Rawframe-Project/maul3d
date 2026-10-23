@@ -13,9 +13,10 @@
 // check has teeth at exit.
 
 #include "allocator.h"
+#include "test_harness.h"
+
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>

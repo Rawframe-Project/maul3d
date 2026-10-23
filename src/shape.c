@@ -6,6 +6,7 @@
 // journal, internal functions mutate, replay drives the internals.
 
 #include "shape.h"
+
 #include "body.h"
 #include "broad_phase.h"
 #include "hull.h"

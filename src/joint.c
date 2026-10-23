@@ -7,6 +7,7 @@
 // impulse lives in the persistent arena and rides the snapshot.
 
 #include "joint.h"
+
 #include "body.h"
 #include "joint_solver.h"
 #include "journal.h"

@@ -7,8 +7,10 @@
 // or backend rounds one of these operations differently, the gate goes
 // red before any physics is built on top.
 
-#include "maul3d/core_math.h"
+#include "hash_check.h"
 #include "test_harness.h"
+
+#include "maul3d/core_math.h"
 
 #include <stdio.h>
 
@@ -117,7 +119,7 @@ static void TestBitStability(void)
         h = m3Hash64(h, &q, (int32_t)sizeof(q));
         h = m3Hash64(h, &n, (int32_t)sizeof(n));
     }
-    printf("M3_MATH_HASH=%016llx\n", (unsigned long long)h);
+    CheckHash("MATH", h, M3_GOLDEN_MATH);
 }
 
 int main(void)

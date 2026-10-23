@@ -7,7 +7,11 @@ project(maul3d
     DESCRIPTION "Deterministic 3D physics with bit-exact rollback, replay and voxel destruction"
     LANGUAGES C)
 
-# The family modules read their options through this prefix.
+# The family modules and checks read the library's names from here.
+set(MAUL_LIBRARY maul3d)
+set(MAUL_API_PREFIX m3)
+set(MAUL_MACRO_PREFIX M3)
+set(MAUL_TITLE "Maul3D")
 set(MAUL_PREFIX MAUL3D)
 
 option(MAUL3D_BUILD_TESTS "Build the test suites" ${PROJECT_IS_TOP_LEVEL})
@@ -21,6 +25,8 @@ option(MAUL3D_WERROR "Treat compiler warnings as errors" OFF)
 option(MAUL3D_SANITIZE "Instrument with AddressSanitizer and UBSan" OFF)
 option(MAUL3D_TSAN "Instrument with ThreadSanitizer" OFF)
 option(MAUL3D_COVERAGE "Instrument for gcov coverage" OFF)
+option(MAUL3D_FUZZ "Build the libFuzzer targets (Clang only)" OFF)
+option(MAUL3D_TEST_PACKAGE "Test the installed package by building samples/minimal against it" OFF)
 
 # Engine-specific options.
 set(MAUL3D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
@@ -129,6 +135,11 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/world_hash.c
     src/world_state.c)
 maul_configure_library(maul3d)
+# sqrt, floor and their kin are the only libm functions the library calls.
+if(NOT WIN32)
+    target_link_libraries(maul3d PUBLIC m)
+    set(MAUL_PKG_LIBS_PRIVATE "-lm")
+endif()
 
 # The CPU check must run on CPUs the backend does not support, so it is
 # compiled without the architecture flags and linked into the library.
@@ -141,6 +152,13 @@ target_include_directories(maul3d_cpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PR
 set_target_properties(maul3d_cpu PROPERTIES C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
 if(MAUL3D_BUILD_SHARED)
     target_compile_definitions(maul3d_cpu PRIVATE MAUL3D_SHARED maul3d_EXPORTS)
+endif()
+# cpu.c declares only its internal header; the public header comes first
+# so m3GetSimdBackend and m3CpuSupportsBackend keep their export.
+if(MSVC)
+    target_compile_options(maul3d_cpu PRIVATE /FImaul3d/base.h)
+else()
+    target_compile_options(maul3d_cpu PRIVATE -include maul3d/base.h)
 endif()
 target_sources(maul3d PRIVATE $<TARGET_OBJECTS:maul3d_cpu>)
 
@@ -162,4 +180,11 @@ if(MAUL3D_BUILD_TESTBED)
 endif()
 if(MAUL3D_INSTALL)
     include(cmake/Install.cmake)
+endif()
+if(MAUL3D_TEST_PACKAGE AND MAUL3D_INSTALL AND MAUL3D_BUILD_TESTS)
+    add_test(NAME package
+        COMMAND ${CMAKE_COMMAND} -DBINARY_DIR=${PROJECT_BINARY_DIR} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+                -DGENERATOR=${CMAKE_GENERATOR} -DC_COMPILER=${CMAKE_C_COMPILER}
+                -P ${PROJECT_SOURCE_DIR}/cmake/PackageTest.cmake)
+    set_tests_properties(package PROPERTIES LABELS package)
 endif()

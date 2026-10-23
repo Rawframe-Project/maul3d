@@ -6,10 +6,12 @@
 // its current, wakes sleepers when the tide arrives or leaves, and
 // rides twins, the journal, and the snapshot. No fluid sim BY LAW.
 
+#include "hash_check.h"
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -66,7 +68,7 @@ static void TestFloatAndSink(void)
     double anvilY = m3Body_GetPosition(anvil).y;
     CHECK(corkY > 2.5 && corkY < 4.6, "the light crate floats near the surface");
     CHECK(anvilY < 0.8, "the dense crate sinks to the floor");
-    printf("M3_WATER_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("WATER", m3World_Hash(world), M3_GOLDEN_WATER);
     m3DestroyWorld(world);
 }
 

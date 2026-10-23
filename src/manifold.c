@@ -7,6 +7,7 @@
 // (narrowphase.c). Every kernel is a pure function of its inputs.
 
 #include "manifold.h"
+
 #include "distance.h"
 #include "shape.h"
 #include "world_internal.h"

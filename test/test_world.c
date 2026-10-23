@@ -7,6 +7,7 @@
 
 // White box: pair inspection reads world internals directly.
 #include "broad_phase.h"
+#include "hash_check.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
@@ -195,7 +196,7 @@ static void TestWorldHashGate(void)
         bd.userData = (uint64_t)i;
         m3CreateBody(world, &bd);
     }
-    printf("M3_WORLD_HASH=%016llx\n", (unsigned long long)m3World_Hash(world));
+    CheckHash("WORLD", m3World_Hash(world), M3_GOLDEN_WORLD);
     m3DestroyWorld(world);
 }
 

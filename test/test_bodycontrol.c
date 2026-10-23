@@ -7,8 +7,9 @@
 // motion locks hold their axes exact, sleep knobs obey, and every
 // op journals and rolls back onto identical bits.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

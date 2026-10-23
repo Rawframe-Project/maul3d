@@ -7,9 +7,10 @@
 // hostile paint refuses loudly, and the whole feature rides twins,
 // the journal, and the snapshot.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

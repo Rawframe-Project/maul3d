@@ -1,4 +1,23 @@
 # Test suites. See cmake/Testing.cmake for the flags.
+
+# The committed world hashes reach the suites as definitions, so every cell
+# checks them with no file to read at run time (test/hash_check.h). A
+# malformed or repeated line fails here rather than turning into a silent
+# zero.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt)
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt maul_hash_lines)
+set(maul_hash_names "")
+foreach(maul_line ${maul_hash_lines})
+    if(NOT maul_line MATCHES "^M3_([A-Z0-9_]+)_HASH=([0-9a-f]+)$")
+        message(FATAL_ERROR "test/hashes.txt: malformed line '${maul_line}'")
+    endif()
+    if(CMAKE_MATCH_1 IN_LIST maul_hash_names)
+        message(FATAL_ERROR "test/hashes.txt: ${CMAKE_MATCH_1} appears twice")
+    endif()
+    list(APPEND maul_hash_names ${CMAKE_MATCH_1})
+    add_compile_definitions(M3_GOLDEN_${CMAKE_MATCH_1}=0x${CMAKE_MATCH_2}ull)
+endforeach()
+
 maul_add_test(determinism THREADS)
 maul_add_test(math)
 maul_add_test(solver)
@@ -50,4 +69,4 @@ maul_add_test(soak WHITEBOX)
 maul_add_test(bvh WHITEBOX)
 maul_add_test(tree WHITEBOX)
 maul_add_test(concurrency POSIX)
-maul_add_cxx_header_test()
+maul_add_header_tests()

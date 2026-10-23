@@ -9,6 +9,7 @@
 // ascending shape index), so twin worlds answer identically.
 
 #include "query.h"
+
 #include "body.h"
 #include "distance.h"
 #include "journal.h"

@@ -9,9 +9,10 @@
 // without a creak. The full-size numbers (5k rollback cost, 10k
 // smoke) live in the bench binary where wall time belongs.
 
+#include "test_harness.h"
+
 #include "maul3d/shape.h"
 #include "maul3d/softbody.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

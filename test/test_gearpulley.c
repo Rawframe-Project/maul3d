@@ -8,10 +8,11 @@
 // (rigid both ways). Both ride twins, replay, rollback, and the
 // hostile walls.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

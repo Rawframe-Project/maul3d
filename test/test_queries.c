@@ -5,8 +5,9 @@
 // hand-counted expectations, analytic ray hits on every shape family,
 // closest-of-many ordering, and the determinism twins for both.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <stdio.h>
 #include <stdlib.h>

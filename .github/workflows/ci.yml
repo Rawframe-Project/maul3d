@@ -1,312 +1,252 @@
-# Continuous integration for the Maul family. This file is the same in
-# maul2d and maul3d except for the env block below.
+# Continuous integration: the pull request check, and the full check on
+# main and every night. Each build cell is a CMake preset built by the
+# organization's shared workflow. Twelve suites compare their world hash
+# with test/hashes.txt in every cell, and the bench-pins job compares the
+# benchmark scenes with bench/pins.txt, so the cells agree bit for bit and
+# no result moves unnoticed. The other jobs run in the same CI image.
 name: ci
 
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:
   schedule:
-    # Weekly: runner toolchain updates must not move a single bit, and
-    # the long soak and deep fuzz run here.
-    - cron: '17 3 * * 1'
+    - cron: "29 2 * * *"
+  workflow_dispatch:
+
+# A new push to a pull request cancels its running CI; runs on main get a
+# group of their own, so they are never cancelled.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 env:
-  LIB: maul3d
   PREFIX: MAUL3D
-  HASH_PREFIX: M3
-  # Engine-specific flags for the sanitizer cell.
-  SANITIZE_FLAGS: "-DMAUL3D_SIMD=scalar"
 
 jobs:
-  # Every platform cell builds with warnings as errors, runs the whole
-  # suite and uploads the determinism hashes it printed.
-  build-test:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+  # Whether anything beyond documentation changed; the builds skip when not.
+  changes:
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      pull-requests: read
+
+  docs:
+    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      contents: read
+
+  zizmor:
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      contents: read
+
+  # The rules no compiler checks: formatting, the length and snippet
+  # checks, the bindings against the C API, the documentation site, and
+  # clang-tidy. It runs on documentation changes too, since the snippet
+  # check and the site read docs/.
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: clang-format
+        run: |
+          clang-format --version
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # An empty list would make xargs run clang-format on stdin and
+          # pass with nothing checked.
+          files=$(git ls-files 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' 'tools/*.[ch]' 'bench/*.[ch]' \
+            'samples/*.[ch]' 'testbed/*.[ch]')
+          [ -n "$files" ] || { echo "::error::no C sources found"; exit 1; }
+          echo "$files" | xargs clang-format --dry-run -Werror
+      - name: Family checks
+        # check_modules arrives with the one-way module graph, check_source
+        # and check_docs with the API that meets the family conventions.
+        run: |
+          python3 tools/check_lengths.py
+          python3 tools/check_guide.py
+      - name: The bindings match the C API
+        run: python3 tools/check_bindings.py clang-20
+      - name: The documentation site builds
+        run: python3 tools/build_docs.py
+      - name: clang-tidy
+        # Cognitive complexity is checked once the functions above its
+        # limit are split or listed.
+        run: |
+          cmake -B out/tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -D${PREFIX}_BUILD_TESTS=OFF
+          for f in src/*.c; do
+            clang-tidy-20 -p out/tidy --quiet --warnings-as-errors='*' \
+              --checks=-readability-function-cognitive-complexity "$f"
+          done
+
+  # Every cell builds with warnings as errors and runs the whole suite and
+  # the header tests; twelve suites check their world hash against
+  # test/hashes.txt. linux-gcc-14 also runs on arm64, where the NEON kernels
+  # must give the same bits as AVX2 and the scalar backend of the sanitizer
+  # cell.
+  build:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64-gcc,          os: ubuntu-latest,    cc: gcc,   config: Release }
-          - { name: linux-x64-clang,        os: ubuntu-latest,    cc: clang, config: Release }
-          - { name: linux-x64-clang-debug,  os: ubuntu-latest,    cc: clang, config: Debug }
-          - { name: linux-arm64-gcc,        os: ubuntu-24.04-arm, cc: gcc,   config: Release }
-          - { name: linux-arm64-clang,      os: ubuntu-24.04-arm, cc: clang, config: Release }
-          - { name: macos-arm64-clang,      os: macos-latest,     cc: clang, config: Release }
-          - { name: windows-x64-msvc,       os: windows-latest,   cc: cl,    config: Release }
-          - { name: windows-x64-msvc-debug, os: windows-latest,   cc: cl,    config: Debug }
-          - { name: windows-arm64-msvc,     os: windows-11-arm,   cc: cl,    config: Release }
+          - { preset: linux-gcc-14 }
+          - { preset: linux-gcc-14, runner: ubuntu-24.04-arm }
+          - { preset: linux-clang-20 }
+          # One run and longer limits until the tests pull request prunes
+          # the long scale and soak suites: under TSan, scale alone ran
+          # past its 900-second test limit on three runs.
+          - { preset: linux-clang-20-asan, timeout: 45 }
+          - { preset: linux-clang-20-tsan, timeout: 45 }
+          - { preset: linux-shared }
+          - { preset: macos-clang, runner: macos-15 }
+          - { preset: windows-clang-cl, runner: windows-2025 }
+          - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      contents: read
+    with:
+      preset: ${{ matrix.preset }}
+      runner: ${{ matrix.runner || 'ubuntu-24.04' }}
+      repeat: ${{ matrix.repeat || 1 }}
+      timeout: ${{ matrix.timeout || 20 }}
+
+  # The public headers alone under MSVC's cl, as C17 and C++17 with /W4 /WX:
+  # consumers may compile them with it, though it cannot build the library.
+  msvc-headers:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        shell: bash
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Headers under MSVC
         run: |
-          if [ "${{ matrix.cc }}" = "cl" ]; then
-            cmake -B build -D${PREFIX}_WERROR=ON
-          else
-            cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=${{ matrix.config }} \
-              -DCMAKE_C_COMPILER=${{ matrix.cc }}
-          fi
-      - name: Build
-        run: cmake --build build --config ${{ matrix.config }} -j 4
-      - name: Test
-        shell: bash
-        run: ctest --test-dir build -C ${{ matrix.config }} -V --output-on-failure | tee out.txt
-      - name: Extract hashes
-        shell: bash
-        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > "hash-${{ matrix.name }}.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hash-${{ matrix.name }}
-          path: hash-${{ matrix.name }}.txt
+          cmake -S cmake/HeaderCheck -B out/headers
+          cmake --build out/headers --config Release
 
-  sanitize:
-    name: asan+ubsan
-    runs-on: ubuntu-latest
+  # The library and its tests under Emscripten with threads, run by Node: the
+  # committed world hashes hold there too. The CI image has no Emscripten, so this job
+  # uses the runner and the emsdk action.
+  web:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: |
-          cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang \
-            -D${PREFIX}_SANITIZE=ON ${SANITIZE_FLAGS}
-      - name: Build
-        run: cmake --build build -j 4
-      - name: Test
-        shell: bash
-        run: ctest --test-dir build -V --output-on-failure | tee out.txt
-      - name: Extract hashes
-        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-sanitize.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: hash-sanitize
-          path: hash-sanitize.txt
-
-  tsan:
-    name: thread sanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -D${PREFIX}_TSAN=ON
-      - name: Build
-        run: cmake --build build -j 4
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
-
-  wasm:
-    name: wasm-node
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: mymindstorm/setup-emsdk@v14
+          persist-credentials: false
+      - uses: emscripten-core/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
         with:
-          # Pinned like every toolchain: an update announces itself
-          # through a red build, not a silent drift.
+          # Pinned like every toolchain: an update announces itself through
+          # a red build, not a silent drift of the bits.
           version: 6.0.2
-      - name: Configure
-        run: |
-          emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-pthread" \
-            -DCMAKE_EXE_LINKER_FLAGS="-pthread -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sENVIRONMENT=node -sEXIT_RUNTIME=1" \
-            -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF -D${PREFIX}_BUILD_TOOLS=OFF
       - name: Build
-        run: cmake --build build -j 4
+        run: |
+          cmake --preset wasm-node
+          cmake --build --preset wasm-node -j 4
       - name: Test
-        shell: bash
-        run: ctest --test-dir build -V --output-on-failure | tee out.txt
-      - name: Extract hashes
-        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-wasm-node.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hash-wasm-node
-          path: hash-wasm-node.txt
-
-  # Every cell must print exactly the same hashes, and they must match
-  # the values committed in test/hashes.txt.
-  compare-hashes:
-    name: cross-platform hash equality
-    needs: [build-test, sanitize, wasm]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: hashes
-          pattern: hash-*
-          merge-multiple: true
-      - name: Compare the cells with each other
-        shell: bash
         run: |
-          CELLS=$(ls hashes/*.txt | wc -l)
-          cat hashes/*.txt | sort | uniq -c | awk -v n="$CELLS" '$1 != n' > divergent.txt
-          if [ -s divergent.txt ]; then
-            echo "DETERMINISM FAILURE: these lines are not printed by all $CELLS cells:"
-            cat divergent.txt
-            exit 1
+          ctest --preset wasm-node --no-tests=error | tee "$RUNNER_TEMP/ctest.log"
+          if grep -E '\*\*\*(Skipped|Not Run)' "$RUNNER_TEMP/ctest.log"; then
+            echo "::error::a test did not run"; exit 1
           fi
-          echo "all $CELLS cells printed identical hashes"
-          cat hashes/*.txt > all-hashes.txt
-      - name: Compare with test/hashes.txt
-        run: python3 tools/check_hashes.py --file all-hashes.txt
+      - name: Test logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: logs-wasm-node
+          path: out/wasm-node/Testing/Temporary/
+          if-no-files-found: ignore
+          retention-days: 7
 
-  shared:
-    name: shared library
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_SHARED=ON
-      - name: Build
-        run: cmake --build build -j 4
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
-
-  # Installs the library and builds samples/minimal against the
-  # installed package alone.
-  package:
-    name: package ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build and install
-        shell: bash
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTS=OFF
-          cmake --build build --config Release -j 4
-          cmake --install build --config Release --prefix "$PWD/pkg"
-      - name: Build the consumer against the install
-        shell: bash
-        run: |
-          cmake -S samples/minimal -B consumer -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/pkg"
-          cmake --build consumer --config Release
-      - name: Run it
-        shell: bash
-        run: |
-          if [ -f consumer/Release/minimal.exe ]; then
-            PATH="$PWD/pkg/bin:$PATH" consumer/Release/minimal.exe
-          else
-            consumer/minimal
-          fi
-      - name: pkg-config sees the package
-        if: runner.os == 'Linux'
-        run: PKG_CONFIG_PATH="$PWD/pkg/lib/pkgconfig" pkg-config --exists --print-errors "$LIB"
-
-  format:
-    name: clang-format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check
-        run: |
-          pip install clang-format==22.1.5 >/dev/null
-          clang-format --version
-          clang-format --dry-run -Werror $(find include src test bench samples tools testbed \
-            \( -name '*.c' -o -name '*.h' \) 2>/dev/null)
-
-  rules:
-    name: source rules
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Functions and files within their limits or listed with a reason
-        run: python3 tools/check_lengths.py
-      - name: No development-history markers, no nondeterministic calls
-        run: python3 tools/check_source.py
-
-  tidy:
-    name: clang-tidy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check
-        run: |
-          pip install clang-tidy==22.1.0 >/dev/null
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          for f in src/*.c; do
-            clang-tidy -p build --quiet --warnings-as-errors='*' "$f" || exit 1
-          done
-
-  docs:
-    name: generated docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: The API reference matches the headers
-        run: |
-          COUNT=$(python3 tools/gen_api.py | grep -oE '\([0-9]+ functions\)' | grep -oE '[0-9]+')
-          git diff --exit-code docs/api.md || { echo "docs/api.md is stale: run tools/gen_api.py"; exit 1; }
-          grep -q "$COUNT public functions" README.md || { echo "README says the wrong function count ($COUNT)"; exit 1; }
-      - name: The bindings match the C API
-        run: |
-          if [ -f tools/check_bindings.py ]; then python3 tools/check_bindings.py; fi
-
+  # The benchmark scenes, too large for the suites, end on world hashes
+  # pinned in bench/pins.txt. One Release cell runs them; the suites' hashes
+  # already hold the platforms together.
   bench-pins:
-    name: bench pins
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j 4 --target ${LIB}_bench
+          cmake --preset linux-gcc-14 -D${PREFIX}_BUILD_TESTS=OFF
+          cmake --build --preset linux-gcc-14 --target maul3d_bench
       - name: Compare with bench/pins.txt
-        shell: bash
         run: |
-          ./build/${LIB}_bench | tee bench.out
+          ./out/linux-gcc-14/maul3d_bench | tee bench.out
+          [ -s bench/pins.txt ] || { echo "::error::bench/pins.txt is empty"; exit 1; }
           fail=0
           while read -r scene pin; do
-            if ! grep -q "${HASH_PREFIX}_BENCH $scene .*hash=$pin" bench.out; then
-              echo "PIN MOVED: $scene expected $pin"
+            if ! grep -q "M3_BENCH $scene .*hash=$pin" bench.out; then
+              echo "::error::the $scene pin moved: expected $pin"
               fail=1
             fi
           done < bench/pins.txt
           exit $fail
 
+  # The interactive testbed builds against raylib, which it fetches; only on
+  # main and at night, since the library cells already compile every source
+  # it calls.
   testbed:
-    name: testbed
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON
-          cmake --build build -j 4 --target testbed
+          cmake -B out/testbed -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc-14 \
+            -D${PREFIX}_WERROR=ON -D${PREFIX}_BUILD_TESTBED=ON -D${PREFIX}_BUILD_TESTS=OFF
+          cmake --build out/testbed --target testbed
 
-  # The shared family files must match the sibling repository. Scheduled
-  # rather than per push, because the two repositories are pushed one
-  # after the other.
-  family-sync:
-    name: family files in sync
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  # The one check the ruleset requires: it passes when every job above
+  # passed or was skipped for a documentation-only change, so adding or
+  # renaming a job never touches the ruleset.
+  required:
+    if: always()
+    needs: [changes, docs, zizmor, checks, build, msvc-headers, web, bench-pins, testbed]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
     steps:
-      - uses: actions/checkout@v4
-      - name: Compare with the sibling
-        shell: bash
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          if [ "$LIB" = "maul2d" ]; then SIBLING=maul3d; else SIBLING=maul2d; fi
-          python3 tools/check_family.py "https://raw.githubusercontent.com/${{ github.repository_owner }}/$SIBLING/main"
-
-  soak:
-    name: weekly soak
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j 4 --target test_soak test_fuzz
-      - name: Long soak
-        run: ./build/test_soak 300000
-      - name: Deep fuzz
-        run: ./build/test_fuzz 200
+          echo "$RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success | skipped) ;; *) exit 1 ;; esac
+          done

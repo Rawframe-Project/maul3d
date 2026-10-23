@@ -6,8 +6,9 @@
 // direction physics demands, equal-knob worlds twin bit-exact,
 // differing knobs diverge detectably, and every op replays.
 
-#include "maul3d/shape.h"
 #include "test_harness.h"
+
+#include "maul3d/shape.h"
 
 #include <math.h>
 #include <stdio.h>

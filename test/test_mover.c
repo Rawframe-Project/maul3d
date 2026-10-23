@@ -5,9 +5,10 @@
 // collection, and the plane accumulator. Nothing here mutates a
 // world: the hash fence proves it.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

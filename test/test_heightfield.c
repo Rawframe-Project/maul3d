@@ -6,10 +6,11 @@
 // grids in both doors, and rides the journal and the snapshot
 // byte for byte. Contacts open in 19-2.
 
+#include "test_harness.h"
+
 #include "maul3d/body.h"
 #include "maul3d/shape.h"
 #include "maul3d/world.h"
-#include "test_harness.h"
 
 #include <math.h>
 #include <stdio.h>

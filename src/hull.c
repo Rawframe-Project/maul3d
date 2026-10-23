@@ -8,6 +8,7 @@
 // boxes need neither, their mass properties are closed form.
 
 #include "hull.h"
+
 #include "world_internal.h"
 
 #include <string.h>

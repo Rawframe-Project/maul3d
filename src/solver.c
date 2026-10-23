@@ -12,6 +12,7 @@
 // and the soft bodies.
 
 #include "solver.h"
+
 #include "body.h"
 #include "broad_phase.h"
 #include "character.h"
