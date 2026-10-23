@@ -160,7 +160,12 @@ static m3WorldId SceneMeshGrand(void)
     {
         for (int32_t x = 0; x < GG; ++x)
         {
-            float h = 0.2f * sinf(0.31f * (float)x) + 0.2f * cosf(0.23f * (float)z);
+            // The engine's own cosine and sine: the platform's sinf and
+            // cosf differ in the last bits (Windows x64 against the rest),
+            // which would move the terrain and so the pinned hash.
+            m3real ripple = m3ComputeCosSin(0.31f * (float)x).s;
+            m3real swell = m3ComputeCosSin(0.23f * (float)z).c;
+            float h = 0.2f * ripple + 0.2f * swell;
             verts[z * GG + x] = (m3Vec3){0.5f * (float)x, h, 0.5f * (float)z};
         }
     }
