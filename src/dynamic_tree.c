@@ -585,5 +585,6 @@ bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
         tree->root = BuildRange(tree, &in, 0, count);
     }
     m3Free(order);
+    M3_ASSERT(m3TreeValidate(tree));
     return true;
 }
