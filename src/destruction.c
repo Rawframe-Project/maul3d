@@ -78,17 +78,10 @@ static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
     return geom->v; // sphere center
 }
 
-typedef struct m3ExplodeContext
+// One shape's share of the blast: a carve for a voxel chunk, an impulse
+// for a convex shape on a dynamic body in reach.
+static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
 {
-    m3World* world;
-    const m3ExplosionDef* def;
-} m3ExplodeContext;
-
-static bool ExplodeCallback(int32_t shape, void* userContext)
-{
-    m3ExplodeContext* ctx = (m3ExplodeContext*)userContext;
-    m3World* world = ctx->world;
-    const m3ExplosionDef* def = ctx->def;
     uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_voxelShape)
     {
@@ -103,23 +96,23 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
                                                             (m3real)(def->position.z - vxf.p.z)});
             m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
         }
-        return true;
+        return;
     }
     if (type != (uint8_t)m3_sphereShape && type != (uint8_t)m3_capsuleShape &&
         type != (uint8_t)m3_hullShape)
     {
-        return true; // meshes and planes are static scenery
+        return; // meshes and planes are static scenery
     }
     int32_t body = world->shapes.shapeBody[shape];
     if (world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
         world->bodies.bodyEnabled[body] == 0 || world->bodies.invMass[body] <= 0.0f)
     {
-        return true;
+        return;
     }
     if (!m3FilterPass(def->filter.categoryBits, def->filter.maskBits,
                       world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]))
     {
-        return true;
+        return;
     }
     // Work in the shape's local frame so distance and direction stay
     // precise far from the origin.
@@ -143,7 +136,7 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
     m3real surface = out.distance - proxy.radius;
     if (surface > def->radius + def->falloff)
     {
-        return true;
+        return;
     }
     // The blast wakes everything it reaches, sleepers included.
     m3SetAwakeInternal(world, body, 1);
@@ -178,7 +171,6 @@ static bool ExplodeCallback(int32_t shape, void* userContext)
         m3Pos3 at = {xf.p.x + (double)arm.x, xf.p.y + (double)arm.y, xf.p.z + (double)arm.z};
         m3ApplyImpulseAtPointInternal(world, body, impulse, at);
     }
-    return true;
 }
 
 bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
@@ -193,8 +185,20 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
     double extent = reach > (double)def->voxelCarve ? reach : (double)def->voxelCarve;
     double lo[3] = {def->position.x - extent, def->position.y - extent, def->position.z - extent};
     double hi[3] = {def->position.x + extent, def->position.y + extent, def->position.z + extent};
-    m3ExplodeContext ctx = {world, def};
-    m3TreeQuery(&world->broadphase.tree, lo, hi, ExplodeCallback, &ctx);
+    // Shapes in slot order, not the tree's visit order, which follows the
+    // tree's history: impulses on one body sum in a fixed order, and
+    // carved chunks emit their fragment events in a fixed order. The
+    // blast creates no shape, so the scan sees the shapes it started with.
+    const m3Tree* tree = &world->broadphase.tree;
+    for (int32_t s = 0; s < world->shapes.shapePool.maxIndex; ++s)
+    {
+        int32_t proxy = world->broadphase.proxyIds[s];
+        if (world->shapes.shapePool.alive[s] != 0 && proxy != M3_TREE_NULL &&
+            m3TreeOverlaps(tree, proxy, lo, hi))
+        {
+            ExplodeShape(world, def, s);
+        }
+    }
     // Soft particles: a canonical linear pass over the pool. Verlet
     // has no velocity to poke, so the push lands as a pending kick
     // the next step integrates exactly once.

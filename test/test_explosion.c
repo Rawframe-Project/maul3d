@@ -6,8 +6,9 @@
 // speeds, the falloff band grades the push, sleepers in range wake
 // while sleepers beyond it nap on, a negative impulse implodes, the
 // filter and static bodies stand aside, an off-center hit spins its
-// target, and the whole storm rides twins, replay, rollback, and a
-// hostile tape without losing a bit.
+// target, the tree's history changes nothing, and the whole storm
+// rides twins, replay, rollback, and a hostile tape without losing a
+// bit.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -195,6 +196,100 @@ static void TestVoxelCarveCoupling(void)
     m3DestroyWorld(control);
 }
 
+// A blast scene: two voxel columns either side of the center, a
+// compound body of six spheres and four crates. The rebuilt twin holds
+// the same state over a balanced tree instead of the insertion-order
+// one, so the tree visits its leaves in another order.
+static m3World* HistoryScene(bool rebuild, m3BodyId bodies[5])
+{
+    m3World* world = BlastWorld();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static uint8_t voxels[16 * 16 * 16];
+    memset(voxels, 0, sizeof(voxels));
+    for (int32_t y = 0; y < 16; ++y)
+    {
+        voxels[8 + 16 * (y + 16 * 8)] = 1;
+    }
+    for (int32_t c = 0; c < 2; ++c)
+    {
+        m3BodyDef gd = m3DefaultBodyDef();
+        gd.position = (m3Pos3){-9.0 + 2.0 * c, 0.0, -8.0};
+        NewVoxelChunkShape(world, NewBody(world, &gd), &sd, voxels, NULL, 1.0f);
+    }
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.3, 8.9, 2.1};
+    bodies[0] = NewBody(world, &bd);
+    for (int32_t k = 0; k < 6; ++k)
+    {
+        m3ShapeDef part = m3DefaultShapeDef();
+        part.localPosition = (m3Vec3){0.37f * (float)(k % 3) - 0.4f, 0.29f * (float)(k / 3),
+                                      0.11f * (float)k - 0.3f};
+        m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f + 0.03f * (float)k};
+        NewSphereShape(world, bodies[0], &part, &ball);
+    }
+    for (int32_t k = 0; k < 4; ++k)
+    {
+        bodies[1 + k] = Crate(world, -2.5 + 1.7 * k, 7.0 + 0.6 * k, -1.3 + 0.9 * k);
+    }
+    if (rebuild)
+    {
+        CHECK(m3World_RebuildBroadphase(world) == m3_success, "the twin rebuilds its tree");
+    }
+    return world;
+}
+
+static void TestTreeHistoryChangesNothing(void)
+{
+    // The blast visits the shapes in slot order, so impulses on one body
+    // sum in the same order and the chunks emit fragments in the same
+    // order whatever shape the tree has.
+    m3BodyId bodies[2][5];
+    m3World* plain = HistoryScene(false, bodies[0]);
+    m3World* rebuilt = HistoryScene(true, bodies[1]);
+    CHECK(m3World_Hash(plain) == m3World_Hash(rebuilt), "the twins hash equal before the blast");
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = (m3Pos3){0.0, 8.5, 0.5};
+    def.radius = 6.0f;
+    def.falloff = 2.0f;
+    def.impulsePerArea = 3.0f;
+    def.voxelCarve = 1.6f;
+    m3World_Explode(plain, &def);
+    m3World_Explode(rebuilt, &def);
+    CHECK(m3World_Hash(plain) == m3World_Hash(rebuilt), "and after it");
+    bool sameMotion = true;
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        m3Vec3 v[2];
+        m3Vec3 w[2];
+        for (int32_t t = 0; t < 2; ++t)
+        {
+            m3World* world = t == 0 ? plain : rebuilt;
+            v[t] = m3Body_GetLinearVelocity(world, bodies[t][i]);
+            w[t] = m3Body_GetAngularVelocity(world, bodies[t][i]);
+        }
+        sameMotion = sameMotion && memcmp(&v[0], &v[1], sizeof(m3Vec3)) == 0 &&
+                     memcmp(&w[0], &w[1], sizeof(m3Vec3)) == 0;
+    }
+    CHECK(sameMotion, "every body leaves with bit-equal velocities");
+    m3FragmentEvents a = m3World_GetFragmentEvents(plain);
+    m3FragmentEvents b = m3World_GetFragmentEvents(rebuilt);
+    CHECK(a.fragmentCount >= 2, "both columns lose their tops");
+    bool sameEvents = a.fragmentCount == b.fragmentCount;
+    for (int32_t i = 0; sameEvents && i < a.fragmentCount; ++i)
+    {
+        const m3FragmentEvent* x = &a.fragmentEvents[i];
+        const m3FragmentEvent* y = &b.fragmentEvents[i];
+        sameEvents = x->chunkShapeId.index1 == y->chunkShapeId.index1 &&
+                     x->voxelCount == y->voxelCount && x->recipeStart == y->recipeStart &&
+                     memcmp(x->boundsLo, y->boundsLo, 3) == 0 &&
+                     memcmp(x->boundsHi, y->boundsHi, 3) == 0;
+    }
+    CHECK(sameEvents, "the fragment events come in the same order");
+    m3DestroyWorld(rebuilt);
+    m3DestroyWorld(plain);
+}
+
 static void TestSoftPushAndKickWindow(void)
 {
     // The blast pushes a lattice through a pending kick that the
@@ -330,6 +425,7 @@ int main(void)
     TestWakeFilterAndStatics();
     TestOffCenterSpin();
     TestVoxelCarveCoupling();
+    TestTreeHistoryChangesNothing();
     TestSoftPushAndKickWindow();
     TestHostileDefWall();
     TestHostileTape();

@@ -415,6 +415,11 @@ void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3],
     }
 }
 
+bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
+{
+    return Overlap(tree->nodes[nodeId].lo, tree->nodes[nodeId].hi, lo, hi);
+}
+
 void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
                  void* context)
 {
