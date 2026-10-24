@@ -260,12 +260,14 @@ static bool Vec3Same(m3Vec3 a, m3Vec3 b)
 // Whether the hull is the box m3BuildBoxHull makes of its own extents.
 static bool IsItsOwnBox(const m3HullData* hull)
 {
-    if (hull->vertexCount != 8 || hull->faceCount != 6)
+    m3Vec3 half = hull->vertices[6];
+    if (hull->vertexCount != 8 || hull->faceCount != 6 || !(half.x > 0.0f) || !(half.y > 0.0f) ||
+        !(half.z > 0.0f))
     {
-        return false;
+        return false; // a box has positive extents
     }
     m3HullData box;
-    m3BuildBoxHull(&box, hull->vertices[6]);
+    m3BuildBoxHull(&box, half);
     // Hull data is padding-free, so equal bytes mean an equal hull.
     // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison)
     return memcmp(&box, hull, sizeof(m3HullData)) == 0;
@@ -275,6 +277,10 @@ static bool IsItsOwnBox(const m3HullData* hull)
 // and loops: they must be what the builders make of them, bit for bit.
 static bool DerivedMatch(const m3HullData* hull)
 {
+    if (!(hull->unitMass > 0.0f) || hull->unitMass > M3_UNIT_MASS_LIMIT)
+    {
+        return false; // a box's closed form and the integrator alike
+    }
     if (IsItsOwnBox(hull))
     {
         return true; // a box's planes and mass are closed form
@@ -295,8 +301,7 @@ static bool DerivedMatch(const m3HullData* hull)
     return rebuilt.unitMass == hull->unitMass && Vec3Same(rebuilt.unitCom, hull->unitCom) &&
            Vec3Same(rebuilt.unitInertiaCom.cx, hull->unitInertiaCom.cx) &&
            Vec3Same(rebuilt.unitInertiaCom.cy, hull->unitInertiaCom.cy) &&
-           Vec3Same(rebuilt.unitInertiaCom.cz, hull->unitInertiaCom.cz) &&
-           hull->unitMass <= M3_UNIT_MASS_LIMIT;
+           Vec3Same(rebuilt.unitInertiaCom.cz, hull->unitInertiaCom.cz);
 }
 
 bool m3HullDataValid(const m3HullData* hull)
