@@ -14,14 +14,16 @@
 // What a restore takes from the allocator, all of it before any byte
 // lands: the incoming mesh and height field content and the mesh BVHs
 // derived from it, beside the buffer it lands from, which must outlive
-// the stage. Voxel surfaces need nothing: the commit rebuilds them into
-// storage the world keeps for them.
+// the stage. Voxel surfaces need only the tree storage of a live slot
+// that has none yet: the commit rebuilds every surface into the trees
+// its slots keep.
 typedef struct m3RestoreStage
 {
     const uint8_t* data;             // the checked snapshot
     m3MeshData* meshes;              // per mesh slot
     m3MeshBvh* meshBvhs;             // per mesh slot, built for live meshes
     m3HeightFieldData* heightFields; // per shape slot
+    void** voxelTrees;               // per voxel slot, for live slots with none
     int32_t hullCursor;              // where the hull tail starts in the buffer
 } m3RestoreStage;
 

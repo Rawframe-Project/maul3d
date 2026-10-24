@@ -237,13 +237,25 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
     }
     case m3_voxelShape:
     {
+        // A chunk whose surface passes the box limit has no room in the
+        // slot's tree, and the slot's first chunk reserves that tree.
+        if (!m3VoxelSurfaceFits(world, content->voxels))
+        {
+            return false;
+        }
         int32_t v = m3IdPoolAlloc(&world->voxels.voxelPool);
         if (v < 0)
         {
             return false;
         }
-        world->voxels.voxelData[v] = *content->voxels;
+        // From here a failure leaves the slot to UndoShapeCreate; a tree
+        // the slot reserved stays with the slot.
         sh->shapeVoxelIndex[index] = v;
+        if (!m3VoxelTreeReserve(world, v))
+        {
+            return false;
+        }
+        world->voxels.voxelData[v] = *content->voxels;
         m3VoxelSurfaceBuild(world, v);
         world->voxels.voxelRefCounts[v] = 1;
         world->voxels.voxelShape[v] = index;

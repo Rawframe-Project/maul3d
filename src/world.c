@@ -64,9 +64,13 @@ static void FreeWorldStorage(m3World* world)
         m3MeshDataFree(&world->heap, &world->meshes.meshData[m]);
         m3MeshBvhFree(&world->heap, &world->meshes.meshBvh[m]);
     }
-    m3Free(&world->heap, world->voxels.voxelTreeNodes);
-    m3Free(&world->heap, world->voxels.voxelTreeOrder);
+    for (int32_t v = 0; world->voxels.voxelTrees != NULL && v < world->voxels.voxelCapacity; ++v)
+    {
+        m3Free(&world->heap, world->voxels.voxelTrees[v]);
+    }
+    m3Free(&world->heap, (void*)world->voxels.voxelTrees);
     m3Free(&world->heap, world->voxels.voxelTreeScratch);
+    m3Free(&world->heap, world->voxels.voxelStage);
     m3StateFree(world);
     m3IdPoolDestroy(&world->heap, &world->bodies.bodyPool);
     m3IdPoolDestroy(&world->heap, &world->shapes.shapePool);
@@ -207,22 +211,21 @@ static bool CreatePools(m3World* world)
     world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
     // Step scratch grows between steps on m3_errorCapacity, never mid-step.
     world->scratch = m3StackCreate(&world->heap, 256 * 1024);
-    // Every voxel slot's surface tree at its worst case, so no rebuild
-    // allocates.
-    int64_t treeNodes = 2LL * M3_VOXEL_MAX_BOXES * world->voxels.voxelCapacity;
-    int64_t treeOrder = (int64_t)M3_VOXEL_MAX_BOXES * world->voxels.voxelCapacity;
-    world->voxels.voxelTreeNodes =
-        (m3MeshBvhNode*)m3AllocArray(&world->heap, treeNodes, (int64_t)sizeof(m3MeshBvhNode));
-    world->voxels.voxelTreeOrder =
-        (uint16_t*)m3AllocArray(&world->heap, treeOrder, (int64_t)sizeof(uint16_t));
+    // The voxel slots' trees come with their chunks; the build scratch
+    // and the edit staging copy serve them all.
+    int32_t voxelCap = world->voxels.voxelCapacity;
+    world->voxels.voxelTrees = (void**)m3AllocArray(&world->heap, voxelCap, (int64_t)sizeof(void*));
     world->voxels.voxelTreeScratch =
         m3AllocZeroed(&world->heap, m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES));
-    world->memoryBytes += treeNodes * (int64_t)sizeof(m3MeshBvhNode) +
-                          treeOrder * (int64_t)sizeof(uint16_t) +
-                          m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES);
+    world->voxels.voxelStage =
+        (m3VoxelChunkData*)m3AllocZeroed(&world->heap, (int32_t)sizeof(m3VoxelChunkData));
+    world->voxels.voxelBoxLimit = M3_VOXEL_MAX_BOXES;
+    world->memoryBytes += (int64_t)voxelCap * (int64_t)sizeof(void*) +
+                          m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES) +
+                          (int64_t)sizeof(m3VoxelChunkData);
     return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0 &&
-           world->voxels.voxelTreeNodes != NULL && world->voxels.voxelTreeOrder != NULL &&
-           world->voxels.voxelTreeScratch != NULL;
+           world->voxels.voxelTrees != NULL && world->voxels.voxelTreeScratch != NULL &&
+           world->voxels.voxelStage != NULL;
 }
 
 static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** worldOut)
@@ -593,6 +596,10 @@ static M3_NOINLINE m3MemoryUsage WorldGetMemoryUsageWorker(const m3World* world)
         const m3HeightFieldData* hf = &world->heightFields.hfData[h];
         usage.contentBytes += (int64_t)hf->nx * (int64_t)hf->nz * (int64_t)sizeof(float);
     }
+    for (int32_t v = 0; v < world->voxels.voxelCapacity; ++v)
+    {
+        usage.contentBytes += world->voxels.voxelTrees[v] != NULL ? M3_VOXEL_TREE_BYTES : 0;
+    }
     usage.scratchCapacity = world->scratch.capacity;
     usage.scratchPeak = world->lastScratchPeak;
     return usage;
@@ -643,6 +650,7 @@ m3Counters m3World_GetCounters(const m3World* world)
                               : 0;
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
+    counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
     counters.snapshotBytes = m3World_SnapshotSize(world);
     counters.allocCalls = world->heap.allocCalls;
     counters.freeCalls = world->heap.freeCalls;

@@ -16,6 +16,7 @@
 #include "world.h"
 #include "world_internal.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1312,6 +1313,192 @@ static void TestFractureStorms(void)
     m3DestroyWorld(world2);
 }
 
+static uint64_t Refused(const m3World* world)
+{
+    return m3World_GetCounters(world).voxelEditsRefused;
+}
+
+static const m3VoxelChunkData* ChunkOf(const m3World* world, m3ShapeId shape)
+{
+    return &world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape.index1 - 1]];
+}
+
+// An edit whose surface would merge into more boxes than a slot's tree
+// holds is refused whole: the grid, the hash and the journal stay as
+// they were, no misuse is counted and voxelEditsRefused counts it. The
+// world's box limit is lowered to the slab's one box to reach it.
+static void TestBoxLimitRefusesEdits(void)
+{
+    static uint8_t journal[65536];
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    m3World* world = SmallWorld();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    FillSlab(voxels, 1);
+    m3ShapeId slab = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(SurfaceOf(world, slab)->boxCount == 1, "the slab is one box");
+    m3BodyDef dd = m3DefaultBodyDef();
+    dd.type = m3_dynamicBody;
+    dd.position = (m3Pos3){10.0, 2.0, 7.5};
+    m3BodyId ball = NewBody(world, &dd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    int32_t seedBytes = m3World_SnapshotSize(world);
+    uint8_t* seed = (uint8_t*)malloc((size_t)seedBytes);
+    CHECK(Snapshot(world, seed, seedBytes) == seedBytes, "the seed snapshot writes");
+
+    world->voxels.voxelBoxLimit = 1; // a surface at the limit still fits
+    static m3VoxelChunkData before;
+    before = *ChunkOf(world, slab);
+    uint64_t hash = m3World_Hash(world);
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, slab, 6, 1, 6, 7),
+                  "a set past the limit counts no misuse");
+    CHECK(Refused(world) == 1, "the refused set is counted");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, slab, 5, 0, 5),
+                  "a clear past the limit counts no misuse");
+    CHECK(Refused(world) == 2, "the refused clear is counted");
+    int32_t lo[3] = {8, 0, 8};
+    int32_t hi[3] = {9, 0, 9};
+    CHECK(m3VoxelChunk_ClearBox(world, slab, lo, hi) == -1, "a box clear past the limit is -1");
+    CHECK(Refused(world) == 3, "the refused box clear is counted");
+    CHECK(memcmp(ChunkOf(world, slab), &before, sizeof(before)) == 0,
+          "the refused edits leave the grid as it was");
+    CHECK(m3World_Hash(world) == hash, "the refused edits leave the hash as it was");
+    CHECK(SurfaceOf(world, slab)->boxCount == 1, "the surface is the slab's");
+
+    // A payload change leaves the surface alone, so the limit never
+    // refuses it.
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, slab, 0, 0, 0, 9),
+                  "a payload set lands at the limit");
+    CHECK(Refused(world) == 3 && ChunkOf(world, slab)->payload[0] == 9,
+          "the payload set lands uncounted");
+
+    // The explosion skips the chunk's carve and keeps its impulses.
+    m3ExplosionDef blast = m3DefaultExplosionDef();
+    blast.position = (m3Pos3){10.0, 0.5, 7.5};
+    blast.radius = 3.0f;
+    blast.falloff = 0.0f;
+    blast.impulsePerArea = 5.0f;
+    blast.voxelCarve = 1.0f;
+    before = *ChunkOf(world, slab);
+    CHECK_ACCEPTS(world, m3World_Explode(world, &blast), "a refused carve counts no misuse");
+    CHECK(Refused(world) == 4, "the refused carve is counted");
+    CHECK(memcmp(ChunkOf(world, slab), &before, sizeof(before)) == 0,
+          "the refused carve leaves the grid as it was");
+    CHECK(m3Body_GetLinearVelocity(world, ball).y > 0.0f, "the blast still pushes the ball");
+    int32_t bytes = StopJournal(world);
+
+    // The journal holds the payload set and the blast, nothing refused:
+    // replayed from the seed under the same limit, it lands the world.
+    m3World* twin = SmallWorld();
+    CHECK(Restore(twin, seed, seedBytes), "the seed restores");
+    twin->voxels.voxelBoxLimit = 1;
+    CHECK(ReplayJournal(twin, journal, bytes), "the journal of what landed replays");
+    CHECK(m3World_Hash(twin) == m3World_Hash(world), "the replay equals the live world");
+    m3DestroyWorld(twin);
+
+    // A recorder with room landed an edit that a world at the limit
+    // cannot: its replay refuses, atomically.
+    world->voxels.voxelBoxLimit = M3_VOXEL_MAX_BOXES;
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms again");
+    m3VoxelChunk_SetVoxel(world, slab, 6, 1, 6, 7);
+    bytes = StopJournal(world);
+    CHECK(SurfaceOf(world, slab)->boxCount == 2, "with room the set lands as a second box");
+    twin = SmallWorld();
+    CHECK(Restore(twin, seed, seedBytes), "the seed restores again");
+    twin->voxels.voxelBoxLimit = 1;
+    hash = m3World_Hash(twin);
+    CHECK(!ReplayJournal(twin, journal, bytes), "a replayed edit past the limit refuses");
+    CHECK(m3World_Hash(twin) == hash, "the refused replay leaves the world as it was");
+
+    // A snapshot whose chunk passes the limit is not one this world
+    // could have taken.
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(Snapshot(world, snap, size) == size, "the two-box world snapshots");
+    CHECK(m3World_Restore(twin, snap, size) == m3_errorInvalid,
+          "a snapshot chunk past the limit is refused");
+    CHECK(m3World_Hash(twin) == hash, "the refused restore leaves the world as it was");
+
+    // And a chunk create past it is refused for capacity.
+    m3BodyDef g2 = m3DefaultBodyDef();
+    g2.position = (m3Pos3){40.0, 0.0, 0.0};
+    m3BodyId ground2 = NewBody(twin, &g2);
+    memset(voxels, 0, sizeof(voxels));
+    voxels[0] = 1;
+    voxels[M3_VOXEL_COUNT - 1] = 1;
+    uint64_t misuse = m3World_GetCounters(twin).misuse;
+    m3ShapeId two = m3_nullShapeId;
+    CHECK(m3CreateVoxelChunkShape(twin, ground2, &sd, voxels, NULL, 1.0f, &two) == m3_errorCapacity,
+          "a chunk past the limit is refused for capacity");
+    CHECK(m3World_GetCounters(twin).misuse == misuse, "the refused create counts no misuse");
+    voxels[M3_VOXEL_COUNT - 1] = 0;
+    CHECK(m3Shape_IsValid(twin, NewVoxelChunkShape(twin, ground2, &sd, voxels, NULL, 1.0f)),
+          "a chunk at the limit creates");
+    free(snap);
+    free(seed);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
+// The checkerboard is the greedy merge's worst case: every voxel its own
+// box, 2048 of them, filling the slot's tree exactly. One slot, so a
+// sanitizer sees any write past the slot's reserved tree.
+static void TestCheckerboardFillsTheTree(void)
+{
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    for (int32_t z = 0; z < M3_VOXEL_DIM; ++z)
+    {
+        for (int32_t y = 0; y < M3_VOXEL_DIM; ++y)
+        {
+            for (int32_t x = 0; x < M3_VOXEL_DIM; ++x)
+            {
+                voxels[x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z)] = (uint8_t)((x + y + z + 1) & 1);
+            }
+        }
+    }
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.voxelCapacity = 1;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId board = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, board), "the checkerboard creates");
+    CHECK(SurfaceOf(world, board)->boxCount == M3_VOXEL_MAX_BOXES,
+          "the checkerboard is the box limit exactly");
+
+    // (0, 15, 0) is empty and (0, 14, 0) is filled: a ray down the
+    // column stops on top of the second.
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit && hit.shapeId.index1 == board.index1 && fabs(hit.point.y - 15.0) < 1.0e-4,
+          "a ray strikes the top of the column's highest voxel");
+
+    // A restore rebuilds the full surface into the same slot. No clear
+    // here: past the base layer every voxel is its own island, so a
+    // clear would fracture them all away.
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(Snapshot(world, snap, size) == size, "the checkerboard snapshots");
+    uint64_t hash = m3World_Hash(world);
+    m3VoxelChunk_SetVoxel(world, board, 0, 15, 0, 1);
+    CHECK(Refused(world) == 0 && SurfaceOf(world, board)->boxCount <= M3_VOXEL_MAX_BOXES,
+          "a set on the full tree lands");
+    hit = m3World_CastRayClosest(world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                 m3DefaultQueryFilter());
+    CHECK(hit.hit && fabs(hit.point.y - 16.0) < 1.0e-4, "the rebuilt tree answers");
+    CHECK(Restore(world, snap, size), "the checkerboard restores");
+    CHECK(m3World_Hash(world) == hash && SurfaceOf(world, board)->boxCount == M3_VOXEL_MAX_BOXES,
+          "the restore rebuilds the full surface");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestEscapeStopsAtWeldedBorder();
@@ -1338,6 +1525,8 @@ int main(void)
     TestJournalCompositionRefusal();
     TestVoxelPoolSweep();
     TestFractureStorms();
+    TestBoxLimitRefusesEdits();
+    TestCheckerboardFillsTheTree();
     if (s_failures == 0)
     {
         printf("test_voxel: all green\n");

@@ -301,6 +301,11 @@ void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratch, const m3Vec3* los, const m3
 #define M3_VOXEL_DIM       16
 #define M3_VOXEL_COUNT     (M3_VOXEL_DIM * M3_VOXEL_DIM * M3_VOXEL_DIM)
 #define M3_VOXEL_MAX_BOXES 2048 // the isolated-voxel (checkerboard) worst case
+// One slot's surface tree: 2 * M3_VOXEL_MAX_BOXES nodes, then
+// M3_VOXEL_MAX_BOXES order entries.
+#define M3_VOXEL_TREE_BYTES                                                                        \
+    (2 * M3_VOXEL_MAX_BOXES * (int32_t)sizeof(m3MeshBvhNode) +                                     \
+     M3_VOXEL_MAX_BOXES * (int32_t)sizeof(uint16_t))
 
 typedef struct m3VoxelChunkData
 {
@@ -335,8 +340,16 @@ typedef struct m3VoxelSurface
 bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
                     m3real cellSize);
-// Rebuilds slot's surface from its grid, the tree into the slot's own
-// storage (m3Voxels): allocates nothing, so it never fails.
+// Whether a grid's surface merges into no more boxes than the world's
+// voxel trees hold (voxelBoxLimit). A grid that does not is never
+// landed, so every surface fits its tree.
+bool m3VoxelSurfaceFits(const m3World* world, const m3VoxelChunkData* chunk);
+
+// Takes slot's tree storage when it has none; false when refused.
+bool m3VoxelTreeReserve(m3World* world, int32_t slot);
+
+// Rebuilds slot's surface from its grid, which fits, the tree into the
+// slot's storage: allocates nothing, so it never fails.
 void m3VoxelSurfaceBuild(m3World* world, int32_t slot);
 void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi);
@@ -523,13 +536,18 @@ typedef struct m3Voxels
     struct m3VoxelSurface* voxelSurface; // derived, not snapshot
     int32_t* voxelShape;                 // owning shape per slot, -1 free
     int32_t* voxelNeighbors;             // derived: 6 welded slots per
-    // Each slot's surface tree, sized for the worst case at world
-    // creation, so an edit, a fracture or a restore rebuilds it in place
-    // and never asks the allocator: 2 * M3_VOXEL_MAX_BOXES nodes and
-    // M3_VOXEL_MAX_BOXES order entries per slot, and one build scratch.
-    m3MeshBvhNode* voxelTreeNodes;
-    uint16_t* voxelTreeOrder;
+    // Each slot's surface tree, M3_VOXEL_TREE_BYTES sized for
+    // M3_VOXEL_MAX_BOXES boxes and taken when a chunk first lands in the
+    // slot (NULL until then), so an edit, a fracture or a restore
+    // rebuilds it in place and never asks the allocator. One build
+    // scratch and one staging copy of a chunk serve every slot.
+    void** voxelTrees;
     void* voxelTreeScratch;
+    m3VoxelChunkData* voxelStage;
+    // The most boxes a surface may merge into: M3_VOXEL_MAX_BOXES, which
+    // the storage holds; a whitebox test lowers it to reach the refusal.
+    int32_t voxelBoxLimit;
+    uint64_t voxelEditsRefused; // edits whose surface would pass the limit
 } m3Voxels;
 
 // Broadphase: the fat-AABB tree and each shape's proxy.
