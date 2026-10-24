@@ -752,7 +752,7 @@ static M3_NOINLINE m3Result CreateVehicleWorker(m3World* world, const m3VehicleD
     {
         m3OpCreateVehicle record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalVehicleDef(&record.def, def);
         record.expected = id;
         m3JournalRecord(world, m3_opCreateVehicle, &record, (int32_t)sizeof(record));
     }

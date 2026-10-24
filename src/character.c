@@ -483,7 +483,7 @@ static M3_NOINLINE m3Result CreateCharacterWorker(m3World* world, const m3Charac
     {
         m3OpCreateCharacter record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalCharacterDef(&record.def, def);
         record.expected = id;
         m3JournalRecord(world, m3_opCreateCharacter, &record, (int32_t)sizeof(record));
     }

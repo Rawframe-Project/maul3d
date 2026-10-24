@@ -65,7 +65,7 @@ extern "C"
                                   // sqrt(gain) rad/s. Meant for
                                   // two-wheelers, which are inverted
                                   // pendulums without it.
-        uint64_t userData;
+        M3_ALIGN8 uint64_t userData;
         int32_t internalValue;
     } m3VehicleDef;
 

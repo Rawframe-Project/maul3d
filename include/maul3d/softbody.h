@@ -39,7 +39,7 @@ extern "C"
         m3real compliance;   // XPBD compliance; zero = rigid rods
         m3real radius;       // particle collision radius
         m3real gravityScale;
-        uint64_t userData;
+        M3_ALIGN8 uint64_t userData;
         /// Bend resistance: XPBD compliance of the SECOND
         /// NEIGHBOR tethers laid along each lattice axis (three
         /// straight points hold their spacing; a fold shortens it,

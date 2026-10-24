@@ -130,7 +130,7 @@ typedef struct m3OpBodyParam
 
 typedef struct m3OpUserData
 {
-    uint64_t userData;
+    M3_ALIGN8 uint64_t userData;
     m3BodyId id; // a shape id for m3_opSetShapeUserData: same layout
 } m3OpUserData;
 
@@ -323,8 +323,8 @@ typedef struct m3OpSetSurfaceVelocity
 
 typedef struct m3OpSetFilter
 {
-    uint64_t categoryBits;
-    uint64_t maskBits;
+    M3_ALIGN8 uint64_t categoryBits;
+    M3_ALIGN8 uint64_t maskBits;
     m3ShapeId id;
     int32_t groupIndex;
 } m3OpSetFilter;
@@ -520,5 +520,19 @@ typedef struct m3JournalPart
 // then the variable arrays it describes.
 void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts,
                           int32_t partCount);
+
+// A def as a record holds it: zeroed storage with every member copied in,
+// so a tape never carries what the caller's def held in its padding. The
+// defs without padding are copied whole; test_journal holds every copy to
+// the compiler's own map of each def's padding.
+void m3JournalBodyDef(m3BodyDef* out, const m3BodyDef* def);
+void m3JournalCharacterDef(m3CharacterDef* out, const m3CharacterDef* def);
+void m3JournalSoftBodyDef(m3SoftBodyDef* out, const m3SoftBodyDef* def);
+void m3JournalVehicleDef(m3VehicleDef* out, const m3VehicleDef* def);
+void m3JournalWaterVolumeDef(m3WaterVolumeDef* out, const m3WaterVolumeDef* def);
+void m3JournalShapeDef(m3ShapeDef* out, const m3ShapeDef* def);
+void m3JournalJointDef(m3JointDef* out, const m3JointDef* def);
+void m3JournalDrivetrainDef(m3DrivetrainDef* out, const m3DrivetrainDef* def);
+void m3JournalExplosionDef(m3ExplosionDef* out, const m3ExplosionDef* def);
 
 #endif // MAUL3D_SRC_JOURNAL_H

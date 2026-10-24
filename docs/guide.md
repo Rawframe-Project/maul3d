@@ -138,6 +138,14 @@ The header carries a format version. There is no migration; a
 snapshot is a save-state for rollback and replay, not an archival
 format.
 
+**One layout on every target.** A snapshot and a journal tape are
+little-endian, and every type they carry is laid out as on x86-64,
+with each double and 64-bit integer 8-byte aligned (32-bit x86
+aligns them to 4 unless told). The build pins each record's and each
+snapshotted type's size and member offsets, so a target that would lay
+one out otherwise fails to compile rather than write another format. A
+tape or snapshot written on one target loads on any other.
+
 ## The journal law
 
 The journal records every MUTATION as a discrete op: creates (with
@@ -153,7 +161,9 @@ nothing more and can never be mistaken for a good one).
 to a world and verifies that every minted id matches the recorded
 one; a world that starts from the same state WILL mint the same ids,
 so a mismatch means the session does not belong to this starting
-state.
+state. A def a create records is copied member by member, so the tape
+never holds what the caller's def held in its padding: the same calls
+write the same bytes.
 
 **Replay is atomic.** On any refusal the target world is restored to
 its pre-call state. A half-applied session is impossible. A damaged

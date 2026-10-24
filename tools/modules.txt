@@ -19,6 +19,7 @@ diff: fpenv world_internal
 distance: core
 draw: broad_phase fpenv manifold misuse shape_state world_internal
 dynamic_tree: allocator
+format_layout: journal world_internal
 fpenv:
 hash:
 hull: world_internal

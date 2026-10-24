@@ -589,7 +589,7 @@ static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* 
     {
         m3CreateJointOp record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalJointDef(&record.def, def);
         record.expected = id;
         m3JournalRecord(world, m3_opCreateJoint, &record, (int32_t)sizeof(record));
     }

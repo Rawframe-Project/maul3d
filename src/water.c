@@ -116,7 +116,7 @@ static M3_NOINLINE m3Result CreateWaterVolumeWorker(m3World* world, const m3Wate
     {
         m3OpCreateWaterVolume record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalWaterVolumeDef(&record.def, def);
         record.expected = id;
         m3JournalRecord(world, m3_opCreateWaterVolume, &record, (int32_t)sizeof(record));
     }
