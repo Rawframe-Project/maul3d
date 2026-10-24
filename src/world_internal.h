@@ -814,6 +814,9 @@ typedef struct m3SoftBodies
     int32_t* softSoftSlotB;
     uint16_t* softSoftGenB;
     int32_t* softSoftParticleB;
+    // Whitebox tests only: 1 tests every particle against every shape,
+    // with no cull. Neither state nor journaled.
+    uint8_t softCullOff;
 } m3SoftBodies;
 
 // Water volumes: fixed slots of world-anchored boxes.
