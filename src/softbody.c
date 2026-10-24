@@ -497,7 +497,7 @@ static M3_NOINLINE m3Result CreateSoftBodyTetWorker(m3World* world, const m3Soft
     {
         m3CreateSoftBodyTetOp head;
         memset(&head, 0, sizeof(head));
-        head.def = *def;
+        m3JournalSoftBodyDef(&head.def, def);
         head.pointCount = pointCount;
         head.tetCount = tetCount;
         head.expected = id;
@@ -547,7 +547,7 @@ static M3_NOINLINE m3Result CreateSoftBodyWorker(m3World* world, const m3SoftBod
     {
         m3OpCreateSoftBody record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalSoftBodyDef(&record.def, def);
         record.expected = id;
         m3JournalRecord(world, m3_opCreateSoftBody, &record, (int32_t)sizeof(record));
     }

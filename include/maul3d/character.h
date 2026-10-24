@@ -43,7 +43,7 @@ extern "C"
                                  // as a multiple of mass; heavier
                                  // bodies are walls (zero: never
                                  // push)
-        uint64_t userData;
+        M3_ALIGN8 uint64_t userData;
         int32_t internalValue;
     } m3CharacterDef;
 

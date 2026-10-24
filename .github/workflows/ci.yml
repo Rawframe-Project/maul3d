@@ -110,6 +110,8 @@ jobs:
           - { preset: linux-clang-20-asan, repeat: 3 }
           - { preset: linux-clang-20-tsan }
           - { preset: linux-shared }
+          - { preset: linux-i686-gcc-14 }
+          - { preset: linux-i686-clang-20 }
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }

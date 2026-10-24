@@ -51,8 +51,8 @@ extern "C"
     /// sees everything.
     typedef struct m3QueryFilter
     {
-        uint64_t categoryBits;
-        uint64_t maskBits;
+        M3_ALIGN8 uint64_t categoryBits;
+        M3_ALIGN8 uint64_t maskBits;
     } m3QueryFilter;
 
     M3_API m3QueryFilter m3DefaultQueryFilter(void);
@@ -237,17 +237,18 @@ extern "C"
     M3_API void m3World_Step(m3World* world, float dt, int32_t substeps);
 
     /// Snapshot and rollback, first-class from day one. The format is
-    /// portable and versioned: field blocks in little-endian order with
-    /// a header carrying a config hash (snapshot format, solver
-    /// revision, precision, FP policy). Restore refuses a mismatched
-    /// config, format or world shape with m3_errorInvalid, restores in
-    /// place, and the restored world resimulates bit-exactly. Before any
-    /// byte lands, every block is checked: out-of-range indices and
-    /// counts, flags that are not flags, and non-finite state refuse with
-    /// m3_errorInvalid and leave the world as it was. The checks make
-    /// every index safe to use; they do not re-derive every structural
-    /// invariant (tree shape, list links), so restore only snapshots this
-    /// engine wrote. Snapshot writes m3World_SnapshotSize bytes and sets
+    /// portable and versioned: field blocks in little-endian order, laid
+    /// out the same on every target, with a header carrying a config
+    /// hash (snapshot format, solver revision, precision, FP policy).
+    /// Restore refuses a mismatched config, format or world shape with
+    /// m3_errorInvalid, restores in place, and the restored world
+    /// resimulates bit-exactly. Before any byte lands, every block is
+    /// checked: out-of-range indices and counts, flags that are not
+    /// flags, and non-finite state refuse with m3_errorInvalid and leave
+    /// the world as it was. The checks make every index safe to use;
+    /// they do not re-derive every structural invariant (tree shape,
+    /// list links), so restore only snapshots this engine wrote.
+    /// Snapshot writes m3World_SnapshotSize bytes and sets
     /// *bytesOut; a smaller buffer returns m3_errorCapacity.
     M3_API int32_t m3World_SnapshotSize(const m3World* world);
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
@@ -697,7 +698,10 @@ extern "C"
     /// caller-owned buffer (m3_errorState while a journal is already
     /// running); Stop sets *bytesOut to the bytes written, or returns
     /// m3_errorCapacity when the buffer overflowed (m3_errorState when
-    /// none was running); Replay applies a stream to this world.
+    /// none was running); Replay applies a stream to this world. A tape
+    /// is laid out the same on every target (little-endian, each record
+    /// as on x86-64) and never holds a def's padding, so the same calls
+    /// write the same bytes anywhere.
     M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
                                                       int32_t capacity);
     M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);

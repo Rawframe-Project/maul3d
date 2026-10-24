@@ -168,7 +168,7 @@ static M3_NOINLINE void VehicleSetDrivetrainWorker(m3World* world, m3VehicleId v
         m3OpVehicleDrivetrain record;
         memset(&record, 0, sizeof(record));
         record.id = vehicle;
-        record.def = *def;
+        m3JournalDrivetrainDef(&record.def, def);
         m3JournalRecord(world, m3_opVehicleDrivetrain, &record, (int32_t)sizeof(record));
     }
 }

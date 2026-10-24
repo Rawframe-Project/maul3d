@@ -80,6 +80,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/format_layout.c
     src/fpenv.c
     src/hash.c
     src/hull.c

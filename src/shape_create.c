@@ -57,7 +57,7 @@ static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDe
     {
         m3CreateShapeOp record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalShapeDef(&record.def, def);
         record.geom = *geom;
         record.body = body;
         record.expected = id;
@@ -303,7 +303,7 @@ static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
     {
         m3CreateHullShapeOp record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalShapeDef(&record.def, def);
         record.body = body;
         record.expected = id;
         record.count = count;
@@ -396,7 +396,7 @@ static M3_NOINLINE m3Result CreateMeshShapeWorker(m3World* world, m3BodyId body,
         // Replay rebuilds the mesh and verifies the id.
         m3CreateMeshShapeOp record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalShapeDef(&record.def, def);
         record.body = body;
         record.expected = id;
         record.vertexCount = vertexCount;
@@ -567,7 +567,7 @@ static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3B
         m3CreateHeightFieldGridOp head;
         memset(&head, 0, sizeof(head));
         head.body = body;
-        head.def = *def;
+        m3JournalShapeDef(&head.def, def);
         head.nx = nx;
         head.nz = nz;
         head.cellSize = cellSize;
@@ -651,7 +651,7 @@ static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId
         // recipe, so replay rebuilds the identical chunk and surface.
         m3OpCreateVoxelChunkShape record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        m3JournalShapeDef(&record.def, def);
         record.body = body;
         record.expected = id;
         record.cellSize = cellSize;

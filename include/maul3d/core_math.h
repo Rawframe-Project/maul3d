@@ -31,7 +31,7 @@ extern "C"
     /// the delta-position solver both lean on this split).
     typedef struct m3Pos3
     {
-        double x, y, z;
+        M3_ALIGN8 double x, y, z;
     } m3Pos3;
 
     /// Rotation quaternion, x y z vector part, w scalar part.

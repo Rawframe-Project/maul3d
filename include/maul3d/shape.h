@@ -49,8 +49,8 @@ extern "C"
         /// shared nonzero groupIndex overrides: positive forces
         /// collision, negative forbids it.
         /// Defaults: category 1, mask all bits, group 0.
-        uint64_t categoryBits;
-        uint64_t maskBits;
+        M3_ALIGN8 uint64_t categoryBits;
+        M3_ALIGN8 uint64_t maskBits;
         int32_t groupIndex;
         /// Rolling resistance: a dimensionless material knob
         /// braking relative rotation at contacts, mixed by maximum
@@ -61,7 +61,7 @@ extern "C"
         /// Conveyor velocity of the surface, world frame: contacts
         /// drive the tangential speed toward it. Zero by default.
         m3Vec3 surfaceVelocity;
-        uint64_t userData;
+        M3_ALIGN8 uint64_t userData;
         /// A sensor detects overlap and fires its own begin and end
         /// events but never produces contact response: bodies pass
         /// through, bullets do not stop, sleepers are not woken.

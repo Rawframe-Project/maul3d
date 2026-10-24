@@ -49,6 +49,169 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
     m3JournalRecordParts(world, op, &part, 1);
 }
 
+void m3JournalBodyDef(m3BodyDef* out, const m3BodyDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->type = def->type;
+    out->position = def->position;
+    out->rotation = def->rotation;
+    out->linearVelocity = def->linearVelocity;
+    out->angularVelocity = def->angularVelocity;
+    out->gravityScale = def->gravityScale;
+    out->linearDamping = def->linearDamping;
+    out->angularDamping = def->angularDamping;
+    out->userData = def->userData;
+    out->isBullet = def->isBullet;
+    out->motionLocks = def->motionLocks;
+    out->enableSleep = def->enableSleep;
+    out->sleepThreshold = def->sleepThreshold;
+    out->isEnabled = def->isEnabled;
+    out->enableFastRotation = def->enableFastRotation;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalCharacterDef(m3CharacterDef* out, const m3CharacterDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->position = def->position;
+    out->radius = def->radius;
+    out->halfHeight = def->halfHeight;
+    out->maxSlopeAngle = def->maxSlopeAngle;
+    out->snapDistance = def->snapDistance;
+    out->skin = def->skin;
+    out->stepHeight = def->stepHeight;
+    out->mass = def->mass;
+    out->pushMaxMassRatio = def->pushMaxMassRatio;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalSoftBodyDef(m3SoftBodyDef* out, const m3SoftBodyDef* def)
+{
+    memcpy(out, def, sizeof(*out)); // no padding
+}
+
+static void JournalWheelDef(m3WheelDef* out, const m3WheelDef* def)
+{
+    out->anchor = def->anchor;
+    out->direction = def->direction;
+    out->restLength = def->restLength;
+    out->travel = def->travel;
+    out->hertz = def->hertz;
+    out->zeta = def->zeta;
+    out->radius = def->radius;
+    out->steerable = def->steerable;
+    out->driven = def->driven;
+    out->brakeShare = def->brakeShare;
+}
+
+void m3JournalVehicleDef(m3VehicleDef* out, const m3VehicleDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->chassisId = def->chassisId;
+    out->wheelCount = def->wheelCount;
+    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    {
+        JournalWheelDef(&out->wheels[w], &def->wheels[w]);
+    }
+    out->maxSteerAngle = def->maxSteerAngle;
+    out->driveForce = def->driveForce;
+    out->brakeForce = def->brakeForce;
+    out->tireGrip = def->tireGrip;
+    out->leanStabilization = def->leanStabilization;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalWaterVolumeDef(m3WaterVolumeDef* out, const m3WaterVolumeDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->lo = def->lo;
+    out->hi = def->hi;
+    out->density = def->density;
+    out->linearDrag = def->linearDrag;
+    out->angularDrag = def->angularDrag;
+    out->flow = def->flow;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalShapeDef(m3ShapeDef* out, const m3ShapeDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->density = def->density;
+    out->friction = def->friction;
+    out->restitution = def->restitution;
+    out->categoryBits = def->categoryBits;
+    out->maskBits = def->maskBits;
+    out->groupIndex = def->groupIndex;
+    out->rollingResistance = def->rollingResistance;
+    out->surfaceVelocity = def->surfaceVelocity;
+    out->userData = def->userData;
+    out->isSensor = def->isSensor;
+    out->enableHitEvents = def->enableHitEvents;
+    out->enablePreSolveEvents = def->enablePreSolveEvents;
+    out->localPosition = def->localPosition;
+    out->localRotation = def->localRotation;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalJointDef(m3JointDef* out, const m3JointDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->type = def->type;
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->localAxisA = def->localAxisA;
+    out->localAxisB = def->localAxisB;
+    out->enableLimit = def->enableLimit;
+    out->lowerLimit = def->lowerLimit;
+    out->upperLimit = def->upperLimit;
+    out->enableMotor = def->enableMotor;
+    out->motorSpeed = def->motorSpeed;
+    out->maxMotorEffort = def->maxMotorEffort;
+    out->enableCone = def->enableCone;
+    out->coneAngle = def->coneAngle;
+    out->collideConnected = def->collideConnected;
+    memcpy(out->genericLinear, def->genericLinear, sizeof(out->genericLinear));
+    memcpy(out->genericAngular, def->genericAngular, sizeof(out->genericAngular));
+    out->genericMotorAxis = def->genericMotorAxis;
+    out->genericReserved = def->genericReserved;
+    memcpy(out->genericLinearLower, def->genericLinearLower, sizeof(out->genericLinearLower));
+    memcpy(out->genericLinearUpper, def->genericLinearUpper, sizeof(out->genericLinearUpper));
+    memcpy(out->genericAngularLower, def->genericAngularLower, sizeof(out->genericAngularLower));
+    memcpy(out->genericAngularUpper, def->genericAngularUpper, sizeof(out->genericAngularUpper));
+    out->ratio = def->ratio;
+    out->groundAnchorA = def->groundAnchorA;
+    out->groundAnchorB = def->groundAnchorB;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalDrivetrainDef(m3DrivetrainDef* out, const m3DrivetrainDef* def)
+{
+    memset(out, 0, sizeof(*out));
+    out->curveCount = def->curveCount;
+    memcpy(out->curveRpm, def->curveRpm, sizeof(out->curveRpm));
+    memcpy(out->curveTorque, def->curveTorque, sizeof(out->curveTorque));
+    out->gearCount = def->gearCount;
+    memcpy(out->gearRatio, def->gearRatio, sizeof(out->gearRatio));
+    out->reverseRatio = def->reverseRatio;
+    out->finalDrive = def->finalDrive;
+    out->shiftUpRpm = def->shiftUpRpm;
+    out->shiftDownRpm = def->shiftDownRpm;
+    out->clutchSteps = def->clutchSteps;
+    out->autoShift = def->autoShift;
+    out->diffMode = def->diffMode;
+    out->diffCouple = def->diffCouple;
+    out->internalValue = def->internalValue;
+}
+
+void m3JournalExplosionDef(m3ExplosionDef* out, const m3ExplosionDef* def)
+{
+    memcpy(out, def, sizeof(*out)); // no padding
+}
+
 m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 {
     if (m3WorldBusy(world))
