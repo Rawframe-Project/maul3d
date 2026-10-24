@@ -177,6 +177,11 @@ typedef struct m3HeightFieldData
 
 // Count-derived ownership: Alloc sizes from the counts already in the
 // struct, Free releases and zeroes.
+// The grid rules every door holds a height field to (create, replay,
+// restore): 2..M3_HEIGHTFIELD_MAX_DIM samples a side, a finite positive
+// cell size and finite samples, read as packed bytes. Sets the extremes.
+bool m3HeightFieldSamplesValid(int32_t nx, int32_t nz, float cellSize, const void* samples,
+                               float* minOut, float* maxOut);
 bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf);
 void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf);
 

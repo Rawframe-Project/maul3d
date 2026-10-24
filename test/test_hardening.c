@@ -338,6 +338,144 @@ static void TestRestoreRefusesBadMeshContent(void)
     m3DestroyWorld(world);
 }
 
+// One poisoning of a snapshot: write bytes at an offset.
+typedef struct Poison
+{
+    int32_t at;
+    uint8_t bytes[8];
+    int32_t count;
+    const char* msg;
+} Poison;
+
+// Restores each poisoned copy of a clean snapshot: each must be refused
+// as invalid with the world's bytes unchanged. The world then steps, so
+// code that took the poison would read it, and goes back to clean.
+static void CheckPoisonsRefused(m3World* world, const uint8_t* clean, int32_t size,
+                                const Poison* poisons, int32_t poisonCount)
+{
+    uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
+    uint8_t* after = (uint8_t*)malloc((size_t)size);
+    CHECK(poisoned != NULL && after != NULL, "poison buffers");
+    for (int32_t i = 0; poisoned != NULL && after != NULL && i < poisonCount; ++i)
+    {
+        memcpy(poisoned, clean, (size_t)size);
+        memcpy(poisoned + poisons[i].at, poisons[i].bytes, (size_t)poisons[i].count);
+        CHECK(m3World_Restore(world, poisoned, size) == m3_errorInvalid, poisons[i].msg);
+        CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+              "and the world is untouched");
+        m3World_Step(world, 1.0f / 60.0f, 4);
+        CHECK(Restore(world, clean, size), "the clean snapshot restores");
+    }
+    free(after);
+    free(poisoned);
+}
+
+static Poison PoisonU16(int32_t at, uint16_t value, const char* msg)
+{
+    Poison p = {at, {0}, 2, msg};
+    memcpy(p.bytes, &value, sizeof(value));
+    return p;
+}
+
+static Poison PoisonF32(int32_t at, float value, const char* msg)
+{
+    Poison p = {at, {0}, 4, msg};
+    memcpy(p.bytes, &value, sizeof(value));
+    return p;
+}
+
+// A restore lands hull content only when it is a hull the builders
+// make: a half edge's twin or next, a face's start in the index list, a
+// face's vertex index or a vertex that the builders would never write is
+// refused as invalid before collision reads it.
+static void TestRestoreRefusesBadHullContent(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.91, 0.0}; // resting on the floor, face to face
+    const m3Vec3 half = {0.37f, 0.41f, 0.53f};
+    NewBoxShape(world, NewBody(world, &bd), &sd, half);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the hull world is snapshotted");
+
+    // A box's first two vertices are (-hx, -hy, -hz) and (hx, -hy, -hz),
+    // a pair no contact holds; after the vertices come the 6 face normals
+    // and offsets, the counts, the starts, the 24 indices and the 24 half
+    // edges (twin, next, origin, face).
+    const m3Vec3 first[2] = {{-half.x, -half.y, -half.z}, {half.x, -half.y, -half.z}};
+    int32_t vertsAt = clean != NULL ? FindBytes(clean, size, first, (int32_t)sizeof(first)) : -1;
+    int32_t startsAt = vertsAt + 8 * 12 + 6 * 12 + 6 * 4 + 6;
+    int32_t indicesAt = startsAt + 6 * 2;
+    int32_t edgesAt = indicesAt + 24;
+    CHECK(vertsAt >= 0 && edgesAt + 24 * 6 <= size, "the hull content is found");
+    if (vertsAt >= 0 && edgesAt + 24 * 6 <= size)
+    {
+        Poison poisons[9];
+        int32_t n = 0;
+        poisons[n++] = PoisonU16(edgesAt, 999, "a twin past the half edges is refused as invalid");
+        poisons[n++] = PoisonU16(edgesAt, 2, "a twin that is not the edge's pair is refused");
+        poisons[n++] =
+            PoisonU16(edgesAt + 2, 999, "a next past the half edges is refused as invalid");
+        for (int32_t f = 0; f < 4; ++f)
+        {
+            poisons[n++] = PoisonU16(startsAt + 2 * f, 60000,
+                                     "a face start past the index list is refused as invalid");
+        }
+        poisons[n] = PoisonU16(indicesAt, 0, "a face vertex past the hull is refused as invalid");
+        poisons[n++].bytes[0] = 200;
+        poisons[n++] = PoisonF32(vertsAt, NAN, "a vertex that is not finite is refused as invalid");
+        CheckPoisonsRefused(world, clean, size, poisons, n);
+    }
+    free(clean);
+    m3DestroyWorld(world);
+}
+
+// A restore lands height field content only when the grid door would
+// take it: finite samples, a finite positive cell, and the extremes the
+// samples give.
+static void TestRestoreRefusesBadHeightFieldContent(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static const float heights[9] = {0.125f, 0.25f,  0.375f, 0.5f,  0.625f,
+                                     0.75f,  0.875f, 1.0f,   1.125f};
+    NewHeightFieldGridShape(world, NewBody(world, &bd), &sd, heights, 3, 3, 1.0f);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){1.0, 2.0, 1.0};
+    NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && Snapshot(world, clean, size) == size,
+          "the height field world is snapshotted");
+    // The cell size, then the minimum and maximum, sit before the samples.
+    int32_t samplesAt =
+        clean != NULL ? FindBytes(clean, size, heights, (int32_t)sizeof(heights)) : -1;
+    CHECK(samplesAt >= 12, "the samples are found");
+    if (samplesAt >= 12)
+    {
+        Poison poisons[4] = {
+            PoisonF32(samplesAt + 4, NAN, "a sample that is not finite is refused as invalid"),
+            PoisonF32(samplesAt - 8, 0.0f, "a minimum the samples do not give is refused"),
+            PoisonF32(samplesAt - 4, 9.0f, "a maximum the samples do not give is refused"),
+            PoisonF32(samplesAt - 12, NAN, "a cell size that is not finite is refused")};
+        CheckPoisonsRefused(world, clean, size, poisons, 4);
+    }
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 static void TestRestoreRefusesBadCursors(void)
 {
     // The body and shape pool cursors are the words that read 1 with one
@@ -697,6 +835,8 @@ int main(void)
     TestRestoreRefusesPoisonedWords();
     TestRestoreRefusesBadCursors();
     TestRestoreRefusesBadMeshContent();
+    TestRestoreRefusesBadHullContent();
+    TestRestoreRefusesBadHeightFieldContent();
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
     TestJournalOverflowIsLoud();

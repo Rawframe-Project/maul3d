@@ -87,6 +87,34 @@ void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
     }
 }
 
+bool m3HeightFieldSamplesValid(int32_t nx, int32_t nz, float cellSize, const void* samples,
+                               float* minOut, float* maxOut)
+{
+    if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
+        !m3FiniteF(cellSize) || !(cellSize > 0.0f))
+    {
+        return false;
+    }
+    // Read by memcpy: journal and snapshot bytes are packed.
+    const uint8_t* bytes = (const uint8_t*)samples;
+    float lo = 0.0f;
+    float hi = 0.0f;
+    for (int32_t i = 0; i < nx * nz; ++i)
+    {
+        float v;
+        memcpy(&v, bytes + (size_t)i * sizeof(float), sizeof(v));
+        if (!m3FiniteF(v))
+        {
+            return false;
+        }
+        lo = i == 0 ? v : (v < lo ? v : lo);
+        hi = i == 0 ? v : (v > hi ? v : hi);
+    }
+    *minOut = lo;
+    *maxOut = hi;
+    return true;
+}
+
 bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf)
 {
     m3Free(heap, hf->heights);

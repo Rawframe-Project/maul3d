@@ -452,19 +452,13 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
     {
         return m3Refuse(world, m3_errorInvalid); // static bodies only, like meshes
     }
-    // The full content wall, mirrored into the decode: grid
-    // limits, finite samples, a positive cell.
-    if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
-        !m3FiniteF(cellSize) || !(cellSize > 0.0f))
+    // The content wall the decode and restore share: grid limits, finite
+    // samples, a positive cell.
+    float lo;
+    float hi;
+    if (!m3HeightFieldSamplesValid(nx, nz, cellSize, heights, &lo, &hi))
     {
         return m3Refuse(world, m3_errorInvalid);
-    }
-    for (int32_t i = 0; i < nx * nz; ++i)
-    {
-        if (!m3FiniteF(heights[i]))
-        {
-            return m3Refuse(world, m3_errorInvalid);
-        }
     }
     m3HeightFieldData hf;
     memset(&hf, 0, sizeof(hf));
@@ -476,13 +470,6 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
         return m3Refuse(world, m3_errorCapacity);
     }
     memcpy(hf.heights, heights, (size_t)(nx * nz) * sizeof(float));
-    float lo = heights[0];
-    float hi = heights[0];
-    for (int32_t i = 1; i < nx * nz; ++i)
-    {
-        lo = heights[i] < lo ? heights[i] : lo;
-        hi = heights[i] > hi ? heights[i] : hi;
-    }
     hf.minHeight = lo;
     hf.maxHeight = hi;
     m3ShapeGeom geom;

@@ -356,26 +356,18 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     int32_t bodyIndex = m3BodySlot(world, head.body);
     if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || head.nx < 2 ||
         head.nx > M3_HEIGHTFIELD_MAX_DIM || head.nz < 2 || head.nz > M3_HEIGHTFIELD_MAX_DIM ||
-        !m3FiniteF(head.cellSize) || !(head.cellSize > 0.0f) ||
         bytes != (int32_t)sizeof(head) + head.nx * head.nz * (int32_t)sizeof(float))
     {
         return false; // hostile grid bytes fail loudly
     }
-    // Same alignment law as the tet decode above: the stream
-    // is byte-packed, so every sample is read by memcpy.
+    // The create door's wall; the stream is byte-packed, so it reads every
+    // sample by memcpy.
     const uint8_t* sampleBytes = (const uint8_t*)payload + sizeof(head);
-    float mn = 0.0f;
-    float mx = 0.0f;
-    for (int32_t i = 0; i < head.nx * head.nz; ++i)
+    float mn;
+    float mx;
+    if (!m3HeightFieldSamplesValid(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx))
     {
-        float v;
-        memcpy(&v, sampleBytes + (size_t)i * sizeof(float), sizeof(float));
-        if (!m3FiniteF(v))
-        {
-            return false;
-        }
-        mn = i == 0 ? v : (v < mn ? v : mn);
-        mx = i == 0 ? v : (v > mx ? v : mx);
+        return false;
     }
     m3HeightFieldData hf;
     memset(&hf, 0, sizeof(hf));

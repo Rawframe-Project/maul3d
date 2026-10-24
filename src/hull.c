@@ -68,13 +68,17 @@ void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents)
     out->unitInertiaCom.cy.y = (m / 3.0f) * (hx * hx + hz * hz);
     out->unitInertiaCom.cz.z = (m / 3.0f) * (hx * hx + hy * hy);
 
-    m3HullBuildHalfEdges(out);
+    bool built = m3HullBuildHalfEdges(out);
+    M3_ASSERT(built); // a box is a closed hull of twelve edges
+    (void)built;
 }
 
 // Build the half-edge adjacency and the centroid from the face loops.
 // Generic over any loop-consistent convex hull (QuickHull finishes
 // through this too). Twins are paired at 2k and 2k+1 by construction.
-void m3HullBuildHalfEdges(m3HullData* hull)
+// False, with the edges partly built, when the loops would need more
+// half edges than a hull holds: loops that do not close into a hull.
+bool m3HullBuildHalfEdges(m3HullData* hull)
 {
     // Collect one half edge per (face, loop position), paired with its
     // twin as it is discovered. Directed edge key = origin * 256 + end.
@@ -108,6 +112,10 @@ void m3HullBuildHalfEdges(m3HullData* hull)
             if (slot < 0)
             {
                 // A fresh undirected edge claims the next twin pair.
+                if (count + 2 > M3_HULL_MAX_HALF_EDGES)
+                {
+                    return false;
+                }
                 slot = count;
                 count += 2;
                 dirKey[dirCount] = a * 256 + b;
@@ -138,6 +146,82 @@ void m3HullBuildHalfEdges(m3HullData* hull)
         c = m3Add3(c, hull->vertices[v]);
     }
     hull->center = m3MulSV3(1.0f / (m3real)hull->vertexCount, c);
+    return true;
+}
+
+static bool Mat3Finite(const m3Mat3* m)
+{
+    return m3FiniteV3(m->cx) && m3FiniteV3(m->cy) && m3FiniteV3(m->cz);
+}
+
+bool m3HullDataValid(const m3HullData* hull)
+{
+    int32_t vc = hull->vertexCount;
+    int32_t fc = hull->faceCount;
+    int32_t ic = hull->indexCount;
+    if (vc < 4 || vc > M3_HULL_MAX_VERTS || fc < 4 || fc > M3_HULL_MAX_FACES || ic < 3 * fc ||
+        ic > M3_HULL_MAX_FACE_INDICES || hull->edgeCount != ic)
+    {
+        return false;
+    }
+    for (int32_t v = 0; v < vc; ++v)
+    {
+        if (!m3FiniteV3(hull->vertices[v]))
+        {
+            return false;
+        }
+    }
+    // Faces own consecutive runs of the index list, each a loop of at
+    // least three vertices of this hull.
+    int32_t start = 0;
+    for (int32_t f = 0; f < fc; ++f)
+    {
+        if (!m3FiniteV3(hull->faceNormals[f]) || !m3FiniteF(hull->faceOffsets[f]) ||
+            hull->faceVertCounts[f] < 3 || hull->faceVertStart[f] != start)
+        {
+            return false;
+        }
+        start += hull->faceVertCounts[f];
+    }
+    if (start != ic)
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < ic; ++i)
+    {
+        if (hull->faceIndices[i] >= vc)
+        {
+            return false;
+        }
+    }
+    if (!m3FiniteF(hull->unitMass) || !m3FiniteV3(hull->unitCom) ||
+        !Mat3Finite(&hull->unitInertiaCom))
+    {
+        return false;
+    }
+    // The adjacency and the center are derived from the loops: they must
+    // be what the builder makes of them. The rebuilt edges start as 0xFF,
+    // an origin no hull has, so a slot the builder leaves unwritten (loops
+    // that repeat a directed edge) cannot match whatever the input holds.
+    m3HullData rebuilt = *hull;
+    memset(rebuilt.edges, 0xFF, sizeof(rebuilt.edges));
+    if (!m3HullBuildHalfEdges(&rebuilt) || rebuilt.edgeCount != ic)
+    {
+        return false;
+    }
+    for (int32_t e = 0; e < ic; ++e)
+    {
+        if (rebuilt.edges[e].origin >= vc)
+        {
+            return false;
+        }
+    }
+    if (memcmp(rebuilt.edges, hull->edges, (size_t)ic * sizeof(m3HullHalfEdge)) != 0)
+    {
+        return false;
+    }
+    return rebuilt.center.x == hull->center.x && rebuilt.center.y == hull->center.y &&
+           rebuilt.center.z == hull->center.z;
 }
 
 int32_t m3InternHull(m3World* world, const m3HullData* data)

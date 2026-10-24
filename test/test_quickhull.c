@@ -204,6 +204,7 @@ static void TestFuzzSweep(void)
             float n2 = m3Dot3(hull.faceNormals[f], hull.faceNormals[f]);
             CHECK(n2 > 0.99f && n2 < 1.01f, "face normals stay unit");
         }
+        CHECK(m3HullDataValid(&hull), "the build passes the hull wall");
         m3HullData again;
         CHECK(m3ComputeHull(&s_heap, pts, count, &again), "the rebuild succeeds");
         CHECK(memcmp(&hull, &again, sizeof(m3HullData)) == 0, "the rebuild is bit-identical");
@@ -230,6 +231,28 @@ static void TestHalfEdgeTwinLaw(void)
         int32_t b1 = hull.edges[hull.edges[e + 1].next].origin;
         CHECK(a0 == b1 && a1 == b0, "twin edges run opposite directions");
     }
+}
+
+static void TestHullWallSeesEveryEdge(void)
+{
+    // The wall restore holds hull content to: what the builders make
+    // passes. Loops that repeat a directed edge can still count one half
+    // edge per index while leaving some half edges unwritten; whatever
+    // the input holds there must not pass.
+    m3HullData box;
+    m3BuildBoxHull(&box, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(m3HullDataValid(&box), "a box passes the hull wall");
+    m3HullData crafted = box;
+    // The +z face takes the -z face's loop: four directed edges twice.
+    memcpy(&crafted.faceIndices[4 * 4], &crafted.faceIndices[5 * 4], 4);
+    // The input's edges are what the builder makes of these loops, with
+    // the box's own edges in the slots it leaves alone.
+    m3HullData built = crafted;
+    CHECK(m3HullBuildHalfEdges(&built) && built.edgeCount == crafted.indexCount,
+          "the repeated loops still count one half edge per index");
+    memcpy(crafted.edges, built.edges, sizeof(crafted.edges));
+    crafted.center = built.center;
+    CHECK(!m3HullDataValid(&crafted), "half edges the builder never writes are refused");
 }
 
 // The parity cap. A dense sphere cloud must produce a hull
@@ -331,6 +354,7 @@ int main(void)
     TestBigHullCap();
     TestBoundaryClouds();
     TestHalfEdgeTwinLaw();
+    TestHullWallSeesEveryEdge();
     if (s_failures == 0)
     {
         printf("test_quickhull: all checks passed\n");
