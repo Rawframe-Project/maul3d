@@ -6,6 +6,14 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.1.1](https://github.com/Rawframe-Project/maul3d/compare/v0.1.0...v0.1.1) (2026-10-24)
+
+
+### Fixed
+
+* compute in the library's float environment on any host thread ([#35](https://github.com/Rawframe-Project/maul3d/issues/35)) ([c197c7f](https://github.com/Rawframe-Project/maul3d/commit/c197c7f11c9eb16db1fd621cbe3bb46577e09f53))
+* rebuild voxel surfaces in storage the world reserves for them ([#38](https://github.com/Rawframe-Project/maul3d/issues/38)) ([a130126](https://github.com/Rawframe-Project/maul3d/commit/a13012654568c58f6dc8148c0ae688718930f11d))
+
 ## [0.1.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.0) (2026-10-24)
 
 ### Changed
