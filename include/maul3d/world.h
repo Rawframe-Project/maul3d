@@ -124,7 +124,9 @@ extern "C"
     /// building a level and queries walk a balanced tree instead.
     /// Deterministic and journaled: the rebuilt shape is a pure
     /// function of the live shapes, so twins and replays agree.
-    M3_API void m3World_RebuildBroadphase(m3World* world);
+    /// Returns m3_errorCapacity, with the tree unchanged and nothing
+    /// recorded, when the world's allocator refuses the scratch.
+    M3_NODISCARD M3_API m3Result m3World_RebuildBroadphase(m3World* world);
     /// A water volume: a world-anchored axis-aligned box of
     /// still or flowing water. The surface is the box top; there is
     /// no fluid simulation BY LAW. Rigid bodies inside get buoyancy

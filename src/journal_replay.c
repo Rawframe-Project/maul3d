@@ -462,8 +462,7 @@ static bool ApplyRebuildBroadphase(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    m3RebuildBroadphaseInternal(world);
-    return true;
+    return m3RebuildBroadphaseInternal(world); // no memory refuses the replay
 }
 
 static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)

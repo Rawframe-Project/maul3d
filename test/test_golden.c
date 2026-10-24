@@ -898,7 +898,7 @@ static void TourActors(const Tour* t)
     (void)SetStance(t->world, t->cast.hero, 0.25f, 0.2f);
     m3Vehicle_SelectGear(t->world, t->cast.car, 2);
     m3Vehicle_SetTankCommands(t->world, t->tank, 0.5f, -0.5f, 0.0f);
-    m3World_RebuildBroadphase(t->world);
+    CHECK(m3World_RebuildBroadphase(t->world) == m3_success, "the tour rebuilds the tree");
     m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
     m3VoxelChunk_SetFill(t->world, t->cast.stairs, 2, 0, 2, 128);
     m3VoxelChunk_ClearVoxel(t->world, t->cast.stairs, 14, 7, 5);

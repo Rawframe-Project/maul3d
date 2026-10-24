@@ -46,7 +46,8 @@ void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
 
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 
-void m3RebuildBroadphaseInternal(m3World* world);
+// False, with the tree untouched, when the allocator refuses the scratch.
+bool m3RebuildBroadphaseInternal(m3World* world);
 
 void m3SetContactTuningInternal(m3World* world, float hertz, float dampingRatio, float pushSpeed);
 

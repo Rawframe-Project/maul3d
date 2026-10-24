@@ -674,12 +674,36 @@ void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHe
     m3SetWindInternal(world, direction, speed, gustHertz, gustScale);
 }
 
-void m3RebuildBroadphaseInternal(m3World* world)
+// The broadphase rebuild's scratch, taken whole before anything is
+// recorded or changed, so a refusing allocator leaves the tape and the
+// tree as they were.
+typedef struct RebuildScratch
 {
-    // Collect the live proxies in shape-slot order (the canonical
-    // list), carrying their CURRENT fat bounds: fatness is state,
-    // and preserving it keeps every downstream pair decision
-    // exactly where it was.
+    int32_t count;
+    double (*los)[3];
+    double (*his)[3];
+    int32_t* uds;
+    uint32_t* masks;
+    int32_t* order; // the tree's sort buffer, twice count
+    int32_t* outNodes;
+} RebuildScratch;
+
+static void DropRebuildScratch(m3World* world, RebuildScratch* scratch)
+{
+    m3Free(&world->heap, scratch->los);
+    m3Free(&world->heap, scratch->his);
+    m3Free(&world->heap, scratch->uds);
+    m3Free(&world->heap, scratch->masks);
+    m3Free(&world->heap, scratch->order);
+    m3Free(&world->heap, scratch->outNodes);
+    memset(scratch, 0, sizeof(*scratch));
+}
+
+// Takes the scratch for every live proxy. False, holding nothing, when
+// the allocator refuses; a world without proxies needs none.
+static bool TakeRebuildScratch(m3World* world, RebuildScratch* scratch)
+{
+    memset(scratch, 0, sizeof(*scratch));
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     int32_t count = 0;
     for (int32_t s = 0; s < maxShape; ++s)
@@ -691,24 +715,36 @@ void m3RebuildBroadphaseInternal(m3World* world)
     }
     if (count == 0)
     {
+        return true;
+    }
+    scratch->count = count;
+    scratch->los = (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
+    scratch->his = (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
+    scratch->uds = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
+    scratch->masks = (uint32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(uint32_t));
+    scratch->order = (int32_t*)m3AllocZeroed(&world->heap, 2 * count * (int32_t)sizeof(int32_t));
+    scratch->outNodes = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
+    if (scratch->los == NULL || scratch->his == NULL || scratch->uds == NULL ||
+        scratch->masks == NULL || scratch->order == NULL || scratch->outNodes == NULL)
+    {
+        DropRebuildScratch(world, scratch);
+        return false;
+    }
+    return true;
+}
+
+// Rebuilds the tree from the scratch's proxies; takes no memory.
+static void RebuildWithScratch(m3World* world, RebuildScratch* scratch)
+{
+    if (scratch->count == 0)
+    {
         return;
     }
-    double (*los)[3] =
-        (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
-    double (*his)[3] =
-        (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
-    int32_t* uds = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
-    uint32_t* masks = (uint32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(uint32_t));
-    int32_t* outNodes = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
-    if (los == NULL || his == NULL || uds == NULL || masks == NULL || outNodes == NULL)
-    {
-        m3Free(&world->heap, los);
-        m3Free(&world->heap, his);
-        m3Free(&world->heap, uds);
-        m3Free(&world->heap, masks);
-        m3Free(&world->heap, outNodes);
-        return; // no memory: the old tree stays, correct either way
-    }
+    // Collect the live proxies in shape-slot order (the canonical
+    // list), carrying their CURRENT fat bounds: fatness is state,
+    // and preserving it keeps every downstream pair decision
+    // exactly where it was.
+    int32_t maxShape = world->shapes.shapePool.maxIndex;
     int32_t n = 0;
     for (int32_t s = 0; s < maxShape; ++s)
     {
@@ -719,43 +755,59 @@ void m3RebuildBroadphaseInternal(m3World* world)
         const m3TreeNode* leaf = &world->broadphase.tree.nodes[world->broadphase.proxyIds[s]];
         for (int32_t k = 0; k < 3; ++k)
         {
-            los[n][k] = leaf->lo[k];
-            his[n][k] = leaf->hi[k];
+            scratch->los[n][k] = leaf->lo[k];
+            scratch->his[n][k] = leaf->hi[k];
         }
-        uds[n] = s;
-        masks[n] = leaf->mask;
+        scratch->uds[n] = s;
+        scratch->masks[n] = leaf->mask;
         n += 1;
     }
-    if (m3TreeRebuild(&world->heap, &world->broadphase.tree, los, his, uds, masks, n, outNodes))
+    // n leaves already sit in the tree, so it has the 2n - 1 nodes.
+    bool rebuilt = m3TreeRebuild(&world->broadphase.tree, scratch->los, scratch->his, scratch->uds,
+                                 scratch->masks, n, scratch->order, scratch->outNodes);
+    M3_ASSERT(rebuilt);
+    (void)rebuilt;
+    for (int32_t i = 0; i < n; ++i)
     {
-        for (int32_t i = 0; i < n; ++i)
-        {
-            world->broadphase.proxyIds[uds[i]] = outNodes[i];
-        }
+        world->broadphase.proxyIds[scratch->uds[i]] = scratch->outNodes[i];
     }
-    m3Free(&world->heap, los);
-    m3Free(&world->heap, his);
-    m3Free(&world->heap, uds);
-    m3Free(&world->heap, masks);
-    m3Free(&world->heap, outNodes);
 }
 
-void m3World_RebuildBroadphase(m3World* world)
+bool m3RebuildBroadphaseInternal(m3World* world)
+{
+    RebuildScratch scratch;
+    if (!TakeRebuildScratch(world, &scratch))
+    {
+        return false;
+    }
+    RebuildWithScratch(world, &scratch);
+    DropRebuildScratch(world, &scratch);
+    return true;
+}
+
+m3Result m3World_RebuildBroadphase(m3World* world)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
-        return;
+        return m3Refuse(world, m3_errorState);
     }
     if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    // The scratch comes first: once the op is on the tape, the rebuild
+    // must happen, or a replay with memory would rebuild alone.
+    RebuildScratch scratch;
+    if (!TakeRebuildScratch(world, &scratch))
+    {
+        return m3_errorCapacity; // the tree and the tape stay as they were
     }
     if (world->recorder.journalActive != 0)
     {
         int32_t zero = 0;
         m3JournalRecord(world, m3_opRebuildBroadphase, &zero, 4);
     }
-    m3RebuildBroadphaseInternal(world);
+    RebuildWithScratch(world, &scratch);
+    DropRebuildScratch(world, &scratch);
+    return m3_success;
 }

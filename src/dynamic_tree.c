@@ -559,18 +559,13 @@ static int32_t BuildRange(m3Tree* tree, RebuildInput* in, int32_t s, int32_t e)
     return id;
 }
 
-bool m3TreeRebuild(m3Heap* heap, m3Tree* tree, const double (*los)[3], const double (*his)[3],
-                   const int32_t* userDatas, const uint32_t* masks, int32_t count,
+bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
+                   const int32_t* userDatas, const uint32_t* masks, int32_t count, int32_t* order,
                    int32_t* outNodes)
 {
     if (count < 0 || (count > 0 && 2 * count - 1 > tree->capacity))
     {
         return false; // a tree over n leaves needs 2n - 1 nodes
-    }
-    int32_t* order = (int32_t*)m3AllocZeroed(heap, 2 * count * (int32_t)sizeof(int32_t) + 1);
-    if (order == NULL)
-    {
-        return false; // the old tree stays untouched
     }
     // Every node goes back on the free chain in ascending order, so the
     // rebuilt layout is a pure function of the input list.
@@ -584,7 +579,6 @@ bool m3TreeRebuild(m3Heap* heap, m3Tree* tree, const double (*los)[3], const dou
     {
         tree->root = BuildRange(tree, &in, 0, count);
     }
-    m3Free(heap, order);
     M3_ASSERT(m3TreeValidate(tree));
     return true;
 }
