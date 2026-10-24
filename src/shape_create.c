@@ -49,7 +49,7 @@ static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDe
                                           &(m3ShapeContent){NULL, NULL, NULL, NULL});
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -253,7 +253,7 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                           &(m3ShapeContent){&data, NULL, NULL, NULL});
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -334,7 +334,7 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     if (index < 0)
     {
         m3MeshDataFree(&world->heap, &mesh);
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -492,7 +492,7 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
     if (index < 0)
     {
         m3HeightFieldDataFree(&world->heap, &hf);
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -563,7 +563,7 @@ m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef
     m3Free(&world->heap, chunk);
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)

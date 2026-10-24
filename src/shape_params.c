@@ -157,7 +157,7 @@ void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool upd
     {
         return;
     }
-    if (!m3FiniteF(density) || density <= 0.0f)
+    if (!m3DensityF(density))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

@@ -72,6 +72,11 @@ static inline bool m3LocalF(m3real x)
     return x >= -M3_LOCAL_LIMIT && x <= M3_LOCAL_LIMIT; // false for NaN
 }
 
+static inline bool m3DensityF(float x)
+{
+    return x > 0.0f && x <= M3_DENSITY_LIMIT; // false for NaN
+}
+
 static inline bool m3LocalV3(m3Vec3 v)
 {
     return m3LocalF(v.x) && m3LocalF(v.y) && m3LocalF(v.z);

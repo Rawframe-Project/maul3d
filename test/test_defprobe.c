@@ -8,6 +8,12 @@
 // survives a snapshot restored into a twin world, before and after two
 // steps. A def that creation takes but restore refuses would make a
 // world that cannot roll back.
+//
+// Replay checks the same things too. Each create is also recorded clean,
+// the def in the tape is poisoned the same way, and replaying the tape
+// must agree with the create: it succeeds where the create did, and
+// otherwise refuses with m3_errorInvalid, counts no misuse and leaves the
+// world as it was.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -34,6 +40,36 @@ static const float s_floats[] = {NAN, INFINITY, -INFINITY, -1.0f, 0.0f, 1.0e30f,
 static const double s_doubles[] = {(double)NAN, (double)INFINITY, -(double)INFINITY, 1.0e300,
                                    -1.0e300};
 static const int32_t s_ints[] = {-1, 0, 99, INT32_MAX, INT32_MIN};
+
+// Every world the probe makes allocates through this host allocator,
+// which refuses any block over 64 MB. A poisoned capacity of INT32_MAX
+// is a valid request for a world bigger than the host has, and the
+// library must answer m3_errorCapacity; without the cap the request
+// would reach the C library, which on wasm aborts instead of returning
+// NULL. No object create may allocate a block that large.
+#define PROBE_BLOCK_LIMIT ((size_t)64 << 20)
+
+static int32_t s_refusedBlocks;
+
+static void* ProbeAlloc(size_t bytes, size_t alignment, void* context)
+{
+    (void)alignment;
+    (void)context;
+    if (bytes > PROBE_BLOCK_LIMIT)
+    {
+        s_refusedBlocks += 1;
+        return NULL;
+    }
+    return malloc(bytes);
+}
+
+static void ProbeFree(void* memory, size_t bytes, size_t alignment, void* context)
+{
+    (void)bytes;
+    (void)alignment;
+    (void)context;
+    free(memory);
+}
 
 // The world every probe builds in: a floor and two dynamic boxes.
 static m3WorldDef s_worldDef;
@@ -75,6 +111,15 @@ static bool Restores(const m3World* world)
 
 typedef m3Result Builder(m3World* world, const void* def);
 
+typedef struct Target
+{
+    const char* what;
+    const void* base;
+    size_t size;
+    Builder* build;
+    bool taped; // the create journals its def at the start of its record
+} Target;
+
 static void Poison(uint8_t* def, const Field* field, int32_t value)
 {
     switch (field->kind)
@@ -104,24 +149,63 @@ static void Report(const char* what, const Field* field, int32_t value, const ch
     CHECK(false, message);
 }
 
-static void Probe(const char* what, const void* base, size_t size, const Field* fields,
-                  int32_t count, Builder* build)
+// Records the clean create, poisons the def in the tape's last record
+// (the create) and replays the tape over the scene the create started
+// from. Whether the replay agrees with what the poisoned create did.
+static bool ReplayAgrees(const Target* target, const Field* field, int32_t value, m3Result created)
+{
+    static uint8_t tape[65536];
+    m3World* world = Scene();
+    int32_t capacity = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int32_t snapBytes = 0;
+    bool ok = snap != NULL && m3World_Snapshot(world, snap, capacity, &snapBytes) == m3_success &&
+              StartJournal(world, tape, (int32_t)sizeof(tape)) &&
+              target->build(world, target->base) == m3_success;
+    int32_t tapeBytes = StopJournal(world);
+    int32_t last = -1;
+    for (int32_t at = 0; ok && at + 8 <= tapeBytes;)
+    {
+        int32_t payloadBytes;
+        memcpy(&payloadBytes, tape + at + 4, sizeof(payloadBytes));
+        last = at;
+        at += 8 + payloadBytes;
+    }
+    ok = ok && last >= 0 && m3World_Restore(world, snap, snapBytes) == m3_success;
+    if (ok)
+    {
+        Poison(tape + last + 8, field, value);
+        uint64_t hash = m3World_Hash(world);
+        uint64_t misuse = m3World_GetCounters(world).misuse;
+        m3Result replayed = m3World_ReplayJournal(world, tape, tapeBytes);
+        ok = created == m3_success
+                 ? replayed == m3_success
+                 : replayed == m3_errorInvalid && m3World_GetCounters(world).misuse == misuse &&
+                       m3World_Hash(world) == hash;
+    }
+    free(snap);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+static void Probe(const Target* target, const Field* fields, int32_t count)
 {
     uint8_t def[2048];
-    if (size > sizeof(def))
+    if (target->size > sizeof(def))
     {
         CHECK(false, "a def fits the probe buffer");
         return;
     }
+    const char* what = target->what;
     for (int32_t f = 0; f < count; ++f)
     {
         for (int32_t v = 0; v < ValueCount(fields[f].kind); ++v)
         {
-            memcpy(def, base, size);
+            memcpy(def, target->base, target->size);
             Poison(def, &fields[f], v);
             m3World* world = Scene();
             uint64_t misuse = m3World_GetCounters(world).misuse;
-            m3Result result = build(world, def);
+            m3Result result = target->build(world, def);
             if (result == m3_success)
             {
                 if (!Restores(world))
@@ -140,6 +224,15 @@ static void Probe(const char* what, const void* base, size_t size, const Field* 
                 Report(what, &fields[f], v, "refused without m3_errorInvalid and one misuse");
             }
             m3DestroyWorld(world);
+            if (target->taped && !ReplayAgrees(target, &fields[f], v, result))
+            {
+                Report(what, &fields[f], v, "a tape with it replays unlike the create");
+            }
+            if (s_refusedBlocks != 0)
+            {
+                Report(what, &fields[f], v, "a create asked for a block over the probe's limit");
+                s_refusedBlocks = 0;
+            }
         }
     }
 }
@@ -232,7 +325,8 @@ static void ProbeBodies(void)
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 4.0, 0.0};
-    Probe("m3BodyDef", &bd, sizeof(bd), fields, COUNT(fields), BuildBody);
+    Target target = {"m3BodyDef", &bd, sizeof(bd), BuildBody, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeShapes(void)
@@ -245,7 +339,8 @@ static void ProbeShapes(void)
         FIELD(m3ShapeDef, localRotation.w, 'f'),
     };
     m3ShapeDef sd = m3DefaultShapeDef();
-    Probe("m3ShapeDef", &sd, sizeof(sd), fields, COUNT(fields), BuildShape);
+    Target target = {"m3ShapeDef", &sd, sizeof(sd), BuildShape, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeJoints(void)
@@ -294,7 +389,8 @@ static void ProbeJoints(void)
         }
         char what[32];
         snprintf(what, sizeof(what), "m3JointDef(type %d)", (int)type);
-        Probe(what, &jd, sizeof(jd), fields, COUNT(fields), BuildJoint);
+        Target target = {what, &jd, sizeof(jd), BuildJoint, true};
+        Probe(&target, fields, COUNT(fields));
     }
 }
 
@@ -309,7 +405,8 @@ static void ProbeCharacters(void)
     };
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.position = (m3Pos3){-3.0, 1.0, 0.0};
-    Probe("m3CharacterDef", &cd, sizeof(cd), fields, COUNT(fields), BuildCharacter);
+    Target target = {"m3CharacterDef", &cd, sizeof(cd), BuildCharacter, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeVehicles(void)
@@ -333,7 +430,8 @@ static void ProbeVehicles(void)
     m3World* world = Scene(); // fixes s_boxA, the same id in every scene
     m3DestroyWorld(world);
     m3VehicleDef vd = CarDef();
-    Probe("m3VehicleDef", &vd, sizeof(vd), fields, COUNT(fields), BuildVehicle);
+    Target target = {"m3VehicleDef", &vd, sizeof(vd), BuildVehicle, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeDrivetrains(void)
@@ -347,7 +445,9 @@ static void ProbeDrivetrains(void)
         FIELD(m3DrivetrainDef, diffMode, 'i'),       FIELD(m3DrivetrainDef, diffCouple, 'f'),
     };
     m3DrivetrainDef dd = m3DefaultDrivetrainDef();
-    Probe("m3DrivetrainDef", &dd, sizeof(dd), fields, COUNT(fields), BuildDrivetrain);
+    // The drivetrain is a setter on a car the probe builds first.
+    Target target = {"m3DrivetrainDef", &dd, sizeof(dd), BuildDrivetrain, false};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeSoftBodies(void)
@@ -362,7 +462,8 @@ static void ProbeSoftBodies(void)
     };
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){-4.0, 3.0, 0.0};
-    Probe("m3SoftBodyDef", &sb, sizeof(sb), fields, COUNT(fields), BuildSoftBody);
+    Target target = {"m3SoftBodyDef", &sb, sizeof(sb), BuildSoftBody, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 static void ProbeWater(void)
@@ -375,7 +476,8 @@ static void ProbeWater(void)
     m3WaterVolumeDef wd = m3DefaultWaterVolumeDef();
     wd.lo = (m3Pos3){-5.0, 0.0, -5.0};
     wd.hi = (m3Pos3){5.0, 2.0, 5.0};
-    Probe("m3WaterVolumeDef", &wd, sizeof(wd), fields, COUNT(fields), BuildWater);
+    Target target = {"m3WaterVolumeDef", &wd, sizeof(wd), BuildWater, true};
+    Probe(&target, fields, COUNT(fields));
 }
 
 // The world def has no world to count misuse against: a create refuses
@@ -438,6 +540,8 @@ static void ProbeWorlds(void)
 int main(void)
 {
     s_worldDef = m3DefaultWorldDef();
+    s_worldDef.allocator.alloc = ProbeAlloc;
+    s_worldDef.allocator.free = ProbeFree;
     s_worldDef.bodyCapacity = 64;
     s_worldDef.shapeCapacity = 64;
     s_worldDef.jointCapacity = 8;

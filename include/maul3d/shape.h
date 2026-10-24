@@ -321,7 +321,8 @@ extern "C"
     M3_API float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape);
 
     /// Set the density and optionally rebuild the owning body's
-    /// mass, center and inertia from all its shapes. Journaled.
+    /// mass, center and inertia from all its shapes. Journaled. The
+    /// density must be positive and at most 1e6, as at creation.
     M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density,
                                    bool updateBodyMass);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);

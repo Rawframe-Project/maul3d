@@ -318,26 +318,11 @@ m3Result m3CreateBody(m3World* world, const m3BodyDef* def, m3BodyId* bodyOut)
     {
         return m3Refuse(world, m3_errorState);
     }
-    if (world == NULL || def == NULL || def->internalValue != M3_BODY_COOKIE ||
-        (def->type != m3_staticBody && def->type != m3_kinematicBody &&
-         def->type != m3_dynamicBody))
+    if (world == NULL || def == NULL || def->internalValue != M3_BODY_COOKIE)
     {
         // Contract, not invariant: a bad def or stale world returns
-        // the null id (see m3CreateWorld).
-        return m3Refuse(world, m3_errorInvalid);
-    }
-    // Hostile-input wall: nothing non-finite reaches state,
-    // and a rotation that is not close to unit is a corrupted def,
-    // not a request (loud refusal beats silent renormalization).
-    m3real qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
-                def->rotation.z * def->rotation.z + def->rotation.w * def->rotation.w;
-    if (!m3FinitePos3(def->position) || !m3FiniteQuat(def->rotation) ||
-        !m3FiniteV3(def->linearVelocity) || !m3FiniteV3(def->angularVelocity) ||
-        !m3FiniteF(def->gravityScale) || !m3FiniteF(def->linearDamping) ||
-        !m3FiniteF(def->angularDamping) || def->linearDamping < 0.0f ||
-        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
-        !m3FiniteF(def->sleepThreshold) || def->sleepThreshold < 0.0f)
-    {
+        // the null id (see m3CreateWorld). The rest of the def is
+        // checked once, inside m3CreateBodyInternal.
         return m3Refuse(world, m3_errorInvalid);
     }
     int32_t index = m3CreateBodyInternal(world, def);

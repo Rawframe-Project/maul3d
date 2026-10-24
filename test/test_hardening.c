@@ -415,6 +415,94 @@ static void TestUntrustedDataCountsNoMisuse(void)
     m3DestroyWorld(world);
 }
 
+typedef enum StaticDoor
+{
+    planeDoor,
+    meshDoor,
+    voxelDoor,
+    doorCount
+} StaticDoor;
+
+static void CreateOnGround(m3World* world, m3BodyId ground, StaticDoor door)
+{
+    static const m3Vec3 quad[4] = {
+        {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 1.0f}};
+    static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    static uint8_t voxels[16 * 16 * 16];
+    voxels[0] = 1;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Plane plane = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId shape = m3_nullShapeId;
+    if (door == planeDoor)
+    {
+        shape = NewPlaneShape(world, ground, &sd, &plane);
+    }
+    else if (door == meshDoor)
+    {
+        shape = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
+    }
+    else
+    {
+        shape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    }
+    CHECK(m3Shape_IsValid(world, shape), "the clean static shape is created");
+}
+
+// Replays a tape over the snapshot, after an optional change the tape
+// does not hold. Whether it is refused as untrusted data: m3_errorInvalid,
+// no misuse, and the world as it was.
+static bool TapeRefused(m3World* world, const uint8_t* snap, int32_t snapBytes, const uint8_t* tape,
+                        int32_t tapeBytes, m3BodyId makeDynamic)
+{
+    if (!Restore(world, snap, snapBytes))
+    {
+        return false;
+    }
+    if (makeDynamic.index1 != 0)
+    {
+        m3Body_SetType(world, makeDynamic, m3_dynamicBody);
+    }
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t hash = m3World_Hash(world);
+    return m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorInvalid &&
+           m3World_GetCounters(world).misuse == misuse && m3World_Hash(world) == hash;
+}
+
+// Replay builds shapes through the same walls as the public creates: a
+// tape cannot put a plane, a mesh or a voxel chunk on a dynamic body,
+// nor give a mesh an index past its vertices.
+static void TestReplayHoldsTheShapeRules(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    int32_t capacity = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int32_t snapBytes = Snapshot(world, snap, capacity);
+    CHECK(snap != NULL && snapBytes > 0, "the empty ground is snapshotted");
+    static uint8_t tape[65536];
+    for (int32_t door = 0; door < doorCount; ++door)
+    {
+        CHECK(Restore(world, snap, snapBytes), "the ground restores");
+        CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+        CreateOnGround(world, ground, (StaticDoor)door);
+        int32_t tapeBytes = StopJournal(world);
+        CHECK(tapeBytes > 8, "the create is recorded");
+        CHECK(TapeRefused(world, snap, snapBytes, tape, tapeBytes, ground),
+              "a static-only shape on a dynamic body is refused by replay");
+        if (door == meshDoor)
+        {
+            tape[tapeBytes - 1] = 0xFFu; // the last index, past the four vertices
+            tape[tapeBytes - 2] = 0xFFu;
+            CHECK(TapeRefused(world, snap, snapBytes, tape, tapeBytes, m3_nullBodyId),
+                  "a mesh index past its vertices is refused by replay");
+        }
+    }
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 // Host code that Step or Draw runs (the pre-solve callback, debug draw
 // callbacks) cannot change the world under it: a writer it calls is
 // refused with m3_errorState, counts one misuse and changes nothing.
@@ -515,6 +603,7 @@ int main(void)
     TestJournalOverflowIsLoud();
     TestShapeDefsRefuseAsInvalid();
     TestUntrustedDataCountsNoMisuse();
+    TestReplayHoldsTheShapeRules();
     TestWritersRefuseWhileBusy();
     if (s_failures == 0)
     {

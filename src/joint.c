@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Joint lifecycle: the same law as bodies and shapes. Public
-// functions validate and journal, internal functions mutate, replay
-// drives the internals and verifies minted ids. The warm-start
+// functions resolve ids and journal, internal functions validate and
+// mutate, replay drives the internals and verifies minted ids. The warm-start
 // impulse lives in the persistent arena and rides the snapshot.
 
 #include "joint.h"
@@ -167,6 +167,126 @@ static bool BakeWheel(const m3World* world, const m3JointDef* def, int32_t bodyA
     return true;
 }
 
+static bool AxesReal(const m3JointDef* def)
+{
+    return m3Dot3(def->localAxisA, def->localAxisA) > 0.0f &&
+           m3Dot3(def->localAxisB, def->localAxisB) > 0.0f;
+}
+
+// Sane modes and finite ordered limits on every axis. At most one
+// angular axis is limited, and only when the other two are both locked
+// or both free.
+static bool GenericAxesValid(const m3JointDef* def)
+{
+    int32_t limitedAngular = 0;
+    int32_t lockedAngular = 0;
+    int32_t freeAngular = 0;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        if (def->genericLinear[k] > 2 || def->genericAngular[k] > 2)
+        {
+            return false;
+        }
+        if (def->genericLinear[k] == (uint8_t)m3_axisLimited &&
+            !(m3FiniteF(def->genericLinearLower[k]) && m3FiniteF(def->genericLinearUpper[k]) &&
+              def->genericLinearLower[k] <= def->genericLinearUpper[k]))
+        {
+            return false;
+        }
+        if (def->genericAngular[k] == (uint8_t)m3_axisLimited &&
+            !(m3FiniteF(def->genericAngularLower[k]) && m3FiniteF(def->genericAngularUpper[k]) &&
+              def->genericAngularLower[k] <= def->genericAngularUpper[k]))
+        {
+            return false;
+        }
+        limitedAngular += def->genericAngular[k] == (uint8_t)m3_axisLimited ? 1 : 0;
+        lockedAngular += def->genericAngular[k] == (uint8_t)m3_axisLocked ? 1 : 0;
+        freeAngular += def->genericAngular[k] == (uint8_t)m3_axisFree ? 1 : 0;
+    }
+    return limitedAngular == 0 || (limitedAngular == 1 && (lockedAngular == 2 || freeAngular == 2));
+}
+
+// The generic contract: valid axes, at most one motor and only on an
+// axis that can move, and a joint frame with real axes.
+static bool GenericDefValid(const m3JointDef* def)
+{
+    if (!GenericAxesValid(def) || !AxesReal(def))
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        if (!m3FiniteF(def->genericLinearLower[i]) || !m3FiniteF(def->genericLinearUpper[i]) ||
+            !m3FiniteF(def->genericAngularLower[i]) || !m3FiniteF(def->genericAngularUpper[i]))
+        {
+            return false;
+        }
+    }
+    if (def->genericMotorAxis == 255)
+    {
+        return true;
+    }
+    if (def->genericMotorAxis > 5 || !m3FiniteF(def->motorSpeed) ||
+        !m3FiniteF(def->maxMotorEffort) || def->maxMotorEffort < 0.0f)
+    {
+        return false;
+    }
+    uint8_t mode = def->genericMotorAxis < 3 ? def->genericLinear[def->genericMotorAxis]
+                                             : def->genericAngular[def->genericMotorAxis - 3];
+    return mode != (uint8_t)m3_axisLocked;
+}
+
+// The distance contract: an explicit range (a rod has equal bounds), and
+// a spring only with a real hertz and a rest length inside the range.
+static bool DistanceDefValid(const m3JointDef* def)
+{
+    if (!def->enableLimit || def->lowerLimit < 0.0f)
+    {
+        return false;
+    }
+    return !def->enableMotor || (def->motorSpeed > 0.0f && def->maxMotorEffort >= 0.0f &&
+                                 !(def->coneAngle > 0.0f && (def->coneAngle < def->lowerLimit ||
+                                                             def->coneAngle > def->upperLimit)));
+}
+
+// The whole def contract in one place: known type, real axes where the
+// type needs them, the generic and distance rules, and finite, ordered
+// fields. m3CreateJoint runs it before resolving the bodies, and
+// m3CreateJointInternal runs it again for replay.
+static bool JointDefIsValid(const m3JointDef* def)
+{
+    if (def->internalValue != M3_JOINT_COOKIE || def->type < 0 ||
+        def->type > (int32_t)m3_pulleyJoint)
+    {
+        return false;
+    }
+    bool typeValid = true;
+    switch (def->type)
+    {
+    case m3_revoluteJoint:
+    case m3_prismaticJoint:
+    case m3_wheelJoint:
+    case m3_parallelJoint:
+        typeValid = AxesReal(def);
+        break;
+    case m3_genericJoint:
+        typeValid = GenericDefValid(def);
+        break;
+    case m3_distanceJoint:
+        typeValid = DistanceDefValid(def);
+        break;
+    default:
+        break;
+    }
+    return typeValid && m3LocalV3(def->localAnchorA) && m3LocalV3(def->localAnchorB) &&
+           m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
+           m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) && m3FiniteF(def->motorSpeed) &&
+           m3FiniteF(def->maxMotorEffort) && m3FiniteF(def->coneAngle) &&
+           def->maxMotorEffort >= 0.0f &&
+           !(def->enableLimit && def->lowerLimit > def->upperLimit) &&
+           !(def->enableCone && def->coneAngle < 0.0f);
+}
+
 // The type whitelist and the geometry walls live here, not only in the
 // public wall, because replay hands m3CreateJointInternal raw journal
 // bytes: a flipped type byte must refuse instead of minting a joint no
@@ -305,8 +425,14 @@ static void InitGenericJoint(m3World* world, int32_t index, const m3JointDef* de
 
 int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB)
 {
+    // The def contract and the body pair are checked here, not only in
+    // m3CreateJoint, because replay hands this function raw journal bytes.
+    // A joint between two immovable bodies is inert and refuses.
     JointBake bake;
-    if (!BakeJointDef(world, def, bodyA, bodyB, &bake))
+    if (!JointDefIsValid(def) || bodyA == bodyB ||
+        (world->bodies.types[bodyA] != (uint8_t)m3_dynamicBody &&
+         world->bodies.types[bodyB] != (uint8_t)m3_dynamicBody) ||
+        !BakeJointDef(world, def, bodyA, bodyB, &bake))
     {
         return M3_CREATE_INVALID;
     }
@@ -426,125 +552,6 @@ void m3DestroyJointInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->joints.jointPool, index);
 }
 
-static bool AxesReal(const m3JointDef* def)
-{
-    return m3Dot3(def->localAxisA, def->localAxisA) > 0.0f &&
-           m3Dot3(def->localAxisB, def->localAxisB) > 0.0f;
-}
-
-// Sane modes and finite ordered limits on every axis. At most one
-// angular axis is limited, and only when the other two are both locked
-// or both free.
-static bool GenericAxesValid(const m3JointDef* def)
-{
-    int32_t limitedAngular = 0;
-    int32_t lockedAngular = 0;
-    int32_t freeAngular = 0;
-    for (int32_t k = 0; k < 3; ++k)
-    {
-        if (def->genericLinear[k] > 2 || def->genericAngular[k] > 2)
-        {
-            return false;
-        }
-        if (def->genericLinear[k] == (uint8_t)m3_axisLimited &&
-            !(m3FiniteF(def->genericLinearLower[k]) && m3FiniteF(def->genericLinearUpper[k]) &&
-              def->genericLinearLower[k] <= def->genericLinearUpper[k]))
-        {
-            return false;
-        }
-        if (def->genericAngular[k] == (uint8_t)m3_axisLimited &&
-            !(m3FiniteF(def->genericAngularLower[k]) && m3FiniteF(def->genericAngularUpper[k]) &&
-              def->genericAngularLower[k] <= def->genericAngularUpper[k]))
-        {
-            return false;
-        }
-        limitedAngular += def->genericAngular[k] == (uint8_t)m3_axisLimited ? 1 : 0;
-        lockedAngular += def->genericAngular[k] == (uint8_t)m3_axisLocked ? 1 : 0;
-        freeAngular += def->genericAngular[k] == (uint8_t)m3_axisFree ? 1 : 0;
-    }
-    return limitedAngular == 0 || (limitedAngular == 1 && (lockedAngular == 2 || freeAngular == 2));
-}
-
-// The generic contract: valid axes, at most one motor and only on an
-// axis that can move, and a joint frame with real axes.
-static bool GenericDefValid(const m3JointDef* def)
-{
-    if (!GenericAxesValid(def) || !AxesReal(def))
-    {
-        return false;
-    }
-    for (int32_t i = 0; i < 3; ++i)
-    {
-        if (!m3FiniteF(def->genericLinearLower[i]) || !m3FiniteF(def->genericLinearUpper[i]) ||
-            !m3FiniteF(def->genericAngularLower[i]) || !m3FiniteF(def->genericAngularUpper[i]))
-        {
-            return false;
-        }
-    }
-    if (def->genericMotorAxis == 255)
-    {
-        return true;
-    }
-    if (def->genericMotorAxis > 5 || !m3FiniteF(def->motorSpeed) ||
-        !m3FiniteF(def->maxMotorEffort) || def->maxMotorEffort < 0.0f)
-    {
-        return false;
-    }
-    uint8_t mode = def->genericMotorAxis < 3 ? def->genericLinear[def->genericMotorAxis]
-                                             : def->genericAngular[def->genericMotorAxis - 3];
-    return mode != (uint8_t)m3_axisLocked;
-}
-
-// The distance contract: an explicit range (a rod has equal bounds), and
-// a spring only with a real hertz and a rest length inside the range.
-static bool DistanceDefValid(const m3JointDef* def)
-{
-    if (!def->enableLimit || def->lowerLimit < 0.0f)
-    {
-        return false;
-    }
-    return !def->enableMotor || (def->motorSpeed > 0.0f && def->maxMotorEffort >= 0.0f &&
-                                 !(def->coneAngle > 0.0f && (def->coneAngle < def->lowerLimit ||
-                                                             def->coneAngle > def->upperLimit)));
-}
-
-// The whole def contract in one place: known type, real axes where the
-// type needs them, the generic and distance rules, and finite, ordered
-// fields. m3CreateJoint refuses once when this fails.
-static bool JointDefIsValid(const m3JointDef* def)
-{
-    if (def->internalValue != M3_JOINT_COOKIE || def->type < 0 ||
-        def->type > (int32_t)m3_pulleyJoint)
-    {
-        return false;
-    }
-    bool typeValid = true;
-    switch (def->type)
-    {
-    case m3_revoluteJoint:
-    case m3_prismaticJoint:
-    case m3_wheelJoint:
-    case m3_parallelJoint:
-        typeValid = AxesReal(def);
-        break;
-    case m3_genericJoint:
-        typeValid = GenericDefValid(def);
-        break;
-    case m3_distanceJoint:
-        typeValid = DistanceDefValid(def);
-        break;
-    default:
-        break;
-    }
-    return typeValid && m3LocalV3(def->localAnchorA) && m3LocalV3(def->localAnchorB) &&
-           m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
-           m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) && m3FiniteF(def->motorSpeed) &&
-           m3FiniteF(def->maxMotorEffort) && m3FiniteF(def->coneAngle) &&
-           def->maxMotorEffort >= 0.0f &&
-           !(def->enableLimit && def->lowerLimit > def->upperLimit) &&
-           !(def->enableCone && def->coneAngle < 0.0f);
-}
-
 m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOut)
 {
     if (jointOut == NULL)
@@ -569,15 +576,6 @@ m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOu
     if (bodyA < 0 || bodyB < 0)
     {
         return m3Refuse(world, m3MissingId(bodyA < 0 ? def->bodyIdA.index1 : def->bodyIdB.index1));
-    }
-    if (bodyA == bodyB)
-    {
-        return m3Refuse(world, m3_errorInvalid);
-    }
-    if (world->bodies.types[bodyA] != (uint8_t)m3_dynamicBody &&
-        world->bodies.types[bodyB] != (uint8_t)m3_dynamicBody)
-    {
-        return m3Refuse(world, m3_errorInvalid); // a joint between immovables is inert
     }
     int32_t index = m3CreateJointInternal(world, def, bodyA, bodyB);
     if (index < 0)
