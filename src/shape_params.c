@@ -315,23 +315,17 @@ void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
     }
     if (world->recorder.journalActive != 0)
     {
+        // Recorded in two parts, so no allocation can drop the op from
+        // the tape after the materials are applied.
         int32_t triCount = world->meshes.meshData[meshIndex].triangleCount;
-        int32_t bytes = (int32_t)sizeof(m3SetMeshMaterialsOp) + triCount;
-        uint8_t* payload = (uint8_t*)m3AllocZeroed(&world->heap, bytes);
-        if (payload == NULL)
-        {
-            return;
-        }
         m3SetMeshMaterialsOp head;
         memset(&head, 0, sizeof(head));
         head.id = shape;
         head.materialCount = materialCount;
         head.triangleCount = triCount;
         memcpy(head.materials, materials, (size_t)materialCount * sizeof(m3MeshSurfaceMaterial));
-        memcpy(payload, &head, sizeof(head));
-        memcpy(payload + sizeof(head), triangleMaterials, (size_t)triCount);
-        m3JournalRecord(world, m3_opSetMeshMaterials, payload, bytes);
-        m3Free(&world->heap, payload);
+        m3JournalPart parts[2] = {{&head, (int32_t)sizeof(head)}, {triangleMaterials, triCount}};
+        m3JournalRecordParts(world, m3_opSetMeshMaterials, parts, 2);
     }
 }
 

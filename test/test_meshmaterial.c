@@ -14,6 +14,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const m3Vec3 kQuadVerts[4] = {
@@ -146,11 +147,65 @@ static void TestPaintWalls(void)
     m3DestroyWorld(world);
 }
 
+// A host allocator the test can turn off.
+static void* ToggleAlloc(size_t bytes, size_t alignment, void* context)
+{
+    (void)alignment;
+    return *(const bool*)context ? NULL : malloc(bytes);
+}
+
+static void ToggleFree(void* memory, size_t bytes, size_t alignment, void* context)
+{
+    (void)bytes;
+    (void)alignment;
+    (void)context;
+    free(memory);
+}
+
+static void TestPaintJournaledWithoutMemory(void)
+{
+    // Painting while journaling allocates nothing, so a host allocator
+    // that refuses cannot drop the op from the tape after the paint is
+    // applied: the tape replays to the painted world.
+    bool refuse = false;
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 8;
+    wd.shapeCapacity = 8;
+    wd.allocator = (m3Allocator){ToggleAlloc, ToggleFree, &refuse};
+    m3World* world = NewWorld(&wd);
+    m3ShapeId floor = Quad(world);
+    int32_t capacity = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int32_t snapBytes = Snapshot(world, snap, capacity);
+    static uint8_t tape[4096];
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+    uint64_t unpainted = m3World_Hash(world);
+    m3MeshSurfaceMaterial mats[1];
+    memset(mats, 0, sizeof(mats));
+    mats[0].friction = 0.02f;
+    uint8_t tri[2] = {0, 0};
+    refuse = true;
+    CHECK_ACCEPTS(world, m3Shape_SetMeshMaterials(world, floor, mats, 1, tri),
+                  "the paint applies with no memory to spare");
+    refuse = false;
+    uint64_t painted = m3World_Hash(world);
+    CHECK(painted != unpainted, "the paint is state");
+    int32_t tapeBytes = StopJournal(world);
+    CHECK(tapeBytes > 0, "the paint is on the tape");
+    CHECK(Restore(world, snap, snapBytes) && m3World_Hash(world) == unpainted,
+          "the world rolls back to unpainted");
+    CHECK(ReplayJournal(world, tape, tapeBytes) && m3World_Hash(world) == painted,
+          "the tape replays to the painted world");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestPaintedFriction();
     TestConveyorTriangle();
     TestPaintWalls();
+    TestPaintJournaledWithoutMemory();
     if (s_failures == 0)
     {
         printf("test_meshmaterial: all passed\n");
