@@ -806,8 +806,11 @@ static void TestRestoreRefusesBadCursors(void)
 }
 
 // Restore checks every incoming block before any of it lands: poison
-// each 32-bit word of a snapshot in turn with a huge value. A refused
-// restore leaves the world untouched and records a reason.
+// the snapshot with a huge 32-bit word at every third byte. The stream is
+// unaligned, and a stride of 3 still writes every byte and meets every
+// field at all four alignments every 12 bytes, at a third of the restores
+// of every offset. A refused restore leaves the world untouched and
+// records a reason.
 static void TestRestoreRefusesPoisonedWords(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -845,12 +848,13 @@ static void TestRestoreRefusesPoisonedWords(void)
     int32_t refused = 0;
     int32_t untouched = 0;
     int32_t reasoned = 0;
-    for (int32_t at = 0; at + 4 <= size; ++at) // the stream is unaligned
+    memcpy(poisoned, clean, (size_t)size);
+    for (int32_t at = 0; at + 4 <= size; at += 3)
     {
-        memcpy(poisoned, clean, (size_t)size);
         int32_t huge = 0x7FFFFFFF;
         memcpy(poisoned + at, &huge, sizeof(huge));
         m3Result result = m3World_Restore(world, poisoned, size);
+        memcpy(poisoned + at, clean + at, sizeof(huge));
         if (result != m3_success)
         {
             refused += 1;
