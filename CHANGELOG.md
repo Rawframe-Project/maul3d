@@ -6,41 +6,87 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [Unreleased]
+## [0.1.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.0) (2026-10-24)
 
 ### Changed
 
-- The library is built as C23 and needs GCC 14 or Clang 19 or newer; on
-  Windows it is built with clang-cl, which Visual Studio installs, since
-  MSVC's cl cannot compile C23. The public headers stay C17 and C++17,
-  and MSVC's cl still compiles them. A shared library's SOVERSION is
-  now the whole version, and the CMake package accepts only its exact
-  version, because before 1.0 any release may change the ABI.
-- The README is rewritten. A new section introduces the Maul family:
-  what each engine is built for, and the contract, vocabulary, rules
-  and tools the two share; both libraries link into one program.
-  THIRD_PARTY.md is gone: the library uses no outside code, and the
-  testbed's raylib is credited in the README.
+- **Breaking: the family API shape.** `m3CreateWorld` returns
+  `m3Result` and hands the world back through an out parameter, and
+  every call takes the world first; readers take `const m3World*`.
+  `m3WorldId`, `m3World_IsValid`, `m3Body_GetWorld`, `m3Shape_GetWorld`,
+  `m3Joint_GetWorld`, `m3SetAllocator`, `m3SetAssertHandler` and
+  `m3LastResult` are removed; the allocator is part of `m3WorldDef`,
+  which begins with `internalValue, version` and loses `workerCount`.
+  Every create and destroy returns `m3Result`, with the id in an out
+  parameter (null on failure). A destroy of a stale id returns
+  `m3_errorStale`, and a destroy of the null id returns `m3_errorInvalid`.
+  Ids are `{index1, generation}`. Snapshots, restores, the journal calls
+  and the replay container codec return `m3Result`, and
+  `m3World_RebuildBroadphase` does too. Journal tapes recorded with
+  0.0.1 no longer replay, and the replay container is version 2.
+  ([#13](https://github.com/Rawframe-Project/maul3d/pull/13))
+- **Breaking: hulls.** Hulls are built from welded points (points
+  within 512 QuickHull tolerances of an earlier point, about 1e-3 of the
+  summed extents) with planes worked in double precision, so a cloud of
+  near-duplicate points now gives a valid hull. Hulls built from the
+  same points can differ from 0.0.1's, so the hashes and trajectories of
+  scenes with hulls change. Snapshots are format 2: `m3World_Restore`
+  refuses format 1, and replay files that hold one, with
+  `m3_errorInvalid`.
+  ([#34](https://github.com/Rawframe-Project/maul3d/pull/34))
+- **Breaking: the world hash** now covers every id pool's identity, a
+  height field shape's grid, a body's gravity scale and dampings, a
+  joint's limits, motor and collide-connected flag, and a mesh's painted
+  materials, so state the step reads can no longer differ under equal
+  hashes. Every world's hash changes.
+  ([#22](https://github.com/Rawframe-Project/maul3d/pull/22))
+- **Breaking: refusals.** Arguments the engine cannot simulate are now
+  refused at creation with `m3_errorInvalid`, and they count as misuse.
+  This covers coordinates, half extents and local positions beyond 1e4,
+  densities above 1e6, non-finite joint limits and rope lengths, soft
+  body pressure above `M3_SOFTBODY_MAX_PRESSURE`, and the other bounds
+  the headers list. A stale id or a refused argument counts as misuse in
+  every call. A writer called while `Step` or `Draw` runs changes
+  nothing and counts as misuse.
+  ([#14](https://github.com/Rawframe-Project/maul3d/pull/14),
+  [#19](https://github.com/Rawframe-Project/maul3d/pull/19))
+- **Breaking: what a restore or replay accepts.** `m3World_Restore`
+  leaves the world unchanged and returns `m3_errorInvalid` for content
+  the builders would not make (hull planes, mass and vertices; height
+  field and mesh content), and `m3_errorCapacity` when the allocator
+  refuses. Before, it could land such content or leave the world half
+  restored. `m3World_ReplayJournal` refuses an op the public call would
+  refuse. It returns `m3_errorCapacity` with the world as it was when
+  memory runs out. To do that it reserves its memory up front, so a
+  replay that fit a tight allocator before can now be refused before any
+  op runs.
+  ([#27](https://github.com/Rawframe-Project/maul3d/pull/27),
+  [#29](https://github.com/Rawframe-Project/maul3d/pull/29),
+  [#30](https://github.com/Rawframe-Project/maul3d/pull/30),
+  [#33](https://github.com/Rawframe-Project/maul3d/pull/33))
+- The library is built as C23 and needs GCC 14 or Clang 19 or newer.
+  On Windows it is built with clang-cl. The public headers stay C17 and
+  C++17, and MSVC's cl still compiles them. A shared library's
+  SOVERSION is the whole version, and the CMake package accepts only its
+  exact version, since before 1.0 any release may change the ABI.
 
 ### Fixed
 
-- The Godot kit's README claimed the kit was compile-checked against
-  the headers; it says what CI actually checks.
+- A mesh or voxel chunk whose tree cannot be built is refused with
+  `m3_errorCapacity`, where before it was created and collided with
+  nothing.
+- An explosion applies to shapes in slot order, so the result no
+  longer depends on the broadphase's internal order.
+- The broadphase rebuild takes its scratch memory before recording
+  itself, and records nothing when that fails.
 - Two joints that can never both hold no longer risk turning the world
-  to NaN through impulses that fight without limit: every joint row
-  now holds its accumulated impulse within a bound no ordinary scene
-  reaches, so the results of existing scenes are unchanged. Maul2D's
-  weekly deep fuzz found the overflow; the joint solvers share the
-  design.
-- Replaying a damaged journal tape no longer hands the engine a body
-  def whose motion locks, `enableSleep`, `isEnabled` or
-  `enableFastRotation` hold a byte other than 0 or 1, which was
-  undefined behavior. Any nonzero byte now reads as true, as it already
-  did for `isBullet` and the shape, joint and vehicle flags.
-- A damaged snapshot whose voxel chunk claims a different number of
-  filled voxels than its occupancy bits hold is refused. Before, the
-  restore accepted it, and fracture and fragment mass read the wrong
-  count.
+  to NaN. Every joint row holds its accumulated impulse within a bound
+  no ordinary scene reaches.
+- Replaying a damaged journal no longer reads a body def flag holding a
+  byte other than 0 or 1, which was undefined behavior. A mesh's
+  materials are recorded without an allocation.
+- A damaged snapshot whose voxel chunk count disagrees with its
+  occupancy bits is refused.
 
 ## [0.0.1] - 2026-09-24
 
