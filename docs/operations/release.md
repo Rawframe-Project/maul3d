@@ -8,7 +8,7 @@ Releases are made by release-please from the conventional commit titles on `main
 2. Rewrite that entry in user language before merging: what changed for someone using the library, grouped as Added, Changed, Fixed, Removed and Security. Leave out refactors, tests, CI and documentation. Say what a caller must change for a breaking change. Put the same entry in the pull request's body between release-please's `---` lines, since the GitHub release notes come from the body. release-please rewrites both whenever anything else lands on `main`, so this is the last change before the merge.
 3. Check that the `required` CI job passed on the release pull request on every cell, and that the last `bench` run on `main` passed, since the benchmark scenes run on `main` and every night, not on pull requests.
 4. Mark the pull request ready and merge it. release-please tags the merge commit and publishes the GitHub release with the changelog entry as its notes. The Pages workflow publishes the documentation from `main`.
-5. The `assets` job of `.github/workflows/release.yml` attaches the source archive `maul3d-X.Y.Z.tar.gz`, its `SHA256SUMS`, an SPDX SBOM and a build provenance attestation. Check that they are there. A user verifies a download with `sha256sum -c SHA256SUMS` and `gh attestation verify maul3d-X.Y.Z.tar.gz -R Rawframe-Project/maul3d`.
+5. The `assets` job of `.github/workflows/release.yml` attaches the source archive `maul3d-X.Y.Z.tar.gz`, its `SHA256SUMS`, an SPDX SBOM and a build provenance attestation. Check that they are there. A user verifies a download with `sha256sum -c --ignore-missing SHA256SUMS` (the file also lists the SBOM) and `gh attestation verify maul3d-X.Y.Z.tar.gz -R Rawframe-Project/maul3d`.
 
 ## Notes
 
