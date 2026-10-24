@@ -709,6 +709,93 @@ static void TestCompoundExtents(void)
     m3DestroyWorld(world);
 }
 
+// The hash sees every piece of state a setter changes and the step reads:
+// two worlds that differ only in one of them hash differently.
+typedef struct HashScene
+{
+    m3World* world;
+    m3BodyId box;
+    m3JointId hinge;
+    m3ShapeId floor;
+} HashScene;
+
+static HashScene BuildHashScene(void)
+{
+    static const m3Vec3 quad[4] = {
+        {-3.0f, 0.0f, -3.0f}, {3.0f, 0.0f, -3.0f}, {3.0f, 0.0f, 3.0f}, {-3.0f, 0.0f, 3.0f}};
+    static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    HashScene scene;
+    m3WorldDef def = m3DefaultWorldDef();
+    scene.world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    scene.floor = NewMeshShape(scene.world, NewBody(scene.world, &gd), &sd, quad, 4, tris, 2);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    scene.box = NewBody(scene.world, &bd);
+    NewBoxShape(scene.world, scene.box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    bd.position = (m3Pos3){1.5, 1.0, 0.0};
+    m3BodyId arm = NewBody(scene.world, &bd);
+    NewBoxShape(scene.world, arm, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_revoluteJoint;
+    jd.bodyIdA = scene.box;
+    jd.bodyIdB = arm;
+    jd.localAnchorA = (m3Vec3){0.75f, 0.0f, 0.0f};
+    jd.localAnchorB = (m3Vec3){-0.75f, 0.0f, 0.0f};
+    scene.hinge = NewJoint(scene.world, &jd);
+    return scene;
+}
+
+static void CheckHashSees(int which, const char* what)
+{
+    HashScene same = BuildHashScene();
+    HashScene changed = BuildHashScene();
+    m3World* w = changed.world;
+    m3MeshSurfaceMaterial paint = {0.02f, 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}};
+    uint8_t groups[2] = {0, 0};
+    switch (which)
+    {
+    case 0:
+        m3Shape_SetMeshMaterials(w, changed.floor, &paint, 1, groups);
+        break;
+    case 1:
+        m3Body_SetGravityScale(w, changed.box, 2.0f);
+        break;
+    case 2:
+        m3Body_SetLinearDamping(w, changed.box, 0.5f);
+        break;
+    case 3:
+        m3Body_SetAngularDamping(w, changed.box, 0.5f);
+        break;
+    case 4:
+        m3Joint_SetLimits(w, changed.hinge, false, -0.5f, 0.5f);
+        break;
+    case 5:
+        m3Joint_SetMotor(w, changed.hinge, false, 3.0f, 10.0f);
+        break;
+    default:
+        m3Joint_SetCollideConnected(w, changed.hinge, true);
+        break;
+    }
+    CHECK(m3World_GetCounters(w).misuse == 0, "the change is taken");
+    CHECK(m3World_Hash(same.world) != m3World_Hash(w), what);
+    m3DestroyWorld(same.world);
+    m3DestroyWorld(changed.world);
+}
+
+static void TestHashSeesSetterState(void)
+{
+    CheckHashSees(0, "the hash sees a painted mesh");
+    CheckHashSees(1, "the hash sees a gravity scale");
+    CheckHashSees(2, "the hash sees a linear damping");
+    CheckHashSees(3, "the hash sees an angular damping");
+    CheckHashSees(4, "the hash sees limit values");
+    CheckHashSees(5, "the hash sees motor values");
+    CheckHashSees(6, "the hash sees a connected pair allowed to collide");
+}
+
 int main(void)
 {
     TestAllocatorHook();
@@ -723,6 +810,7 @@ int main(void)
     TestTreeReferee();
     TestContactLanesMatchScalar();
     TestCompoundExtents();
+    TestHashSeesSetterState();
     if (s_failures == 0)
     {
         printf("test_world: all checks passed\n");

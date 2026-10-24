@@ -601,8 +601,10 @@ typedef struct m3Joints
     float* jointTargetScalar;   // revolute angle or prismatic translation
     m3Quat* jointTargetQ;       // spherical rotation drive target
     m3Vec3* jointSpringImpulse; // warm payload: x scalar rows, xyz spherical
-    m3Vec3* jointMotor;         // x = motorSpeed, y = maxMotorTorque, z unused
-    m3Vec3* jointLimits;        // x = lower angle, y = upper angle, z unused
+    m3Vec3* jointMotor;         // x = motorSpeed, y = maxMotorEffort, z = steer target;
+                                // the motor joint keeps its pose offset here
+    m3Vec3* jointLimits;        // x = lower, y = upper (the motor joint's budgets),
+                                // z = cone angle or the pulley's rope constant
     int32_t* bodyJointHead;
     int32_t* jointNextA; // next joint in body A's list
     int32_t* jointNextB; // next joint in body B's list

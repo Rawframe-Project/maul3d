@@ -88,6 +88,15 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
             h = m3Hash64(h, &world->bodies.bodyHasTarget[i], 1);
             h = m3Hash64(h, &world->bodies.bodyTarget[i], (int32_t)sizeof(m3Transform));
         }
+        if (world->bodies.gravityScales[i] != 1.0f || world->bodies.linearDamping[i] != 0.0f ||
+            world->bodies.angularDamping[i] != 0.0f)
+        {
+            // Gravity scale and damping fold off their defaults: the
+            // step reads them every substep.
+            h = m3Hash64(h, &world->bodies.gravityScales[i], (int32_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.linearDamping[i], (int32_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.angularDamping[i], (int32_t)sizeof(m3real));
+        }
         h = m3Hash64(h, &world->bodies.angularVelocities[i], (int32_t)sizeof(m3Vec3));
         h = m3Hash64(h, &world->bodies.invMass[i], (int32_t)sizeof(m3real));
         h = m3Hash64(h, &world->bodies.invInertiaLocal[i], (int32_t)sizeof(m3Mat3));
@@ -415,6 +424,27 @@ static uint64_t HashVoxels(const m3World* world, uint64_t h)
     return h;
 }
 
+// Mesh geometry never changes after creation, but its painted materials
+// do, and contacts read them: a painted mesh folds its paint, keyed by its
+// slot.
+static uint64_t HashMeshMaterials(const m3World* world, uint64_t h)
+{
+    for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
+    {
+        const m3MeshData* mesh = &world->meshes.meshData[m];
+        if (world->meshes.meshPool.alive[m] == 0 || mesh->materialCount == 0)
+        {
+            continue;
+        }
+        h = m3Hash64(h, &m, 4);
+        h = m3Hash64(h, &mesh->materialCount, 4);
+        h = m3Hash64(h, mesh->materials,
+                     mesh->materialCount * (int32_t)sizeof(m3MeshSurfaceMaterial));
+        h = m3Hash64(h, mesh->triMaterials, mesh->triangleCount);
+    }
+    return h;
+}
+
 static uint64_t HashJoints(const m3World* world, uint64_t h)
 {
     int32_t maxJoint = world->joints.jointPool.maxIndex;
@@ -459,6 +489,18 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->joints.jointFrameQA[i], (int32_t)sizeof(m3Quat));
         h = m3Hash64(h, &world->joints.jointFrameQB[i], (int32_t)sizeof(m3Quat));
         h = m3Hash64(h, &world->joints.jointFlags[i], 1);
+        const m3Vec3* limits = &world->joints.jointLimits[i];
+        const m3Vec3* motor = &world->joints.jointMotor[i];
+        if (limits->x != 0.0f || limits->y != 0.0f || limits->z != 0.0f || motor->x != 0.0f ||
+            motor->y != 0.0f || motor->z != 0.0f || world->joints.jointCollide[i] != 0)
+        {
+            // The limit and motor values (with the steer target, the
+            // servo's pose offset and budgets) and the connected-pair
+            // flag fold off-default: the step reads them.
+            h = m3Hash64(h, limits, (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, motor, (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointCollide[i], 1);
+        }
         if (world->joints.jointType[i] == (uint8_t)m3_genericJoint)
         {
             // The generic joint's fields fold only for that type.
@@ -536,6 +578,7 @@ uint64_t m3World_Hash(const m3World* world)
     h = HashSoftBodies(world, h);
     h = HashVehicles(world, h);
     h = HashVoxels(world, h);
+    h = HashMeshMaterials(world, h);
     h = HashJoints(world, h);
     h = HashWater(world, h);
     h = HashContacts(world, h);
