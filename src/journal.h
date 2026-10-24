@@ -523,7 +523,7 @@ void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts
 
 // A def as a record holds it: zeroed storage with every member copied in,
 // so a tape never carries what the caller's def held in its padding. The
-// defs without padding are copied whole; test_journal holds every copy to
+// defs without padding are copied whole; test_format holds every copy to
 // the compiler's own map of each def's padding.
 void m3JournalBodyDef(m3BodyDef* out, const m3BodyDef* def);
 void m3JournalCharacterDef(m3CharacterDef* out, const m3CharacterDef* def);
