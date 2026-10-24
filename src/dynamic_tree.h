@@ -63,8 +63,15 @@ void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask);
 /// bounds (no move needed).
 bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3]);
 
-/// Query every leaf overlapping the bounds, in deterministic stack
-/// order; the callback returns false to stop early.
+/// True when the node's fat bounds overlap the given bounds: the test a
+/// query applies to every leaf.
+bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3]);
+
+/// Query every leaf overlapping the bounds, in stack order; the callback
+/// returns false to stop early. The order follows the tree's shape,
+/// which depends on its history (insertions, moves, rebuilds), not only
+/// on hashed state, so a caller whose effects depend on the order visits
+/// the leaves in slot order instead.
 typedef bool (*m3TreeQueryFn)(int32_t userData, void* context);
 void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
                  void* context);
