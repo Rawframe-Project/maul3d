@@ -220,10 +220,24 @@ namespace Maul3D
     {
         const string Lib = "maul3d";
 
-        /// M3_ABI_VERSION of the C headers this file mirrors. DefaultWorldDef
-        /// stamps it, so a library built from other headers refuses the
-        /// def with Result.ErrorVersion instead of misreading it.
-        public const uint AbiVersion = 0x80000001u; // 0.0.1
+        // The version of the C headers this file mirrors. release-please
+        // moves it between the markers, as it does in base.h.
+        // x-release-please-start-major
+        public const uint VersionMajor = 0;
+        // x-release-please-end
+        // x-release-please-start-minor
+        public const uint VersionMinor = 0;
+        // x-release-please-end
+        // x-release-please-start-patch
+        public const uint VersionPatch = 1;
+        // x-release-please-end
+
+        /// M3_ABI_VERSION of the C headers this file mirrors, computed as
+        /// base.h computes it. DefaultWorldDef stamps it, so a library built
+        /// from other headers refuses the def with Result.ErrorVersion
+        /// instead of misreading it.
+        public const uint AbiVersion = 0x80000000u | (VersionMajor << 16) |
+            (VersionMajor == 0 ? (VersionMinor << 8) | VersionPatch : VersionMinor);
 
         [DllImport(Lib, EntryPoint = "m3GetVersion")]
         public static extern Version GetVersion();

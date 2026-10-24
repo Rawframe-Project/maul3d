@@ -10,7 +10,9 @@
 # - every C# struct has the size and the field offsets of the C struct
 #   it mirrors (sequential layout, computed here; the C side printed by
 #   the C compiler);
-# - the C# AbiVersion is the headers' M3_ABI_VERSION.
+# - the C# version is the headers' version, and the C# AbiVersion is
+#   computed from it as M3_ABI_VERSION is, so a release that moves the
+#   version in both files keeps them matching.
 #
 # usage: check_bindings.py [C compiler, default cc]
 
@@ -22,6 +24,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSHARP = os.path.join(ROOT, "bindings", "csharp", "Maul3D.cs")
+ABI_FORMULA = ("public const uint AbiVersion = 0x80000000u | (VersionMajor << 16) | "
+               "(VersionMajor == 0 ? (VersionMinor << 8) | VersionPatch : VersionMinor);")
 GODOT = os.path.join(ROOT, "bindings", "godot", "src")
 
 PRIMITIVES = {"byte": 1, "sbyte": 1, "bool": 1, "short": 2, "ushort": 2, "int": 4, "uint": 4,
@@ -123,7 +127,10 @@ def c_member(field, fields):
 def c_layouts(names, structs, compiler):
     """What the C compiler says about the same structs."""
     lines = ['#include "maul3d/maul3d.h"', "#include <stddef.h>", "#include <stdio.h>",
-             "int main(void)", "{", '    printf("abi %u\\n", (unsigned)M3_ABI_VERSION);']
+             "int main(void)", "{",
+             '    printf("major %u\\n", (unsigned)M3_VERSION_MAJOR);',
+             '    printf("minor %u\\n", (unsigned)M3_VERSION_MINOR);',
+             '    printf("patch %u\\n", (unsigned)M3_VERSION_PATCH);']
     for name in names:
         c = "m3" + name
         lines.append(f'    printf("{name} size %zu\\n", sizeof({c}));')
@@ -177,9 +184,13 @@ def main():
     for m in re.finditer(r"Check<(\w+)>\((\d+)\)", text):
         if m.group(1) in structs and layout(m.group(1), structs)[0] != int(m.group(2)):
             failures.append(f"C#: LayoutCheck expects {m.group(1)} at {m.group(2)} bytes")
-    abi = re.search(r"public const uint AbiVersion = (0x[0-9A-Fa-f]+)u;", text)
-    if abi is None or int(abi.group(1), 16) != int(c["abi"]):
-        failures.append(f"C#: AbiVersion is not M3_ABI_VERSION ({int(c['abi']):#x})")
+    for part in ("major", "minor", "patch"):
+        name = "Version" + part.title()
+        version = re.search(rf"public const uint {name} = (\d+);", text)
+        if version is None or version.group(1) != c[part]:
+            failures.append(f"C#: {name} is not M3_VERSION_{part.upper()} ({c[part]})")
+    if ABI_FORMULA not in " ".join(text.split()):
+        failures.append("C#: AbiVersion is not computed as M3_ABI_VERSION is")
     for failure in failures:
         print(failure)
     if not failures:

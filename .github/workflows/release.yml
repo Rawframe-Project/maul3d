@@ -1,0 +1,93 @@
+name: release
+
+# release-please keeps a draft release pull request open from the
+# conventional commits on main. Merging it tags vX.Y.Z and creates the GitHub
+# release; the assets job then builds the source archive, writes its checksum
+# and an SBOM, attests where it was built, and attaches all of it to the
+# release. docs/operations/release.md has the steps.
+
+on:
+  push:
+    branches: [main]
+  # Runs again by hand after a failed push run, without a new commit.
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Both steps act with the app token, so github.token needs no permissions here.
+    permissions: {}
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      # The Rawframe Release app's token, not github.token, so the release pull
+      # request runs CI: GitHub starts no workflows for pull requests github.token opens.
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Only what release-please uses: the release commit and tag, the
+          # release pull request, and its labels.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  assets:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+      - name: Build the release files into dist/
+        # The library ships as source: the tagged tree, with the C# and
+        # Godot bindings, is all a build needs. GitHub's own source archives
+        # are not promised byte-stable; this one is checksummed and attested.
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG#v}/" -o "dist/${GITHUB_REPOSITORY#*/}-${TAG#v}.tar.gz" HEAD
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
+      # Without a source name syft names the document after its path, ".".
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        env:
+          SYFT_SOURCE_NAME: ${{ github.event.repository.name }}
+          SYFT_SOURCE_VERSION: ${{ needs.release-please.outputs.tag }}
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: gh release upload "$TAG" dist/* --clobber
