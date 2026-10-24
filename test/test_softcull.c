@@ -251,6 +251,76 @@ static void HeightFieldScene(m3World* world, Probe* probe)
     }
 }
 
+// A box's projection threshold: its convex radius s plus the particle's.
+static double BoxThreshold(const m3World* world, m3ShapeId box, m3real r)
+{
+    return (double)world->shapes.shapeGeom[box.index1 - 1].s + (double)r;
+}
+
+// Probes off a box's faces at s + r and a few ulps either side, at the
+// face's middle and toward its edges and corners, each spot its own.
+static void BoxProbes(m3World* world, Probe* probe, m3Pos3 p, m3Quat q, m3ShapeId box, m3Vec3 half,
+                      m3real r)
+{
+    double t = BoxThreshold(world, box, r);
+    for (int32_t i = 0; i < 13; ++i)
+    {
+        float a = -0.8f + 0.13f * (float)i;
+        float b = 0.6f - 0.1f * (float)i;
+        float out = (float)Ulps(t, i - 6);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){half.x + out, a * half.y, b * half.z}), r);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){b * half.x, -half.y - out, a * half.z}),
+                 r);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){a * half.x, b * half.y, half.z + out}), r);
+    }
+}
+
+static void BoxScene(m3World* world, Probe* probe)
+{
+    m3Pos3 p = {5.0, 3.0, 5.0};
+    m3Quat q = Turn((m3Vec3){1.0f, 1.0f, 0.0f}, 0.9f);
+    m3Vec3 half = {1.0f, 0.6f, 0.8f};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId box = NewBoxShape(world, StaticBody(world, p, q), &sd, half);
+    BoxProbes(world, probe, p, q, box, half, 0.05f);
+}
+
+// The same box far from the origin, where a coordinate's float ulp is
+// about a millimeter: the cull works relative to the body, so it must
+// still keep every probe the projection touches.
+static void FarBoxScene(m3World* world, Probe* probe)
+{
+    m3Pos3 p = {8000.0, 50.0, -6000.0};
+    m3Quat q = Turn((m3Vec3){0.0f, 1.0f, 2.0f}, 2.1f);
+    m3Vec3 half = {1.0f, 0.6f, 0.8f};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId box = NewBoxShape(world, StaticBody(world, p, q), &sd, half);
+    BoxProbes(world, probe, p, q, box, half, 0.05f);
+}
+
+// A sharp tetrahedron: past its tip the face planes reach well beyond the
+// hull's bounding sphere plus the radius, so a bounding-sphere cull would
+// skip projections there. Probes fan out past the tip at growing reach.
+static void SpikeScene(m3World* world, Probe* probe)
+{
+    m3Pos3 p = {-6.0, 6.0, 6.0};
+    m3Quat q = Turn((m3Vec3){0.3f, 0.0f, 1.0f}, 0.6f);
+    static const m3Vec3 spike[4] = {
+        {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.05f, 0.05f, 3.0f}};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewHullShape(world, StaticBody(world, p, q), &sd, spike, 4);
+    m3real r = 0.05f;
+    for (int32_t i = 0; i < 24; ++i)
+    {
+        float reach = 0.02f + 0.03f * (float)i;
+        float angle = 0.7f * (float)i;
+        float tilt = 0.12f * (float)(i % 4);
+        m3Vec3 local = {0.05f + tilt * cosf(angle) * reach, 0.05f + tilt * sinf(angle) * reach,
+                        3.0f + reach};
+        AddProbe(world, probe, WorldPoint(p, q, local), r);
+    }
+}
+
 // A particle deep in sphere A is pushed out of it into sphere B, a later
 // shape, which its box before the pass could not reach.
 static void HandOffScene(m3World* world, Probe* probe)
@@ -263,6 +333,20 @@ static void HandOffScene(m3World* world, Probe* probe)
     NewSphereShape(world, holder, &sd, &b);
     AddProbe(world, probe, (m3Pos3){0.2, 20.0, 0.0}, 0.1f);
     AddProbe(world, probe, (m3Pos3){0.3, 20.0, 0.05}, 0.1f);
+}
+
+// A particle deep in a sphere is pushed out of it into a box, a later
+// shape, which its box before the pass could not reach.
+static void HullHandOffScene(m3World* world, Probe* probe)
+{
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyId holder = StaticBody(world, (m3Pos3){0.0, 30.0, 0.0}, Turn((m3Vec3){0, 1, 0}, 0.0f));
+    m3Sphere a = {{0.0f, 0.0f, 0.0f}, 1.0f};
+    NewSphereShape(world, holder, &sd, &a);
+    m3BodyId boxHolder = StaticBody(world, (m3Pos3){1.6, 30.0, 0.0}, Turn((m3Vec3){0, 0, 1}, 0.3f));
+    NewBoxShape(world, boxHolder, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    AddProbe(world, probe, (m3Pos3){0.2, 30.0, 0.0}, 0.1f);
+    AddProbe(world, probe, (m3Pos3){0.3, 30.0, 0.05}, 0.1f);
 }
 
 // A kinematic body that moves and spins, carrying a sphere and a capsule
@@ -281,6 +365,11 @@ static void MovingScene(m3World* world, Probe* probe)
     m3Capsule rod = {{-0.6f, 0.0f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.15f};
     NewSphereShape(world, mover, &sd, &ball);
     NewCapsuleShape(world, mover, &sd, &rod);
+    m3BodyDef bd2 = bd;
+    bd2.position = (m3Pos3){1.5, 1.0, 0.5};
+    bd2.linearVelocity = (m3Vec3){-0.7f, 0.0f, 0.0f};
+    bd2.angularVelocity = (m3Vec3){1.2f, 0.2f, -0.9f};
+    NewBoxShape(world, NewBody(world, &bd2), &sd, (m3Vec3){0.35f, 0.2f, 0.3f});
     m3SoftBodyDef cloth = m3DefaultSoftBodyDef();
     cloth.position = (m3Pos3){-1.0, 1.4, -1.0};
     cloth.countX = 8;
@@ -360,7 +449,11 @@ int main(void)
     CheckScene("voxel", VoxelScene, true, false, 1);
     CheckScene("mesh", MeshScene, true, false, 1);
     CheckScene("height field", HeightFieldScene, true, false, 1);
+    CheckScene("box", BoxScene, true, false, 1);
+    CheckScene("far box", FarBoxScene, true, false, 1);
+    CheckScene("spike", SpikeScene, true, false, 1);
     CheckScene("hand-off", HandOffScene, false, false, 1);
+    CheckScene("hull hand-off", HullHandOffScene, false, false, 1);
     CheckScene("moving", MovingScene, false, true, 90);
     if (s_failures == 0)
     {

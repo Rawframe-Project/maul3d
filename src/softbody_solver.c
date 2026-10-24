@@ -126,8 +126,8 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
 // The shape kinds a particle can be projected by only within its radius
 // of their geometry: a sphere in the shape's local frame, center *center
 // and the returned radius, holds that geometry. Every other kind returns
-// -1 and is never culled: planes are unbounded, and a hull's face-plane
-// rule can act past its bounds near an acute vertex.
+// -1: planes are unbounded, and a hull's face-plane rule can act past
+// its bounds near an acute vertex, so hulls take their own test below.
 static m3real SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Vec3* center)
 {
     const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
@@ -205,6 +205,45 @@ static bool SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, m3real bou
     double scale = (double)m3Length3(center) + reach;
     reach += M3_SOFT_REACH_ULPS * (double)FLT_EPSILON * scale;
     return d2 > reach * reach;
+}
+
+// Whether a hull projects no particle inside [lo, hi]. The projection
+// acts while the largest of a particle's face-plane distances is below
+// s + radius, so one face that has the whole box beyond s + radius
+// leaves every particle alone, whatever the hull's shape near its
+// vertices. The box is taken relative to the body, so large coordinates
+// never meet a float, and the face is tested in world space: the least
+// distance over the box is n_w . d - sum |n_w,i| h_i - o_f with n_w the
+// rotated normal. The projection computes n_f . lp - o_f in float from a
+// particle's offset, within a few dozen ulps of |offset| + |o_f|; the
+// cull adds a float rotation of the normal, within a few ulps of
+// |d| + sum h_i. No particle in the box is farther than that sum, so the
+// margin is M3_SOFT_REACH_ULPS ulps of |d| + sum h_i + |o_f| + s + radius.
+static bool SoftHullOutOfReach(const m3World* world, int32_t shape, const m3Transform* xf,
+                               m3real radius, const double lo[3], const double hi[3])
+{
+    const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
+    double threshold = (double)world->shapes.shapeGeom[shape].s + (double)radius;
+    double d[3] = {0.5 * (lo[0] + hi[0]) - xf->p.x, 0.5 * (lo[1] + hi[1]) - xf->p.y,
+                   0.5 * (lo[2] + hi[2]) - xf->p.z};
+    double h[3] = {0.5 * (hi[0] - lo[0]), 0.5 * (hi[1] - lo[1]), 0.5 * (hi[2] - lo[2])};
+    double scale = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) + h[0] + h[1] + h[2] + threshold;
+    for (int32_t f = 0; f < hull->faceCount; ++f)
+    {
+        m3Vec3 n = m3RotateVec3(xf->q, hull->faceNormals[f]);
+        double nx = (double)n.x;
+        double ny = (double)n.y;
+        double nz = (double)n.z;
+        double offset = (double)hull->faceOffsets[f];
+        double least = nx * d[0] + ny * d[1] + nz * d[2] - fabs(nx) * h[0] - fabs(ny) * h[1] -
+                       fabs(nz) * h[2] - offset;
+        double margin = M3_SOFT_REACH_ULPS * (double)FLT_EPSILON * (scale + fabs(offset));
+        if (least > threshold + margin)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 static void GrowBox(double lo[3], double hi[3], m3Pos3 p)
@@ -472,8 +511,10 @@ static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3r
         m3Transform xf = m3ShapeWorldTransform(world, sShape);
         m3Vec3 center;
         m3real bound = SoftShapeBound(world, sShape, stype, &center);
-        if (bound >= 0.0f && world->softBodies.softCullOff == 0 &&
-            SoftShapeOutOfReach(&xf, center, bound, radius, plo, phi))
+        if (world->softBodies.softCullOff == 0 &&
+            ((bound >= 0.0f && SoftShapeOutOfReach(&xf, center, bound, radius, plo, phi)) ||
+             (stype == (uint8_t)m3_hullShape &&
+              SoftHullOutOfReach(world, sShape, &xf, radius, plo, phi))))
         {
             continue; // no particle can reach it this pass
         }
