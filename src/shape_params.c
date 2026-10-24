@@ -6,16 +6,14 @@
 // velocity. Public functions validate and journal; replay drives the
 // internal setters.
 
-#include "body.h"
+#include "body_state.h"
 #include "broad_phase.h"
-#include "hull.h"
 #include "journal.h"
-#include "manifold.h"
-#include "quickhull.h"
+#include "misuse.h"
 #include "shape.h"
-#include "voxel.h"
-#include "world.h"
+#include "shape_state.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
 

@@ -9,7 +9,7 @@
 #include "manifold.h"
 
 #include "distance.h"
-#include "shape.h"
+#include "shape_state.h"
 #include "world_internal.h"
 
 #include <float.h>

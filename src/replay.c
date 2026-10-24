@@ -6,7 +6,7 @@
 
 #include "maul3d/replay.h"
 
-#include "core.h"
+#include "misuse.h"
 
 #include <string.h>
 

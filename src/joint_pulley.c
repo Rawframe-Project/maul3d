@@ -8,7 +8,6 @@
 // Slots: the rope row (perpImpulse.z).
 
 #include "joint_solver.h"
-#include "solver.h"
 #include "world_internal.h"
 
 #include <math.h>

@@ -5,6 +5,8 @@
 
 #include "joint_row.h"
 
+#include "solver_math.h"
+
 #include <math.h>
 
 m3JointRow m3LineRow(m3Vec3 leverA, m3Vec3 armB, m3Vec3 u)

@@ -6,9 +6,10 @@
 // the internal setters.
 
 #include "journal.h"
+#include "misuse.h"
 #include "vehicle.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include "maul3d/vehicle.h"
 

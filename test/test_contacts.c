@@ -11,6 +11,7 @@
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <stdio.h>
 #include <string.h>

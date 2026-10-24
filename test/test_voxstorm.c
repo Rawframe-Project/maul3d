@@ -14,6 +14,7 @@
 #include "voxel.h"
 #include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <stdio.h>
 #include <stdlib.h>

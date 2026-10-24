@@ -7,14 +7,12 @@
 
 #include "maul3d/softbody.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "journal.h"
-#include "shape.h"
+#include "misuse.h"
 #include "softbody.h"
-#include "solver.h"
-#include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <math.h>
 #include <string.h>

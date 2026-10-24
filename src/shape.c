@@ -7,28 +7,17 @@
 
 #include "shape.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "broad_phase.h"
 #include "hull.h"
 #include "journal.h"
-#include "manifold.h"
-#include "quickhull.h"
-#include "voxel.h"
-#include "world.h"
+#include "misuse.h"
+#include "shape_state.h"
+#include "voxel_coverage.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
-
-int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId)
-{
-    int32_t index = shapeId.index1 - 1;
-    if (world == NULL || shapeId.world != world->idWorld ||
-        !m3IdPoolValid(&world->shapes.shapePool, index, shapeId.generation))
-    {
-        return -1;
-    }
-    return index;
-}
 
 m3QueryFilter m3DefaultQueryFilter(void)
 {

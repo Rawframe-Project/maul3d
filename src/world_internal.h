@@ -266,6 +266,12 @@ void m3MeshBvhFree(m3MeshBvh* bvh);
 // merged-box bounds). Count is capped at M3_MESH_MAX_TRIS.
 void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count);
 
+// The fragment events one step holds, and the island voxels their
+// recipes hold together. Past either, the fracture still happens: a
+// dropped event is counted, an oversized recipe is left out of its event.
+#define M3_FRAGMENT_EVENT_CAP  256
+#define M3_FRAGMENT_RECIPE_CAP 8192
+
 // Voxel chunks: dense 16^3 occupancy + payload, one
 // padding-free snapshot block per slot. STATE ends there; the
 // merged-box surface and its BVH are derived (never snapshotted,

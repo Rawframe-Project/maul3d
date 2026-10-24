@@ -8,12 +8,13 @@
 
 #include "joint.h"
 
-#include "body.h"
+#include "body_state.h"
 #include "joint_solver.h"
 #include "journal.h"
 #include "manifold.h"
-#include "world.h"
+#include "misuse.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
 

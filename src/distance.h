@@ -6,7 +6,7 @@
 #ifndef MAUL3D_SRC_DISTANCE_H
 #define MAUL3D_SRC_DISTANCE_H
 
-#include "world_internal.h"
+#include "core.h"
 
 // GJK distance between convex proxies, results in frame A. The mesh
 // manifolds, the queries and the time of impact build on this kernel.

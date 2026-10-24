@@ -66,6 +66,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/body.c
     src/body_motion.c
     src/body_read.c
+    src/body_state.c
     src/broad_phase.c
     src/character.c
     src/contact_kernel.c
@@ -106,6 +107,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/manifold_mesh.c
     src/math_functions.c
     src/mesh_bvh.c
+    src/misuse.c
     src/mover.c
     src/narrowphase.c
     src/query.c
@@ -119,21 +121,25 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/shape_data.c
     src/shape_mass.c
     src/shape_params.c
+    src/shape_state.c
     src/snapshot.c
     src/softbody.c
     src/softbody_pairs.c
     src/softbody_solver.c
     src/solver.c
+    src/solver_math.c
     src/triangle_contact.c
     src/vehicle.c
     src/vehicle_drivetrain.c
     src/voxel.c
+    src/voxel_coverage.c
     src/voxel_fracture.c
     src/water.c
     src/world.c
     src/world_events.c
     src/world_hash.c
-    src/world_state.c)
+    src/world_state.c
+    src/world_table.c)
 maul_configure_library(maul3d)
 # sqrt, floor and their kin are the only libm functions the library calls.
 if(NOT WIN32)

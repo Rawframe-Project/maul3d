@@ -10,16 +10,11 @@
 #include "journal_replay.h"
 
 #include "body.h"
-#include "character.h"
-#include "joint.h"
+#include "body_state.h"
 #include "journal.h"
 #include "query.h"
-#include "quickhull.h"
-#include "shape.h"
-#include "softbody.h"
+#include "shape_state.h"
 #include "solver.h"
-#include "vehicle.h"
-#include "voxel.h"
 #include "world.h"
 #include "world_internal.h"
 

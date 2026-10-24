@@ -3,15 +3,7 @@
 //
 // Shape mass properties and the body mass they sum to.
 
-#include "body.h"
-#include "broad_phase.h"
-#include "hull.h"
-#include "journal.h"
-#include "manifold.h"
-#include "quickhull.h"
 #include "shape.h"
-#include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include <string.h>

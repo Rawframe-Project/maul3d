@@ -4,16 +4,14 @@
 // The public shape constructors, one per shape kind. Each validates its
 // geometry, builds any prebuilt content and journals the create.
 
-#include "body.h"
-#include "broad_phase.h"
-#include "hull.h"
+#include "body_state.h"
 #include "journal.h"
 #include "manifold.h"
+#include "misuse.h"
 #include "quickhull.h"
 #include "shape.h"
-#include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
 

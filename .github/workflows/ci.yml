@@ -46,10 +46,10 @@ jobs:
     permissions:
       contents: read
 
-  # The rules no compiler checks: formatting, the length and snippet
-  # checks, the bindings against the C API, the documentation site, and
-  # clang-tidy. It runs on documentation changes too, since the snippet
-  # check and the site read docs/.
+  # The rules no compiler checks: formatting, the module, length and
+  # snippet checks, the bindings against the C API, the documentation
+  # site, and clang-tidy. It runs on documentation changes too, since the
+  # snippet check and the site read docs/.
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -71,9 +71,10 @@ jobs:
           [ -n "$files" ] || { echo "::error::no C sources found"; exit 1; }
           echo "$files" | xargs clang-format --dry-run -Werror
       - name: Family checks
-        # check_modules arrives with the one-way module graph, check_source
-        # and check_docs with the API that meets the family conventions.
+        # check_source and check_docs arrive with the API that meets the
+        # family conventions.
         run: |
+          python3 tools/check_modules.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
       - name: The bindings match the C API

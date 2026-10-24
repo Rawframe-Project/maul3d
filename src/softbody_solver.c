@@ -8,12 +8,10 @@
 // world's planes and shapes, then derive velocities from the position
 // delta. Every loop runs in ascending slot, particle and edge order.
 
-#include "body.h"
-#include "shape.h"
+#include "shape_state.h"
 #include "softbody.h"
-#include "solver.h"
+#include "solver_math.h"
 #include "voxel.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include <math.h>

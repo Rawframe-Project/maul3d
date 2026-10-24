@@ -12,7 +12,7 @@
 
 #include "broad_phase.h"
 
-#include "shape.h"
+#include "shape_state.h"
 #include "world_internal.h"
 
 #include <stdlib.h>

@@ -8,10 +8,10 @@
 
 #include "body.h"
 #include "joint_solver.h"
-#include "voxel.h"
+#include "misuse.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_state.h"
+#include "world_table.h"
 
 #include <stddef.h>
 

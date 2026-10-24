@@ -4,11 +4,11 @@
 // Event access: contact, sensor, hit, move, joint break and fragment
 // events, the hit threshold and the pre-solve hook.
 
-#include "body.h"
 #include "journal.h"
-#include "query.h"
+#include "misuse.h"
 #include "world.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>

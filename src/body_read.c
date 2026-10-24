@@ -5,9 +5,8 @@
 // the body and world frames, velocities at points, bounds, and the
 // shapes and joints on a body. Pure readers.
 
-#include "body.h"
+#include "body_state.h"
 #include "broad_phase.h"
-#include "world.h"
 #include "world_internal.h"
 
 m3WorldId m3Body_GetWorld(m3BodyId bodyId)

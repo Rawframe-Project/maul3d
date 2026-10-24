@@ -4,13 +4,8 @@
 // Voxel fracture: connectivity after an edit and the fragment events it
 // emits, and the escape direction for a point buried in a chunk.
 
-#include "body.h"
-#include "character.h"
-#include "hull.h"
-#include "journal.h"
-#include "shape.h"
 #include "voxel.h"
-#include "world.h"
+#include "voxel_coverage.h"
 #include "world_internal.h"
 
 #include <string.h>

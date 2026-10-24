@@ -6,8 +6,6 @@
 // only +, -, *, / and the IEEE-exact floorf, sqrtf and remainderf are
 // used, and the build turns floating-point contraction off.
 
-#include "core.h"
-
 #include "maul3d/core_math.h"
 
 // atan2 from the ratio a = min(|x|, |y|) / max(|x|, |y|) in [0, 1]. Above

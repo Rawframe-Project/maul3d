@@ -6,9 +6,10 @@
 // them directly.
 
 #include "body.h"
+#include "body_state.h"
 #include "journal.h"
-#include "solver.h"
-#include "world.h"
+#include "misuse.h"
+#include "solver_math.h"
 #include "world_internal.h"
 
 #include <string.h>

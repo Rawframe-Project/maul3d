@@ -13,12 +13,13 @@
 #include "body.h"
 #include "character.h"
 #include "journal.h"
+#include "misuse.h"
 #include "query.h"
 #include "raycast.h"
 #include "shape.h"
-#include "solver.h"
-#include "world.h"
+#include "solver_math.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <string.h>
 

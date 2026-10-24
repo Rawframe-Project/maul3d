@@ -18,7 +18,6 @@
 
 #include "joint_solver.h"
 #include "manifold.h"
-#include "solver.h"
 #include "world_internal.h"
 
 #include <math.h>

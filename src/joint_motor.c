@@ -10,7 +10,6 @@
 // (impulse).
 
 #include "joint_solver.h"
-#include "solver.h"
 #include "world_internal.h"
 
 static void PrepareMotor(m3World* world, m3JointConstraint* c, const m3JointFrame* f)

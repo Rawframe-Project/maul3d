@@ -12,9 +12,10 @@
 
 #include "raycast.h"
 
-#include "shape.h"
-#include "world.h"
+#include "misuse.h"
+#include "shape_state.h"
 #include "world_internal.h"
+#include "world_table.h"
 
 #include <float.h>
 #include <string.h>

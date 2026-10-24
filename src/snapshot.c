@@ -11,13 +11,12 @@
 // MEANING of the bytes (engine version, solver revision, precision,
 // FP policy) and restore refuses a mismatch loudly.
 
-#include "body.h"
-#include "joint_solver.h"
+#include "misuse.h"
 #include "shape.h"
-#include "voxel.h"
-#include "world.h"
+#include "voxel_coverage.h"
 #include "world_internal.h"
 #include "world_state.h"
+#include "world_table.h"
 
 #include <string.h>
 
