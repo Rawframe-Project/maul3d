@@ -11,6 +11,7 @@
 
 #include "world_internal.h"
 
+#include <float.h>
 #include <string.h>
 
 void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents)
@@ -236,29 +237,38 @@ static bool IsItsOwnBox(const m3HullData* hull)
 // not store, so a restore cannot rebuild them bit for bit; for a sliver
 // face Newell's normal is ill-conditioned and moves by about 1e-4 with
 // that point, and merged faces hold their loops to about 1e-3 of the
-// extent. The tolerances take those with a tenfold margin and refuse a
-// plane that misplaces its face or leaves a vertex outside the hull.
-#define M3_HULL_NORMAL_TOLERANCE 1.0e-3f // | |n| - 1 |
-#define M3_HULL_PLANE_TOLERANCE  1.0e-2f // distances, times the hull's extent
+// extent. Far from the body's origin the floats themselves are coarse:
+// rounding the vertices, the offsets and the check's own dot products
+// moves a distance by up to 2.5 ulps of the largest coordinate. The
+// tolerances take those with a margin and refuse a plane that misplaces
+// its face or leaves a vertex outside the hull.
+#define M3_HULL_NORMAL_TOLERANCE   1.0e-3f // | |n| - 1 |
+#define M3_HULL_PLANE_TOLERANCE    1.0e-2f // distances, times the hull's extent
+#define M3_HULL_ROUNDING_TOLERANCE 16.0f   // distances, in FLT_EPSILON of the largest coordinate
 
-static m3real HullExtent(const m3HullData* hull)
+// The distance a vertex may sit off a plane: a share of the hull's
+// extent plus the rounding of its largest coordinate.
+static m3real PlaneSlack(const m3HullData* hull)
 {
     m3Vec3 lo = hull->vertices[0];
     m3Vec3 hi = hull->vertices[0];
-    for (int32_t v = 1; v < hull->vertexCount; ++v)
+    m3real far = 0.0f;
+    for (int32_t v = 0; v < hull->vertexCount; ++v)
     {
         m3Vec3 p = hull->vertices[v];
         lo = (m3Vec3){m3MinF(lo.x, p.x), m3MinF(lo.y, p.y), m3MinF(lo.z, p.z)};
         hi = (m3Vec3){m3MaxF(hi.x, p.x), m3MaxF(hi.y, p.y), m3MaxF(hi.z, p.z)};
+        far = m3MaxF(far, m3MaxF(m3AbsF(p.x), m3MaxF(m3AbsF(p.y), m3AbsF(p.z))));
     }
-    return m3MaxF(hi.x - lo.x, m3MaxF(hi.y - lo.y, hi.z - lo.z));
+    m3real extent = m3MaxF(hi.x - lo.x, m3MaxF(hi.y - lo.y, hi.z - lo.z));
+    return M3_HULL_PLANE_TOLERANCE * extent + M3_HULL_ROUNDING_TOLERANCE * FLT_EPSILON * far;
 }
 
 // Each face's plane has a unit normal, holds the face's own vertices and
 // has every vertex of the hull on or below it, within the tolerances.
 static bool PlanesHold(const m3HullData* hull)
 {
-    m3real slack = M3_HULL_PLANE_TOLERANCE * HullExtent(hull);
+    m3real slack = PlaneSlack(hull);
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
         m3Vec3 n = hull->faceNormals[f];

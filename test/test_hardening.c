@@ -532,6 +532,57 @@ static void TestRestoreAcceptsEveryCreatedHull(void)
     m3DestroyWorld(world);
 }
 
+// A small hull far from its body's origin creates and restores: the
+// floats there are coarse (an ulp is about 1e-3 at 9e3), and the wall's
+// plane slack takes their rounding as well as its share of the extent.
+// Offsets run along an axis and a diagonal up to the local limit, sizes
+// from a centimetre to a metre.
+static void TestFarHullsCreate(void)
+{
+    static const float offsets[7] = {0.0f, 1.0e1f, 1.0e2f, 1.0e3f, 3.0e3f, 9.0e3f, 9.9e3f};
+    static const float sizes[3] = {1.0e-2f, 1.0e-1f, 1.0f};
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 900;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    uint64_t rng = 0xFA2ull;
+    int32_t refused = 0;
+    for (int32_t i = 0; i < 7 * 2 * 3 * 20; ++i)
+    {
+        float offset = offsets[i / 120];
+        float size = sizes[i % 3];
+        m3Vec3 center = (i / 60) % 2 == 0 ? (m3Vec3){offset, 0.0f, 0.0f}
+                                          : m3MulSV3(offset * 0.57735f, (m3Vec3){1.0f, 1.0f, 1.0f});
+        m3Vec3 pts[16];
+        for (int32_t k = 0; k < 16; ++k)
+        {
+            m3Vec3 p = {RandomIn(&rng, -0.5f, 0.5f), RandomIn(&rng, -0.5f, 0.5f),
+                        RandomIn(&rng, -0.5f, 0.5f)};
+            pts[k] = m3Add3(center, m3MulSV3(size, p));
+        }
+        m3ShapeId shape = m3_nullShapeId;
+        if (m3CreateHullShape(world, ground, &sd, pts, 16, &shape) != m3_success)
+        {
+            refused += 1;
+            if (refused == 1)
+            {
+                printf("M3_FAR_HULL refused offset=%g size=%g\n", (double)offset, (double)size);
+            }
+        }
+    }
+    printf("M3_FAR_HULL refused=%d of 840\n", refused);
+    CHECK(refused == 0, "a small hull far from its body's origin creates");
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the far hulls are snapshotted");
+    CHECK(snap != NULL && Restore(world, snap, size), "every far hull restores");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 // A restore lands a hull's planes and mass properties only as the
 // builders make them: a plane that misplaces its face or leaves a vertex
 // outside, a NaN in a plane, mass properties the vertices do not give,
@@ -1004,6 +1055,7 @@ int main(void)
     TestRestoreRefusesBadMeshContent();
     TestRestoreRefusesBadHullContent();
     TestRestoreAcceptsEveryCreatedHull();
+    TestFarHullsCreate();
     TestRestoreRefusesBadHullDerived();
     TestRestoreRefusesBadHeightFieldContent();
     TestCreateWorldOutOfMemory();
