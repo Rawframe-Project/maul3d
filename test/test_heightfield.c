@@ -6,6 +6,7 @@
 // in both doors, carries bodies on its surface, and answers rays and
 // overlaps.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -32,36 +33,37 @@ static void TestCreateAndWalls(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static float hills[16 * 16];
     FillHills(hills, 16, 16);
-    m3ShapeId terrain = m3CreateHeightFieldGridShape(ground, &sd, hills, 16, 16, 0.5f);
-    CHECK(m3Shape_IsValid(terrain), "the native grid lands");
+    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, hills, 16, 16, 0.5f);
+    CHECK(m3Shape_IsValid(world, terrain), "the native grid lands");
 
     m3BodyDef dd = m3DefaultBodyDef();
     dd.type = m3_dynamicBody;
     dd.position = (m3Pos3){0.0, 5.0, 0.0};
-    m3BodyId mover = m3CreateBody(world, &dd);
+    m3BodyId mover = NewBody(world, &dd);
     uint64_t before = m3World_Hash(world);
-    CHECK(!m3Shape_IsValid(m3CreateHeightFieldGridShape(mover, &sd, hills, 16, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, mover, &sd, hills, 16, 16, 0.5f)),
           "a dynamic body refuses terrain");
-    CHECK(!m3Shape_IsValid(m3CreateHeightFieldGridShape(ground, &sd, hills, 1, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, ground, &sd, hills, 1, 16, 0.5f)),
           "a one-column grid refuses");
-    CHECK(!m3Shape_IsValid(m3CreateHeightFieldGridShape(ground, &sd, hills, 16, 16, 0.0f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, ground, &sd, hills, 16, 16, 0.0f)),
           "a zero cell refuses");
     static float poisoned[16 * 16];
     FillHills(poisoned, 16, 16);
     poisoned[40] = NAN;
-    CHECK(!m3Shape_IsValid(m3CreateHeightFieldGridShape(ground, &sd, poisoned, 16, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world,
+                           NewHeightFieldGridShape(world, ground, &sd, poisoned, 16, 16, 0.5f)),
           "a NaN sample refuses");
     CHECK(m3World_Hash(world) == before, "refused terrain moved no bits");
-    m3DestroyBody(mover);
+    DestroyBody(world, mover);
 
-    m3DestroyShape(terrain);
-    CHECK(!m3Shape_IsValid(terrain), "destroyed terrain goes stale");
+    DestroyShape(world, terrain);
+    CHECK(!m3Shape_IsValid(world, terrain), "destroyed terrain goes stale");
     m3DestroyWorld(world);
 }
 
@@ -73,28 +75,28 @@ static void TestContacts(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 16;
     wd.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static float flat[33 * 33]; // zeros: a flat 16m field
-    m3ShapeId terrain = m3CreateHeightFieldGridShape(ground, &sd, flat, 33, 33, 0.5f);
-    CHECK(m3Shape_IsValid(terrain), "the flat field lands");
+    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, flat, 33, 33, 0.5f);
+    CHECK(m3Shape_IsValid(world, terrain), "the flat field lands");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &s);
+    NewSphereShape(world, ball, &sd, &s);
 
     bd.position = (m3Pos3){-4.0, 1.0, 3.0};
     bd.linearVelocity = (m3Vec3){4.0f, 0.0f, 0.0f};
-    m3BodyId slider = m3CreateBody(world, &bd);
+    m3BodyId slider = NewBody(world, &bd);
     m3ShapeDef bs = m3DefaultShapeDef();
     bs.friction = 0.05f;
-    m3CreateBoxShape(slider, &bs, (m3Vec3){0.3f, 0.3f, 0.3f});
+    NewBoxShape(world, slider, &bs, (m3Vec3){0.3f, 0.3f, 0.3f});
 
     double maxSliderY = 0.0;
     for (int32_t i = 0; i < 300; ++i)
@@ -102,13 +104,13 @@ static void TestContacts(void)
         m3World_Step(world, 1.0f / 60.0f, 4);
         if (i > 60)
         {
-            double y = m3Body_GetPosition(slider).y;
+            double y = m3Body_GetPosition(world, slider).y;
             maxSliderY = y > maxSliderY ? y : maxSliderY;
         }
     }
-    double ballY = m3Body_GetPosition(ball).y;
+    double ballY = m3Body_GetPosition(world, ball).y;
     CHECK(ballY > 0.3 && ballY < 0.5, "the ball rests on the field");
-    CHECK(m3Body_GetPosition(slider).x > -1.0, "the slick box slides across cells");
+    CHECK(m3Body_GetPosition(world, slider).x > -1.0, "the slick box slides across cells");
     CHECK(maxSliderY < 0.45, "no ghost snag pops the slider");
     m3DestroyWorld(world);
 
@@ -116,10 +118,10 @@ static void TestContacts(void)
     m3WorldDef wd2 = m3DefaultWorldDef();
     wd2.bodyCapacity = 8;
     wd2.shapeCapacity = 8;
-    m3WorldId hill = m3CreateWorld(&wd2);
+    m3World* hill = NewWorld(&wd2);
     m3BodyDef gd2 = m3DefaultBodyDef();
     gd2.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId ground2 = m3CreateBody(hill, &gd2);
+    m3BodyId ground2 = NewBody(hill, &gd2);
     static float ramp[33 * 33];
     for (int32_t z = 0; z < 33; ++z)
     {
@@ -128,18 +130,18 @@ static void TestContacts(void)
             ramp[z * 33 + x] = 0.3f * (float)x;
         }
     }
-    CHECK(m3Shape_IsValid(m3CreateHeightFieldGridShape(ground2, &sd, ramp, 33, 33, 0.5f)),
+    CHECK(m3Shape_IsValid(hill, NewHeightFieldGridShape(hill, ground2, &sd, ramp, 33, 33, 0.5f)),
           "the ramp lands");
     m3BodyDef rb = m3DefaultBodyDef();
     rb.type = m3_dynamicBody;
     rb.position = (m3Pos3){0.0, 6.0, 0.0}; // the ramp is 4.8 high here
-    m3BodyId roller = m3CreateBody(hill, &rb);
-    m3CreateSphereShape(roller, &sd, &s);
+    m3BodyId roller = NewBody(hill, &rb);
+    NewSphereShape(hill, roller, &sd, &s);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(hill, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(roller).x < -1.0, "the ball rolls downhill");
+    CHECK(m3Body_GetPosition(hill, roller).x < -1.0, "the ball rolls downhill");
     m3DestroyWorld(hill);
 }
 
@@ -150,10 +152,10 @@ static void TestRayAndOverlap(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-4.0, 0.0, -4.0};
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static float ramp[17 * 17];
     for (int32_t z = 0; z < 17; ++z)
@@ -163,8 +165,8 @@ static void TestRayAndOverlap(void)
             ramp[z * 17 + x] = 0.2f * (float)x;
         }
     }
-    m3ShapeId terrain = m3CreateHeightFieldGridShape(ground, &sd, ramp, 17, 17, 0.5f);
-    CHECK(m3Shape_IsValid(terrain), "the ray ramp lands");
+    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, ramp, 17, 17, 0.5f);
+    CHECK(m3Shape_IsValid(world, terrain), "the ray ramp lands");
 
     // Straight down INSIDE a cell (a ray exactly on a shared corner
     // can lose the watertight edge test by one float ulp, the same

@@ -9,7 +9,8 @@
 #   sources names a public function with that many parameters;
 # - every C# struct has the size and the field offsets of the C struct
 #   it mirrors (sequential layout, computed here; the C side printed by
-#   the C compiler).
+#   the C compiler);
+# - the C# AbiVersion is the headers' M3_ABI_VERSION.
 #
 # usage: check_bindings.py [C compiler, default cc]
 
@@ -52,6 +53,9 @@ def c_api():
     for name in os.listdir(include):
         text = open(os.path.join(include, name)).read()
         for m in re.finditer(r"M3_API\s+[^;(]*?\b(m3\w+)\s*\(([^)]*)\)\s*;", text):
+            params = split_top(m.group(2))
+            api[m.group(1)] = 0 if params in ([], ["void"]) else len(params)
+        for m in re.finditer(r"static inline \w+ (m3\w+)\(([^)]*)\)\n", text):
             params = split_top(m.group(2))
             api[m.group(1)] = 0 if params in ([], ["void"]) else len(params)
     return api
@@ -119,7 +123,7 @@ def c_member(field, fields):
 def c_layouts(names, structs, compiler):
     """What the C compiler says about the same structs."""
     lines = ['#include "maul3d/maul3d.h"', "#include <stddef.h>", "#include <stdio.h>",
-             "int main(void)", "{"]
+             "int main(void)", "{", '    printf("abi %u\\n", (unsigned)M3_ABI_VERSION);']
     for name in names:
         c = "m3" + name
         lines.append(f'    printf("{name} size %zu\\n", sizeof({c}));')
@@ -173,6 +177,9 @@ def main():
     for m in re.finditer(r"Check<(\w+)>\((\d+)\)", text):
         if m.group(1) in structs and layout(m.group(1), structs)[0] != int(m.group(2)):
             failures.append(f"C#: LayoutCheck expects {m.group(1)} at {m.group(2)} bytes")
+    abi = re.search(r"public const uint AbiVersion = (0x[0-9A-Fa-f]+)u;", text)
+    if abi is None or int(abi.group(1), 16) != int(c["abi"]):
+        failures.append(f"C#: AbiVersion is not M3_ABI_VERSION ({int(c['abi']):#x})")
     for failure in failures:
         print(failure)
     if not failures:

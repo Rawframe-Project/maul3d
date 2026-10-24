@@ -6,126 +6,104 @@
 #include <stdlib.h>
 #include <string.h>
 
-// No-growth bookkeeping: the soak asserts that steady-state
-// stepping performs ZERO net allocation. Counters, not sizes: the
-// free contract carries no size, and a flat live count plus the
-// LeakSanitizer cell together are the growth proof. Main-thread
-// only by the allocation map (create, restore, replay paths); task
-// workers never allocate.
-#if defined(_MSC_VER)
-#include <intrin.h>
-static volatile long long s_allocCalls = 0;
-static volatile long long s_freeCalls = 0;
-#define M3_COUNT_INC(c)  _InterlockedIncrement64(&(c))
-#define M3_COUNT_READ(c) _InterlockedCompareExchange64(&(c), 0, 0)
-#else
-#include <stdatomic.h>
-static _Atomic int64_t s_allocCalls = 0;
-static _Atomic int64_t s_freeCalls = 0;
-#define M3_COUNT_INC(c)  atomic_fetch_add_explicit(&(c), 1, memory_order_relaxed)
-#define M3_COUNT_READ(c) atomic_load_explicit(&(c), memory_order_relaxed)
-#endif
-
-void m3DebugAllocCounts(int64_t* allocs, int64_t* frees)
+// src/allocator.c is the one file that reaches the C library's
+// allocation functions; everything else asks a world's heap.
+static void* CLibraryAlloc(size_t size, size_t alignment, void* context)
 {
-    if (allocs != NULL)
-    {
-        *allocs = (int64_t)M3_COUNT_READ(s_allocCalls);
-    }
-    if (frees != NULL)
-    {
-        *frees = (int64_t)M3_COUNT_READ(s_freeCalls);
-    }
+    (void)context;
+    (void)alignment; // malloc's blocks are aligned for any type
+    return malloc(size);
 }
 
-// The host hook: set before the first
-// world, constant while worlds live. Hooked memory arrives
-// uninitialized, so the zeroing happens here either way.
-static m3AllocFn* s_hookAlloc = NULL;
-static m3FreeFn* s_hookFree = NULL;
-static void* s_hookContext = NULL;
-
-void m3SetAllocator(m3AllocFn* allocFn, m3FreeFn* freeFn, void* context)
+static void CLibraryFree(void* memory, size_t size, size_t alignment, void* context)
 {
-    // Both or neither: a mismatched pair would free with the wrong
-    // authority.
-    if ((allocFn == NULL) != (freeFn == NULL))
-    {
-        m3NoteResult(m3_errorInvalid);
-        return;
-    }
-    s_hookAlloc = allocFn;
-    s_hookFree = freeFn;
-    s_hookContext = context;
+    (void)size;
+    (void)alignment;
+    (void)context;
+    free(memory);
 }
 
-void* m3AllocZeroed(int32_t bytes)
+bool m3AllocatorValid(const m3Allocator* allocator)
+{
+    return (allocator->alloc == NULL) == (allocator->free == NULL);
+}
+
+m3Heap m3HeapMake(const m3Allocator* requested)
+{
+    m3Heap heap;
+    memset(&heap, 0, sizeof(heap));
+    if (requested != NULL && requested->alloc != NULL && requested->free != NULL)
+    {
+        heap.allocator = *requested;
+    }
+    else
+    {
+        heap.allocator.alloc = CLibraryAlloc;
+        heap.allocator.free = CLibraryFree;
+    }
+    return heap;
+}
+
+// Every block starts with a header of M3_ALLOC_ALIGNMENT bytes holding
+// the full size the allocator was asked for, so the block the caller
+// sees keeps the alignment and the free hands back the same size.
+void* m3AllocZeroed(m3Heap* heap, int32_t bytes)
 {
     if (bytes <= 0)
     {
         M3_ASSERT(false);
         return NULL;
     }
-    void* memory;
-    if (s_hookAlloc != NULL)
+    size_t total = (size_t)bytes + M3_ALLOC_ALIGNMENT;
+    uint8_t* block =
+        (uint8_t*)heap->allocator.alloc(total, M3_ALLOC_ALIGNMENT, heap->allocator.context);
+    if (block == NULL)
     {
-        memory = s_hookAlloc((size_t)bytes, s_hookContext);
-        if (memory != NULL)
-        {
-            memset(memory, 0, (size_t)bytes);
-        }
+        return NULL;
     }
-    else
-    {
-        memory = calloc(1, (size_t)bytes);
-    }
-    if (memory != NULL)
-    {
-        M3_COUNT_INC(s_allocCalls);
-    }
-    return memory;
+    memset(block, 0, total);
+    memcpy(block, &total, sizeof(total));
+    heap->allocCalls += 1;
+    return block + M3_ALLOC_ALIGNMENT;
 }
 
-void* m3AllocArray(int64_t count, int64_t elementBytes)
+void* m3AllocArray(m3Heap* heap, int64_t count, int64_t elementBytes)
 {
     if (count <= 0 || elementBytes <= 0 || count > (int64_t)INT32_MAX / elementBytes)
     {
         return NULL;
     }
-    return m3AllocZeroed((int32_t)(count * elementBytes));
+    return m3AllocZeroed(heap, (int32_t)(count * elementBytes));
 }
 
-void m3Free(void* memory)
+void m3Free(m3Heap* heap, void* memory)
 {
-    if (memory != NULL)
+    if (memory == NULL)
     {
-        M3_COUNT_INC(s_freeCalls);
+        return;
     }
-    if (s_hookFree != NULL)
-    {
-        s_hookFree(memory, s_hookContext);
-    }
-    else
-    {
-        free(memory);
-    }
+    uint8_t* block = (uint8_t*)memory - M3_ALLOC_ALIGNMENT;
+    size_t total;
+    memcpy(&total, block, sizeof(total));
+    heap->freeCalls += 1;
+    heap->allocator.free(block, total, M3_ALLOC_ALIGNMENT, heap->allocator.context);
 }
 
-m3Stack m3StackCreate(int32_t capacity)
+m3Stack m3StackCreate(m3Heap* heap, int32_t capacity)
 {
     m3Stack stack;
     memset(&stack, 0, sizeof(stack));
     if (capacity > 0)
     {
-        stack.base = (uint8_t*)m3AllocZeroed(capacity);
+        stack.base = (uint8_t*)m3AllocZeroed(heap, capacity);
         stack.capacity = stack.base != NULL ? capacity : 0;
     }
     return stack;
 }
 
-void m3StackDestroy(m3Stack* stack)
+void m3StackDestroy(m3Heap* heap, m3Stack* stack)
 {
-    m3Free(stack->base);
+    m3Free(heap, stack->base);
     memset(stack, 0, sizeof(*stack));
 }
 
@@ -159,7 +137,7 @@ void m3StackReset(m3Stack* stack)
     stack->overflow = 0;
 }
 
-m3IdPool m3IdPoolCreate(int32_t capacity)
+m3IdPool m3IdPoolCreate(m3Heap* heap, int32_t capacity)
 {
     m3IdPool pool;
     memset(&pool, 0, sizeof(pool));
@@ -168,24 +146,24 @@ m3IdPool m3IdPoolCreate(int32_t capacity)
         M3_ASSERT(false);
         return pool;
     }
-    M3_ALLOC(pool.generations, capacity, uint16_t);
-    M3_ALLOC(pool.alive, capacity, uint8_t);
-    M3_ALLOC(pool.freeQueue, capacity, int32_t);
+    M3_ALLOC(heap, pool.generations, capacity, uint16_t);
+    M3_ALLOC(heap, pool.alive, capacity, uint8_t);
+    M3_ALLOC(heap, pool.freeQueue, capacity, int32_t);
     if (pool.generations == NULL || pool.alive == NULL || pool.freeQueue == NULL)
     {
         // Out of memory: an empty pool (capacity 0) tells the caller.
-        m3IdPoolDestroy(&pool);
+        m3IdPoolDestroy(heap, &pool);
         return pool;
     }
     pool.capacity = capacity;
     return pool;
 }
 
-void m3IdPoolDestroy(m3IdPool* pool)
+void m3IdPoolDestroy(m3Heap* heap, m3IdPool* pool)
 {
-    m3Free(pool->generations);
-    m3Free(pool->alive);
-    m3Free(pool->freeQueue);
+    m3Free(heap, pool->generations);
+    m3Free(heap, pool->alive);
+    m3Free(heap, pool->freeQueue);
     memset(pool, 0, sizeof(*pool));
 }
 
@@ -248,7 +226,7 @@ void m3IdPoolRewind(m3IdPool* pool, m3IdPoolMark mark, int32_t index)
     pool->freeCount = mark.freeCount;
 }
 
-int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint16_t generation)
+int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint32_t generation)
 {
     return index >= 0 && index < pool->capacity && pool->alive[index] != 0 &&
            pool->generations[index] == generation;

@@ -18,6 +18,96 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Stops the tool when the demo scene cannot be built.
+static void Built(m3Result result, const char* what)
+{
+    if (result != m3_success)
+    {
+        fprintf(stderr, "m3replay: %s: %s\n", what, m3ResultName(result));
+        exit(1);
+    }
+}
+
+static m3World* NewWorld(const m3WorldDef* def)
+{
+    m3World* world = NULL;
+    Built(m3CreateWorld(def, &world), "m3CreateWorld");
+    return world;
+}
+
+static m3BodyId NewBody(m3World* world, const m3BodyDef* def)
+{
+    m3BodyId body;
+    Built(m3CreateBody(world, def, &body), "m3CreateBody");
+    return body;
+}
+
+static m3ShapeId NewPlaneShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                               const m3Plane* plane)
+{
+    m3ShapeId shape;
+    Built(m3CreatePlaneShape(world, body, def, plane, &shape), "m3CreatePlaneShape");
+    return shape;
+}
+
+static m3ShapeId NewBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                             m3Vec3 halfExtents)
+{
+    m3ShapeId shape;
+    Built(m3CreateBoxShape(world, body, def, halfExtents, &shape), "m3CreateBoxShape");
+    return shape;
+}
+
+static m3JointId NewJoint(m3World* world, const m3JointDef* def)
+{
+    m3JointId joint;
+    Built(m3CreateJoint(world, def, &joint), "m3CreateJoint");
+    return joint;
+}
+
+// The snapshot, journal and container calls as the tool tests them: the
+// bytes written (-1 or 0 on a refusal) or whether the call succeeded.
+static int32_t Snapshot(const m3World* world, void* buffer, int32_t capacity)
+{
+    int32_t bytes = 0;
+    return m3World_Snapshot(world, buffer, capacity, &bytes) == m3_success ? bytes : -1;
+}
+
+static bool Restore(m3World* world, const void* data, int32_t size)
+{
+    return m3World_Restore(world, data, size) == m3_success;
+}
+
+static bool StartJournal(m3World* world, void* buffer, int32_t capacity)
+{
+    return m3World_StartJournal(world, buffer, capacity) == m3_success;
+}
+
+static int32_t StopJournal(m3World* world)
+{
+    int32_t bytes = 0;
+    return m3World_StopJournal(world, &bytes) == m3_success ? bytes : -1;
+}
+
+static bool ReplayJournal(m3World* world, const void* data, int32_t size)
+{
+    return m3World_ReplayJournal(world, data, size) == m3_success;
+}
+
+static int32_t EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
+                            int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity)
+{
+    int32_t bytes = 0;
+    m3Result result = m3EncodeReplay(snapshot, snapshotBytes, journal, journalBytes, finalHash, out,
+                                     capacity, &bytes);
+    return result == m3_success ? bytes : 0;
+}
+
+static bool DecodeReplay(const void* data, int32_t bytes, m3ReplayView* view)
+{
+    return m3DecodeReplay(data, bytes, view) == m3_success;
+}
+
 // The demo def is part of the tool's contract: verify recreates
 // the same capacities before restoring the embedded snapshot.
 static m3WorldDef DemoDef(void)
@@ -29,25 +119,25 @@ static m3WorldDef DemoDef(void)
     return def;
 }
 
-static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep);
+static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep);
 
 // A deterministic little storm: crates rain on a plane, a hinge
 // door gets a motor and a drive target, materials shift mid-run.
-static void DemoSession(m3WorldId world, int32_t steps)
+static void DemoSession(m3World* world, int32_t steps)
 {
     DemoSessionEx(world, steps, -1);
 }
 
 // injectStep >= 0 slips one extra impulse before that step: the
 // divergence the finder must pin to the exact step and body.
-static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
+static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep)
 {
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floor = m3CreatePlaneShape(ground, &sd, &fl);
-    m3Shape_EnableHitEvents(floor, true);
+    m3ShapeId floor = NewPlaneShape(world, ground, &sd, &fl);
+    m3Shape_EnableHitEvents(world, floor, true);
 
     m3BodyId post;
     m3BodyId injectTarget;
@@ -55,13 +145,13 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.position = (m3Pos3){-3.0, 2.0, 0.0};
-        post = m3CreateBody(world, &bd);
-        m3CreateBoxShape(post, &sd, (m3Vec3){0.2f, 2.0f, 0.2f});
+        post = NewBody(world, &bd);
+        NewBoxShape(world, post, &sd, (m3Vec3){0.2f, 2.0f, 0.2f});
         m3BodyDef dd = m3DefaultBodyDef();
         dd.type = m3_dynamicBody;
         dd.position = (m3Pos3){-2.0, 2.0, 0.0};
-        m3BodyId door = m3CreateBody(world, &dd);
-        m3CreateBoxShape(door, &sd, (m3Vec3){0.8f, 1.0f, 0.1f});
+        m3BodyId door = NewBody(world, &dd);
+        NewBoxShape(world, door, &sd, (m3Vec3){0.8f, 1.0f, 0.1f});
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_revoluteJoint;
         jd.bodyIdA = post;
@@ -70,7 +160,7 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
         jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        hinge = m3CreateJoint(world, &jd);
+        hinge = NewJoint(world, &jd);
         injectTarget = door;
     }
 
@@ -81,28 +171,28 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
             bd.position = (m3Pos3){-1.5 + 0.5 * (double)((i / 30) % 7), 6.0, 0.0};
-            m3BodyId crate = m3CreateBody(world, &bd);
-            m3CreateBoxShape(crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+            m3BodyId crate = NewBody(world, &bd);
+            NewBoxShape(world, crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
         }
         if (i == 60)
         {
-            m3Joint_SetMotor(hinge, true, 2.0f, 40.0f);
+            m3Joint_SetMotor(world, hinge, true, 2.0f, 40.0f);
         }
         if (i == 120)
         {
-            m3Joint_SetMotor(hinge, false, 0.0f, 0.0f);
-            m3Joint_SetSpring(hinge, true, 5.0f, 0.9f);
-            m3Joint_SetTargetAngle(hinge, -0.4f);
+            m3Joint_SetMotor(world, hinge, false, 0.0f, 0.0f);
+            m3Joint_SetSpring(world, hinge, true, 5.0f, 0.9f);
+            m3Joint_SetTargetAngle(world, hinge, -0.4f);
         }
         if (i == 150)
         {
-            m3Shape_SetFriction(floor, 0.2f);
+            m3Shape_SetFriction(world, floor, 0.2f);
         }
         if (i == injectStep)
         {
             // The deliberate desync: a kick on the door's post
             // partner, journaled like everything else.
-            m3Body_ApplyLinearImpulse(injectTarget, (m3Vec3){0.8f, 0.0f, 0.3f});
+            m3Body_ApplyLinearImpulse(world, injectTarget, (m3Vec3){0.8f, 0.0f, 0.3f});
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
@@ -111,11 +201,11 @@ static void DemoSessionEx(m3WorldId world, int32_t steps, int32_t injectStep)
 static int Record(const char* path)
 {
     m3WorldDef def = DemoDef();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    if (snap == NULL || m3World_Snapshot(world, snap, snapBytes) != snapBytes)
+    if (snap == NULL || Snapshot(world, snap, snapBytes) != snapBytes)
     {
         fprintf(stderr, "m3replay: initial snapshot failed\n");
         return 1;
@@ -123,13 +213,13 @@ static int Record(const char* path)
 
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    if (journal == NULL || !m3World_StartJournal(world, journal, journalCap))
+    if (journal == NULL || !StartJournal(world, journal, journalCap))
     {
         fprintf(stderr, "m3replay: journal begin failed\n");
         return 1;
     }
     DemoSession(world, 300);
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     if (journalBytes < 0)
     {
         fprintf(stderr, "m3replay: journal overflowed\n");
@@ -139,7 +229,7 @@ static int Record(const char* path)
 
     int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    int32_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     if (wrote != need)
     {
         fprintf(stderr, "m3replay: encode failed\n");
@@ -193,7 +283,7 @@ static int Info(const char* path)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
+    if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -211,19 +301,19 @@ static int Verify(const char* path)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
+    if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
     }
     m3WorldDef def = DemoDef();
-    m3WorldId world = m3CreateWorld(&def);
-    if (!m3World_Restore(world, view.snapshot, view.snapshotBytes))
+    m3World* world = NewWorld(&def);
+    if (!Restore(world, view.snapshot, view.snapshotBytes))
     {
         fprintf(stderr, "m3replay: the embedded snapshot refused (config or capacity)\n");
         return 1;
     }
-    if (!m3World_ReplayJournal(world, view.journal, view.journalBytes))
+    if (!ReplayJournal(world, view.journal, view.journalBytes))
     {
         fprintf(stderr, "m3replay: the journal refused\n");
         return 1;
@@ -262,7 +352,7 @@ typedef struct Scrub
                        // GROWS with the world and is never one
                        // number for a whole session
     int32_t keyCount;
-    m3WorldId world;
+    m3World* world;
 } Scrub;
 
 // Walk the framing once, recording where each step's segment ends.
@@ -297,8 +387,8 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
         return false;
     }
     m3WorldDef def = DemoDef();
-    s->world = m3CreateWorld(&def);
-    if (!m3World_Restore(s->world, view->snapshot, view->snapshotBytes))
+    s->world = NewWorld(&def);
+    if (!Restore(s->world, view->snapshot, view->snapshotBytes))
     {
         return false;
     }
@@ -308,7 +398,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     // Key 0 is the pre-step world (creates land inside segment 0).
     s->keySizes[0] = m3World_SnapshotSize(s->world);
     s->keys[0] = (uint8_t*)malloc((size_t)s->keySizes[0]);
-    if (m3World_Snapshot(s->world, s->keys[0], s->keySizes[0]) != s->keySizes[0])
+    if (Snapshot(s->world, s->keys[0], s->keySizes[0]) != s->keySizes[0])
     {
         return false;
     }
@@ -316,7 +406,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     {
         int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
         int32_t to = s->stepEnds[i];
-        if (!m3World_ReplayJournal(s->world, s->journal + from, to - from))
+        if (!ReplayJournal(s->world, s->journal + from, to - from))
         {
             return false;
         }
@@ -325,7 +415,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
             int32_t k = (i + 1) / M3_SCRUB_INTERVAL;
             s->keySizes[k] = m3World_SnapshotSize(s->world);
             s->keys[k] = (uint8_t*)malloc((size_t)s->keySizes[k]);
-            if (m3World_Snapshot(s->world, s->keys[k], s->keySizes[k]) != s->keySizes[k])
+            if (Snapshot(s->world, s->keys[k], s->keySizes[k]) != s->keySizes[k])
             {
                 return false;
             }
@@ -347,7 +437,7 @@ static bool ScrubSeek(Scrub* s, int32_t stepN)
     {
         key = s->keyCount - 1;
     }
-    if (!m3World_Restore(s->world, s->keys[key], s->keySizes[key]))
+    if (!Restore(s->world, s->keys[key], s->keySizes[key]))
     {
         return false;
     }
@@ -355,7 +445,7 @@ static bool ScrubSeek(Scrub* s, int32_t stepN)
     {
         int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
         int32_t to = s->stepEnds[i];
-        if (!m3World_ReplayJournal(s->world, s->journal + from, to - from))
+        if (!ReplayJournal(s->world, s->journal + from, to - from))
         {
             return false;
         }
@@ -368,13 +458,13 @@ static bool ScrubSeek(Scrub* s, int32_t stepN)
 static bool PrefixHash(const m3ReplayView* view, const Scrub* s, int32_t stepN, uint64_t* out)
 {
     m3WorldDef def = DemoDef();
-    m3WorldId world = m3CreateWorld(&def);
-    if (!m3World_Restore(world, view->snapshot, view->snapshotBytes))
+    m3World* world = NewWorld(&def);
+    if (!Restore(world, view->snapshot, view->snapshotBytes))
     {
         return false;
     }
     int32_t bytes = stepN == 0 ? 0 : s->stepEnds[stepN - 1];
-    if (bytes > 0 && !m3World_ReplayJournal(world, view->journal, bytes))
+    if (bytes > 0 && !ReplayJournal(world, view->journal, bytes))
     {
         return false;
     }
@@ -400,7 +490,7 @@ static int Seek(const char* path, int32_t stepN)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
+    if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -432,7 +522,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
     int32_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !m3DecodeReplay(data, bytes, &view))
+    if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
         return 1;
@@ -450,7 +540,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
         if (i < s.stepCount)
         {
             int32_t from = i == 0 ? 0 : s.stepEnds[i - 1];
-            m3World_ReplayJournal(s.world, s.journal + from, s.stepEnds[i] - from);
+            ReplayJournal(s.world, s.journal + from, s.stepEnds[i] - from);
         }
     }
     ScrubFree(&s);
@@ -463,19 +553,19 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
 static uint8_t* RecordBlob(int32_t steps, int32_t injectStep, int32_t* outBytes)
 {
     m3WorldDef def = DemoDef();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    m3World_Snapshot(world, snap, snapBytes);
+    Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    m3World_StartJournal(world, journal, journalCap);
+    StartJournal(world, journal, journalCap);
     DemoSessionEx(world, steps, injectStep);
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
     int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);
     free(journal);
     free(snap);
@@ -560,8 +650,8 @@ static int Diff(const char* pathA, const char* pathB)
     uint8_t* dataB = ReadAll(pathB, &bytesB);
     m3ReplayView va;
     m3ReplayView vb;
-    if (dataA == NULL || dataB == NULL || !m3DecodeReplay(dataA, bytesA, &va) ||
-        !m3DecodeReplay(dataB, bytesB, &vb))
+    if (dataA == NULL || dataB == NULL || !DecodeReplay(dataA, bytesA, &va) ||
+        !DecodeReplay(dataB, bytesB, &vb))
     {
         fprintf(stderr, "m3replay: diff needs two valid M3J1 containers\n");
         return 1;
@@ -586,8 +676,8 @@ static int DiffTest(void)
     m3ReplayView va;
     m3ReplayView vb;
     m3ReplayView vc;
-    if (!m3DecodeReplay(a, bytesA, &va) || !m3DecodeReplay(b, bytesB, &vb) ||
-        !m3DecodeReplay(c, bytesC, &vc))
+    if (!DecodeReplay(a, bytesA, &va) || !DecodeReplay(b, bytesB, &vb) ||
+        !DecodeReplay(c, bytesC, &vc))
     {
         fprintf(stderr, "difftest: decode failed\n");
         return 1;
@@ -666,23 +756,23 @@ static int DiffTest(void)
 static int SelfTest(void)
 {
     m3WorldDef def = DemoDef();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    m3World_Snapshot(world, snap, snapBytes);
+    Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
-    m3World_StartJournal(world, journal, journalCap);
+    StartJournal(world, journal, journalCap);
     DemoSession(world, 300);
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
     int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    m3EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);
 
     m3ReplayView view;
-    if (!m3DecodeReplay(blob, need, &view))
+    if (!DecodeReplay(blob, need, &view))
     {
         fprintf(stderr, "selftest: decode failed\n");
         return 1;

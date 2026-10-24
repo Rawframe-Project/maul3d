@@ -10,24 +10,24 @@
 // rest, the chunk pool fills, refuses and recycles, and the refusals
 // are loud.
 
+#include "helpers.h"
 #include "test_harness.h"
 #include "voxel.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId SmallWorld(void)
+static m3World* SmallWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.voxelCapacity = 2;
-    return m3CreateWorld(&def);
+    return NewWorld(&def);
 }
 
 // One byte per voxel, x fastest (the create contract).
@@ -46,9 +46,9 @@ static void FillSlab(uint8_t* voxels, int32_t yTop)
     }
 }
 
-static const m3VoxelSurface* SurfaceOf(m3WorldId worldId, m3ShapeId shape)
+static const m3VoxelSurface* SurfaceOf(m3World* worldId, m3ShapeId shape)
 {
-    m3World* world = m3WorldFromId(worldId);
+    m3World* world = worldId;
     return &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape.index1 - 1]];
 }
 
@@ -85,31 +85,31 @@ static int SurfaceSame(const m3VoxelSurface* a, const m3VoxelSurface* b)
 
 static void TestGreedyMergeAnalytics(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
 
     // A full chunk merges into exactly one box.
     memset(voxels, 1, sizeof(voxels));
-    m3ShapeId full = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(full), "the full chunk creates");
+    m3ShapeId full = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, full), "the full chunk creates");
     CHECK(SurfaceOf(world, full)->boxCount == 1, "a full chunk is one box");
 
     // A one-voxel-thick floor merges into one slab box.
     m3BodyDef gd2 = m3DefaultBodyDef();
     gd2.position = (m3Pos3){100.0, 0.0, 0.0};
-    m3BodyId ground2 = m3CreateBody(world, &gd2);
+    m3BodyId ground2 = NewBody(world, &gd2);
     FillSlab(voxels, 1);
-    m3ShapeId slab = m3CreateVoxelChunkShape(ground2, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(slab), "the slab creates");
+    m3ShapeId slab = NewVoxelChunkShape(world, ground2, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, slab), "the slab creates");
     CHECK(SurfaceOf(world, slab)->boxCount == 1, "a flat floor is one box");
     m3DestroyWorld(world);
 
     // Two disjoint voxels are two boxes; payload rides along.
-    m3WorldId w2 = SmallWorld();
-    m3BodyId g3 = m3CreateBody(w2, &gd);
+    m3World* w2 = SmallWorld();
+    m3BodyId g3 = NewBody(w2, &gd);
     memset(voxels, 0, sizeof(voxels));
     static uint16_t payload[M3_VOXEL_COUNT];
     memset(payload, 0, sizeof(payload));
@@ -118,10 +118,10 @@ static void TestGreedyMergeAnalytics(void)
     int32_t far = 15 + M3_VOXEL_DIM * (15 + M3_VOXEL_DIM * 15);
     voxels[far] = 1;
     payload[far] = 9;
-    m3ShapeId two = m3CreateVoxelChunkShape(g3, &sd, voxels, payload, 0.5f);
-    CHECK(m3Shape_IsValid(two), "the two-voxel chunk creates");
+    m3ShapeId two = NewVoxelChunkShape(w2, g3, &sd, voxels, payload, 0.5f);
+    CHECK(m3Shape_IsValid(w2, two), "the two-voxel chunk creates");
     CHECK(SurfaceOf(w2, two)->boxCount == 2, "two isolated voxels are two boxes");
-    m3World* wp = m3WorldFromId(w2);
+    m3World* wp = w2;
     const m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[two.index1 - 1]];
     CHECK(chunk->payload[0] == 7 && chunk->payload[far] == 9, "payload is carried as state");
@@ -138,39 +138,39 @@ static void TestRestingOnVoxelFloor(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = SmallWorld();
+        m3World* world = SmallWorld();
         m3BodyDef gd = m3DefaultBodyDef();
         gd.position = (m3Pos3){-4.0, 0.0, -4.0};
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         static uint8_t voxels[M3_VOXEL_COUNT];
         FillSlab(voxels, 3);
-        CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 0.5f)),
+        CHECK(m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.5f)),
               "the floor chunk creates");
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 2.6, 0.0};
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &sphere);
+        NewSphereShape(world, ball, &sd, &sphere);
 
         bd.position = (m3Pos3){-2.0, 2.8, -2.0};
-        m3BodyId crate = m3CreateBody(world, &bd);
-        m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+        m3BodyId crate = NewBody(world, &bd);
+        NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
         bd.position = (m3Pos3){2.0, 2.4, 2.0};
-        m3BodyId pill = m3CreateBody(world, &bd);
+        m3BodyId pill = NewBody(world, &bd);
         m3Capsule capsule = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.2f};
-        m3CreateCapsuleShape(pill, &sd, &capsule);
+        NewCapsuleShape(world, pill, &sd, &capsule);
 
         for (int32_t i = 0; i < 240; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Pos3 pBall = m3Body_GetPosition(ball);
-        m3Pos3 pCrate = m3Body_GetPosition(crate);
-        m3Pos3 pPill = m3Body_GetPosition(pill);
+        m3Pos3 pBall = m3Body_GetPosition(world, ball);
+        m3Pos3 pCrate = m3Body_GetPosition(world, crate);
+        m3Pos3 pPill = m3Body_GetPosition(world, pill);
         CHECK(pBall.y > 1.85 && pBall.y < 1.95, "the ball rests at the analytic height");
         CHECK(pCrate.y > 1.95 && pCrate.y < 2.05, "the crate rests flat at the analytic height");
         CHECK(pPill.y > 1.65 && pPill.y < 1.75, "the capsule rests at the analytic height");
@@ -183,11 +183,11 @@ static void TestRestingOnVoxelFloor(void)
 static void TestSnapshotJournalAndDerivedRebuild(void)
 {
     static uint8_t journal[262144];
-    m3WorldId world = SmallWorld();
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    m3World* world = SmallWorld();
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 2);
@@ -196,25 +196,25 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     {
         voxels[3 + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * 3)] = 1;
     }
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 0.5f);
-    CHECK(m3Shape_IsValid(chunkShape), "the tower chunk creates");
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.5f);
+    CHECK(m3Shape_IsValid(world, chunkShape), "the tower chunk creates");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){1.5, 3.0, 1.5};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = m3World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the voxel session records");
 
     // Journal replay re-mints the chunk and rebuilds the surface.
-    m3WorldId replayed = SmallWorld();
-    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the voxel session replays");
+    m3World* replayed = SmallWorld();
+    CHECK(ReplayJournal(replayed, journal, bytes), "the voxel session replays");
     CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the replay is bit-identical");
     CHECK(SurfaceSame(SurfaceOf(replayed, chunkShape), SurfaceOf(world, chunkShape)),
           "the replayed surface is byte-identical");
@@ -224,22 +224,23 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     // state AND a byte-identical rebuilt surface (the derived law).
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "the voxel snapshot writes");
+    CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the voxel snapshot writes");
     m3VoxelSurface* before = (m3VoxelSurface*)malloc(sizeof(m3VoxelSurface));
     memcpy(before, SurfaceOf(world, chunkShape), sizeof(m3VoxelSurface));
     uint64_t hashBefore = m3World_Hash(world);
 
-    m3World* wp = m3WorldFromId(world);
+    m3World* wp = world;
     // The scrub must FREE the embedded tree first (the build owns it):
     // a raw memset wipes live pointers and LSAN reports the leak.
-    m3MeshBvhFree(&wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
+    m3MeshBvhFree(&wp->heap,
+                  &wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
     memset(&wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]], 0,
            sizeof(m3VoxelSurface));
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3World_Restore(world, snap, snapBytes), "the voxel snapshot restores");
+    CHECK(Restore(world, snap, snapBytes), "the voxel snapshot restores");
     CHECK(m3World_Hash(world) == hashBefore, "the restore is bit-identical");
     // The value region IS the surface; the embedded tree is its
     // pure function (build determinism holds elsewhere in this
@@ -253,14 +254,14 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
 
 static void TestQueriesAgainstVoxels(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 4);
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(chunkShape), "the query chunk creates");
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, chunkShape), "the query chunk creates");
 
     // A downward ray hits the top face at the analytic fraction.
     m3RayCastResult hit = m3World_CastRayClosest(
@@ -295,40 +296,40 @@ static void TestQueriesAgainstVoxels(void)
 
 static void TestVoxelRefusals(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3BodyDef dd = m3DefaultBodyDef();
     dd.type = m3_dynamicBody;
-    m3BodyId mover = m3CreateBody(world, &dd);
+    m3BodyId mover = NewBody(world, &dd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 1, sizeof(voxels));
 
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(mover, &sd, voxels, NULL, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, mover, &sd, voxels, NULL, 1.0f)),
           "a dynamic body refuses a chunk (3-1 is static level geometry)");
     m3ShapeDef sensor = m3DefaultShapeDef();
     sensor.isSensor = true;
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sensor, voxels, NULL, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sensor, voxels, NULL, 1.0f)),
           "a sensor chunk refuses (sensor volumes are convex)");
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 0.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.0f)),
           "zero cell size refuses");
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, NULL, NULL, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, NULL, NULL, 1.0f)),
           "a null grid refuses");
     memset(voxels, 0, sizeof(voxels));
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f)),
           "an empty grid refuses");
 
     // Pool exhaustion: capacity 2 fills, the third refuses.
     memset(voxels, 1, sizeof(voxels));
     m3BodyDef g2 = m3DefaultBodyDef();
     g2.position = (m3Pos3){40.0, 0.0, 0.0};
-    m3BodyId ground2 = m3CreateBody(world, &g2);
-    CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f)),
+    m3BodyId ground2 = NewBody(world, &g2);
+    CHECK(m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f)),
           "chunk one fills");
-    CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(ground2, &sd, voxels, NULL, 1.0f)),
+    CHECK(m3Shape_IsValid(world, NewVoxelChunkShape(world, ground2, &sd, voxels, NULL, 1.0f)),
           "chunk two fills");
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f)),
           "the voxel pool refuses past capacity");
     m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the refused world still steps");
@@ -339,26 +340,26 @@ static void TestVoxelRefusals(void)
 // with its occupancy bits is refused, and the target world is untouched.
 static void TestSnapshotRefusesInconsistentChunk(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 2);
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 0.5f);
-    CHECK(m3Shape_IsValid(chunkShape), "the slab creates");
-    m3World* wp = m3WorldFromId(world);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.5f);
+    CHECK(m3Shape_IsValid(world, chunkShape), "the slab creates");
+    m3World* wp = world;
     m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
     chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1; // a bit the count does not know
     int32_t size = m3World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m3World_Snapshot(world, snap, size) == size, "the damaged world still snapshots");
+    CHECK(Snapshot(world, snap, size) == size, "the damaged world still snapshots");
     chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1;
 
-    m3WorldId twin = SmallWorld();
+    m3World* twin = SmallWorld();
     uint64_t untouched = m3World_Hash(twin);
-    CHECK(!m3World_Restore(twin, snap, size), "a chunk whose count disagrees is refused");
+    CHECK(!Restore(twin, snap, size), "a chunk whose count disagrees is refused");
     CHECK(m3World_Hash(twin) == untouched, "the refused restore leaves the world untouched");
     free(snap);
     m3DestroyWorld(twin);
@@ -370,48 +371,49 @@ static void TestEditsCarveAndWake(void)
     // The headline: a crate sleeps on a voxel floor, the
     // floor under it is carved away, the crate wakes and falls to
     // the lower level. Analytic before and after heights.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 4); // floor top at y = 4 with cell 1
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(chunkShape), "the carve floor creates");
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, chunkShape), "the carve floor creates");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){8.0, 4.6, 8.0};
-    m3BodyId crate = m3CreateBody(world, &bd);
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3BodyId crate = NewBody(world, &bd);
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(crate);
+    m3Pos3 p = m3Body_GetPosition(world, crate);
     CHECK(p.y > 4.45 && p.y < 4.55, "the crate rests on the intact floor");
-    m3World* wp = m3WorldFromId(world);
+    m3World* wp = world;
     int32_t crateSlot = crate.index1 - 1;
     CHECK(wp->bodies.awake[crateSlot] == 0, "the crate fell asleep");
 
     // Carve a 4x1x4 pocket in the top layer under the crate.
     int32_t lo[3] = {6, 3, 6};
     int32_t hi[3] = {9, 3, 9};
-    CHECK(m3VoxelChunk_ClearBox(chunkShape, lo, hi) == 16, "the carve clears sixteen voxels");
+    CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, hi) == 16,
+          "the carve clears sixteen voxels");
     CHECK(wp->bodies.awake[crateSlot] == 1, "the vanishing floor wakes the sleeper");
 
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    p = m3Body_GetPosition(crate);
+    p = m3Body_GetPosition(world, crate);
     CHECK(p.y > 3.45 && p.y < 3.55, "the crate settles one voxel lower in the pocket");
 
     // Single-voxel edits reshape the surface analytically: refill
     // one pocket voxel and the surface gains a box.
     int32_t before = SurfaceOf(world, chunkShape)->boxCount;
-    CHECK(m3VoxelChunk_SetVoxel(chunkShape, 6, 3, 6, 42), "a refill lands");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, chunkShape, 6, 3, 6, 42), "a refill lands");
     CHECK(SurfaceOf(world, chunkShape)->boxCount == before + 1, "the refill adds one box");
     const m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
@@ -422,7 +424,8 @@ static void TestEditsCarveAndWake(void)
     static m3VoxelSurface surfBefore;
     memcpy(&surfBefore, SurfaceOf(world, chunkShape), sizeof(m3VoxelSurface));
     uint64_t hashBefore = m3World_Hash(world);
-    CHECK(m3VoxelChunk_SetVoxel(chunkShape, 6, 3, 6, 43), "the payload update lands");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, chunkShape, 6, 3, 6, 43),
+                  "the payload update lands");
     CHECK(m3World_Hash(world) != hashBefore, "payload is state: the hash moves");
     CHECK(memcmp(&surfBefore, SurfaceOf(world, chunkShape), offsetof(m3VoxelSurface, bvh)) == 0,
           "payload is not geometry: the surface does not move");
@@ -431,42 +434,47 @@ static void TestEditsCarveAndWake(void)
 
 static void TestEditRefusalsAndEmptyEnd(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
     voxels[0] = 1;
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.5, 3.0, 0.5};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3ShapeId ballShape = m3CreateSphereShape(ball, &sd, &sphere);
+    m3ShapeId ballShape = NewSphereShape(world, ball, &sd, &sphere);
 
-    CHECK(!m3VoxelChunk_SetVoxel(chunkShape, 16, 0, 0, 0), "out-of-range x refuses");
-    CHECK(!m3VoxelChunk_ClearVoxel(chunkShape, 0, -1, 0), "negative y refuses");
-    CHECK(!m3VoxelChunk_SetVoxel(ballShape, 0, 0, 0, 0), "a non-voxel shape refuses edits");
+    CHECK_REFUSES(world, m3VoxelChunk_SetVoxel(world, chunkShape, 16, 0, 0, 0),
+                  "out-of-range x refuses");
+    CHECK_REFUSES(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 0, -1, 0),
+                  "negative y refuses");
+    CHECK_REFUSES(world, m3VoxelChunk_SetVoxel(world, ballShape, 0, 0, 0, 0),
+                  "a non-voxel shape refuses edits");
     int32_t lo[3] = {2, 0, 0};
     int32_t hi[3] = {1, 0, 0};
-    CHECK(m3VoxelChunk_ClearBox(chunkShape, lo, hi) == -1, "an inverted region refuses");
+    CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, hi) == -1, "an inverted region refuses");
     m3ShapeId stale = chunkShape;
     stale.generation += 1;
-    CHECK(!m3VoxelChunk_ClearVoxel(stale, 0, 0, 0), "a stale id refuses edits");
+    CHECK_REFUSES(world, m3VoxelChunk_ClearVoxel(world, stale, 0, 0, 0),
+                  "a stale id refuses edits");
 
     // Clear the last voxel: the chunk stays a valid shape that
     // collides with nothing, and the ball falls straight through
     // where the floor voxel used to be.
-    CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 0, 0, 0), "the last voxel clears");
-    CHECK(m3Shape_IsValid(chunkShape), "the empty chunk stays a valid shape");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 0, 0, 0),
+                  "the last voxel clears");
+    CHECK(m3Shape_IsValid(world, chunkShape), "the empty chunk stays a valid shape");
     CHECK(SurfaceOf(world, chunkShape)->boxCount == 0, "the empty surface has no boxes");
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y < -5.0, "the ball falls through the vanished floor");
     m3DestroyWorld(world);
 }
@@ -479,9 +487,9 @@ static void TestFractureBridge(void)
     // joint strands the middle span: exactly one island, eight
     // voxels, hand-counted, removed from the grid and delivered
     // with its recipe.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -494,29 +502,30 @@ static void TestFractureBridge(void)
     {
         voxels[x + M3_VOXEL_DIM * (8 + M3_VOXEL_DIM * 8)] = 1; // the span
     }
-    m3ShapeId bridge = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(bridge), "the bridge creates");
-    m3World* wp = m3WorldFromId(world);
+    m3ShapeId bridge = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, bridge), "the bridge creates");
+    m3World* wp = world;
     const m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[bridge.index1 - 1]];
     CHECK(chunk->filledCount == 28, "the bridge is twenty-eight voxels");
 
     // Cut the left joint: still anchored through the right pillar.
     int32_t count = 0;
-    CHECK(m3VoxelChunk_ClearVoxel(bridge, 3, 8, 8), "the left cut lands");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, bridge, 3, 8, 8), "the left cut lands");
     count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a span anchored through one pillar drops nothing");
 
     // Snapshot here: the rollback must re-derive the same fracture.
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "the pre-cut snapshot writes");
+    CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the pre-cut snapshot writes");
 
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
         // Cut the right joint: the middle span (x = 4..11) hangs.
-        CHECK(m3VoxelChunk_ClearVoxel(bridge, 12, 8, 8), "the right cut lands");
+        CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, bridge, 12, 8, 8),
+                      "the right cut lands");
         const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
         count = m3World_GetFragmentEvents(world).fragmentCount;
         CHECK(count == 1, "the stranded span is exactly one island");
@@ -560,7 +569,7 @@ static void TestFractureBridge(void)
             count = m3World_GetFragmentEvents(world).fragmentCount;
             CHECK(count == 0, "the next step clears fragment events");
             // Roll back to before the second cut and do it again.
-            CHECK(m3World_Restore(world, snap, snapBytes), "the fracture rollback lands");
+            CHECK(Restore(world, snap, snapBytes), "the fracture rollback lands");
             count = m3World_GetFragmentEvents(world).fragmentCount;
             CHECK(count == 0, "restore clears fragment events");
             CHECK(chunk->filledCount == 27, "the rollback restores the pre-cut grid");
@@ -576,9 +585,9 @@ static void TestFractureTwoIslands(void)
     // A column with two arms joined through one connector voxel:
     // clearing the connector strands BOTH arms in one edit. Two
     // events, canonical order (the lower linear seed first).
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -590,10 +599,10 @@ static void TestFractureTwoIslands(void)
     voxels[7 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1;
     voxels[9 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1; // arm B: x 9..10
     voxels[10 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1;
-    m3ShapeId tee = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(tee), "the tee creates");
+    m3ShapeId tee = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, tee), "the tee creates");
 
-    CHECK(m3VoxelChunk_ClearVoxel(tee, 8, 5, 8), "the connector clears");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, tee, 8, 5, 8), "the connector clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 2, "both arms strand in one edit");
@@ -607,18 +616,18 @@ static void TestSeamWeldingCoverage(void)
 {
     // White-box: welded borders read as covered, unwelded borders
     // as exposed, and destroying the neighbor un-welds.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 4);
 
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){0.0, 0.0, 0.0};
-    m3BodyId groundA = m3CreateBody(world, &gd);
-    m3ShapeId chunkA = m3CreateVoxelChunkShape(groundA, &sd, voxels, NULL, 1.0f);
+    m3BodyId groundA = NewBody(world, &gd);
+    m3ShapeId chunkA = NewVoxelChunkShape(world, groundA, &sd, voxels, NULL, 1.0f);
     gd.position = (m3Pos3){16.0, 0.0, 0.0}; // exactly one extent: welds
-    m3BodyId groundB = m3CreateBody(world, &gd);
-    m3ShapeId chunkB = m3CreateVoxelChunkShape(groundB, &sd, voxels, NULL, 1.0f);
+    m3BodyId groundB = NewBody(world, &gd);
+    m3ShapeId chunkB = NewVoxelChunkShape(world, groundB, &sd, voxels, NULL, 1.0f);
 
     const m3VoxelSurface* surfA = SurfaceOf(world, chunkA);
     CHECK(surfA->boxCount == 1, "the slab is one box");
@@ -628,8 +637,8 @@ static void TestSeamWeldingCoverage(void)
     CHECK((surfA->boxCovered[0] & 4u) == 0, "the world-facing bottom reads exposed");
 
     // Destroying the neighbor un-welds the border.
-    m3DestroyBody(groundB);
-    CHECK(!m3Shape_IsValid(chunkB), "the neighbor chunk went with its body");
+    DestroyBody(world, groundB);
+    CHECK(!m3Shape_IsValid(world, chunkB), "the neighbor chunk went with its body");
     CHECK((SurfaceOf(world, chunkA)->boxCovered[0] & 2u) == 0,
           "the border is exposed again after the neighbor vanishes");
     m3DestroyWorld(world);
@@ -641,17 +650,17 @@ static void TestEscapeStopsAtWeldedBorder(void)
     // welded solid chunk. The escape search must not step across the
     // border (it once indexed its visited set at -1 there) and finds
     // the open bottom face instead.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 4);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){0.0, 0.0, 0.0};
-    m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, voxels, NULL, 1.0f);
+    NewVoxelChunkShape(world, NewBody(world, &gd), &sd, voxels, NULL, 1.0f);
     gd.position = (m3Pos3){16.0, 0.0, 0.0};
-    m3ShapeId chunkA = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, voxels, NULL, 1.0f);
+    m3ShapeId chunkA = NewVoxelChunkShape(world, NewBody(world, &gd), &sd, voxels, NULL, 1.0f);
 
-    m3World* w = m3WorldFromId(world);
+    m3World* w = world;
     int32_t slot = w->shapes.shapeVoxelIndex[chunkA.index1 - 1];
     m3Vec3 normal = {0.0f, 0.0f, 0.0f};
     m3real plane = 0.0f;
@@ -677,7 +686,7 @@ static void TestRollingAcrossSeams(void)
         def.bodyCapacity = 8;
         def.shapeCapacity = 8;
         def.voxelCapacity = 2;
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3ShapeDef sd = m3DefaultShapeDef();
         static uint8_t voxels[M3_VOXEL_COUNT];
 
@@ -695,33 +704,33 @@ static void TestRollingAcrossSeams(void)
         }
         m3BodyDef gd = m3DefaultBodyDef();
         gd.position = (m3Pos3){0.0, 0.0, 0.0};
-        m3BodyId groundA = m3CreateBody(world, &gd);
-        m3ShapeId chunkA = m3CreateVoxelChunkShape(groundA, &sd, voxels, NULL, 1.0f);
+        m3BodyId groundA = NewBody(world, &gd);
+        m3ShapeId chunkA = NewVoxelChunkShape(world, groundA, &sd, voxels, NULL, 1.0f);
         CHECK(SurfaceOf(world, chunkA)->boxCount == 2, "the split floor is two boxes");
 
         // Chunk B: a full-width slab, welded at x = 16.
         FillSlab(voxels, 4);
         gd.position = (m3Pos3){16.0, 0.0, 0.0};
-        m3BodyId groundB = m3CreateBody(world, &gd);
-        m3ShapeId chunkB = m3CreateVoxelChunkShape(groundB, &sd, voxels, NULL, 1.0f);
-        CHECK(m3Shape_IsValid(chunkB), "chunk B creates");
+        m3BodyId groundB = NewBody(world, &gd);
+        m3ShapeId chunkB = NewVoxelChunkShape(world, groundB, &sd, voxels, NULL, 1.0f);
+        CHECK(m3Shape_IsValid(world, chunkB), "chunk B creates");
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){4.0, 4.5, 8.0};
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3ShapeDef ballDef = m3DefaultShapeDef();
         ballDef.friction = 0.2f; // keep it rolling the whole runway
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-        m3CreateSphereShape(ball, &ballDef, &sphere);
-        m3Body_SetLinearVelocity(ball, (m3Vec3){4.0f, 0.0f, 0.0f});
+        NewSphereShape(world, ball, &ballDef, &sphere);
+        m3Body_SetLinearVelocity(world, ball, (m3Vec3){4.0f, 0.0f, 0.0f});
 
         double maxHeightDeviation = 0.0;
         float maxVerticalSpeed = 0.0f;
         for (int32_t i = 0; i < 420; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Pos3 p = m3Body_GetPosition(ball);
+            m3Pos3 p = m3Body_GetPosition(world, ball);
             double dev = p.y - 4.5;
             if (dev < 0.0)
             {
@@ -731,18 +740,18 @@ static void TestRollingAcrossSeams(void)
             {
                 maxHeightDeviation = dev;
             }
-            m3Vec3 v = m3Body_GetLinearVelocity(ball);
+            m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
             float vy = v.y < 0.0f ? -v.y : v.y;
             if (i > 30 && vy > maxVerticalSpeed)
             {
                 maxVerticalSpeed = vy; // after the initial settle
             }
         }
-        m3Pos3 p = m3Body_GetPosition(ball);
+        m3Pos3 p = m3Body_GetPosition(world, ball);
         CHECK(p.x > 20.0, "the ball crossed both seams and kept going");
         CHECK(maxHeightDeviation < 0.05, "no seam lifted or dropped the ball");
         CHECK(maxVerticalSpeed < 0.25f, "no seam kicked the ball vertically");
-        m3Vec3 v = m3Body_GetLinearVelocity(ball);
+        m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
         CHECK(v.x > 1.0f, "the roll survived with real forward speed");
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -758,25 +767,25 @@ static void TestVoxelMeetsHeightfield(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = SmallWorld();
+        m3World* world = SmallWorld();
         m3ShapeDef sd = m3DefaultShapeDef();
         m3BodyDef gd = m3DefaultBodyDef();
         gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-        m3BodyId field = m3CreateBody(world, &gd);
+        m3BodyId field = NewBody(world, &gd);
         float heights[16 * 16];
         for (int32_t i = 0; i < 16 * 16; ++i)
         {
             heights[i] = 0.0f; // a flat field: the junction is exact
         }
-        CHECK(m3Shape_IsValid(m3CreateHeightFieldShape(field, &sd, heights, 16, 16, 1.0f)),
+        CHECK(m3Shape_IsValid(world, NewHeightFieldShape(world, field, &sd, heights, 16, 16, 1.0f)),
               "the field creates");
 
         static uint8_t voxels[M3_VOXEL_COUNT];
         FillSlab(voxels, 2); // a low voxel block ON the field
         m3BodyDef vd = m3DefaultBodyDef();
         vd.position = (m3Pos3){0.0, 0.0, -3.0};
-        m3BodyId block = m3CreateBody(world, &vd);
-        CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(block, &sd, voxels, NULL, 0.5f)),
+        m3BodyId block = NewBody(world, &vd);
+        CHECK(m3Shape_IsValid(world, NewVoxelChunkShape(world, block, &sd, voxels, NULL, 0.5f)),
               "the block creates");
 
         // The ball drops right at the wall base: it touches the
@@ -784,17 +793,17 @@ static void TestVoxelMeetsHeightfield(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-0.8, 1.5, -1.0};
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &sphere);
+        NewSphereShape(world, ball, &sd, &sphere);
 
         for (int32_t i = 0; i < 300; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Pos3 p = m3Body_GetPosition(ball);
+        m3Pos3 p = m3Body_GetPosition(world, ball);
         CHECK(p.y > 0.35 && p.y < 0.45, "the ball rests on the field at the wall base");
-        m3World* wp = m3WorldFromId(world);
+        m3World* wp = world;
         CHECK(wp->bodies.awake[ball.index1 - 1] == 0,
               "the junction rest is stable enough to sleep");
         hashes[run] = m3World_Hash(world);
@@ -818,7 +827,7 @@ static void TestBulletVsVoxelWall(void)
             def.bodyCapacity = 8;
             def.shapeCapacity = 8;
             def.voxelCapacity = 1;
-            m3WorldId world = m3CreateWorld(&def);
+            m3World* world = NewWorld(&def);
             m3ShapeDef sd = m3DefaultShapeDef();
             static uint8_t voxels[M3_VOXEL_COUNT];
             memset(voxels, 0, sizeof(voxels));
@@ -833,9 +842,9 @@ static void TestBulletVsVoxelWall(void)
                 }
             }
             m3BodyDef gd = m3DefaultBodyDef();
-            m3BodyId ground = m3CreateBody(world, &gd);
-            m3ShapeId wall = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-            CHECK(m3Shape_IsValid(wall), "the wall creates");
+            m3BodyId ground = NewBody(world, &gd);
+            m3ShapeId wall = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+            CHECK(m3Shape_IsValid(world, wall), "the wall creates");
 
             if (withHole != 0)
             {
@@ -844,7 +853,7 @@ static void TestBulletVsVoxelWall(void)
                 // a 3x3 window so the bullet's radius fits.
                 int32_t lo[3] = {8, 7, 7};
                 int32_t hi[3] = {8, 9, 9};
-                CHECK(m3VoxelChunk_ClearBox(wall, lo, hi) == 9, "the window opens");
+                CHECK(m3VoxelChunk_ClearBox(world, wall, lo, hi) == 9, "the window opens");
             }
 
             m3BodyDef bd = m3DefaultBodyDef();
@@ -852,15 +861,15 @@ static void TestBulletVsVoxelWall(void)
             bd.isBullet = true;
             bd.position = (m3Pos3){2.0, 8.5, 8.5};
             bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
-            m3BodyId bullet = m3CreateBody(world, &bd);
+            m3BodyId bullet = NewBody(world, &bd);
             m3Sphere slug = {{0.0f, 0.0f, 0.0f}, 0.2f};
-            m3CreateSphereShape(bullet, &sd, &slug);
+            NewSphereShape(world, bullet, &sd, &slug);
 
             for (int32_t i = 0; i < 30; ++i)
             {
                 m3World_Step(world, 1.0f / 60.0f, 4);
             }
-            m3Pos3 p = m3Body_GetPosition(bullet);
+            m3Pos3 p = m3Body_GetPosition(world, bullet);
             if (withHole != 0)
             {
                 CHECK(p.x > 20.0, "the bullet flies through the opened window");
@@ -881,13 +890,13 @@ static void TestBulletVsVoxelWall(void)
 
 static void TestShapeCastsAgainstVoxels(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 4); // top face at y = 4
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
     // A sphere cast straight down: center stops at 4 + r, so the
     // fraction is (10 - 4.3 - slop band) / 8 within the TOI band.
@@ -928,9 +937,9 @@ static void TestFillWeightsFragments(void)
     // center of mass leans toward the heavy end. A hanging two-arm
     // island with fills 255 and 85 (a 3:1 ratio) has its analytic
     // weighted center at the quarter point.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -940,12 +949,14 @@ static void TestFillWeightsFragments(void)
     }
     voxels[9 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1;  // arm near
     voxels[10 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1; // arm far
-    m3ShapeId tee = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId tee = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
-    CHECK(m3VoxelChunk_SetFill(tee, 9, 5, 8, 255), "the near arm keeps full fill");
-    CHECK(m3VoxelChunk_SetFill(tee, 10, 5, 8, 85), "the far arm wears to a third");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetFill(world, tee, 9, 5, 8, 255),
+                  "the near arm keeps full fill");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetFill(world, tee, 10, 5, 8, 85),
+                  "the far arm wears to a third");
 
-    CHECK(m3VoxelChunk_ClearVoxel(tee, 8, 5, 8), "the connector clears");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, tee, 8, 5, 8), "the connector clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "the two-arm island strands as one fragment");
@@ -959,24 +970,27 @@ static void TestFillWeightsFragments(void)
 
 static void TestSetFillContracts(void)
 {
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     FillSlab(voxels, 2);
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
-    CHECK(!m3VoxelChunk_SetFill(chunkShape, 0, 5, 0, 100), "fill on an empty voxel refuses");
-    CHECK(!m3VoxelChunk_SetFill(chunkShape, 0, 0, 0, 0), "zero fill refuses (that is a clear)");
-    CHECK(!m3VoxelChunk_SetFill(chunkShape, 16, 0, 0, 100), "out-of-range fill refuses");
+    CHECK_REFUSES(world, m3VoxelChunk_SetFill(world, chunkShape, 0, 5, 0, 100),
+                  "fill on an empty voxel refuses");
+    CHECK_REFUSES(world, m3VoxelChunk_SetFill(world, chunkShape, 0, 0, 0, 0),
+                  "zero fill refuses (that is a clear)");
+    CHECK_REFUSES(world, m3VoxelChunk_SetFill(world, chunkShape, 16, 0, 0, 100),
+                  "out-of-range fill refuses");
 
     // Fill is state (the hash moves) and never geometry (the
     // surface does not move by a single byte).
     static m3VoxelSurface before;
     memcpy(&before, SurfaceOf(world, chunkShape), sizeof(m3VoxelSurface));
     uint64_t hashBefore = m3World_Hash(world);
-    CHECK(m3VoxelChunk_SetFill(chunkShape, 3, 1, 3, 77), "the fill lands");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetFill(world, chunkShape, 3, 1, 3, 77), "the fill lands");
     CHECK(m3World_Hash(world) != hashBefore, "fill is state: the hash moves");
     CHECK(memcmp(&before, SurfaceOf(world, chunkShape), offsetof(m3VoxelSurface, bvh)) == 0,
           "fill is not geometry: the surface is untouched");
@@ -984,10 +998,11 @@ static void TestSetFillContracts(void)
     // And it rides the snapshot like every other bit of state.
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "the fill snapshot writes");
+    CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the fill snapshot writes");
     uint64_t at77 = m3World_Hash(world);
-    CHECK(m3VoxelChunk_SetFill(chunkShape, 3, 1, 3, 200), "the second fill lands");
-    CHECK(m3World_Restore(world, snap, snapBytes), "the fill rollback lands");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetFill(world, chunkShape, 3, 1, 3, 200),
+                  "the second fill lands");
+    CHECK(Restore(world, snap, snapBytes), "the fill rollback lands");
     CHECK(m3World_Hash(world) == at77, "fill rides the rollback delta");
     free(snap);
     m3DestroyWorld(world);
@@ -1001,34 +1016,34 @@ static void TestEmbeddedRecovery(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = SmallWorld();
+        m3World* world = SmallWorld();
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         static uint8_t voxels[M3_VOXEL_COUNT];
         FillSlab(voxels, 6); // a solid slab, top face at y = 6
-        m3ShapeId block = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-        CHECK(m3Shape_IsValid(block), "the solid block creates");
+        m3ShapeId block = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+        CHECK(m3Shape_IsValid(world, block), "the solid block creates");
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){8.5, 4.5, 8.5}; // buried: nearest exit is up
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &sphere);
+        NewSphereShape(world, ball, &sd, &sphere);
 
         float maxSpeed = 0.0f;
         for (int32_t i = 0; i < 600; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Vec3 v = m3Body_GetLinearVelocity(ball);
+            m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
             float speed2 = v.x * v.x + v.y * v.y + v.z * v.z;
             if (speed2 > maxSpeed)
             {
                 maxSpeed = speed2;
             }
         }
-        m3Pos3 p = m3Body_GetPosition(ball);
+        m3Pos3 p = m3Body_GetPosition(world, ball);
         CHECK(p.y > 6.3 && p.y < 6.5, "the buried ball surfaces and rests on top");
         CHECK(maxSpeed < 100.0f, "the recovery speed stays bounded (no launch)");
         // PointInside finds the ball's own sphere (a center is
@@ -1047,7 +1062,7 @@ static void TestNegativeAndEdgeCoordinates(void)
     // Chunks live at strongly negative world positions; edits touch
     // the extreme voxels; the weld triggers on exact negative
     // deltas; rays arrive from the negative side.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -1060,34 +1075,39 @@ static void TestNegativeAndEdgeCoordinates(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-32.0, -16.0, -32.0};
-    m3BodyId groundA = m3CreateBody(world, &gd);
-    m3ShapeId chunkA = m3CreateVoxelChunkShape(groundA, &sd, voxels, NULL, 1.0f);
+    m3BodyId groundA = NewBody(world, &gd);
+    m3ShapeId chunkA = NewVoxelChunkShape(world, groundA, &sd, voxels, NULL, 1.0f);
     gd.position = (m3Pos3){-16.0, -16.0, -32.0}; // exactly +16: welds
-    m3BodyId groundB = m3CreateBody(world, &gd);
-    m3ShapeId chunkB = m3CreateVoxelChunkShape(groundB, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(chunkA) && m3Shape_IsValid(chunkB), "negative chunks create");
+    m3BodyId groundB = NewBody(world, &gd);
+    m3ShapeId chunkB = NewVoxelChunkShape(world, groundB, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, chunkA) && m3Shape_IsValid(world, chunkB),
+          "negative chunks create");
     CHECK((SurfaceOf(world, chunkA)->boxCovered[0] & 2u) != 0,
           "the weld holds at negative coordinates");
 
     // Edits on the extreme voxels of a negative-position chunk.
-    CHECK(m3VoxelChunk_ClearVoxel(chunkA, 0, 0, 0), "the corner voxel clears");
-    CHECK(m3VoxelChunk_SetVoxel(chunkA, 0, 0, 0, 3), "the corner voxel refills");
-    CHECK(m3VoxelChunk_ClearVoxel(chunkA, 15, 0, 15), "the far corner clears");
-    CHECK(m3VoxelChunk_SetVoxel(chunkA, 15, 0, 15, 4), "the far corner refills");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkA, 0, 0, 0),
+                  "the corner voxel clears");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, chunkA, 0, 0, 0, 3),
+                  "the corner voxel refills");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkA, 15, 0, 15),
+                  "the far corner clears");
+    CHECK_ACCEPTS(world, m3VoxelChunk_SetVoxel(world, chunkA, 15, 0, 15, 4),
+                  "the far corner refills");
 
     // A ball dropped at negative coordinates rests on the floor at
     // the analytic height (-16 + 1 + radius).
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){-24.0, -13.0, -24.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 180; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > -14.65 && p.y < -14.55, "the ball rests at the negative analytic height");
 
     // A ray from deeper negative space finds the floor (aimed away
@@ -1105,9 +1125,9 @@ static void TestAnchorConventionPinned(void)
     // base layer survive creation and fragment on the FIRST
     // clearing edit anywhere in the chunk. Floating platforms
     // belong at their own chunk's base.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -1120,23 +1140,25 @@ static void TestAnchorConventionPinned(void)
             voxels[x + M3_VOXEL_DIM * (7 + M3_VOXEL_DIM * z)] = 1;
         }
     }
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(chunkShape), "the floating platform survives creation");
-    m3World* wp = m3WorldFromId(world);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, chunkShape), "the floating platform survives creation");
+    m3World* wp = world;
     const m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
     CHECK(chunk->filledCount == 5, "all five voxels stand before any edit");
 
     // Clearing an EMPTY voxel is a no-op: no occupancy change, no
     // sweep (pinned as contract; the wake pass still runs).
-    CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 15, 15, 15), "an empty clear is a quiet no-op");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 15, 15, 15),
+                  "an empty clear is a quiet no-op");
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a no-op clear does not sweep");
     CHECK(chunk->filledCount == 5, "a no-op clear moves nothing");
 
     // The first occupancy-changing clear sweeps the whole grid:
     // one platform voxel goes directly, the three others fragment.
-    CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 4, 7, 4), "the platform corner clears");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 4, 7, 4),
+                  "the platform corner clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "the rest of the unanchored platform fragments");
@@ -1152,9 +1174,9 @@ static void TestJournalCompositionRefusal(void)
     // supported composition is snapshot-seeded replay (the soak's
     // segment pattern), proven here in miniature.
     static uint8_t journal[65536];
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
@@ -1162,26 +1184,27 @@ static void TestJournalCompositionRefusal(void)
     {
         voxels[x] = 1;
     }
-    m3ShapeId chunkShape = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "the seed snapshot writes");
+    CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the seed snapshot writes");
 
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
-    CHECK(m3VoxelChunk_ClearVoxel(chunkShape, 0, 0, 0), "the journaled edit lands");
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
+    CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 0, 0, 0),
+                  "the journaled edit lands");
     m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = m3World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the edits-only session records");
     uint64_t liveHash = m3World_Hash(world);
 
-    m3WorldId fresh = SmallWorld();
+    m3World* fresh = SmallWorld();
     uint64_t freshHash = m3World_Hash(fresh);
-    CHECK(!m3World_ReplayJournal(fresh, journal, bytes),
+    CHECK(!ReplayJournal(fresh, journal, bytes),
           "an edits-only journal refuses a world without its chunk");
     CHECK(m3World_Hash(fresh) == freshHash, "the refusal is atomic");
-    CHECK(m3World_Restore(fresh, snap, snapBytes), "the seed restores");
-    CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the seeded replay lands");
+    CHECK(Restore(fresh, snap, snapBytes), "the seed restores");
+    CHECK(ReplayJournal(fresh, journal, bytes), "the seeded replay lands");
     CHECK(m3World_Hash(fresh) == liveHash, "seed plus journal equals the live world");
     m3DestroyWorld(fresh);
     free(snap);
@@ -1195,27 +1218,28 @@ static void TestVoxelPoolSweep(void)
     // proven by churn on the same m3IdPool code in test_core;
     // re-churning 65535 generations of full chunk builds
     // would buy no new proof at real sanitizer cost.
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 1, sizeof(voxels));
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId a = m3CreateBody(world, &gd);
+    m3BodyId a = NewBody(world, &gd);
     gd.position = (m3Pos3){40.0, 0.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &gd);
+    m3BodyId b = NewBody(world, &gd);
     gd.position = (m3Pos3){80.0, 0.0, 0.0};
-    m3BodyId c = m3CreateBody(world, &gd);
+    m3BodyId c = NewBody(world, &gd);
 
-    m3ShapeId one = m3CreateVoxelChunkShape(a, &sd, voxels, NULL, 1.0f);
-    m3ShapeId two = m3CreateVoxelChunkShape(b, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(one) && m3Shape_IsValid(two), "the pool fills");
-    CHECK(!m3Shape_IsValid(m3CreateVoxelChunkShape(c, &sd, voxels, NULL, 1.0f)),
+    m3ShapeId one = NewVoxelChunkShape(world, a, &sd, voxels, NULL, 1.0f);
+    m3ShapeId two = NewVoxelChunkShape(world, b, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, one) && m3Shape_IsValid(world, two), "the pool fills");
+    CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, c, &sd, voxels, NULL, 1.0f)),
           "the third chunk refuses past capacity");
-    m3DestroyBody(b); // cascades the chunk, frees the slot
-    m3ShapeId three = m3CreateVoxelChunkShape(c, &sd, voxels, NULL, 1.0f);
-    CHECK(m3Shape_IsValid(three), "the freed slot recycles");
-    CHECK(!m3Shape_IsValid(two), "the destroyed chunk id is stale");
-    CHECK(!m3VoxelChunk_ClearVoxel(two, 0, 0, 0), "a stale chunk refuses edits");
+    DestroyBody(world, b); // cascades the chunk, frees the slot
+    m3ShapeId three = NewVoxelChunkShape(world, c, &sd, voxels, NULL, 1.0f);
+    CHECK(m3Shape_IsValid(world, three), "the freed slot recycles");
+    CHECK(!m3Shape_IsValid(world, two), "the destroyed chunk id is stale");
+    CHECK_REFUSES(world, m3VoxelChunk_ClearVoxel(world, two, 0, 0, 0),
+                  "a stale chunk refuses edits");
     m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the sweep leaves a healthy world");
     m3DestroyWorld(world);
@@ -1225,22 +1249,22 @@ static void TestFractureStorms(void)
 {
     // Storm one: clearing the anchor layer strands EVERYTHING above
     // as one island (3840 voxels, recipe fits).
-    m3WorldId world = SmallWorld();
+    m3World* world = SmallWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 1, sizeof(voxels)); // a full chunk
-    m3ShapeId full = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    m3ShapeId full = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
     int32_t lo[3] = {0, 0, 0};
     int32_t hi[3] = {15, 0, 15};
-    CHECK(m3VoxelChunk_ClearBox(full, lo, hi) == 256, "the anchor layer clears");
+    CHECK(m3VoxelChunk_ClearBox(world, full, lo, hi) == 256, "the anchor layer clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "everything above the anchor is one island");
     CHECK(events[0].voxelCount == 4096 - 256, "the island is the whole upper block");
     CHECK(events[0].recipeStart >= 0, "a 3840-voxel recipe still fits the buffer");
-    m3World* wp = m3WorldFromId(world);
+    m3World* wp = world;
     CHECK(wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[full.index1 - 1]].filledCount == 0,
           "the storm empties the grid");
     CHECK(m3World_GetFragmentEvents(world).fragmentsDropped == 0, "storm one drops nothing");
@@ -1249,8 +1273,8 @@ static void TestFractureStorms(void)
     // Storm two: 448 isolated floating studs in one chunk; the
     // sweep after one clear must remove ALL of them, emit the
     // event-capacity's worth, and count the dropped rest loudly.
-    m3WorldId world2 = SmallWorld();
-    m3BodyId ground2 = m3CreateBody(world2, &gd);
+    m3World* world2 = SmallWorld();
+    m3BodyId ground2 = NewBody(world2, &gd);
     memset(voxels, 0, sizeof(voxels));
     voxels[0] = 1; // the anchored stud that receives the edit
     int32_t studs = 0;
@@ -1266,15 +1290,16 @@ static void TestFractureStorms(void)
         }
     }
     CHECK(studs == 448, "the storm grid holds 448 isolated studs");
-    m3ShapeId cloud = m3CreateVoxelChunkShape(ground2, &sd, voxels, NULL, 1.0f);
-    CHECK(m3VoxelChunk_ClearVoxel(cloud, 0, 0, 0), "the trigger clear lands");
+    m3ShapeId cloud = NewVoxelChunkShape(world2, ground2, &sd, voxels, NULL, 1.0f);
+    CHECK_ACCEPTS(world2, m3VoxelChunk_ClearVoxel(world2, cloud, 0, 0, 0),
+                  "the trigger clear lands");
     count = 0;
     events = m3World_GetFragmentEvents(world2).fragmentEvents;
     count = m3World_GetFragmentEvents(world2).fragmentCount;
     CHECK(count == M3_FRAGMENT_EVENT_CAP, "events fill to the cap");
     CHECK(m3World_GetFragmentEvents(world2).fragmentsDropped == 448 - M3_FRAGMENT_EVENT_CAP,
           "the surplus is counted loudly");
-    m3World* wp2 = m3WorldFromId(world2);
+    m3World* wp2 = world2;
     CHECK(wp2->voxels.voxelData[wp2->shapes.shapeVoxelIndex[cloud.index1 - 1]].filledCount == 0,
           "EVERY stud left the grid: the removal never truncates");
     CHECK(events[0].voxelCount == 1 && events[0].boundsLo[1] == 2,

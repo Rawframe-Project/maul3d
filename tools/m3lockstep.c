@@ -27,29 +27,43 @@
 
 typedef struct Peer
 {
-    m3WorldId world;
+    m3World* world;
     m3BodyId crates[2]; // one crate per player
 } Peer;
 
-static void BuildScene(Peer* p)
+// Builds the scene, or returns the status of the call that refused.
+static m3Result BuildScene(Peer* p)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    p->world = m3CreateWorld(&def);
+    m3Result result = m3CreateWorld(&def, &p->world);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(p->world, &gd);
+    m3BodyId ground;
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &fl);
-    for (int32_t k = 0; k < 2; ++k)
+    m3ShapeId shape;
+    if (result == m3_success)
+    {
+        result = m3CreateBody(p->world, &gd, &ground);
+    }
+    if (result == m3_success)
+    {
+        result = m3CreatePlaneShape(p->world, ground, &sd, &fl, &shape);
+    }
+    for (int32_t k = 0; k < 2 && result == m3_success; ++k)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){k == 0 ? -1.5 : 1.5, 0.5, 0.0};
-        p->crates[k] = m3CreateBody(p->world, &bd);
-        m3CreateBoxShape(p->crates[k], &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+        result = m3CreateBody(p->world, &bd, &p->crates[k]);
+        if (result == m3_success)
+        {
+            result =
+                m3CreateBoxShape(p->world, p->crates[k], &sd, (m3Vec3){0.4f, 0.4f, 0.4f}, &shape);
+        }
     }
+    return result;
 }
 
 // The input script: each player nudges their crate with a pattern
@@ -81,7 +95,7 @@ static void StepFrame(Peer* p, int32_t frame, const uint8_t* haveRemote)
         m3Vec3 in = InputFor(frame, k);
         if (in.x != 0.0f || in.z != 0.0f)
         {
-            m3Body_ApplyLinearImpulse(p->crates[k], in);
+            m3Body_ApplyLinearImpulse(p->world, p->crates[k], in);
         }
     }
     m3World_Step(p->world, 1.0f / 60.0f, 4);
@@ -101,12 +115,26 @@ int main(void)
 
     Peer online;
     Peer truth;
-    BuildScene(&online);
-    BuildScene(&truth);
+    m3Result built = BuildScene(&online);
+    if (built == m3_success)
+    {
+        built = BuildScene(&truth);
+    }
+    if (built != m3_success)
+    {
+        fprintf(stderr, "m3lockstep: building the scene: %s\n", m3ResultName(built));
+        return 1;
+    }
 
-    int32_t snapBytes = m3World_SnapshotSize(online.world);
-    uint8_t* confirmedSnap = (uint8_t*)malloc((size_t)snapBytes);
-    m3World_Snapshot(online.world, confirmedSnap, snapBytes);
+    int32_t snapCapacity = m3World_SnapshotSize(online.world);
+    uint8_t* confirmedSnap = (uint8_t*)malloc((size_t)snapCapacity);
+    int32_t snapBytes = 0;
+    if (confirmedSnap == NULL ||
+        m3World_Snapshot(online.world, confirmedSnap, snapCapacity, &snapBytes) != m3_success)
+    {
+        fprintf(stderr, "m3lockstep: snapshot failed\n");
+        return 1;
+    }
 
     static uint8_t haveRemote[FRAMES + MAX_DELAY];
     memset(haveRemote, 0, sizeof(haveRemote));
@@ -137,7 +165,7 @@ int main(void)
         // up to the present wall frame.
         if (wall < FRAMES || confirmed < FRAMES)
         {
-            if (!m3World_Restore(online.world, confirmedSnap, snapBytes))
+            if (m3World_Restore(online.world, confirmedSnap, snapBytes) != m3_success)
             {
                 fprintf(stderr, "m3lockstep: restore failed\n");
                 return 1;
@@ -164,7 +192,12 @@ int main(void)
             if (newConfirmed > confirmed)
             {
                 confirmed = newConfirmed;
-                m3World_Snapshot(online.world, confirmedSnap, snapBytes);
+                if (m3World_Snapshot(online.world, confirmedSnap, snapCapacity, &snapBytes) !=
+                    m3_success)
+                {
+                    fprintf(stderr, "m3lockstep: snapshot failed\n");
+                    return 1;
+                }
             }
             for (int32_t f = confirmed; f < wall && f < FRAMES; ++f)
             {

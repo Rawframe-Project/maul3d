@@ -6,6 +6,7 @@
 // determinism). Equality is
 // checked field by field with memcmp. Black box: public headers only.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -34,23 +35,24 @@ static void TestRefusedCreatesMoveNoIds(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.meshCapacity = 1;
     def.bodyCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     static uint8_t tape[65536];
-    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape starts");
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape starts");
 
     m3BodyDef bd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &bd);
+    m3BodyId ground = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static const m3Vec3 tri[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     static const uint16_t idx[3] = {0, 1, 2};
-    CHECK(m3Shape_IsValid(m3CreateMeshShape(ground, &sd, tri, 3, idx, 1)), "the first mesh fits");
-    CHECK(!m3Shape_IsValid(m3CreateMeshShape(ground, &sd, tri, 3, idx, 1)),
+    CHECK(m3Shape_IsValid(world, NewMeshShape(world, ground, &sd, tri, 3, idx, 1)),
+          "the first mesh fits");
+    CHECK(!m3Shape_IsValid(world, NewMeshShape(world, ground, &sd, tri, 3, idx, 1)),
           "the second mesh finds no mesh slot");
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    CHECK(m3Shape_IsValid(m3CreateSphereShape(ball, &sd, &sphere)), "a sphere follows");
+    CHECK(m3Shape_IsValid(world, NewSphereShape(world, ball, &sd, &sphere)), "a sphere follows");
 
     // Four clusters at the corners of a large tetrahedron, one point of
     // each per tet, so almost every tet edge is new: more than the edge
@@ -73,12 +75,12 @@ static void TestRefusedCreatesMoveNoIds(void)
         tets[4 * t + 3] = (uint16_t)(384 + (t * 5 + t / 32) % 128);
     }
     m3SoftBodyDef soft = m3DefaultSoftBodyDef();
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBodyTet(world, &soft, points, 512, tets, 1024)),
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &soft, points, 512, tets, 1024)),
           "a tet body past the edge budget refuses");
     soft.countX = 2;
     soft.countY = 2;
     soft.countZ = 2;
-    CHECK(m3SoftBody_IsValid(m3CreateSoftBody(world, &soft)), "a lattice follows");
+    CHECK(m3SoftBody_IsValid(world, NewSoftBody(world, &soft)), "a lattice follows");
 
     // A character needs a body: with the body pool full it refuses, and
     // the next character after a body frees up gets the first free id.
@@ -87,8 +89,8 @@ static void TestRefusedCreatesMoveNoIds(void)
     bd.type = m3_staticBody;
     while (fillers < 64)
     {
-        filler[fillers] = m3CreateBody(world, &bd);
-        if (!m3Body_IsValid(filler[fillers]))
+        filler[fillers] = NewBody(world, &bd);
+        if (!m3Body_IsValid(world, filler[fillers]))
         {
             break;
         }
@@ -97,16 +99,16 @@ static void TestRefusedCreatesMoveNoIds(void)
     CHECK(fillers > 0 && fillers < 64, "the body pool fills up");
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.position = (m3Pos3){5.0, 2.0, 0.0};
-    CHECK(!m3Character_IsValid(m3CreateCharacter(world, &cd)),
+    CHECK(!m3Character_IsValid(world, NewCharacter(world, &cd)),
           "a character refuses without a body");
-    m3DestroyBody(filler[fillers - 1]);
-    CHECK(m3Character_IsValid(m3CreateCharacter(world, &cd)), "and fits once one frees up");
+    DestroyBody(world, filler[fillers - 1]);
+    CHECK(m3Character_IsValid(world, NewCharacter(world, &cd)), "and fits once one frees up");
     m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = m3World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the tape closes");
 
-    m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the tape replays with the same ids");
+    m3World* twin = NewWorld(&def);
+    CHECK(ReplayJournal(twin, tape, bytes), "the tape replays with the same ids");
     CHECK(m3World_Hash(twin) == m3World_Hash(world), "into the same world");
     m3DestroyWorld(twin);
     m3DestroyWorld(world);
@@ -117,17 +119,17 @@ static void TestRefusedCreatesMoveNoIds(void)
 static int32_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset, bool value)
 {
     m3WorldDef def = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&def);
-    m3World_StartJournal(world, tape, capacity);
+    m3World* world = NewWorld(&def);
+    StartJournal(world, tape, capacity);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
     memcpy((uint8_t*)&bd + offset, &value, sizeof(value));
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(body, &sd, &sphere);
-    int32_t bytes = m3World_StopJournal(world);
+    NewSphereShape(world, body, &sd, &sphere);
+    int32_t bytes = StopJournal(world);
     m3DestroyWorld(world);
     return bytes;
 }
@@ -137,9 +139,9 @@ static int32_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset
 static uint64_t ReplayAndStep(const uint8_t* tape, int32_t bytes)
 {
     m3WorldDef def = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     uint64_t hash = 0;
-    if (m3World_ReplayJournal(world, tape, bytes))
+    if (ReplayJournal(world, tape, bytes))
     {
         for (int i = 0; i < 30; ++i)
         {
@@ -219,57 +221,54 @@ int main(void)
 
     // Record a session on world A: creates, setters, a destroy, and a
     // recreate into the recycled slot.
-    m3WorldId a = m3CreateWorld(&def);
+    m3World* a = NewWorld(&def);
     uint8_t buffer[4096];
-    CHECK(m3World_StartJournal(a, buffer, (int32_t)sizeof(buffer)), "journal begins");
+    CHECK(StartJournal(a, buffer, (int32_t)sizeof(buffer)), "journal begins");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 5.0, 0.0};
-    m3BodyId a0 = m3CreateBody(a, &bd);
+    m3BodyId a0 = NewBody(a, &bd);
     bd.position = (m3Pos3){2.0, 5.0, -1.0};
-    m3BodyId a1 = m3CreateBody(a, &bd);
+    m3BodyId a1 = NewBody(a, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3ShapeId shape0 = m3CreateSphereShape(a0, &sd, &ball);
-    CHECK(m3Shape_IsValid(shape0), "journaled sphere created");
-    m3Body_SetLinearVelocity(a0, (m3Vec3){1.0f, 0.0f, 0.0f});
-    m3Body_SetAngularVelocity(a1, (m3Vec3){0.0f, 3.0f, 0.0f});
-    m3DestroyBody(a0);
+    m3ShapeId shape0 = NewSphereShape(a, a0, &sd, &ball);
+    CHECK(m3Shape_IsValid(a, shape0), "journaled sphere created");
+    m3Body_SetLinearVelocity(a, a0, (m3Vec3){1.0f, 0.0f, 0.0f});
+    m3Body_SetAngularVelocity(a, a1, (m3Vec3){0.0f, 3.0f, 0.0f});
+    DestroyBody(a, a0);
     bd.position = (m3Pos3){-4.0, 1.0, 2.0};
-    m3BodyId a2 = m3CreateBody(a, &bd); // recycles a0's slot, new generation
+    m3BodyId a2 = NewBody(a, &bd); // recycles a0's slot, new generation
     CHECK(a2.index1 == a0.index1 && a2.generation != a0.generation, "recycle in the journal");
 
-    int32_t bytes = m3World_StopJournal(a);
+    int32_t bytes = StopJournal(a);
     CHECK(bytes > 0, "journal ends with bytes");
 
     // Replay into a fresh world B: identical ids, identical state.
-    m3WorldId b = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(b, buffer, bytes), "replay succeeds");
+    m3World* b = NewWorld(&def);
+    CHECK(ReplayJournal(b, buffer, bytes), "replay succeeds");
 
-    // Object ids name their world by slot and generation.
-    uint16_t worldB = (uint16_t)((b.generation << M3_WORLD_SLOT_BITS) | (b.index1 - 1));
-    m3BodyId b1 = {a1.index1, worldB, a1.generation};
-    m3BodyId b2 = {a2.index1, worldB, a2.generation};
-    CHECK(m3Body_IsValid(b1) && m3Body_IsValid(b2), "replayed ids validate in world B");
-    CHECK(SamePos(m3Body_GetPosition(b1), m3Body_GetPosition(a1)), "b1 position matches");
-    CHECK(SamePos(m3Body_GetPosition(b2), m3Body_GetPosition(a2)), "b2 position matches");
-    CHECK(SameVec(m3Body_GetAngularVelocity(b1), m3Body_GetAngularVelocity(a1)),
+    // The replay mints the recorded ids, so world A's ids name the same
+    // bodies in world B.
+    CHECK(m3Body_IsValid(b, a1) && m3Body_IsValid(b, a2), "replayed ids validate in world B");
+    CHECK(SamePos(m3Body_GetPosition(b, a1), m3Body_GetPosition(a, a1)), "b1 position matches");
+    CHECK(SamePos(m3Body_GetPosition(b, a2), m3Body_GetPosition(a, a2)), "b2 position matches");
+    CHECK(SameVec(m3Body_GetAngularVelocity(b, a1), m3Body_GetAngularVelocity(a, a1)),
           "b1 angular velocity matches");
-    m3BodyId b0 = {a0.index1, (uint16_t)(b.index1 - 1), a0.generation};
-    CHECK(!m3Body_IsValid(b0), "the destroyed body is stale in the replay too");
+    CHECK(!m3Body_IsValid(b, a0), "the destroyed body is stale in the replay too");
 
     // A truncated stream is rejected loudly and never half-applies
     // silently.
-    m3WorldId c = m3CreateWorld(&def);
-    CHECK(!m3World_ReplayJournal(c, buffer, bytes - 3), "a truncated journal is rejected");
+    m3World* c = NewWorld(&def);
+    CHECK(!ReplayJournal(c, buffer, bytes - 3), "a truncated journal is rejected");
 
     // Overflow: a too-small buffer latches and End reports -1.
-    m3WorldId d = m3CreateWorld(&def);
+    m3World* d = NewWorld(&def);
     uint8_t tiny[16];
-    CHECK(m3World_StartJournal(d, tiny, (int32_t)sizeof(tiny)), "tiny journal begins");
-    m3CreateBody(d, &bd);
-    CHECK(m3World_StopJournal(d) == -1, "journal overflow reports -1, never silence");
+    CHECK(StartJournal(d, tiny, (int32_t)sizeof(tiny)), "tiny journal begins");
+    NewBody(d, &bd);
+    CHECK(StopJournal(d) == -1, "journal overflow reports -1, never silence");
 
     m3DestroyWorld(a);
     m3DestroyWorld(b);

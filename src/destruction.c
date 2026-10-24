@@ -14,7 +14,6 @@
 #include "shape_state.h"
 #include "voxel.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <float.h>
 #include <string.h>
@@ -260,9 +259,8 @@ m3ExplosionDef m3DefaultExplosionDef(void)
     return def;
 }
 
-void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def)
+void m3World_Explode(m3World* world, const m3ExplosionDef* def)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M3_EXPLOSION_COOKIE)
     {
         m3Refuse(world, m3_errorInvalid);

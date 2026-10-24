@@ -7,6 +7,7 @@
 // PULLEY holds length1 + ratio * length2 across two world anchors
 // (rigid both ways). Both refuse hostile defs.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -27,18 +28,18 @@ static void TestGearCouplesSpin(void)
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
     wd.jointCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef fd = m3DefaultBodyDef();
-    m3BodyId frame = m3CreateBody(world, &fd);
+    m3BodyId frame = NewBody(world, &fd);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){-0.5, 2.0, 0.0};
-    m3BodyId gearA = m3CreateBody(world, &bd);
+    m3BodyId gearA = NewBody(world, &bd);
     bd.position = (m3Pos3){0.5, 2.0, 0.0};
-    m3BodyId gearB = m3CreateBody(world, &bd);
+    m3BodyId gearB = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(gearA, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
-    m3CreateBoxShape(gearB, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
+    NewBoxShape(world, gearA, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
+    NewBoxShape(world, gearB, &sd, (m3Vec3){0.3f, 0.3f, 0.1f});
     m3JointDef hd = m3DefaultJointDef();
     hd.type = m3_revoluteJoint;
     hd.bodyIdA = frame;
@@ -46,10 +47,10 @@ static void TestGearCouplesSpin(void)
     hd.localAnchorA = (m3Vec3){-0.5f, 2.0f, 0.0f};
     hd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     hd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    CHECK(m3Joint_IsValid(m3CreateJoint(world, &hd)), "hinge A creates");
+    CHECK(m3Joint_IsValid(world, NewJoint(world, &hd)), "hinge A creates");
     hd.bodyIdB = gearB;
     hd.localAnchorA = (m3Vec3){0.5f, 2.0f, 0.0f};
-    CHECK(m3Joint_IsValid(m3CreateJoint(world, &hd)), "hinge B creates");
+    CHECK(m3Joint_IsValid(world, NewJoint(world, &hd)), "hinge B creates");
     m3JointDef gd = m3DefaultJointDef();
     gd.type = m3_gearJoint;
     gd.bodyIdA = gearA;
@@ -57,24 +58,24 @@ static void TestGearCouplesSpin(void)
     gd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.ratio = 2.0f;
-    CHECK(m3Joint_IsValid(m3CreateJoint(world, &gd)), "the gear creates");
-    m3Body_ApplyAngularImpulse(gearA, (m3Vec3){0.0f, 0.0f, 0.05f});
+    CHECK(m3Joint_IsValid(world, NewJoint(world, &gd)), "the gear creates");
+    m3Body_ApplyAngularImpulse(world, gearA, (m3Vec3){0.0f, 0.0f, 0.05f});
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 wA = m3Body_GetAngularVelocity(gearA);
-    m3Vec3 wB = m3Body_GetAngularVelocity(gearB);
+    m3Vec3 wA = m3Body_GetAngularVelocity(world, gearA);
+    m3Vec3 wB = m3Body_GetAngularVelocity(world, gearB);
     CHECK(fabsf(wA.z) > 0.05f, "the kicked gear genuinely spins");
     CHECK(wA.z * wB.z < 0.0f, "positive ratio counter-rotates (the external mesh)");
     CHECK(fabsf(wA.z + 2.0f * wB.z) < 0.02f, "the mesh holds spinA + 2 spinB");
     m3DestroyWorld(world);
 }
 
-static void PulleyLengths(m3BodyId a, m3BodyId b, double* len1, double* len2)
+static void PulleyLengths(const m3World* world, m3BodyId a, m3BodyId b, double* len1, double* len2)
 {
-    m3Pos3 pa = m3Body_GetPosition(a);
-    m3Pos3 pb = m3Body_GetPosition(b);
+    m3Pos3 pa = m3Body_GetPosition(world, a);
+    m3Pos3 pb = m3Body_GetPosition(world, b);
     double dax = pa.x + 1.0;
     double day = pa.y - 4.0;
     double dbx = pb.x - 1.0;
@@ -95,16 +96,16 @@ static void TestPulleyTradesRope(void)
         wd.bodyCapacity = 8;
         wd.shapeCapacity = 8;
         wd.jointCapacity = 4;
-        m3WorldId world = m3CreateWorld(&wd);
+        m3World* world = NewWorld(&wd);
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-1.0, 2.0, 0.0};
-        m3BodyId heavy = m3CreateBody(world, &bd);
+        m3BodyId heavy = NewBody(world, &bd);
         bd.position = (m3Pos3){1.0, 2.0, 0.0};
-        m3BodyId light = m3CreateBody(world, &bd);
+        m3BodyId light = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(heavy, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-        m3CreateBoxShape(light, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
+        NewBoxShape(world, heavy, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+        NewBoxShape(world, light, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_pulleyJoint;
         jd.bodyIdA = heavy;
@@ -112,7 +113,7 @@ static void TestPulleyTradesRope(void)
         jd.groundAnchorA = (m3Pos3){-1.0, 4.0, 0.0};
         jd.groundAnchorB = (m3Pos3){1.0, 4.0, 0.0};
         jd.ratio = ratio;
-        CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "the pulley creates");
+        CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the pulley creates");
         double constant = 2.0 + (double)ratio * 2.0;
         for (int32_t i = 0; i < 150; ++i)
         {
@@ -120,9 +121,9 @@ static void TestPulleyTradesRope(void)
         }
         double len1;
         double len2;
-        PulleyLengths(heavy, light, &len1, &len2);
-        CHECK(m3Body_GetPosition(heavy).y < 1.9, "the heavy side sinks");
-        CHECK(m3Body_GetPosition(light).y > 2.1, "the light side rises");
+        PulleyLengths(world, heavy, light, &len1, &len2);
+        CHECK(m3Body_GetPosition(world, heavy).y < 1.9, "the heavy side sinks");
+        CHECK(m3Body_GetPosition(world, light).y > 2.1, "the light side rises");
         CHECK(fabs(len1 + (double)ratio * len2 - constant) < 0.03,
               "the rope law holds through the trade");
         m3DestroyWorld(world);
@@ -136,22 +137,22 @@ static void TestTransmissionWalls(void)
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
     wd.jointCapacity = 4;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
     bd.position = (m3Pos3){1.0, 2.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
+    m3BodyId b = NewBody(world, &bd);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_gearJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.ratio = 0.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-ratio gear refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero-ratio gear refuses");
     jd.ratio = 1.0f;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-axis gear refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero-axis gear refuses");
     jd = m3DefaultJointDef();
     jd.type = m3_pulleyJoint;
     jd.bodyIdA = a;
@@ -159,14 +160,14 @@ static void TestTransmissionWalls(void)
     jd.groundAnchorA = (m3Pos3){0.0, 4.0, 0.0};
     jd.groundAnchorB = (m3Pos3){1.0, 4.0, 0.0};
     jd.ratio = -1.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a negative-ratio pulley refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative-ratio pulley refuses");
     jd.ratio = 0.0f;
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-ratio pulley refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero-ratio pulley refuses");
     jd.ratio = 1.0f;
     jd.groundAnchorA = (m3Pos3){(double)NAN, 4.0, 0.0};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a NaN world anchor refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a NaN world anchor refuses");
     jd.groundAnchorA = (m3Pos3){0.0, 2.0, 0.0}; // ON the body anchor
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a rope end on its pulley refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a rope end on its pulley refuses");
     m3DestroyWorld(world);
 }
 

@@ -6,6 +6,7 @@
 // stream, and every kind of corruption refuses loudly without
 // touching a world.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/character.h"
@@ -32,32 +33,32 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
                               int32_t* outSteps)
 {
     m3WorldDef def = Def();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    m3World_Snapshot(world, snap, snapBytes);
+    Snapshot(world, snap, snapBytes);
 
     static uint8_t journal[131072];
-    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
+    StartJournal(world, journal, (int32_t)sizeof(journal));
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &fl);
+    NewPlaneShape(world, ground, &sd, &fl);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId crate = m3CreateBody(world, &bd);
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3BodyId crate = NewBody(world, &bd);
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     for (int32_t i = 0; i < 90; ++i)
     {
         if (i == 30)
         {
-            m3Body_ApplyLinearImpulse(crate, (m3Vec3){1.5f, 0.0f, 0.0f});
+            m3Body_ApplyLinearImpulse(world, crate, (m3Vec3){1.5f, 0.0f, 0.0f});
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     uint64_t final = m3World_Hash(world);
 
     // 4 creates + 1 impulse + 90 steps = 95 records.
@@ -65,7 +66,7 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
     *outSteps = 90;
     int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = m3EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need);
+    int32_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need);
     CHECK(wrote == need, "the encode fills its own quoted size");
     *outBytes = wrote;
     *outHash = final;
@@ -83,17 +84,15 @@ static void TestRoundTrip(void)
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
 
     m3ReplayView view;
-    CHECK(m3DecodeReplay(blob, bytes, &view), "the container decodes");
+    CHECK(DecodeReplay(blob, bytes, &view), "the container decodes");
     CHECK(view.info.opCount == ops, "the op count matches the script");
     CHECK(view.info.stepCount == steps, "the step count matches the script");
     CHECK(view.finalHash == recorded, "the header carries the recorder's hash");
 
     m3WorldDef def = Def();
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_Restore(world, view.snapshot, view.snapshotBytes),
-          "the embedded snapshot restores");
-    CHECK(m3World_ReplayJournal(world, view.journal, view.journalBytes),
-          "the embedded journal replays");
+    m3World* world = NewWorld(&def);
+    CHECK(Restore(world, view.snapshot, view.snapshotBytes), "the embedded snapshot restores");
+    CHECK(ReplayJournal(world, view.journal, view.journalBytes), "the embedded journal replays");
     CHECK(m3World_Hash(world) == recorded, "the round trip lands on the recorder's hash");
     m3DestroyWorld(world);
     free(blob);
@@ -112,37 +111,36 @@ static void TestRefusals(void)
     uint8_t* bad = (uint8_t*)malloc((size_t)bytes);
     memcpy(bad, blob, (size_t)bytes);
     bad[0] ^= 0xFF;
-    CHECK(!m3DecodeReplay(bad, bytes, &view), "bad magic refuses");
+    CHECK(!DecodeReplay(bad, bytes, &view), "bad magic refuses");
 
     // Truncation, three depths.
     memcpy(bad, blob, (size_t)bytes);
-    CHECK(!m3DecodeReplay(bad, bytes - 1, &view), "truncated tail refuses");
-    CHECK(!m3DecodeReplay(bad, 16, &view), "truncated header refuses");
-    CHECK(!m3DecodeReplay(bad, 0, &view), "empty refuses");
+    CHECK(!DecodeReplay(bad, bytes - 1, &view), "truncated tail refuses");
+    CHECK(!DecodeReplay(bad, 16, &view), "truncated header refuses");
+    CHECK(!DecodeReplay(bad, 0, &view), "empty refuses");
 
     // A corrupted record length inside the journal.
     memcpy(bad, blob, (size_t)bytes);
-    m3DecodeReplay(blob, bytes, &view);
+    DecodeReplay(blob, bytes, &view);
     int32_t journalOffset = (int32_t)((const uint8_t*)view.journal - blob);
     int32_t huge = 1 << 30;
     memcpy(bad + journalOffset + 4, &huge, 4); // first record's length
-    CHECK(!m3DecodeReplay(bad, bytes, &view), "a corrupt record length refuses");
+    CHECK(!DecodeReplay(bad, bytes, &view), "a corrupt record length refuses");
 
     // A header that lies about its counts.
     memcpy(bad, blob, (size_t)bytes);
     int32_t lie = 9999;
     memcpy(bad + 16, &lie, 4);
-    CHECK(!m3DecodeReplay(bad, bytes, &view), "a lying step count refuses");
+    CHECK(!DecodeReplay(bad, bytes, &view), "a lying step count refuses");
 
     // Describe on garbage.
     m3JournalInfo info;
     uint8_t garbage[16] = {7, 0, 0, 0, 99, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    CHECK(!m3DescribeJournal(garbage, (int32_t)sizeof(garbage), &info),
+    CHECK(!DescribeJournal(garbage, (int32_t)sizeof(garbage), &info),
           "an overlong payload refuses");
-    CHECK(m3DescribeJournal(NULL, 0, &info) == false, "null journal refuses");
-    CHECK(m3EncodeReplay(blob, 10, NULL, 4, 0, bad, bytes) == 0,
-          "a null journal with bytes refuses");
-    CHECK(m3EncodeReplay(NULL, 10, NULL, 0, 0, bad, bytes) == 0, "a null snapshot refuses");
+    CHECK(DescribeJournal(NULL, 0, &info) == false, "null journal refuses");
+    CHECK(EncodeReplay(blob, 10, NULL, 4, 0, bad, bytes) == 0, "a null journal with bytes refuses");
+    CHECK(EncodeReplay(NULL, 10, NULL, 0, 0, bad, bytes) == 0, "a null snapshot refuses");
     CHECK(m3GetEncodedReplaySize(-5, 10) == 0, "negative sizes refuse");
 
     free(bad);
@@ -157,10 +155,10 @@ static void TestSmallCapacity(void)
     int32_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     m3ReplayView view;
-    CHECK(m3DecodeReplay(blob, bytes, &view), "decode for the capacity test");
+    CHECK(DecodeReplay(blob, bytes, &view), "decode for the capacity test");
     uint8_t* out = (uint8_t*)malloc((size_t)bytes);
-    CHECK(m3EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
-                         view.finalHash, out, bytes - 1) == 0,
+    CHECK(EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
+                       view.finalHash, out, bytes - 1) == 0,
           "one byte short refuses");
     free(out);
     free(blob);
@@ -183,40 +181,41 @@ static bool VetoAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void*
 static void TestPreSolveReplay(void)
 {
     m3WorldDef def = Def();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    m3World_Snapshot(world, snap, snapBytes);
+    Snapshot(world, snap, snapBytes);
     static uint8_t journal[262144];
-    m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
+    StartJournal(world, journal, (int32_t)sizeof(journal));
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floor = m3CreatePlaneShape(ground, &sd, &fl);
+    m3ShapeId floor = NewPlaneShape(world, ground, &sd, &fl);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId faller = m3CreateBody(world, &bd);
-    m3CreateBoxShape(faller, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-    m3Shape_EnablePreSolve(floor, true);
+    m3BodyId faller = NewBody(world, &bd);
+    NewBoxShape(world, faller, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    m3Shape_EnablePreSolve(world, floor, true);
     int calls = 0;
     m3World_SetPreSolveCallback(world, VetoAll, &calls);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     uint64_t recorded = m3World_Hash(world);
     CHECK(calls > 0, "the callback actually ran");
-    CHECK(m3Body_GetPosition(faller).y < -1.0, "the veto let the box fall through the floor");
+    CHECK(m3Body_GetPosition(world, faller).y < -1.0,
+          "the veto let the box fall through the floor");
     m3DestroyWorld(world);
 
     // The bare replay: no callback anywhere, the annex drives.
-    m3WorldId replay = m3CreateWorld(&def);
-    CHECK(m3World_Restore(replay, snap, snapBytes), "the base snapshot restores");
-    CHECK(m3World_ReplayJournal(replay, journal, journalBytes), "the veto tape replays");
+    m3World* replay = NewWorld(&def);
+    CHECK(Restore(replay, snap, snapBytes), "the base snapshot restores");
+    CHECK(ReplayJournal(replay, journal, journalBytes), "the veto tape replays");
     CHECK(m3World_Hash(replay) == recorded, "a bare replay lands on the recorded bits");
     m3DestroyWorld(replay);
     free(snap);
@@ -242,7 +241,7 @@ static void TestFuzz(void)
     // Half the mutations aim at the framing on purpose; the other
     // half roam the whole container.
     m3ReplayView valid;
-    CHECK(m3DecodeReplay(blob, bytes, &valid), "decode for the fuzz split");
+    CHECK(DecodeReplay(blob, bytes, &valid), "decode for the fuzz split");
     int32_t journalStart = (int32_t)((const uint8_t*)valid.journal - blob);
     uint32_t rng = 87654321u;
     int32_t refused = 0;
@@ -265,16 +264,16 @@ static void TestFuzz(void)
         rng = rng * 1664525u + 1013904223u;
         mutant[where] ^= (uint8_t)(1u << (rng % 8));
         m3ReplayView view;
-        if (!m3DecodeReplay(mutant, bytes, &view))
+        if (!DecodeReplay(mutant, bytes, &view))
         {
             refused += 1;
             continue;
         }
         m3WorldDef def = Def();
-        m3WorldId world = m3CreateWorld(&def);
-        if (m3World_Restore(world, view.snapshot, view.snapshotBytes))
+        m3World* world = NewWorld(&def);
+        if (Restore(world, view.snapshot, view.snapshotBytes))
         {
-            m3World_ReplayJournal(world, view.journal, view.journalBytes);
+            ReplayJournal(world, view.journal, view.journalBytes);
         }
         m3DestroyWorld(world);
         survived += 1;

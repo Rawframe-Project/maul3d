@@ -15,7 +15,6 @@
 #include "misuse.h"
 #include "shape_state.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <float.h>
 #include <string.h>
@@ -368,7 +367,7 @@ static m3RayLocalHit RayHeightField(m3Vec3 o, m3Vec3 d, const m3HeightFieldData*
 
 typedef struct m3RayCastContext
 {
-    m3World* world;
+    const m3World* world;
     m3Pos3 origin;
     m3Vec3 translation;
     m3RayCastResult best;
@@ -379,7 +378,7 @@ typedef struct m3RayCastContext
 
 static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
 {
-    m3World* world = ctx->world;
+    const m3World* world = ctx->world;
     int32_t body = world->shapes.shapeBody[shape];
     if (body == ctx->ignoreBody)
     {
@@ -465,14 +464,14 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     ctx->best.point.x = ctx->origin.x + (double)(local.fraction * ctx->translation.x);
     ctx->best.point.y = ctx->origin.y + (double)(local.fraction * ctx->translation.y);
     ctx->best.point.z = ctx->origin.z + (double)(local.fraction * ctx->translation.z);
-    ctx->best.shapeId =
-        (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
+    ctx->best.shapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
     ctx->bestShape = shape;
 }
 
 // The single-shape test as an internal hook (the multi-hit query in
 // query.c walks candidates itself and reuses this).
-m3RayCastResult m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 translation)
+m3RayCastResult m3RayTestOneShape(const m3World* world, int32_t shape, m3Pos3 origin,
+                                  m3Vec3 translation)
 {
     m3RayCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -493,7 +492,7 @@ static bool RayQueryCallback(int32_t shape, void* userContext)
     return true;
 }
 
-m3RayCastResult m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
+m3RayCastResult m3RayClosestFiltered(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                      int32_t ignoreBody, m3QueryFilter filter)
 {
     m3RayCastContext ctx;
@@ -551,9 +550,8 @@ m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 trans
     return m3RayClosestFiltered(world, origin, translation, -1, m3DefaultQueryFilter());
 }
 
-m3RayCastResult m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation,
+m3RayCastResult m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                        m3QueryFilter filter)
 {
-    m3World* world = m3WorldFromId(worldId);
     return m3RayClosestFiltered(world, origin, translation, -1, filter);
 }

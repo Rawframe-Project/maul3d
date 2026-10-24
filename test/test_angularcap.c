@@ -7,6 +7,7 @@
 // tunes at runtime, the flag survives motion-lock writes, and hostile
 // tape bytes bounce loudly.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -33,57 +34,57 @@ static uint32_t Bits(m3MotionLocks l)
 // Zero gravity, no contacts: spin evolves through damping, gyro,
 // and the cap alone. Cubes have isotropic inertia, so a clean spin
 // about any axis is gyroscopically silent.
-static m3WorldId SpinWorld(void)
+static m3World* SpinWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    return m3CreateWorld(&def);
+    return NewWorld(&def);
 }
 
-static m3BodyId Spinner(m3WorldId world, double x, float spinY)
+static m3BodyId Spinner(m3World* world, double x, float spinY)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){x, 0.0, 0.0};
     bd.angularVelocity = (m3Vec3){0.0f, spinY, 0.0f};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     return body;
 }
 
-static float SpinOf(m3BodyId body)
+static float SpinOf(const m3World* world, m3BodyId body)
 {
-    m3Vec3 w = m3Body_GetAngularVelocity(body);
+    m3Vec3 w = m3Body_GetAngularVelocity(world, body);
     return sqrtf(w.x * w.x + w.y * w.y + w.z * w.z);
 }
 
 static void TestCapAndEscape(void)
 {
-    m3WorldId world = SpinWorld();
+    m3World* world = SpinWorld();
     m3BodyId legal = Spinner(world, -4.0, 50.0f);
     m3BodyId wild = Spinner(world, 0.0, 2000.0f);
     m3BodyId wheel = Spinner(world, 4.0, 2000.0f);
-    m3Body_EnableFastRotation(wheel, true);
-    CHECK(m3Body_IsFastRotationEnabled(wheel), "the flag reads back");
-    CHECK(!m3Body_IsFastRotationEnabled(wild), "the default is off");
-    CHECK(Bits(m3Body_GetMotionLocks(wheel)) == 0u, "the flag is not a motion lock");
+    m3Body_EnableFastRotation(world, wheel, true);
+    CHECK(m3Body_IsFastRotationEnabled(world, wheel), "the flag reads back");
+    CHECK(!m3Body_IsFastRotationEnabled(world, wild), "the default is off");
+    CHECK(Bits(m3Body_GetMotionLocks(world, wheel)) == 0u, "the flag is not a motion lock");
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(SpinOf(legal) > 49.9f, "a legal tumbler keeps its spin");
-    CHECK(SpinOf(wild) < 800.5f, "the wild spinner is capped");
-    CHECK(SpinOf(wild) > 799.0f, "the cap clamps, it does not kill");
-    CHECK(SpinOf(wheel) > 1999.0f, "the flagged wheel sails past the cap");
+    CHECK(SpinOf(world, legal) > 49.9f, "a legal tumbler keeps its spin");
+    CHECK(SpinOf(world, wild) < 800.5f, "the wild spinner is capped");
+    CHECK(SpinOf(world, wild) > 799.0f, "the cap clamps, it does not kill");
+    CHECK(SpinOf(world, wheel) > 1999.0f, "the flagged wheel sails past the cap");
     m3DestroyWorld(world);
 }
 
 static void TestRuntimeCapAndLockInterplay(void)
 {
-    m3WorldId world = SpinWorld();
+    m3World* world = SpinWorld();
     m3BodyId top = Spinner(world, 0.0, 50.0f);
     m3World_SetMaximumAngularSpeed(world, 10.0f);
     // Hostile knob values bounce at the public wall and change
@@ -98,29 +99,29 @@ static void TestRuntimeCapAndLockInterplay(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(SpinOf(top) < 10.5f && SpinOf(top) > 9.5f, "the runtime cap applies");
+    CHECK(SpinOf(world, top) < 10.5f && SpinOf(world, top) > 9.5f, "the runtime cap applies");
     // The flag and the locks share a byte but never each other's
     // bits: lock writes preserve the flag, the flag write preserves
     // the locks, and the locks getter never leaks bit 6.
-    m3Body_EnableFastRotation(top, true);
-    m3Body_SetMotionLocks(top, Locks(0x3Fu));
-    CHECK(m3Body_IsFastRotationEnabled(top), "locks do not clobber the flag");
-    CHECK(Bits(m3Body_GetMotionLocks(top)) == 0x3Fu, "the locks read back clean");
-    m3Body_SetMotionLocks(top, Locks(0u));
-    CHECK(m3Body_IsFastRotationEnabled(top), "clearing locks keeps the flag");
-    m3Body_EnableFastRotation(top, false);
-    CHECK(!m3Body_IsFastRotationEnabled(top), "the flag clears");
-    CHECK(Bits(m3Body_GetMotionLocks(top)) == 0u, "the flag write left the locks alone");
-    m3BodyId stale = {99, top.world, 7};
-    m3Body_EnableFastRotation(stale, true);
-    CHECK(!m3Body_IsFastRotationEnabled(stale), "a stale id bounces");
+    m3Body_EnableFastRotation(world, top, true);
+    m3Body_SetMotionLocks(world, top, Locks(0x3Fu));
+    CHECK(m3Body_IsFastRotationEnabled(world, top), "locks do not clobber the flag");
+    CHECK(Bits(m3Body_GetMotionLocks(world, top)) == 0x3Fu, "the locks read back clean");
+    m3Body_SetMotionLocks(world, top, Locks(0u));
+    CHECK(m3Body_IsFastRotationEnabled(world, top), "clearing locks keeps the flag");
+    m3Body_EnableFastRotation(world, top, false);
+    CHECK(!m3Body_IsFastRotationEnabled(world, top), "the flag clears");
+    CHECK(Bits(m3Body_GetMotionLocks(world, top)) == 0u, "the flag write left the locks alone");
+    m3BodyId stale = {99, 7};
+    m3Body_EnableFastRotation(world, stale, true);
+    CHECK(!m3Body_IsFastRotationEnabled(world, stale), "a stale id bounces");
     m3DestroyWorld(world);
 }
 
 static void TestHashFoldsOffDefaultOnly(void)
 {
-    m3WorldId a = SpinWorld();
-    m3WorldId b = SpinWorld();
+    m3World* a = SpinWorld();
+    m3World* b = SpinWorld();
     CHECK(m3World_Hash(a) == m3World_Hash(b), "twin worlds start identical");
     m3World_SetMaximumAngularSpeed(b, 799.0f);
     CHECK(m3World_Hash(a) != m3World_Hash(b), "an off-default cap folds");
@@ -136,42 +137,43 @@ static void TestHostileTape(void)
     // tape, then surgical byte damage: every mutation must fail the
     // replay loudly and a clean tape must land.
     static uint8_t tape[64];
-    m3WorldId world = SpinWorld();
+    m3World* world = SpinWorld();
     m3BodyId body = Spinner(world, 0.0, 10.0f);
-    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
-    m3Body_EnableFastRotation(body, true);
-    int32_t bytes = m3World_StopJournal(world);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
+    m3Body_EnableFastRotation(world, body, true);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes == 20, "one flag op is 8 header + 12 payload");
     m3DestroyWorld(world);
 
-    m3WorldId twin = SpinWorld();
+    m3World* twin = SpinWorld();
     m3BodyId twinBody = Spinner(twin, 0.0, 10.0f);
     uint8_t hostile[64];
     memcpy(hostile, tape, (size_t)bytes);
     hostile[16] = 7; // allow must be 0 or 1
-    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "allow=7 bounces");
-    CHECK(!m3World_ReplayJournal(twin, tape, bytes - 1), "a truncated tape bounces");
-    CHECK(!m3Body_IsFastRotationEnabled(twinBody), "the bounced tapes changed nothing");
-    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the clean tape lands");
-    CHECK(m3Body_IsFastRotationEnabled(twinBody), "the replayed flag landed on the twin body");
+    CHECK(!ReplayJournal(twin, hostile, bytes), "allow=7 bounces");
+    CHECK(!ReplayJournal(twin, tape, bytes - 1), "a truncated tape bounces");
+    CHECK(!m3Body_IsFastRotationEnabled(twin, twinBody), "the bounced tapes changed nothing");
+    CHECK(ReplayJournal(twin, tape, bytes), "the clean tape lands");
+    CHECK(m3Body_IsFastRotationEnabled(twin, twinBody),
+          "the replayed flag landed on the twin body");
     m3DestroyWorld(twin);
 
-    m3WorldId world2 = SpinWorld();
-    CHECK(m3World_StartJournal(world2, tape, (int32_t)sizeof(tape)), "the cap tape opens");
+    m3World* world2 = SpinWorld();
+    CHECK(StartJournal(world2, tape, (int32_t)sizeof(tape)), "the cap tape opens");
     m3World_SetMaximumAngularSpeed(world2, 50.0f);
-    bytes = m3World_StopJournal(world2);
+    bytes = StopJournal(world2);
     CHECK(bytes == 12, "one cap op is 8 header + 4 payload");
     m3DestroyWorld(world2);
 
-    m3WorldId twin2 = SpinWorld();
+    m3World* twin2 = SpinWorld();
     memcpy(hostile, tape, (size_t)bytes);
     uint32_t nanBits = 0x7FC00000u;
     memcpy(hostile + 8, &nanBits, 4);
-    CHECK(!m3World_ReplayJournal(twin2, hostile, bytes), "a NaN cap bounces");
+    CHECK(!ReplayJournal(twin2, hostile, bytes), "a NaN cap bounces");
     float negative = -5.0f;
     memcpy(hostile + 8, &negative, 4);
-    CHECK(!m3World_ReplayJournal(twin2, hostile, bytes), "a negative cap bounces");
-    CHECK(m3World_ReplayJournal(twin2, tape, bytes), "the clean cap tape lands");
+    CHECK(!ReplayJournal(twin2, hostile, bytes), "a negative cap bounces");
+    CHECK(ReplayJournal(twin2, tape, bytes), "the clean cap tape lands");
     m3DestroyWorld(twin2);
 }
 

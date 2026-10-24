@@ -10,7 +10,8 @@
 
 // Monotonic milliseconds (core.c): the profile clock. Observer only.
 // Ray against one shape, in world space; used by the ray queries.
-m3RayCastResult m3RayTestOneShape(m3World* world, int32_t shape, m3Pos3 origin, m3Vec3 translation);
+m3RayCastResult m3RayTestOneShape(const m3World* world, int32_t shape, m3Pos3 origin,
+                                  m3Vec3 translation);
 
 m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation);
 
@@ -24,7 +25,7 @@ m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 trans
 m3RayCastResult m3RayClosestExcept(m3World* world, m3Pos3 origin, m3Vec3 translation,
                                    int32_t ignoreBody);
 
-m3RayCastResult m3RayClosestFiltered(m3World* world, m3Pos3 origin, m3Vec3 translation,
+m3RayCastResult m3RayClosestFiltered(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                      int32_t ignoreBody, m3QueryFilter filter);
 
 #endif // MAUL3D_SRC_RAYCAST_H

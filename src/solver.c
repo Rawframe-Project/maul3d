@@ -29,7 +29,6 @@
 #include "water.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -56,8 +55,8 @@ static void SizeScratchForStep(m3World* world)
             {
                 grown *= 2;
             }
-            m3StackDestroy(&world->scratch);
-            world->scratch = m3StackCreate(grown);
+            m3StackDestroy(&world->heap, &world->scratch);
+            world->scratch = m3StackCreate(&world->heap, grown);
         }
     }
 }
@@ -120,7 +119,7 @@ static void BreakJoints(m3World* world, m3real invH)
             m3JointReactionMagnitudes(world, j, invH, &force, &torque);
             if ((maxForce > 0.0f && force > maxForce) || (maxTorque > 0.0f && torque > maxTorque))
             {
-                m3JointId id = {j + 1, world->idWorld, world->joints.jointPool.generations[j]};
+                m3JointId id = {j + 1, world->joints.jointPool.generations[j]};
                 m3AppendJointBreakEvent(world, id);
                 m3DestroyJointInternal(world, j);
             }
@@ -187,8 +186,8 @@ static void GrowScratchAfterStall(m3World* world)
     if (world->scratch.overflow != 0 && world->scratch.capacity < (1 << 28))
     {
         int32_t bigger = world->scratch.capacity * 2;
-        m3StackDestroy(&world->scratch);
-        world->scratch = m3StackCreate(bigger);
+        m3StackDestroy(&world->heap, &world->scratch);
+        world->scratch = m3StackCreate(&world->heap, bigger);
     }
 }
 
@@ -423,9 +422,8 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     world->lastScratchPeak = world->scratch.top;
 }
 
-void m3World_Step(m3WorldId worldId, float dt, int32_t substeps)
+void m3World_Step(m3World* world, float dt, int32_t substeps)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(dt) || !(dt > 0.0f) || substeps < 1 ||
         substeps > M3_MAX_SUBSTEPS)
     {

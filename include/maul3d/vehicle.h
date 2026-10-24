@@ -21,9 +21,8 @@ extern "C"
 
     typedef struct m3VehicleId
     {
-        int32_t index1;
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1;
+        uint32_t generation;
     } m3VehicleId;
 
     typedef struct m3WheelDef
@@ -76,16 +75,18 @@ extern "C"
     /// id) a non-dynamic or stale chassis, a wheel count outside
     /// [1, M3_VEHICLE_MAX_WHEELS], or any non-finite or non-positive
     /// geometry. Journaled with id verification.
-    M3_API m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def);
-    M3_API void m3DestroyVehicle(m3VehicleId vehicleId);
-    M3_API bool m3Vehicle_IsValid(m3VehicleId vehicleId);
+    M3_NODISCARD M3_API m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def,
+                                                 m3VehicleId* vehicleOut);
+    M3_NODISCARD M3_API m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle);
+    M3_API bool m3Vehicle_IsValid(const m3World* world, m3VehicleId vehicle);
 
     /// Last step's suspension compression of one wheel, in meters
     /// from rest length (zero when airborne, stale, or out of
     /// range). Frozen while the chassis sleeps, like the chassis.
-    M3_API m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel);
+    M3_API m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle,
+                                           int32_t wheel);
     /// Whether the wheel's suspension cast found ground last step.
-    M3_API bool m3Vehicle_IsWheelGrounded(m3VehicleId vehicleId, int32_t wheel);
+    M3_API bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
     /// Drive commands: journaled STATE, not per-step
     /// parameters, so replay and rollback hold to the bit. Values
@@ -102,15 +103,15 @@ extern "C"
     /// suspends the normal throttle until m3Vehicle_SetCommands is
     /// called again (which disengages it). Drivetrain vehicles
     /// refuse: a gearbox and a skid steer are different machines.
-    M3_API void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
-                                          m3real brake);
+    M3_API void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left,
+                                          m3real right, m3real brake);
 
-    M3_API void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
-                                      m3real brake);
+    M3_API void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle,
+                                      m3real steer, m3real brake);
 
     /// Accumulated spin angle of one wheel in radians (rendering
     /// state: hosts spin their wheel meshes with it).
-    M3_API m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel);
+    M3_API m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
 #define M3_DRIVETRAIN_MAX_CURVE 8
 #define M3_DRIVETRAIN_MAX_GEARS 6
@@ -164,21 +165,22 @@ extern "C"
     /// model for this vehicle; starts in first gear, clutch closed.
     /// Invalid defs (bad cookie, non-ascending curve, out-of-range
     /// counts, non-finite numbers) are documented no-ops.
-    M3_API void m3Vehicle_SetDrivetrain(m3VehicleId vehicleId, const m3DrivetrainDef* def);
+    M3_API void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle,
+                                        const m3DrivetrainDef* def);
 
     /// Select a gear (journaled): -1 reverse, 0 neutral, 1..gearCount.
     /// Opens the clutch for clutchSteps. A no-op without a drivetrain,
     /// out of range, or when reverseRatio is zero and gear is -1.
-    M3_API void m3Vehicle_SelectGear(m3VehicleId vehicleId, int32_t gear);
+    M3_API void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear);
 
     /// Current gear; 0 when no drivetrain is attached.
-    M3_API int32_t m3Vehicle_GetGear(m3VehicleId vehicleId);
+    M3_API int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle);
 
     /// Engine speed computed by the last step, idle-floored like the
     /// torque lookup (a tachometer, not raw wheel math).
-    M3_API m3real m3Vehicle_GetEngineRpm(m3VehicleId vehicleId);
+    M3_API m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle);
 
-    static const m3VehicleId m3_nullVehicleId = {0, 0, 0};
+    static const m3VehicleId m3_nullVehicleId = {0, 0};
 
 #ifdef __cplusplus
 }

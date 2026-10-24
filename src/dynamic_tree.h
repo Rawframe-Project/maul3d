@@ -10,6 +10,8 @@
 #ifndef MAUL3D_SRC_DYNAMIC_TREE_H
 #define MAUL3D_SRC_DYNAMIC_TREE_H
 
+#include "allocator.h"
+
 #include "maul3d/base.h"
 
 #define M3_TREE_NULL (-1)
@@ -41,8 +43,8 @@ typedef struct m3Tree
 // Deep enough for any AVL tree over an int32 node count.
 #define M3_TREE_STACK_CAPACITY 64
 
-m3Tree m3TreeCreate(int32_t capacity);
-void m3TreeDestroy(m3Tree* tree);
+m3Tree m3TreeCreate(m3Heap* heap, int32_t capacity);
+void m3TreeDestroy(m3Heap* heap, m3Tree* tree);
 
 /// Insert a leaf with fat bounds. Returns the node id, or M3_TREE_NULL
 /// when the pool is exhausted (loud at the caller).
@@ -78,7 +80,7 @@ void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3],
 /// function of the input list. Writes each input's new leaf id to
 /// outNodes. Returns false, with the old tree untouched, when count
 /// exceeds the capacity or memory runs out.
-bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
+bool m3TreeRebuild(m3Heap* heap, m3Tree* tree, const double (*los)[3], const double (*his)[3],
                    const int32_t* userDatas, const uint32_t* masks, int32_t count,
                    int32_t* outNodes);
 

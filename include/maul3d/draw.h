@@ -40,7 +40,7 @@ extern "C"
     /// missing callback skips what it would draw. Solid shapes come
     /// first, then wireframes, bounds, contacts, joints and the rest.
     /// Reads simulation state only. Thread class: reader.
-    M3_API void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw);
+    M3_API void m3World_Draw(const m3World* world, const m3DebugDraw* draw);
 
 #ifdef __cplusplus
 }

@@ -9,6 +9,7 @@
 // the color story (static, sensor, sleep tint) all reach the
 // callbacks.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/draw.h"
@@ -124,79 +125,79 @@ static m3DebugDraw AllOn(DrawSink* sink)
 // One busy world: a plane floor, a resting sphere (contact), a box on
 // a spherical joint, a capsule, a small mesh ramp, a sensor box, and
 // a kinematic slab. Every family and every color story in one scene.
-static m3WorldId MakeZoo(void)
+static m3World* MakeZoo(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.jointCapacity = 4;
     def.meshCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     bd.position = (m3Pos3){3.0, 2.0, 0.0};
-    m3BodyId box = m3CreateBody(world, &bd);
-    m3CreateBoxShape(box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    m3BodyId box = NewBody(world, &bd);
+    NewBoxShape(world, box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
 
     bd.position = (m3Pos3){-3.0, 1.0, 0.0};
-    m3BodyId pill = m3CreateBody(world, &bd);
+    m3BodyId pill = NewBody(world, &bd);
     m3Capsule capsule = {{0.0f, -0.3f, 0.0f}, {0.0f, 0.3f, 0.0f}, 0.3f};
-    m3CreateCapsuleShape(pill, &sd, &capsule);
+    NewCapsuleShape(world, pill, &sd, &capsule);
 
     // A two-triangle mesh quad away from the action.
     m3BodyDef md = m3DefaultBodyDef();
     md.position = (m3Pos3){8.0, 0.0, 8.0};
-    m3BodyId meshBody = m3CreateBody(world, &md);
+    m3BodyId meshBody = NewBody(world, &md);
     m3Vec3 verts[4] = {
         {0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 2.0f}};
     uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
-    m3CreateMeshShape(meshBody, &sd, verts, 4, tris, 2);
+    NewMeshShape(world, meshBody, &sd, verts, 4, tris, 2);
 
     // The sensor: a purple box in the color story.
     m3BodyDef zd = m3DefaultBodyDef();
     zd.position = (m3Pos3){0.0, 5.0, 5.0};
-    m3BodyId zone = m3CreateBody(world, &zd);
+    m3BodyId zone = NewBody(world, &zd);
     m3ShapeDef zdef = m3DefaultShapeDef();
     zdef.isSensor = true;
-    m3CreateBoxShape(zone, &zdef, (m3Vec3){1.0f, 1.0f, 1.0f});
+    NewBoxShape(world, zone, &zdef, (m3Vec3){1.0f, 1.0f, 1.0f});
 
     // The kinematic slab.
     m3BodyDef kd = m3DefaultBodyDef();
     kd.type = m3_kinematicBody;
     kd.position = (m3Pos3){-8.0, 3.0, 0.0};
-    m3BodyId slab = m3CreateBody(world, &kd);
-    m3CreateBoxShape(slab, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
+    m3BodyId slab = NewBody(world, &kd);
+    NewBoxShape(world, slab, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
 
     // The joint: box hangs from a static anchor point.
     m3BodyDef ad = m3DefaultBodyDef();
     ad.position = (m3Pos3){3.0, 3.0, 0.0};
-    m3BodyId anchor = m3CreateBody(world, &ad);
+    m3BodyId anchor = NewBody(world, &ad);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
     jd.bodyIdA = anchor;
     jd.bodyIdB = box;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3CreateJoint(world, &jd);
+    NewJoint(world, &jd);
 
     return world;
 }
 
 static void TestDrawCoverage(void)
 {
-    m3WorldId world = MakeZoo();
+    m3World* world = MakeZoo();
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -240,7 +241,7 @@ static void TestDrawIsPureObserver(void)
     // and require every byte identical. Then the interleaved twin:
     // world A draws every step, world B never draws, 240 steps, and
     // the full snapshots must match bit for bit.
-    m3WorldId world = MakeZoo();
+    m3World* world = MakeZoo();
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -248,7 +249,7 @@ static void TestDrawIsPureObserver(void)
     int32_t bytes = m3World_SnapshotSize(world);
     uint8_t* before = (uint8_t*)malloc((size_t)bytes);
     uint8_t* after = (uint8_t*)malloc((size_t)bytes);
-    CHECK(m3World_Snapshot(world, before, bytes) == bytes, "snapshot before writes");
+    CHECK(Snapshot(world, before, bytes) == bytes, "snapshot before writes");
 
     DrawSink sink = MakeSink();
     m3DebugDraw draw = AllOn(&sink);
@@ -275,14 +276,14 @@ static void TestDrawIsPureObserver(void)
                                   // same purity law
     m3World_Draw(world, &extras);
 
-    CHECK(m3World_Snapshot(world, after, bytes) == bytes, "snapshot after writes");
+    CHECK(Snapshot(world, after, bytes) == bytes, "snapshot after writes");
     CHECK(memcmp(before, after, (size_t)bytes) == 0, "a draw pass moves no bits");
     free(before);
     free(after);
     m3DestroyWorld(world);
 
-    m3WorldId drawn = MakeZoo();
-    m3WorldId silent = MakeZoo();
+    m3World* drawn = MakeZoo();
+    m3World* silent = MakeZoo();
     DrawSink stepSink = MakeSink();
     m3DebugDraw stepDraw = AllOn(&stepSink);
     for (int32_t i = 0; i < 240; ++i)
@@ -296,8 +297,8 @@ static void TestDrawIsPureObserver(void)
     CHECK(bytesA == bytesB, "twin snapshots size-match");
     uint8_t* snapA = (uint8_t*)malloc((size_t)bytesA);
     uint8_t* snapB = (uint8_t*)malloc((size_t)bytesB);
-    m3World_Snapshot(drawn, snapA, bytesA);
-    m3World_Snapshot(silent, snapB, bytesB);
+    Snapshot(drawn, snapA, bytesA);
+    Snapshot(silent, snapB, bytesB);
     CHECK(memcmp(snapA, snapB, (size_t)bytesA) == 0,
           "drawing every step never perturbs the simulation");
     free(snapA);
@@ -314,7 +315,7 @@ static void TestDrawStreamDeterminism(void)
     int32_t segments[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = MakeZoo();
+        m3World* world = MakeZoo();
         for (int32_t i = 0; i < 150; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
@@ -361,7 +362,7 @@ static void WindingTriangle(m3Pos3 a, m3Pos3 b, m3Pos3 c, uint32_t color, void* 
     }
 }
 
-static void CheckConvexWinding(m3WorldId world, m3Pos3 center, const char* label)
+static void CheckConvexWinding(m3World* world, m3Pos3 center, const char* label)
 {
     WindingSink sink;
     memset(&sink, 0, sizeof(sink));
@@ -390,44 +391,44 @@ static void TestSolidWindings(void)
     // One convex shape per world, centered, so the away-from-center
     // law is exact.
     {
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef bd = m3DefaultBodyDef();
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.7f};
-        m3CreateSphereShape(body, &sd, &ball);
+        NewSphereShape(world, body, &sd, &ball);
         CheckConvexWinding(world, (m3Pos3){0.0, 0.0, 0.0}, "sphere solid triangles");
         m3DestroyWorld(world);
     }
     {
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef bd = m3DefaultBodyDef();
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Capsule pill = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.35f};
-        m3CreateCapsuleShape(body, &sd, &pill);
+        NewCapsuleShape(world, body, &sd, &pill);
         CheckConvexWinding(world, (m3Pos3){0.0, 0.0, 0.0}, "capsule solid triangles");
         m3DestroyWorld(world);
     }
     {
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef bd = m3DefaultBodyDef();
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.6f, 0.7f});
+        NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.6f, 0.7f});
         CheckConvexWinding(world, (m3Pos3){0.0, 0.0, 0.0}, "hull solid triangles");
         m3DestroyWorld(world);
     }
     {
         // A single full voxel: one merged box centered at cell center.
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef bd = m3DefaultBodyDef();
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         static uint8_t voxels[16 * 16 * 16];
         memset(voxels, 0, sizeof(voxels));
         voxels[0] = 1;
-        m3CreateVoxelChunkShape(body, &sd, voxels, NULL, 1.0f);
+        NewVoxelChunkShape(world, body, &sd, voxels, NULL, 1.0f);
         CheckConvexWinding(world, (m3Pos3){0.5, 0.5, 0.5}, "voxel solid triangles");
         m3DestroyWorld(world);
     }
@@ -443,7 +444,7 @@ static void TestExtrasEmit(void)
     DrawSink sinks[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = MakeZoo();
+        m3World* world = MakeZoo();
         for (int32_t i = 0; i < 60; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);

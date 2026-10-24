@@ -23,7 +23,6 @@
 #include "shape_state.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -62,7 +61,6 @@ int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16
 
 // Counts the occupancy bits. Every occupancy edit rebuilds the surface, so
 // the build checks the edit's filled count against them.
-#ifndef NDEBUG
 static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
 {
     int32_t filled = 0;
@@ -72,7 +70,6 @@ static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
     }
     return filled;
 }
-#endif
 
 // The greedy merge: scan in canonical order (x fastest, then y,
 // then z); from each unclaimed filled voxel grow a run along x,
@@ -80,13 +77,13 @@ static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
 // Deterministic by the fixed scan and growth order; maximal in the
 // greedy sense (not globally optimal, which is NP-hard and
 // unnecessary).
-void m3VoxelSurfaceBuild(m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
+void m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
 {
     M3_ASSERT(FilledVoxels(chunk) == chunk->filledCount);
     // The embedded BVH owns heap arrays: release them before the wipe or the
     // rebuild leaks the previous build. The surface must be zeroed or a
     // previous build; garbage pointers here are the caller's crash.
-    m3MeshBvhFree(&surface->bvh);
+    m3MeshBvhFree(heap, &surface->bvh);
     memset(surface, 0, sizeof(*surface));
     uint8_t claimed[M3_VOXEL_COUNT];
     memset(claimed, 0, sizeof(claimed));
@@ -191,7 +188,7 @@ void m3VoxelSurfaceBuild(m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
                           (m3real)(surface->boxHi[b][1] + 1) * cell,
                           (m3real)(surface->boxHi[b][2] + 1) * cell};
     }
-    m3MeshBvhBuildBounds(&surface->bvh, los, his, surface->boxCount);
+    m3MeshBvhBuildBounds(heap, &surface->bvh, los, his, surface->boxCount);
 }
 
 // Chunk-frame bounds of one merged box.
@@ -368,7 +365,7 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
         // set falls through (the surface is a pure function of
         // occupancy and cell size, never of payload). No fracture
         // sweep here: adding a voxel can only CONNECT islands.
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
         m3VoxelCoverageRefreshAround(world, slot);
     }
     int32_t lo[3] = {x, y, z};
@@ -387,7 +384,7 @@ bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, i
         chunk->payload[v] = 0;
         chunk->fill[v] = 0;
         chunk->filledCount -= 1;
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -422,7 +419,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -498,7 +495,7 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
         m3VoxelFractureSweep(world, shape);
         m3VoxelCoverageRefreshAround(world, slot);
     }
@@ -507,98 +504,112 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
 }
 
 // Public entries: validate, journal, apply (the command pattern).
-static m3World* ResolveVoxelShape(m3ShapeId shapeId, int32_t* shapeOut)
+static bool ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* shapeOut)
 {
-    m3World* world = m3WorldFromTag(shapeId.world);
-    int32_t shape = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
+    int32_t shape = m3ShapeSlot(world, id);
     if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {
         m3Refuse(world, m3_errorInvalid);
-        return NULL; // stale, foreign, or not a voxel chunk: contract
+        return false; // stale, or not a voxel chunk: contract
     }
     *shapeOut = shape;
-    return world;
+    return true;
 }
 
-bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, uint16_t payload)
+void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
+                           uint16_t payload)
 {
-    int32_t shape;
-    m3World* world = ResolveVoxelShape(shapeId, &shape);
-    if (world == NULL || !VoxelCoordsValid(x, y, z))
+    int32_t index;
+    if (!ResolveVoxelShape(world, shape, &index))
+    {
+        return;
+    }
+    if (!VoxelCoordsValid(x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
-        return false;
+        return;
     }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelSet record;
         memset(&record, 0, sizeof(record));
-        record.id = shapeId;
+        record.id = shape;
         record.x = x;
         record.y = y;
         record.z = z;
         record.payload = payload;
         m3JournalRecord(world, m3_opVoxelSet, &record, (int32_t)sizeof(record));
     }
-    return m3VoxelSetInternal(world, shape, x, y, z, payload);
+    m3VoxelSetInternal(world, index, x, y, z, payload);
 }
 
-bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z)
+void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
 {
-    int32_t shape;
-    m3World* world = ResolveVoxelShape(shapeId, &shape);
-    if (world == NULL || !VoxelCoordsValid(x, y, z))
+    int32_t index;
+    if (!ResolveVoxelShape(world, shape, &index))
+    {
+        return;
+    }
+    if (!VoxelCoordsValid(x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
-        return false;
+        return;
     }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelClear record;
         memset(&record, 0, sizeof(record));
-        record.id = shapeId;
+        record.id = shape;
         record.x = x;
         record.y = y;
         record.z = z;
         m3JournalRecord(world, m3_opVoxelClear, &record, (int32_t)sizeof(record));
     }
-    return m3VoxelClearInternal(world, shape, x, y, z);
+    m3VoxelClearInternal(world, index, x, y, z);
 }
 
-bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z, uint8_t fill)
+void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
+                          uint8_t fill)
 {
-    int32_t shape;
-    m3World* world = ResolveVoxelShape(shapeId, &shape);
-    if (world == NULL || !VoxelCoordsValid(x, y, z) || fill == 0)
+    int32_t index;
+    if (!ResolveVoxelShape(world, shape, &index))
+    {
+        return; // fill zero is a clear in disguise: refused
+    }
+    if (!VoxelCoordsValid(x, y, z) || fill == 0)
     {
         m3Refuse(world, m3_errorInvalid);
-        return false; // fill zero is a clear in disguise: refused
+        return; // fill zero is a clear in disguise: refused
     }
-    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    int32_t slot = world->shapes.shapeVoxelIndex[index];
     if (!m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
-        return false;
+        return;
     }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelSetFill record;
         memset(&record, 0, sizeof(record));
-        record.id = shapeId;
+        record.id = shape;
         record.x = x;
         record.y = y;
         record.z = z;
         record.fill = fill;
         m3JournalRecord(world, m3_opVoxelSetFill, &record, (int32_t)sizeof(record));
     }
-    return m3VoxelSetFillInternal(world, shape, x, y, z, fill);
+    m3VoxelSetFillInternal(world, index, x, y, z, fill);
 }
 
-int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int32_t hi[3])
+int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
+                              const int32_t hi[3])
 {
-    int32_t shape;
-    m3World* world = ResolveVoxelShape(shapeId, &shape);
-    if (world == NULL || lo == NULL || hi == NULL)
+    int32_t index;
+    if (!ResolveVoxelShape(world, shape, &index))
+    {
+        return -1;
+    }
+    if (lo == NULL || hi == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
         return -1;
@@ -614,7 +625,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
     {
         m3OpVoxelClearBox record;
         memset(&record, 0, sizeof(record));
-        record.id = shapeId;
+        record.id = shape;
         for (int32_t k = 0; k < 3; ++k)
         {
             record.lo[k] = lo[k];
@@ -622,7 +633,7 @@ int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3], const int3
         }
         m3JournalRecord(world, m3_opVoxelClearBox, &record, (int32_t)sizeof(record));
     }
-    return m3VoxelClearBoxInternal(world, shape, lo, hi);
+    return m3VoxelClearBoxInternal(world, index, lo, hi);
 }
 
 // ---------------------------------------------------------------

@@ -9,6 +9,7 @@
 // target, and the whole storm rides twins, replay, rollback, and a
 // hostile tape without losing a bit.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -19,35 +20,35 @@
 #include <stdio.h>
 #include <string.h>
 
-static m3WorldId BlastWorld(void)
+static m3World* BlastWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
-    return m3CreateWorld(&def);
+    return NewWorld(&def);
 }
 
-static m3BodyId Crate(m3WorldId world, double x, double y, double z)
+static m3BodyId Crate(m3World* world, double x, double y, double z)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){x, y, z};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     return body;
 }
 
-static float Speed(m3BodyId body)
+static float Speed(const m3World* world, m3BodyId body)
 {
-    m3Vec3 v = m3Body_GetLinearVelocity(body);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, body);
     return sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
 static void TestRingAndFalloff(void)
 {
-    m3WorldId world = BlastWorld();
+    m3World* world = BlastWorld();
     // Four crates on the axes at 4 m, one in the falloff band at
     // 12 m, one beyond every reach at 30 m.
     m3BodyId east = Crate(world, 4.0, 0.0, 0.0);
@@ -62,42 +63,44 @@ static void TestRingAndFalloff(void)
     def.falloff = 5.0f;
     def.impulsePerArea = 4.0f;
     m3World_Explode(world, &def);
-    CHECK(Speed(east) > 1.0f, "the blast moves the ring");
-    CHECK(fabsf(Speed(east) - Speed(west)) < 1e-6f, "mirrored crates get mirrored speeds");
-    CHECK(fabsf(Speed(north) - Speed(south)) < 1e-6f, "the mirror holds on both axes");
-    CHECK(m3Body_GetLinearVelocity(east).x > 0.0f, "east flies east");
-    CHECK(m3Body_GetLinearVelocity(west).x < 0.0f, "west flies west");
-    CHECK(Speed(graze) > 0.0f, "the falloff band still pushes");
-    CHECK(Speed(graze) < Speed(east), "the falloff band pushes less");
-    CHECK(Speed(far) == 0.0f, "beyond radius plus falloff nothing moves");
+    CHECK(Speed(world, east) > 1.0f, "the blast moves the ring");
+    CHECK(fabsf(Speed(world, east) - Speed(world, west)) < 1e-6f,
+          "mirrored crates get mirrored speeds");
+    CHECK(fabsf(Speed(world, north) - Speed(world, south)) < 1e-6f,
+          "the mirror holds on both axes");
+    CHECK(m3Body_GetLinearVelocity(world, east).x > 0.0f, "east flies east");
+    CHECK(m3Body_GetLinearVelocity(world, west).x < 0.0f, "west flies west");
+    CHECK(Speed(world, graze) > 0.0f, "the falloff band still pushes");
+    CHECK(Speed(world, graze) < Speed(world, east), "the falloff band pushes less");
+    CHECK(Speed(world, far) == 0.0f, "beyond radius plus falloff nothing moves");
     // An implosion pulls the same ring inward.
     def.impulsePerArea = -4.0f;
     m3World_Explode(world, &def);
-    CHECK(fabsf(Speed(east)) < 1e-5f, "the implosion refunds the blast exactly");
+    CHECK(fabsf(Speed(world, east)) < 1e-5f, "the implosion refunds the blast exactly");
     m3DestroyWorld(world);
 }
 
 static void TestWakeFilterAndStatics(void)
 {
-    m3WorldId world = BlastWorld();
+    m3World* world = BlastWorld();
     m3BodyId sleeper = Crate(world, 3.0, 0.0, 0.0);
     m3BodyId dreamer = Crate(world, 40.0, 0.0, 0.0);
-    m3Body_SetAwake(sleeper, false);
-    m3Body_SetAwake(dreamer, false);
+    m3Body_SetAwake(world, sleeper, false);
+    m3Body_SetAwake(world, dreamer, false);
     // A crate the filter excludes: category 2, blast masks it out.
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){-3.0, 0.0, 0.0};
-    m3BodyId ghost = m3CreateBody(world, &bd);
+    m3BodyId ghost = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.categoryBits = 2ull;
-    m3CreateBoxShape(ghost, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, ghost, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     // A static wall inside the blast.
     m3BodyDef wd = m3DefaultBodyDef();
     wd.position = (m3Pos3){0.0, -3.0, 0.0};
-    m3BodyId wall = m3CreateBody(world, &wd);
+    m3BodyId wall = NewBody(world, &wd);
     m3ShapeDef wsd = m3DefaultShapeDef();
-    m3CreateBoxShape(wall, &wsd, (m3Vec3){2.0f, 0.5f, 2.0f});
+    NewBoxShape(world, wall, &wsd, (m3Vec3){2.0f, 0.5f, 2.0f});
     m3ExplosionDef def = m3DefaultExplosionDef();
     def.position = (m3Pos3){0.0, 0.0, 0.0};
     def.radius = 8.0f;
@@ -105,12 +108,12 @@ static void TestWakeFilterAndStatics(void)
     def.impulsePerArea = 3.0f;
     def.filter.maskBits = ~2ull;
     m3World_Explode(world, &def);
-    CHECK(m3Body_IsAwake(sleeper), "a sleeper in range wakes");
-    CHECK(Speed(sleeper) > 0.0f, "the woken sleeper moves");
-    CHECK(!m3Body_IsAwake(dreamer), "a sleeper beyond range naps on");
-    CHECK(Speed(ghost) == 0.0f, "the filtered crate never feels the blast");
-    CHECK(Speed(wall) == 0.0f, "the static wall stands");
-    m3Vec3 wv = m3Body_GetLinearVelocity(wall);
+    CHECK(m3Body_IsAwake(world, sleeper), "a sleeper in range wakes");
+    CHECK(Speed(world, sleeper) > 0.0f, "the woken sleeper moves");
+    CHECK(!m3Body_IsAwake(world, dreamer), "a sleeper beyond range naps on");
+    CHECK(Speed(world, ghost) == 0.0f, "the filtered crate never feels the blast");
+    CHECK(Speed(world, wall) == 0.0f, "the static wall stands");
+    m3Vec3 wv = m3Body_GetLinearVelocity(world, wall);
     CHECK(wv.x == 0.0f && wv.y == 0.0f && wv.z == 0.0f, "statics take no velocity at all");
     m3DestroyWorld(world);
 }
@@ -120,7 +123,7 @@ static void TestOffCenterSpin(void)
     // The blast center level with the crate's lower edge: the
     // closest point is off the center of mass, the lever arm turns
     // the push into spin.
-    m3WorldId world = BlastWorld();
+    m3World* world = BlastWorld();
     m3BodyId crate = Crate(world, 3.0, 0.0, 0.0);
     m3ExplosionDef def = m3DefaultExplosionDef();
     def.position = (m3Pos3){0.0, -0.45, 0.0};
@@ -128,8 +131,8 @@ static void TestOffCenterSpin(void)
     def.falloff = 2.0f;
     def.impulsePerArea = 3.0f;
     m3World_Explode(world, &def);
-    m3Vec3 w = m3Body_GetAngularVelocity(crate);
-    CHECK(Speed(crate) > 0.0f, "the off-center blast still pushes");
+    m3Vec3 w = m3Body_GetAngularVelocity(world, crate);
+    CHECK(Speed(world, crate) > 0.0f, "the off-center blast still pushes");
     CHECK(sqrtf(w.x * w.x + w.y * w.y + w.z * w.z) > 0.01f, "the lever arm spins the crate");
     m3DestroyWorld(world);
 }
@@ -142,9 +145,9 @@ static void TestVoxelCarveCoupling(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = BlastWorld();
+        m3World* world = BlastWorld();
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         static uint8_t voxels[16 * 16 * 16];
         memset(voxels, 0, sizeof(voxels));
@@ -152,8 +155,8 @@ static void TestVoxelCarveCoupling(void)
         {
             voxels[8 + 16 * (y + 16 * 8)] = 1;
         }
-        m3ShapeId column = m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
-        CHECK(m3Shape_IsValid(column), "the column creates");
+        m3ShapeId column = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+        CHECK(m3Shape_IsValid(world, column), "the column creates");
         m3ExplosionDef def = m3DefaultExplosionDef();
         def.position = (m3Pos3){8.5, 8.5, 8.5};
         def.radius = 2.0f;
@@ -177,9 +180,9 @@ static void TestVoxelCarveCoupling(void)
 
     // The same column untouched hashes differently: the carve is
     // real state, not an event-only side effect.
-    m3WorldId control = BlastWorld();
+    m3World* control = BlastWorld();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(control, &gd);
+    m3BodyId ground = NewBody(control, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static uint8_t voxels[16 * 16 * 16];
     memset(voxels, 0, sizeof(voxels));
@@ -187,7 +190,7 @@ static void TestVoxelCarveCoupling(void)
     {
         voxels[8 + 16 * (y + 16 * 8)] = 1;
     }
-    m3CreateVoxelChunkShape(ground, &sd, voxels, NULL, 1.0f);
+    NewVoxelChunkShape(control, ground, &sd, voxels, NULL, 1.0f);
     CHECK(m3World_Hash(control) != hashes[0], "the carve changed the chunk's bits");
     m3DestroyWorld(control);
 }
@@ -204,16 +207,16 @@ static void TestSoftPushAndKickWindow(void)
     wd.bodyCapacity = 16;
     wd.shapeCapacity = 16;
     wd.softBodyCapacity = 4;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3SoftBodyDef sd = m3DefaultSoftBodyDef();
     sd.position = (m3Pos3){3.0, -0.5, -0.5};
     sd.countX = 2;
     sd.countY = 2;
     sd.countZ = 2;
     sd.spacing = 1.0f;
-    m3SoftBodyId jelly = m3CreateSoftBody(world, &sd);
-    CHECK(m3SoftBody_IsValid(jelly), "the lattice creates");
-    double beforeX = m3SoftBody_GetParticlePosition(jelly, 0).x;
+    m3SoftBodyId jelly = NewSoftBody(world, &sd);
+    CHECK(m3SoftBody_IsValid(world, jelly), "the lattice creates");
+    double beforeX = m3SoftBody_GetParticlePosition(world, jelly, 0).x;
     m3ExplosionDef def = m3DefaultExplosionDef();
     def.position = (m3Pos3){0.0, 0.0, 0.0};
     def.radius = 8.0f;
@@ -222,16 +225,16 @@ static void TestSoftPushAndKickWindow(void)
     // blast is strong to make the push visible over half a second.
     def.impulsePerArea = 50.0f;
     m3World_Explode(world, &def);
-    int32_t snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+    int32_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(snapBytes > 0, "the kick-window snapshot fits");
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t after = m3World_Hash(world);
-    CHECK(m3SoftBody_GetParticlePosition(jelly, 0).x > beforeX + 0.1,
+    CHECK(m3SoftBody_GetParticlePosition(world, jelly, 0).x > beforeX + 0.1,
           "the pushed lattice flies away from the blast");
-    CHECK(m3World_Restore(world, snap, snapBytes), "the kick-window restore lands");
+    CHECK(Restore(world, snap, snapBytes), "the kick-window restore lands");
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -240,22 +243,22 @@ static void TestSoftPushAndKickWindow(void)
     m3DestroyWorld(world);
 
     // softPush zero stands the lattice down: nothing moves at all.
-    m3WorldId still = m3CreateWorld(&wd);
-    m3SoftBodyId calm = m3CreateSoftBody(still, &sd);
+    m3World* still = NewWorld(&wd);
+    m3SoftBodyId calm = NewSoftBody(still, &sd);
     def.softPush = 0.0f;
     m3World_Explode(still, &def);
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(still, 1.0f / 60.0f, 4);
     }
-    double calmX = m3SoftBody_GetParticlePosition(calm, 0).x;
+    double calmX = m3SoftBody_GetParticlePosition(still, calm, 0).x;
     CHECK(calmX > 2.9 && calmX < 3.1, "softPush zero leaves the lattice in place");
     m3DestroyWorld(still);
 }
 
 static void TestHostileDefWall(void)
 {
-    m3WorldId world = BlastWorld();
+    m3World* world = BlastWorld();
     m3BodyId crate = Crate(world, 3.0, 0.0, 0.0);
     uint64_t before = m3World_Hash(world);
     m3ExplosionDef def = m3DefaultExplosionDef();
@@ -282,7 +285,7 @@ static void TestHostileDefWall(void)
     def.internalValue = 0; // a dead cookie bounces at the door
     m3World_Explode(world, &def);
     CHECK(m3World_Hash(world) == before, "five hostile blasts changed nothing");
-    CHECK(Speed(crate) == 0.0f, "the crate never moved");
+    CHECK(Speed(world, crate) == 0.0f, "the crate never moved");
     m3DestroyWorld(world);
 }
 
@@ -291,18 +294,18 @@ static void TestHostileTape(void)
     // One explode op on tape, then surgical damage: a NaN center and
     // a negative radius must fail the replay loudly.
     static uint8_t tape[256];
-    m3WorldId world = BlastWorld();
+    m3World* world = BlastWorld();
     Crate(world, 3.0, 0.0, 0.0);
-    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
     m3ExplosionDef def = m3DefaultExplosionDef();
     def.position = (m3Pos3){0.0, 0.0, 0.0};
     def.impulsePerArea = 2.0f;
     m3World_Explode(world, &def);
-    int32_t bytes = m3World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes == 8 + (int32_t)sizeof(m3ExplosionDef), "one blast op is header plus def");
     m3DestroyWorld(world);
 
-    m3WorldId twin = BlastWorld();
+    m3World* twin = BlastWorld();
     m3BodyId crate = Crate(twin, 3.0, 0.0, 0.0);
     uint8_t hostile[256];
     memcpy(hostile, tape, (size_t)bytes);
@@ -310,14 +313,14 @@ static void TestHostileTape(void)
     uint64_t nanBits = 0x7FF8000000000000ull;
     memcpy(&nanD, &nanBits, sizeof(nanD));
     memcpy(hostile + 8, &nanD, sizeof(nanD)); // position.x
-    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
+    CHECK(!ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
     memcpy(hostile, tape, (size_t)bytes);
     float negative = -2.0f;
     memcpy(hostile + 8 + 40, &negative, sizeof(negative)); // radius
-    CHECK(!m3World_ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
-    CHECK(Speed(crate) == 0.0f, "the bounced tapes moved nothing");
-    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the clean tape lands");
-    CHECK(Speed(crate) > 0.0f, "the replayed blast pushes the twin crate");
+    CHECK(!ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
+    CHECK(Speed(twin, crate) == 0.0f, "the bounced tapes moved nothing");
+    CHECK(ReplayJournal(twin, tape, bytes), "the clean tape lands");
+    CHECK(Speed(twin, crate) > 0.0f, "the replayed blast pushes the twin crate");
     m3DestroyWorld(twin);
 }
 

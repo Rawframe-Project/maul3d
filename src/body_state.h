@@ -12,9 +12,9 @@
 // Slot lookup with generation check: -1 for a stale or foreign id.
 int32_t m3BodySlot(const m3World* world, m3BodyId bodyId);
 
-// Resolves a body id to its world and slot; for anything stale or
-// foreign, refuses and returns NULL with a -1 index.
-m3World* m3ResolveBody(m3BodyId bodyId, int32_t* indexOut);
+// Resolves a body id to its slot; for a stale id, refuses and returns
+// false with a -1 index.
+bool m3ResolveBody(const m3World* world, m3BodyId body, int32_t* indexOut);
 
 void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
 

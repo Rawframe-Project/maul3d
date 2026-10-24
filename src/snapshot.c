@@ -16,7 +16,6 @@
 #include "voxel_coverage.h"
 #include "world_internal.h"
 #include "world_state.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -67,7 +66,9 @@ static uint64_t ConfigHash(void)
     // nothing that does not (SIMD backend and worker count are
     // deliberately absent: the format is portable across them).
     uint64_t h = M3_HASH_INIT;
-    int32_t version = m3GetVersion();
+    // The snapshot format, not the library version: a release that keeps
+    // the format reads its predecessor's snapshots.
+    int32_t version = (int32_t)M3_SNAPSHOT_VERSION;
     int32_t solverRev = M3_SOLVER_REV;
     int32_t realSize = (int32_t)sizeof(m3real);
     int32_t posSize = (int32_t)sizeof(double);
@@ -113,11 +114,11 @@ static void Block(m3Walk* walk, void* ptr, int32_t bytes)
 // Counts land first; the read pass sizes the slot through the alloc gate
 // before its content arrives. The BVH stays derived and rebuilds after
 // restore. A material-free mesh writes zeros for its material table.
-static bool WalkMesh(m3Walk* walk, m3MeshData* mesh)
+static bool WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh)
 {
     Block(walk, &mesh->vertexCount, 4);
     Block(walk, &mesh->triangleCount, 4);
-    if (walk->mode == m3_walkRead && !m3MeshDataAlloc(mesh))
+    if (walk->mode == m3_walkRead && !m3MeshDataAlloc(heap, mesh))
     {
         return false; // corrupt counts or no memory
     }
@@ -198,7 +199,7 @@ static bool WalkHull(m3Walk* walk, m3HullData* hull)
 
 // Counts first, then the baked extremes and the raw samples; the read
 // pass refuses hostile counts and sizes through the alloc gate.
-static bool WalkHeightField(m3Walk* walk, m3HeightFieldData* hf)
+static bool WalkHeightField(m3Heap* heap, m3Walk* walk, m3HeightFieldData* hf)
 {
     Block(walk, &hf->nx, 4);
     Block(walk, &hf->nz, 4);
@@ -208,7 +209,7 @@ static bool WalkHeightField(m3Walk* walk, m3HeightFieldData* hf)
         bool valid = hf->nx >= 0 && hf->nx <= M3_HEIGHTFIELD_MAX_DIM && hf->nz >= 0 &&
                      hf->nz <= M3_HEIGHTFIELD_MAX_DIM && (hf->nx == 0) == (hf->nz == 0) &&
                      (hf->nx == 0 || (hf->nx >= 2 && hf->nz >= 2));
-        if (!valid || !m3HeightFieldDataAlloc(hf))
+        if (!valid || !m3HeightFieldDataAlloc(heap, hf))
         {
             return false;
         }
@@ -238,7 +239,7 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
     bool ok = true;
     for (int32_t m = 0; includeMesh && ok && m < world->meshes.meshCapacity; ++m)
     {
-        ok = WalkMesh(&walk, &world->meshes.meshData[m]);
+        ok = WalkMesh(&world->heap, &walk, &world->meshes.meshData[m]);
     }
     for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
     {
@@ -246,36 +247,43 @@ static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3Wal
     }
     for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
     {
-        ok = WalkHeightField(&walk, &world->heightFields.hfData[i]);
+        ok = WalkHeightField(&world->heap, &walk, &world->heightFields.hfData[i]);
     }
     return ok ? walk.cursor : -1;
 }
 
-int32_t m3World_SnapshotSize(m3WorldId worldId)
+// The walk for the readers: measure and write only read the world, which
+// the walk takes writable because a restore reads into it.
+static int32_t WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int includeMesh)
 {
-    m3World* world = m3WorldFromId(worldId);
+    M3_ASSERT(mode != m3_walkRead);
+    return WalkBlocks((m3World*)world, out, NULL, mode, includeMesh);
+}
+
+int32_t m3World_SnapshotSize(const m3World* world)
+{
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
         return -1;
     }
-    return (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 1);
+    return (int32_t)sizeof(m3SnapshotHeader) + WalkOut(world, NULL, m3_walkMeasure, 1);
 }
 
-int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity)
+m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || out == NULL)
+    if (world == NULL || buffer == NULL || bytesOut == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return -1;
+        return m3Refuse(world, m3_errorInvalid);
     }
-    int32_t size =
-        (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 1);
+    *bytesOut = 0;
+    int32_t size = (int32_t)sizeof(m3SnapshotHeader) + WalkOut(world, NULL, m3_walkMeasure, 1);
     if (capacity < size)
     {
+        // A buffer sized with m3World_SnapshotSize always fits, so a short
+        // one is the caller's bug as well as a capacity refusal.
         m3Refuse(world, m3_errorInvalid);
-        return -1; // loud: the caller sized with m3World_SnapshotSize
+        return m3_errorCapacity;
     }
 
     m3SnapshotHeader header;
@@ -285,10 +293,11 @@ int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity)
     header.configHash = ConfigHash();
     WorldCapacities(world, header.capacities);
 
-    uint8_t* bytes = (uint8_t*)out;
+    uint8_t* bytes = (uint8_t*)buffer;
     memcpy(bytes, &header, sizeof(header));
-    WalkBlocks(world, bytes + sizeof(header), NULL, m3_walkWrite, 1);
-    return size;
+    WalkOut(world, bytes + sizeof(header), m3_walkWrite, 1);
+    *bytesOut = size;
+    return m3_success;
 }
 
 // The variable-size tail (mesh, hull and heightfield content) parsed
@@ -452,7 +461,7 @@ static void RebuildDerived(m3World* world)
     {
         if (world->meshes.meshPool.alive[m] != 0)
         {
-            m3MeshBvhBuild(&world->meshes.meshBvh[m], &world->meshes.meshData[m]);
+            m3MeshBvhBuild(&world->heap, &world->meshes.meshBvh[m], &world->meshes.meshData[m]);
         }
     }
     for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
@@ -460,7 +469,8 @@ static void RebuildDerived(m3World* world)
         world->voxels.voxelShape[v] = -1;
         if (world->voxels.voxelPool.alive[v] != 0)
         {
-            m3VoxelSurfaceBuild(&world->voxels.voxelSurface[v], &world->voxels.voxelData[v]);
+            m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
+                                &world->voxels.voxelData[v]);
         }
     }
     for (int32_t s = 0; s < world->shapes.shapePool.maxIndex; ++s)
@@ -480,13 +490,11 @@ static void RebuildDerived(m3World* world)
     }
 }
 
-bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
+m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || data == NULL || size < (int32_t)sizeof(m3SnapshotHeader))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
+        return m3Refuse(world, m3_errorInvalid);
     }
     m3SnapshotHeader header;
     memcpy(&header, data, sizeof(header));
@@ -496,8 +504,7 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
         header.configHash != ConfigHash() ||
         memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        m3Refuse(world, m3_errorConfig); // another build or another world shape
-        return false;
+        return m3Refuse(world, m3_errorInvalid); // another build or another world shape
     }
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
@@ -509,16 +516,14 @@ bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size)
     if (size < fixed || !m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
         !TailFits(world, raw, size, fixed))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
+        return m3Refuse(world, m3_errorInvalid);
     }
     ClearEvents(world);
     if (WalkBlocks(world, NULL, raw + sizeof(header), m3_walkRead, 1) < 0)
     {
         // The pre-parse leaves only exhausted memory in the alloc gate.
-        m3Refuse(world, m3_errorCapacity);
-        return false;
+        return m3_errorCapacity;
     }
     RebuildDerived(world);
-    return true;
+    return m3_success;
 }

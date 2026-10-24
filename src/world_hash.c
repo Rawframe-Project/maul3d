@@ -11,7 +11,6 @@
 #include "misuse.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stddef.h>
 
@@ -521,9 +520,8 @@ static uint64_t HashContacts(const m3World* world, uint64_t h)
     return h;
 }
 
-uint64_t m3World_Hash(m3WorldId worldId)
+uint64_t m3World_Hash(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);

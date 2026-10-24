@@ -6,6 +6,7 @@
 // height, the anchor table keeps its books, and hostile defs refuse
 // loudly.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
@@ -17,17 +18,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId PlaneWorld(void)
+static m3World* PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
@@ -35,7 +36,7 @@ static void TestHangingRope(void)
 {
     // Twenty particles on rigid rods, the top one pinned: the rope
     // hangs straight down to its analytic length.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){0.0, 5.0, 0.0};
     sb.countX = 1;
@@ -43,17 +44,17 @@ static void TestHangingRope(void)
     sb.countZ = 1;
     sb.spacing = 0.25f;
     sb.compliance = 0.0f;
-    m3SoftBodyId rope = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(rope), "the rope creates");
-    CHECK(m3SoftBody_GetParticleCount(rope) == 20, "twenty particles");
-    m3SoftBody_PinParticle(rope, 19); // the top of the lattice
+    m3SoftBodyId rope = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, rope), "the rope creates");
+    CHECK(m3SoftBody_GetParticleCount(world, rope) == 20, "twenty particles");
+    m3SoftBody_PinParticle(world, rope, 19); // the top of the lattice
 
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 top = m3SoftBody_GetParticlePosition(rope, 19);
-    m3Pos3 bottom = m3SoftBody_GetParticlePosition(rope, 0);
+    m3Pos3 top = m3SoftBody_GetParticlePosition(world, rope, 19);
+    m3Pos3 bottom = m3SoftBody_GetParticlePosition(world, rope, 0);
     CHECK(fabs(top.y - (5.0 + 19.0 * 0.25)) < 1.0e-9, "the pin never moves");
     CHECK(fabs((top.y - bottom.y) - 4.75) < 0.05, "the rope hangs to its analytic length");
     CHECK(fabs(bottom.x) < 0.01 && fabs(bottom.z) < 0.01, "the hang is plumb");
@@ -65,7 +66,7 @@ static void TestJellyRest(void)
     // A four-cube jelly dropped on the plane settles at its
     // geometric height: bottom layer at particle radius, top a
     // lattice above it, small squash tolerated.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){0.0, 1.0, 0.0};
     sb.countX = 4;
@@ -74,8 +75,8 @@ static void TestJellyRest(void)
     sb.spacing = 0.3f;
     sb.compliance = 1.0e-4f;
     sb.radius = 0.1f;
-    m3SoftBodyId jelly = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(jelly), "the jelly creates");
+    m3SoftBodyId jelly = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, jelly), "the jelly creates");
 
     for (int32_t i = 0; i < 360; ++i)
     {
@@ -85,7 +86,7 @@ static void TestJellyRest(void)
     double maxY = -1.0e30;
     for (int32_t p = 0; p < 64; ++p)
     {
-        m3Pos3 q = m3SoftBody_GetParticlePosition(jelly, p);
+        m3Pos3 q = m3SoftBody_GetParticlePosition(world, jelly, p);
         CHECK(isfinite(q.x) && isfinite(q.y) && isfinite(q.z), "the jelly stays finite");
         minY = q.y < minY ? q.y : minY;
         maxY = q.y > maxY ? q.y : maxY;
@@ -97,42 +98,42 @@ static void TestJellyRest(void)
 
 static void TestSoftContracts(void)
 {
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.countX = 0;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "a zero count refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "a zero count refuses");
     sb = m3DefaultSoftBodyDef();
     sb.countX = 9;
     sb.countY = 9;
     sb.countZ = 9; // 729 > 512
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "an oversized lattice refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "an oversized lattice refuses");
     sb = m3DefaultSoftBodyDef();
     sb.spacing = 0.0f;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "a zero spacing refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "a zero spacing refuses");
     sb = m3DefaultSoftBodyDef();
     float bad;
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
     sb.compliance = bad;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "a NaN compliance refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "a NaN compliance refuses");
 
     sb = m3DefaultSoftBodyDef();
-    m3SoftBodyId a = m3CreateSoftBody(world, &sb);
+    m3SoftBodyId a = NewSoftBody(world, &sb);
     sb.position = (m3Pos3){3.0, 1.0, 0.0};
-    m3SoftBodyId b = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(a) && m3SoftBody_IsValid(b), "the pool serves two");
+    m3SoftBodyId b = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, a) && m3SoftBody_IsValid(world, b), "the pool serves two");
     sb.position = (m3Pos3){6.0, 1.0, 0.0};
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "the full pool refuses the third");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "the full pool refuses the third");
 
-    m3SoftBody_PinParticle(a, 9999); // out of range: no-op
-    m3DestroySoftBody(a);
-    CHECK(!m3SoftBody_IsValid(a), "the destroyed soft body is stale");
-    m3SoftBody_PinParticle(a, 0); // stale: no-op
-    m3Pos3 p = m3SoftBody_GetParticlePosition(a, 0);
+    m3SoftBody_PinParticle(world, a, 9999); // out of range: no-op
+    DestroySoftBody(world, a);
+    CHECK(!m3SoftBody_IsValid(world, a), "the destroyed soft body is stale");
+    m3SoftBody_PinParticle(world, a, 0); // stale: no-op
+    m3Pos3 p = m3SoftBody_GetParticlePosition(world, a, 0);
     CHECK(p.x == 0.0 && p.y == 0.0, "a stale getter returns zeros");
-    m3DestroySoftBody(a); // stale: no-op
+    DestroySoftBody(world, a); // stale: no-op
     m3World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m3SoftBody_IsValid(b), "the survivor lives on");
+    CHECK(m3SoftBody_IsValid(world, b), "the survivor lives on");
     m3DestroyWorld(world);
 }
 
@@ -141,13 +142,13 @@ static void TestClothDrape(void)
     // An eight-by-eight cloth falls onto a box: the middle rests on
     // the lid (radius height above it), the corners hang BELOW the
     // lid, and friction keeps the drape from sliding off.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId table = m3CreateBody(world, &bd);
+    m3BodyId table = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.8f;
-    m3CreateBoxShape(table, &sd, (m3Vec3){0.5f, 1.0f, 0.5f}); // lid at y = 2
+    NewBoxShape(world, table, &sd, (m3Vec3){0.5f, 1.0f, 0.5f}); // lid at y = 2
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){-0.7, 2.6, -0.7};
@@ -158,18 +159,18 @@ static void TestClothDrape(void)
     sb.compliance = 1.0e-5f;
     sb.radius = 0.04f;
     sb.particleMass = 0.05f;
-    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(cloth), "the cloth creates");
+    m3SoftBodyId cloth = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, cloth), "the cloth creates");
 
     for (int32_t i = 0; i < 420; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // The center particle (3..4, z 3..4) rests on the lid.
-    m3Pos3 mid = m3SoftBody_GetParticlePosition(cloth, 3 + 8 * 3);
+    m3Pos3 mid = m3SoftBody_GetParticlePosition(world, cloth, 3 + 8 * 3);
     CHECK(mid.y > 2.0 && mid.y < 2.12, "the middle rests on the lid");
     // The corners hang below the lid but above the floor.
-    m3Pos3 corner = m3SoftBody_GetParticlePosition(cloth, 0);
+    m3Pos3 corner = m3SoftBody_GetParticlePosition(world, cloth, 0);
     CHECK(corner.y < 1.9, "the corner hangs over the edge");
     CHECK(corner.y > 0.02, "the corner does not reach the floor");
     double span = fabs(corner.x) + fabs(corner.z);
@@ -186,7 +187,7 @@ static void TestRopeInBowlAndCarve(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.voxelCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     // No plane: below the bowl is open air, so the carve VISIBLY
     // drops the rope.
     static uint8_t bowl[16 * 16 * 16];
@@ -212,8 +213,8 @@ static void TestRopeInBowlAndCarve(void)
     gd.position = (m3Pos3){-2.0, 0.0, -2.0};
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.5f;
-    m3ShapeId chunk = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, bowl, NULL, 0.25f);
-    CHECK(m3Shape_IsValid(chunk), "the bowl creates");
+    m3ShapeId chunk = NewVoxelChunkShape(world, NewBody(world, &gd), &sd, bowl, NULL, 0.25f);
+    CHECK(m3Shape_IsValid(world, chunk), "the bowl creates");
 
     // A HORIZONTAL rope: a vertical one balances forever on its
     // own perfect symmetry (deterministic floats carry no noise to
@@ -228,7 +229,7 @@ static void TestRopeInBowlAndCarve(void)
     sb.spacing = 0.12f;
     sb.compliance = 0.0f;
     sb.radius = 0.05f;
-    m3SoftBodyId rope = m3CreateSoftBody(world, &sb);
+    m3SoftBodyId rope = NewSoftBody(world, &sb);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -237,19 +238,19 @@ static void TestRopeInBowlAndCarve(void)
     // its walls.
     for (int32_t p = 0; p < 12; ++p)
     {
-        m3Pos3 q = m3SoftBody_GetParticlePosition(rope, p);
+        m3Pos3 q = m3SoftBody_GetParticlePosition(world, rope, p);
         CHECK(q.y > 0.25 && q.y < 0.6, "the rope lies on the bowl floor");
         CHECK(q.x > -1.1 && q.x < 1.1 && q.z > -1.1 && q.z < 1.1, "the walls keep the rope");
     }
     // Carve the floor slab out from under it.
     int32_t lo[3] = {5, 0, 5};
     int32_t hi[3] = {10, 0, 10};
-    CHECK(m3VoxelChunk_ClearBox(chunk, lo, hi) > 0, "the carve clears the floor");
+    CHECK(m3VoxelChunk_ClearBox(world, chunk, lo, hi) > 0, "the carve clears the floor");
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 low = m3SoftBody_GetParticlePosition(rope, 0);
+    m3Pos3 low = m3SoftBody_GetParticlePosition(world, rope, 0);
     CHECK(low.y < -2.0, "the carved floor drops the rope into the void");
     m3DestroyWorld(world);
 }
@@ -259,24 +260,24 @@ static void TestJellySeesaw(void)
     // A jelly lands on one end of a hinged plank: the plank tips
     // under the soft weight. Contact coupling carries real
     // momentum, not decoration.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef postDef = m3DefaultBodyDef();
     postDef.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId post = m3CreateBody(world, &postDef);
+    m3BodyId post = NewBody(world, &postDef);
     m3BodyDef plankDef = m3DefaultBodyDef();
     plankDef.type = m3_dynamicBody;
     plankDef.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId plank = m3CreateBody(world, &plankDef);
+    m3BodyId plank = NewBody(world, &plankDef);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
-    m3CreateBoxShape(plank, &sd, (m3Vec3){1.5f, 0.05f, 0.4f});
+    NewBoxShape(world, plank, &sd, (m3Vec3){1.5f, 0.05f, 0.4f});
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
     jd.bodyIdA = post;
     jd.bodyIdB = plank;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3CreateJoint(world, &jd);
+    NewJoint(world, &jd);
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){0.75, 1.6, -0.3};
@@ -287,18 +288,18 @@ static void TestJellySeesaw(void)
     sb.compliance = 1.0e-4f;
     sb.radius = 0.08f;
     sb.particleMass = 0.2f; // a 5.4 kg jelly on one wing
-    m3SoftBodyId jelly = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(jelly), "the jelly creates");
+    m3SoftBodyId jelly = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, jelly), "the jelly creates");
 
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 w = m3Body_GetAngularVelocity(plank);
-    m3Quat q = m3Body_GetRotation(plank);
+    m3Vec3 w = m3Body_GetAngularVelocity(world, plank);
+    m3Quat q = m3Body_GetRotation(world, plank);
     (void)w;
     CHECK(q.z < -0.02f, "the plank tips under the jelly");
-    m3Pos3 jp = m3SoftBody_GetParticlePosition(jelly, 0);
+    m3Pos3 jp = m3SoftBody_GetParticlePosition(world, jelly, 0);
     CHECK(isfinite(jp.x) && isfinite(jp.y), "the jelly stays finite on the ride");
     m3DestroyWorld(world);
 }
@@ -308,12 +309,12 @@ static void TestBallThroughCloth(void)
     // A hanging cloth anchored to a beam takes a flying ball: the
     // ball loses speed to the fabric, the fabric bulges, and the
     // anchors hold their corners.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef beamDef = m3DefaultBodyDef();
     beamDef.position = (m3Pos3){0.0, 3.2, 0.0};
-    m3BodyId beam = m3CreateBody(world, &beamDef);
+    m3BodyId beam = NewBody(world, &beamDef);
     m3ShapeDef bs = m3DefaultShapeDef();
-    m3CreateBoxShape(beam, &bs, (m3Vec3){1.2f, 0.05f, 0.05f});
+    NewBoxShape(world, beam, &bs, (m3Vec3){1.2f, 0.05f, 0.05f});
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){-0.9, 1.2, 0.0};
@@ -324,10 +325,10 @@ static void TestBallThroughCloth(void)
     sb.compliance = 1.0e-5f;
     sb.radius = 0.06f;
     sb.particleMass = 0.03f;
-    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
+    m3SoftBodyId cloth = NewSoftBody(world, &sb);
     // Anchor the top ROW's two corners to the beam.
-    m3SoftBody_AnchorParticle(cloth, 90, beam); // (x0, y9)
-    m3SoftBody_AnchorParticle(cloth, 99, beam); // (x9, y9)
+    m3SoftBody_AnchorParticle(world, cloth, 90, beam); // (x0, y9)
+    m3SoftBody_AnchorParticle(world, cloth, 99, beam); // (x9, y9)
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4); // let it hang
@@ -338,19 +339,19 @@ static void TestBallThroughCloth(void)
     ballDef.position = (m3Pos3){0.0, 2.0, -3.0};
     ballDef.linearVelocity = (m3Vec3){0.0f, 0.0f, 8.0f};
     ballDef.gravityScale = 0.0f; // a clean speed record
-    m3BodyId ball = m3CreateBody(world, &ballDef);
+    m3BodyId ball = NewBody(world, &ballDef);
     m3ShapeDef bls = m3DefaultShapeDef();
     bls.density = 50.0f; // 3.3 kg: heavier than the whole fabric,
                          // or the reaction walls a featherweight
     m3Sphere slug = {{0.0f, 0.0f, 0.0f}, 0.25f};
-    m3CreateSphereShape(ball, &bls, &slug);
+    NewSphereShape(world, ball, &bls, &slug);
 
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(ball);
-    m3Pos3 bp = m3Body_GetPosition(ball);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
+    m3Pos3 bp = m3Body_GetPosition(world, ball);
     CHECK(bp.z > 0.3, "the ball passes through the fabric plane");
     CHECK(v.z < 7.9f, "the fabric takes speed off the ball");
     // The ball drags the tangled curtain with it (three kilos of
@@ -360,7 +361,7 @@ static void TestBallThroughCloth(void)
     // The anchor preserves the particle's CAPTURE position in the
     // beam frame (top row spawned at y = 3.0), it does not teleport
     // to the beam's center.
-    m3Pos3 c0 = m3SoftBody_GetParticlePosition(cloth, 90);
+    m3Pos3 c0 = m3SoftBody_GetParticlePosition(world, cloth, 90);
     CHECK(fabs(c0.y - 3.0) < 0.15, "the anchored corner holds its captured height");
     m3DestroyWorld(world);
 }
@@ -373,13 +374,13 @@ static void TestClothFollowsBeam(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = PlaneWorld();
+        m3World* world = PlaneWorld();
         m3BodyDef beamDef = m3DefaultBodyDef();
         beamDef.type = m3_kinematicBody;
         beamDef.position = (m3Pos3){0.0, 3.0, 0.0};
-        m3BodyId beam = m3CreateBody(world, &beamDef);
+        m3BodyId beam = NewBody(world, &beamDef);
         m3ShapeDef bs = m3DefaultShapeDef();
-        m3CreateBoxShape(beam, &bs, (m3Vec3){1.0f, 0.05f, 0.05f});
+        NewBoxShape(world, beam, &bs, (m3Vec3){1.0f, 0.05f, 0.05f});
 
         m3SoftBodyDef sb = m3DefaultSoftBodyDef();
         sb.position = (m3Pos3){-0.7, 1.6, 0.0};
@@ -390,29 +391,29 @@ static void TestClothFollowsBeam(void)
         sb.compliance = 1.0e-5f;
         sb.radius = 0.05f;
         sb.particleMass = 0.03f;
-        m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-        m3SoftBody_AnchorParticle(cloth, 56, beam);
-        m3SoftBody_AnchorParticle(cloth, 63, beam);
+        m3SoftBodyId cloth = NewSoftBody(world, &sb);
+        m3SoftBody_AnchorParticle(world, cloth, 56, beam);
+        m3SoftBody_AnchorParticle(world, cloth, 63, beam);
 
-        m3Body_SetLinearVelocity(beam, (m3Vec3){0.8f, 0.0f, 0.0f});
+        m3Body_SetLinearVelocity(world, beam, (m3Vec3){0.8f, 0.0f, 0.0f});
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 150; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
             if (i == 75 && run == 0)
             {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+                snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
                 CHECK(snapBytes > 0, "the mid-ride snapshot fits");
             }
         }
-        m3Pos3 corner = m3SoftBody_GetParticlePosition(cloth, 56);
-        m3Pos3 beamP = m3Body_GetPosition(beam);
+        m3Pos3 corner = m3SoftBody_GetParticlePosition(world, cloth, 56);
+        m3Pos3 beamP = m3Body_GetPosition(world, beam);
         CHECK(beamP.x > 1.9, "the beam sails");
         CHECK(fabs(corner.x - (beamP.x - 0.7)) < 0.1, "the anchored corner tracks the beam");
         hashes[run] = m3World_Hash(world);
         if (run == 0)
         {
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-ride restore lands");
+            CHECK(Restore(world, snap, snapBytes), "the mid-ride restore lands");
             for (int32_t i = 76; i < 150; ++i)
             {
                 m3World_Step(world, 1.0f / 60.0f, 4);
@@ -435,35 +436,35 @@ static void TestBindTether(void)
         m3WorldDef wd = m3DefaultWorldDef();
         wd.bodyCapacity = 4;
         wd.shapeCapacity = 4;
-        m3WorldId world = m3CreateWorld(&wd);
+        m3World* world = NewWorld(&wd);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
         m3SoftBodyDef sb = m3DefaultSoftBodyDef();
         sb.position = (m3Pos3){0.0, 3.0, 0.0};
         sb.countX = 4;
         sb.countY = 1;
         sb.countZ = 4;
         sb.maxDeviation = pass == 0 ? 0.0f : 0.2f;
-        m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-        CHECK(m3SoftBody_IsValid(cloth), "the cloth creates");
+        m3SoftBodyId cloth = NewSoftBody(world, &sb);
+        CHECK(m3SoftBody_IsValid(world, cloth), "the cloth creates");
         for (int32_t i = 0; i < 240; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        y[pass] = m3SoftBody_GetParticlePosition(cloth, 5).y;
+        y[pass] = m3SoftBody_GetParticlePosition(world, cloth, 5).y;
         m3DestroyWorld(world);
     }
     CHECK(y[0] < 0.5, "the untethered cloth falls to the floor");
     CHECK(y[1] > 2.7, "the tethered cloth hangs at its bind pose");
 
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.maxDeviation = -0.5f;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "negative deviation refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "negative deviation refuses");
     m3DestroyWorld(world);
 }
 
@@ -484,25 +485,25 @@ static void TestTetBodies(void)
         m3WorldDef wd = m3DefaultWorldDef();
         wd.bodyCapacity = 4;
         wd.shapeCapacity = 4;
-        m3WorldId world = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
+        m3World* world = NewWorld(&wd);
+        bool recording = run == 0 && StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
         m3SoftBodyDef sb = m3DefaultSoftBodyDef();
         sb.position = (m3Pos3){0.0, 1.5, 0.0};
         sb.compliance = 1.0e-4f;
-        m3SoftBodyId jelly = m3CreateSoftBodyTet(world, &sb, pts, 8, tets, 5);
-        CHECK(m3SoftBody_IsValid(jelly), "the jelly creates");
-        CHECK(m3SoftBody_GetParticleCount(jelly) == 8, "eight particles");
+        m3SoftBodyId jelly = NewSoftBodyTet(world, &sb, pts, 8, tets, 5);
+        CHECK(m3SoftBody_IsValid(world, jelly), "the jelly creates");
+        CHECK(m3SoftBody_GetParticleCount(world, jelly) == 8, "eight particles");
         for (int32_t i = 0; i < 240; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Pos3 lo = m3SoftBody_GetParticlePosition(jelly, 0);
-        m3Pos3 hi = m3SoftBody_GetParticlePosition(jelly, 6);
+        m3Pos3 lo = m3SoftBody_GetParticlePosition(world, jelly, 0);
+        m3Pos3 hi = m3SoftBody_GetParticlePosition(world, jelly, 6);
         CHECK(lo.y > -0.1 && lo.y < 0.3, "the jelly rests on the floor");
         double dx = hi.x - lo.x;
         double dy = hi.y - lo.y;
@@ -513,11 +514,11 @@ static void TestTetBodies(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_StopJournal(world);
+            int32_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the jelly session records");
             m3WorldDef fresh = wd;
-            m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the jelly replays");
+            m3World* replayed = NewWorld(&fresh);
+            CHECK(ReplayJournal(replayed, journal, bytes), "the jelly replays");
             CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
             m3DestroyWorld(replayed);
         }
@@ -527,17 +528,17 @@ static void TestTetBodies(void)
 
     // Walls: bad index, degenerate tet, lattice knobs on a tet body.
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     uint16_t bad[4] = {0, 1, 2, 9};
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBodyTet(world, &sb, pts, 8, bad, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, bad, 1)),
           "an out-of-range tet refuses");
     uint16_t flat[4] = {0, 1, 2, 3}; // coplanar corners of one face
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBodyTet(world, &sb, pts, 8, flat, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, flat, 1)),
           "a flat tet refuses");
     sb.pressure = 1.0f;
     uint16_t good[4] = {0, 1, 2, 5};
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBodyTet(world, &sb, pts, 8, good, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, good, 1)),
           "lattice pressure on a tet body refuses");
     m3DestroyWorld(world);
 }
@@ -557,7 +558,7 @@ static void TestPressure(void)
             wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
             wd.bodyCapacity = 4;
             wd.shapeCapacity = 4;
-            m3WorldId world = m3CreateWorld(&wd);
+            m3World* world = NewWorld(&wd);
             m3SoftBodyDef sb = m3DefaultSoftBodyDef();
             sb.position = (m3Pos3){0.0, 2.0, 0.0};
             sb.countX = 4;
@@ -566,14 +567,14 @@ static void TestPressure(void)
             sb.spacing = 0.25f;
             sb.compliance = 1.0e-4f; // stretchy walls let it puff
             sb.pressure = pass == 0 ? 0.0f : 2.0f;
-            m3SoftBodyId cube = m3CreateSoftBody(world, &sb);
-            CHECK(m3SoftBody_IsValid(cube), "the cube creates");
+            m3SoftBodyId cube = NewSoftBody(world, &sb);
+            CHECK(m3SoftBody_IsValid(world, cube), "the cube creates");
             for (int32_t i = 0; i < 240; ++i)
             {
                 m3World_Step(world, 1.0f / 60.0f, 4);
             }
-            m3Pos3 a = m3SoftBody_GetParticlePosition(cube, 0);
-            m3Pos3 b = m3SoftBody_GetParticlePosition(cube, 63);
+            m3Pos3 a = m3SoftBody_GetParticlePosition(world, cube, 0);
+            m3Pos3 b = m3SoftBody_GetParticlePosition(world, cube, 63);
             double dx = b.x - a.x;
             double dy = b.y - a.y;
             double dz = b.z - a.z;
@@ -589,14 +590,14 @@ static void TestPressure(void)
     CHECK(diag[1] > diag[0] * 1.2, "the pressurized cube inflates");
 
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.pressure = -1.0f;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "negative pressure refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "negative pressure refuses");
     sb = m3DefaultSoftBodyDef();
     sb.countY = 1;
     sb.pressure = 1.0f;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "a flat sheet takes no pressure");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "a flat sheet takes no pressure");
     m3DestroyWorld(world);
 }
 
@@ -614,7 +615,7 @@ static void TestBendRods(void)
             m3WorldDef wd = m3DefaultWorldDef();
             wd.bodyCapacity = 4;
             wd.shapeCapacity = 4;
-            m3WorldId world = m3CreateWorld(&wd);
+            m3World* world = NewWorld(&wd);
             m3SoftBodyDef sb = m3DefaultSoftBodyDef();
             sb.position = (m3Pos3){0.0, 4.0, 0.0};
             sb.countX = 16;
@@ -623,19 +624,19 @@ static void TestBendRods(void)
             sb.spacing = 0.2f;
             sb.compliance = 0.0f;
             sb.bendCompliance = pass == 0 ? 0.0f : 1.0e-6f;
-            m3SoftBodyId rope = m3CreateSoftBody(world, &sb);
-            CHECK(m3SoftBody_IsValid(rope), "the rope creates");
+            m3SoftBodyId rope = NewSoftBody(world, &sb);
+            CHECK(m3SoftBody_IsValid(world, rope), "the rope creates");
             // TWO pins make the clamp: a single point pin holds
             // no moment (even a rigid rod would swing free).
-            m3SoftBody_PinParticle(rope, 0);
-            m3SoftBody_PinParticle(rope, 1);
+            m3SoftBody_PinParticle(world, rope, 0);
+            m3SoftBody_PinParticle(world, rope, 1);
             for (int32_t i = 0; i < 300; ++i)
             {
                 m3World_Step(world, 1.0f / 60.0f, 4);
             }
             if (run == 0)
             {
-                tipY[pass] = m3SoftBody_GetParticlePosition(rope, 15).x;
+                tipY[pass] = m3SoftBody_GetParticlePosition(world, rope, 15).x;
             }
             hashes[run] = m3World_Hash(world);
             m3DestroyWorld(world);
@@ -651,10 +652,10 @@ static void TestBendRods(void)
 
     // The wall: a hostile bend compliance refuses.
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.bendCompliance = -1.0f;
-    CHECK(!m3SoftBody_IsValid(m3CreateSoftBody(world, &sb)), "negative bend refuses");
+    CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "negative bend refuses");
     m3DestroyWorld(world);
 }
 
@@ -664,30 +665,31 @@ static void TestBendRods(void)
 static void TestRestoreKeepsPoolCursors(void)
 {
     static uint8_t snap[2097152];
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){0.0, 2.0, 0.0};
     sb.countX = 2;
     sb.countY = 2;
     sb.countZ = 2;
-    m3SoftBodyId first = m3CreateSoftBody(world, &sb);
-    int32_t bytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+    m3SoftBodyId first = NewSoftBody(world, &sb);
+    int32_t bytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(bytes > 0, "the snapshot fits");
-    m3DestroySoftBody(first);
-    CHECK(m3World_Restore(world, snap, bytes), "the restore lands");
-    CHECK(m3SoftBody_IsValid(first), "the destroyed body is back");
+    DestroySoftBody(world, first);
+    CHECK(Restore(world, snap, bytes), "the restore lands");
+    CHECK(m3SoftBody_IsValid(world, first), "the destroyed body is back");
     sb.position = (m3Pos3){3.0, 2.0, 0.0};
-    m3SoftBodyId second = m3CreateSoftBody(world, &sb);
-    CHECK(m3SoftBody_IsValid(second), "a new body creates after the restore");
+    m3SoftBodyId second = NewSoftBody(world, &sb);
+    CHECK(m3SoftBody_IsValid(world, second), "a new body creates after the restore");
     CHECK(second.index1 != first.index1, "the new body takes its own slot");
-    CHECK(m3SoftBody_GetParticlePosition(first, 0).x < 1.0, "the restored body keeps its state");
+    CHECK(m3SoftBody_GetParticlePosition(world, first, 0).x < 1.0,
+          "the restored body keeps its state");
 
     // The same world played forward without the detour hands out the same id.
-    m3WorldId twin = PlaneWorld();
+    m3World* twin = PlaneWorld();
     sb.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3CreateSoftBody(twin, &sb);
+    NewSoftBody(twin, &sb);
     sb.position = (m3Pos3){3.0, 2.0, 0.0};
-    m3SoftBodyId twinSecond = m3CreateSoftBody(twin, &sb);
+    m3SoftBodyId twinSecond = NewSoftBody(twin, &sb);
     CHECK(twinSecond.index1 == second.index1 && twinSecond.generation == second.generation,
           "restored and straight timelines allocate alike");
     m3DestroyWorld(twin);
@@ -699,12 +701,12 @@ static void TestAnchorRedTeam(void)
     // The anchor table's books: exactly 32 anchors fit, the 33rd is
     // a quiet no-op; anchors to a destroyed body release silently
     // and the freed particles fall; hostile anchor calls no-op.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId beam = m3CreateBody(world, &bd);
+    m3BodyId beam = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(beam, &sd, (m3Vec3){2.0f, 0.05f, 0.05f});
+    NewBoxShape(world, beam, &sd, (m3Vec3){2.0f, 0.05f, 0.05f});
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){-0.8, 2.4, 0.0};
@@ -713,23 +715,23 @@ static void TestAnchorRedTeam(void)
     sb.countZ = 1;
     sb.spacing = 0.2f;
     sb.compliance = 1.0e-5f;
-    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
+    m3SoftBodyId cloth = NewSoftBody(world, &sb);
     // Fill the whole anchor table with the top row and then some.
     for (int32_t a = 0; a < 40; ++a)
     {
-        m3SoftBody_AnchorParticle(cloth, 56 + (a % 8), beam); // 32 land, 8 no-op
+        m3SoftBody_AnchorParticle(world, cloth, 56 + (a % 8), beam); // 32 land, 8 no-op
     }
-    m3SoftBody_AnchorParticle(cloth, -1, beam);   // hostile: no-op
-    m3SoftBody_AnchorParticle(cloth, 9999, beam); // hostile: no-op
+    m3SoftBody_AnchorParticle(world, cloth, -1, beam);   // hostile: no-op
+    m3SoftBody_AnchorParticle(world, cloth, 9999, beam); // hostile: no-op
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 held = m3SoftBody_GetParticlePosition(cloth, 56);
+    m3Pos3 held = m3SoftBody_GetParticlePosition(world, cloth, 56);
     CHECK(fabs(held.y - 3.8) < 0.1, "the packed anchor table holds the row");
 
     // Kill the beam: every anchor releases, the cloth falls free.
-    m3DestroyBody(beam);
+    DestroyBody(world, beam);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -737,7 +739,7 @@ static void TestAnchorRedTeam(void)
     // The freed sheet tumbles for a while (near-rigid edges make
     // it a flying chain-mail); the CONTRACT is release: the row
     // leaves its held height and keeps falling finite.
-    m3Pos3 fallen = m3SoftBody_GetParticlePosition(cloth, 56);
+    m3Pos3 fallen = m3SoftBody_GetParticlePosition(world, cloth, 56);
     CHECK(fallen.y < 2.5, "a dead beam releases its anchors");
     CHECK(isfinite(fallen.x) && isfinite(fallen.y), "the freed sheet stays finite");
     m3DestroyWorld(world);

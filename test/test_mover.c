@@ -5,6 +5,7 @@
 // collection, and the plane accumulator. Nothing here mutates a
 // world: the hash fence proves it.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -32,16 +33,16 @@ static void TestRigidWalkerRecipe(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId hero = m3CreateBody(world, &bd);
+    m3BodyId hero = NewBody(world, &bd);
     m3ShapeDef hs = m3DefaultShapeDef();
     hs.density = 985.0f;
     // Frictionless BY RECIPE: an externally-forced capsule loses a
@@ -50,13 +51,13 @@ static void TestRigidWalkerRecipe(void)
     // drive does the braking too, the classic controller contract.
     hs.friction = 0.0f;
     m3Capsule cap = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.35f};
-    m3CreateCapsuleShape(hero, &hs, &cap);
-    m3Body_SetMotionLocks(hero, Locks(0x38)); // angular x, y, z: upright
-    float mass = 556.0f;                      // the capsule at density 985
+    NewCapsuleShape(world, hero, &hs, &cap);
+    m3Body_SetMotionLocks(world, hero, Locks(0x38)); // angular x, y, z: upright
+    float mass = 556.0f;                             // the capsule at density 985
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3Vec3 v = m3Body_GetLinearVelocity(hero);
+        m3Vec3 v = m3Body_GetLinearVelocity(world, hero);
         float want = i < 180 ? 3.0f : 0.0f; // walk, then halt
         // Grounding via the mover toolkit itself: collect the
         // contact planes around the body's own capsule and look
@@ -65,11 +66,12 @@ static void TestRigidWalkerRecipe(void)
         // the self-filter one comparison).
         m3MoverPlane gp[8];
         int32_t gn =
-            m3World_CollideMover(world, m3Body_GetPosition(hero), 0.5f, 0.36f, 0.05f, gp, 8);
+            m3World_CollideMover(world, m3Body_GetPosition(world, hero), 0.5f, 0.36f, 0.05f, gp, 8);
         int onGround = 0;
         for (int32_t g = 0; g < gn; ++g)
         {
-            if (gp[g].normal.y > 0.7f && m3Shape_GetBody(gp[g].shapeId).index1 != hero.index1)
+            if (gp[g].normal.y > 0.7f &&
+                m3Shape_GetBody(world, gp[g].shapeId).index1 != hero.index1)
             {
                 onGround = 1;
             }
@@ -80,16 +82,16 @@ static void TestRigidWalkerRecipe(void)
             // the drive like a real actuator, not a wish.
             float fx = mass * (want - v.x) * 10.0f;
             fx = fx > 2000.0f ? 2000.0f : (fx < -2000.0f ? -2000.0f : fx);
-            m3Body_ApplyForce(hero, (m3Vec3){fx, 0.0f, 0.0f});
+            m3Body_ApplyForce(world, hero, (m3Vec3){fx, 0.0f, 0.0f});
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(hero);
-    m3Vec3 v = m3Body_GetLinearVelocity(hero);
+    m3Pos3 p = m3Body_GetPosition(world, hero);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, hero);
     CHECK(p.x > 4.0, "the walker crosses the yard");
     CHECK(fabsf(v.x) < 0.3f, "the walker halts when told");
     CHECK(p.y > 0.7 && p.y < 1.1, "the walker stays upright on its locks");
-    m3Quat q = m3Body_GetRotation(hero);
+    m3Quat q = m3Body_GetRotation(world, hero);
     CHECK(fabsf(q.x) + fabsf(q.y) + fabsf(q.z) < 0.01f, "no tumble ever leaked in");
     m3DestroyWorld(world);
 }
@@ -99,20 +101,20 @@ int main(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     gd.position = (m3Pos3){2.0, 1.0, 0.0};
-    m3BodyId wallBody = m3CreateBody(world, &gd);
-    m3CreateBoxShape(wallBody, &sd, (m3Vec3){0.2f, 2.0f, 2.0f});
+    m3BodyId wallBody = NewBody(world, &gd);
+    NewBoxShape(world, wallBody, &sd, (m3Vec3){0.2f, 2.0f, 2.0f});
     gd.position = (m3Pos3){-2.0, 1.0, 0.0};
-    m3BodyId sensorBody = m3CreateBody(world, &gd);
+    m3BodyId sensorBody = NewBody(world, &gd);
     m3ShapeDef sens = m3DefaultShapeDef();
     sens.isSensor = true;
-    m3CreateBoxShape(sensorBody, &sens, (m3Vec3){0.5f, 2.0f, 2.0f});
+    NewBoxShape(world, sensorBody, &sens, (m3Vec3){0.5f, 2.0f, 2.0f});
 
     uint64_t before = m3World_Hash(world);
 
@@ -151,7 +153,7 @@ int main(void)
     m3MoverPlane fp;
     fp.normal = (m3Vec3){0.0f, 1.0f, 0.0f};
     fp.separation = 0.0f;
-    fp.shapeId = (m3ShapeId){0, 0, 0};
+    fp.shapeId = m3_nullShapeId;
     m3MoverMove solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.0f}, &fp, 1);
     CHECK(fabsf(solved.translation.x - 1.0f) < 1.0e-5f, "the slide survives");
     CHECK(solved.translation.y > -1.0e-5f, "the sink is absorbed");
@@ -162,7 +164,7 @@ int main(void)
     corner[0] = fp;
     corner[1].normal = (m3Vec3){-1.0f, 0.0f, 0.0f};
     corner[1].separation = 0.0f;
-    corner[1].shapeId = (m3ShapeId){0, 0, 0};
+    corner[1].shapeId = m3_nullShapeId;
     solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.7f}, corner, 2);
     CHECK(solved.translation.x < 1.0e-5f && solved.translation.y > -1.0e-5f &&
               fabsf(solved.translation.z - 0.7f) < 1.0e-5f,
@@ -172,7 +174,7 @@ int main(void)
     // points into them; the velocity clip keeps what slides.
     corner[2].normal = (m3Vec3){0.0f, 0.0f, -1.0f};
     corner[2].separation = 0.0f;
-    corner[2].shapeId = (m3ShapeId){0, 0, 0};
+    corner[2].shapeId = m3_nullShapeId;
     solved = m3SolveMover((m3Vec3){1.0f, -0.5f, 0.7f}, corner, 3);
     CHECK(fabsf(solved.translation.x) < 1.0e-5f && fabsf(solved.translation.y) < 1.0e-5f &&
               fabsf(solved.translation.z) < 1.0e-5f,

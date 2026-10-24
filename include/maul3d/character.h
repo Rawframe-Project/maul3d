@@ -19,9 +19,8 @@ extern "C"
 
     typedef struct m3CharacterId
     {
-        int32_t index1;
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1;
+        uint32_t generation;
     } m3CharacterId;
 
     typedef struct m3CharacterDef
@@ -53,9 +52,10 @@ extern "C"
     /// Creates the character and its internal kinematic capsule
     /// body (destroyed together). The body collides like any
     /// kinematic: dynamics bounce off it; it walks through nothing.
-    M3_API m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def);
-    M3_API void m3DestroyCharacter(m3CharacterId characterId);
-    M3_API bool m3Character_IsValid(m3CharacterId characterId);
+    M3_NODISCARD M3_API m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def,
+                                                   m3CharacterId* characterOut);
+    M3_NODISCARD M3_API m3Result m3DestroyCharacter(m3World* world, m3CharacterId character);
+    M3_API bool m3Character_IsValid(const m3World* world, m3CharacterId character);
 
     /// Collide-and-slide by `translation`, immediately: cast the
     /// capsule, advance to the first hit, slide the remainder along
@@ -63,18 +63,18 @@ extern "C"
     /// within snapDistance when descending. Walkable is measured
     /// against maxSlopeAngle; ceilings and steep walls only ever
     /// block and slide. Journaled; hostile translations no-op.
-    M3_API void m3Character_Move(m3CharacterId characterId, m3Vec3 translation);
+    M3_API void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translation);
 
-    M3_API m3Pos3 m3Character_GetPosition(m3CharacterId characterId);
-    M3_API bool m3Character_IsGrounded(m3CharacterId characterId);
+    M3_API m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character);
+    M3_API bool m3Character_IsGrounded(const m3World* world, m3CharacterId character);
     /// The last walkable surface normal (zeros while airborne).
-    M3_API m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId);
+    M3_API m3Vec3 m3Character_GetGroundNormal(const m3World* world, m3CharacterId character);
     /// The body under the character's feet (null while airborne or
     /// after that body is destroyed). Each m3World_Step carries
     /// grounded characters along with this body's motion through
     /// the regular slide casts: kinematic platforms, elevators, and
     /// dynamic fragments all ferry their riders.
-    M3_API m3BodyId m3Character_GetGroundBody(m3CharacterId characterId);
+    M3_API m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character);
 
     /// Stance: resize the capsule in place, FEET ANCHORED
     /// (the center moves so the capsule bottom stays level; a mid
@@ -83,16 +83,19 @@ extern "C"
     /// capsule is cast at its new pose through the same core every
     /// move uses, and ANY contact within the skin (a pressing
     /// ceiling, a wall against a wider radius) refuses the whole
-    /// change and returns false; stance is untouched. Journaled
+    /// change with m3_errorState and counts no misuse; stance is
+    /// untouched. Out-of-range or non-finite dimensions return
+    /// m3_errorInvalid, a stale id m3_errorStale. Journaled
     /// only when applied; the veto's refusal is bit-deterministic
     /// so twins and replays refuse together. Stance is state:
     /// snapshotted, hashed, rolled back like everything else.
-    M3_API bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real radius);
+    M3_NODISCARD M3_API m3Result m3Character_SetStance(m3World* world, m3CharacterId character,
+                                                       m3real halfHeight, m3real radius);
     /// Read the live stance (zeros on a stale id).
-    M3_API void m3Character_GetStance(m3CharacterId characterId, m3real* halfHeight,
-                                      m3real* radius);
+    M3_API void m3Character_GetStance(const m3World* world, m3CharacterId character,
+                                      m3real* halfHeightOut, m3real* radiusOut);
 
-    static const m3CharacterId m3_nullCharacterId = {0, 0, 0};
+    static const m3CharacterId m3_nullCharacterId = {0, 0};
 
 #ifdef __cplusplus
 }

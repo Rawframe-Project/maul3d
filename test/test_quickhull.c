@@ -15,6 +15,9 @@
 #include <stdio.h>
 #include <string.h>
 
+// The C library's allocator, as a world without a def allocator uses it.
+static m3Heap s_heap;
+
 static uint64_t SplitMix(uint64_t* state)
 {
     *state += 0x9E3779B97F4A7C15ull;
@@ -63,7 +66,7 @@ static void TestCubeMergesToQuads(void)
         {-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f},    {-0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, -0.5f},
     };
     m3HullData hull;
-    CHECK(m3ComputeHull(corners, 8, &hull), "the cube builds");
+    CHECK(m3ComputeHull(&s_heap, corners, 8, &hull), "the cube builds");
     CHECK(hull.vertexCount == 8, "eight vertices survive");
     CHECK(hull.faceCount == 6, "coplanar merge yields six faces");
     CHECK(hull.edgeCount == 24, "twenty-four half edges");
@@ -95,7 +98,7 @@ static void TestInteriorAndDuplicatesAbsorbed(void)
         {-0.5f, -0.5f, -0.5f}, {0.0f, 0.49f, 0.0f},
     };
     m3HullData hull;
-    CHECK(m3ComputeHull(pts, 14, &hull), "the noisy cube builds");
+    CHECK(m3ComputeHull(&s_heap, pts, 14, &hull), "the noisy cube builds");
     CHECK(hull.vertexCount == 8, "interior and duplicate points absorbed");
     CHECK(hull.faceCount == 6, "still six faces");
     CHECK(EulerHolds(&hull), "Euler's identity holds");
@@ -107,7 +110,7 @@ static void TestTetrahedron(void)
     m3Vec3 pts[4] = {
         {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     m3HullData hull;
-    CHECK(m3ComputeHull(pts, 4, &hull), "the tetrahedron builds");
+    CHECK(m3ComputeHull(&s_heap, pts, 4, &hull), "the tetrahedron builds");
     CHECK(hull.vertexCount == 4 && hull.faceCount == 4, "four vertices, four faces");
     CHECK(EulerHolds(&hull), "Euler's identity holds");
     CHECK(hull.unitMass > 1.0f / 6.0f - 1.0e-4f && hull.unitMass < 1.0f / 6.0f + 1.0e-4f,
@@ -123,7 +126,7 @@ static void TestOctahedron(void)
     m3Vec3 pts[6] = {{1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
                      {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f}};
     m3HullData hull;
-    CHECK(m3ComputeHull(pts, 6, &hull), "the octahedron builds");
+    CHECK(m3ComputeHull(&s_heap, pts, 6, &hull), "the octahedron builds");
     CHECK(hull.vertexCount == 6 && hull.faceCount == 8, "six vertices, eight faces");
     CHECK(EulerHolds(&hull), "Euler's identity holds");
     // V = 4/3 for unit circumradius.
@@ -135,18 +138,18 @@ static void TestDegenerateRefusals(void)
 {
     m3HullData hull;
     m3Vec3 three[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
-    CHECK(!m3ComputeHull(three, 3, &hull), "fewer than four points refused");
+    CHECK(!m3ComputeHull(&s_heap, three, 3, &hull), "fewer than four points refused");
 
     m3Vec3 coplanar[6] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
                           {1.0f, 1.0f, 0.0f}, {0.3f, 0.7f, 0.0f}, {0.9f, 0.1f, 0.0f}};
-    CHECK(!m3ComputeHull(coplanar, 6, &hull), "a coplanar cloud is refused");
+    CHECK(!m3ComputeHull(&s_heap, coplanar, 6, &hull), "a coplanar cloud is refused");
 
     m3Vec3 collinear[5] = {{0.0f, 0.0f, 0.0f},
                            {1.0f, 1.0f, 1.0f},
                            {2.0f, 2.0f, 2.0f},
                            {3.0f, 3.0f, 3.0f},
                            {4.0f, 4.0f, 4.0f}};
-    CHECK(!m3ComputeHull(collinear, 5, &hull), "a collinear cloud is refused");
+    CHECK(!m3ComputeHull(&s_heap, collinear, 5, &hull), "a collinear cloud is refused");
 
     // Read through a volatile so the compiler does not fold, and warn
     // about, the overflow this input is meant to provoke at run time.
@@ -154,7 +157,7 @@ static void TestDegenerateRefusals(void)
     m3Vec3 bad[4] = {
         {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, s_huge}};
     bad[3].z = bad[3].z * bad[3].z; // infinity
-    CHECK(!m3ComputeHull(bad, 4, &hull), "non-finite input is refused");
+    CHECK(!m3ComputeHull(&s_heap, bad, 4, &hull), "non-finite input is refused");
 }
 
 static void TestFuzzSweep(void)
@@ -176,7 +179,7 @@ static void TestFuzzSweep(void)
             pts[i].z = RandRange(&rng, -1.0f, 1.0f);
         }
         m3HullData hull;
-        if (!m3ComputeHull(pts, count, &hull))
+        if (!m3ComputeHull(&s_heap, pts, count, &hull))
         {
             // A random cloud can exceed the 24-vertex budget only by
             // failing the caps, never by crashing; count it and move
@@ -202,7 +205,7 @@ static void TestFuzzSweep(void)
             CHECK(n2 > 0.99f && n2 < 1.01f, "face normals stay unit");
         }
         m3HullData again;
-        CHECK(m3ComputeHull(pts, count, &again), "the rebuild succeeds");
+        CHECK(m3ComputeHull(&s_heap, pts, count, &again), "the rebuild succeeds");
         CHECK(memcmp(&hull, &again, sizeof(m3HullData)) == 0, "the rebuild is bit-identical");
     }
     CHECK(built >= 30, "most fuzz clouds build under the caps");
@@ -216,7 +219,7 @@ static void TestHalfEdgeTwinLaw(void)
     m3Vec3 pts[6] = {{1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
                      {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f}};
     m3HullData hull;
-    CHECK(m3ComputeHull(pts, 6, &hull), "the octahedron builds");
+    CHECK(m3ComputeHull(&s_heap, pts, 6, &hull), "the octahedron builds");
     for (int32_t e = 0; e < hull.edgeCount; e += 2)
     {
         CHECK(hull.edges[e].twin == e + 1 && hull.edges[e + 1].twin == e,
@@ -245,7 +248,7 @@ static void TestBigHullCap(void)
         cloud[n++] = (m3Vec3){r * cosf(phi), y, r * sinf(phi)};
     }
     m3HullData hull;
-    CHECK(m3ComputeHull(cloud, n, &hull), "a 128-point sphere cloud builds");
+    CHECK(m3ComputeHull(&s_heap, cloud, n, &hull), "a 128-point sphere cloud builds");
     CHECK(hull.vertexCount > 24, "the hull outgrows the old ceiling");
     CHECK(hull.vertexCount <= 64, "and respects the new one");
     CHECK(hull.faceCount <= 124, "faces respect Euler at 64");
@@ -260,7 +263,7 @@ static void TestBigHullCap(void)
     {
         tooMany[i] = cloud[i % n];
     }
-    CHECK(!m3ComputeHull(tooMany, 257, &hull), "input past the cap refuses");
+    CHECK(!m3ComputeHull(&s_heap, tooMany, 257, &hull), "input past the cap refuses");
 }
 
 // Boundary fuzz: clouds at 63, 64, and 65 candidate hull
@@ -282,7 +285,7 @@ static void TestBoundaryClouds(void)
             cloud[n++] = (m3Vec3){r * cosf(phi), y, r * sinf(phi)};
         }
         m3HullData hull;
-        CHECK(m3ComputeHull(cloud, n, &hull), "a boundary cloud builds");
+        CHECK(m3ComputeHull(&s_heap, cloud, n, &hull), "a boundary cloud builds");
         CHECK(hull.vertexCount <= 64, "the cap holds at the boundary");
         for (int32_t e = 0; e < hull.edgeCount; ++e)
         {
@@ -300,7 +303,7 @@ static void TestBoundaryClouds(void)
     sheet[n++] = (m3Vec3){0.45f, 0.8f, 0.25f};
     sheet[n++] = (m3Vec3){0.45f, -0.8f, 0.25f};
     m3HullData hull;
-    CHECK(m3ComputeHull(sheet, n, &hull), "the spiked sheet builds a volume");
+    CHECK(m3ComputeHull(&s_heap, sheet, n, &hull), "the spiked sheet builds a volume");
     CHECK(hull.vertexCount >= 5, "the sheet corners and spikes survive");
 
     m3Vec3 dupes[70];
@@ -312,12 +315,13 @@ static void TestBoundaryClouds(void)
     dupes[67] = (m3Vec3){1.0f, 0.0f, 0.0f};
     dupes[68] = (m3Vec3){0.0f, 1.0f, 0.0f};
     dupes[69] = (m3Vec3){0.0f, 0.0f, 1.0f};
-    CHECK(m3ComputeHull(dupes, 70, &hull), "the duplicate stew simplifies to the tetra");
+    CHECK(m3ComputeHull(&s_heap, dupes, 70, &hull), "the duplicate stew simplifies to the tetra");
     CHECK(hull.vertexCount >= 4 && hull.vertexCount <= 5, "duplicates absorbed");
 }
 
 int main(void)
 {
+    s_heap = m3HeapMake(NULL);
     TestCubeMergesToQuads();
     TestInteriorAndDuplicatesAbsorbed();
     TestTetrahedron();

@@ -5,6 +5,7 @@
 // touches whom, queries carry their own filter, and sensors and the
 // continuous phase obey the same rule.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -22,33 +23,33 @@ enum
     CAT_GHOST = 1u << 3
 };
 
-static m3WorldId GroundWorld(void)
+static m3World* GroundWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.categoryBits = CAT_GROUND;
     sd.maskBits = ~0ull;
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
-static m3BodyId DropBall(m3WorldId world, double x, uint64_t category, uint64_t mask)
+static m3BodyId DropBall(m3World* world, double x, uint64_t category, uint64_t mask)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){x, 2.0, 0.0};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.categoryBits = category;
     sd.maskBits = mask;
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(body, &sd, &ball);
+    NewSphereShape(world, body, &sd, &ball);
     return body;
 }
 
@@ -58,15 +59,15 @@ static void TestMaskGate(void)
     // through; a debris ball with a full mask lands. The gate is
     // symmetric: BOTH directions must agree, so a one-sided mask
     // still separates the pair.
-    m3WorldId world = GroundWorld();
+    m3World* world = GroundWorld();
     m3BodyId solid = DropBall(world, -2.0, CAT_DEBRIS, ~0ull);
     m3BodyId ghost = DropBall(world, 2.0, CAT_GHOST, CAT_DEBRIS); // sees debris only
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(solid).y > 0.4, "the full-mask ball lands on the plane");
-    CHECK(m3Body_GetPosition(ghost).y < -3.0, "the masked ghost falls through the world");
+    CHECK(m3Body_GetPosition(world, solid).y > 0.4, "the full-mask ball lands on the plane");
+    CHECK(m3Body_GetPosition(world, ghost).y < -3.0, "the masked ghost falls through the world");
     m3DestroyWorld(world);
 }
 
@@ -76,28 +77,28 @@ static void TestGroupOverride(void)
     // positive group: the group forces the collision. Then the
     // same pair with a negative group: never, even with full
     // masks.
-    m3WorldId world = GroundWorld();
+    m3World* world = GroundWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
     m3ShapeDef sa = m3DefaultShapeDef();
     sa.categoryBits = CAT_DEBRIS;
     sa.maskBits = CAT_GROUND; // does NOT see debris
     sa.groupIndex = 7;
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(a, &sa, &ball);
+    NewSphereShape(world, a, &sa, &ball);
     bd.position = (m3Pos3){0.4, 2.0, 0.0}; // will fall onto a
-    m3BodyId b = m3CreateBody(world, &bd);
-    m3CreateSphereShape(b, &sa, &ball);
+    m3BodyId b = NewBody(world, &bd);
+    NewSphereShape(world, b, &sa, &ball);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // The positive group forced the pair: b rests on or beside a,
     // not inside it.
-    m3Pos3 pa = m3Body_GetPosition(a);
-    m3Pos3 pb = m3Body_GetPosition(b);
+    m3Pos3 pa = m3Body_GetPosition(world, a);
+    m3Pos3 pb = m3Body_GetPosition(world, b);
     double dx = pb.x - pa.x;
     double dy = pb.y - pa.y;
     double dz = pb.z - pa.z;
@@ -107,18 +108,18 @@ static void TestGroupOverride(void)
     m3BodyDef cd = m3DefaultBodyDef();
     cd.type = m3_dynamicBody;
     cd.position = (m3Pos3){5.0, 0.5, 0.0};
-    m3BodyId c = m3CreateBody(world, &cd);
+    m3BodyId c = NewBody(world, &cd);
     m3ShapeDef sc = m3DefaultShapeDef();
     sc.groupIndex = -3;
-    m3CreateSphereShape(c, &sc, &ball);
+    NewSphereShape(world, c, &sc, &ball);
     cd.position = (m3Pos3){5.0, 1.49, 0.0}; // starts exactly on top
-    m3BodyId d = m3CreateBody(world, &cd);
-    m3CreateSphereShape(d, &sc, &ball);
+    m3BodyId d = NewBody(world, &cd);
+    NewSphereShape(world, d, &sc, &ball);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 pd = m3Body_GetPosition(d);
+    m3Pos3 pd = m3Body_GetPosition(world, d);
     CHECK(pd.y < 1.1 && pd.y > 0.4, "a negative group never collides: d sinks into c's space");
     m3DestroyWorld(world);
 }
@@ -128,19 +129,19 @@ static void TestQueryFilters(void)
     // The ray sees what its filter admits: a debris-only filter
     // skips the player capsule standing in the beam, and the
     // filtered sphere cast agrees. All-hits respects it too.
-    m3WorldId world = GroundWorld();
+    m3World* world = GroundWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId player = m3CreateBody(world, &bd);
+    m3BodyId player = NewBody(world, &bd);
     m3ShapeDef sp = m3DefaultShapeDef();
     sp.categoryBits = CAT_PLAYER;
     m3Capsule cap = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.4f};
-    m3CreateCapsuleShape(player, &sp, &cap);
+    NewCapsuleShape(world, player, &sp, &cap);
     bd.position = (m3Pos3){0.0, 1.0, 3.0};
-    m3BodyId crate = m3CreateBody(world, &bd);
+    m3BodyId crate = NewBody(world, &bd);
     m3ShapeDef sc = m3DefaultShapeDef();
     sc.categoryBits = CAT_DEBRIS;
-    m3CreateBoxShape(crate, &sc, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, crate, &sc, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     m3Pos3 origin = {0.0, 1.0, -3.0};
     m3Vec3 dir = {0.0f, 0.0f, 8.0f};
@@ -173,42 +174,42 @@ static void TestRuntimeFilterChange(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, tape, (int32_t)sizeof(tape)), "recording starts");
+    m3World* world = NewWorld(&def);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "recording starts");
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sg = m3DefaultShapeDef();
     sg.categoryBits = CAT_GROUND;
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sg, &floor);
+    NewPlaneShape(world, ground, &sg, &floor);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.categoryBits = CAT_DEBRIS;
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3ShapeId shape = m3CreateSphereShape(ball, &sd, &sphere);
+    m3ShapeId shape = NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m3Body_IsAwake(ball), "the ball rests and sleeps");
-    m3Shape_SetFilter(shape, CAT_GHOST, CAT_DEBRIS, 0);
+    CHECK(!m3Body_IsAwake(world, ball), "the ball rests and sleeps");
+    m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0);
     uint64_t category = 0;
     uint64_t mask = 0;
     int32_t group = -1;
-    m3Shape_GetFilter(shape, &category, &mask, &group);
+    m3Shape_GetFilter(world, shape, &category, &mask, &group);
     CHECK(category == CAT_GHOST && mask == CAT_DEBRIS && group == 0, "the filter reads back");
-    CHECK(m3Body_IsAwake(ball), "the change wakes the sleeper");
+    CHECK(m3Body_IsAwake(world, ball), "the change wakes the sleeper");
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(ball).y < -3.0, "the ghost falls through the ground");
-    int32_t bytes = m3World_StopJournal(world);
-    m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(twin, tape, bytes), "the session replays");
+    CHECK(m3Body_GetPosition(world, ball).y < -3.0, "the ghost falls through the ground");
+    int32_t bytes = StopJournal(world);
+    m3World* twin = NewWorld(&def);
+    CHECK(ReplayJournal(twin, tape, bytes), "the session replays");
     CHECK(m3World_Hash(twin) == m3World_Hash(world), "the replayed filter change lands the same");
     m3DestroyWorld(twin);
     m3DestroyWorld(world);

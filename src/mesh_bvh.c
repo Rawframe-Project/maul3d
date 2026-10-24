@@ -167,30 +167,31 @@ static void SetQuantFrame(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, 
     bvh->quantScale.z = extent.z > 1.0e-9f ? 65535.0f / extent.z : 0.0f;
 }
 
-void m3MeshBvhFree(m3MeshBvh* bvh)
+void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh)
 {
-    m3Free(bvh->nodes);
-    m3Free(bvh->order);
+    m3Free(heap, bvh->nodes);
+    m3Free(heap, bvh->order);
     memset(bvh, 0, sizeof(*bvh));
 }
 
-void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count)
+void m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
+                          int32_t count)
 {
     // Derived data, exact-size: free the old build, size the
     // new one from the count (2 * count nodes bounds the tree).
-    m3MeshBvhFree(bvh);
+    m3MeshBvhFree(heap, bvh);
     if (count <= 0 || count > M3_MESH_MAX_TRIS)
     {
         return;
     }
-    bvh->nodes = (m3MeshBvhNode*)m3AllocZeroed(2 * count * (int32_t)sizeof(m3MeshBvhNode));
-    bvh->order = (uint16_t*)m3AllocZeroed(count * (int32_t)sizeof(uint16_t));
+    bvh->nodes = (m3MeshBvhNode*)m3AllocZeroed(heap, 2 * count * (int32_t)sizeof(m3MeshBvhNode));
+    bvh->order = (uint16_t*)m3AllocZeroed(heap, count * (int32_t)sizeof(uint16_t));
     if (bvh->nodes == NULL || bvh->order == NULL)
     {
-        m3MeshBvhFree(bvh);
+        m3MeshBvhFree(heap, bvh);
         return; // nodeCount 0 makes every gather empty, loud enough
     }
-    BvhScratch* scratch = (BvhScratch*)m3AllocZeroed((int32_t)sizeof(BvhScratch));
+    BvhScratch* scratch = (BvhScratch*)m3AllocZeroed(heap, (int32_t)sizeof(BvhScratch));
     if (scratch == NULL)
     {
         return; // loud enough: nodeCount 0 makes every gather empty,
@@ -210,25 +211,25 @@ void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, 
     }
     SetQuantFrame(bvh, los, his, count);
     BuildRange(bvh, scratch, 0, count);
-    m3Free(scratch);
+    m3Free(heap, scratch);
 }
 
-void m3MeshBvhBuild(m3MeshBvh* bvh, const m3MeshData* mesh)
+void m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh)
 {
     int32_t triCount = mesh->triangleCount;
     if (triCount <= 0 || triCount > M3_MESH_MAX_TRIS)
     {
-        m3MeshBvhFree(bvh);
+        m3MeshBvhFree(heap, bvh);
         return;
     }
     // Heap staging: 65k bounds no longer fit a stack.
-    m3Vec3* los = (m3Vec3*)m3AllocZeroed(triCount * (int32_t)sizeof(m3Vec3));
-    m3Vec3* his = (m3Vec3*)m3AllocZeroed(triCount * (int32_t)sizeof(m3Vec3));
+    m3Vec3* los = (m3Vec3*)m3AllocZeroed(heap, triCount * (int32_t)sizeof(m3Vec3));
+    m3Vec3* his = (m3Vec3*)m3AllocZeroed(heap, triCount * (int32_t)sizeof(m3Vec3));
     if (los == NULL || his == NULL)
     {
-        m3Free(los);
-        m3Free(his);
-        m3MeshBvhFree(bvh);
+        m3Free(heap, los);
+        m3Free(heap, his);
+        m3MeshBvhFree(heap, bvh);
         return;
     }
     for (int32_t t = 0; t < triCount; ++t)
@@ -241,9 +242,9 @@ void m3MeshBvhBuild(m3MeshBvh* bvh, const m3MeshData* mesh)
         his[t] = (m3Vec3){m3MaxF(a.x, m3MaxF(b.x, c.x)), m3MaxF(a.y, m3MaxF(b.y, c.y)),
                           m3MaxF(a.z, m3MaxF(b.z, c.z))};
     }
-    m3MeshBvhBuildBounds(bvh, los, his, triCount);
-    m3Free(los);
-    m3Free(his);
+    m3MeshBvhBuildBounds(heap, bvh, los, his, triCount);
+    m3Free(heap, los);
+    m3Free(heap, his);
 }
 
 // Ascending insertion of gathered leaves would cost per-element

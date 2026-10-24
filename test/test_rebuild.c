@@ -7,6 +7,7 @@
 // Plus the carry check: a crate on a gliding kinematic
 // platform rides along by friction.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -16,7 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static m3WorldId City(void)
+static m3World* City(void)
 {
     // A worst-case insertion order: a long strip of statics created
     // left to right (the classic lopsided tree), plus a rain of
@@ -24,23 +25,23 @@ static m3WorldId City(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 64;
     wd.shapeCapacity = 64;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef bd = m3DefaultBodyDef();
     for (int32_t i = 0; i < 24; ++i)
     {
         bd.position = (m3Pos3){-23.0 + 2.0 * (double)i, 0.0, 0.0};
-        m3BodyId post = m3CreateBody(world, &bd);
-        m3CreateBoxShape(post, &sd, (m3Vec3){1.0f, 0.5f, 1.0f});
+        m3BodyId post = NewBody(world, &bd);
+        NewBoxShape(world, post, &sd, (m3Vec3){1.0f, 0.5f, 1.0f});
     }
     m3BodyDef db = m3DefaultBodyDef();
     db.type = m3_dynamicBody;
     for (int32_t i = 0; i < 8; ++i)
     {
         db.position = (m3Pos3){-14.0 + 4.0 * (double)i, 2.0 + 0.3 * (double)(i % 3), 0.0};
-        m3BodyId ball = m3CreateBody(world, &db);
+        m3BodyId ball = NewBody(world, &db);
         m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &s);
+        NewSphereShape(world, ball, &sd, &s);
     }
     return world;
 }
@@ -51,8 +52,8 @@ static void TestRebuildChangesNoAnswer(void)
     // tree is never hashed and pairs are canonical, so 180 stepped
     // frames must land on the SAME hash, and a query must return
     // the same shapes before and after the rebuild.
-    m3WorldId plain = City();
-    m3WorldId rebuilt = City();
+    m3World* plain = City();
+    m3World* rebuilt = City();
 
     m3ShapeId before[64];
     int32_t beforeCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, before, 64,
@@ -94,31 +95,31 @@ static void TestPlatformCarry(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef pd = m3DefaultBodyDef();
     pd.type = m3_kinematicBody;
     pd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId platform = m3CreateBody(world, &pd);
+    m3BodyId platform = NewBody(world, &pd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.8f;
-    m3CreateBoxShape(platform, &sd, (m3Vec3){1.5f, 0.2f, 1.5f});
+    NewBoxShape(world, platform, &sd, (m3Vec3){1.5f, 0.2f, 1.5f});
     m3BodyDef cd = m3DefaultBodyDef();
     cd.type = m3_dynamicBody;
     cd.position = (m3Pos3){0.0, 1.5, 0.0};
-    m3BodyId crate = m3CreateBody(world, &cd);
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    m3BodyId crate = NewBody(world, &cd);
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
     for (int32_t i = 0; i < 240; ++i)
     {
         double t = (double)(i + 1) / 60.0;
-        m3Body_SetTargetTransform(platform, (m3Pos3){0.8 * t, 1.0, 0.0},
+        m3Body_SetTargetTransform(world, platform, (m3Pos3){0.8 * t, 1.0, 0.0},
                                   (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double px = m3Body_GetPosition(platform).x;
-    double cx = m3Body_GetPosition(crate).x;
+    double px = m3Body_GetPosition(world, platform).x;
+    double cx = m3Body_GetPosition(world, crate).x;
     CHECK(px > 3.0, "the platform genuinely glides");
     CHECK(fabs(cx - px) < 0.4, "the crate rides the platform");
-    CHECK(m3Body_GetPosition(crate).y > 1.2, "the crate stays aboard");
+    CHECK(m3Body_GetPosition(world, crate).y > 1.2, "the crate stays aboard");
     m3DestroyWorld(world);
 }
 

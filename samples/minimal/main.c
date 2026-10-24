@@ -9,48 +9,60 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static void Require(m3Result result, const char* what)
+{
+    if (result != m3_success)
+    {
+        printf("M3_CONSUMER_FAIL %s: %s\n", what, m3ResultName(result));
+        exit(1);
+    }
+}
+
 int main(void)
 {
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NULL;
+    Require(m3CreateWorld(&wd, &world), "world");
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground;
+    Require(m3CreateBody(world, &gd, &ground), "ground");
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape;
+    Require(m3CreatePlaneShape(world, ground, &sd, &floor, &floorShape), "floor");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball;
+    Require(m3CreateBody(world, &bd, &ball), "ball");
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    m3ShapeId ballShape;
+    Require(m3CreateSphereShape(world, ball, &sd, &sphere, &ballShape), "ball shape");
 
     for (int i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 rest = m3Body_GetPosition(ball);
+    m3Pos3 rest = m3Body_GetPosition(world, ball);
     if (rest.y < 0.45 || rest.y > 0.55)
     {
         printf("M3_CONSUMER_FAIL rest=%.4f\n", rest.y);
         return 1;
     }
 
-    int32_t bytes = m3World_SnapshotSize(world);
-    void* snap = malloc((size_t)bytes);
-    if (m3World_Snapshot(world, snap, bytes) != bytes)
-    {
-        printf("M3_CONSUMER_FAIL snapshot\n");
-        return 1;
-    }
+    int32_t capacity = m3World_SnapshotSize(world);
+    void* snap = malloc((size_t)capacity);
+    int32_t bytes = 0;
+    Require(m3World_Snapshot(world, snap, capacity, &bytes), "snapshot");
     uint64_t before = m3World_Hash(world);
     for (int i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    if (!m3World_Restore(world, snap, bytes) || m3World_Hash(world) != before)
+    Require(m3World_Restore(world, snap, bytes), "restore");
+    if (m3World_Hash(world) != before)
     {
         printf("M3_CONSUMER_FAIL rollback\n");
         return 1;
@@ -72,15 +84,15 @@ int main(void)
     voxels[5 + 16 * (1 + 16 * 8)] = 1; // a stud that will strand
     m3BodyDef wd2 = m3DefaultBodyDef();
     wd2.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId wallBody = m3CreateBody(world, &wd2);
+    m3BodyId wallBody;
+    Require(m3CreateBody(world, &wd2, &wallBody), "wall body");
     m3ShapeDef vd = m3DefaultShapeDef();
-    m3ShapeId wall = m3CreateVoxelChunkShape(wallBody, &vd, voxels, NULL, 1.0f);
-    if (!m3Shape_IsValid(wall))
-    {
-        printf("M3_CONSUMER_FAIL voxel create\n");
-        return 1;
-    }
-    if (!m3VoxelChunk_ClearVoxel(wall, 5, 0, 8))
+    m3ShapeId wall;
+    Require(m3CreateVoxelChunkShape(world, wallBody, &vd, voxels, NULL, 1.0f, &wall),
+            "voxel create");
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    m3VoxelChunk_ClearVoxel(world, wall, 5, 0, 8);
+    if (m3World_GetCounters(world).misuse != misuse)
     {
         printf("M3_CONSUMER_FAIL voxel edit\n");
         return 1;
@@ -95,19 +107,23 @@ int main(void)
     m3BodyDef fdb = m3DefaultBodyDef();
     fdb.type = m3_dynamicBody;
     fdb.position = events[0].comWorld;
-    m3BodyId fragment = m3CreateBody(world, &fdb);
+    m3BodyId fragment;
+    Require(m3CreateBody(world, &fdb, &fragment), "fragment body");
     m3ShapeDef fsd = m3DefaultShapeDef();
-    m3CreateBoxShape(fragment, &fsd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3ShapeId fragmentShape;
+    Require(m3CreateBoxShape(world, fragment, &fsd, (m3Vec3){0.5f, 0.5f, 0.5f}, &fragmentShape),
+            "fragment shape");
     for (int i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    if (!m3Body_IsValid(fragment))
+    if (!m3Body_IsValid(world, fragment))
     {
         printf("M3_CONSUMER_FAIL fragment body\n");
         return 1;
     }
     m3DestroyWorld(world);
-    printf("M3_CONSUMER_OK version=%d\n", m3GetVersion());
+    m3Version version = m3GetVersion();
+    printf("M3_CONSUMER_OK version=%u.%u.%u\n", version.major, version.minor, version.patch);
     return 0;
 }

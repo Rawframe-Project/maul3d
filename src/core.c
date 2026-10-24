@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Core: version, the FNV-1a hash every determinism gate folds through,
-// the assert hook, refusals and the profile clock.
+// Core: the version, the result names and the profile clock.
 
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 199309L // NOLINT(bugprone-reserved-identifier): clock_gettime
@@ -11,9 +10,6 @@
 #include "core.h"
 
 #include "maul3d/base.h"
-
-#include <stdio.h>
-#include <stdlib.h>
 
 #ifdef _WIN32
 #include <intrin.h>
@@ -41,51 +37,30 @@ double m3NowMs(void)
 #endif
 }
 
-int m3GetVersion(void)
+m3Version m3GetVersion(void)
 {
-    return M3_VERSION_MAJOR * 10000 + M3_VERSION_MINOR * 100 + M3_VERSION_PATCH;
+    return (m3Version){M3_VERSION_MAJOR, M3_VERSION_MINOR, M3_VERSION_PATCH};
 }
 
-static m3AssertFn* s_assertHandler = NULL;
-static void* s_assertContext = NULL;
-
-void m3SetAssertHandler(m3AssertFn* handler, void* context)
+const char* m3ResultName(m3Result result)
 {
-    s_assertHandler = handler;
-    s_assertContext = context;
-}
-
-int m3ReportToHost(const char* message, const char* where)
-{
-    return s_assertHandler != NULL && s_assertHandler(message, where, 0, s_assertContext) != 0;
-}
-
-void m3AssertFail(const char* condition, const char* file, int line)
-{
-    if (s_assertHandler != NULL && s_assertHandler(condition, file, line, s_assertContext) != 0)
+    switch (result)
     {
-        return; // handled by the host
+    case m3_success:
+        return "m3_success";
+    case m3_errorInvalid:
+        return "m3_errorInvalid";
+    case m3_errorCapacity:
+        return "m3_errorCapacity";
+    case m3_errorStale:
+        return "m3_errorStale";
+    case m3_errorUnsupported:
+        return "m3_errorUnsupported";
+    case m3_errorState:
+        return "m3_errorState";
+    case m3_errorVersion:
+        return "m3_errorVersion";
+    default:
+        return "unknown m3Result";
     }
-    fprintf(stderr, "maul3d assertion failed: %s (%s:%d)\n", condition, file, line);
-    abort();
-}
-
-#if defined(_MSC_VER)
-#define M3_THREAD_LOCAL __declspec(thread)
-#else
-#define M3_THREAD_LOCAL _Thread_local
-#endif
-
-// One slot per thread: a refusal on one thread never overwrites the
-// reason another thread is about to read.
-static M3_THREAD_LOCAL m3Result s_lastResult = m3_success;
-
-m3Result m3LastResult(void)
-{
-    return s_lastResult;
-}
-
-void m3NoteResult(m3Result reason)
-{
-    s_lastResult = reason;
 }

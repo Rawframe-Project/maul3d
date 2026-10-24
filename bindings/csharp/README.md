@@ -26,41 +26,49 @@ platform prefix and suffix itself.
 ## Use
 
 ```csharp
-Maul3D.Native.LayoutCheck(); // once at startup, before anything
+using Maul3D;
 
-var wd = Maul3D.Native.DefaultWorldDef();
-var world = Maul3D.Native.CreateWorld(ref wd);
+Native.LayoutCheck(); // once at startup, before anything
 
-var bd = Maul3D.Native.DefaultBodyDef();
-bd.Type = (int)Maul3D.BodyType.Dynamic;
-bd.Position = new Maul3D.Pos3(0, 5, 0);
-var body = Maul3D.Native.CreateBody(world, ref bd);
+var wd = Native.DefaultWorldDef();
+if (Native.CreateWorld(ref wd, out IntPtr world) != Result.Success)
+{
+    throw new InvalidOperationException("the world was refused");
+}
 
-var sd = Maul3D.Native.DefaultShapeDef();
-var ball = new Maul3D.Sphere { Radius = 0.5f };
-Maul3D.Native.CreateSphereShape(body, ref sd, ref ball);
+var bd = Native.DefaultBodyDef();
+bd.Type = (int)BodyType.Dynamic;
+bd.Position = new Pos3(0, 5, 0);
+Native.CreateBody(world, ref bd, out BodyId body);
+
+var sd = Native.DefaultShapeDef();
+var ball = new Sphere { Radius = 0.5f };
+Native.CreateSphereShape(world, body, ref sd, ref ball, out ShapeId shape);
 
 for (int i = 0; i < 60; i++)
 {
-    Maul3D.Native.Step(world, 1.0f / 60.0f, 4);
+    Native.Step(world, 1.0f / 60.0f, 4);
 }
-Console.WriteLine($"hash {Maul3D.Native.Hash(world):x16}");
+Console.WriteLine($"hash {Native.Hash(world):x16}");
 
 // Rollback: snapshot, run ahead, restore, run again: same hash.
-int size = Maul3D.Native.SnapshotSize(world);
-var snap = new byte[size];
-Maul3D.Native.Snapshot(world, snap, size);
+var snap = new byte[Native.SnapshotSize(world)];
+Native.Snapshot(world, snap, snap.Length, out int bytes);
 // ... later ...
-Maul3D.Native.Restore(world, snap, size);
+Native.Restore(world, snap, bytes);
 
-Maul3D.Native.DestroyWorld(world);
+Native.DestroyWorld(world);
 ```
 
 ## The rules that keep you safe
 
 - Always start from the `Default*Def()` functions. Every def
   carries a cookie; a zeroed or hand-rolled def is refused loudly
-  by design.
+  by design. `DefaultWorldDef()` also stamps `Native.AbiVersion`, so
+  a native library built from other headers refuses the world with
+  `Result.ErrorVersion`.
+- Check the `Result` of every create, destroy, snapshot and restore.
+  A refused create leaves its out id null.
 - Call `LayoutCheck()` at startup. It catches a struct mirror
   drifting from the C headers before it can corrupt memory. CI runs
   the same check ahead of time: `tools/check_bindings.py` compares
@@ -68,6 +76,7 @@ Maul3D.Native.DestroyWorld(world);
 - Bools inside defs are `byte` fields (C `_Bool` is one byte).
   Set them to 0 or 1.
 - Ids are value types and stay valid across snapshot restore;
-  they encode no pointers.
+  they encode no pointers. An id means something only to the world
+  that issued it.
 - Determinism holds through this binding: commands in, hashes
   out, the same on every platform the engine supports.

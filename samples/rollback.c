@@ -12,38 +12,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// Stops the sample on a refused call, naming the call and the reason.
+static void Require(m3Result result, const char* what)
+{
+    if (result != m3_success)
+    {
+        fprintf(stderr, "%s: %s\n", what, m3ResultName(result));
+        exit(1);
+    }
+}
+
 int main(void)
 {
     m3WorldDef wd = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NULL;
+    Require(m3CreateWorld(&wd, &world), "m3CreateWorld");
     m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground;
+    Require(m3CreateBody(world, &gd, &ground), "m3CreateBody");
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(m3CreateBody(world, &gd), &sd, &floor);
+    m3ShapeId shape;
+    Require(m3CreatePlaneShape(world, ground, &sd, &floor, &shape), "m3CreatePlaneShape");
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball;
+    Require(m3CreateBody(world, &bd, &ball), "m3CreateBody");
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    Require(m3CreateSphereShape(world, ball, &sd, &sphere, &shape), "m3CreateSphereShape");
 
-    int32_t size = m3World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    if (snap == NULL || m3World_Snapshot(world, snap, size) != size)
+    int32_t capacity = m3World_SnapshotSize(world);
+    void* snap = malloc((size_t)capacity);
+    if (snap == NULL)
     {
         return 1;
     }
+    int32_t size = 0;
+    Require(m3World_Snapshot(world, snap, capacity, &size), "m3World_Snapshot");
     uint64_t then = m3World_Hash(world);
 
     // The mispredicted future: the ball is kicked sideways.
-    m3Body_SetLinearVelocity(ball, (m3Vec3){5.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){5.0f, 0.0f, 0.0f});
     for (int i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
     // The corrected input arrives: rewind and simulate again.
-    m3World_Restore(world, snap, size);
+    Require(m3World_Restore(world, snap, size), "m3World_Restore");
     int same = m3World_Hash(world) == then;
     for (int i = 0; i < 30; ++i)
     {

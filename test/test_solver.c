@@ -6,6 +6,7 @@
 // band, and friction versus no friction. Black box: public headers
 // only.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -15,41 +16,41 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId MakeWorld(void)
+static m3World* MakeWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    return m3CreateWorld(&def);
+    return NewWorld(&def);
 }
 
-static m3BodyId AddGroundPlane(m3WorldId world, float friction)
+static m3BodyId AddGroundPlane(m3World* world, float friction)
 {
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = friction;
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return ground;
 }
 
-static m3BodyId AddBall(m3WorldId world, double x, double y, double z, float radius, float friction,
+static m3BodyId AddBall(m3World* world, double x, double y, double z, float radius, float friction,
                         float restitution)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){x, y, z};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = friction;
     sd.restitution = restitution;
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, radius};
-    m3CreateSphereShape(body, &sd, &ball);
+    NewSphereShape(world, body, &sd, &ball);
     return body;
 }
 
-static void StepN(m3WorldId world, int32_t steps)
+static void StepN(m3World* world, int32_t steps)
 {
     for (int32_t i = 0; i < steps; ++i)
     {
@@ -59,12 +60,12 @@ static void StepN(m3WorldId world, int32_t steps)
 
 static void TestFreeFall(void)
 {
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     m3BodyId ball = AddBall(world, 0.0, 100.0, 0.0, 0.5f, 0.6f, 0.0f);
     StepN(world, 60); // one second
-    m3Vec3 v = m3Body_GetLinearVelocity(ball);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     CHECK(v.y > -10.05f && v.y < -9.95f, "one second of gravity lands near -10");
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     // Substepped semi-implicit Euler: expect close to 100 - g t^2 / 2,
     // slightly below because velocity leads position.
     CHECK(p.y > 94.5 && p.y < 95.5, "fallen distance in the analytic band");
@@ -73,13 +74,13 @@ static void TestFreeFall(void)
 
 static void TestRestOnPlane(void)
 {
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
     m3BodyId ball = AddBall(world, 0.0, 0.6, 0.0, 0.5f, 0.6f, 0.0f);
     StepN(world, 300);
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > 0.485 && p.y < 0.515, "the ball rests on the plane at its radius");
-    m3Vec3 v = m3Body_GetLinearVelocity(ball);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     CHECK(v.y > -0.02f && v.y < 0.02f, "resting velocity is near zero");
     m3DestroyWorld(world);
 }
@@ -87,7 +88,7 @@ static void TestRestOnPlane(void)
 static void TestStandingStack(void)
 {
     // THE 2a deliverable: a vertical stack of spheres stands.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.8f);
     m3BodyId balls[5];
     for (int32_t i = 0; i < 5; ++i)
@@ -97,7 +98,7 @@ static void TestStandingStack(void)
     StepN(world, 600); // ten seconds
     for (int32_t i = 0; i < 5; ++i)
     {
-        m3Pos3 p = m3Body_GetPosition(balls[i]);
+        m3Pos3 p = m3Body_GetPosition(world, balls[i]);
         double restY = 0.5 + 1.0 * (double)i;
         CHECK(p.y > restY - 0.08 && p.y < restY + 0.04, "each sphere holds its height");
         CHECK(p.x > -0.05 && p.x < 0.05 && p.z > -0.05 && p.z < 0.05,
@@ -108,7 +109,7 @@ static void TestStandingStack(void)
 
 static void TestRestitution(void)
 {
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.0f);
     m3BodyId ball = AddBall(world, 0.0, 2.5, 0.0, 0.5f, 0.0f, 0.8f);
     // Track the rebound peak after the first bounce.
@@ -117,8 +118,8 @@ static void TestRestitution(void)
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Vec3 v = m3Body_GetLinearVelocity(ball);
-        m3Pos3 p = m3Body_GetPosition(ball);
+        m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
+        m3Pos3 p = m3Body_GetPosition(world, ball);
         if (!bounced && v.y > 0.5f)
         {
             bounced = 1;
@@ -148,12 +149,12 @@ static void TestFrictionSlows(void)
     for (int32_t pass = 0; pass < 2; ++pass)
     {
         float mu = pass == 0 ? 0.0f : 1.0f;
-        m3WorldId world = MakeWorld();
+        m3World* world = MakeWorld();
         AddGroundPlane(world, mu);
         m3BodyId ball = AddBall(world, 0.0, 0.5, 0.0, 0.5f, mu, 0.0f);
-        m3Body_SetLinearVelocity(ball, (m3Vec3){5.0f, 0.0f, 0.0f});
+        m3Body_SetLinearVelocity(world, ball, (m3Vec3){5.0f, 0.0f, 0.0f});
         StepN(world, 120);
-        vx[pass] = (double)m3Body_GetLinearVelocity(ball).x;
+        vx[pass] = (double)m3Body_GetLinearVelocity(world, ball).x;
         m3DestroyWorld(world);
     }
     CHECK(vx[1] < vx[0] - 0.5, "friction bleeds sliding speed");
@@ -172,24 +173,24 @@ static void TestSlideDistanceLaw(void)
     const double shoves[2] = {3.0, 0.5};
     for (int32_t pass = 0; pass < 2; ++pass)
     {
-        m3WorldId world = MakeWorld();
+        m3World* world = MakeWorld();
         AddGroundPlane(world, 0.6f);
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 0.5, 0.0};
-        m3BodyId crate = m3CreateBody(world, &bd);
+        m3BodyId crate = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.friction = 0.6f;
-        m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+        NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
         StepN(world, 60);
-        double x0 = m3Body_GetPosition(crate).x;
-        m3Body_ApplyLinearImpulse(crate, (m3Vec3){(float)shoves[pass], 0.0f, 0.0f});
+        double x0 = m3Body_GetPosition(world, crate).x;
+        m3Body_ApplyLinearImpulse(world, crate, (m3Vec3){(float)shoves[pass], 0.0f, 0.0f});
         double maxVy = 0.0;
         double minVx = 0.0;
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Vec3 v = m3Body_GetLinearVelocity(crate);
+            m3Vec3 v = m3Body_GetLinearVelocity(world, crate);
             if ((double)v.y > maxVy)
             {
                 maxVy = (double)v.y;
@@ -199,7 +200,7 @@ static void TestSlideDistanceLaw(void)
                 minVx = (double)v.x;
             }
         }
-        slides[pass] = m3Body_GetPosition(crate).x - x0;
+        slides[pass] = m3Body_GetPosition(world, crate).x - x0;
         CHECK(maxVy < 0.05, "a horizontal shove never launches the crate");
         CHECK(minVx > -0.05, "friction never reverses the slide");
         m3DestroyWorld(world);
@@ -218,28 +219,28 @@ static void TestBoxRests(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     AddGroundPlane(world, 0.7f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.8, 0.0};
-    m3BodyId box = m3CreateBody(world, &bd);
+    m3BodyId box = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.7f;
-    m3CreateBoxShape(box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     bd.position = (m3Pos3){0.1, 2.2, -0.05};
-    m3BodyId top = m3CreateBody(world, &bd);
-    m3CreateBoxShape(top, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    m3BodyId top = NewBody(world, &bd);
+    NewBoxShape(world, top, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(box);
+    m3Pos3 p = m3Body_GetPosition(world, box);
     CHECK(p.y > 0.47 && p.y < 0.53, "the box rests at its half height");
-    m3Quat q = m3Body_GetRotation(box);
+    m3Quat q = m3Body_GetRotation(world, box);
     CHECK(q.w > 0.999f || q.w < -0.999f, "the box stays level (no tumbling)");
-    m3Pos3 tp = m3Body_GetPosition(top);
+    m3Pos3 tp = m3Body_GetPosition(world, top);
     // The SAT landed: the staged-gap check flips into the real
     // assertion. The 0.4 half-height box rests on the unit box: about
     // 1.0 + 0.4 = 1.4.
@@ -258,33 +259,33 @@ static void TestCapsuleRestsFlat(void)
     // A capsule dropped lying flat
     // lands on the two-cap manifold, rests at its radius, and does
     // not roll away or pitch up.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Capsule capsule = {{-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, 0.3f};
-    m3ShapeId shape = m3CreateCapsuleShape(body, &sd, &capsule);
-    CHECK(m3Shape_IsValid(shape), "the capsule creates");
+    m3ShapeId shape = NewCapsuleShape(world, body, &sd, &capsule);
+    CHECK(m3Shape_IsValid(world, shape), "the capsule creates");
 
     // Contract checks while the world is warm: zero length and zero
     // radius are refused with the null id, no shape half-created.
     m3Capsule degenerate = {{0.1f, 0.0f, 0.0f}, {0.1f, 0.0f, 0.0f}, 0.3f};
-    CHECK(!m3Shape_IsValid(m3CreateCapsuleShape(body, &sd, &degenerate)),
+    CHECK(!m3Shape_IsValid(world, NewCapsuleShape(world, body, &sd, &degenerate)),
           "a zero-length capsule is refused");
     m3Capsule flat = {{-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, 0.0f};
-    CHECK(!m3Shape_IsValid(m3CreateCapsuleShape(body, &sd, &flat)),
+    CHECK(!m3Shape_IsValid(world, NewCapsuleShape(world, body, &sd, &flat)),
           "a zero-radius capsule is refused");
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(body);
+    m3Pos3 p = m3Body_GetPosition(world, body);
     CHECK(p.y > 0.27 && p.y < 0.33, "the capsule rests at its radius");
     CHECK(p.x > -0.05 && p.x < 0.05, "the capsule does not wander");
-    m3Quat q = m3Body_GetRotation(body);
+    m3Quat q = m3Body_GetRotation(world, body);
     CHECK(q.w > 0.999f || q.w < -0.999f, "the capsule stays level");
     m3DestroyWorld(world);
 }
@@ -297,23 +298,23 @@ static void TestSphereRestsOnBox(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId block = m3CreateBody(world, &bd);
+    m3BodyId block = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > 1.36 && p.y < 1.44, "the sphere rests on the box top");
     CHECK(p.x > -0.02 && p.x < 0.02, "the sphere stays centered");
     m3DestroyWorld(world);
@@ -324,27 +325,27 @@ static void TestSphereRestsOnCapsule(void)
     // Part three: capsule-sphere through the same generic pair. The
     // sphere balances on the lying capsule's midsection; a centered
     // drop is symmetric, so determinism keeps it centered.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.3, 0.0};
-    m3BodyId cap = m3CreateBody(world, &bd);
+    m3BodyId cap = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Capsule capsule = {{-0.6f, 0.0f, 0.0f}, {0.6f, 0.0f, 0.0f}, 0.3f};
-    m3CreateCapsuleShape(cap, &sd, &capsule);
+    NewCapsuleShape(world, cap, &sd, &capsule);
 
     bd.position = (m3Pos3){0.0, 1.2, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     StepN(world, 360);
 
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > 0.80 && p.y < 0.90, "the sphere rests on the capsule crown");
-    m3Pos3 cp = m3Body_GetPosition(cap);
+    m3Pos3 cp = m3Body_GetPosition(world, cap);
     CHECK(cp.y > 0.27 && cp.y < 0.33, "the capsule carries the load at its radius");
     m3DestroyWorld(world);
 }
@@ -361,24 +362,24 @@ static void TestGyroscopicTumble(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.0, 0.0};
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     // Half extents 1.0 x 0.4 x 0.05: three distinct principal
     // moments, y is the intermediate axis.
-    m3CreateBoxShape(body, &sd, (m3Vec3){1.0f, 0.4f, 0.05f});
-    m3Body_SetAngularVelocity(body, (m3Vec3){0.01f, 5.0f, 0.01f});
+    NewBoxShape(world, body, &sd, (m3Vec3){1.0f, 0.4f, 0.05f});
+    m3Body_SetAngularVelocity(world, body, (m3Vec3){0.01f, 5.0f, 0.01f});
 
     int tumbled = 0;
     float wMax = 0.0f;
     for (int32_t i = 0; i < 600; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Vec3 w = m3Body_GetAngularVelocity(body);
+        m3Vec3 w = m3Body_GetAngularVelocity(world, body);
         float mag2 = w.x * w.x + w.y * w.y + w.z * w.z;
         if (mag2 > wMax)
         {
@@ -393,7 +394,7 @@ static void TestGyroscopicTumble(void)
     // Energy bound: E = w·(I w)/2 is conserved or dissipated, so
     // |w|^2 <= (Imax/Imin) |w0|^2 = (about 6.3) * 25.
     CHECK(wMax < 170.0f, "the tumble never gains energy");
-    m3Quat q = m3Body_GetRotation(body);
+    m3Quat q = m3Body_GetRotation(world, body);
     float norm2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     CHECK(norm2 > 0.99f && norm2 < 1.01f, "the rotation stays normalized");
     m3DestroyWorld(world);
@@ -408,23 +409,23 @@ static void TestDeepSphereRecovers(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId block = m3CreateBody(world, &bd);
+    m3BodyId block = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.85, 0.0}; // 0.15 under the top face
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > 1.24 && p.y < 1.36, "the deep sphere pops out and rests on top");
     CHECK(p.x > -0.05 && p.x < 0.05, "the exit is straight up, no sideways drift");
     m3DestroyWorld(world);
@@ -441,24 +442,24 @@ static void TestDeepCapsuleRecovers(void)
     // no longer fights the virtual bias motion), so the rod may now
     // legitimately end BALANCED ON TOP of the box instead of
     // sliding off: the band accepts both endings.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId block = m3CreateBody(world, &bd);
+    m3BodyId block = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.8, 0.0}; // core 0.2 under the top
-    m3BodyId rod = m3CreateBody(world, &bd);
+    m3BodyId rod = NewBody(world, &bd);
     m3Capsule capsule = {{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 0.2f};
-    m3CreateCapsuleShape(rod, &sd, &capsule);
+    NewCapsuleShape(world, rod, &sd, &capsule);
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(rod);
+    m3Pos3 p = m3Body_GetPosition(world, rod);
     CHECK(p.x > -5.0 && p.x < 5.0 && p.z > -5.0 && p.z < 5.0 && p.y > 0.1 && p.y < 1.45,
           "the skewered capsule is expelled and settles nearby");
     int insideCore =
@@ -473,20 +474,20 @@ static void TestCrossedCapsulesSeparate(void)
     // measure-zero pose): the mutual perpendicular is +-y here and the
     // center-delta tiebreak is zero, so the fixed rule must still
     // separate them vertically and deterministically.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.3, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Capsule alongX = {{-0.6f, 0.0f, 0.0f}, {0.6f, 0.0f, 0.0f}, 0.3f};
-    m3CreateCapsuleShape(a, &sd, &alongX);
+    NewCapsuleShape(world, a, &sd, &alongX);
 
-    m3BodyId b = m3CreateBody(world, &bd); // same position: cores cross
+    m3BodyId b = NewBody(world, &bd); // same position: cores cross
     m3Capsule alongZ = {{0.0f, 0.0f, -0.6f}, {0.0f, 0.0f, 0.6f}, 0.3f};
-    m3CreateCapsuleShape(b, &sd, &alongZ);
+    NewCapsuleShape(world, b, &sd, &alongZ);
 
     // Assert while the stack stands (step 120): the exact rule must
     // have pushed one capsule cleanly on top of the other. Much
@@ -494,8 +495,8 @@ static void TestCrossedCapsulesSeparate(void)
     // balance; that is physics, not the property under test.
     StepN(world, 120);
 
-    m3Pos3 pa = m3Body_GetPosition(a);
-    m3Pos3 pb = m3Body_GetPosition(b);
+    m3Pos3 pa = m3Body_GetPosition(world, a);
+    m3Pos3 pb = m3Body_GetPosition(world, b);
     double gap = pa.y > pb.y ? pa.y - pb.y : pb.y - pa.y;
     CHECK(gap > 0.5, "the crossed capsules separate vertically");
     double low = pa.y < pb.y ? pa.y : pb.y;
@@ -514,40 +515,41 @@ static void TestQuickHullRockRests(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
+    m3World* world = NewWorld(&def);
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
     AddGroundPlane(world, 0.6f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId rock = m3CreateBody(world, &bd);
+    m3BodyId rock = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Vec3 pts[7] = {{0.9f, 0.0f, 0.1f},  {-0.8f, 0.1f, 0.0f}, {0.0f, 0.7f, -0.1f},
                      {0.1f, -0.6f, 0.0f}, {0.0f, 0.1f, 0.8f},  {-0.1f, 0.0f, -0.9f},
                      {0.2f, 0.2f, 0.2f}};
-    m3ShapeId shape = m3CreateHullShape(rock, &sd, pts, 7);
-    CHECK(m3Shape_IsValid(shape), "the rock builds");
+    m3ShapeId shape = NewHullShape(world, rock, &sd, pts, 7);
+    CHECK(m3Shape_IsValid(world, shape), "the rock builds");
 
     // A degenerate cloud is refused without touching the body.
     m3Vec3 flat[4] = {
         {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.0f}};
-    CHECK(!m3Shape_IsValid(m3CreateHullShape(rock, &sd, flat, 4)), "a coplanar cloud is refused");
+    CHECK(!m3Shape_IsValid(world, NewHullShape(world, rock, &sd, flat, 4)),
+          "a coplanar cloud is refused");
 
     StepN(world, 480);
 
-    m3Pos3 p = m3Body_GetPosition(rock);
+    m3Pos3 p = m3Body_GetPosition(world, rock);
     CHECK(p.y > 0.05 && p.y < 1.0, "the rock settles onto a face");
     CHECK(p.x > -2.0 && p.x < 2.0 && p.z > -2.0 && p.z < 2.0, "the rock stays near the drop");
-    m3Vec3 v = m3Body_GetLinearVelocity(rock);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, rock);
     CHECK(v.x * v.x + v.y * v.y + v.z * v.z < 0.01f, "the rock has come to rest");
 
-    int32_t bytes = m3World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the session recorded");
     uint64_t h1 = m3World_Hash(world);
 
-    m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the hull session replays");
+    m3World* twin = NewWorld(&def);
+    CHECK(ReplayJournal(twin, journal, bytes), "the hull session replays");
     CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical");
     m3DestroyWorld(twin);
     m3DestroyWorld(world);
@@ -566,27 +568,27 @@ static void TestBulletStopsAtWall(void)
         def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
         def.bodyCapacity = 8;
         def.shapeCapacity = 8;
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.position = (m3Pos3){5.0, 0.0, 0.0};
-        m3BodyId wall = m3CreateBody(world, &bd);
+        m3BodyId wall = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(wall, &sd, (m3Vec3){0.05f, 1.0f, 1.0f});
+        NewBoxShape(world, wall, &sd, (m3Vec3){0.05f, 1.0f, 1.0f});
 
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 0.0, 0.0};
         bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
         bd.isBullet = variant == 1;
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
-        m3CreateSphereShape(ball, &sd, &sphere);
+        NewSphereShape(world, ball, &sd, &sphere);
 
         int stayed = 1;
         for (int32_t i = 0; i < 60; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Pos3 p = m3Body_GetPosition(ball);
+            m3Pos3 p = m3Body_GetPosition(world, ball);
             if (p.x > 4.9)
             {
                 stayed = 0;
@@ -610,28 +612,28 @@ static void TestBulletVsDynamicTarget(void)
         def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
         def.bodyCapacity = 8;
         def.shapeCapacity = 8;
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){5.0, 0.0, 0.0};
-        m3BodyId target = m3CreateBody(world, &bd);
+        m3BodyId target = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(target, &sd, (m3Vec3){0.5f, 1.0f, 1.0f});
+        NewBoxShape(world, target, &sd, (m3Vec3){0.5f, 1.0f, 1.0f});
 
         bd.position = (m3Pos3){0.0, 0.0, 0.0};
         bd.linearVelocity = (m3Vec3){150.0f, 0.0f, 0.0f};
         bd.isBullet = variant == 1;
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
-        m3CreateSphereShape(ball, &sd, &sphere);
+        NewSphereShape(world, ball, &sd, &sphere);
 
         int stayedBehind = 1;
         for (int32_t i = 0; i < 40; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Pos3 pb = m3Body_GetPosition(ball);
-            m3Pos3 pt = m3Body_GetPosition(target);
+            m3Pos3 pb = m3Body_GetPosition(world, ball);
+            m3Pos3 pt = m3Body_GetPosition(world, target);
             if (pb.x > pt.x)
             {
                 stayedBehind = 0;
@@ -643,7 +645,7 @@ static void TestBulletVsDynamicTarget(void)
         }
         else
         {
-            m3Pos3 pb = m3Body_GetPosition(ball);
+            m3Pos3 pb = m3Body_GetPosition(world, ball);
             CHECK(!stayedBehind && pb.x > 10.0,
                   "the non-bullet tunnels through the dynamic box (why the flag exists)");
         }
@@ -655,7 +657,7 @@ static void TestBulletVsDynamicTarget(void)
 // meter quads, each split into two CCW-from-above triangles. The
 // interior edges and vertices are exactly what the welding filter
 // must silence.
-static m3ShapeId AddMeshFloor(m3WorldId world)
+static m3ShapeId AddMeshFloor(m3World* world)
 {
     enum
     {
@@ -689,10 +691,10 @@ static m3ShapeId AddMeshFloor(m3WorldId world)
         }
     }
     m3BodyDef bd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &bd);
+    m3BodyId ground = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.0f; // pure slide: any vertical kick is a ghost
-    return m3CreateMeshShape(ground, &sd, verts, NX * NZ, tris, n / 3);
+    return NewMeshShape(world, ground, &sd, verts, NX * NZ, tris, n / 3);
 }
 
 static void TestSphereSlidesAcrossMeshFloor(void)
@@ -705,18 +707,18 @@ static void TestSphereSlidesAcrossMeshFloor(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3Shape_IsValid(AddMeshFloor(world)), "the mesh floor builds");
+    m3World* world = NewWorld(&def);
+    CHECK(m3Shape_IsValid(world, AddMeshFloor(world)), "the mesh floor builds");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){-3.5, 0.5, 0.0};
     bd.linearVelocity = (m3Vec3){1.2f, 0.0f, 0.0f};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.0f;
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     // Settle onto the floor first, then measure the ride.
     StepN(world, 60);
@@ -726,13 +728,13 @@ static void TestSphereSlidesAcrossMeshFloor(void)
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Pos3 p = m3Body_GetPosition(ball);
+        m3Pos3 p = m3Body_GetPosition(world, ball);
         yMin = p.y < yMin ? p.y : yMin;
         yMax = p.y > yMax ? p.y : yMax;
         double az = p.z < 0.0 ? -p.z : p.z;
         zMax = az > zMax ? az : zMax;
     }
-    m3Pos3 end = m3Body_GetPosition(ball);
+    m3Pos3 end = m3Body_GetPosition(world, ball);
     CHECK(end.x > 0.0, "the sphere crossed the interior edges");
     CHECK(yMin > 0.46 && yMax < 0.54, "the ride stays flat: no ghost bumps");
     CHECK(zMax < 0.05, "no sideways ghost kicks");
@@ -744,41 +746,41 @@ static void TestMeshContractsAndGaps(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3Shape_IsValid(AddMeshFloor(world)), "the mesh floor builds");
+    m3World* world = NewWorld(&def);
+    CHECK(m3Shape_IsValid(world, AddMeshFloor(world)), "the mesh floor builds");
 
     // Contracts: a mesh on a dynamic body and bad indices are refused.
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId mover = m3CreateBody(world, &bd);
+    m3BodyId mover = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Vec3 tri[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     uint16_t idx[3] = {0, 1, 2};
-    CHECK(!m3Shape_IsValid(m3CreateMeshShape(mover, &sd, tri, 3, idx, 1)),
+    CHECK(!m3Shape_IsValid(world, NewMeshShape(world, mover, &sd, tri, 3, idx, 1)),
           "a mesh on a dynamic body is refused");
     uint16_t bad[3] = {0, 1, 9};
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground2 = m3CreateBody(world, &gd);
-    CHECK(!m3Shape_IsValid(m3CreateMeshShape(ground2, &sd, tri, 3, bad, 1)),
+    m3BodyId ground2 = NewBody(world, &gd);
+    CHECK(!m3Shape_IsValid(world, NewMeshShape(world, ground2, &sd, tri, 3, bad, 1)),
           "an out-of-range index is refused");
 
     // The hull half of the mesh edge handling: the box dropped over
     // the interior edges lands on
     // the triangle-face clip and RESTS level on the mesh.
     m3Capsule capsule = {{-0.4f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, 0.3f};
-    m3CreateCapsuleShape(mover, &sd, &capsule);
+    NewCapsuleShape(world, mover, &sd, &capsule);
     bd.position = (m3Pos3){1.5, 2.0, 0.0};
-    m3BodyId boxBody = m3CreateBody(world, &bd);
-    m3CreateBoxShape(boxBody, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+    m3BodyId boxBody = NewBody(world, &bd);
+    NewBoxShape(world, boxBody, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
     StepN(world, 240);
-    m3Pos3 cp = m3Body_GetPosition(mover);
+    m3Pos3 cp = m3Body_GetPosition(world, mover);
     CHECK(cp.y > 0.27 && cp.y < 0.33, "the capsule rests on the mesh at its radius");
-    m3Quat cq = m3Body_GetRotation(mover);
+    m3Quat cq = m3Body_GetRotation(world, mover);
     CHECK(cq.w > 0.999f || cq.w < -0.999f, "the capsule lies level across the edges");
-    m3Pos3 bp = m3Body_GetPosition(boxBody);
+    m3Pos3 bp = m3Body_GetPosition(world, boxBody);
     CHECK(bp.y > 0.27 && bp.y < 0.33, "the box rests on the mesh at its half height");
-    m3Quat bq = m3Body_GetRotation(boxBody);
+    m3Quat bq = m3Body_GetRotation(world, boxBody);
     CHECK(bq.w > 0.999f || bq.w < -0.999f, "the box stays level on the mesh");
     m3DestroyWorld(world);
 }
@@ -791,17 +793,17 @@ static void TestBoxSlidesAcrossMeshFloor(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3Shape_IsValid(AddMeshFloor(world)), "the mesh floor builds");
+    m3World* world = NewWorld(&def);
+    CHECK(m3Shape_IsValid(world, AddMeshFloor(world)), "the mesh floor builds");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){-3.2, 0.31, 0.0};
     bd.linearVelocity = (m3Vec3){1.2f, 0.0f, 0.0f};
-    m3BodyId box = m3CreateBody(world, &bd);
+    m3BodyId box = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.0f;
-    m3CreateBoxShape(box, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+    NewBoxShape(world, box, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
 
     StepN(world, 60); // settle
     double yMin = 1.0e30;
@@ -810,17 +812,17 @@ static void TestBoxSlidesAcrossMeshFloor(void)
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Pos3 p = m3Body_GetPosition(box);
+        m3Pos3 p = m3Body_GetPosition(world, box);
         yMin = p.y < yMin ? p.y : yMin;
         yMax = p.y > yMax ? p.y : yMax;
         double az = p.z < 0.0 ? -p.z : p.z;
         zMax = az > zMax ? az : zMax;
     }
-    m3Pos3 end = m3Body_GetPosition(box);
+    m3Pos3 end = m3Body_GetPosition(world, box);
     CHECK(end.x > 0.0, "the box crossed the interior edges");
     CHECK(yMin > 0.26 && yMax < 0.34, "the box ride stays flat: no ghost bumps");
     CHECK(zMax < 0.05, "no sideways ghost kicks on the box");
-    m3Quat q = m3Body_GetRotation(box);
+    m3Quat q = m3Body_GetRotation(world, box);
     CHECK(q.w > 0.99f || q.w < -0.99f, "the box does not tumble while sliding");
     m3DestroyWorld(world);
 }
@@ -829,35 +831,35 @@ static void TestKinematicPlatform(void)
 {
     // A kinematic platform moves at its commanded velocity, immovable
     // by the ball riding it; friction drags the ball along.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     bd.linearVelocity = (m3Vec3){1.0f, 0.0f, 0.0f};
-    m3BodyId platform = m3CreateBody(world, &bd);
+    m3BodyId platform = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.9f;
-    m3CreateBoxShape(platform, &sd, (m3Vec3){2.0f, 0.1f, 2.0f});
+    NewBoxShape(world, platform, &sd, (m3Vec3){2.0f, 0.1f, 2.0f});
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.6, 0.0};
     bd.linearVelocity = (m3Vec3){0.0f, 0.0f, 0.0f};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     StepN(world, 120); // two seconds
 
-    m3Pos3 pp = m3Body_GetPosition(platform);
+    m3Pos3 pp = m3Body_GetPosition(world, platform);
     CHECK(pp.x > 1.99 && pp.x < 2.01, "the platform advances exactly at its velocity");
     CHECK(pp.y > 0.99 && pp.y < 1.01, "the ball's weight cannot push the platform");
-    m3Pos3 bp = m3Body_GetPosition(ball);
+    m3Pos3 bp = m3Body_GetPosition(world, ball);
     CHECK(bp.y > 1.35 && bp.y < 1.45, "the ball rides on the platform");
     // A ball on a conveyor rolls: slip ends at v = (2/7) * platform
     // speed (inertia 2/5 m r^2 spins up 2.5x faster than it
     // translates). Assert the analytic band, not wishful thinking.
-    m3Vec3 bv = m3Body_GetLinearVelocity(ball);
+    m3Vec3 bv = m3Body_GetLinearVelocity(world, ball);
     CHECK(bv.x > 0.2f && bv.x < 0.4f, "friction rolls the ball at the conveyor ratio");
     m3DestroyWorld(world);
 }
@@ -868,36 +870,36 @@ static void TestSleepFreezesAndWakes(void)
     // BIT-SOLID: velocities exactly zero, position bit-stable across
     // thirty further steps. A commanded velocity wakes it; a second
     // ball dropped on it wakes the island through the contact.
-    m3WorldId world = MakeWorld();
+    m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
     m3BodyId ball = AddBall(world, 0.0, 0.5, 0.0, 0.5f, 0.6f, 0.0f);
 
     StepN(world, 120); // settle plus the sleep bar
-    m3Vec3 v = m3Body_GetLinearVelocity(ball);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     CHECK(v.x == 0.0f && v.y == 0.0f && v.z == 0.0f, "the sleeping ball has exact zero velocity");
-    m3Pos3 before = m3Body_GetPosition(ball);
+    m3Pos3 before = m3Body_GetPosition(world, ball);
     StepN(world, 30);
-    m3Pos3 after = m3Body_GetPosition(ball);
+    m3Pos3 after = m3Body_GetPosition(world, ball);
     CHECK(before.x == after.x && before.y == after.y && before.z == after.z,
           "the sleeping ball is bit-frozen");
 
     // A commanded velocity wakes it.
-    m3Body_SetLinearVelocity(ball, (m3Vec3){1.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){1.0f, 0.0f, 0.0f});
     StepN(world, 30);
-    m3Pos3 moved = m3Body_GetPosition(ball);
+    m3Pos3 moved = m3Body_GetPosition(world, ball);
     CHECK(moved.x > after.x + 0.1, "a commanded velocity wakes the sleeper");
 
     // Let it sleep again, then wake it by dropping a second ball on it.
     StepN(world, 300);
-    m3Pos3 asleep = m3Body_GetPosition(ball);
+    m3Pos3 asleep = m3Body_GetPosition(world, ball);
     m3BodyId dropper = AddBall(world, asleep.x, asleep.y + 2.0, asleep.z, 0.3f, 0.6f, 0.0f);
     StepN(world, 60);
-    m3Pos3 pushed = m3Body_GetPosition(ball);
-    m3Pos3 dp = m3Body_GetPosition(dropper);
+    m3Pos3 pushed = m3Body_GetPosition(world, ball);
+    m3Pos3 dp = m3Body_GetPosition(world, dropper);
     CHECK(dp.y < asleep.y + 1.5, "the dropper fell onto the sleeper");
     CHECK(pushed.y < asleep.y - 0.001 || pushed.x != asleep.x || pushed.z != asleep.z ||
-              m3Body_GetLinearVelocity(ball).y != 0.0f ||
-              m3Body_GetLinearVelocity(dropper).y != 0.0f,
+              m3Body_GetLinearVelocity(world, ball).y != 0.0f ||
+              m3Body_GetLinearVelocity(world, dropper).y != 0.0f,
           "the contact wakes the island");
     m3DestroyWorld(world);
 }
@@ -912,31 +914,32 @@ static void TestBulletStopsAtMeshWall(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     // A vertical two-triangle wall at x = 5, facing -x.
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){5.0, -2.0, -2.0};
-    m3BodyId wall = m3CreateBody(world, &bd);
+    m3BodyId wall = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Vec3 verts[4] = {
         {0.0f, 0.0f, 0.0f}, {0.0f, 4.0f, 0.0f}, {0.0f, 0.0f, 4.0f}, {0.0f, 4.0f, 4.0f}};
     uint16_t tris[6] = {0, 2, 1, 1, 2, 3}; // normals face -x
-    CHECK(m3Shape_IsValid(m3CreateMeshShape(wall, &sd, verts, 4, tris, 2)), "the mesh wall builds");
+    CHECK(m3Shape_IsValid(world, NewMeshShape(world, wall, &sd, verts, 4, tris, 2)),
+          "the mesh wall builds");
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.0, 0.0};
     bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
     bd.isBullet = true;
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     int stayed = 1;
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        if (m3Body_GetPosition(ball).x > 5.0)
+        if (m3Body_GetPosition(world, ball).x > 5.0)
         {
             stayed = 0;
         }
@@ -954,10 +957,10 @@ static void TestBoxOnRoofRidge(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
-    m3BodyId roof = m3CreateBody(world, &bd);
+    m3BodyId roof = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.8f;
     // Ridge along z at x = 0, apex y = 1, sloping to y = 0 at x = +-2.
@@ -965,15 +968,16 @@ static void TestBoxOnRoofRidge(void)
                        {-2.0f, 0.0f, 2.0f},  {0.0f, 1.0f, 2.0f},  {2.0f, 0.0f, 2.0f}};
     uint16_t tris[12] = {0, 4, 1, 0, 3, 4,  // -x slope (normals up-left)
                          1, 5, 2, 1, 4, 5}; // +x slope (normals up-right)
-    CHECK(m3Shape_IsValid(m3CreateMeshShape(roof, &sd, verts, 6, tris, 4)), "the roof builds");
+    CHECK(m3Shape_IsValid(world, NewMeshShape(world, roof, &sd, verts, 6, tris, 4)),
+          "the roof builds");
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.8, 0.0};
-    m3BodyId box = m3CreateBody(world, &bd);
-    m3CreateBoxShape(box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    m3BodyId box = NewBody(world, &bd);
+    NewBoxShape(world, box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
 
     StepN(world, 300);
-    m3Pos3 p = m3Body_GetPosition(box);
+    m3Pos3 p = m3Body_GetPosition(world, box);
     CHECK(p.y > 1.0, "the box rests on the ridge, never swallowed by it");
     CHECK(p.x > -1.0 && p.x < 1.0 && p.z > -2.0 && p.z < 2.0, "the box stays near the apex");
     m3DestroyWorld(world);
@@ -987,11 +991,11 @@ static void TestHeightFieldBowl(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){-8.0, 0.0, -8.0}; // center the grid on the origin
-    m3BodyId ground = m3CreateBody(world, &bd);
+    m3BodyId ground = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.2f;
     float heights[17 * 17];
@@ -1004,19 +1008,19 @@ static void TestHeightFieldBowl(void)
             heights[iz * 17 + ix] = 0.02f * (dx * dx + dz * dz); // a parabolic bowl
         }
     }
-    CHECK(m3Shape_IsValid(m3CreateHeightFieldShape(ground, &sd, heights, 17, 17, 1.0f)),
+    CHECK(m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, heights, 17, 17, 1.0f)),
           "the heightfield chunk builds");
-    CHECK(!m3Shape_IsValid(m3CreateHeightFieldShape(ground, &sd, heights, 40, 17, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, heights, 40, 17, 1.0f)),
           "an oversized grid is refused");
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){3.0, 1.5, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     StepN(world, 600);
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.x > -2.5 && p.x < 2.5 && p.z > -2.5 && p.z < 2.5,
           "the ball rolls downhill toward the bowl's middle");
     CHECK(p.y > 0.3 && p.y < 1.2, "the ball stays above the surface");
@@ -1035,37 +1039,37 @@ static void TestRollingResistance(void)
         m3WorldDef def = m3DefaultWorldDef();
         def.bodyCapacity = 16;
         def.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef gs = m3DefaultShapeDef();
         gs.friction = 0.6f;
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &gs, &floor);
+        NewPlaneShape(world, ground, &gs, &floor);
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 0.5, -3.0};
         bd.linearVelocity = (m3Vec3){2.0f, 0.0f, 0.0f};
-        m3BodyId gripper = m3CreateBody(world, &bd);
+        m3BodyId gripper = NewBody(world, &bd);
         m3ShapeDef rr = m3DefaultShapeDef();
         rr.friction = 0.6f;
         rr.rollingResistance = 0.1f;
         m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-        m3CreateSphereShape(gripper, &rr, &ball);
+        NewSphereShape(world, gripper, &rr, &ball);
 
         bd.position = (m3Pos3){0.0, 0.5, 3.0};
-        m3BodyId roller = m3CreateBody(world, &bd);
+        m3BodyId roller = NewBody(world, &bd);
         m3ShapeDef free = m3DefaultShapeDef();
         free.friction = 0.6f;
-        m3CreateSphereShape(roller, &free, &ball);
+        NewSphereShape(world, roller, &free, &ball);
 
         for (int32_t i = 0; i < 420; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Vec3 vGrip = m3Body_GetLinearVelocity(gripper);
-        m3Vec3 vFree = m3Body_GetLinearVelocity(roller);
+        m3Vec3 vGrip = m3Body_GetLinearVelocity(world, gripper);
+        m3Vec3 vFree = m3Body_GetLinearVelocity(world, roller);
         CHECK(fabsf(vGrip.x) < 0.05f, "the resisted ball rolls to a stop");
         CHECK(vFree.x > 1.0f, "the free ball is still rolling");
 
@@ -1074,8 +1078,8 @@ static void TestRollingResistance(void)
         bad.rollingResistance = -1.0f;
         m3BodyDef xb = m3DefaultBodyDef();
         xb.position = (m3Pos3){5.0, 2.0, 0.0};
-        m3BodyId host = m3CreateBody(world, &xb);
-        CHECK(!m3Shape_IsValid(m3CreateSphereShape(host, &bad, &ball)),
+        m3BodyId host = NewBody(world, &xb);
+        CHECK(!m3Shape_IsValid(world, NewSphereShape(world, host, &bad, &ball)),
               "a negative rolling resistance refuses");
 
         hashes[run] = m3World_Hash(world);

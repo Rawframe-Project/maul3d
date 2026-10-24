@@ -27,21 +27,21 @@ static m3BodyId UnpackBody(int64_t packed)
 void M3World3D::_enter_tree()
 {
     m3WorldDef def = m3DefaultWorldDef();
-    world_ = m3CreateWorld(&def);
+    if (m3CreateWorld(&def, &world_) != m3_success)
+    {
+        world_ = nullptr;
+    }
 }
 
 void M3World3D::_exit_tree()
 {
-    if (world_.index1 != 0)
-    {
-        m3DestroyWorld(world_);
-        world_ = m3WorldId{0, 0};
-    }
+    m3DestroyWorld(world_);
+    world_ = nullptr;
 }
 
 void M3World3D::_physics_process(double delta)
 {
-    if (world_.index1 != 0)
+    if (world_ != nullptr)
     {
         m3World_Step(world_, (float)delta, substeps_);
     }
@@ -53,28 +53,40 @@ int64_t M3World3D::create_dynamic_box(godot::Vector3 position, godot::Vector3 ha
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = m3Pos3{position.x, position.y, position.z};
-    m3BodyId body = m3CreateBody(world_, &bd);
+    m3BodyId body = m3_nullBodyId;
+    m3ShapeId shape = m3_nullShapeId;
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = density;
-    m3CreateBoxShape(body, &sd, m3Vec3{half_extents.x, half_extents.y, half_extents.z});
+    if (m3CreateBody(world_, &bd, &body) != m3_success ||
+        m3CreateBoxShape(world_, body, &sd,
+                         m3Vec3{half_extents.x, half_extents.y, half_extents.z},
+                         &shape) != m3_success)
+    {
+        return 0;
+    }
     return PackBody(body);
 }
 
 int64_t M3World3D::create_static_floor()
 {
     m3BodyDef bd = m3DefaultBodyDef();
-    m3BodyId body = m3CreateBody(world_, &bd);
+    m3BodyId body = m3_nullBodyId;
+    m3ShapeId shape = m3_nullShapeId;
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(body, &sd, &floor);
+    if (m3CreateBody(world_, &bd, &body) != m3_success ||
+        m3CreatePlaneShape(world_, body, &sd, &floor, &shape) != m3_success)
+    {
+        return 0;
+    }
     return PackBody(body);
 }
 
 godot::Transform3D M3World3D::body_transform(int64_t body) const
 {
     m3BodyId id = UnpackBody(body);
-    m3Pos3 p = m3Body_GetPosition(id);
-    m3Quat q = m3Body_GetRotation(id);
+    m3Pos3 p = m3Body_GetPosition(world_, id);
+    m3Quat q = m3Body_GetRotation(world_, id);
     godot::Quaternion gq(q.x, q.y, q.z, q.w);
     godot::Vector3 gp((real_t)p.x, (real_t)p.y, (real_t)p.z);
     return godot::Transform3D(godot::Basis(gq), gp);
@@ -82,21 +94,26 @@ godot::Transform3D M3World3D::body_transform(int64_t body) const
 
 void M3World3D::set_body_velocity(int64_t body, godot::Vector3 velocity)
 {
-    m3Body_SetLinearVelocity(UnpackBody(body), m3Vec3{velocity.x, velocity.y, velocity.z});
+    m3Body_SetLinearVelocity(world_, UnpackBody(body),
+                             m3Vec3{velocity.x, velocity.y, velocity.z});
 }
 
 godot::PackedByteArray M3World3D::snapshot() const
 {
     godot::PackedByteArray out;
     int32_t size = m3World_SnapshotSize(world_);
+    int32_t written = 0;
     out.resize(size);
-    m3World_Snapshot(world_, out.ptrw(), size);
+    if (m3World_Snapshot(world_, out.ptrw(), size, &written) != m3_success)
+    {
+        out.resize(0);
+    }
     return out;
 }
 
 bool M3World3D::restore(const godot::PackedByteArray& data)
 {
-    return m3World_Restore(world_, data.ptr(), (int32_t)data.size());
+    return m3World_Restore(world_, data.ptr(), (int32_t)data.size()) == m3_success;
 }
 
 godot::String M3World3D::world_hash() const

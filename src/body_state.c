@@ -7,30 +7,27 @@
 
 #include "broad_phase.h"
 #include "misuse.h"
-#include "world_table.h"
 
 int32_t m3BodySlot(const m3World* world, m3BodyId bodyId)
 {
     int32_t index = bodyId.index1 - 1;
-    if (world == NULL || bodyId.world != world->idWorld ||
-        !m3IdPoolValid(&world->bodies.bodyPool, index, bodyId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->bodies.bodyPool, index, bodyId.generation))
     {
         return -1;
     }
     return index;
 }
 
-m3World* m3ResolveBody(m3BodyId bodyId, int32_t* indexOut)
+bool m3ResolveBody(const m3World* world, m3BodyId body, int32_t* indexOut)
 {
-    m3World* world = m3WorldFromTag(bodyId.world);
-    int32_t index = world != NULL ? m3BodySlot(world, bodyId) : -1;
+    int32_t index = m3BodySlot(world, body);
     *indexOut = index;
     if (index < 0)
     {
         m3Refuse(world, m3_errorInvalid);
-        return NULL;
+        return false;
     }
-    return world;
+    return true;
 }
 
 void m3SetAwakeInternal(m3World* world, int32_t index, int awake)

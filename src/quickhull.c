@@ -663,7 +663,8 @@ static bool InputValid(const m3Vec3* points, int32_t count)
     return true;
 }
 
-static bool BuildHull(QhBuilder* b, const m3Vec3* points, int32_t count, m3HullData* out)
+static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t count,
+                      m3HullData* out)
 {
     // Work relative to the first point; the tolerance scales with the
     // cloud's extent.
@@ -692,14 +693,14 @@ static bool BuildHull(QhBuilder* b, const m3Vec3* points, int32_t count, m3HullD
         }
     }
     MergeFaces(b);
-    QhPolygons* poly = (QhPolygons*)m3AllocZeroed((int32_t)sizeof(QhPolygons));
+    QhPolygons* poly = (QhPolygons*)m3AllocZeroed(heap, (int32_t)sizeof(QhPolygons));
     bool ok = poly != NULL && TraceLoops(b, poly);
     if (ok)
     {
         DropSeamVertices(poly, count);
         ok = EmitHull(b, poly, count, origin, out) && MassProperties(out);
     }
-    m3Free(poly);
+    m3Free(heap, poly);
     if (ok)
     {
         m3HullBuildHalfEdges(out);
@@ -707,20 +708,20 @@ static bool BuildHull(QhBuilder* b, const m3Vec3* points, int32_t count, m3HullD
     return ok;
 }
 
-bool m3ComputeHull(const m3Vec3* points, int32_t count, m3HullData* out)
+bool m3ComputeHull(m3Heap* heap, const m3Vec3* points, int32_t count, m3HullData* out)
 {
     if (out == NULL || !InputValid(points, count))
     {
         return false;
     }
     // The work block is too large for the stack.
-    QhBuilder* b = (QhBuilder*)m3AllocZeroed((int32_t)sizeof(QhBuilder));
+    QhBuilder* b = (QhBuilder*)m3AllocZeroed(heap, (int32_t)sizeof(QhBuilder));
     if (b == NULL)
     {
         return false;
     }
-    bool ok = BuildHull(b, points, count, out);
-    m3Free(b);
+    bool ok = BuildHull(heap, b, points, count, out);
+    m3Free(heap, b);
     if (!ok)
     {
         memset(out, 0, sizeof(*out));
