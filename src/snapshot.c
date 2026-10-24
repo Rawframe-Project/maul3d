@@ -26,11 +26,11 @@
 // Little-endian only until a big-endian CI cell exists to prove the
 // swap path; the walker is the single place a swap would live.
 #if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__)
-#error "maul3d snapshot v1 is little-endian only (add the swap in WalkBlocks first)"
+#error "maul3d snapshots are little-endian only (add the swap in WalkBlocks first)"
 #endif
 
 #define M3_SNAPSHOT_MAGIC   0x4D33534Eu // 'M3SN'
-#define M3_SNAPSHOT_VERSION 1u
+#define M3_SNAPSHOT_VERSION 2u          // 2: hulls held to the double-precision QuickHull planes
 
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.
