@@ -20,7 +20,10 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape);
 void m3VoxelBoundsHull(m3Vec3 lo, m3Vec3 hi, m3HullData* out);
 
 // Voxel edit internals: apply without journaling (replay
-// drives these); the public entries validate, journal, then call.
+// drives these); the public entries validate, call, then journal what
+// landed. An edit whose surface would pass the box limit changes
+// nothing, counts in voxelEditsRefused and returns false (-1 for the
+// box clear and the carve).
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload);
 

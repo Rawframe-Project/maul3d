@@ -199,8 +199,8 @@ bool m3ReplayVoxelSet(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    m3VoxelSetInternal(world, shape, record.x, record.y, record.z, record.payload);
-    return true;
+    // The recorder's edit landed, so a refusal here is another world.
+    return m3VoxelSetInternal(world, shape, record.x, record.y, record.z, record.payload);
 }
 
 bool m3ReplayVoxelClear(m3World* world, const m3ReplayRecord* r)
@@ -218,8 +218,7 @@ bool m3ReplayVoxelClear(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    m3VoxelClearInternal(world, shape, record.x, record.y, record.z);
-    return true;
+    return m3VoxelClearInternal(world, shape, record.x, record.y, record.z);
 }
 
 bool m3ReplayVoxelSetFill(m3World* world, const m3ReplayRecord* r)
@@ -263,8 +262,7 @@ bool m3ReplayVoxelClearBox(m3World* world, const m3ReplayRecord* r)
             return false;
         }
     }
-    m3VoxelClearBoxInternal(world, shape, record.lo, record.hi);
-    return true;
+    return m3VoxelClearBoxInternal(world, shape, record.lo, record.hi) >= 0;
 }
 
 bool m3ReplayDestroyShape(m3World* world, const m3ReplayRecord* r)

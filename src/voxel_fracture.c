@@ -169,7 +169,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
     if (removedAny)
     {
         // The surface follows the grid, always (the derived law).
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(world, slot);
         m3VoxelCoverageRefreshAround(world, slot);
     }
 }

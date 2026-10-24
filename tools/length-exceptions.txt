@@ -18,7 +18,7 @@ query_proxy.c ProxyReachesShape 137 numeric kernel: one pass in a fixed operatio
 query.c SphereReachesShape 128 numeric kernel: one pass in a fixed operation order
 broad_phase.c SphereAabb 122 numeric kernel: one pass in a fixed operation order
 island.c m3IslandWakePass 110 numeric kernel: one pass in a fixed operation order
-voxel.c m3VoxelSurfaceBuild 110 numeric kernel: one pass in a fixed operation order
+voxel.c MergeBoxes 96 numeric kernel: one pass in a fixed operation order
 voxel.c VoxelWakeRegion 96 numeric kernel: one pass in a fixed operation order
 voxel_fracture.c m3VoxelEscape 91 numeric kernel: one pass in a fixed operation order
 raycast.c RayTestShape 89 numeric kernel: one pass in a fixed operation order

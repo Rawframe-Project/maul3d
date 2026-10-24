@@ -643,6 +643,10 @@ extern "C"
         int64_t allocCalls;      // process-global persistent allocs
         int64_t freeCalls;
         uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
+        // Voxel edits and explosion carves refused because the chunk's
+        // surface would merge into more boxes than its tree holds,
+        // cumulative; each changed nothing and journaled nothing.
+        uint64_t voxelEditsRefused;
     } m3Counters;
 
     M3_API m3Counters m3World_GetCounters(const m3World* world);
@@ -652,7 +656,8 @@ extern "C"
     /// array footprint decided at create (pools, tree, and every
     /// snapshot-walked array), contentBytes is the live
     /// count-derived payload (mesh vertices/indices/flags, mesh BVH
-    /// nodes, heightfield samples), and the scratch numbers are the
+    /// nodes, heightfield samples, the surface tree each voxel slot
+    /// takes with its first chunk), and the scratch numbers are the
     /// step arena's capacity and last high-water mark. The step
     /// itself allocates nothing else.
     typedef struct m3MemoryUsage
@@ -706,9 +711,8 @@ extern "C"
     /// fail: for the whole call the replay holds a snapshot of the
     /// world (m3World_SnapshotSize bytes) and a second copy of its
     /// mesh and height field content and mesh trees (about
-    /// contentBytes of m3World_GetMemoryUsage), every live voxel
-    /// chunk's surface, and arrays sized by the mesh, shape and voxel
-    /// capacities. A tape that fits a tight allocator without that
+    /// contentBytes of m3World_GetMemoryUsage) and arrays sized by the
+    /// mesh, shape and voxel capacities. A tape that fits a tight allocator without that
     /// headroom is refused with m3_errorCapacity before any op runs.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
                                                        int32_t size);

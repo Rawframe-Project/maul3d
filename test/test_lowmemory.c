@@ -255,6 +255,81 @@ static void TestCreateUnderBudget(void)
                 "the created chunk's tree answers");
 }
 
+// One voxel edit on the slab, with a pillar of two voxels at (3, 1..2, 3)
+// that a clear under it fractures away. kOverSlab looks down at voxel
+// (4, 0, 4), which no edit touches.
+static void VoxelEdit(m3World* world, m3ShapeId slab, int32_t edit)
+{
+    static const int32_t boxLo[3] = {8, 0, 8};
+    static const int32_t boxHi[3] = {9, 0, 9};
+    m3ExplosionDef blast = m3DefaultExplosionDef();
+    switch (edit)
+    {
+    case 0:
+        m3VoxelChunk_SetVoxel(world, slab, 6, 1, 6, 7);
+        break;
+    case 1:
+        m3VoxelChunk_ClearVoxel(world, slab, 0, 0, 0);
+        break;
+    case 2:
+        (void)m3VoxelChunk_ClearBox(world, slab, boxLo, boxHi);
+        break;
+    case 3:
+        m3VoxelChunk_ClearVoxel(world, slab, 3, 1, 3); // the pillar's top fractures
+        break;
+    default:
+        blast.position = (m3Pos3){10.0, 0.25, 7.5};
+        blast.radius = 0.5f;
+        blast.falloff = 0.0f;
+        blast.voxelCarve = 1.0f;
+        m3World_Explode(world, &blast);
+        break;
+    }
+}
+
+// Sweeps each voxel edit from a budget of zero blocks up. An edit either
+// refuses, with the world's hash as it was, no misuse counted and nothing
+// on the journal, or lands with the chunk's tree still answering a ray.
+// A rebuild once took the tree's arrays from the allocator, and a refusal
+// left the edited grid with an empty tree that answered nothing.
+static void TestVoxelEditsUnderBudget(void)
+{
+    static const char* const names[5] = {"a voxel set", "a voxel clear", "a box clear",
+                                         "a clear that fractures", "an explosion's carve"};
+    static uint8_t tape[4096];
+    for (int32_t edit = 0; edit < 5; ++edit)
+    {
+        bool whole = true;
+        int32_t landed = 0;
+        for (int32_t n = 0; n < 8; ++n)
+        {
+            Budget budget = {-1};
+            m3BodyId body;
+            m3World* world = CreateWorld(&budget, true, false, &body);
+            m3ShapeId slab = m3_nullShapeId;
+            CHECK(CreateSlab(world, body, &slab) == m3_success, "the slab creates");
+            m3VoxelChunk_SetVoxel(world, slab, 3, 1, 3, 1);
+            m3VoxelChunk_SetVoxel(world, slab, 3, 2, 3, 1);
+            uint64_t hash = m3World_Hash(world);
+            uint64_t misuse = m3World_GetCounters(world).misuse;
+            CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+            budget.left = n;
+            VoxelEdit(world, slab, edit);
+            budget.left = -1;
+            int32_t journaled = StopJournal(world);
+            bool refused = m3World_Hash(world) == hash;
+            landed += refused ? 0 : 1;
+            whole =
+                whole && (refused ? journaled == 0 && m3World_GetCounters(world).misuse == misuse
+                                  : RayStrikes(world, kOverSlab, slab));
+            m3DestroyWorld(world);
+        }
+        printf("M3_LOWMEM_VOXEL %s: %s, landed at %d of 8 budgets\n", names[edit],
+               whole ? "whole" : "BROKEN", landed);
+        CHECK(whole, "a voxel edit refuses whole or leaves a tree that answers");
+    }
+}
+
 static void TestReplayUnderBudget(void)
 {
     // A tape whose ops take memory: a mesh floor, a voxel slab, a tree
@@ -326,6 +401,7 @@ int main(void)
 {
     TestRestoreUnderBudget();
     TestCreateUnderBudget();
+    TestVoxelEditsUnderBudget();
     TestReplayUnderBudget();
     if (s_failures == 0)
     {

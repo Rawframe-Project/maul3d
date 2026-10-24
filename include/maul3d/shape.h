@@ -263,6 +263,15 @@ extern "C"
     /// shape that collides with nothing (the natural end state of
     /// destruction).
     ///
+    /// A chunk's surface holds at most 2048 merged boxes, the
+    /// checkerboard's count; the slot reserved that much when its
+    /// first chunk was created, so no edit asks the allocator. An
+    /// edit whose surface would pass the bound changes nothing,
+    /// journals nothing and counts no misuse: it counts in
+    /// m3Counters.voxelEditsRefused instead, and m3VoxelChunk_ClearBox
+    /// returns -1. A create whose grid passes it is refused with
+    /// m3_errorCapacity.
+    ///
     /// The anchor convention: an island is anchored through the
     /// CHUNK's y = 0 base layer, not through world ground. Build
     /// structures at their chunk's base; a floating platform is a
@@ -276,7 +285,8 @@ extern "C"
                                         int32_t z);
     /// Clears the inclusive box [lo, hi] per axis. Returns the
     /// number of voxels that were actually cleared (zero is legal),
-    /// or -1 on a stale id, a non-voxel shape, or a bad region.
+    /// or -1 on a stale id, a non-voxel shape, a bad region, or a
+    /// surface past the box bound.
     M3_API int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
                                          const int32_t hi[3]);
     /// Fill fraction: 255 is a whole voxel, 1 a sliver. A

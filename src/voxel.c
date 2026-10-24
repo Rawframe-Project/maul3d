@@ -78,20 +78,45 @@ static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
 #define ASSERT_FILLED_COUNT(chunk) ((void)(chunk))
 #endif
 
+// The midphase over the merged boxes, built into the slot's own tree
+// storage.
+static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surface, m3real cell)
+{
+    if (surface->boxCount == 0)
+    {
+        return; // an empty chunk keeps the empty tree, which gathers nothing
+    }
+    // Bounds per merged box, in chunk-frame meters.
+    m3Vec3 los[M3_VOXEL_MAX_BOXES];
+    m3Vec3 his[M3_VOXEL_MAX_BOXES];
+    for (int32_t b = 0; b < surface->boxCount; ++b)
+    {
+        los[b] = (m3Vec3){(m3real)surface->boxLo[b][0] * cell, (m3real)surface->boxLo[b][1] * cell,
+                          (m3real)surface->boxLo[b][2] * cell};
+        his[b] = (m3Vec3){(m3real)(surface->boxHi[b][0] + 1) * cell,
+                          (m3real)(surface->boxHi[b][1] + 1) * cell,
+                          (m3real)(surface->boxHi[b][2] + 1) * cell};
+    }
+    uint8_t* tree = (uint8_t*)world->voxels.voxelTrees[slot];
+    M3_ASSERT(tree != NULL); // taken when the chunk landed
+    surface->bvh.nodes = (m3MeshBvhNode*)tree;
+    surface->bvh.order = (uint16_t*)(tree + 2 * M3_VOXEL_MAX_BOXES * sizeof(m3MeshBvhNode));
+    m3MeshBvhBuildIn(&surface->bvh, world->voxels.voxelTreeScratch, los, his, surface->boxCount);
+}
+
 // The greedy merge: scan in canonical order (x fastest, then y,
 // then z); from each unclaimed filled voxel grow a run along x,
 // widen it along y, then deepen it along z, claiming as it goes.
 // Deterministic by the fixed scan and growth order; maximal in the
 // greedy sense (not globally optimal, which is NP-hard and
 // unnecessary).
-bool m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
+//
+// Writes the boxes to surface unless it is NULL, and returns how many
+// there are, or -1 as soon as one more would pass limit, with no box
+// written past it.
+static int32_t MergeBoxes(const m3VoxelChunkData* chunk, m3VoxelSurface* surface, int32_t limit)
 {
-    ASSERT_FILLED_COUNT(chunk);
-    // The embedded BVH owns heap arrays: release them before the wipe or the
-    // rebuild leaks the previous build. The surface must be zeroed or a
-    // previous build; garbage pointers here are the caller's crash.
-    m3MeshBvhFree(heap, &surface->bvh);
-    memset(surface, 0, sizeof(*surface));
+    int32_t count = 0;
     uint8_t claimed[M3_VOXEL_COUNT];
     memset(claimed, 0, sizeof(claimed));
 
@@ -168,34 +193,54 @@ bool m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChu
                         }
                     }
                 }
-                int32_t b = surface->boxCount;
-                M3_ASSERT(b < M3_VOXEL_MAX_BOXES); // 2048 = the exact
-                                                   // isolated-voxel
-                                                   // worst case
-                surface->boxLo[b][0] = (uint8_t)x;
-                surface->boxLo[b][1] = (uint8_t)y;
-                surface->boxLo[b][2] = (uint8_t)z;
-                surface->boxHi[b][0] = (uint8_t)x2;
-                surface->boxHi[b][1] = (uint8_t)y2;
-                surface->boxHi[b][2] = (uint8_t)z2;
-                surface->boxCount = b + 1;
+                if (count == limit)
+                {
+                    return -1;
+                }
+                if (surface != NULL)
+                {
+                    surface->boxLo[count][0] = (uint8_t)x;
+                    surface->boxLo[count][1] = (uint8_t)y;
+                    surface->boxLo[count][2] = (uint8_t)z;
+                    surface->boxHi[count][0] = (uint8_t)x2;
+                    surface->boxHi[count][1] = (uint8_t)y2;
+                    surface->boxHi[count][2] = (uint8_t)z2;
+                }
+                count += 1;
             }
         }
     }
 
-    // The midphase: bounds per merged box, in chunk-frame meters.
-    m3Vec3 los[M3_VOXEL_MAX_BOXES];
-    m3Vec3 his[M3_VOXEL_MAX_BOXES];
-    m3real cell = chunk->cellSize;
-    for (int32_t b = 0; b < surface->boxCount; ++b)
+    return count;
+}
+
+bool m3VoxelSurfaceFits(const m3World* world, const m3VoxelChunkData* chunk)
+{
+    return MergeBoxes(chunk, NULL, world->voxels.voxelBoxLimit) >= 0;
+}
+
+bool m3VoxelTreeReserve(m3World* world, int32_t slot)
+{
+    if (world->voxels.voxelTrees[slot] == NULL)
     {
-        los[b] = (m3Vec3){(m3real)surface->boxLo[b][0] * cell, (m3real)surface->boxLo[b][1] * cell,
-                          (m3real)surface->boxLo[b][2] * cell};
-        his[b] = (m3Vec3){(m3real)(surface->boxHi[b][0] + 1) * cell,
-                          (m3real)(surface->boxHi[b][1] + 1) * cell,
-                          (m3real)(surface->boxHi[b][2] + 1) * cell};
+        world->voxels.voxelTrees[slot] = m3AllocZeroed(&world->heap, M3_VOXEL_TREE_BYTES);
     }
-    return m3MeshBvhBuildBounds(heap, &surface->bvh, los, his, surface->boxCount);
+    return world->voxels.voxelTrees[slot] != NULL;
+}
+
+void m3VoxelSurfaceBuild(m3World* world, int32_t slot)
+{
+    const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
+    m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+    ASSERT_FILLED_COUNT(chunk);
+    memset(surface, 0, sizeof(*surface));
+    // The limit never passes the storage, so no build writes past it; a
+    // grid that would pass the limit never lands (m3VoxelSurfaceFits).
+    int32_t limit = world->voxels.voxelBoxLimit;
+    int32_t count = MergeBoxes(chunk, surface, limit);
+    M3_ASSERT(count >= 0);
+    surface->boxCount = count >= 0 ? count : limit;
+    BuildSurfaceTree(world, slot, surface, chunk->cellSize);
 }
 
 // Chunk-frame bounds of one merged box.
@@ -355,25 +400,66 @@ static bool VoxelCoordsValid(int32_t x, int32_t y, int32_t z)
     return x >= 0 && x < M3_VOXEL_DIM && y >= 0 && y < M3_VOXEL_DIM && z >= 0 && z < M3_VOXEL_DIM;
 }
 
+// An edit lands in the world's staging copy of the chunk first: one whose
+// surface would pass the box limit is refused before anything changes,
+// counted and journaled by no one. Otherwise the copy lands, and the
+// surface, the fracture sweep and the seam coverage follow it.
+static m3VoxelChunkData* StageChunk(m3World* world, int32_t slot)
+{
+    m3VoxelChunkData* stage = world->voxels.voxelStage;
+    *stage = world->voxels.voxelData[slot];
+    return stage;
+}
+
+static bool LandStaged(m3World* world, int32_t shape, int32_t slot, bool fracture)
+{
+    if (!m3VoxelSurfaceFits(world, world->voxels.voxelStage))
+    {
+        world->voxels.voxelEditsRefused += 1;
+        return false;
+    }
+    world->voxels.voxelData[slot] = *world->voxels.voxelStage;
+    m3VoxelSurfaceBuild(world, slot);
+    if (fracture)
+    {
+        m3VoxelFractureSweep(world, shape);
+    }
+    m3VoxelCoverageRefreshAround(world, slot);
+    return true;
+}
+
+static void ClearCell(m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z)
+{
+    int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
+    chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
+    chunk->payload[v] = 0;
+    chunk->fill[v] = 0;
+}
+
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload)
 {
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
-    bool wasFilled = m3VoxelGet(chunk, x, y, z);
-    chunk->occupancy[v >> 3] |= (uint8_t)(1u << (v & 7));
-    chunk->payload[v] = payload;
-    chunk->fill[v] = 255; // a set voxel is a whole voxel
-    if (!wasFilled)
+    if (m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
+        // Payload only: the surface is a pure function of occupancy and
+        // cell size, never of payload, so it stays.
+        world->voxels.voxelData[slot].payload[v] = payload;
+        world->voxels.voxelData[slot].fill[v] = 255; // a set voxel is a whole voxel
+    }
+    else
+    {
+        m3VoxelChunkData* chunk = StageChunk(world, slot);
+        chunk->occupancy[v >> 3] |= (uint8_t)(1u << (v & 7));
+        chunk->payload[v] = payload;
+        chunk->fill[v] = 255;
         chunk->filledCount += 1;
-        // Occupancy changed: the surface is stale. A payload-only
-        // set falls through (the surface is a pure function of
-        // occupancy and cell size, never of payload). No fracture
-        // sweep here: adding a voxel can only CONNECT islands.
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
-        m3VoxelCoverageRefreshAround(world, slot);
+        // No fracture sweep: adding a voxel can only CONNECT islands.
+        if (!LandStaged(world, shape, slot, false))
+        {
+            return false;
+        }
     }
     int32_t lo[3] = {x, y, z};
     VoxelWakeRegion(world, shape, lo, lo);
@@ -383,17 +469,15 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
 bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z)
 {
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
-    int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
-    if (m3VoxelGet(chunk, x, y, z))
+    if (m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
-        chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
-        chunk->payload[v] = 0;
-        chunk->fill[v] = 0;
+        m3VoxelChunkData* chunk = StageChunk(world, slot);
+        ClearCell(chunk, x, y, z);
         chunk->filledCount -= 1;
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
-        m3VoxelFractureSweep(world, shape);
-        m3VoxelCoverageRefreshAround(world, slot);
+        if (!LandStaged(world, shape, slot, true))
+        {
+            return false;
+        }
     }
     int32_t lo[3] = {x, y, z};
     VoxelWakeRegion(world, shape, lo, lo);
@@ -404,7 +488,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
                                 const int32_t hi[3])
 {
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
+    m3VoxelChunkData* chunk = StageChunk(world, slot);
     int32_t cleared = 0;
     for (int32_t z = lo[2]; z <= hi[2]; ++z)
     {
@@ -414,10 +498,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
             {
                 if (m3VoxelGet(chunk, x, y, z))
                 {
-                    int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
-                    chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
-                    chunk->payload[v] = 0;
-                    chunk->fill[v] = 0;
+                    ClearCell(chunk, x, y, z);
                     cleared += 1;
                 }
             }
@@ -426,9 +507,10 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
-        m3VoxelFractureSweep(world, shape);
-        m3VoxelCoverageRefreshAround(world, slot);
+        if (!LandStaged(world, shape, slot, true))
+        {
+            return -1;
+        }
     }
     VoxelWakeRegion(world, shape, lo, hi);
     return cleared;
@@ -458,7 +540,7 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     // surface rebuild and ONE fracture sweep for the whole bite,
     // the ClearBox economy. Cell (x,y,z) spans [x, x+1) * cellSize.
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
+    m3VoxelChunkData* chunk = StageChunk(world, slot);
     m3real cell = chunk->cellSize;
     int32_t lo[3];
     int32_t hi[3];
@@ -491,10 +573,7 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
                 {
                     continue;
                 }
-                int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
-                chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
-                chunk->payload[v] = 0;
-                chunk->fill[v] = 0;
+                ClearCell(chunk, x, y, z);
                 cleared += 1;
             }
         }
@@ -502,9 +581,10 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
-        m3VoxelFractureSweep(world, shape);
-        m3VoxelCoverageRefreshAround(world, slot);
+        if (!LandStaged(world, shape, slot, true))
+        {
+            return -1;
+        }
     }
     VoxelWakeRegion(world, shape, lo, hi);
     return cleared;
@@ -541,6 +621,10 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
         m3Refuse(world, m3_errorInvalid);
         return;
     }
+    if (!m3VoxelSetInternal(world, index, x, y, z, payload))
+    {
+        return; // the surface would pass the box limit: counted, nothing changed
+    }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelSet record;
@@ -552,7 +636,6 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
         record.payload = payload;
         m3JournalRecord(world, m3_opVoxelSet, &record, (int32_t)sizeof(record));
     }
-    m3VoxelSetInternal(world, index, x, y, z, payload);
 }
 
 void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
@@ -581,6 +664,10 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
         m3Refuse(world, m3_errorInvalid);
         return;
     }
+    if (!m3VoxelClearInternal(world, index, x, y, z))
+    {
+        return; // the surface would pass the box limit: counted, nothing changed
+    }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelClear record;
@@ -591,7 +678,6 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
         record.z = z;
         m3JournalRecord(world, m3_opVoxelClear, &record, (int32_t)sizeof(record));
     }
-    m3VoxelClearInternal(world, index, x, y, z);
 }
 
 void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
@@ -673,6 +759,11 @@ static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId sh
             return -1; // a region out of the chunk or inverted
         }
     }
+    int32_t cleared = m3VoxelClearBoxInternal(world, index, lo, hi);
+    if (cleared < 0)
+    {
+        return -1; // the surface would pass the box limit: counted, nothing changed
+    }
     if (world->recorder.journalActive != 0)
     {
         m3OpVoxelClearBox record;
@@ -685,7 +776,7 @@ static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId sh
         }
         m3JournalRecord(world, m3_opVoxelClearBox, &record, (int32_t)sizeof(record));
     }
-    return m3VoxelClearBoxInternal(world, index, lo, hi);
+    return cleared;
 }
 
 int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],

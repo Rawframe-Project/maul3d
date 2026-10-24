@@ -14,13 +14,20 @@
 
 #include <string.h>
 
+// The build's scratch: each item's bounds and centroid and the merge
+// sort's buffer, views into one block of m3MeshBvhScratchBytes(count).
 typedef struct BvhScratch
 {
-    m3Vec3 triLo[M3_MESH_MAX_TRIS];
-    m3Vec3 triHi[M3_MESH_MAX_TRIS];
-    m3Vec3 centroid[M3_MESH_MAX_TRIS];
-    uint16_t tmp[M3_MESH_MAX_TRIS];
+    m3Vec3* triLo;
+    m3Vec3* triHi;
+    m3Vec3* centroid;
+    uint16_t* tmp;
 } BvhScratch;
+
+int32_t m3MeshBvhScratchBytes(int32_t count)
+{
+    return count * (3 * (int32_t)sizeof(m3Vec3) + (int32_t)sizeof(uint16_t));
+}
 
 static m3real CentroidAxis(const BvhScratch* scratch, uint16_t tri, int32_t axis)
 {
@@ -174,6 +181,32 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh)
     memset(bvh, 0, sizeof(*bvh));
 }
 
+void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratchBlock, const m3Vec3* los, const m3Vec3* his,
+                      int32_t count)
+{
+    M3_ASSERT(count > 0 && count <= M3_MESH_MAX_TRIS);
+    BvhScratch scratch;
+    scratch.triLo = (m3Vec3*)scratchBlock;
+    scratch.triHi = scratch.triLo + count;
+    scratch.centroid = scratch.triHi + count;
+    scratch.tmp = (uint16_t*)(scratch.centroid + count);
+    bvh->nodeCount = 0;
+    for (int32_t t = 0; t < count; ++t)
+    {
+        m3Vec3 lo = los[t];
+        m3Vec3 hi = his[t];
+        scratch.triLo[t] = lo;
+        scratch.triHi[t] = hi;
+        // The arithmetic mean of the box corners: cheap, deterministic,
+        // and only a split heuristic (never a correctness input).
+        scratch.centroid[t] =
+            (m3Vec3){0.5f * (lo.x + hi.x), 0.5f * (lo.y + hi.y), 0.5f * (lo.z + hi.z)};
+        bvh->order[t] = (uint16_t)t;
+    }
+    SetQuantFrame(bvh, los, his, count);
+    BuildRange(bvh, &scratch, 0, count);
+}
+
 bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
                           int32_t count)
 {
@@ -186,7 +219,7 @@ bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const
     }
     bvh->nodes = (m3MeshBvhNode*)m3AllocZeroed(heap, 2 * count * (int32_t)sizeof(m3MeshBvhNode));
     bvh->order = (uint16_t*)m3AllocZeroed(heap, count * (int32_t)sizeof(uint16_t));
-    BvhScratch* scratch = (BvhScratch*)m3AllocZeroed(heap, (int32_t)sizeof(BvhScratch));
+    void* scratch = m3AllocZeroed(heap, m3MeshBvhScratchBytes(count));
     if (bvh->nodes == NULL || bvh->order == NULL || scratch == NULL)
     {
         // An empty tree gathers nothing, so the caller must not keep it.
@@ -194,20 +227,7 @@ bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const
         m3MeshBvhFree(heap, bvh);
         return false;
     }
-    for (int32_t t = 0; t < count; ++t)
-    {
-        m3Vec3 lo = los[t];
-        m3Vec3 hi = his[t];
-        scratch->triLo[t] = lo;
-        scratch->triHi[t] = hi;
-        // The arithmetic mean of the box corners: cheap, deterministic,
-        // and only a split heuristic (never a correctness input).
-        scratch->centroid[t] =
-            (m3Vec3){0.5f * (lo.x + hi.x), 0.5f * (lo.y + hi.y), 0.5f * (lo.z + hi.z)};
-        bvh->order[t] = (uint16_t)t;
-    }
-    SetQuantFrame(bvh, los, his, count);
-    BuildRange(bvh, scratch, 0, count);
+    m3MeshBvhBuildIn(bvh, scratch, los, his, count);
     m3Free(heap, scratch);
     return true;
 }

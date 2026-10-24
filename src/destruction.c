@@ -90,7 +90,9 @@ static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
         m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(m3real)(def->position.x - vxf.p.x),
                                                         (m3real)(def->position.y - vxf.p.y),
                                                         (m3real)(def->position.z - vxf.p.z)});
-        m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
+        // A carve whose surface would pass the box limit leaves the chunk
+        // as it was and is counted; the blast's impulses go on.
+        (void)m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
     }
 }
 

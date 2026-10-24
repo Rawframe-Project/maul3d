@@ -237,18 +237,26 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
     }
     case m3_voxelShape:
     {
+        // A chunk whose surface passes the box limit has no room in the
+        // slot's tree, and the slot's first chunk reserves that tree.
+        if (!m3VoxelSurfaceFits(world, content->voxels))
+        {
+            return false;
+        }
         int32_t v = m3IdPoolAlloc(&world->voxels.voxelPool);
         if (v < 0)
         {
             return false;
         }
-        world->voxels.voxelData[v] = *content->voxels;
+        // From here a failure leaves the slot to UndoShapeCreate; a tree
+        // the slot reserved stays with the slot.
         sh->shapeVoxelIndex[index] = v;
-        if (!m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
-                                 &world->voxels.voxelData[v]))
+        if (!m3VoxelTreeReserve(world, v))
         {
-            return false; // UndoShapeCreate rewinds the slot
+            return false;
         }
+        world->voxels.voxelData[v] = *content->voxels;
+        m3VoxelSurfaceBuild(world, v);
         world->voxels.voxelRefCounts[v] = 1;
         world->voxels.voxelShape[v] = index;
         // A new chunk can weld to existing ones and change their border
@@ -315,7 +323,6 @@ static void ReleaseShapeContent(m3World* world, int32_t index)
     if (v >= 0 && --world->voxels.voxelRefCounts[v] == 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         m3IdPoolFree(&world->voxels.voxelPool, v);
@@ -368,7 +375,6 @@ static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMark
     if (v >= 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         world->voxels.voxelRefCounts[v] = 0;
