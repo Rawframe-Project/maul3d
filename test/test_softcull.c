@@ -41,6 +41,7 @@ static m3World* SceneWorld(bool cullOff)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
+    def.voxelCapacity = 16;
     def.softBodyCapacity = MAX_PROBES;
     m3World* world = NewWorld(&def);
     world->softBodies.softCullOff = cullOff ? 1 : 0;
@@ -251,6 +252,80 @@ static void HeightFieldScene(m3World* world, Probe* probe)
     }
 }
 
+// The bounding sphere is tight only at a few points of each kind: a
+// capsule's tips, a voxel chunk's corners, a height field's box corners.
+// These scenes give each such point its own shape, spread out so no two
+// probes touch, and put one probe on the sphere's radius through it at
+// the bound plus the particle radius, moved by k float ulps of that
+// distance. A cull that drops the radius or the margin skips a probe the
+// projection moves.
+enum
+{
+    TIGHT_PROBES = 13
+};
+
+static void CapsuleTipScene(m3World* world, Probe* probe)
+{
+    // Off the body's origin, so the projection rounds on the offset's
+    // magnitude as a capsule placed in a body usually does.
+    m3Capsule capsule = {{2.5f, -1.5f, 1.0f}, {3.5f, -1.5f, 1.0f}, 0.3f};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3real r = 0.04f;
+    for (int32_t i = 0; i < TIGHT_PROBES; ++i)
+    {
+        m3Pos3 p = {-20.0 + 6.0 * i, 6.0, -9.0};
+        m3Quat q = Turn((m3Vec3){0.3f, 1.0f, 0.6f}, 0.4f + 0.37f * (float)i);
+        NewCapsuleShape(world, StaticBody(world, p, q), &sd, &capsule);
+        m3Pos3 center = WorldPoint(p, q, (m3Vec3){3.0f, -1.5f, 1.0f});
+        m3Vec3 tip = m3RotateVec3(q, (m3Vec3){i % 2 == 0 ? 1.0f : -1.0f, 0.0f, 0.0f});
+        AddProbe(world, probe, Along(center, tip, Ulps(0.5 + 0.3 + 0.04, i - 6)), r);
+    }
+}
+
+static void VoxelCornerScene(m3World* world, Probe* probe)
+{
+    // The chunk's two corner cells filled: its far corner and its origin
+    // are on the bounding sphere.
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    memset(voxels, 0, sizeof(voxels));
+    voxels[0] = 1;
+    voxels[M3_VOXEL_COUNT - 1] = 1;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3real r = 0.06f;
+    for (int32_t i = 0; i < TIGHT_PROBES; ++i)
+    {
+        m3Pos3 p = {-100.0 + 16.0 * i, -30.0, 20.0};
+        m3Quat q = Turn((m3Vec3){1.0f, 0.4f, -0.2f}, 0.3f + 0.41f * (float)i);
+        NewVoxelChunkShape(world, StaticBody(world, p, q), &sd, voxels, NULL, 0.5f);
+        m3Pos3 center = WorldPoint(p, q, (m3Vec3){4.0f, 4.0f, 4.0f});
+        m3Vec3 out = m3RotateVec3(q, i % 2 == 0 ? (m3Vec3){1.0f, 1.0f, 1.0f}
+                                                : (m3Vec3){-1.0f, -1.0f, -1.0f});
+        AddProbe(world, probe, Along(center, out, Ulps(4.0 * sqrt(3.0) + 0.06, i - 6)), r);
+    }
+}
+
+static void HeightFieldCornerScene(m3World* world, Probe* probe)
+{
+    // Flat at 0 but for a peak of 3 at the far corner sample: the field's
+    // box is [0, 3] on every axis, and the corner at the minimum height
+    // and the peak at the maximum are both on the bounding sphere. Out
+    // along the sphere's radius, each corner is the closest point.
+    static const float heights[16] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 3.0f};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3real r = 0.05f;
+    for (int32_t i = 0; i < TIGHT_PROBES; ++i)
+    {
+        m3Pos3 p = {30.0 + 6.0 * i, -12.0, -40.0};
+        m3Quat q = Turn((m3Vec3){0.0f, 1.0f, 0.0f}, 0.2f + 0.45f * (float)i);
+        NewHeightFieldGridShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
+        m3Pos3 center = WorldPoint(p, q, (m3Vec3){1.5f, 1.5f, 1.5f});
+        m3Vec3 out = m3RotateVec3(q, i % 2 == 0 ? (m3Vec3){1.0f, 1.0f, 1.0f}
+                                                : (m3Vec3){-1.0f, -1.0f, -1.0f});
+        AddProbe(world, probe, Along(center, out, Ulps(1.5 * sqrt(3.0) + 0.05, i - 6)), r);
+    }
+}
+
 // A box's projection threshold: its convex radius s plus the particle's.
 static double BoxThreshold(const m3World* world, m3ShapeId box, m3real r)
 {
@@ -449,6 +524,9 @@ int main(void)
     CheckScene("voxel", VoxelScene, true, false, 1);
     CheckScene("mesh", MeshScene, true, false, 1);
     CheckScene("height field", HeightFieldScene, true, false, 1);
+    CheckScene("capsule tips", CapsuleTipScene, true, false, 1);
+    CheckScene("voxel corners", VoxelCornerScene, true, false, 1);
+    CheckScene("height field corners", HeightFieldCornerScene, true, false, 1);
     CheckScene("box", BoxScene, true, false, 1);
     CheckScene("far box", FarBoxScene, true, false, 1);
     CheckScene("spike", SpikeScene, true, false, 1);
