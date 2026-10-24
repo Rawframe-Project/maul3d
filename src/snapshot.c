@@ -301,9 +301,22 @@ m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, 
     return m3_success;
 }
 
-// The rules a mesh create enforces, read from one slot's content in the
-// buffer: finite vertices, indices into them, a material count in range.
-// The BVH build and every contact index the vertices through these.
+static bool BytesZero(const uint8_t* bytes, size_t count)
+{
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (bytes[i] != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The rules a mesh create and its paint enforce, read from one slot's
+// content in the buffer: finite vertices, indices into them, and paint
+// that passes the material wall. The BVH build and every contact index
+// the vertices through these, and contacts mix the paint into friction.
 static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
 {
     for (int32_t i = 0; i < vc; ++i)
@@ -325,9 +338,26 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
             return false;
         }
     }
+    // Paint as m3Shape_SetMeshMaterials leaves it: the same wall, with the
+    // table entries past the count zero, or no paint at all with every
+    // entry and group byte zero.
+    const uint8_t* paint = indices + 7 * (size_t)tc;
     int32_t materialCount;
-    memcpy(&materialCount, indices + 7 * (size_t)tc, sizeof(materialCount));
-    return materialCount >= 0 && materialCount <= M3_MESH_MAX_MATERIALS;
+    memcpy(&materialCount, paint, sizeof(materialCount));
+    const uint8_t* table = paint + sizeof(materialCount);
+    m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
+    memcpy(materials, table, sizeof(materials));
+    const uint8_t* groups = table + sizeof(materials);
+    if (materialCount != 0 && !m3MeshMaterialsValid(materials, materialCount, groups, tc))
+    {
+        return false;
+    }
+    size_t used = (size_t)materialCount * sizeof(m3MeshSurfaceMaterial);
+    if (!BytesZero(table + used, sizeof(materials) - used))
+    {
+        return false;
+    }
+    return materialCount != 0 || BytesZero(groups, (size_t)tc);
 }
 
 // The variable-size tail (mesh, hull and heightfield content) parsed
@@ -620,19 +650,22 @@ static void CommitRestore(m3World* world, const uint8_t* raw, RestoreStage* stag
         M3_ASSERT(landed); // the counts were checked before the stage
         (void)landed;
     }
-    for (int32_t m = 0; m < world->meshes.meshCapacity; ++m)
+    // A stage array is NULL only for a pool of capacity zero, which the
+    // loops then never enter.
+    for (int32_t m = 0;
+         stage->meshes != NULL && stage->meshBvhs != NULL && m < world->meshes.meshCapacity; ++m)
     {
         m3MeshDataFree(heap, &world->meshes.meshData[m]);
         world->meshes.meshData[m] = stage->meshes[m];
         m3MeshBvhFree(heap, &world->meshes.meshBvh[m]);
         world->meshes.meshBvh[m] = stage->meshBvhs[m];
     }
-    for (int32_t h = 0; h < world->shapes.shapeCapacity; ++h)
+    for (int32_t h = 0; stage->heightFields != NULL && h < world->shapes.shapeCapacity; ++h)
     {
         m3HeightFieldDataFree(heap, &world->heightFields.hfData[h]);
         world->heightFields.hfData[h] = stage->heightFields[h];
     }
-    for (int32_t v = 0; v < world->voxels.voxelCapacity; ++v)
+    for (int32_t v = 0; stage->surfaces != NULL && v < world->voxels.voxelCapacity; ++v)
     {
         m3MeshBvhFree(heap, &world->voxels.voxelSurface[v].bvh);
         world->voxels.voxelSurface[v] = stage->surfaces[v];

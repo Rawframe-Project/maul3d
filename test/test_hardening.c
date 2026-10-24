@@ -254,8 +254,10 @@ static int32_t FindBytes(const uint8_t* buffer, int32_t size, const void* patter
 }
 
 // A restore lands mesh content only when it is content a mesh create
-// would take: a triangle index past the vertices or a vertex that is
-// not finite is refused as invalid before the BVH build reads either.
+// and m3Shape_SetMeshMaterials would take: a triangle index past the
+// vertices, a vertex that is not finite, a material the paint wall
+// refuses or a group past the material count is refused as invalid
+// before the BVH build or a contact reads it.
 static void TestRestoreRefusesBadMeshContent(void)
 {
     static const m3Vec3 verts[4] = {
@@ -267,7 +269,13 @@ static void TestRestoreRefusesBadMeshContent(void)
     m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     m3ShapeDef sd = m3DefaultShapeDef();
-    NewMeshShape(world, NewBody(world, &bd), &sd, verts, 4, tris, 2);
+    m3ShapeId floor = NewMeshShape(world, NewBody(world, &bd), &sd, verts, 4, tris, 2);
+    m3MeshSurfaceMaterial paint[2];
+    memset(paint, 0, sizeof(paint));
+    paint[0].friction = 0.37f;
+    paint[1].friction = 0.61f;
+    uint8_t groups[2] = {0, 1};
+    m3Shape_SetMeshMaterials(world, floor, paint, 2, groups);
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
@@ -277,7 +285,12 @@ static void TestRestoreRefusesBadMeshContent(void)
           "the mesh world is snapshotted");
     int32_t indicesAt = FindBytes(clean, size, tris, (int32_t)sizeof(tris));
     int32_t vertexAt = FindBytes(clean, size, &verts[1], (int32_t)sizeof(m3Vec3));
-    CHECK(indicesAt >= 0 && vertexAt >= 0, "the mesh content is found");
+    int32_t paintAt = FindBytes(clean, size, paint, (int32_t)sizeof(paint));
+    // The group bytes follow the eight-entry material table.
+    int32_t groupsAt = paintAt + 8 * (int32_t)sizeof(m3MeshSurfaceMaterial);
+    CHECK(indicesAt >= 0 && vertexAt >= 0 && paintAt >= 0 && groupsAt + 2 <= size &&
+              memcmp(clean + groupsAt, groups, sizeof(groups)) == 0,
+          "the mesh content is found");
 
     memcpy(poisoned, clean, (size_t)size);
     uint16_t past = 200;
@@ -294,6 +307,31 @@ static void TestRestoreRefusesBadMeshContent(void)
           "a vertex that is not finite is refused as invalid");
     CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
           "and the world is untouched again");
+
+    struct
+    {
+        int32_t at;
+        float friction;
+        uint8_t group;
+        const char* msg;
+    } kPaint[3] = {{paintAt, NAN, 0, "a material with a NaN friction is refused as invalid"},
+                   {paintAt, -1.0f, 0, "a material with a negative friction is refused as invalid"},
+                   {groupsAt, 0.0f, 2, "a group past the material count is refused as invalid"}};
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        memcpy(poisoned, clean, (size_t)size);
+        if (kPaint[i].at == paintAt)
+        {
+            memcpy(poisoned + paintAt, &kPaint[i].friction, sizeof(float));
+        }
+        else
+        {
+            poisoned[groupsAt + 1] = kPaint[i].group;
+        }
+        CHECK(m3World_Restore(world, poisoned, size) == m3_errorInvalid, kPaint[i].msg);
+        CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+              "and the paint is untouched");
+    }
     free(after);
     free(poisoned);
     free(clean);
