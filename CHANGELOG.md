@@ -6,17 +6,76 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [0.2.0](https://github.com/Rawframe-Project/maul3d/compare/v0.1.1...v0.2.0) (2026-10-24)
+## [0.2.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.0) (2026-10-24)
 
+### Added
 
-### ⚠ BREAKING CHANGES
+- **32-bit x86 builds.** The `linux-i686-gcc-14` and
+  `linux-i686-clang-20` presets build for i686 with
+  `-m32 -msse2 -mfpmath=sse`, and CI runs both. A host's own i686 build
+  needs those flags too: the library refuses to build with x87 float
+  arithmetic. `base.h` adds `M3_ALIGN8`, which the public headers use to
+  give 64-bit members 8-byte alignment.
+  ([#41](https://github.com/Rawframe-Project/maul3d/pull/41),
+  [#44](https://github.com/Rawframe-Project/maul3d/pull/44))
 
-* on 32-bit x86 the public ABI changes. The doubles and 64-bit integers of m3Pos3, m3QueryFilter and the body, character, soft body, vehicle and shape defs are now 8-byte aligned there, as on every other target. These public structs change size there: m3BodyDef (108 to 120 bytes), m3CharacterDef (68 to 72), m3ShapeDef (92 to 104), m3VehicleDef (460 to 464), m3WaterVolumeDef (76 to 80), m3JointDef (216 to 224), m3RayCastResult (52 to 56), m3BodyMoveEvent (52 to 56) and m3FragmentEvent (68 to 72). Every other public struct that holds an aligned member keeps its size and changes only its alignment, from 4 to 8. i686 hosts must rebuild against the new headers. An i686 tape recorded before this change is refused with m3_errorInvalid when it holds one of the twelve records whose size changed; i686 snapshots still load. On x86-64, arm64, Windows and wasm nothing changes: existing tapes and snapshots still load, and only a tape's padding bytes are now always zero.
+### Changed
+
+- **Breaking, on 32-bit x86 only: the public ABI.** i686 hosts must
+  rebuild against the new headers. The doubles and 64-bit integers of
+  `m3Pos3`, `m3QueryFilter` and the body, character, soft body, vehicle
+  and shape defs are now 8-byte aligned there, as on every other target.
+  These public structs change size on i686:
+  - `m3BodyDef`, 108 to 120 bytes
+  - `m3CharacterDef`, 68 to 72
+  - `m3ShapeDef`, 92 to 104
+  - `m3VehicleDef`, 460 to 464
+  - `m3WaterVolumeDef`, 76 to 80
+  - `m3JointDef`, 216 to 224
+  - `m3RayCastResult`, 52 to 56
+  - `m3BodyMoveEvent`, 52 to 56
+  - `m3FragmentEvent`, 68 to 72
+
+  Every other public struct that holds an aligned member keeps its size
+  and changes only its alignment, from 4 to 8. An i686 tape recorded
+  with 0.1.x is refused with `m3_errorInvalid` when it holds one of the
+  twelve journal records whose size changed: a body, character, vehicle,
+  water volume or joint create, any shape create, a filter change, or a
+  force or impulse at a point. Other i686 tapes, and every i686
+  snapshot, still load. On x86-64, arm64, Windows and wasm nothing
+  changes but tape padding (below): existing tapes and snapshots load as
+  before.
+  ([#44](https://github.com/Rawframe-Project/maul3d/pull/44))
 
 ### Fixed
 
-* align the world's atomic counters and keep AVX2 off 32-bit builds ([#41](https://github.com/Rawframe-Project/maul3d/issues/41)) ([f461e21](https://github.com/Rawframe-Project/maul3d/commit/f461e2116581a82fc3fa9d00870b3e03b5ec3c39))
-* write journal tapes in one layout on every target ([#44](https://github.com/Rawframe-Project/maul3d/issues/44)) ([58e3633](https://github.com/Rawframe-Project/maul3d/commit/58e363375a043b6249ef53f5eed70eb64816b782))
+- **Journal tapes have one layout on every target.** Before, a tape's
+  records were laid out as the recording target laid out its structs,
+  so a tape recorded on i686 was refused on x86-64 and the other way
+  round. Every journal record and every type a snapshot walks now has
+  its x86-64 layout on every target, and the build checks each size and
+  member offset, so a target that would lay one out otherwise fails to
+  compile. The formats are little-endian, and a big-endian target fails
+  to build.
+  ([#44](https://github.com/Rawframe-Project/maul3d/pull/44))
+- **A tape's padding bytes are always zero, on every target.** A create
+  copied the caller's def into its record whole, so the tape's padding
+  bytes held whatever the host left in the def's padding. Records now
+  copy each def member by member into zeroed storage. Replay never read
+  that padding, so worlds are unchanged, but the bytes of a tape can
+  change for a host that left anything there, and the same calls now
+  write the same tape.
+  ([#44](https://github.com/Rawframe-Project/maul3d/pull/44))
+- **The misuse and busy counters are atomic on 32-bit x86.** Their
+  64-bit atomics were 4-byte aligned on i686: clang could not make them
+  lock-free and the build did not link, and under GCC they were not
+  guaranteed atomic. Both counters are now 8-byte aligned on every
+  target.
+  ([#41](https://github.com/Rawframe-Project/maul3d/pull/41))
+- **A 32-bit build no longer gets AVX2.** The AVX2 backend was chosen
+  from the host's processor name, so an `-m32` build on an x86-64 host
+  was built for AVX2. It is now chosen only for 64-bit builds.
+  ([#41](https://github.com/Rawframe-Project/maul3d/pull/41))
 
 ## [0.1.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.1) (2026-10-24)
 
