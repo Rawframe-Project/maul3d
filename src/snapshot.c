@@ -17,6 +17,7 @@
 #include "world_internal.h"
 #include "world_state.h"
 
+#include <stddef.h>
 #include <string.h>
 
 // Little-endian only until a big-endian CI cell exists to prove the
@@ -336,6 +337,13 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             {
                 return -1;
             }
+            int32_t materialCount;
+            memcpy(&materialCount, raw + cursor + (int64_t)vc * (int64_t)sizeof(m3Vec3) + 7LL * tc,
+                   4);
+            if (materialCount < 0 || materialCount > M3_MESH_MAX_MATERIALS)
+            {
+                return -1;
+            }
             cursor += (int32_t)content;
         }
     }
@@ -447,31 +455,170 @@ static void ClearEvents(m3World* world)
     world->lastInvH = 0.0f; // readback reads 0 until the next step
 }
 
-// Derived data follows content. The frozen-pair buffer came from a pair
-// list the restore replaced, so the next update requeries the whole
-// tree. Mesh BVHs and voxel surfaces are pure functions of the restored
-// content, so they rebuild byte-identical to the ones create built.
-static void RebuildDerived(m3World* world)
+// What a restore takes from the allocator, all of it before any byte
+// lands: the incoming mesh and height field content and every tree
+// derived from content (mesh BVHs, voxel surfaces). A refused allocation
+// drops the stage and leaves the world as it was; a whole stage commits
+// without allocating, so it cannot fail halfway.
+typedef struct RestoreStage
 {
+    m3MeshData* meshes;              // per mesh slot
+    m3MeshBvh* meshBvhs;             // per mesh slot, built for live meshes
+    m3HeightFieldData* heightFields; // per shape slot
+    m3VoxelSurface* surfaces;        // per voxel slot, built for live chunks
+    m3VoxelChunkData* chunk;         // an aligned copy of one incoming chunk
+    int32_t hullCursor;              // where the hull tail starts in the buffer
+} RestoreStage;
+
+// Frees the stage's arrays, not what they hold.
+static void FreeStageArrays(m3World* world, RestoreStage* stage)
+{
+    m3Free(&world->heap, stage->meshes);
+    m3Free(&world->heap, stage->meshBvhs);
+    m3Free(&world->heap, stage->heightFields);
+    m3Free(&world->heap, stage->surfaces);
+    m3Free(&world->heap, stage->chunk);
+    memset(stage, 0, sizeof(*stage));
+}
+
+static void DropStage(m3World* world, RestoreStage* stage)
+{
+    m3Heap* heap = &world->heap;
+    for (int32_t m = 0; stage->meshes != NULL && m < world->meshes.meshCapacity; ++m)
+    {
+        m3MeshDataFree(heap, &stage->meshes[m]);
+    }
+    for (int32_t m = 0; stage->meshBvhs != NULL && m < world->meshes.meshCapacity; ++m)
+    {
+        m3MeshBvhFree(heap, &stage->meshBvhs[m]);
+    }
+    for (int32_t h = 0; stage->heightFields != NULL && h < world->shapes.shapeCapacity; ++h)
+    {
+        m3HeightFieldDataFree(heap, &stage->heightFields[h]);
+    }
+    for (int32_t v = 0; stage->surfaces != NULL && v < world->voxels.voxelCapacity; ++v)
+    {
+        m3MeshBvhFree(heap, &stage->surfaces[v].bvh);
+    }
+    FreeStageArrays(world, stage);
+}
+
+// A zeroed array of count elements, or NULL when refused; no elements
+// need no memory.
+static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementSize)
+{
+    *out = count > 0 ? m3AllocZeroed(heap, count * elementSize) : NULL;
+    return count <= 0 || *out != NULL;
+}
+
+// Fills the stage from a buffer whose every byte has been checked, so a
+// false return means only that the allocator refused.
+static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int32_t fixed,
+                           RestoreStage* stage)
+{
+    m3Heap* heap = &world->heap;
+    int32_t meshCap = world->meshes.meshCapacity;
+    int32_t shapeCap = world->shapes.shapeCapacity;
+    int32_t voxelCap = world->voxels.voxelCapacity;
+    memset(stage, 0, sizeof(*stage));
+    if (!StageArray(heap, (void**)&stage->meshes, meshCap, (int32_t)sizeof(m3MeshData)) ||
+        !StageArray(heap, (void**)&stage->meshBvhs, meshCap, (int32_t)sizeof(m3MeshBvh)) ||
+        !StageArray(heap, (void**)&stage->heightFields, shapeCap,
+                    (int32_t)sizeof(m3HeightFieldData)) ||
+        !StageArray(heap, (void**)&stage->surfaces, voxelCap, (int32_t)sizeof(m3VoxelSurface)) ||
+        !StageArray(heap, (void**)&stage->chunk, 1, (int32_t)sizeof(m3VoxelChunkData)))
+    {
+        return false;
+    }
+    m3Walk walk = {NULL, raw, m3_walkRead, fixed};
+    for (int32_t m = 0; m < meshCap; ++m)
+    {
+        if (!WalkMesh(heap, &walk, &stage->meshes[m]))
+        {
+            return false;
+        }
+    }
+    stage->hullCursor = walk.cursor;
+    walk.cursor = HullTailEnd(world, raw, size, walk.cursor);
+    for (int32_t h = 0; h < shapeCap; ++h)
+    {
+        if (!WalkHeightField(heap, &walk, &stage->heightFields[h]))
+        {
+            return false;
+        }
+    }
+    // The derived trees follow the incoming pools, read from the prefix.
+    const uint8_t* prefix = raw + sizeof(m3SnapshotHeader);
+    const uint8_t* meshAlive =
+        prefix + m3StateFieldAt(world, offsetof(m3World, meshes.meshPool.alive));
+    for (int32_t m = 0; m < meshCap; ++m)
+    {
+        if (meshAlive[m] != 0 && !m3MeshBvhBuild(heap, &stage->meshBvhs[m], &stage->meshes[m]))
+        {
+            return false;
+        }
+    }
+    const uint8_t* voxelAlive =
+        prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelPool.alive));
+    const uint8_t* chunks = prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelData));
+    for (int32_t v = 0; v < voxelCap; ++v)
+    {
+        if (voxelAlive[v] == 0)
+        {
+            continue;
+        }
+        memcpy(stage->chunk, chunks + (size_t)v * sizeof(m3VoxelChunkData),
+               sizeof(m3VoxelChunkData));
+        if (!m3VoxelSurfaceBuild(heap, &stage->surfaces[v], stage->chunk))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Lands the checked buffer and the whole stage; allocates nothing. The
+// frozen-pair buffer came from a pair list the restore replaced, so the
+// next update requeries the whole tree. Mesh BVHs and voxel surfaces are
+// pure functions of the restored content, so they match the ones create
+// built.
+static void CommitRestore(m3World* world, const uint8_t* raw, RestoreStage* stage)
+{
+    m3Heap* heap = &world->heap;
+    ClearEvents(world);
+    m3StateWalk(world, NULL, raw + sizeof(m3SnapshotHeader), 1);
+    m3Walk walk = {NULL, raw, m3_walkRead, stage->hullCursor};
+    for (int32_t i = 0; i < world->shapes.shapeCapacity; ++i)
+    {
+        bool landed = WalkHull(&walk, &world->hulls.hullData[i]);
+        M3_ASSERT(landed); // the counts were checked before the stage
+        (void)landed;
+    }
+    for (int32_t m = 0; m < world->meshes.meshCapacity; ++m)
+    {
+        m3MeshDataFree(heap, &world->meshes.meshData[m]);
+        world->meshes.meshData[m] = stage->meshes[m];
+        m3MeshBvhFree(heap, &world->meshes.meshBvh[m]);
+        world->meshes.meshBvh[m] = stage->meshBvhs[m];
+    }
+    for (int32_t h = 0; h < world->shapes.shapeCapacity; ++h)
+    {
+        m3HeightFieldDataFree(heap, &world->heightFields.hfData[h]);
+        world->heightFields.hfData[h] = stage->heightFields[h];
+    }
+    for (int32_t v = 0; v < world->voxels.voxelCapacity; ++v)
+    {
+        m3MeshBvhFree(heap, &world->voxels.voxelSurface[v].bvh);
+        world->voxels.voxelSurface[v] = stage->surfaces[v];
+    }
+    FreeStageArrays(world, stage);
     world->contacts.sleepingPairCount = 0;
     world->contacts.pairsFullQuery = 1;
     world->broadphase.candidatesFresh = 0;
     m3RebuildPlaneList(world);
-    for (int32_t m = 0; m < world->meshes.meshPool.maxIndex; ++m)
-    {
-        if (world->meshes.meshPool.alive[m] != 0)
-        {
-            m3MeshBvhBuild(&world->heap, &world->meshes.meshBvh[m], &world->meshes.meshData[m]);
-        }
-    }
     for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
     {
         world->voxels.voxelShape[v] = -1;
-        if (world->voxels.voxelPool.alive[v] != 0)
-        {
-            m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
-                                &world->voxels.voxelData[v]);
-        }
     }
     for (int32_t s = 0; s < world->shapes.shapePool.maxIndex; ++s)
     {
@@ -529,12 +676,12 @@ m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
     {
         return m3_errorInvalid;
     }
-    ClearEvents(world);
-    if (WalkBlocks(world, NULL, raw + sizeof(header), m3_walkRead, 1) < 0)
+    RestoreStage stage;
+    if (!PrepareRestore(world, raw, size, fixed, &stage))
     {
-        // The pre-parse leaves only exhausted memory in the alloc gate.
-        return m3_errorCapacity;
+        DropStage(world, &stage);
+        return m3_errorCapacity; // the world is as it was
     }
-    RebuildDerived(world);
+    CommitRestore(world, raw, &stage);
     return m3_success;
 }
