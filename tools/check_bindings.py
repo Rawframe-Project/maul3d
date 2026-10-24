@@ -10,7 +10,11 @@
 # - every C# struct has the size and the field offsets of the C struct
 #   it mirrors (sequential layout, computed here; the C side printed by
 #   the C compiler);
-# - the C# AbiVersion is the headers' M3_ABI_VERSION.
+# - the C# version is the headers' version, and the C# AbiVersion
+#   expression, compiled as C, gives M3_ABI_VERSION at that version and
+#   at every version in ABI_SAMPLES, so a release that moves the version
+#   in both files keeps them matching and a formula that changes on one
+#   side only fails.
 #
 # usage: check_bindings.py [C compiler, default cc]
 
@@ -22,6 +26,9 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSHARP = os.path.join(ROOT, "bindings", "csharp", "Maul3D.cs")
+# Versions both ABI formulas are evaluated at, besides the current one:
+# both sides of 1.0 and of the major, minor and patch boundaries.
+ABI_SAMPLES = [(0, 0, 1), (0, 1, 0), (0, 3, 7), (1, 0, 0), (1, 2, 3), (2, 15, 4)]
 GODOT = os.path.join(ROOT, "bindings", "godot", "src")
 
 PRIMITIVES = {"byte": 1, "sbyte": 1, "bool": 1, "short": 2, "ushort": 2, "int": 4, "uint": 4,
@@ -120,16 +127,31 @@ def c_member(field, fields):
     return field[0].lower() + field[1:]
 
 
-def c_layouts(names, structs, compiler):
-    """What the C compiler says about the same structs."""
+def c_layouts(names, structs, compiler, abi_expression, versions):
+    """What the C compiler says about the same structs, and M3_ABI_VERSION
+    next to the C# AbiVersion expression at each version."""
     lines = ['#include "maul3d/maul3d.h"', "#include <stddef.h>", "#include <stdio.h>",
-             "int main(void)", "{", '    printf("abi %u\\n", (unsigned)M3_ABI_VERSION);']
+             "static uint32_t CsAbi(uint32_t VersionMajor, uint32_t VersionMinor,",
+             "                      uint32_t VersionPatch)", "{",
+             f"    return {abi_expression};", "}",
+             "int main(void)", "{",
+             '    printf("major %u\\n", (unsigned)M3_VERSION_MAJOR);',
+             '    printf("minor %u\\n", (unsigned)M3_VERSION_MINOR);',
+             '    printf("patch %u\\n", (unsigned)M3_VERSION_PATCH);']
     for name in names:
         c = "m3" + name
         lines.append(f'    printf("{name} size %zu\\n", sizeof({c}));')
         for field, _ in structs[name]:
             member = c_member(field, structs[name])
             lines.append(f'    printf("{name}.{field} %zu\\n", offsetof({c}, {member}));')
+    for major, minor, patch in versions:
+        # M3_ABI_VERSION expands where it is used, so it follows the
+        # version macros redefined here.
+        lines += ["#undef M3_VERSION_MAJOR", "#undef M3_VERSION_MINOR", "#undef M3_VERSION_PATCH",
+                  f"#define M3_VERSION_MAJOR {major}", f"#define M3_VERSION_MINOR {minor}",
+                  f"#define M3_VERSION_PATCH {patch}",
+                  f'    printf("abi {major}.{minor}.{patch} %u,%u\\n", (unsigned)M3_ABI_VERSION, '
+                  f"(unsigned)CsAbi({major}, {minor}, {patch}));"]
     lines += ["    return 0;", "}"]
     with tempfile.TemporaryDirectory() as tmp:
         source = os.path.join(tmp, "layout.c")
@@ -166,7 +188,19 @@ def main():
     missing = [n for n in structs if n not in checked]
     if missing:
         failures.append("C#: structs without a layout check: " + ", ".join(missing))
-    c = c_layouts(sorted(structs), structs, compiler)
+    numbers = []
+    for part in ("Major", "Minor", "Patch"):
+        version = re.search(rf"public const uint Version{part} = (\d+);", text)
+        numbers.append(int(version.group(1)) if version else 0)
+        if version is None:
+            failures.append(f"C#: no Version{part}")
+    abi = re.search(r"public const uint AbiVersion =\s*([^;]+);", text)
+    expression = " ".join(abi.group(1).split()) if abi else "0"
+    if abi is None or not re.fullmatch(r"[\w\s|&^<>=!?:()+*-]+", expression):
+        failures.append("C#: no AbiVersion expression this check can compile")
+        expression = "0"
+    versions = [tuple(numbers)] + [v for v in ABI_SAMPLES if v != tuple(numbers)]
+    c = c_layouts(sorted(structs), structs, compiler, expression, versions)
     for name in sorted(structs):
         size, _, offsets = layout(name, structs)
         if int(c[f"{name} size"]) != size:
@@ -177,9 +211,15 @@ def main():
     for m in re.finditer(r"Check<(\w+)>\((\d+)\)", text):
         if m.group(1) in structs and layout(m.group(1), structs)[0] != int(m.group(2)):
             failures.append(f"C#: LayoutCheck expects {m.group(1)} at {m.group(2)} bytes")
-    abi = re.search(r"public const uint AbiVersion = (0x[0-9A-Fa-f]+)u;", text)
-    if abi is None or int(abi.group(1), 16) != int(c["abi"]):
-        failures.append(f"C#: AbiVersion is not M3_ABI_VERSION ({int(c['abi']):#x})")
+    for part, number in zip(("major", "minor", "patch"), numbers):
+        if str(number) != c[part]:
+            failures.append(f"C#: Version{part.title()} is not M3_VERSION_{part.upper()} "
+                            f"({c[part]})")
+    for major, minor, patch in versions:
+        expected, actual = (int(v) for v in c[f"abi {major}.{minor}.{patch}"].split(","))
+        if actual != expected:
+            failures.append(f"C#: AbiVersion at {major}.{minor}.{patch} is {actual:#x}, "
+                            f"M3_ABI_VERSION {expected:#x}")
     for failure in failures:
         print(failure)
     if not failures:
