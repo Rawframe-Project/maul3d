@@ -521,9 +521,4 @@ typedef struct m3JournalPart
 void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts,
                           int32_t partCount);
 
-// Applies a tape's ops in order through the command table and reports
-// the first refusal. Partial application is possible here;
-// m3World_ReplayJournal makes the whole call atomic.
-bool m3JournalReplayApply(m3World* world, const void* data, int32_t size);
-
 #endif // MAUL3D_SRC_JOURNAL_H

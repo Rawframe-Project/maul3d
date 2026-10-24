@@ -29,6 +29,7 @@ typedef struct m3Heap
     m3Allocator allocator;
     int64_t allocCalls;
     int64_t freeCalls;
+    int64_t refusedCalls; // blocks the host's allocator refused
 } m3Heap;
 
 // The alignment of every block the library asks for, and the size of
