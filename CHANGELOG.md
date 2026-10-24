@@ -6,17 +6,43 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [0.2.1](https://github.com/Rawframe-Project/maul3d/compare/v0.2.0...v0.2.1) (2026-10-24)
-
-
-### Fixed
-
-* **softbody:** push particles off thin mesh triangles ([#48](https://github.com/Rawframe-Project/maul3d/issues/48)) ([6b20a52](https://github.com/Rawframe-Project/maul3d/commit/6b20a52922214ca79966a0a49a786c0b6e191e10))
-
+## [0.2.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.1) (2026-10-24)
 
 ### Changed
 
-* cull the shapes no particle can reach in the soft body pass ([#47](https://github.com/Rawframe-Project/maul3d/issues/47)) ([2577414](https://github.com/Rawframe-Project/maul3d/commit/25774141fec230f432709b61c7aa3ec60c9907e2))
+- **The soft body pass skips the shapes no particle can reach.** Each
+  substep it tested every particle of every soft body against every
+  shape in the world. It now first tests the box around a soft body's
+  particles against each shape: a bounding sphere for spheres, capsules,
+  voxel chunks, meshes and height fields, and a separating face for
+  hulls. Planes are always tested. Each test keeps a stated rounding
+  margin, so a skipped pair is one the projection would leave alone. A
+  bench scene of four cloths and two jellies among 2000 static shapes 40
+  to 90 m away runs on 3.57 billion instructions instead of 282.1
+  billion, 79 times fewer. The skip changes no result: hashes,
+  snapshots and replays are the same with it as without it, and there is
+  no API change. ([#47](https://github.com/Rawframe-Project/maul3d/pull/47))
+- **The API reference lives on the documentation site.** The README and
+  the Godot binding's README link
+  https://rawframe-project.github.io/maul3d/api.html, which is built from
+  the headers. The committed `docs/api.md`, which showed an older API, is
+  gone. `m3World_Hash`'s doc now lists what the hash covers and what it
+  leaves out: mesh geometry and height field samples are not hashed.
+  `m3Counters.voxelEditsRefused` is documented as a counter that is
+  neither hashed nor snapshotted.
+  ([#46](https://github.com/Rawframe-Project/maul3d/pull/46))
+
+### Fixed
+
+- **Soft body particles collide with thin mesh triangles and with
+  triangles that repeat a corner; they used to pass through.** On a
+  triangle well under a millimetre wide, the closest point could come
+  out up to a metre from a particle a few centimetres away, so the
+  particle was not pushed. A triangle whose first two corners are one
+  vertex gave no closest point at all. On other triangles a result
+  changes only where the point lies within rounding of an edge, and no
+  golden or bench result moved.
+  ([#48](https://github.com/Rawframe-Project/maul3d/pull/48))
 
 ## [0.2.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.0) (2026-10-24)
 
