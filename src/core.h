@@ -61,11 +61,14 @@ static inline bool m3FiniteQuat(m3Quat q)
 // into a mass: a finite but huge value turns masses, inertias and solver
 // terms infinite, which a restore then refuses. These bounds lie far past
 // any real scene: an offset in a body's frame (joint anchors, a shape's
-// local position, a lattice spacing), a shape's density, and a world
-// position the step turns into float offsets.
-#define M3_LOCAL_LIMIT    1.0e4f
-#define M3_DENSITY_LIMIT  1.0e6f
-#define M3_POSITION_LIMIT 1.0e15
+// local position, a lattice spacing, a hull vertex), a shape's density,
+// a convex shape's unit-density mass, which hull vertices within the local
+// limit cap at (2 M3_LOCAL_LIMIT)^3 so it stays finite at any density,
+// and a world position the step turns into float offsets.
+#define M3_LOCAL_LIMIT     1.0e4f
+#define M3_DENSITY_LIMIT   1.0e6f
+#define M3_UNIT_MASS_LIMIT 8.0e12f
+#define M3_POSITION_LIMIT  1.0e15
 
 static inline bool m3LocalF(m3real x)
 {

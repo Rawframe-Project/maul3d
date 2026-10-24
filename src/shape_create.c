@@ -235,10 +235,10 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     }
     for (int32_t i = 0; i < count; ++i)
     {
-        if (!m3FiniteV3(points[i]))
+        if (!m3LocalV3(points[i]))
         {
-            return m3Refuse(world, m3_errorInvalid); // a poisoned cloud never reaches
-                                                     // QuickHull's arithmetic
+            return m3Refuse(world, m3_errorInvalid); // a poisoned or far cloud never
+                                                     // reaches QuickHull's arithmetic
         }
     }
     m3HullData data;
@@ -593,7 +593,7 @@ m3Result m3CreateBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def, 
         return m3Refuse(world, m3_errorState);
     }
     if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
-        !m3FiniteV3(halfExtents))
+        !m3LocalV3(halfExtents))
     {
         return m3Refuse(world, m3_errorInvalid); // contract: bad extents return null
     }

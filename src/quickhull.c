@@ -512,70 +512,9 @@ static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
     poly->indexCount = write;
 }
 
-// Unit-density volume, centroid and inertia about the centroid. Each
-// face fans into tetrahedra with the first hull vertex; a tetrahedron
-// o, a, b, c with det = a . (b x c) has volume det / 6, centroid (a + b +
-// c) / 4 and covariance det / 120 (a a' + b b' + c c' + s s') for s = a +
-// b + c, the covariance of the canonical tetrahedron mapped onto it.
-static bool MassProperties(m3HullData* hull)
-{
-    m3Vec3 o = hull->vertices[0];
-    m3real det6 = 0.0f;
-    m3Vec3 first = {0.0f, 0.0f, 0.0f};
-    m3real c[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; // xx yy zz xy xz yz
-    for (int32_t f = 0; f < hull->faceCount; ++f)
-    {
-        const uint8_t* loop = &hull->faceIndices[hull->faceVertStart[f]];
-        m3Vec3 a = m3Sub3(hull->vertices[loop[0]], o);
-        for (int32_t k = 1; k + 1 < hull->faceVertCounts[f]; ++k)
-        {
-            m3Vec3 bv = m3Sub3(hull->vertices[loop[k]], o);
-            m3Vec3 cv = m3Sub3(hull->vertices[loop[k + 1]], o);
-            m3real det = m3Dot3(a, m3Cross3(bv, cv));
-            m3Vec3 s = m3Add3(a, m3Add3(bv, cv));
-            det6 += det;
-            first = m3Add3(first, m3MulSV3(det, s));
-            const m3Vec3 terms[4] = {a, bv, cv, s};
-            for (int32_t t = 0; t < 4; ++t)
-            {
-                m3Vec3 u = terms[t];
-                c[0] += det * u.x * u.x;
-                c[1] += det * u.y * u.y;
-                c[2] += det * u.z * u.z;
-                c[3] += det * u.x * u.y;
-                c[4] += det * u.x * u.z;
-                c[5] += det * u.y * u.z;
-            }
-        }
-    }
-    if (!(det6 > 0.0f))
-    {
-        return false;
-    }
-    m3real mass = det6 / 6.0f;
-    m3Vec3 com = m3MulSV3(0.25f / det6, first);
-    for (int32_t k = 0; k < 6; ++k)
-    {
-        c[k] /= 120.0f;
-    }
-    // The inertia is trace(C) E - C about o, then shifted to the centroid.
-    m3real cc = m3Dot3(com, com);
-    m3Mat3 inertia;
-    inertia.cx = (m3Vec3){c[1] + c[2] - mass * (cc - com.x * com.x), -c[3] + mass * com.x * com.y,
-                          -c[4] + mass * com.x * com.z};
-    inertia.cy = (m3Vec3){-c[3] + mass * com.x * com.y, c[0] + c[2] - mass * (cc - com.y * com.y),
-                          -c[5] + mass * com.y * com.z};
-    inertia.cz = (m3Vec3){-c[4] + mass * com.x * com.z, -c[5] + mass * com.y * com.z,
-                          c[0] + c[1] - mass * (cc - com.z * com.z)};
-    hull->unitMass = mass;
-    hull->unitCom = m3Add3(com, o);
-    hull->unitInertiaCom = inertia;
-    return true;
-}
-
-// Writes the hull: vertices in input order, each face's plane from
-// Newell's method over its loop, pushed out to its farthest vertex so
-// every vertex lies on or below every plane.
+// Writes the hull: vertices in input order and the face loops. The
+// planes come from the emitted vertices (m3HullFacePlanes), so a restore
+// can rebuild them bit for bit.
 static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, m3Vec3 origin,
                      m3HullData* out)
 {
@@ -610,29 +549,10 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
         {
             return false;
         }
-        m3Vec3 normal = {0.0f, 0.0f, 0.0f};
         for (int32_t k = 0; k < n; ++k)
         {
-            m3Vec3 p = b->p[poly->loop[poly->start[f] + k]];
-            m3Vec3 q = b->p[poly->loop[poly->start[f] + (k + 1) % n]];
-            normal.x += (p.y - q.y) * (p.z + q.z);
-            normal.y += (p.z - q.z) * (p.x + q.x);
-            normal.z += (p.x - q.x) * (p.y + q.y);
-        }
-        m3real length = m3Length3(normal);
-        if (!(length > 0.0f))
-        {
-            return false;
-        }
-        normal = m3MulSV3(1.0f / length, normal);
-        m3real offset = -FLT_MAX;
-        for (int32_t k = 0; k < n; ++k)
-        {
-            offset = m3MaxF(offset, m3Dot3(normal, b->p[poly->loop[poly->start[f] + k]]));
             out->faceIndices[poly->start[f] + k] = (uint8_t)index[poly->loop[poly->start[f] + k]];
         }
-        out->faceNormals[f] = normal;
-        out->faceOffsets[f] = offset + m3Dot3(normal, origin);
         out->faceVertCounts[f] = (uint8_t)n;
         out->faceVertStart[f] = poly->start[f];
         edges += n;
@@ -641,7 +561,8 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
     out->faceCount = poly->faceCount;
     out->indexCount = poly->indexCount;
     // Euler's formula for a closed convex surface.
-    return vertexCount - edges / 2 + poly->faceCount == 2 && poly->faceCount >= 4;
+    return vertexCount - edges / 2 + poly->faceCount == 2 && poly->faceCount >= 4 &&
+           m3HullFacePlanes(out);
 }
 
 // Coordinates past 1e18 or non-finite are refused, never built.
@@ -698,7 +619,7 @@ static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t 
     if (ok)
     {
         DropSeamVertices(poly, count);
-        ok = EmitHull(b, poly, count, origin, out) && MassProperties(out);
+        ok = EmitHull(b, poly, count, origin, out) && m3HullMassProperties(out);
     }
     m3Free(heap, poly);
     return ok && m3HullBuildHalfEdges(out);

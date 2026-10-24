@@ -164,6 +164,25 @@ static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uin
     world->bodies.bodyShapeHead[bodyIndex] = index;
 }
 
+// An interned hull: the one QuickHull built, or the box of the shape's
+// half extents, which answers to the same wall as any hull.
+static bool AttachHull(m3World* world, int32_t index, const m3HullData* hull)
+{
+    m3Shapes* sh = &world->shapes;
+    m3HullData box;
+    if (hull == NULL)
+    {
+        m3BuildBoxHull(&box, sh->shapeGeom[index].v);
+        if (!m3HullDataValid(&box))
+        {
+            return false;
+        }
+        hull = &box;
+    }
+    sh->shapeHullIndex[index] = m3InternHull(world, hull);
+    return sh->shapeHullIndex[index] >= 0;
+}
+
 // Content a create hands over: an interned hull (boxes rebuild from the
 // journaled half extents, general hulls arrive from QuickHull), or a
 // fresh mesh, height field or voxel slot. Meshes are big and authored,
@@ -175,16 +194,7 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
     switch (sh->shapeType[index])
     {
     case m3_hullShape:
-    {
-        m3HullData box;
-        if (content->hull == NULL)
-        {
-            m3BuildBoxHull(&box, sh->shapeGeom[index].v);
-        }
-        sh->shapeHullIndex[index] =
-            m3InternHull(world, content->hull != NULL ? content->hull : &box);
-        return sh->shapeHullIndex[index] >= 0;
-    }
+        return AttachHull(world, index, content->hull);
     case m3_meshShape:
     {
         int32_t m = m3IdPoolAlloc(&world->meshes.meshPool);
