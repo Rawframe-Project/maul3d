@@ -691,6 +691,14 @@ extern "C"
     /// for a damaged tape (truncation, corruption, an op that cannot
     /// re-mint its recorded id) and m3_errorCapacity when the world's
     /// allocator refuses what the replay or one of its ops needs.
+    /// The back-out is taken before the first op so that it cannot
+    /// fail: for the whole call the replay holds a snapshot of the
+    /// world (m3World_SnapshotSize bytes) and a second copy of its
+    /// mesh and height field content and mesh trees (about
+    /// contentBytes of m3World_GetMemoryUsage), every live voxel
+    /// chunk's surface, and arrays sized by the mesh, shape and voxel
+    /// capacities. A tape that fits a tight allocator without that
+    /// headroom is refused with m3_errorCapacity before any op runs.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
                                                        int32_t size);
 
