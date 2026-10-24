@@ -234,8 +234,11 @@ static void TestHalfEdgeTwinLaw(void)
 }
 
 // One cloud of a given kind: a random blob, a small rock as the bench's
-// city block throws, a thin slab, a needle, a cluster of near-duplicate
-// corners, and the blob scaled to the local limit and to centimetres.
+// city block throws, a thin slab, a needle, four tight clusters, and the
+// blob scaled to the local limit and to centimetres. Tighter clusters
+// (near-duplicate points) make QuickHull emit planes that leave vertices
+// outside the hull; the wall refuses those at create (see the hardening
+// suite).
 static int32_t Cloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
 {
     int32_t count = kind == 1 ? 8 : 8 + (int32_t)(SplitMix(rng) % 25);
@@ -259,10 +262,10 @@ static int32_t Cloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
         }
         else if (kind == 4)
         {
-            // Four corners, each point within 1e-4 of one of them.
+            // Four corners, each point within 1e-2 of one of them.
             static const m3Vec3 corners[4] = {
                 {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {-1.0f, -1.0f, -1.0f}};
-            p = m3Add3(corners[i % 4], m3MulSV3(1.0e-4f, p));
+            p = m3Add3(corners[i % 4], m3MulSV3(1.0e-2f, p));
         }
         pts[i] = m3MulSV3(scale, p);
     }

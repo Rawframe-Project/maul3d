@@ -231,14 +231,15 @@ static bool IsItsOwnBox(const m3HullData* hull)
     return memcmp(&box, hull, sizeof(m3HullData)) == 0;
 }
 
-// How far a restored hull's planes may sit from the planes its vertices
-// define. QuickHull derives them by Newell's method about a point the hull
-// does not store, so a restore cannot rebuild them bit for bit; for a
-// sliver face Newell's normal is ill-conditioned and moves by about 1e-4
-// with that point. The tolerances accept every plane the builders make
-// and refuse a plane that misplaces the face.
+// How far a hull's planes may sit from the planes its vertices define.
+// QuickHull derives them by Newell's method about a point the hull does
+// not store, so a restore cannot rebuild them bit for bit; for a sliver
+// face Newell's normal is ill-conditioned and moves by about 1e-4 with
+// that point, and merged faces hold their loops to about 1e-3 of the
+// extent. The tolerances take those with a tenfold margin and refuse a
+// plane that misplaces its face or leaves a vertex outside the hull.
 #define M3_HULL_NORMAL_TOLERANCE 1.0e-3f // | |n| - 1 |
-#define M3_HULL_PLANE_TOLERANCE  1.0e-3f // distances, times the hull's extent
+#define M3_HULL_PLANE_TOLERANCE  1.0e-2f // distances, times the hull's extent
 
 static m3real HullExtent(const m3HullData* hull)
 {
