@@ -39,7 +39,6 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Body_SetName
     m3Body_SetUserData
     m3Character_GetGroundBody
-    m3Character_GetStance
     m3Character_IsGrounded
     m3Character_IsValid
     m3Joint_GetBodyA
@@ -76,3 +75,6 @@ journal and replay bytes, framed and counted:
     m3GetEncodedReplaySize
     m3World_StartJournal
     m3World_StopJournal
+
+stored floats read back as they are, with no arithmetic:
+    m3Character_GetStance

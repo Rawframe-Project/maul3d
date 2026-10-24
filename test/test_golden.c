@@ -11,11 +11,11 @@
 //   (out/linux-gcc-14/test_golden; out/linux-gcc-14-bench/test_bench) |
 //       grep -E '^M3_[A-Z0-9_]+_HASH=' > test/hashes.txt
 //
-// The scenes then run again on a hostile host, each under another of the
-// floating-point settings test_fenv.h plays (every rounding mode, with
-// flush-to-zero and denormals-are-zero off and on): the library computes
-// in its own setting, so they reach the same values, and the host's
-// setting is as the host left it after each.
+// Run as `test_golden hostile` (the golden_hostile test), it plays a
+// hostile host instead: the floating-point settings test_fenv.h plays
+// (every rounding mode, with flush-to-zero and denormals-are-zero off and
+// on). The library computes in its own setting, so every run reaches the
+// same values, and the host's setting is as the host left it after each.
 
 #include "helpers.h"
 #include "test_fenv.h"
@@ -184,20 +184,20 @@ static void StepN(m3World* world, int32_t steps)
     }
 }
 
-// The host setting of the hostile pass, -1 in the first, which alone
+// The host setting of the hostile run, -1 in the golden one, which alone
 // prints the lines.
-static int s_host = -1;
+static int s_hostSetting = -1;
 
 // Compares a scene's hash with its committed value and prints the line
 // test/hashes.txt would need.
 static void Expect(const char* name, uint64_t hash, uint64_t committed)
 {
-    if (s_host >= 0)
+    if (s_hostSetting >= 0)
     {
         if (hash != committed)
         {
             printf("FAIL: the %s scene moved to %016llx on host setting %d\n", name,
-                   (unsigned long long)hash, s_host);
+                   (unsigned long long)hash, s_hostSetting);
             s_failures += 1;
         }
         return;
@@ -226,11 +226,6 @@ static uint64_t HashBytes(const uint8_t* bytes, int32_t count)
 
 static uint64_t s_snapshotBytesHash;
 static uint64_t s_tapeBytesHash;
-
-// The session's tape from the first pass, kept for the hostile host to
-// replay.
-static uint8_t* s_tape;
-static int32_t s_tapeBytes;
 
 // --- Builders ----------------------------------------------------------------
 
@@ -489,15 +484,20 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     NewJoint(world, &pulley);
 }
 
-static m3World* BuildStack(int threaded)
+static void AddStack(m3World* world)
 {
-    m3World* world = MakeWorld(threaded);
     m3BodyId ground = AddGround(world);
     AddPiles(world);
     AddTerrain(world);
     AddHinges(world, ground);
     AddSliders(world, ground);
     AddWeldsAndDrives(world, ground);
+}
+
+static m3World* BuildStack(int threaded)
+{
+    m3World* world = MakeWorld(threaded);
+    AddStack(world);
     return world;
 }
 
@@ -1324,67 +1324,118 @@ static uint64_t SceneJournal(void)
     world = MakeWorld(1);
     CHECK(RunSession(world, &walk) == hash, "the session on four threads lands there too");
     m3DestroyWorld(world);
-    if (s_host < 0)
-    {
-        s_tape = tape;
-        s_tapeBytes = bytes;
-    }
-    else
-    {
-        free(tape);
-    }
+    free(tape);
     return hash;
 }
 
-// The session's tape replayed on the host's setting, serially and on
-// four workers whose threads the host starts in its setting: the calls
-// are the ones recorded, so the host's own rounding cannot reach their
-// arguments.
-static void ReplaySession(void)
+// --- The hostile host -----------------------------------------------------
+//
+// The test's own arithmetic rounds in the host's mode too, so a scene
+// built under a directed rounding mode gets other arguments. The stack
+// world is therefore recorded once on the default setting, from its birth
+// through HOSTILE_STEPS steps, and its tape replayed under each setting:
+// the recorded calls keep their arguments. A replay steps through the
+// journal's own path, so the replayed world then steps HOSTILE_TAIL more
+// times through the public m3World_Step with a constant dt. Both must land
+// where they land on the default setting. Serial runs cover every
+// setting; the four-worker run, the most hostile one. The stack never
+// reaches a subnormal, so flush-to-zero alone leaves it as it is; the
+// rollback scene, whose tour makes every journaled public call with the
+// test's own arguments, does, and runs whole under the setting that keeps
+// the rounding mode and adds flush-to-zero and denormals-are-zero, which
+// none of its inputs reach.
+#define HOSTILE_STEPS 60
+#define HOSTILE_TAIL  30
+
+typedef struct HostileRun
 {
-    for (int threaded = 0; threaded < 2; ++threaded)
+    uint64_t replay;
+    uint64_t tail;
+} HostileRun;
+
+static HostileRun ReplayStack(const uint8_t* tape, int32_t bytes, int threaded)
+{
+    m3World* world = MakeWorld(threaded);
+    CHECK(ReplayJournal(world, tape, bytes), "the stack's tape replays");
+    HostileRun run = {m3World_Hash(world), 0};
+    StepN(world, HOSTILE_TAIL);
+    run.tail = m3World_Hash(world);
+    m3DestroyWorld(world);
+    return run;
+}
+
+static void CheckRun(HostileRun run, HostileRun expected, int threaded)
+{
+    if (run.replay != expected.replay || run.tail != expected.tail)
     {
-        m3World* world = MakeWorld(threaded);
-        CHECK(ReplayJournal(world, s_tape, s_tapeBytes), "the session's journal replays");
-        Expect("JOURNAL", m3World_Hash(world), M3_GOLDEN_JOURNAL);
-        m3DestroyWorld(world);
+        printf("FAIL: host setting %d (threaded %d) replayed to %016llx and stepped to "
+               "%016llx\n",
+               s_hostSetting, threaded, (unsigned long long)run.replay,
+               (unsigned long long)run.tail);
+        s_failures += 1;
     }
 }
 
-// The scenes on a hostile host. The test's own arithmetic rounds in the
-// host's mode too, so the scenes run whole only under the settings that
-// keep its rounding mode and add flush-to-zero and denormals-are-zero,
-// which none of their inputs reach. Under every setting, the session's
-// recorded calls replay. After each, the host's setting is as it was.
-static void HostilePass(void)
+// Runs one setting's checks with the thread in that setting, then puts
+// the thread back and checks the host's setting was left as it was.
+static void UnderHost(TestFloatSetting start, const uint8_t* tape, int32_t bytes,
+                      HostileRun expected)
 {
+    TestFloatSetting host = TestFloatHostileAt(s_hostSetting);
+    bool last = s_hostSetting == TestFloatHostileCount() - 1;
+    bool whole = host.rounding == start.rounding && !TestFloatSame(host, start);
+    TestFloatSet(host);
+    CheckRun(ReplayStack(tape, bytes, 0), expected, 0);
+    if (last)
+    {
+        CheckRun(ReplayStack(tape, bytes, 1), expected, 1);
+    }
+    if (whole)
+    {
+        Expect("ROLLBACK", SceneRollback(), M3_GOLDEN_ROLLBACK);
+        Expect("ROLLBACK_SNAPSHOT", s_snapshotBytesHash, M3_GOLDEN_ROLLBACK_SNAPSHOT);
+    }
+    TestFloatSetting after = TestFloatGet();
+    TestFloatSet(start);
+    CHECK(TestFloatSame(after, host), "the host's setting is as it left it");
+}
+
+static int HostileMain(void)
+{
+    enum
+    {
+        TAPE_BYTES = 1 << 20
+    };
+    uint8_t* tape = (uint8_t*)malloc(TAPE_BYTES);
+    m3World* world = MakeWorld(0);
+    CHECK(StartJournal(world, tape, TAPE_BYTES), "the stack's journal starts");
+    AddStack(world);
+    StepN(world, HOSTILE_STEPS);
+    int32_t bytes = StopJournal(world);
+    CHECK(bytes > 0, "the stack fits its journal");
+    m3DestroyWorld(world);
+    HostileRun expected = ReplayStack(tape, bytes, 0);
     TestFloatSetting start = TestFloatGet();
-    for (s_host = 0; s_host < TestFloatHostileCount(); ++s_host)
+    for (s_hostSetting = 1; s_hostSetting < TestFloatHostileCount(); ++s_hostSetting)
     {
-        TestFloatSetting host = TestFloatHostileAt(s_host);
-        bool whole = host.rounding == start.rounding && !TestFloatSame(host, start);
-        TestFloatSet(host);
-        if (whole)
-        {
-            Expect("STACK", SceneStack(), M3_GOLDEN_STACK);
-            Expect("DESTRUCTION", SceneDestruction(), M3_GOLDEN_DESTRUCTION);
-            Expect("VEHICLES", SceneVehicles(), M3_GOLDEN_VEHICLES);
-            Expect("ROLLBACK", SceneRollback(), M3_GOLDEN_ROLLBACK);
-            Expect("JOURNAL", SceneJournal(), M3_GOLDEN_JOURNAL);
-            Expect("ROLLBACK_SNAPSHOT", s_snapshotBytesHash, M3_GOLDEN_ROLLBACK_SNAPSHOT);
-            Expect("JOURNAL_TAPE", s_tapeBytesHash, M3_GOLDEN_JOURNAL_TAPE);
-        }
-        ReplaySession();
-        TestFloatSetting after = TestFloatGet();
-        TestFloatSet(start);
-        CHECK(TestFloatSame(after, host), "the host's setting is as it left it");
+        UnderHost(start, tape, bytes, expected);
     }
-    s_host = -1;
-    free(s_tape);
+    s_hostSetting = -1;
+    free(tape);
+    if (s_failures == 0)
+    {
+        printf("test_golden hostile: all checks passed on %d host settings\n",
+               TestFloatHostileCount() - 1);
+    }
+    return s_failures == 0 ? 0 : 1;
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
+    if (argc > 1 && strcmp(argv[1], "hostile") == 0)
+    {
+        return HostileMain();
+    }
     Expect("STACK", SceneStack(), M3_GOLDEN_STACK);
     Expect("DESTRUCTION", SceneDestruction(), M3_GOLDEN_DESTRUCTION);
     Expect("VEHICLES", SceneVehicles(), M3_GOLDEN_VEHICLES);
@@ -1392,7 +1443,6 @@ int main(void)
     Expect("JOURNAL", SceneJournal(), M3_GOLDEN_JOURNAL);
     Expect("ROLLBACK_SNAPSHOT", s_snapshotBytesHash, M3_GOLDEN_ROLLBACK_SNAPSHOT);
     Expect("JOURNAL_TAPE", s_tapeBytesHash, M3_GOLDEN_JOURNAL_TAPE);
-    HostilePass();
     if (s_failures == 0)
     {
         printf("test_golden: all checks passed\n");
