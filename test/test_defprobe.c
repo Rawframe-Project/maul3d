@@ -481,8 +481,10 @@ static void ProbeWater(void)
 }
 
 // The world def has no world to count misuse against: a create refuses
-// with m3_errorInvalid, or with m3_errorCapacity for a capacity it cannot
-// allocate, and a world it builds must restore into its twin.
+// with m3_errorInvalid, or with m3_errorCapacity only for a capacity of
+// INT32_MAX, the one poison too big to allocate: either the probe's
+// allocator or the library's own 2 GB block limit refuses it. A world it
+// builds must restore into its twin.
 static void ProbeWorlds(void)
 {
     static const Field fields[] = {
@@ -510,12 +512,15 @@ static void ProbeWorlds(void)
             m3WorldDef def = s_worldDef;
             Poison((uint8_t*)&def, &fields[f], v);
             m3World* world = NULL;
+            bool tooBig = fields[f].kind == 'i' && s_ints[v] == INT32_MAX;
             m3Result result = m3CreateWorld(&def, &world);
             if (result != m3_success)
             {
-                if (result != m3_errorInvalid && result != m3_errorCapacity)
+                if (result != m3_errorInvalid && !(result == m3_errorCapacity && tooBig))
                 {
-                    Report("m3WorldDef", &fields[f], v, "refused with another status");
+                    Report("m3WorldDef", &fields[f], v,
+                           "refused with neither m3_errorInvalid nor, for INT32_MAX, "
+                           "m3_errorCapacity");
                 }
                 continue;
             }
