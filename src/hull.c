@@ -200,10 +200,23 @@ bool m3HullDataValid(const m3HullData* hull)
         return false;
     }
     // The adjacency and the center are derived from the loops: they must
-    // be what the builder makes of them.
+    // be what the builder makes of them. The rebuilt edges start as 0xFF,
+    // an origin no hull has, so a slot the builder leaves unwritten (loops
+    // that repeat a directed edge) cannot match whatever the input holds.
     m3HullData rebuilt = *hull;
-    if (!m3HullBuildHalfEdges(&rebuilt) || rebuilt.edgeCount != ic ||
-        memcmp(rebuilt.edges, hull->edges, (size_t)ic * sizeof(m3HullHalfEdge)) != 0)
+    memset(rebuilt.edges, 0xFF, sizeof(rebuilt.edges));
+    if (!m3HullBuildHalfEdges(&rebuilt) || rebuilt.edgeCount != ic)
+    {
+        return false;
+    }
+    for (int32_t e = 0; e < ic; ++e)
+    {
+        if (rebuilt.edges[e].origin >= vc)
+        {
+            return false;
+        }
+    }
+    if (memcmp(rebuilt.edges, hull->edges, (size_t)ic * sizeof(m3HullHalfEdge)) != 0)
     {
         return false;
     }

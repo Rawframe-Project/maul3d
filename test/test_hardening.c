@@ -406,11 +406,12 @@ static void TestRestoreRefusesBadHullContent(void)
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the hull world is snapshotted");
 
-    // A box's first vertex is (-hx, -hy, -hz); after the vertices come
-    // the 6 face normals and offsets, the counts, the starts, the 24
-    // indices and the 24 half edges (twin, next, origin, face).
-    const m3Vec3 first = {-half.x, -half.y, -half.z};
-    int32_t vertsAt = clean != NULL ? FindBytes(clean, size, &first, (int32_t)sizeof(first)) : -1;
+    // A box's first two vertices are (-hx, -hy, -hz) and (hx, -hy, -hz),
+    // a pair no contact holds; after the vertices come the 6 face normals
+    // and offsets, the counts, the starts, the 24 indices and the 24 half
+    // edges (twin, next, origin, face).
+    const m3Vec3 first[2] = {{-half.x, -half.y, -half.z}, {half.x, -half.y, -half.z}};
+    int32_t vertsAt = clean != NULL ? FindBytes(clean, size, first, (int32_t)sizeof(first)) : -1;
     int32_t startsAt = vertsAt + 8 * 12 + 6 * 12 + 6 * 4 + 6;
     int32_t indicesAt = startsAt + 6 * 2;
     int32_t edgesAt = indicesAt + 24;
