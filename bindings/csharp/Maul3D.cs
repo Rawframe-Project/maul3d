@@ -226,10 +226,10 @@ namespace Maul3D
         public const uint VersionMajor = 0;
         // x-release-please-end
         // x-release-please-start-minor
-        public const uint VersionMinor = 0;
+        public const uint VersionMinor = 1;
         // x-release-please-end
         // x-release-please-start-patch
-        public const uint VersionPatch = 1;
+        public const uint VersionPatch = 0;
         // x-release-please-end
 
         /// M3_ABI_VERSION of the C headers this file mirrors, computed as
