@@ -196,8 +196,8 @@ static void TestVoxelCarveCoupling(void)
     m3DestroyWorld(control);
 }
 
-// A blast scene: two voxel columns either side of the center, a
-// compound body of six spheres and four crates. The rebuilt twin holds
+// A blast scene: four voxel columns around the center, a compound body
+// of six spheres and four crates. The rebuilt twin holds
 // the same state over a balanced tree instead of the insertion-order
 // one, so the tree visits its leaves in another order.
 static m3World* HistoryScene(bool rebuild, m3BodyId bodies[5])
@@ -210,10 +210,11 @@ static m3World* HistoryScene(bool rebuild, m3BodyId bodies[5])
     {
         voxels[8 + 16 * (y + 16 * 8)] = 1;
     }
-    for (int32_t c = 0; c < 2; ++c)
+    static const double kColumns[4][2] = {{-9.0, -8.0}, {-7.0, -8.0}, {-8.0, -9.0}, {-8.0, -7.0}};
+    for (int32_t c = 0; c < 4; ++c)
     {
         m3BodyDef gd = m3DefaultBodyDef();
-        gd.position = (m3Pos3){-9.0 + 2.0 * c, 0.0, -8.0};
+        gd.position = (m3Pos3){kColumns[c][0], 0.0, kColumns[c][1]};
         NewVoxelChunkShape(world, NewBody(world, &gd), &sd, voxels, NULL, 1.0f);
     }
     m3BodyDef bd = m3DefaultBodyDef();
@@ -249,7 +250,7 @@ static void TestTreeHistoryChangesNothing(void)
     m3World* rebuilt = HistoryScene(true, bodies[1]);
     CHECK(m3World_Hash(plain) == m3World_Hash(rebuilt), "the twins hash equal before the blast");
     m3ExplosionDef def = m3DefaultExplosionDef();
-    def.position = (m3Pos3){0.0, 8.5, 0.5};
+    def.position = (m3Pos3){0.5, 8.5, 0.5};
     def.radius = 6.0f;
     def.falloff = 2.0f;
     def.impulsePerArea = 3.0f;
@@ -274,7 +275,7 @@ static void TestTreeHistoryChangesNothing(void)
     CHECK(sameMotion, "every body leaves with bit-equal velocities");
     m3FragmentEvents a = m3World_GetFragmentEvents(plain);
     m3FragmentEvents b = m3World_GetFragmentEvents(rebuilt);
-    CHECK(a.fragmentCount >= 2, "both columns lose their tops");
+    CHECK(a.fragmentCount == 4, "every column loses its top");
     bool sameEvents = a.fragmentCount == b.fragmentCount;
     for (int32_t i = 0; sameEvents && i < a.fragmentCount; ++i)
     {
