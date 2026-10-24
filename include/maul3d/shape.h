@@ -154,11 +154,13 @@ extern "C"
 
     /// A convex hull built from a point cloud (QuickHull, coplanar
     /// faces merged, mass integrated). Between 4 and 64 points, each
-    /// coordinate within 1e4 of the body origin; degenerate clouds
-    /// (coplanar, collinear), hulls that exceed the 64-vertex budget
-    /// (input clouds up to 256 points), and clouds of near-duplicate
-    /// points the builder cannot yet bound with its planes return
-    /// m3_errorInvalid.
+    /// coordinate within 1e4 of the body origin. A point within 512
+    /// times the builder's tolerance (16 FLT_EPSILON of the cloud's
+    /// summed extents) of an earlier point is merged into it, so the
+    /// hull may lose detail up to about 1e-3 of the summed extents.
+    /// Degenerate clouds (coplanar, collinear, or fewer than four
+    /// points once merged) and hulls that exceed the 64-vertex budget
+    /// (input clouds up to 256 points) return m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
                                                    const m3ShapeDef* def, const m3Vec3* points,
                                                    int32_t count, m3ShapeId* shapeOut);

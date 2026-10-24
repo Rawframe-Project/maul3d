@@ -11,11 +11,18 @@
 // cloud gets the hull of its most extreme points.
 //
 // The triangles then merge into polygon faces: neighbors whose far
-// vertices lie within a tolerance of each other's planes, or above them,
-// become one face, and a vertex left between just two faces, on the
+// vertices both lie within a tolerance of the other's plane, or above
+// it, become one face, and a vertex left between just two faces, on the
 // line where they meet, is dropped. Mass properties at unit density come
 // from the tetrahedra the faces make with one vertex, through the
 // covariance of the canonical tetrahedron.
+//
+// Near-duplicate points make sliver faces, whose planes float cross
+// products cannot hold: a tolerance-sized decision on a short edge tilts
+// the face by the tolerance over that edge. Points closer than
+// M3_QH_WELD tolerances to an earlier point are dropped before the
+// build, which bounds that tilt, and every plane is worked in double
+// and rounded to float last.
 
 #include "quickhull.h"
 
@@ -23,9 +30,11 @@
 #include "hull.h"
 
 #include <float.h>
+#include <math.h>
 #include <string.h>
 
-#define M3_QH_MAX_FACES 1024 // triangle slots, reused as faces die
+#define M3_QH_MAX_FACES 1024   // triangle slots, reused as faces die
+#define M3_QH_WELD      512.0f // weld radius, in tolerances
 
 typedef struct QhFace
 {
@@ -74,6 +83,42 @@ static int32_t TakeFace(QhBuilder* b)
     return b->faceHigh < M3_QH_MAX_FACES ? b->faceHigh++ : -1;
 }
 
+// The plane of a loop of points by Newell's method, in double: the unit
+// normal rounded to float, and the offset of the loop's farthest point
+// along it, so the whole loop lies on or below the plane. False when
+// the loop is degenerate.
+static bool LoopPlane(const QhBuilder* b, const int16_t* loop, int32_t n, m3Vec3* normal,
+                      double* offset)
+{
+    double nx = 0.0;
+    double ny = 0.0;
+    double nz = 0.0;
+    for (int32_t k = 0; k < n; ++k)
+    {
+        m3Vec3 p = b->p[loop[k]];
+        m3Vec3 q = b->p[loop[(k + 1) % n]];
+        nx += ((double)p.y - (double)q.y) * ((double)p.z + (double)q.z);
+        ny += ((double)p.z - (double)q.z) * ((double)p.x + (double)q.x);
+        nz += ((double)p.x - (double)q.x) * ((double)p.y + (double)q.y);
+    }
+    double length = sqrt(nx * nx + ny * ny + nz * nz);
+    if (!(length > 0.0))
+    {
+        return false;
+    }
+    *normal = (m3Vec3){(float)(nx / length), (float)(ny / length), (float)(nz / length)};
+    double far = -DBL_MAX;
+    for (int32_t k = 0; k < n; ++k)
+    {
+        m3Vec3 p = b->p[loop[k]];
+        double d = (double)normal->x * (double)p.x + (double)normal->y * (double)p.y +
+                   (double)normal->z * (double)p.z;
+        far = d > far ? d : far;
+    }
+    *offset = far;
+    return true;
+}
+
 // A triangle face through three hull vertices; false when degenerate.
 static bool SetTriangle(QhBuilder* b, int32_t f, int32_t v0, int32_t v1, int32_t v2)
 {
@@ -85,14 +130,12 @@ static bool SetTriangle(QhBuilder* b, int32_t f, int32_t v0, int32_t v1, int32_t
     face->conflict = -1;
     face->alive = 1;
     face->visible = 0;
-    m3Vec3 n = m3Cross3(m3Sub3(b->p[v1], b->p[v0]), m3Sub3(b->p[v2], b->p[v0]));
-    m3real length = m3Length3(n);
-    if (!(length > 0.0f))
+    double offset = 0.0;
+    if (!LoopPlane(b, face->v, 3, &face->normal, &offset))
     {
         return false;
     }
-    face->normal = m3MulSV3(1.0f / length, n);
-    face->offset = m3Dot3(face->normal, b->p[v0]);
+    face->offset = (m3real)offset;
     return true;
 }
 
@@ -378,8 +421,11 @@ static int32_t FindGroup(QhBuilder* b, int32_t f)
 }
 
 // Merges neighbors that are not clearly convex across their shared
-// edge: the far vertex of either lies above, or within the tolerance of,
-// the other's plane. Groups keep their lowest face as root.
+// edge: the far vertex of each lies above, or within the tolerance of,
+// the other's plane. Asking it of either alone would glue a tiny face,
+// whose far vertex is always near its neighbor's plane, to every
+// neighbor around it, whatever their directions. Groups keep their
+// lowest face as root.
 static void MergeFaces(QhBuilder* b)
 {
     m3real tol = 2.0f * b->tolerance;
@@ -400,7 +446,7 @@ static void MergeFaces(QhBuilder* b)
             {
                 farG = G->v[k] != F->v[i] && G->v[k] != F->v[(i + 1) % 3] ? G->v[k] : farG;
             }
-            if (farG >= 0 && (Above(F, b->p[farG]) > -tol || Above(G, b->p[farF]) > -tol))
+            if (farG >= 0 && Above(F, b->p[farG]) > -tol && Above(G, b->p[farF]) > -tol)
             {
                 int32_t rf = FindGroup(b, f);
                 int32_t rg = FindGroup(b, g);
@@ -485,36 +531,52 @@ static bool TraceLoops(QhBuilder* b, QhPolygons* out)
 }
 
 // Drops every vertex that only two faces share: it sits on the line
-// where they meet and adds nothing to either.
+// where they meet and adds nothing to either. A face left with fewer
+// than three vertices was a sliver wedged into one neighbor around the
+// dropped vertex; that neighbor's loop now runs along the sliver's last
+// edge, so the sliver goes too, and its vertices are counted again.
 static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
 {
-    uint8_t degree[M3_HULL_MAX_INPUT];
-    memset(degree, 0, sizeof(degree));
-    for (int32_t i = 0; i < poly->indexCount; ++i)
+    bool dropped = true;
+    while (dropped)
     {
-        degree[poly->loop[i]] += 1;
-    }
-    int32_t write = 0;
-    for (int32_t f = 0; f < poly->faceCount; ++f)
-    {
-        int32_t start = write;
-        for (int32_t k = 0; k < poly->count[f]; ++k)
+        uint8_t degree[M3_HULL_MAX_INPUT];
+        memset(degree, 0, sizeof(degree));
+        for (int32_t i = 0; i < poly->indexCount; ++i)
         {
-            int32_t v = poly->loop[poly->start[f] + k];
-            if (v < pointCount && degree[v] > 2)
-            {
-                poly->loop[write++] = (int16_t)v;
-            }
+            degree[poly->loop[i]] += 1;
         }
-        poly->start[f] = (uint16_t)start;
-        poly->count[f] = (uint8_t)(write - start);
+        dropped = false;
+        int32_t write = 0;
+        int32_t faces = 0;
+        for (int32_t f = 0; f < poly->faceCount; ++f)
+        {
+            int32_t start = write;
+            for (int32_t k = 0; k < poly->count[f]; ++k)
+            {
+                int32_t v = poly->loop[poly->start[f] + k];
+                if (v < pointCount && degree[v] > 2)
+                {
+                    poly->loop[write++] = (int16_t)v;
+                }
+            }
+            if (write - start < 3)
+            {
+                write = start;
+                dropped = true;
+                continue;
+            }
+            poly->start[faces] = (uint16_t)start;
+            poly->count[faces] = (uint8_t)(write - start);
+            faces += 1;
+        }
+        poly->faceCount = faces;
+        poly->indexCount = write;
     }
-    poly->indexCount = write;
 }
 
-// Writes the hull: vertices in input order, each face's plane from
-// Newell's method over its loop, pushed out to its farthest vertex so
-// every vertex lies on or below every plane.
+// Writes the hull: vertices in input order, each face's plane from its
+// loop, moved back from the first point in double.
 static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, m3Vec3 origin,
                      m3HullData* out)
 {
@@ -549,29 +611,20 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
         {
             return false;
         }
-        m3Vec3 normal = {0.0f, 0.0f, 0.0f};
-        for (int32_t k = 0; k < n; ++k)
-        {
-            m3Vec3 p = b->p[poly->loop[poly->start[f] + k]];
-            m3Vec3 q = b->p[poly->loop[poly->start[f] + (k + 1) % n]];
-            normal.x += (p.y - q.y) * (p.z + q.z);
-            normal.y += (p.z - q.z) * (p.x + q.x);
-            normal.z += (p.x - q.x) * (p.y + q.y);
-        }
-        m3real length = m3Length3(normal);
-        if (!(length > 0.0f))
+        m3Vec3 normal;
+        double offset = 0.0;
+        if (!LoopPlane(b, &poly->loop[poly->start[f]], n, &normal, &offset))
         {
             return false;
         }
-        normal = m3MulSV3(1.0f / length, normal);
-        m3real offset = -FLT_MAX;
         for (int32_t k = 0; k < n; ++k)
         {
-            offset = m3MaxF(offset, m3Dot3(normal, b->p[poly->loop[poly->start[f] + k]]));
             out->faceIndices[poly->start[f] + k] = (uint8_t)index[poly->loop[poly->start[f] + k]];
         }
+        offset += (double)normal.x * (double)origin.x + (double)normal.y * (double)origin.y +
+                  (double)normal.z * (double)origin.z;
         out->faceNormals[f] = normal;
-        out->faceOffsets[f] = offset + m3Dot3(normal, origin);
+        out->faceOffsets[f] = (m3real)offset;
         out->faceVertCounts[f] = (uint8_t)n;
         out->faceVertStart[f] = poly->start[f];
         edges += n;
@@ -602,6 +655,28 @@ static bool InputValid(const m3Vec3* points, int32_t count)
     return true;
 }
 
+// Drops every point within M3_QH_WELD tolerances of an earlier kept
+// point, keeping input order. Returns the kept count.
+static int32_t WeldPoints(QhBuilder* b, int32_t count)
+{
+    m3real radius = M3_QH_WELD * b->tolerance;
+    int32_t kept = 0;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        bool near = false;
+        for (int32_t k = 0; k < kept && !near; ++k)
+        {
+            m3Vec3 d = m3Sub3(b->p[i], b->p[k]);
+            near = m3Dot3(d, d) <= radius * radius;
+        }
+        if (!near)
+        {
+            b->p[kept++] = b->p[i];
+        }
+    }
+    return kept;
+}
+
 static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t count,
                       m3HullData* out)
 {
@@ -618,6 +693,11 @@ static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t 
         extent.z = m3MaxF(extent.z, b->p[i].z < 0.0f ? -b->p[i].z : b->p[i].z);
     }
     b->tolerance = 16.0f * FLT_EPSILON * (extent.x + extent.y + extent.z);
+    count = WeldPoints(b, count);
+    if (count < 4)
+    {
+        return false;
+    }
     if (!StartHull(b, count))
     {
         return false;
