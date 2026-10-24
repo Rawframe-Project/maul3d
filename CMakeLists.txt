@@ -44,10 +44,11 @@ include(cmake/Library.cmake)
 include(cmake/Testing.cmake)
 
 # x64 builds use AVX2 and FMA unless the portable scalar backend is
-# chosen; every backend produces identical results.
+# chosen; every backend produces identical results. A 32-bit build on an
+# x64 host keeps the host's processor name, so the pointer size decides.
 if(MAUL3D_SIMD STREQUAL "scalar")
     list(APPEND MAUL_EXTRA_DEFINITIONS MAUL3D_SIMD_FORCE_SCALAR=1)
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     if(MSVC)
         set(MAUL_ARCH_FLAGS /arch:AVX2)
     else()
