@@ -205,6 +205,193 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Each fuzz target reads the bytes a program gets from disk or a peer (a
+  # snapshot, a journal tape, a replay file), seeded by fuzz_seeds from the
+  # shared scene: briefly on a pull request, longer on main. The nightly run
+  # is fuzz-nightly.
+  fuzz:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+      options: --init
+    permissions:
+      contents: read
+    env:
+      FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && 20 || 90 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Restore ccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-fuzz-${{ github.sha }}
+          restore-keys: ccache-fuzz-
+      - name: Build
+        run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          ccache --zero-stats >/dev/null
+          cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D${PREFIX}_FUZZ=ON -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_BUILD_SAMPLES=OFF \
+            -D${PREFIX}_BUILD_BENCH=OFF -D${PREFIX}_BUILD_TOOLS=OFF -D${PREFIX}_WERROR=ON
+          cmake --build out/fuzz
+          ccache --show-stats
+          out/fuzz/fuzz_seeds out/seeds
+      - name: Save ccache
+        if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-fuzz-${{ github.sha }}
+      - name: Run
+        # As many targets at a time as the runner has cores; each keeps its
+        # full time. A target's output goes to its log, printed when it
+        # finds something.
+        run: |
+          mkdir -p out/fuzz-logs out/findings
+          fuzz_one() {
+            name=$(basename "$1")
+            mkdir -p "out/corpus/$name"
+            if "$1" -max_total_time="$FUZZ_SECONDS" -timeout=10 -artifact_prefix="out/findings/$name-" \
+              "out/corpus/$name" "out/seeds/$name" >"out/fuzz-logs/$name.log" 2>&1; then
+              echo "$name: no finding"
+            else
+              tail -n 60 "out/fuzz-logs/$name.log"
+              echo "::error::$name found something"
+              return 1
+            fi
+          }
+          export -f fuzz_one
+          targets=$(find out/fuzz -maxdepth 1 -name 'fuzz_*' -type f -perm -u+x ! -name fuzz_seeds)
+          [ -n "$targets" ] || { echo "::error::no fuzz target was built"; exit 1; }
+          echo "$targets" | xargs -P "$(nproc)" -I {} bash -c 'fuzz_one "$1"' _ {}
+      - name: Fuzz logs and findings
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz
+          path: |
+            out/fuzz-logs/
+            out/findings/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The fuzz targets, one per test/fuzz_*.c but the seed writer, for
+  # fuzz-nightly's matrix.
+  fuzz-targets:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: list
+        run: |
+          targets=$(cd test && ls fuzz_*.c | grep -v '^fuzz_seeds\.c$' | sed 's/\.c$//' | jq -R . | jq -cs .)
+          [ "$targets" != "[]" ] || { echo "::error::no fuzz target found"; exit 1; }
+          echo "targets=$targets" >>"$GITHUB_OUTPUT"
+
+  # Every night each target fuzzes ten minutes from its corpus of the nights
+  # before, carried in an Actions cache, in a job of its own so that every
+  # target runs at once. The cache is keyed by the target and by the fuzz
+  # build's inputs (the library, its CMake, the target, the shared scene and
+  # the compiler), so an unchanged build restores its own corpus exactly. A
+  # target whose build changed restores its latest corpus of an earlier
+  # build: a corpus is only inputs, which stay valid against a new binary.
+  # After the run the fuzzer's merge minimizes the seeds and the corpus
+  # together against this binary, and the result is saved for the next
+  # night. The summary compares the seeds' coverage with the corpus's.
+  fuzz-nightly:
+    needs: fuzz-targets
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.fuzz-targets.outputs.targets) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+      options: --init
+    permissions:
+      contents: read
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        env:
+          INPUTS: ${{ hashFiles('src/**', 'include/**', 'cmake/**', 'CMakeLists.txt', 'test/fuzz_scene.h', 'test/helpers.h', 'test/fuzz_seeds.c', format('test/{0}.c', matrix.target)) }}
+        run: |
+          cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -D${PREFIX}_FUZZ=ON \
+            -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF \
+            -D${PREFIX}_BUILD_TOOLS=OFF -D${PREFIX}_WERROR=ON
+          cmake --build out/fuzz --target "$TARGET" fuzz_seeds
+          [ -x "out/fuzz/$TARGET" ] || { echo "::error::$TARGET was not built"; exit 1; }
+          out/fuzz/fuzz_seeds out/seeds
+          compiler=$(clang-20 --version | head -1 | sha256sum | cut -c1-16)
+          echo "CORPUS_KEY=corpus-$TARGET-$INPUTS-$compiler" >>"$GITHUB_ENV"
+      - name: Restore the corpus
+        id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/${{ matrix.target }}
+          key: ${{ env.CORPUS_KEY }}-${{ github.run_id }}
+          # This build's corpus, else the target's from an earlier build:
+          # its inputs stay valid, and the merge re-scores them.
+          restore-keys: |
+            ${{ env.CORPUS_KEY }}-
+            corpus-${{ matrix.target }}-
+      - name: Fuzz
+        run: |
+          mkdir -p "out/corpus/$TARGET" out/findings
+          "out/fuzz/$TARGET" -max_total_time=600 -timeout=10 -artifact_prefix=out/findings/ \
+            "out/corpus/$TARGET" "out/seeds/$TARGET"
+      - name: Minimize the corpus
+        env:
+          MATCHED: ${{ steps.restore.outputs.cache-matched-key }}
+        run: |
+          # Minimized together: the files of the seeds and the corpus that
+          # keep every feature either reaches, seeds among them.
+          mkdir -p out/merged
+          "out/fuzz/$TARGET" -merge=1 out/merged "out/seeds/$TARGET" "out/corpus/$TARGET"
+          rm -rf "out/corpus/$TARGET"
+          mv out/merged "out/corpus/$TARGET"
+          coverage() { "out/fuzz/$TARGET" -runs=0 "$@" 2>&1 | sed -n 's/.*INITED cov: \([0-9]*\).*/\1/p'; }
+          case "$MATCHED" in
+          "") restored="none: the seeds alone" ;;
+          "$CORPUS_KEY"-*) restored="this build's" ;;
+          *) restored="an earlier build's" ;;
+          esac
+          {
+            echo "| Target | Corpus restored | Seeds' coverage | Corpus's coverage | Corpus files |"
+            echo "|---|---|---|---|---|"
+            echo "| \`$TARGET\` | $restored | $(coverage "out/seeds/$TARGET") | $(coverage "out/corpus/$TARGET") | $(ls "out/corpus/$TARGET" | wc -l) |"
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Save the corpus
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/${{ matrix.target }}
+          key: ${{ env.CORPUS_KEY }}-${{ github.run_id }}
+      - name: Upload the findings
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: findings-${{ matrix.target }}
+          path: out/findings/
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The interactive testbed builds against raylib, which it fetches; only on
   # main and at night, since the library cells already compile every source
   # it calls.
@@ -230,7 +417,7 @@ jobs:
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, testbed]
+    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, fuzz, fuzz-targets, fuzz-nightly, testbed]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}

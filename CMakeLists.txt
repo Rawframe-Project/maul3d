@@ -172,6 +172,38 @@ else()
 endif()
 target_sources(maul3d PRIVATE $<TARGET_OBJECTS:maul3d_cpu>)
 
+# The fuzz targets: test/fuzz_<input>.c, run as fuzz_<input> <corpus dir>,
+# and fuzz_seeds <dir>, which writes their seeds from test/fuzz_scene.h.
+if(MAUL3D_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR MSVC)
+        message(FATAL_ERROR "MAUL3D_FUZZ needs Clang and its libFuzzer")
+    endif()
+    # The library is instrumented too: its coverage guides libFuzzer, and
+    # the sanitizers watch its code, not only the targets'. Whatever links
+    # it links the sanitizer runtimes. -fno-sanitize-recover=all makes
+    # undefined behavior a crash libFuzzer stops on and saves; without it
+    # UBSan prints and the run goes on.
+    foreach(maul_lib maul3d maul3d_cpu)
+        target_compile_options(${maul_lib} PRIVATE -fsanitize=fuzzer-no-link,address,undefined
+                               -fno-sanitize-recover=all)
+    endforeach()
+    target_link_options(maul3d PUBLIC -fsanitize=address,undefined -fno-sanitize-recover=all)
+    add_executable(fuzz_seeds test/fuzz_seeds.c)
+    target_link_libraries(fuzz_seeds PRIVATE maul3d)
+    target_include_directories(fuzz_seeds PRIVATE ${PROJECT_SOURCE_DIR}/test)
+    maul_apply_flags(fuzz_seeds)
+    foreach(maul_input snapshot journal replay)
+        add_executable(fuzz_${maul_input} test/fuzz_${maul_input}.c)
+        target_link_libraries(fuzz_${maul_input} PRIVATE maul3d)
+        target_include_directories(fuzz_${maul_input} PRIVATE ${PROJECT_SOURCE_DIR}/test)
+        maul_apply_flags(fuzz_${maul_input})
+        target_compile_options(fuzz_${maul_input} PRIVATE -fsanitize=fuzzer,address,undefined
+                               -fno-sanitize-recover=all)
+        target_link_options(fuzz_${maul_input} PRIVATE -fsanitize=fuzzer,address,undefined
+                            -fno-sanitize-recover=all)
+    endforeach()
+endif()
+
 if(MAUL3D_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
