@@ -398,7 +398,7 @@ static void TestRestoreRefusesBadHullContent(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
     bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    bd.position = (m3Pos3){0.0, 0.91, 0.0}; // resting on the floor, face to face
     const m3Vec3 half = {0.37f, 0.41f, 0.53f};
     NewBoxShape(world, NewBody(world, &bd), &sd, half);
     m3World_Step(world, 1.0f / 60.0f, 4);
