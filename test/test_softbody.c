@@ -749,7 +749,7 @@ static void TestAnchorRedTeam(void)
 // edges and, when p projects inside it, its plane.
 static double TriangleDistance(const double p[3], const double t[3][3])
 {
-    double best = INFINITY;
+    double best = (double)INFINITY;
     for (int32_t e = 0; e < 3; ++e)
     {
         const double* a = t[e];
@@ -843,9 +843,9 @@ static void TestThinTriangles(void)
         for (int32_t k = 0; k < 3; ++k)
         {
             m3Vec3 c = cases[i].corners[cases[i].indices[k]];
-            tri[k][0] = c.x;
-            tri[k][1] = c.y;
-            tri[k][2] = c.z;
+            tri[k][0] = (double)c.x;
+            tri[k][1] = (double)c.y;
+            tri[k][2] = (double)c.z;
         }
         m3Pos3 start = m3SoftBody_GetParticlePosition(world, probe, 0);
         double before = TriangleDistance((double[3]){start.x, start.y, start.z}, tri);
