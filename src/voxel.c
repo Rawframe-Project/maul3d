@@ -595,7 +595,7 @@ void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {
-        return; // fill zero is a clear in disguise: refused
+        return;
     }
     if (!VoxelCoordsValid(x, y, z) || fill == 0)
     {
@@ -644,7 +644,8 @@ int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[
     {
         if (lo[k] < 0 || hi[k] >= M3_VOXEL_DIM || lo[k] > hi[k])
         {
-            return -1; // bad region: contract, loud
+            m3Refuse(world, m3_errorInvalid);
+            return -1; // a region out of the chunk or inverted
         }
     }
     if (world->recorder.journalActive != 0)

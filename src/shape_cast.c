@@ -477,6 +477,7 @@ m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base, const
     {
         if (!m3FiniteV3(points[k]))
         {
+            m3Refuse(world, m3_errorInvalid);
             return miss;
         }
     }
