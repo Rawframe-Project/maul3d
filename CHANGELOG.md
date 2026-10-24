@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.2.0](https://github.com/Rawframe-Project/maul3d/compare/v0.1.1...v0.2.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* on 32-bit x86 the public ABI changes. The doubles and 64-bit integers of m3Pos3, m3QueryFilter and the body, character, soft body, vehicle and shape defs are now 8-byte aligned there, as on every other target. These public structs change size there: m3BodyDef (108 to 120 bytes), m3CharacterDef (68 to 72), m3ShapeDef (92 to 104), m3VehicleDef (460 to 464), m3WaterVolumeDef (76 to 80), m3JointDef (216 to 224), m3RayCastResult (52 to 56), m3BodyMoveEvent (52 to 56) and m3FragmentEvent (68 to 72). Every other public struct that holds an aligned member keeps its size and changes only its alignment, from 4 to 8. i686 hosts must rebuild against the new headers. An i686 tape recorded before this change is refused with m3_errorInvalid when it holds one of the twelve records whose size changed; i686 snapshots still load. On x86-64, arm64, Windows and wasm nothing changes: existing tapes and snapshots still load, and only a tape's padding bytes are now always zero.
+
+### Fixed
+
+* align the world's atomic counters and keep AVX2 off 32-bit builds ([#41](https://github.com/Rawframe-Project/maul3d/issues/41)) ([f461e21](https://github.com/Rawframe-Project/maul3d/commit/f461e2116581a82fc3fa9d00870b3e03b5ec3c39))
+* write journal tapes in one layout on every target ([#44](https://github.com/Rawframe-Project/maul3d/issues/44)) ([58e3633](https://github.com/Rawframe-Project/maul3d/commit/58e363375a043b6249ef53f5eed70eb64816b782))
+
 ## [0.1.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.1) (2026-10-24)
 
 ### Added
