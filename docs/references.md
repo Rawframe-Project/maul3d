@@ -2,7 +2,7 @@
 
 Published sources behind the engines' algorithms. Code is written from
 these descriptions, never copied from other implementations (see
-[conventions.md](conventions.md), section 16).
+[the conventions' outside code rule](internals/maul-conventions.md#outside-code-and-data)).
 
 ## Elementary functions
 

@@ -40,10 +40,10 @@ What the family shares:
   prefix changes: `m2CreateBody` and `m3CreateBody`,
   `m2World_StartJournal` and `m3World_StartJournal`,
   `m2World_GetContactEvents` and `m3World_GetContactEvents`.
-- **One set of rules.** The [conventions](docs/conventions.md), the
-  [design records](docs/adr/README.md), the build modules, the CI
-  workflow and the tools are the same files in both repositories,
-  and a check keeps them that way.
+- **One set of rules.** The
+  [conventions](docs/internals/maul-conventions.md), the build
+  modules, the CI workflow and the tools are the same files in every
+  Maul library, and a check keeps them that way.
 - **One program.** Every symbol carries its engine's prefix, so both
   libraries link into the same game without a clash.
 
@@ -158,12 +158,12 @@ the nightly CI run executes on every platform.
 
 ## Status
 
-Version 0.0.1. Until 1.0.0 the API, the ABI and the snapshot and
-journal formats may change in any minor release; the
-[changelog](CHANGELOG.md) records every change. Defs carry a cookie,
-so a def that was not set up with its `m3Default...Def` function is
-refused. Snapshots and journal tapes belong to one library version and
-are refused by any other.
+Until 1.0.0 the API, the ABI and the snapshot and journal formats may
+change in any minor release; the [changelog](CHANGELOG.md) records
+every change. Defs carry a cookie, so a def that was not set up with
+its `m3Default...Def` function is refused. A snapshot carries its
+format version and solver revision, and a release that changed either
+refuses it; a replay file carries its container version the same way.
 
 ## Documentation
 
@@ -173,14 +173,14 @@ are refused by any other.
   by chapter: rollback, the journal, destruction, vehicles, the
   character, soft bodies, replays, lockstep networking and an
   integration checklist.
-- [The API reference](docs/api.md): every public function with its
-  documentation, generated from the headers.
-- [The conventions](docs/conventions.md): the rules both engines
-  follow, from naming to commits.
-- [Design records](docs/adr/README.md): the decisions behind the rules
-  and the architecture.
+- [The API reference](https://rawframe-project.github.io/maul3d/api.html):
+  every public function with its documentation, generated from the
+  headers.
+- [The conventions](docs/internals/maul-conventions.md): the rules
+  every Maul library follows, from naming to commits.
 - [The changelog](CHANGELOG.md): every release and what changed.
-- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute.
+- [Contributing](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md):
+  how to contribute.
 
 ## Acknowledgments
 

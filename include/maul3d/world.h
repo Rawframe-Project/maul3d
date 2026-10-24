@@ -591,9 +591,16 @@ extern "C"
     /// nothing and journal nothing.
     M3_API void m3World_Explode(m3World* world, const m3ExplosionDef* def);
 
-    /// FNV-1a 64 over the curated deterministic state (transforms,
-    /// velocities, mass, types, step count, gravity) in canonical slot
-    /// order. The value every gate compares.
+    /// FNV-1a 64 over the deterministic state in canonical slot order:
+    /// the step count, gravity and any tuning off its default, every id
+    /// pool's identity (liveness, generations, free queue), and the
+    /// bodies, shapes (the height field each one reads, voxel grids and
+    /// mesh paint included), characters, soft bodies, vehicles, joints
+    /// (limits, motors and collide flags included), water volumes and
+    /// persistent contacts. Mesh geometry and height field samples are
+    /// left out, since nothing changes them after create, and so are
+    /// derived data and observers (trees, events, counters, the
+    /// profile). The value every gate compares.
     M3_API uint64_t m3World_Hash(const m3World* world);
 
     /// Every live body or joint, up to capacity ids in ascending slot
@@ -646,7 +653,10 @@ extern "C"
         uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
         // Voxel edits and explosion carves refused because the chunk's
         // surface would merge into more boxes than its tree holds,
-        // cumulative; each changed nothing and journaled nothing.
+        // cumulative; each changed nothing and journaled nothing. A
+        // counter, not state: it is not hashed or snapshotted, and a
+        // restore or a replay's back-out leaves it as it is, so a replay
+        // refused after an edit was refused leaves it higher.
         uint64_t voxelEditsRefused;
     } m3Counters;
 
