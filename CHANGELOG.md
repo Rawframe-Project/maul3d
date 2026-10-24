@@ -37,6 +37,10 @@ snapshot and journal formats.
   `enableFastRotation` hold a byte other than 0 or 1, which was
   undefined behavior. Any nonzero byte now reads as true, as it already
   did for `isBullet` and the shape, joint and vehicle flags.
+- A damaged snapshot whose voxel chunk claims a different number of
+  filled voxels than its occupancy bits hold is refused. Before, the
+  restore accepted it, and fracture and fragment mass read the wrong
+  count.
 
 ## [0.0.1] - 2026-09-24
 
