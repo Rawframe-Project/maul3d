@@ -100,8 +100,8 @@ extern "C"
 
     /// Create a box (a convex hull with analytic mass properties:
     /// m = 8 rho hx hy hz, I = m/3 diag(hy^2+hz^2, ...) about the
-    /// center). Hull collision lands in the GJK and SAT slices; until
-    /// then a box participates in the broadphase and in mass only.
+    /// center). Half extents are positive and at most 1e4. Hull collision lands in the GJK and SAT
+    /// slices; until then a box participates in the broadphase and in mass only.
     M3_NODISCARD M3_API m3Result m3CreateBoxShape(m3World* world, m3BodyId body,
                                                   const m3ShapeDef* def, m3Vec3 halfExtents,
                                                   m3ShapeId* shapeOut);
@@ -153,9 +153,11 @@ extern "C"
     M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
 
     /// A convex hull built from a point cloud (QuickHull, coplanar
-    /// faces merged, mass integrated). Between 4 and 64 finite points;
-    /// degenerate clouds (coplanar, collinear) and hulls that exceed
-    /// the 64-vertex budget (input clouds up to 256 points) return
+    /// faces merged, mass integrated). Between 4 and 64 points, each
+    /// coordinate within 1e4 of the body origin; degenerate clouds
+    /// (coplanar, collinear), hulls that exceed the 64-vertex budget
+    /// (input clouds up to 256 points), and clouds of near-duplicate
+    /// points the builder cannot yet bound with its planes return
     /// m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
                                                    const m3ShapeDef* def, const m3Vec3* points,
