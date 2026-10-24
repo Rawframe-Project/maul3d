@@ -14,12 +14,13 @@
 #   tools/check.sh pr        what the pull request check runs on this
 #                            machine: every rule, formatting of every file,
 #                            the bindings, the documentation site,
-#                            clang-tidy on every source, and the
-#                            linux-gcc-14 and linux-clang-20-asan presets.
+#                            clang-tidy on every source, the linux-gcc-14
+#                            and linux-clang-20-asan presets, and ten
+#                            seconds of each fuzz target.
 #   tools/check.sh full      also every other Linux preset (Clang Release,
 #                            ThreadSanitizer, shared with the exports test,
-#                            32-bit x86 with GCC and Clang) and the bench
-#                            scenes.
+#                            32-bit x86 with GCC and Clang), the bench
+#                            scenes and a minute of each fuzz target.
 #
 # The builds are the CI cells' CMake presets (CMakePresets.json), in
 # out/<preset>; the other trees go to out/check-*. Needs gcc-14, clang-20,
@@ -81,6 +82,7 @@ preset() {
 labels_for() {
     case "$1" in
     *.md | LICENSE | .github/* | docs/* | bindings/* | tools/*.py | tools/*.txt | tools/check.sh) ;;
+    test/fuzz_*) ;; # the fuzz targets run in tools/check.sh pr and full
     bench/* | test/test_bench.c) ;; # the bench scenes run in Release only: tools/check.sh full
     test/test_golden.c) echo "golden golden_hostile" ;;
     test/test_*.c) [ ! -f "$1" ] || basename "$1" .c | sed 's/^test_//' ;;
@@ -100,6 +102,29 @@ source_checks() {
     else
         echo "skipped the organization's documentation check: no checkout at $org"
     fi
+}
+
+# Each fuzz target from its corpus in out/corpus and the seeds fuzz_seeds
+# writes from the shared scene.
+fuzz() { # seconds per target
+    step "fuzzing, $1 seconds per target"
+    cmake -S "$root" -B "$out/check-fuzz" -G Ninja -DCMAKE_C_COMPILER=clang-20 -DMAUL3D_FUZZ=ON \
+        -DMAUL3D_BUILD_TESTS=OFF -DMAUL3D_BUILD_SAMPLES=OFF -DMAUL3D_BUILD_BENCH=OFF \
+        -DMAUL3D_BUILD_TOOLS=OFF -DMAUL3D_WERROR=ON >"$out/check-fuzz.log"
+    cmake --build "$out/check-fuzz" -j "$jobs" >>"$out/check-fuzz.log"
+    rm -rf "$out/seeds"
+    "$out/check-fuzz/fuzz_seeds" "$out/seeds" >>"$out/check-fuzz.log"
+    for target in snapshot journal replay; do
+        mkdir -p "$out/corpus/fuzz_$target"
+        "$out/check-fuzz/fuzz_$target" -max_total_time="$1" -timeout=10 \
+            -artifact_prefix="$out/fuzz_$target-" "$out/corpus/fuzz_$target" \
+            "$out/seeds/fuzz_$target" >"$out/fuzz_$target.log" 2>&1 ||
+            {
+                tail -30 "$out/fuzz_$target.log"
+                exit 1
+            }
+        echo "fuzz_$target: no finding"
+    done
 }
 
 bindings() {
@@ -216,7 +241,12 @@ tidy "${sources[@]}"
 preset linux-gcc-14
 preset linux-clang-20-asan
 
-[ "$tier" = full ] || exit 0
+if [ "$tier" = pr ]; then
+    fuzz 10
+    exit 0
+fi
+
+fuzz 60
 
 for name in linux-clang-20 linux-clang-20-tsan linux-shared linux-i686-gcc-14 linux-i686-clang-20 \
     linux-gcc-14-bench; do
