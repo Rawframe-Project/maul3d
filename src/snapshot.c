@@ -301,6 +301,35 @@ m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, 
     return m3_success;
 }
 
+// The rules a mesh create enforces, read from one slot's content in the
+// buffer: finite vertices, indices into them, a material count in range.
+// The BVH build and every contact index the vertices through these.
+static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
+{
+    for (int32_t i = 0; i < vc; ++i)
+    {
+        m3Vec3 vertex;
+        memcpy(&vertex, content + (size_t)i * sizeof(m3Vec3), sizeof(vertex));
+        if (!m3FiniteV3(vertex))
+        {
+            return false;
+        }
+    }
+    const uint8_t* indices = content + (size_t)vc * sizeof(m3Vec3);
+    for (int32_t i = 0; i < 3 * tc; ++i)
+    {
+        uint16_t index;
+        memcpy(&index, indices + 2 * (size_t)i, sizeof(index));
+        if (index >= (uint32_t)vc)
+        {
+            return false;
+        }
+    }
+    int32_t materialCount;
+    memcpy(&materialCount, indices + 7 * (size_t)tc, sizeof(materialCount));
+    return materialCount >= 0 && materialCount <= M3_MESH_MAX_MATERIALS;
+}
+
 // The variable-size tail (mesh, hull and heightfield content) parsed
 // straight from the buffer: every count within its cap and every section
 // inside the buffer, before any byte lands.
@@ -337,10 +366,7 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             {
                 return -1;
             }
-            int32_t materialCount;
-            memcpy(&materialCount, raw + cursor + (int64_t)vc * (int64_t)sizeof(m3Vec3) + 7LL * tc,
-                   4);
-            if (materialCount < 0 || materialCount > M3_MESH_MAX_MATERIALS)
+            if (!MeshContentFits(raw + cursor, vc, tc))
             {
                 return -1;
             }

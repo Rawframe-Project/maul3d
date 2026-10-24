@@ -185,21 +185,40 @@ static void TestRestoreUnderBudget(void)
     m3DestroyWorld(world);
 }
 
-// Sweeps a create from a budget of zero blocks up: each refusal must be
-// m3_errorCapacity with the world unchanged and no misuse counted, and
-// the first success must give a shape whose tree answers.
+// A world with one static body, at x = 10 for the slab, and its shape
+// created with memory to spare when create is set.
+static m3World* CreateWorld(Budget* budget, bool slabNotFloor, bool create, m3BodyId* bodyOut)
+{
+    m3World* world = BudgetWorld(budget);
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = slabNotFloor ? (m3Pos3){10.0, 0.0, 0.0} : (m3Pos3){0.0, 0.0, 0.0};
+    *bodyOut = NewBody(world, &gd);
+    m3ShapeId shape = m3_nullShapeId;
+    if (create)
+    {
+        (void)(slabNotFloor ? CreateSlab(world, *bodyOut, &shape)
+                            : CreateFloor(world, *bodyOut, &shape));
+    }
+    return world;
+}
+
+// Sweeps a create from a budget of zero blocks up. Each refusal must be
+// m3_errorCapacity, count no misuse and leave the hash as it was; the
+// create that succeeds must leave the same bytes as a create that never
+// ran short (the refusals left no trace in the pools), and a shape whose
+// tree answers.
 static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
                         const char* createdMsg)
 {
     Budget budget = {-1};
-    m3World* world = BudgetWorld(&budget);
-    m3BodyDef gd = m3DefaultBodyDef();
-    gd.position = slabNotFloor ? (m3Pos3){10.0, 0.0, 0.0} : (m3Pos3){0.0, 0.0, 0.0};
-    m3BodyId body = NewBody(world, &gd);
-    int32_t size = 0;
-    uint8_t* before = TakeSnapshot(world, &size);
+    m3BodyId body;
+    m3World* world = CreateWorld(&budget, slabNotFloor, false, &body);
+    Budget plenty = {-1};
+    m3BodyId referenceBody;
+    m3World* reference = CreateWorld(&plenty, slabNotFloor, true, &referenceBody);
+    uint64_t hash = m3World_Hash(world);
     uint64_t misuse = m3World_GetCounters(world).misuse;
-    bool refusedWhole = before != NULL;
+    bool refusedWhole = true;
     int32_t refusals = 0;
     m3ShapeId shape = m3_nullShapeId;
     m3Result result = m3_errorCapacity;
@@ -212,13 +231,18 @@ static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
         {
             refusals += 1;
             refusedWhole = refusedWhole && result == m3_errorCapacity &&
-                           SnapshotIs(world, before, size) &&
+                           m3World_Hash(world) == hash &&
                            m3World_GetCounters(world).misuse == misuse;
         }
     }
     CHECK(refusals > 0 && refusedWhole, refusedMsg);
+    int32_t size = 0;
+    uint8_t* expected = TakeSnapshot(reference, &size);
+    CHECK(result == m3_success && expected != NULL && SnapshotIs(world, expected, size),
+          "the create that succeeds leaves the world a create with memory to spare does");
     CHECK(result == m3_success && RayStrikes(world, over, shape), createdMsg);
-    free(before);
+    free(expected);
+    m3DestroyWorld(reference);
     m3DestroyWorld(world);
 }
 
