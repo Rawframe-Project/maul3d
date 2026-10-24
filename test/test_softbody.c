@@ -745,6 +745,124 @@ static void TestAnchorRedTeam(void)
     m3DestroyWorld(world);
 }
 
+// Distance from p to the triangle abc, in double: the nearest of its
+// edges and, when p projects inside it, its plane.
+static double TriangleDistance(const double p[3], const double t[3][3])
+{
+    double best = INFINITY;
+    for (int32_t e = 0; e < 3; ++e)
+    {
+        const double* a = t[e];
+        const double* b = t[(e + 1) % 3];
+        double ab[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+        double ap[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
+        double len2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+        double s = len2 > 0.0 ? (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / len2 : 0.0;
+        s = s < 0.0 ? 0.0 : (s > 1.0 ? 1.0 : s);
+        double d[3] = {ap[0] - s * ab[0], ap[1] - s * ab[1], ap[2] - s * ab[2]};
+        best = fmin(best, sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]));
+    }
+    double u[3] = {t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]};
+    double v[3] = {t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]};
+    double n[3] = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+    double nn = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+    if (nn > 0.0)
+    {
+        double inside = 1.0;
+        for (int32_t e = 0; e < 3; ++e)
+        {
+            const double* a = t[e];
+            const double* b = t[(e + 1) % 3];
+            double ab[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+            double ap[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
+            double c[3] = {ab[1] * ap[2] - ab[2] * ap[1], ab[2] * ap[0] - ab[0] * ap[2],
+                           ab[0] * ap[1] - ab[1] * ap[0]};
+            inside = fmin(inside, c[0] * n[0] + c[1] * n[1] + c[2] * n[2]);
+        }
+        if (inside >= 0.0)
+        {
+            double h = (p[0] - t[0][0]) * n[0] + (p[1] - t[0][1]) * n[1] + (p[2] - t[0][2]) * n[2];
+            best = fmin(best, fabs(h) / sqrt(nn));
+        }
+    }
+    return best;
+}
+
+static void TestThinTriangles(void)
+{
+    // A particle closer than its radius to a mesh triangle is pushed out
+    // however thin the triangle. The closest-point walk's interior
+    // barycentrics cancel on a sliver: they put the point 0.3 to 1 m
+    // from a particle 2 to 4 cm from the triangle, which then passed
+    // through it. A triangle whose first two corners are one vertex
+    // divided zero by zero and never pushed anything. Each triangle
+    // lies in the plane y = 0 on a static body at the origin.
+    static const struct
+    {
+        m3Vec3 corners[3];
+        uint16_t indices[3];
+        m3Pos3 particle;
+    } cases[] = {
+        // Slivers well under a millimetre wide.
+        {{{-1.686742f, 0.0f, -0.940354f},
+          {-2.590324f, 0.0f, -2.326897f},
+          {-1.297610f, 0.0f, -0.343236f}},
+         {0, 1, 2},
+         {-2.322956, -0.022954, -1.930697}},
+        {{{-1.254562f, 0.0f, -1.092828f},
+          {-3.589935f, 0.0f, 1.221636f},
+          {-0.590509f, 0.0f, -1.750940f}},
+         {0, 1, 2},
+         {-2.504005, -0.042204, 0.138770}},
+        {{{0.931752f, 0.0f, -1.033501f},
+          {-0.625909f, 0.0f, 2.162496f},
+          {-1.180224f, 0.0f, 3.299831f}},
+         {0, 1, 2},
+         {-0.038631, -0.032375, 0.908804}},
+        // A repeated corner: the triangle is the segment from vertex 0
+        // to vertex 1.
+        {{{0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}}, {0, 0, 1}, {1.0, 0.05, 0.0}},
+    };
+    m3real r = 0.1f;
+    for (int32_t i = 0; i < (int32_t)(sizeof(cases) / sizeof(cases[0])); ++i)
+    {
+        m3WorldDef def = m3DefaultWorldDef();
+        def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3World* world = NewWorld(&def);
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3ShapeDef sd = m3DefaultShapeDef();
+        NewMeshShape(world, NewBody(world, &bd), &sd, cases[i].corners, 3, cases[i].indices, 1);
+        m3SoftBodyDef sb = m3DefaultSoftBodyDef();
+        sb.position = cases[i].particle;
+        sb.countX = 1;
+        sb.countY = 1;
+        sb.countZ = 1;
+        sb.radius = r;
+        m3SoftBodyId probe = NewSoftBody(world, &sb);
+        double tri[3][3];
+        for (int32_t k = 0; k < 3; ++k)
+        {
+            m3Vec3 c = cases[i].corners[cases[i].indices[k]];
+            tri[k][0] = c.x;
+            tri[k][1] = c.y;
+            tri[k][2] = c.z;
+        }
+        m3Pos3 start = m3SoftBody_GetParticlePosition(world, probe, 0);
+        double before = TriangleDistance((double[3]){start.x, start.y, start.z}, tri);
+        m3World_Step(world, 1.0f / 60.0f, 4);
+        m3Pos3 end = m3SoftBody_GetParticlePosition(world, probe, 0);
+        double after = TriangleDistance((double[3]){end.x, end.y, end.z}, tri);
+        if (after < (double)r - 1.0e-4)
+        {
+            printf("M3_THIN_TRIANGLE case %d: %.6f from the triangle, then %.6f\n", i, before,
+                   after);
+        }
+        CHECK(before < (double)r, "the particle starts inside its radius of the triangle");
+        CHECK(after >= (double)r - 1.0e-4, "a thin triangle pushes the particle out");
+        m3DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
     TestHangingRope();
@@ -761,6 +879,7 @@ int main(void)
     TestBindTether();
     TestRestoreKeepsPoolCursors();
     TestAnchorRedTeam();
+    TestThinTriangles();
     if (s_failures == 0)
     {
         printf("test_softbody: all green\n");
