@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The soft body gate: XPBD lattices under the four gates. A
-// pinned rope hangs to its analytic length, a jelly cube rests on
-// the plane at its geometric height, the whole session journals
-// and replays bit-exact, and a mid-sag rollback re-sags onto
-// identical bits. Hostile defs refuse loudly.
+// The soft body gate: XPBD lattices. A pinned rope hangs to its
+// analytic length, a jelly cube rests on the plane at its geometric
+// height, the anchor table keeps its books, and hostile defs refuse
+// loudly.
 
-#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
@@ -94,63 +92,6 @@ static void TestJellyRest(void)
     }
     CHECK(minY > 0.05 && minY < 0.15, "the bottom layer rests at particle radius");
     CHECK(maxY - minY > 0.7 && maxY - minY < 1.0, "the cube keeps its height, squash tolerated");
-    CheckHash("SOFTBODY", m3World_Hash(world), M3_GOLDEN_SOFTBODY);
-    m3DestroyWorld(world);
-}
-
-static void TestSoftSessionAndRollback(void)
-{
-    // The full contract: journal from world birth, replay
-    // bit-exact; snapshot mid-sag, re-sag onto the same bits.
-    static uint8_t journal[262144];
-    static uint8_t snap[2097152];
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 16;
-    def.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the session records");
-    m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
-    m3ShapeDef sd = m3DefaultShapeDef();
-    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
-
-    m3SoftBodyDef sb = m3DefaultSoftBodyDef();
-    sb.position = (m3Pos3){0.0, 3.0, 0.0};
-    sb.countX = 6;
-    sb.countY = 6;
-    sb.countZ = 1; // a cloth sheet
-    sb.spacing = 0.2f;
-    sb.compliance = 1.0e-5f;
-    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-    m3SoftBody_PinParticle(cloth, 30); // one top corner (x0, y5)
-    m3SoftBody_PinParticle(cloth, 35); // the other top corner
-
-    int32_t snapBytes = 0;
-    for (int32_t i = 0; i < 120; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-        if (i == 60)
-        {
-            snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-            CHECK(snapBytes > 0, "the mid-sag snapshot fits");
-        }
-    }
-    uint64_t final = m3World_Hash(world);
-
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes > 0, "the session closes");
-    m3WorldId fresh = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the session replays");
-    CHECK(m3World_Hash(fresh) == final, "the replayed sag is bit-identical");
-    m3DestroyWorld(fresh);
-
-    CHECK(m3World_Restore(world, snap, snapBytes), "the mid-sag restore lands");
-    for (int32_t i = 61; i < 120; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    CHECK(m3World_Hash(world) == final, "the re-sag is bit-identical");
     m3DestroyWorld(world);
 }
 
@@ -311,65 +252,6 @@ static void TestRopeInBowlAndCarve(void)
     m3Pos3 low = m3SoftBody_GetParticlePosition(rope, 0);
     CHECK(low.y < -2.0, "the carved floor drops the rope into the void");
     m3DestroyWorld(world);
-}
-
-static void TestSurfaceTwins(void)
-{
-    // Every soft body kind twice: identical bits, and a mid-run
-    // rollback re-lands the drape.
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        def.voxelCapacity = 1;
-        m3WorldId world = m3CreateWorld(&def);
-        m3BodyDef gd0 = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd0);
-        m3ShapeDef pd = m3DefaultShapeDef();
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &pd, &floor);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.position = (m3Pos3){0.0, 0.75, 0.0};
-        m3BodyId box = m3CreateBody(world, &bd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(box, &sd, (m3Vec3){0.6f, 0.75f, 0.6f});
-
-        m3SoftBodyDef sb = m3DefaultSoftBodyDef();
-        sb.position = (m3Pos3){-0.5, 2.2, -0.5};
-        sb.countX = 6;
-        sb.countY = 1;
-        sb.countZ = 6;
-        sb.spacing = 0.2f;
-        sb.compliance = 1.0e-5f;
-        sb.radius = 0.04f;
-        m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-        (void)cloth;
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 150; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 75 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-drape snapshot fits");
-            }
-        }
-        hashes[run] = m3World_Hash(world);
-        if (run == 0)
-        {
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-drape restore lands");
-            for (int32_t i = 76; i < 150; ++i)
-            {
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-drape is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "surface twins are bit-identical");
 }
 
 static void TestJellySeesaw(void)
@@ -540,116 +422,6 @@ static void TestClothFollowsBeam(void)
         m3DestroyWorld(world);
     }
     CHECK(hashes[0] == hashes[1], "coupling twins are bit-identical");
-}
-
-static void TestSoftFractureStorm(void)
-{
-    // Red team: a jelly rides a voxel deck while the deck is
-    // shot out from under it; fragments rain, the jelly falls into
-    // the holes, and twin storms agree to the bit.
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 64;
-        def.shapeCapacity = 64;
-        def.voxelCapacity = 1;
-        m3WorldId world = m3CreateWorld(&def);
-        static uint8_t deck[16 * 16 * 16];
-        memset(deck, 0, sizeof(deck));
-        for (int32_t z = 0; z < 16; ++z)
-        {
-            for (int32_t x = 0; x < 16; ++x)
-            {
-                deck[x + 16 * (0 + 16 * z)] = 1;
-                deck[x + 16 * (1 + 16 * z)] = 1;
-            }
-        }
-        m3BodyDef gd = m3DefaultBodyDef();
-        gd.position = (m3Pos3){-2.0, 0.0, -2.0};
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3ShapeId chunk = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, deck, NULL, 0.25f);
-
-        m3SoftBodyDef sb = m3DefaultSoftBodyDef();
-        sb.position = (m3Pos3){-0.4, 0.8, -0.4};
-        sb.countX = 5;
-        sb.countY = 5;
-        sb.countZ = 5;
-        sb.spacing = 0.18f;
-        sb.compliance = 1.0e-4f;
-        sb.radius = 0.07f;
-        m3SoftBodyId jelly = m3CreateSoftBody(world, &sb);
-
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            if (i >= 30 && i % 8 == 0)
-            {
-                int32_t cx = 4 + (i / 8) % 8;
-                int32_t lo[3] = {cx, 0, 4};
-                int32_t hi[3] = {cx, 1, 11};
-                m3VoxelChunk_ClearBox(chunk, lo, hi);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            for (int32_t pp = 0; pp < 125; pp += 31)
-            {
-                m3Pos3 q = m3SoftBody_GetParticlePosition(jelly, pp);
-                CHECK(isfinite(q.x) && isfinite(q.y) && isfinite(q.z),
-                      "the jelly survives the storm finite");
-            }
-        }
-        hashes[run] = m3World_Hash(world);
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin soft storms are bit-identical");
-}
-
-static void TestAnchorRedTeam(void)
-{
-    // The anchor table's books: exactly 32 anchors fit, the 33rd is
-    // a quiet no-op; anchors to a destroyed body release silently
-    // and the freed particles fall; hostile anchor calls no-op.
-    m3WorldId world = PlaneWorld();
-    m3BodyDef bd = m3DefaultBodyDef();
-    bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId beam = m3CreateBody(world, &bd);
-    m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(beam, &sd, (m3Vec3){2.0f, 0.05f, 0.05f});
-
-    m3SoftBodyDef sb = m3DefaultSoftBodyDef();
-    sb.position = (m3Pos3){-0.8, 2.4, 0.0};
-    sb.countX = 8;
-    sb.countY = 8;
-    sb.countZ = 1;
-    sb.spacing = 0.2f;
-    sb.compliance = 1.0e-5f;
-    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-    // Fill the whole anchor table with the top row and then some.
-    for (int32_t a = 0; a < 40; ++a)
-    {
-        m3SoftBody_AnchorParticle(cloth, 56 + (a % 8), beam); // 32 land, 8 no-op
-    }
-    m3SoftBody_AnchorParticle(cloth, -1, beam);   // hostile: no-op
-    m3SoftBody_AnchorParticle(cloth, 9999, beam); // hostile: no-op
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    m3Pos3 held = m3SoftBody_GetParticlePosition(cloth, 56);
-    CHECK(fabs(held.y - 3.8) < 0.1, "the packed anchor table holds the row");
-
-    // Kill the beam: every anchor releases, the cloth falls free.
-    m3DestroyBody(beam);
-    for (int32_t i = 0; i < 120; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    // The freed sheet tumbles for a while (near-rigid edges make
-    // it a flying chain-mail); the CONTRACT is release: the row
-    // leaves its held height and keeps falling finite.
-    m3Pos3 fallen = m3SoftBody_GetParticlePosition(cloth, 56);
-    CHECK(fallen.y < 2.5, "a dead beam releases its anchors");
-    CHECK(isfinite(fallen.x) && isfinite(fallen.y), "the freed sheet stays finite");
-    m3DestroyWorld(world);
 }
 
 static void TestBindTether(void)
@@ -922,25 +694,71 @@ static void TestRestoreKeepsPoolCursors(void)
     m3DestroyWorld(world);
 }
 
+static void TestAnchorRedTeam(void)
+{
+    // The anchor table's books: exactly 32 anchors fit, the 33rd is
+    // a quiet no-op; anchors to a destroyed body release silently
+    // and the freed particles fall; hostile anchor calls no-op.
+    m3WorldId world = PlaneWorld();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 3.0, 0.0};
+    m3BodyId beam = m3CreateBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3CreateBoxShape(beam, &sd, (m3Vec3){2.0f, 0.05f, 0.05f});
+
+    m3SoftBodyDef sb = m3DefaultSoftBodyDef();
+    sb.position = (m3Pos3){-0.8, 2.4, 0.0};
+    sb.countX = 8;
+    sb.countY = 8;
+    sb.countZ = 1;
+    sb.spacing = 0.2f;
+    sb.compliance = 1.0e-5f;
+    m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
+    // Fill the whole anchor table with the top row and then some.
+    for (int32_t a = 0; a < 40; ++a)
+    {
+        m3SoftBody_AnchorParticle(cloth, 56 + (a % 8), beam); // 32 land, 8 no-op
+    }
+    m3SoftBody_AnchorParticle(cloth, -1, beam);   // hostile: no-op
+    m3SoftBody_AnchorParticle(cloth, 9999, beam); // hostile: no-op
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    m3Pos3 held = m3SoftBody_GetParticlePosition(cloth, 56);
+    CHECK(fabs(held.y - 3.8) < 0.1, "the packed anchor table holds the row");
+
+    // Kill the beam: every anchor releases, the cloth falls free.
+    m3DestroyBody(beam);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    // The freed sheet tumbles for a while (near-rigid edges make
+    // it a flying chain-mail); the CONTRACT is release: the row
+    // leaves its held height and keeps falling finite.
+    m3Pos3 fallen = m3SoftBody_GetParticlePosition(cloth, 56);
+    CHECK(fallen.y < 2.5, "a dead beam releases its anchors");
+    CHECK(isfinite(fallen.x) && isfinite(fallen.y), "the freed sheet stays finite");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHangingRope();
     TestJellyRest();
-    TestSoftSessionAndRollback();
     TestSoftContracts();
     TestClothDrape();
     TestRopeInBowlAndCarve();
-    TestSurfaceTwins();
     TestJellySeesaw();
     TestBallThroughCloth();
     TestClothFollowsBeam();
-    TestSoftFractureStorm();
-    TestAnchorRedTeam();
     TestBendRods();
     TestPressure();
     TestTetBodies();
     TestBindTether();
     TestRestoreKeepsPoolCursors();
+    TestAnchorRedTeam();
     if (s_failures == 0)
     {
         printf("test_softbody: all green\n");

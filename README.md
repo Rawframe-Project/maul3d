@@ -152,8 +152,9 @@ field.
 
 The scenes in `bench/` (a pyramid, hull and mesh fields, a voxel fort,
 a 5000-body city block with destruction and a 10,000-body smoke test)
-print their timings and their final world hashes. The hashes are
-pinned in `bench/pins.txt`, and CI fails when one moves.
+print their timings. Their final world hashes are pinned in
+`test/hashes.txt` and checked by the Release-only `bench` test, which
+the nightly CI run executes on every platform.
 
 ## Status
 

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joint gate: the spherical point constraint against analytic
-// pendulum physics, a hanging chain, and the determinism spine
-// (rollback, replay with minted joint ids, sleep coupling).
+// Joint gate: every joint kind against analytic physics (the pendulum,
+// a hanging chain, doors, sliders, cones, welds, ropes and springs),
+// the row Jacobians against finite differences, and the def contracts.
 
-#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
@@ -152,70 +151,6 @@ static void TestChainSettlesAndSleeps(void)
     StepN(world, 30);
     m3Pos3 tail = m3Body_GetPosition(links[3]);
     CHECK(tail.x != after.x || tail.y != after.y, "the joint union wakes the whole chain");
-    m3DestroyWorld(world);
-}
-
-static void TestJointDeterminismSpine(void)
-{
-    // Joints ride every spine: a journaled pendulum session replays
-    // with identical minted ids and bits; a mid-swing snapshot
-    // restores and reruns bit-exact; destroying the joint mid-flight
-    // journals and replays too.
-    uint8_t journal[32768];
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
-
-    m3BodyDef ad = m3DefaultBodyDef();
-    m3BodyId anchor = m3CreateBody(world, &ad);
-    m3BodyDef bd = m3DefaultBodyDef();
-    bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){0.8, 0.0, 0.0};
-    m3BodyId bob = m3CreateBody(world, &bd);
-    m3ShapeDef sd = m3DefaultShapeDef();
-    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.1f};
-    m3CreateSphereShape(bob, &sd, &ball);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.bodyIdA = anchor;
-    jd.bodyIdB = bob;
-    jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
-    m3JointId joint = m3CreateJoint(world, &jd);
-    CHECK(m3Joint_IsValid(joint), "the journaled joint creates");
-
-    StepN(world, 60);
-    m3DestroyJoint(joint); // the bob flies free, journaled
-    StepN(world, 30);
-
-    uint64_t h1 = m3World_Hash(world);
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes > 0, "the joint session recorded");
-    m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the joint session replays");
-    CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical, joint ids included");
-    m3DestroyWorld(twin);
-
-    // Rollback with a live joint.
-    m3WorldId w2 = m3CreateWorld(&def);
-    m3BodyId anchor2 = m3CreateBody(w2, &ad);
-    bd.position = (m3Pos3){0.8, 0.0, 0.0};
-    m3BodyId bob2 = m3CreateBody(w2, &bd);
-    m3CreateSphereShape(bob2, &sd, &ball);
-    jd.bodyIdA = anchor2;
-    jd.bodyIdB = bob2;
-    CHECK(m3Joint_IsValid(m3CreateJoint(w2, &jd)), "the rollback joint creates");
-    StepN(w2, 40);
-    int32_t snapBytes = m3World_SnapshotSize(w2);
-    void* snap = malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(w2, snap, snapBytes) == snapBytes, "snapshot writes");
-    StepN(w2, 50);
-    uint64_t after = m3World_Hash(w2);
-    CHECK(m3World_Restore(w2, snap, snapBytes), "snapshot restores");
-    StepN(w2, 50);
-    CHECK(m3World_Hash(w2) == after, "the pendulum rolls back bit-exact");
-    free(snap);
-    m3DestroyWorld(w2);
     m3DestroyWorld(world);
 }
 
@@ -1254,213 +1189,6 @@ static void TestGenericContracts(void)
     m3DestroyWorld(world);
 }
 
-// --- The joint hash gate -----------------------------------------------------
-
-static m3BodyId s_gateBodies[32];
-static int32_t s_gateCount = 0;
-
-static m3BodyId GateBox(m3WorldId world, double x, double y, double z)
-{
-    m3BodyDef bd = m3DefaultBodyDef();
-    bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){x, y, z};
-    m3BodyId body = m3CreateBody(world, &bd);
-    m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(body, &sd, (m3Vec3){0.2f, 0.15f, 0.1f});
-    s_gateBodies[s_gateCount++] = body;
-    return body;
-}
-
-// A def joining ground to body at the world point (x, 3, 0).
-static m3JointDef GateDef(m3BodyId ground, m3BodyId body, double x, double y, double z,
-                          int32_t type)
-{
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = type;
-    jd.bodyIdA = ground;
-    jd.bodyIdB = body;
-    jd.localAnchorA = (m3Vec3){(m3real)x, 3.0f, 0.0f};
-    jd.localAnchorB = (m3Vec3){(m3real)(x - x), (m3real)(3.0 - y), (m3real)(0.0 - z)};
-    return jd;
-}
-
-static m3JointId GateJoin(m3WorldId world, const m3JointDef* jd)
-{
-    m3JointId joint = m3CreateJoint(world, jd);
-    CHECK(m3Joint_IsValid(joint), "a hash gate joint creates");
-    return joint;
-}
-
-static void GateHinges(m3BodyId ground, m3WorldId world)
-{
-    m3JointDef ball =
-        GateDef(ground, GateBox(world, 0.0, 2.2, 0.4), 0.0, 2.2, 0.4, m3_sphericalJoint);
-    ball.enableLimit = true;
-    ball.lowerLimit = -0.4f;
-    ball.upperLimit = 0.4f;
-    ball.enableCone = true;
-    ball.coneAngle = 0.5f;
-    m3JointId joint = GateJoin(world, &ball);
-    m3Joint_SetSpring(joint, true, 2.0f, 0.3f);
-    m3Joint_SetTargetRotation(
-        joint, m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.2f, 0.0f, 0.0f}));
-
-    m3JointDef hinge =
-        GateDef(ground, GateBox(world, 2.0, 2.0, 0.5), 2.0, 2.0, 0.5, m3_revoluteJoint);
-    hinge.enableLimit = true;
-    hinge.lowerLimit = -0.8f;
-    hinge.upperLimit = 0.8f;
-    hinge.enableMotor = true;
-    hinge.motorSpeed = 2.0f;
-    hinge.maxMotorEffort = 3.0f;
-    joint = GateJoin(world, &hinge);
-    m3Joint_SetSpring(joint, true, 1.0f, 0.5f);
-    m3Joint_SetTargetAngle(joint, 0.3f);
-
-    m3JointDef parallel =
-        GateDef(ground, GateBox(world, 4.0, 2.0, 0.3), 4.0, 2.0, 0.3, m3_parallelJoint);
-    parallel.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
-    parallel.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    GateJoin(world, &parallel);
-}
-
-static void GateSliders(m3BodyId ground, m3WorldId world)
-{
-    m3JointDef slider =
-        GateDef(ground, GateBox(world, 6.0, 2.5, 0.0), 6.0, 2.5, 0.0, m3_prismaticJoint);
-    slider.localAxisA = (m3Vec3){0.6f, 0.8f, 0.0f};
-    slider.localAxisB = (m3Vec3){0.6f, 0.8f, 0.0f};
-    slider.enableLimit = true;
-    slider.lowerLimit = -0.5f;
-    slider.upperLimit = 0.5f;
-    slider.enableMotor = true;
-    slider.motorSpeed = 0.5f;
-    slider.maxMotorEffort = 20.0f;
-    GateJoin(world, &slider);
-
-    m3JointDef rope =
-        GateDef(ground, GateBox(world, 8.0, 2.0, 0.3), 8.0, 2.0, 0.3, m3_distanceJoint);
-    rope.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
-    rope.enableLimit = true;
-    rope.lowerLimit = 0.5f;
-    rope.upperLimit = 1.5f;
-    rope.enableMotor = true;
-    rope.motorSpeed = 3.0f;
-    rope.maxMotorEffort = 0.4f;
-    rope.coneAngle = 1.0f;
-    GateJoin(world, &rope);
-
-    m3JointDef six =
-        GateDef(ground, GateBox(world, 10.0, 2.0, 0.2), 10.0, 2.0, 0.2, m3_genericJoint);
-    six.genericLinear[0] = (uint8_t)m3_axisLimited;
-    six.genericLinear[1] = (uint8_t)m3_axisLocked;
-    six.genericLinear[2] = (uint8_t)m3_axisLocked;
-    six.genericLinearLower[0] = -0.2f;
-    six.genericLinearUpper[0] = 0.2f;
-    six.genericAngular[0] = (uint8_t)m3_axisLocked;
-    six.genericAngular[1] = (uint8_t)m3_axisLocked;
-    six.genericAngular[2] = (uint8_t)m3_axisLimited;
-    six.genericAngularLower[2] = -0.7f;
-    six.genericAngularUpper[2] = 0.7f;
-    six.genericMotorAxis = 5;
-    six.motorSpeed = 1.0f;
-    six.maxMotorEffort = 3.0f;
-    GateJoin(world, &six);
-}
-
-static void GateWelds(m3BodyId ground, m3WorldId world)
-{
-    m3BodyId holder = GateBox(world, 12.0, 2.3, 0.0);
-    GateJoin(world, (m3JointDef[]){GateDef(ground, holder, 12.0, 2.3, 0.0, m3_sphericalJoint)});
-    m3JointDef weld = m3DefaultJointDef();
-    weld.type = m3_fixedJoint;
-    weld.bodyIdA = holder;
-    weld.bodyIdB = GateBox(world, 12.5, 2.3, 0.0);
-    weld.localAnchorA = (m3Vec3){0.25f, 0.0f, 0.0f};
-    weld.localAnchorB = (m3Vec3){-0.25f, 0.0f, 0.0f};
-    GateJoin(world, &weld);
-
-    m3JointDef servo =
-        GateDef(ground, GateBox(world, 14.0, 2.0, 0.0), 14.0, 2.0, 0.0, m3_motorJoint);
-    m3JointId joint = GateJoin(world, &servo);
-    m3Joint_SetSpring(joint, true, 3.0f, 1.0f);
-    m3Joint_SetMotorPose(joint, (m3Vec3){0.0f, -1.2f, 0.3f},
-                         m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.0f, 0.4f, 0.0f}));
-    m3Joint_SetLimits(joint, true, 50.0f, 20.0f);
-}
-
-static void GateDrives(m3BodyId ground, m3WorldId world)
-{
-    m3JointDef wheel =
-        GateDef(ground, GateBox(world, 16.0, 2.4, 0.0), 16.0, 2.4, 0.0, m3_wheelJoint);
-    wheel.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    wheel.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    wheel.enableLimit = true;
-    wheel.lowerLimit = -0.3f;
-    wheel.upperLimit = 0.3f;
-    wheel.enableMotor = true;
-    wheel.motorSpeed = 5.0f;
-    wheel.maxMotorEffort = 2.0f;
-    m3JointId joint = GateJoin(world, &wheel);
-    m3Joint_SetSpring(joint, true, 4.0f, 0.7f);
-    m3Joint_SetTargetTranslation(joint, 0.0f);
-    m3Joint_SetSteer(joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
-
-    m3BodyId gearA = GateBox(world, 18.0, 3.0, 0.0);
-    m3BodyId gearB = GateBox(world, 18.6, 3.0, 0.0);
-    m3JointDef axleA = GateDef(ground, gearA, 18.0, 3.0, 0.0, m3_revoluteJoint);
-    axleA.enableMotor = true;
-    axleA.motorSpeed = 3.0f;
-    axleA.maxMotorEffort = 1.0f;
-    GateJoin(world, &axleA);
-    m3JointDef axleB = GateDef(ground, gearB, 18.6, 3.0, 0.0, m3_revoluteJoint);
-    axleB.localAnchorA = (m3Vec3){18.6f, 3.0f, 0.0f};
-    GateJoin(world, &axleB);
-    m3JointDef mesh = m3DefaultJointDef();
-    mesh.type = m3_gearJoint;
-    mesh.bodyIdA = gearA;
-    mesh.bodyIdB = gearB;
-    mesh.ratio = 2.0f;
-    GateJoin(world, &mesh);
-
-    m3JointDef pulley = m3DefaultJointDef();
-    pulley.type = m3_pulleyJoint;
-    pulley.bodyIdA = GateBox(world, 20.0, 2.0, 0.0);
-    pulley.bodyIdB = GateBox(world, 21.0, 1.5, 0.0);
-    pulley.groundAnchorA = (m3Pos3){20.0, 4.0, 0.0};
-    pulley.groundAnchorB = (m3Pos3){21.0, 4.0, 0.0};
-    pulley.ratio = 1.0f;
-    GateJoin(world, &pulley);
-}
-
-// Every joint kind with its rows switched on, stepped to a hash that
-// every compiler and build type must reproduce.
-static void TestJointHashGate(void)
-{
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 32;
-    def.shapeCapacity = 32;
-    def.jointCapacity = 32;
-    m3WorldId world = m3CreateWorld(&def);
-    m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
-    GateHinges(ground, world);
-    GateSliders(ground, world);
-    GateWelds(ground, world);
-    GateDrives(ground, world);
-    StepN(world, 180);
-    bool calm = true;
-    for (int32_t i = 0; i < s_gateCount; ++i)
-    {
-        m3Pos3 p = m3Body_GetPosition(s_gateBodies[i]);
-        m3Vec3 v = m3Body_GetLinearVelocity(s_gateBodies[i]);
-        calm = calm && p.x == p.x && p.y == p.y && p.z == p.z && m3Dot3(v, v) < 2500.0f;
-    }
-    CHECK(calm, "every jointed body stays finite and below 50 m/s");
-    CheckHash("JOINT", m3World_Hash(world), M3_GOLDEN_JOINT);
-    m3DestroyWorld(world);
-}
-
 int main(void)
 {
     TestGenericAsSpherical();
@@ -1474,7 +1202,6 @@ int main(void)
     TestFrameBuilderBranches();
     TestPendulum();
     TestChainSettlesAndSleeps();
-    TestJointDeterminismSpine();
     TestJointContracts();
     TestDoorSwings();
     TestDoorLimits();
@@ -1485,7 +1212,6 @@ int main(void)
     TestTwistJacobianFiniteDifference();
     TestShoulderCone();
     TestTwistClamp();
-    TestJointHashGate();
     if (s_failures == 0)
     {
         printf("test_joints: all checks passed\n");

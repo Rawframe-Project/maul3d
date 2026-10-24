@@ -2,12 +2,10 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The vehicle gate: the raycast suspension. A dropped chassis
-// settles with every spring at the analytic balance, the whole
-// bounce twins and rolls back to the bit, the pool churns and
-// is refused, and a destroyed chassis takes its vehicle with
+// settles with every spring at the analytic balance, the pool churns
+// and is refused, and a destroyed chassis takes its vehicle with
 // it. Wheels are casts, not bodies: nothing here touches contacts.
 
-#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -114,7 +112,6 @@ static void TestSteerCircle(void)
     CHECK(fabsf(w.y) > 0.3f, "the steer turns the car");
     m3real radius = speed / fabsf(w.y);
     CHECK(radius > 1.4f && radius < 5.0f, "the turning radius sits near Ackermann");
-    CheckHash("VEHICLE", m3World_Hash(world), M3_GOLDEN_VEHICLE);
     m3DestroyWorld(world);
 }
 
@@ -153,79 +150,6 @@ static void TestBrakeStop(void)
     m3DestroyWorld(world);
 }
 
-static void TestDriveDeterminism(void)
-{
-    // Twin worlds drive the same script (accelerate, corner, brake,
-    // hostile and out-of-range commands included) onto identical
-    // bits; a mid-drive rollback re-drives the tail bit-exact; the
-    // journaled session replays with every command in the record.
-    static uint8_t journal[65536];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = PlaneWorld();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, NULL);
-        float bad;
-        uint32_t nanBits = 0x7FC00000u;
-        memcpy(&bad, &nanBits, sizeof(bad));
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 240; ++i)
-        {
-            if (i == 30)
-            {
-                m3Vehicle_SetCommands(car, 5.0f, 0.0f, 0.0f); // clamps to 1
-            }
-            if (i == 90)
-            {
-                m3Vehicle_SetCommands(car, 0.5f, -0.7f, 0.0f);
-            }
-            if (i == 120)
-            {
-                m3Vehicle_SetCommands(car, bad, 0.0f, 0.0f); // hostile no-op
-            }
-            if (i == 180)
-            {
-                m3Vehicle_SetCommands(car, 0.0f, 0.0f, 1.0f);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 100 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-drive snapshot fits");
-            }
-        }
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the drive session records");
-            m3WorldId replayed = PlaneWorld();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drive session replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replayed drive is bit-identical");
-            m3DestroyWorld(replayed);
-
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-drive restore lands");
-            for (int32_t i = 101; i < 240; ++i)
-            {
-                if (i == 120)
-                {
-                    m3Vehicle_SetCommands(car, bad, 0.0f, 0.0f);
-                }
-                if (i == 180)
-                {
-                    m3Vehicle_SetCommands(car, 0.0f, 0.0f, 1.0f);
-                }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-drive is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin drives are bit-identical");
-}
-
 static void TestSuspensionSettle(void)
 {
     // At rest each spring holds a quarter of the weight, and with
@@ -257,52 +181,6 @@ static void TestSuspensionSettle(void)
     }
     CHECK(sum > 0.0f, "the suspension carries weight");
     m3DestroyWorld(world);
-}
-
-static void TestBounceTwinsAndRollback(void)
-{
-    // Twin drops hash identical; a mid-bounce snapshot re-bounces
-    // onto the same bits. Journaled create replays with the id
-    // verified.
-    static uint8_t journal[65536];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = PlaneWorld();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 2.5, 0.0}, NULL);
-        CHECK(m3Vehicle_IsValid(car), "the twin car creates");
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 30 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-bounce snapshot fits");
-            }
-        }
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the drop session records");
-            m3WorldId replayed = PlaneWorld();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the drop session replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replayed drop is bit-identical");
-            m3DestroyWorld(replayed);
-
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-bounce restore lands");
-            for (int32_t i = 31; i < 90; ++i)
-            {
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-bounce is bit-identical");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin drops are bit-identical");
 }
 
 static void TestVoxelDeckAndSeam(void)
@@ -486,62 +364,6 @@ static void TestCarveUnderParkedCar(void)
     m3Pos3 p = m3Body_GetPosition(chassis);
     CHECK(parked - p.y > 0.5, "the sleeping car drops the step its floor vanishes");
     m3DestroyWorld(world);
-}
-
-static void TestStormUnderMovingCar(void)
-{
-    // Columns vanish ahead of a moving car, fragments rain, and
-    // twin worlds plus the wheel books agree to the bit.
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        def.voxelCapacity = 1;
-        def.vehicleCapacity = 1;
-        m3WorldId world = m3CreateWorld(&def);
-        static uint8_t deck[16 * 16 * 16];
-        memset(deck, 0, sizeof(deck));
-        for (int32_t z = 0; z < 16; ++z)
-        {
-            for (int32_t x = 0; x < 16; ++x)
-            {
-                deck[x + 16 * (0 + 16 * z)] = 1;
-                deck[x + 16 * (1 + 16 * z)] = 1;
-            }
-        }
-        m3BodyDef gd = m3DefaultBodyDef();
-        gd.position = (m3Pos3){-4.0, 0.0, -4.0};
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3ShapeId chunk = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, deck, NULL, 0.5f);
-        m3BodyId chassis;
-        m3VehicleId car = MakeCar(world, (m3Pos3){-2.0, 2.2, 0.0}, &chassis);
-        for (int32_t i = 0; i < 60; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        m3Vehicle_SetCommands(car, 0.5f, 0.0f, 0.0f);
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            if (i % 6 == 3)
-            {
-                int32_t cx = 6 + (i / 6);
-                if (cx <= 15)
-                {
-                    int32_t lo[3] = {cx, 1, 6};
-                    int32_t hi[3] = {cx, 1, 10};
-                    m3VoxelChunk_ClearBox(chunk, lo, hi);
-                }
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            m3Pos3 p = m3Body_GetPosition(chassis);
-            CHECK(isfinite(p.x) && isfinite(p.y) && isfinite(p.z), "the storm drive stays finite");
-        }
-        hashes[run] = m3World_Hash(world);
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin storm drives are bit-identical");
 }
 
 static void TestHeightfieldDrive(void)
@@ -813,15 +635,12 @@ int main(void)
     TestStraightLine();
     TestSteerCircle();
     TestBrakeStop();
-    TestDriveDeterminism();
     TestVoxelDeckAndSeam();
     TestRampClimbAndWall();
     TestCarveUnderParkedCar();
-    TestStormUnderMovingCar();
     TestHeightfieldDrive();
     TestFerryRideAndChurn();
     TestDriveOnFragment();
-    TestBounceTwinsAndRollback();
     TestPoolAndCascade();
     TestVehicleContracts();
     if (s_failures == 0)

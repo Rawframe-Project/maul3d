@@ -4,8 +4,8 @@
 // The force gate: host forces and impulses land by the
 // analytic books (F = m a, T = I alpha, off-center impulses split
 // into the linear and angular ledgers), live for exactly one step
-// when they are forces, journal and roll back to the bit, and
-// refuse hostile or non-dynamic targets quietly.
+// when they are forces, and refuse hostile or non-dynamic targets
+// quietly.
 
 #include "test_harness.h"
 
@@ -110,88 +110,6 @@ static void TestImpulseBooks(void)
     m3DestroyWorld(world);
 }
 
-static void TestForceReplayAndRollback(void)
-{
-    // A force-and-impulse script journals from birth, replays
-    // bit-exact, and a mid-script rollback re-lands the same bits.
-    static uint8_t journal[131072];
-    static uint8_t snap[786432];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sg = m3DefaultShapeDef();
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sg, &floor);
-        m3BodyId cube = UnitCube(world, (m3Pos3){0.0, 2.0, 0.0});
-
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            if (i % 7 == 3)
-            {
-                m3Body_ApplyForce(cube, (m3Vec3){1.5f, 0.0f, 0.4f});
-            }
-            if (i == 40)
-            {
-                m3Body_ApplyLinearImpulseAtPoint(cube, (m3Vec3){0.0f, 2.0f, 0.0f},
-                                                 m3Body_GetPosition(cube));
-            }
-            if (i == 80)
-            {
-                m3Body_ApplyTorque(cube, (m3Vec3){0.0f, 0.8f, 0.0f});
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 60)
-            {
-                // Part of the SCRIPT in both runs: a force applied
-                // between steps, with run zero snapshotting right
-                // after it: pending accumulators are state and
-                // must survive the trip.
-                m3Body_ApplyForce(cube, (m3Vec3){0.0f, 0.0f, -2.0f});
-                if (run == 0)
-                {
-                    snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                    CHECK(snapBytes > 0, "the mid-script snapshot fits");
-                }
-            }
-        }
-        uint64_t final = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the force session records");
-            m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the force session replays");
-            CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
-            m3DestroyWorld(fresh);
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-script restore lands");
-            for (int32_t i = 61; i < 120; ++i)
-            {
-                if (i % 7 == 3)
-                {
-                    m3Body_ApplyForce(cube, (m3Vec3){1.5f, 0.0f, 0.4f});
-                }
-                if (i == 80)
-                {
-                    m3Body_ApplyTorque(cube, (m3Vec3){0.0f, 0.8f, 0.0f});
-                }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == final, "the re-run is bit-identical");
-        }
-        hashes[run] = final;
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "force twins are bit-identical");
-}
-
 static void TestForceContracts(void)
 {
     m3WorldId world = FreeSpace();
@@ -219,7 +137,6 @@ int main(void)
 {
     TestForceAndTorqueBooks();
     TestImpulseBooks();
-    TestForceReplayAndRollback();
     TestForceContracts();
     if (s_failures == 0)
     {

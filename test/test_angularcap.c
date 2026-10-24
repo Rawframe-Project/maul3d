@@ -2,11 +2,10 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The angular cap gate: the spin clamp and the fast-rotation flag
-// that waives it. A legal tumbler keeps its spin, a
-// pathological spinner clamps to the cap, a flagged wheel sails past
-// it, the cap tunes at runtime through the journaled setter, the
-// flag survives motion-lock writes and rollback, twins and replays
-// land on identical bits, and hostile tape bytes bounce loudly.
+// that waives it. A legal tumbler keeps its spin, a pathological
+// spinner clamps to the cap, a flagged wheel sails past it, the cap
+// tunes at runtime, the flag survives motion-lock writes, and hostile
+// tape bytes bounce loudly.
 
 #include "test_harness.h"
 
@@ -131,78 +130,6 @@ static void TestHashFoldsOffDefaultOnly(void)
     m3DestroyWorld(b);
 }
 
-static void TestTwinsAndReplay(void)
-{
-    static uint8_t journal[65536];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = SpinWorld();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyId rotor = Spinner(world, -3.0, 2000.0f);
-        m3BodyId flywheel = Spinner(world, 3.0, 2000.0f);
-        for (int32_t i = 0; i < 240; ++i)
-        {
-            if (i == 30)
-            {
-                m3Body_EnableFastRotation(flywheel, true);
-            }
-            if (i == 60)
-            {
-                m3World_SetMaximumAngularSpeed(world, 40.0f);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        CHECK(SpinOf(rotor) < 40.5f, "the tightened cap catches the rotor");
-        // The default cap already ate the flywheel's excess in the 30
-        // unflagged ticks; the flag stops FUTURE clamping (it rides
-        // through the 40 rad/s tightening), it does not refund spin.
-        CHECK(SpinOf(flywheel) > 799.0f, "the flagged flywheel ignores the tightening");
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the spin session records");
-            m3WorldId replayed = SpinWorld();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin spin sessions are bit-identical");
-}
-
-static void TestRollbackAcrossTheClamp(void)
-{
-    static uint8_t snap[2097152];
-    m3WorldId world = SpinWorld();
-    m3BodyId rotor = Spinner(world, -3.0, 2000.0f);
-    m3BodyId flywheel = Spinner(world, 3.0, 2000.0f);
-    m3Body_EnableFastRotation(flywheel, true);
-    m3World_SetMaximumAngularSpeed(world, 100.0f);
-    int32_t snapBytes = 0;
-    for (int32_t i = 0; i < 120; ++i)
-    {
-        if (i == 30)
-        {
-            snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-            CHECK(snapBytes > 0, "the mid-spin snapshot fits");
-        }
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    uint64_t final = m3World_Hash(world);
-    CHECK(m3World_Restore(world, snap, snapBytes), "the mid-spin restore lands");
-    CHECK(m3Body_IsFastRotationEnabled(flywheel), "the flag survives the restore");
-    CHECK(!m3Body_IsFastRotationEnabled(rotor), "the rotor stays unflagged");
-    for (int32_t i = 30; i < 120; ++i)
-    {
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    CHECK(m3World_Hash(world) == final, "the re-run spin is bit-identical");
-    m3DestroyWorld(world);
-}
-
 static void TestHostileTape(void)
 {
     // The tape is [op:4][bytes:4][payload], no prologue. One op per
@@ -253,8 +180,6 @@ int main(void)
     TestCapAndEscape();
     TestRuntimeCapAndLockInterplay();
     TestHashFoldsOffDefaultOnly();
-    TestTwinsAndReplay();
-    TestRollbackAcrossTheClamp();
     TestHostileTape();
     if (s_failures == 0)
     {

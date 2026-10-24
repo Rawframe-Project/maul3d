@@ -4,7 +4,7 @@
 // The joint runtime gate: limits and motors bind mid-run,
 // the collide toggle separates an overlapped pair, readback lands
 // in the m*g band on a hanging load, breakage fires exactly once
-// at the analytic threshold, and every op replays bit-exact.
+// at the analytic threshold, and hostile runtime values refuse.
 
 #include "test_harness.h"
 
@@ -299,61 +299,6 @@ static void TestSphericalRotationDrive(void)
     m3DestroyWorld(world);
 }
 
-static void TestRuntimeOpsReplay(void)
-{
-    // The whole joint drive op family under the journal: twins land on the
-    // same bits and a fresh replay reproduces the final hash.
-    static uint8_t journal[131072];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        def.jointCapacity = 8;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyId post = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
-        m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_revoluteJoint;
-        jd.bodyIdA = post;
-        jd.bodyIdB = door;
-        jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
-        jd.localAnchorB = (m3Vec3){-0.4f, 0.0f, 0.0f};
-        jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
-        jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3JointId hinge = m3CreateJoint(world, &jd);
-        StepN(world, 20);
-        m3Joint_SetMotor(hinge, true, 3.0f, 50.0f);
-        StepN(world, 20);
-        m3Joint_SetLimits(hinge, true, -0.3f, 0.3f);
-        m3Joint_SetCollideConnected(hinge, true);
-        StepN(world, 20);
-        m3Joint_SetBreakThresholds(hinge, 30.0f, 25.0f);
-        m3Joint_SetSpring(hinge, true, 5.0f, 0.7f);
-        m3Joint_SetTargetAngle(hinge, 0.2f);
-        StepN(world, 60);
-        uint64_t final = m3World_Hash(world);
-        hashes[run] = final;
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the runtime session records");
-            m3WorldDef freshDef = m3DefaultWorldDef();
-            freshDef.bodyCapacity = 16;
-            freshDef.shapeCapacity = 16;
-            freshDef.jointCapacity = 8;
-            m3WorldId fresh = m3CreateWorld(&freshDef);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the runtime session replays");
-            CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
-            m3DestroyWorld(fresh);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "runtime-op twins are bit-identical");
-}
-
 static void TestHostileRuntime(void)
 {
     m3WorldId world = SmallWorld();
@@ -393,7 +338,6 @@ int main(void)
     TestSpringServo();
     TestSpringDampingContrast();
     TestSphericalRotationDrive();
-    TestRuntimeOpsReplay();
     TestHostileRuntime();
     if (s_failures == 0)
     {

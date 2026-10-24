@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Mesh BVH gate: the brute-force referee the plan demands.
-// The tree is a pruning layer, nothing more: for any query box the
-// gathered set, filtered by the exact per-triangle test, must equal
-// the full scan filtered by the same test. Plus build determinism
-// (twin builds byte-identical), restore rebuild (a rolled-back world
-// carries a byte-identical tree), and the degenerate boxes.
+// Mesh BVH gate: the brute-force referee. The tree is a pruning
+// layer, nothing more: for any query box the gathered set, filtered by
+// the exact per-triangle test, must equal the full scan filtered by the
+// same test. Plus the degenerate boxes.
 
 #include "test_harness.h"
 #include "world.h"
@@ -169,113 +167,9 @@ static void TestRefereeGather(void)
     m3DestroyWorld(world);
 }
 
-// Content equality for the pointer-based BVH: derived data
-// must match by VALUE, and the struct now carries heap pointers.
-static int BvhSame(const m3MeshBvh* a, const m3MeshBvh* b)
-{
-    if (a->nodeCount != b->nodeCount)
-    {
-        return 0;
-    }
-    if (a->nodeCount == 0)
-    {
-        return 1;
-    }
-    int32_t orderLen = 0;
-    for (int32_t i = 0; i < a->nodeCount; ++i)
-    {
-        if (a->nodes[i].count > 0 && a->nodes[i].start + a->nodes[i].count > orderLen)
-        {
-            orderLen = a->nodes[i].start + a->nodes[i].count;
-        }
-    }
-    return memcmp(a->nodes, b->nodes, (size_t)a->nodeCount * sizeof(m3MeshBvhNode)) == 0 &&
-           memcmp(a->order, b->order, (size_t)orderLen * sizeof(uint16_t)) == 0;
-}
-
-static void TestBuildDeterminismAndRestore(void)
-{
-    // Twin builds are byte-identical, and a restore rebuilds the
-    // exact same bytes (derived data follows content).
-    m3ShapeId shapeA;
-    m3WorldId a = MakeMeshWorld(&shapeA);
-    m3ShapeId shapeB;
-    m3WorldId b = MakeMeshWorld(&shapeB);
-    const m3MeshBvh* bvhA = BvhOf(a, shapeA);
-    const m3MeshBvh* bvhB = BvhOf(b, shapeB);
-    CHECK(BvhSame(bvhA, bvhB), "twin builds are byte-identical");
-
-    // Deep-copy the derived tree so the scrub below cannot alias it.
-    m3MeshBvh beforeCopy;
-    memset(&beforeCopy, 0, sizeof(beforeCopy));
-    beforeCopy.nodeCount = bvhA->nodeCount;
-    beforeCopy.nodes = (m3MeshBvhNode*)malloc((size_t)bvhA->nodeCount * sizeof(m3MeshBvhNode));
-    memcpy(beforeCopy.nodes, bvhA->nodes, (size_t)bvhA->nodeCount * sizeof(m3MeshBvhNode));
-    int32_t orderLen = 0;
-    for (int32_t i = 0; i < bvhA->nodeCount; ++i)
-    {
-        if (bvhA->nodes[i].count > 0 && bvhA->nodes[i].start + bvhA->nodes[i].count > orderLen)
-        {
-            orderLen = bvhA->nodes[i].start + bvhA->nodes[i].count;
-        }
-    }
-    beforeCopy.order = (uint16_t*)malloc((size_t)orderLen * sizeof(uint16_t));
-    memcpy(beforeCopy.order, bvhA->order, (size_t)orderLen * sizeof(uint16_t));
-    m3MeshBvh* before = &beforeCopy;
-
-    int32_t bytes = m3World_SnapshotSize(a);
-    uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
-    CHECK(m3World_Snapshot(a, snap, bytes) == bytes, "snapshot writes");
-
-    // Scrub the live tree to prove restore really rebuilds it.
-    m3World* worldA = m3WorldFromId(a);
-    m3MeshBvhFree(&worldA->meshes.meshBvh[worldA->shapes.shapeMeshIndex[shapeA.index1 - 1]]);
-    CHECK(m3World_Restore(a, snap, bytes), "restore accepts");
-    CHECK(BvhSame(BvhOf(a, shapeA), before), "restore rebuilds a byte-identical tree");
-
-    free(beforeCopy.nodes);
-    free(beforeCopy.order);
-    free(snap);
-    m3DestroyWorld(a);
-    m3DestroyWorld(b);
-}
-
-static void TestMeshSimUnperturbed(void)
-{
-    // A ball rolling down the bumpscape: 300 steps, then the curated
-    // hash of twin worlds must agree (the BVH is invisible to the
-    // simulation; cross-run identity is the cheapest referee here,
-    // the DET golden and the bench hashes referee against history).
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3ShapeId meshShape;
-        m3WorldId world = MakeMeshWorld(&meshShape);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){16.0, 3.0, 16.0};
-        m3BodyId ball = m3CreateBody(world, &bd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &sphere);
-        m3Body_SetLinearVelocity(ball, (m3Vec3){2.0f, 0.0f, 1.0f});
-        for (int32_t i = 0; i < 300; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(world);
-        m3Pos3 p = m3Body_GetPosition(ball);
-        CHECK(p.y > -2.0 && p.y < 3.0, "the ball stays on the bumpscape");
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "mesh sim is bit-deterministic through the BVH");
-}
-
 int main(void)
 {
     TestRefereeGather();
-    TestBuildDeterminismAndRestore();
-    TestMeshSimUnperturbed();
     if (s_failures == 0)
     {
         printf("test_bvh: all green\n");

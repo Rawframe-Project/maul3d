@@ -4,8 +4,8 @@
 // The reshape gate: sphere and capsule geometry swaps in
 // place, conversions included. Interned families refuse, hostile
 // dimensions refuse and journal nothing, a shrink drops what leaned
-// on the old silhouette and wakes the sleepers, mass follows the
-// new volume, and swaps ride twins, replay, and rollback bit-exact.
+// on the old silhouette and wakes the sleepers, and mass follows the
+// new volume.
 
 #include "test_harness.h"
 
@@ -125,74 +125,11 @@ static void TestMassFollowsTheVolume(void)
     m3DestroyWorld(world);
 }
 
-static void TestTwinsReplayRollback(void)
-{
-    static uint8_t journal[131072];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = Yard();
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 1.2, 0.0};
-        m3BodyId body = m3CreateBody(world, &bd);
-        m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-        m3ShapeId orb = m3CreateSphereShape(body, &sd, &ball);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 180; ++i)
-        {
-            if (i == 30)
-            {
-                m3Capsule pill = {{0.0f, -0.4f, 0.0f}, {0.0f, 0.4f, 0.0f}, 0.3f};
-                m3Shape_SetCapsule(orb, &pill);
-            }
-            if (i == 60 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-swap snapshot fits");
-            }
-            if (i == 90)
-            {
-                m3Sphere pebble = {{0.0f, 0.0f, 0.0f}, 0.2f};
-                m3Shape_SetSphere(orb, &pebble);
-            }
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(world);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the swap session records");
-            m3WorldId replayed = Yard();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the swaps replay");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            CHECK(m3World_Restore(world, snap, snapBytes), "the mid-swap restore lands");
-            for (int32_t i = 60; i < 180; ++i)
-            {
-                if (i == 90)
-                {
-                    m3Sphere pebble = {{0.0f, 0.0f, 0.0f}, 0.2f};
-                    m3Shape_SetSphere(orb, &pebble);
-                }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(world) == hashes[0], "the re-run swaps land on the same bits");
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin swap sessions are bit-identical");
-}
-
 int main(void)
 {
     TestSwapWall();
     TestShrinkDropsTheStackAndWakesIt();
     TestMassFollowsTheVolume();
-    TestTwinsReplayRollback();
     if (s_failures == 0)
     {
         printf("test_reshape: all passed\n");

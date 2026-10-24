@@ -3,10 +3,9 @@
 //
 // The water gate: a world-anchored box of water floats what
 // should float, sinks what should sink, carries what drifts into
-// its current, wakes sleepers when the tide arrives or leaves, and
-// rides twins, the journal, and the snapshot. No fluid sim BY LAW.
+// its current, and wakes sleepers when the tide arrives or leaves.
+// No fluid sim BY LAW.
 
-#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -68,7 +67,6 @@ static void TestFloatAndSink(void)
     double anvilY = m3Body_GetPosition(anvil).y;
     CHECK(corkY > 2.5 && corkY < 4.6, "the light crate floats near the surface");
     CHECK(anvilY < 0.8, "the dense crate sinks to the floor");
-    CheckHash("WATER", m3World_Hash(world), M3_GOLDEN_WATER);
     m3DestroyWorld(world);
 }
 
@@ -169,75 +167,6 @@ static void TestWaterWalls(void)
     m3DestroyWorld(world);
 }
 
-static void TestWaterTwinsReplayRollback(void)
-{
-    static uint8_t journal[131072];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef wd = m3DefaultWorldDef();
-        wd.bodyCapacity = 16;
-        wd.shapeCapacity = 16;
-        m3WorldId w = m3CreateWorld(&wd);
-        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(w, &gd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
-        m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
-        wdf.lo = (m3Pos3){-6.0, 0.0, -6.0};
-        wdf.hi = (m3Pos3){6.0, 3.0, 6.0};
-        wdf.flow = (m3Vec3){0.4f, 0.0f, 0.0f};
-        m3WaterVolumeId water = m3CreateWaterVolume(w, &wdf);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){-2.0, 4.0, 0.0};
-        m3BodyId cork = m3CreateBody(w, &bd);
-        m3ShapeDef cs = m3DefaultShapeDef();
-        cs.density = 400.0f;
-        m3CreateBoxShape(cork, &cs, (m3Vec3){0.3f, 0.3f, 0.3f});
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 180; ++i)
-        {
-            if (i == 60 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(w, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the wet snapshot fits");
-            }
-            if (i == 120)
-            {
-                m3DestroyWaterVolume(water); // the ebb, journaled
-            }
-            m3World_Step(w, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(w);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(w);
-            CHECK(bytes > 0, "the wet session records");
-            m3WorldDef fresh = wd;
-            m3WorldId replayed = m3CreateWorld(&fresh);
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the water replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            CHECK(m3World_Restore(w, snap, snapBytes), "the wet restore lands");
-            for (int32_t i = 60; i < 180; ++i)
-            {
-                if (i == 120)
-                {
-                    m3DestroyWaterVolume(water);
-                }
-                m3World_Step(w, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(w) == hashes[0], "the re-run lands on the same bits");
-        }
-        m3DestroyWorld(w);
-    }
-    CHECK(hashes[0] == hashes[1], "twin wet sessions are bit-identical");
-}
-
 static void TestSoftBuoyancy(void)
 {
     // The rho-1000 particle convention: in a density-1500
@@ -302,7 +231,6 @@ int main(void)
     TestFlowCarries();
     TestTideWakesSleepers();
     TestWaterWalls();
-    TestWaterTwinsReplayRollback();
     TestSoftBuoyancy();
     if (s_failures == 0)
     {

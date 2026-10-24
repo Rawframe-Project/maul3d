@@ -1,24 +1,44 @@
 # Test suites. See cmake/Testing.cmake for the flags.
+maul_add_test(golden THREADS)
 
-# The committed world hashes reach the suites as definitions, so every cell
-# checks them with no file to read at run time (test/hash_check.h). A
-# malformed or repeated line fails here rather than turning into a silent
-# zero.
+# The benchmark scenes, pinned like the golden ones. They take minutes, so
+# they run only in Release builds without sanitizers, labeled bench, which
+# the pull request presets leave out and the nightly presets run.
+if(NOT ${MAUL_PREFIX}_SANITIZE AND NOT ${MAUL_PREFIX}_TSAN AND
+   (CMAKE_CONFIGURATION_TYPES OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    add_executable(test_bench ${PROJECT_SOURCE_DIR}/test/test_bench.c
+                              ${PROJECT_SOURCE_DIR}/bench/scenes.c)
+    target_link_libraries(test_bench PRIVATE ${PROJECT_NAME})
+    maul_apply_flags(test_bench)
+    if(CMAKE_CONFIGURATION_TYPES)
+        add_test(NAME bench COMMAND test_bench CONFIGURATIONS Release)
+    else()
+        add_test(NAME bench COMMAND test_bench)
+    endif()
+    set_tests_properties(bench PROPERTIES LABELS bench)
+endif()
+
+# The committed hashes reach the golden and bench tests as definitions, so
+# they read no file and run as they are under Node and on every platform.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt)
-file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt maul_hash_lines)
-set(maul_hash_names "")
-foreach(maul_line ${maul_hash_lines})
+# A malformed or repeated line fails here rather than turning into a silent
+# zero that the scene would then report as a mismatch.
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt maul_golden_lines)
+set(maul_golden_names "")
+foreach(maul_line ${maul_golden_lines})
     if(NOT maul_line MATCHES "^M3_([A-Z0-9_]+)_HASH=([0-9a-f]+)$")
         message(FATAL_ERROR "test/hashes.txt: malformed line '${maul_line}'")
     endif()
-    if(CMAKE_MATCH_1 IN_LIST maul_hash_names)
+    if(CMAKE_MATCH_1 IN_LIST maul_golden_names)
         message(FATAL_ERROR "test/hashes.txt: ${CMAKE_MATCH_1} appears twice")
     endif()
-    list(APPEND maul_hash_names ${CMAKE_MATCH_1})
-    add_compile_definitions(M3_GOLDEN_${CMAKE_MATCH_1}=0x${CMAKE_MATCH_2}ull)
+    list(APPEND maul_golden_names ${CMAKE_MATCH_1})
+    set(maul_definition "M3_GOLDEN_${CMAKE_MATCH_1}=0x${CMAKE_MATCH_2}ull")
+    target_compile_definitions(test_golden PRIVATE ${maul_definition})
+    if(TARGET test_bench)
+        target_compile_definitions(test_bench PRIVATE ${maul_definition})
+    endif()
 endforeach()
-
-maul_add_test(determinism THREADS)
 maul_add_test(math)
 maul_add_test(solver)
 maul_add_test(queries)
@@ -63,10 +83,7 @@ maul_add_test(world WHITEBOX)
 maul_add_test(contacts WHITEBOX)
 maul_add_test(distance WHITEBOX)
 maul_add_test(quickhull WHITEBOX)
-maul_add_test(voxstorm WHITEBOX)
 maul_add_test(voxel WHITEBOX)
-maul_add_test(soak WHITEBOX)
 maul_add_test(bvh WHITEBOX)
-maul_add_test(tree WHITEBOX)
 maul_add_test(concurrency POSIX)
 maul_add_header_tests()

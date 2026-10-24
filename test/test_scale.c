@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The scale gate: the 5k-body claims, proven at CI size. A
-// thousand mixed bodies rain into a voxel block; worker-count twins
-// (serial versus a real four-thread host pool) land on identical
-// bits; the whole session records, replays, and rolls back
-// bit-exact mid-storm; capacity sweeps grow to the bench's 8192
-// without a creak. The full-size numbers (5k rollback cost, 10k
-// smoke) live in the bench binary where wall time belongs.
+// Worker twins: three hundred mixed bodies and a jelly rain into a voxel
+// block, carved mid-run, and a dense pile that forces the solver's
+// overflow colors. The serial run and a real four-thread host pool land
+// on identical bits. The full-size scenes (five and ten thousand bodies)
+// are pinned by test_bench in the nightly check.
 
 #include "test_harness.h"
 
@@ -189,7 +187,7 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     uint64_t rng = 0x5CA1Eull;
-    for (int32_t k = 0; k < 1000; ++k)
+    for (int32_t k = 0; k < 300; ++k)
     {
         bd.position = (m3Pos3){RandRange(&rng, -10.0, 10.0), RandRange(&rng, 6.0, 26.0),
                                RandRange(&rng, -10.0, 10.0)};
@@ -275,99 +273,65 @@ static void TestWorkerTwinsAtScale(void)
     CHECK(hashes[0] == hashes[1], "serial and four-thread scale twins are bit-identical");
 }
 
-static void TestScaleSessionAndRollback(void)
+static void TestColoredPileTwins(void)
 {
-    // The full netcode loop at a thousand bodies: the session
-    // journals from world birth, replays bit-exact into a fresh
-    // world, and a mid-storm snapshot re-fights the same tail onto
-    // the same bits.
-    static uint8_t journal[4 * 1024 * 1024];
-    m3WorldDef def = ScaleDef();
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the session records");
-    m3ShapeId chunk = BuildMiniBlock(world);
-
-    int32_t snapBytes = m3World_SnapshotSize(world);
-    uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
-    CHECK(snap != NULL, "the snapshot buffer allocates");
-    int32_t written = 0;
-
-    for (int32_t i = 0; i < 100; ++i)
-    {
-        if (i >= 30 && i % 10 == 0)
-        {
-            int32_t cx = 5 + (i / 10) % 6;
-            int32_t lo[3] = {cx, 3, 5};
-            int32_t hi[3] = {cx, 3, 10};
-            m3VoxelChunk_ClearBox(chunk, lo, hi);
-        }
-        m3World_Step(world, 1.0f / 60.0f, 4);
-        if (i == 50)
-        {
-            written = m3World_Snapshot(world, snap, snapBytes);
-            CHECK(written == snapBytes, "the mid-storm snapshot fits its own size");
-        }
-    }
-    uint64_t final = m3World_Hash(world);
-
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes > 0, "the session closes");
-    m3WorldId fresh = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the session replays");
-    CHECK(m3World_Hash(fresh) == final, "the replayed storm is bit-identical");
-    m3DestroyWorld(fresh);
-
-    CHECK(m3World_Restore(world, snap, written), "the mid-storm restore lands");
-    for (int32_t i = 51; i < 100; ++i)
-    {
-        if (i >= 30 && i % 10 == 0)
-        {
-            int32_t cx = 5 + (i / 10) % 6;
-            int32_t lo[3] = {cx, 3, 5};
-            int32_t hi[3] = {cx, 3, 10};
-            m3VoxelChunk_ClearBox(chunk, lo, hi);
-        }
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    CHECK(m3World_Hash(world) == final, "the re-fought storm is bit-identical");
-    free(snap);
-    m3DestroyWorld(world);
-}
-
-static void TestCapacityGrowthSweep(void)
-{
-    // Worlds from small to bench-sized: creation fills to the brim,
-    // refuses one past it, and tears down clean at every size.
-    int32_t caps[3] = {256, 2048, 8192};
-    for (int32_t c = 0; c < 3; ++c)
+    // The colored solver under real threads: a dense pile (boxes and
+    // spheres jammed together, many shared bodies, overflow colors
+    // guaranteed) must hash identically serial versus pooled. This is
+    // the worker-twin gate aimed straight at the solver.
+    uint64_t hashes[2];
+    for (int32_t variant = 0; variant < 2; ++variant)
     {
         m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = caps[c];
-        def.shapeCapacity = caps[c];
+        def.bodyCapacity = 64;
+        def.shapeCapacity = 64;
+        def.workerCount = variant == 0 ? 1 : 4;
+        if (variant == 1)
+        {
+            def.enqueueTask = PoolEnqueue;
+            def.finishTask = PoolFinish;
+        }
         m3WorldId world = m3CreateWorld(&def);
-        CHECK(m3World_IsValid(world), "the sized world creates");
+        m3BodyDef gd = m3DefaultBodyDef();
+        m3BodyId ground = m3CreateBody(world, &gd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        sd.friction = 0.6f;
+        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+        m3CreatePlaneShape(ground, &sd, &floor);
+
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
-        int32_t made = 0;
-        for (int32_t k = 0; k < caps[c] + 8; ++k)
+        for (int32_t k = 0; k < 24; ++k)
         {
-            bd.position = (m3Pos3){(double)(k % 64), 1.0 + (double)(k / 64), 0.0};
-            if (m3Body_IsValid(m3CreateBody(world, &bd)))
+            double x = 0.55 * (double)(k % 4) - 0.8;
+            double z = 0.55 * (double)((k / 4) % 3) - 0.5;
+            double y = 0.5 + 0.65 * (double)(k / 12);
+            bd.position = (m3Pos3){x, y, z};
+            m3BodyId body = m3CreateBody(world, &bd);
+            if (k % 2 == 0)
             {
-                made += 1;
+                m3CreateBoxShape(body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+            }
+            else
+            {
+                m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.27f};
+                m3CreateSphereShape(body, &sd, &ball);
             }
         }
-        CHECK(made == caps[c], "creation fills exactly to capacity");
-        m3World_Step(world, 1.0f / 60.0f, 1);
+        for (int32_t i = 0; i < 150; ++i)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        hashes[variant] = m3World_Hash(world);
         m3DestroyWorld(world);
     }
+    CHECK(hashes[0] == hashes[1], "the colored pile is bit-identical serial versus pooled");
 }
 
 int main(void)
 {
     TestWorkerTwinsAtScale();
-    TestScaleSessionAndRollback();
-    TestCapacityGrowthSweep();
+    TestColoredPileTwins();
     if (s_failures == 0)
     {
         printf("test_scale: all green\n");

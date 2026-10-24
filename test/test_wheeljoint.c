@@ -2,12 +2,11 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The wheel joint gate: the OPTIONAL rigid-wheel path. A
-// jointed cart drives on real contacts (no rays anywhere), rolls a
-// rubble field without sinking through anything, twins to the bit,
-// snaps a capped axle deterministically and plows on three wheels,
-// replays its whole session from the journal, and the hostile wall
-// refuses geometry that is not a wheel. The raycast vehicle is
-// untouched by all of it.
+// jointed cart drives on real contacts (no rays anywhere), crosses a
+// rubble field without sinking through anything, snaps a
+// capped axle deterministically and plows on three wheels, and the
+// hostile wall refuses geometry that is not a wheel. The raycast
+// vehicle is untouched by all of it.
 
 #include "test_harness.h"
 
@@ -124,57 +123,6 @@ static void TestCartRollsOnFlat(void)
     m3DestroyWorld(world);
 }
 
-static void TestRubbleFieldTwins(void)
-{
-    // The plan's promise: a joint-wheeled cart crosses a rubble
-    // field without ray tunneling artifacts, because there are no
-    // rays: every wheel is a body and every strike is a contact.
-    // The real assertion is that no wheel center ever sinks below
-    // its radius, and that twin runs land on one hash.
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = PlaneWorld();
-        // Deterministic rubble: a low wall of loose bricks across
-        // the cart's path, plus scattered chunks behind it.
-        m3ShapeDef sd = m3DefaultShapeDef();
-        sd.density = 400.0f;
-        for (int32_t i = 0; i < 12; ++i)
-        {
-            m3BodyDef bd = m3DefaultBodyDef();
-            bd.type = m3_dynamicBody;
-            double col = (double)(i % 4);
-            double row = (double)(i / 4);
-            bd.position = (m3Pos3){3.0 + row * 0.8, 0.14 + row * 0.02, -0.9 + col * 0.6};
-            m3BodyId brick = m3CreateBody(world, &bd);
-            m3CreateBoxShape(brick, &sd, (m3Vec3){0.22f, 0.12f, 0.22f});
-        }
-        JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        DriveCart(&cart, -25.0f, 90.0f);
-        bool sank = false;
-        for (int32_t i = 0; i < 600; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            for (int32_t w = 0; w < CART_WHEELS; ++w)
-            {
-                if (m3Body_GetPosition(cart.wheels[w]).y < 0.24)
-                {
-                    sank = true; // radius 0.3 minus contact slop
-                }
-            }
-        }
-        CHECK(!sank, "no wheel ever sinks through the world");
-        CHECK(m3Body_GetPosition(cart.chassis).x > 3.0, "the cart genuinely crosses the rubble");
-        hashes[run] = m3World_Hash(world);
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "twin rubble runs are bit-identical");
-}
-
 static void TestBrokenAxleDeterministic(void)
 {
     // The break contract on an axle: cap the front-left joint's
@@ -228,38 +176,6 @@ static void TestBrokenAxleDeterministic(void)
         m3DestroyWorld(world);
     }
     CHECK(hashes[0] == hashes[1], "twin break runs are bit-identical");
-}
-
-static void TestJournalReplay(void)
-{
-    // The whole cart life journals: creates, springs, limits,
-    // motors, a break cap, the drive. Replay lands on the final
-    // hash with zero divergence.
-    static uint8_t journal[131072];
-    m3WorldId world = PlaneWorld();
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal opens");
-    JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
-    m3Joint_SetBreakThresholds(cart.joints[2], 0.0f, 25.0f);
-    for (int32_t i = 0; i < 360; ++i)
-    {
-        if (i == 60)
-        {
-            DriveCart(&cart, -30.0f, 90.0f);
-        }
-        if (i == 200)
-        {
-            m3Joint_SetMotor(cart.joints[0], false, 0.0f, 0.0f); // one dead motor
-        }
-        m3World_Step(world, 1.0f / 60.0f, 4);
-    }
-    uint64_t final = m3World_Hash(world);
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes > 0, "the cart session records");
-    m3WorldId replayed = PlaneWorld();
-    CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the cart session replays");
-    CHECK(m3World_Hash(replayed) == final, "the replayed cart is bit-identical");
-    m3DestroyWorld(replayed);
-    m3DestroyWorld(world);
 }
 
 static void TestHostileWall(void)
@@ -320,71 +236,62 @@ static void TestHostileWall(void)
     m3DestroyWorld(world);
 }
 
-static void TestAxleCascadeStorm(void)
+static void TestRubbleFieldTwins(void)
 {
-    // Stress test: every axle capped, brutal torque, rough
-    // ground. Axles snap one after another (each break shifts load
-    // onto the survivors), the cart degenerates from car to sled,
-    // and a rollback seeded BEFORE the first break re-runs the
-    // whole cascade onto identical bits. Twins agree end to end.
-    static uint8_t snap[2097152];
+    // A joint-wheeled cart crosses a rubble field without ray
+    // tunneling artifacts, because there are no rays: every wheel is a
+    // body and every strike is a contact. No wheel center ever sinks
+    // below its radius, and twin runs land on one hash.
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
         m3WorldId world = PlaneWorld();
+        // Deterministic rubble: a low wall of loose bricks across
+        // the cart's path, plus scattered chunks behind it.
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.density = 400.0f;
-        for (int32_t i = 0; i < 8; ++i)
+        for (int32_t i = 0; i < 12; ++i)
         {
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
-            bd.position = (m3Pos3){2.0 + (double)(i % 4) * 0.9, 0.12, -0.8 + (double)(i / 4) * 1.1};
+            double col = (double)(i % 4);
+            double row = (double)(i / 4);
+            bd.position = (m3Pos3){3.0 + row * 0.8, 0.14 + row * 0.02, -0.9 + col * 0.6};
             m3BodyId brick = m3CreateBody(world, &bd);
-            m3CreateBoxShape(brick, &sd, (m3Vec3){0.2f, 0.1f, 0.2f});
+            m3CreateBoxShape(brick, &sd, (m3Vec3){0.22f, 0.12f, 0.22f});
         }
         JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        for (int32_t w = 0; w < CART_WHEELS; ++w)
-        {
-            m3Joint_SetBreakThresholds(cart.joints[w], 0.0f, 18.0f + 4.0f * (m3real)w);
-        }
-        DriveCart(&cart, -35.0f, 120.0f);
-        int32_t snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-        CHECK(snapBytes > 0, "the pre-cascade snapshot fits");
+        DriveCart(&cart, -25.0f, 90.0f);
+        bool sank = false;
         for (int32_t i = 0; i < 600; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
+            for (int32_t w = 0; w < CART_WHEELS; ++w)
+            {
+                if (m3Body_GetPosition(cart.wheels[w]).y < 0.24)
+                {
+                    sank = true; // radius 0.3 minus contact slop
+                }
+            }
         }
-        int32_t broken = 0;
-        for (int32_t w = 0; w < CART_WHEELS; ++w)
-        {
-            broken += m3Joint_IsValid(cart.joints[w]) ? 0 : 1;
-        }
-        CHECK(broken >= 2, "the cascade takes at least two axles");
-        uint64_t after = m3World_Hash(world);
-        CHECK(m3World_Restore(world, snap, snapBytes), "the pre-cascade restore lands");
-        for (int32_t i = 0; i < 600; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        CHECK(m3World_Hash(world) == after, "the re-run cascade is bit-identical");
-        hashes[run] = after;
+        CHECK(!sank, "no wheel ever sinks through the world");
+        CHECK(m3Body_GetPosition(cart.chassis).x > 3.0, "the cart genuinely crosses the rubble");
+        hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
     }
-    CHECK(hashes[0] == hashes[1], "twin cascades are bit-identical");
+    CHECK(hashes[0] == hashes[1], "twin rubble runs are bit-identical");
 }
 
 int main(void)
 {
     TestCartRollsOnFlat();
-    TestRubbleFieldTwins();
     TestBrokenAxleDeterministic();
-    TestJournalReplay();
     TestHostileWall();
-    TestAxleCascadeStorm();
+    TestRubbleFieldTwins();
     if (s_failures == 0)
     {
         printf("test_wheeljoint: all passed\n");

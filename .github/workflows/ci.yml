@@ -1,9 +1,9 @@
 # Continuous integration: the pull request check, and the full check on
 # main and every night. Each build cell is a CMake preset built by the
-# organization's shared workflow. Twelve suites compare their world hash
-# with test/hashes.txt in every cell, and the bench-pins job compares the
-# benchmark scenes with bench/pins.txt, so the cells agree bit for bit and
-# no result moves unnoticed. The other jobs run in the same CI image.
+# organization's shared workflow, and every cell checks the golden scenes
+# against test/hashes.txt, so the cells agree bit for bit and no result
+# moves unnoticed. The bench job does the same for the benchmark scenes on
+# main and every night. The other jobs run in the same CI image.
 name: ci
 
 on:
@@ -92,11 +92,10 @@ jobs:
               --checks=-readability-function-cognitive-complexity "$f"
           done
 
-  # Every cell builds with warnings as errors and runs the whole suite and
-  # the header tests; twelve suites check their world hash against
-  # test/hashes.txt. linux-gcc-14 also runs on arm64, where the NEON kernels
-  # must give the same bits as AVX2 and the scalar backend of the sanitizer
-  # cell.
+  # Every cell builds with warnings as errors and runs the whole suite, the
+  # header tests and the golden scenes included. linux-gcc-14 also runs on
+  # arm64, where the NEON kernels must give the same bits as AVX2 and the
+  # scalar backend of the sanitizer cell.
   build:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -107,11 +106,8 @@ jobs:
           - { preset: linux-gcc-14 }
           - { preset: linux-gcc-14, runner: ubuntu-24.04-arm }
           - { preset: linux-clang-20 }
-          # One run and longer limits until the tests pull request prunes
-          # the long scale and soak suites: under TSan, scale alone ran
-          # past its 900-second test limit on three runs.
-          - { preset: linux-clang-20-asan, timeout: 45 }
-          - { preset: linux-clang-20-tsan, timeout: 45 }
+          - { preset: linux-clang-20-asan, repeat: 3 }
+          - { preset: linux-clang-20-tsan }
           - { preset: linux-shared }
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
@@ -124,6 +120,31 @@ jobs:
       runner: ${{ matrix.runner || 'ubuntu-24.04' }}
       repeat: ${{ matrix.repeat || 1 }}
       timeout: ${{ matrix.timeout || 20 }}
+
+  # The benchmark scenes, pinned like the golden scenes: five and ten
+  # thousand bodies, destruction at scale and a 5k-body rollback, in Release
+  # on every native platform. Each cell adds a Release build and about
+  # twenty seconds of scenes, so they run on main and every night, never in
+  # the pull request check.
+  bench:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { preset: linux-gcc-14-bench }
+          - { preset: linux-gcc-14-bench, runner: ubuntu-24.04-arm }
+          - { preset: linux-clang-20-bench }
+          - { preset: macos-clang-bench, runner: macos-15 }
+          - { preset: windows-clang-cl-bench, runner: windows-2025 }
+          - { preset: windows-arm64-clang-cl-bench, runner: windows-11-arm }
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    permissions:
+      contents: read
+    with:
+      preset: ${{ matrix.preset }}
+      runner: ${{ matrix.runner || 'ubuntu-24.04' }}
+      timeout: 60
 
   # The public headers alone under MSVC's cl, as C17 and C++17 with /W4 /WX:
   # consumers may compile them with it, though it cannot build the library.
@@ -144,8 +165,8 @@ jobs:
           cmake --build out/headers --config Release
 
   # The library and its tests under Emscripten with threads, run by Node: the
-  # committed world hashes hold there too. The CI image has no Emscripten, so this job
-  # uses the runner and the emsdk action.
+  # golden scenes hold there too. The CI image has no Emscripten, so this
+  # job uses the runner and the emsdk action.
   web:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -181,38 +202,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The benchmark scenes, too large for the suites, end on world hashes
-  # pinned in bench/pins.txt. One Release cell runs them; the suites' hashes
-  # already hold the platforms together.
-  bench-pins:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Build
-        run: |
-          cmake --preset linux-gcc-14 -D${PREFIX}_BUILD_TESTS=OFF
-          cmake --build --preset linux-gcc-14 --target maul3d_bench
-      - name: Compare with bench/pins.txt
-        run: |
-          ./out/linux-gcc-14/maul3d_bench | tee bench.out
-          [ -s bench/pins.txt ] || { echo "::error::bench/pins.txt is empty"; exit 1; }
-          fail=0
-          while read -r scene pin; do
-            if ! grep -q "M3_BENCH $scene .*hash=$pin" bench.out; then
-              echo "::error::the $scene pin moved: expected $pin"
-              fail=1
-            fi
-          done < bench/pins.txt
-          exit $fail
-
   # The interactive testbed builds against raylib, which it fetches; only on
   # main and at night, since the library cells already compile every source
   # it calls.
@@ -238,7 +227,7 @@ jobs:
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, msvc-headers, web, bench-pins, testbed]
+    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, testbed]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}

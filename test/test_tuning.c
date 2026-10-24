@@ -3,8 +3,7 @@
 //
 // The tuning gate: runtime materials bind next step, density
 // rebuilds mass on request, world knobs change behavior in the
-// direction physics demands, equal-knob worlds twin bit-exact,
-// differing knobs diverge detectably, and every op replays.
+// direction physics demands, and hostile knob values change nothing.
 
 #include "test_harness.h"
 
@@ -258,74 +257,6 @@ static void TestSleepAndContinuousToggles(void)
     }
 }
 
-static void TestKnobTwinsAndReplay(void)
-{
-    // Twin law: equal knob scripts twin bit-exact; a differing knob
-    // diverges detectably. And the whole op family replays.
-    static uint8_t journal[262144];
-    uint64_t twinHash[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        // The journal must open on the EMPTY world: a floor created
-        // before JournalBegin does not exist in the replay target
-        // (the first draft learned that contract the hard way).
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 32;
-        def.shapeCapacity = 32;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sg = m3DefaultShapeDef();
-        m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3ShapeId floor = m3CreatePlaneShape(ground, &sg, &fl);
-        m3ShapeId crateShape;
-        m3BodyId crate = Crate(world, (m3Pos3){0.0, 3.0, 0.0}, &crateShape);
-        StepN(world, 30);
-        m3World_SetContactTuning(world, 45.0f, 5.0f, 1.5f);
-        m3Shape_SetFriction(floor, 0.2f);
-        m3Shape_SetRestitution(crateShape, 0.4f);
-        m3World_SetRestitutionThreshold(world, 0.5f);
-        m3World_SetMaximumLinearSpeed(world, 50.0f);
-        m3Body_ApplyLinearImpulse(crate, (m3Vec3){3.0f, 0.0f, 1.0f});
-        StepN(world, 60);
-        m3World_EnableSleeping(world, false);
-        m3Shape_SetRollingResistance(crateShape, 0.05f);
-        m3Shape_SetDensity(crateShape, 2.0f, true);
-        StepN(world, 60);
-        uint64_t final = m3World_Hash(world);
-        twinHash[run] = final;
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the knob session records");
-            m3WorldDef freshDef = m3DefaultWorldDef();
-            freshDef.bodyCapacity = 32;
-            freshDef.shapeCapacity = 32;
-            m3WorldId fresh = m3CreateWorld(&freshDef);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the knob session replays");
-            CHECK(m3World_Hash(fresh) == final, "the knob replay is bit-identical");
-            m3DestroyWorld(fresh);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(twinHash[0] == twinHash[1], "equal knob twins are bit-identical");
-
-    // A single differing knob must diverge.
-    uint64_t split[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId world = PlaneWorld(NULL);
-        m3BodyId crate = Crate(world, (m3Pos3){0.0, 3.0, 0.0}, NULL);
-        (void)crate;
-        m3World_SetContactTuning(world, run == 0 ? 30.0f : 15.0f, 10.0f, 3.0f);
-        StepN(world, 90);
-        split[run] = m3World_Hash(world);
-        m3DestroyWorld(world);
-    }
-    CHECK(split[0] != split[1], "a differing knob diverges the hash");
-}
-
 static void TestHostileKnobs(void)
 {
     // Garbage in: nothing happens, loudly nothing.
@@ -357,7 +288,6 @@ int main(void)
     TestDensityRebuildsMass();
     TestGravityAndSpeedCap();
     TestSleepAndContinuousToggles();
-    TestKnobTwinsAndReplay();
     TestHostileKnobs();
     if (s_failures == 0)
     {

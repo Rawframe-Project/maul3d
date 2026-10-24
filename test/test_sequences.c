@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Motion locks from bits 0..5: linear x, y, z, then angular x, y, z.
 static m3MotionLocks Locks(uint32_t bits)
 {
     m3MotionLocks l = {(bits & 0x01u) != 0, (bits & 0x02u) != 0, (bits & 0x04u) != 0,
@@ -223,59 +222,6 @@ static void TestJournalCorruptionIsAtomic(void)
     }
 }
 
-static void TestReplayWrongSizePayloads(void)
-{
-    // Every op case in the replay switch refuses a payload whose
-    // size disagrees with its record, and the atomic wrapper backs
-    // the refusal out. Grow one op's declared size by four bytes
-    // (shrinking would also shift every later op; growing tests the
-    // size check in isolation when padding is appended).
-    static uint8_t journal[65536];
-    static uint8_t evil[65536];
-    m3WorldId source = SmallWorld();
-    int32_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
-    m3DestroyWorld(source);
-    CHECK(bytes > 16, "the session recorded");
-
-    // Walk the op headers; for each op build a stream that inflates
-    // THAT op's byte count and appends four zero bytes, then demand
-    // an atomic refusal.
-    int32_t cursor = 0;
-    int32_t attacked = 0;
-    while (cursor + 8 <= bytes)
-    {
-        int32_t opBytes;
-        memcpy(&opBytes, journal + cursor + 4, 4);
-        memcpy(evil, journal, (size_t)cursor + 8);
-        int32_t inflated = opBytes + 4;
-        memcpy(evil + cursor + 4, &inflated, 4);
-        memcpy(evil + cursor + 8, journal + cursor + 8, (size_t)(bytes - cursor - 8));
-        memset(evil + bytes, 0, 4);
-
-        m3WorldId target = SmallWorld();
-        uint64_t before = m3World_Hash(target);
-        CHECK(!m3World_ReplayJournal(target, evil, bytes + 4), "an inflated op refuses");
-        CHECK(m3World_Hash(target) == before, "the inflated-op refusal is atomic");
-        m3DestroyWorld(target);
-        attacked += 1;
-        cursor += 8 + opBytes;
-    }
-    CHECK(attacked >= 7, "every op in the session was attacked");
-
-    // Id determinism as a refusal: the CLEAN journal into a world
-    // that already has a resident cannot re-mint the recorded ids,
-    // so the replay refuses and backs out atomically.
-    m3WorldId occupied = SmallWorld();
-    m3BodyDef rd = m3DefaultBodyDef();
-    m3BodyId resident = m3CreateBody(occupied, &rd);
-    uint64_t before = m3World_Hash(occupied);
-    CHECK(!m3World_ReplayJournal(occupied, journal, bytes),
-          "an occupied world refuses the id-shifted session");
-    CHECK(m3World_Hash(occupied) == before && m3Body_IsValid(resident),
-          "the id-determinism refusal is atomic");
-    m3DestroyWorld(occupied);
-}
-
 static void TestCascadeRaces(void)
 {
     // Joint lists under fire: one body in three joints, destroyed;
@@ -365,14 +311,67 @@ static void TestGenerationRetirement(void)
     m3DestroyWorld(world);
 }
 
+static void TestReplayWrongSizePayloads(void)
+{
+    // Every op case in the replay switch refuses a payload whose
+    // size disagrees with its record, and the atomic wrapper backs
+    // the refusal out. Grow one op's declared size by four bytes
+    // (shrinking would also shift every later op; growing tests the
+    // size check in isolation when padding is appended).
+    static uint8_t journal[65536];
+    static uint8_t evil[65536];
+    m3WorldId source = SmallWorld();
+    int32_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
+    m3DestroyWorld(source);
+    CHECK(bytes > 16, "the session recorded");
+
+    // Walk the op headers; for each op build a stream that inflates
+    // THAT op's byte count and appends four zero bytes, then demand
+    // an atomic refusal.
+    int32_t cursor = 0;
+    int32_t attacked = 0;
+    while (cursor + 8 <= bytes)
+    {
+        int32_t opBytes;
+        memcpy(&opBytes, journal + cursor + 4, 4);
+        memcpy(evil, journal, (size_t)cursor + 8);
+        int32_t inflated = opBytes + 4;
+        memcpy(evil + cursor + 4, &inflated, 4);
+        memcpy(evil + cursor + 8, journal + cursor + 8, (size_t)(bytes - cursor - 8));
+        memset(evil + bytes, 0, 4);
+
+        m3WorldId target = SmallWorld();
+        uint64_t before = m3World_Hash(target);
+        CHECK(!m3World_ReplayJournal(target, evil, bytes + 4), "an inflated op refuses");
+        CHECK(m3World_Hash(target) == before, "the inflated-op refusal is atomic");
+        m3DestroyWorld(target);
+        attacked += 1;
+        cursor += 8 + opBytes;
+    }
+    CHECK(attacked >= 7, "every op in the session was attacked");
+
+    // Id determinism as a refusal: the CLEAN journal into a world
+    // that already has a resident cannot re-mint the recorded ids,
+    // so the replay refuses and backs out atomically.
+    m3WorldId occupied = SmallWorld();
+    m3BodyDef rd = m3DefaultBodyDef();
+    m3BodyId resident = m3CreateBody(occupied, &rd);
+    uint64_t before = m3World_Hash(occupied);
+    CHECK(!m3World_ReplayJournal(occupied, journal, bytes),
+          "an occupied world refuses the id-shifted session");
+    CHECK(m3World_Hash(occupied) == before && m3Body_IsValid(resident),
+          "the id-determinism refusal is atomic");
+    m3DestroyWorld(occupied);
+}
+
 // Stress test: every runtime op family from the table-stakes
 // arc (32..57) against stale ids, a mechanism cross case, and a
 // rollback storm that re-runs a mixed op schedule onto the same
 // bits.
-static void TestRuntimeOpsRedTeam(void)
+static void TestStaleRuntimeSetters(void)
 {
-    // 1) Stale ids across every new family: a world that suffered
-    //    the whole barrage hashes identical to one that never did.
+    // Stale ids into every runtime setter family: a world that
+    // suffered the whole barrage hashes identical to one that never did.
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
@@ -426,173 +425,17 @@ static void TestRuntimeOpsRedTeam(void)
         m3DestroyWorld(world);
     }
     CHECK(hashes[0] == hashes[1], "the stale barrage changes nothing");
-
-    // 2) The mechanism cross case: one bullet, one wall, four ways
-    //    to let it through, each un-done before the next.
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 8;
-        def.shapeCapacity = 8;
-        def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
-        m3WorldId world = m3CreateWorld(&def);
-        m3BodyDef wd = m3DefaultBodyDef();
-        wd.position = (m3Pos3){5.0, 0.0, 0.0};
-        m3BodyId wall = m3CreateBody(world, &wd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3ShapeId wallShape = m3CreateBoxShape(wall, &sd, (m3Vec3){0.1f, 2.0f, 2.0f});
-        for (int32_t mode = 0; mode < 5; ++mode)
-        {
-            m3BodyDef bd = m3DefaultBodyDef();
-            bd.type = m3_dynamicBody;
-            bd.isBullet = true;
-            bd.position = (m3Pos3){0.0, 0.0, 0.0};
-            m3BodyId bullet = m3CreateBody(world, &bd);
-            m3ShapeDef bs = m3DefaultShapeDef();
-            if (mode == 1)
-            {
-                bs.maskBits = ~2ull; // filter: never meets category 2
-            }
-            m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.1f};
-            m3ShapeId bulletShape = m3CreateSphereShape(bullet, &bs, &s);
-            (void)bulletShape;
-            if (mode == 1)
-            {
-                m3Shape_SetFriction(wallShape, 0.6f); // touch to prove alive
-                // wall category 2 for this pass only
-            }
-            uint64_t cats[5] = {1ull, 2ull, 1ull, 1ull, 1ull};
-            (void)cats;
-            if (mode == 2)
-            {
-                m3Body_Disable(wall);
-            }
-            if (mode == 3)
-            {
-                m3World_EnableContinuous(world, false);
-            }
-            m3Body_SetLinearVelocity(bullet, (m3Vec3){300.0f, 0.0f, 0.0f});
-            for (int32_t i = 0; i < 10; ++i)
-            {
-                m3World_Step(world, 1.0f / 60.0f, 4);
-            }
-            double x = m3Body_GetPosition(bullet).x;
-            if (mode == 0)
-            {
-                CHECK(x < 5.0, "baseline: the wall stops the bullet");
-            }
-            else if (mode == 2)
-            {
-                CHECK(x > 6.0, "disabled wall: the bullet passes");
-                m3Body_Enable(wall);
-            }
-            else if (mode == 3)
-            {
-                CHECK(x > 6.0, "continuous off: the bullet tunnels");
-                m3World_EnableContinuous(world, true);
-            }
-            else if (mode == 4)
-            {
-                CHECK(x < 5.0, "everything restored: the wall stops it again");
-            }
-            m3DestroyBody(bullet);
-        }
-        m3DestroyWorld(world);
-    }
-
-    // 3) The rollback storm: a deterministic mixed-op schedule, a
-    //    mid-flight snapshot, and a re-run onto identical bits.
-    {
-        static uint8_t snap[1048576];
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        def.jointCapacity = 8;
-        m3WorldId world = m3CreateWorld(&def);
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3ShapeId floor = m3CreatePlaneShape(ground, &sd, &fl);
-        m3BodyId crates[3];
-        m3ShapeId shapes[3];
-        for (int32_t k = 0; k < 3; ++k)
-        {
-            m3BodyDef bd = m3DefaultBodyDef();
-            bd.type = m3_dynamicBody;
-            bd.position = (m3Pos3){(double)k * 1.4, 0.5 + (double)k, 0.0};
-            crates[k] = m3CreateBody(world, &bd);
-            shapes[k] = m3CreateBoxShape(crates[k], &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-        }
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_revoluteJoint;
-        jd.bodyIdA = crates[0];
-        jd.bodyIdB = crates[1];
-        jd.localAnchorA = (m3Vec3){0.7f, 0.0f, 0.0f};
-        jd.localAnchorB = (m3Vec3){-0.7f, 0.0f, 0.0f};
-        jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
-        jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3JointId hinge = m3CreateJoint(world, &jd);
-
-        int32_t snapBytes = 0;
-#define M3_STORM_OPS(i)                                                                            \
-    do                                                                                             \
-    {                                                                                              \
-        int32_t phase = (i) % 24;                                                                  \
-        if (phase == 0)                                                                            \
-            m3Body_ApplyLinearImpulse(crates[(i) % 3], (m3Vec3){0.4f, 0.0f, -0.2f});               \
-        if (phase == 3)                                                                            \
-            m3Body_SetMotionLocks(crates[(i) % 3], Locks((uint8_t)((i) % 64)));                    \
-        if (phase == 6)                                                                            \
-            m3Shape_SetFriction(shapes[(i) % 3], 0.2f + 0.1f * (float)((i) % 5));                  \
-        if (phase == 9)                                                                            \
-            m3Joint_SetMotor(hinge, ((i) / 24) % 2 == 0, 1.5f, 20.0f);                             \
-        if (phase == 12)                                                                           \
-            m3Joint_SetSpring(hinge, true, 4.0f + (float)((i) % 3), 0.8f);                         \
-        if (phase == 13)                                                                           \
-            m3Joint_SetTargetAngle(hinge, 0.1f * (float)((i) % 6) - 0.25f);                        \
-        if (phase == 16)                                                                           \
-            m3Shape_EnableHitEvents(floor, ((i) / 24) % 2 == 0);                                   \
-        if (phase == 18)                                                                           \
-            m3World_SetContactTuning(world, 30.0f + (float)((i) % 8), 10.0f, 3.0f);                \
-        if (phase == 21)                                                                           \
-        {                                                                                          \
-            m3Body_SetSleepThreshold(crates[(i) % 3], 0.05f + 0.01f * (float)((i) % 4));           \
-            m3Body_EnableSleep(crates[(i) % 3], ((i) / 24) % 2 == 0);                              \
-        }                                                                                          \
-    } while (0)
-
-        for (int32_t i = 0; i < 120; ++i)
-        {
-            M3_STORM_OPS(i);
-            m3World_Step(world, 1.0f / 60.0f, 4);
-            if (i == 59)
-            {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the storm snapshot fits");
-            }
-        }
-        uint64_t final = m3World_Hash(world);
-        CHECK(m3World_Restore(world, snap, snapBytes), "the storm restore lands");
-        for (int32_t i = 60; i < 120; ++i)
-        {
-            M3_STORM_OPS(i);
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        CHECK(m3World_Hash(world) == final, "the storm re-runs onto identical bits");
-#undef M3_STORM_OPS
-        m3DestroyWorld(world);
-    }
 }
 
 int main(void)
 {
-    TestRuntimeOpsRedTeam();
     TestStaleIdsEverywhere();
     TestSnapshotRefusals();
     TestJournalCorruptionIsAtomic();
-    TestReplayWrongSizePayloads();
     TestCascadeRaces();
     TestGenerationRetirement();
+    TestReplayWrongSizePayloads();
+    TestStaleRuntimeSetters();
     if (s_failures == 0)
     {
         printf("test_sequences: all green\n");

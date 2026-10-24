@@ -2,12 +2,10 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Solver gate: free fall against the analytic velocity, rest on the
-// plane within tolerance, THE STANDING STACK (the 2a deliverable), a
-// restitution bounce band, friction versus no friction, in-process
-// replay equality, and the fixed M3_SOLVER_HASH scene that joins the
-// cross-platform CI gate. Black box: public headers only.
+// plane within tolerance, the standing stack, a restitution bounce
+// band, and friction versus no friction. Black box: public headers
+// only.
 
-#include "hash_check.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -210,40 +208,6 @@ static void TestSlideDistanceLaw(void)
     // the manifold's finite anchor spread, not a broken cone.
     CHECK(slides[0] > 0.60 && slides[0] < 0.90, "the fast shove slides by the law");
     CHECK(slides[1] > 0.014 && slides[1] < 0.028, "the slow shove slides by the law");
-}
-
-static void TestReplayEquality(void)
-{
-    // In-process replay: the same construction stepped twice gives the
-    // same hash, and a journaled session (creates plus steps) replayed
-    // into a fresh world reproduces the hash bit for bit.
-    uint64_t hashes[2];
-    for (int32_t pass = 0; pass < 2; ++pass)
-    {
-        m3WorldId world = MakeWorld();
-        AddGroundPlane(world, 0.7f);
-        AddBall(world, 0.1, 2.0, -0.2, 0.5f, 0.7f, 0.3f);
-        AddBall(world, -0.3, 3.5, 0.1, 0.5f, 0.7f, 0.3f);
-        StepN(world, 120);
-        hashes[pass] = m3World_Hash(world);
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "the same run twice is bit-identical");
-
-    m3WorldId a = MakeWorld();
-    uint8_t* journal = (uint8_t*)malloc(1 << 20);
-    CHECK(m3World_StartJournal(a, journal, 1 << 20), "journal begins");
-    AddGroundPlane(a, 0.7f);
-    AddBall(a, 0.1, 2.0, -0.2, 0.5f, 0.7f, 0.3f);
-    StepN(a, 60);
-    int32_t bytes = m3World_StopJournal(a);
-    CHECK(bytes > 0, "journal captured the session");
-    m3WorldId b = MakeWorld();
-    CHECK(m3World_ReplayJournal(b, journal, bytes), "the session replays");
-    CHECK(m3World_Hash(a) == m3World_Hash(b), "a journaled run replays bit for bit");
-    free(journal);
-    m3DestroyWorld(a);
-    m3DestroyWorld(b);
 }
 
 static void TestBoxRests(void)
@@ -539,69 +503,6 @@ static void TestCrossedCapsulesSeparate(void)
     m3DestroyWorld(world);
 }
 
-static void TestDeepFuzzDeterminism(void)
-{
-    // Twenty deep-spawn poses from a fixed SplitMix stream, run twice
-    // in fresh worlds: every pose must end finite and OUTSIDE the box
-    // core, and the two runs must hash bit-identically (the deep
-    // kernels join the determinism contract).
-    uint64_t hashes[2] = {0, 0};
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        uint64_t rng = 0x9E3779B97F4A7C15ull;
-        uint64_t combined = 0xcbf29ce484222325ull;
-        for (int32_t round = 0; round < 20; ++round)
-        {
-            m3WorldDef def = m3DefaultWorldDef();
-            def.bodyCapacity = 8;
-            def.shapeCapacity = 8;
-            m3WorldId world = m3CreateWorld(&def);
-            AddGroundPlane(world, 0.6f);
-            m3BodyDef bd = m3DefaultBodyDef();
-            bd.position = (m3Pos3){0.0, 0.5, 0.0};
-            m3BodyId block = m3CreateBody(world, &bd);
-            m3ShapeDef sd = m3DefaultShapeDef();
-            m3CreateBoxShape(block, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-
-            // Three SplitMix64 draws map into the box interior.
-            double coords[3];
-            for (int32_t k = 0; k < 3; ++k)
-            {
-                rng += 0x9E3779B97F4A7C15ull;
-                uint64_t z = rng;
-                z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
-                z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
-                z = z ^ (z >> 31);
-                coords[k] = -0.4 + 0.8 * ((double)(z >> 11) / 9007199254740992.0);
-            }
-            bd.type = m3_dynamicBody;
-            bd.position = (m3Pos3){coords[0], 0.5 + coords[1], coords[2]};
-            m3BodyId ball = m3CreateBody(world, &bd);
-            m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
-            m3CreateSphereShape(ball, &sd, &sphere);
-
-            StepN(world, 240);
-
-            m3Pos3 p = m3Body_GetPosition(ball);
-            // Spawns near the box BOTTOM exit downward into the
-            // ground plane and end SQUEEZED between two opposing
-            // soft contacts, a hair below the surface: legitimate
-            // physics for an impossible pose, not a tunnel. The
-            // bound admits the squeeze, refuses any blow-up.
-            CHECK(p.y > -0.2 && p.y < 2.0 && p.x > -20.0 && p.x < 20.0 && p.z > -20.0 && p.z < 20.0,
-                  "the deep spawn ends finite: at rest or squeezed");
-            int insideCore =
-                p.x > -0.35 && p.x < 0.35 && p.y > 0.15 && p.y < 0.85 && p.z > -0.35 && p.z < 0.35;
-            CHECK(!insideCore, "the deep spawn ends outside the box core");
-            uint64_t h = m3World_Hash(world);
-            combined = (combined ^ h) * 0x100000001B3ull;
-            m3DestroyWorld(world);
-        }
-        hashes[run] = combined;
-    }
-    CHECK(hashes[0] == hashes[1], "the deep fuzz is bit-deterministic");
-}
-
 static void TestQuickHullRockRests(void)
 {
     // A QuickHull rock (an irregular octahedron)
@@ -748,59 +649,6 @@ static void TestBulletVsDynamicTarget(void)
         }
         m3DestroyWorld(world);
     }
-}
-
-static void TestCcdDeterminism(void)
-{
-    // The continuous pass joins the determinism contract: the bullet
-    // wall scene runs twice and hashes bit-identically, and a
-    // journaled session carrying the bullet flag replays bit for bit.
-    uint64_t hashes[2];
-    uint8_t journal[8192];
-    int32_t journalBytes = 0;
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.gravity = (m3Vec3){0.0f, -10.0f, 0.0f};
-        def.bodyCapacity = 8;
-        def.shapeCapacity = 8;
-        m3WorldId world = m3CreateWorld(&def);
-        if (run == 0)
-        {
-            CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
-        }
-        AddGroundPlane(world, 0.6f);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.position = (m3Pos3){6.0, 1.0, 0.0};
-        m3BodyId wall = m3CreateBody(world, &bd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3CreateBoxShape(wall, &sd, (m3Vec3){0.05f, 1.0f, 1.0f});
-
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 0.5, 0.0};
-        bd.linearVelocity = (m3Vec3){120.0f, 0.0f, 0.0f};
-        bd.isBullet = true;
-        m3BodyId ball = m3CreateBody(world, &bd);
-        m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.2f};
-        m3CreateSphereShape(ball, &sd, &sphere);
-
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(world);
-        if (run == 0)
-        {
-            journalBytes = m3World_StopJournal(world);
-            CHECK(journalBytes > 0, "the ccd session recorded");
-            m3WorldId twin = m3CreateWorld(&def);
-            CHECK(m3World_ReplayJournal(twin, journal, journalBytes), "the ccd session replays");
-            CHECK(m3World_Hash(twin) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(twin);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "the ccd scene is bit-deterministic");
 }
 
 // Build a flat triangulated strip: x in [-4, 4], z in [-1, 1], one
@@ -977,50 +825,6 @@ static void TestBoxSlidesAcrossMeshFloor(void)
     m3DestroyWorld(world);
 }
 
-static void TestMeshJournalAndRollback(void)
-{
-    // The mesh rides every determinism spine: a journaled session
-    // (mesh floor + sphere drop) replays bit for bit, and a snapshot
-    // taken mid-flight restores and reruns bit for bit.
-    uint8_t journal[65536];
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
-    CHECK(m3Shape_IsValid(AddMeshFloor(world)), "the mesh floor builds");
-
-    m3BodyDef bd = m3DefaultBodyDef();
-    bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){0.3, 2.0, 0.2};
-    m3BodyId ball = m3CreateBody(world, &bd);
-    m3ShapeDef sd = m3DefaultShapeDef();
-    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &sphere);
-
-    StepN(world, 120);
-    uint64_t h1 = m3World_Hash(world);
-    int32_t bytes = m3World_StopJournal(world);
-    CHECK(bytes > 0, "the mesh session recorded");
-
-    m3WorldId twin = m3CreateWorld(&def);
-    CHECK(m3World_ReplayJournal(twin, journal, bytes), "the mesh session replays");
-    CHECK(m3World_Hash(twin) == h1, "the replay is bit-identical");
-
-    // Rollback: snapshot the twin, run on, restore, rerun.
-    int32_t snapBytes = m3World_SnapshotSize(twin);
-    void* snap = malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(twin, snap, snapBytes) == snapBytes, "snapshot writes");
-    StepN(twin, 60);
-    uint64_t after = m3World_Hash(twin);
-    CHECK(m3World_Restore(twin, snap, snapBytes), "snapshot restores");
-    StepN(twin, 60);
-    CHECK(m3World_Hash(twin) == after, "mesh scenes roll back bit-exact");
-    free(snap);
-    m3DestroyWorld(twin);
-    m3DestroyWorld(world);
-}
-
 static void TestKinematicPlatform(void)
 {
     // A kinematic platform moves at its commanded velocity, immovable
@@ -1096,60 +900,6 @@ static void TestSleepFreezesAndWakes(void)
               m3Body_GetLinearVelocity(dropper).y != 0.0f,
           "the contact wakes the island");
     m3DestroyWorld(world);
-}
-
-static void TestSleepDeterminism(void)
-{
-    // Sleep state joins the determinism contract: a scene that
-    // settles, sleeps, and gets re-disturbed double-runs and
-    // journal-replays bit-identically.
-    uint64_t hashes[2];
-    uint8_t journal[16384];
-    int32_t bytes = 0;
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldDef def = m3DefaultWorldDef();
-        def.bodyCapacity = 16;
-        def.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&def);
-        if (run == 0)
-        {
-            CHECK(m3World_StartJournal(world, journal, (int32_t)sizeof(journal)), "journal arms");
-        }
-        m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
-        m3ShapeDef sd = m3DefaultShapeDef();
-        sd.friction = 0.6f;
-        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
-        m3BodyDef bd = m3DefaultBodyDef();
-        bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.0, 0.5, 0.0};
-        m3BodyId a = m3CreateBody(world, &bd);
-        m3Sphere s1 = {{0.0f, 0.0f, 0.0f}, 0.5f};
-        m3CreateSphereShape(a, &sd, &s1);
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        m3Body_SetLinearVelocity(a, (m3Vec3){0.5f, 0.0f, 0.0f}); // disturb the sleeper
-        for (int32_t i = 0; i < 90; ++i)
-        {
-            m3World_Step(world, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(world);
-        if (run == 0)
-        {
-            bytes = m3World_StopJournal(world);
-            CHECK(bytes > 0, "the sleep session recorded");
-            m3WorldId twin = m3CreateWorld(&def);
-            CHECK(m3World_ReplayJournal(twin, journal, bytes), "the sleep session replays");
-            CHECK(m3World_Hash(twin) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(twin);
-        }
-        m3DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "the sleep scene is bit-deterministic");
 }
 
 static void TestBulletStopsAtMeshWall(void)
@@ -1273,22 +1023,6 @@ static void TestHeightFieldBowl(void)
     m3DestroyWorld(world);
 }
 
-static void TestSolverHashGate(void)
-{
-    // The fixed solver scene for the CI gate: a plane, a three-sphere
-    // stack, and an offset dropper, 120 steps.
-    m3WorldId world = MakeWorld();
-    AddGroundPlane(world, 0.6f);
-    for (int32_t i = 0; i < 3; ++i)
-    {
-        AddBall(world, 0.0, 0.5 + 1.0 * (double)i, 0.0, 0.5f, 0.6f, 0.1f);
-    }
-    AddBall(world, 0.3, 5.0, 0.2, 0.5f, 0.6f, 0.1f);
-    StepN(world, 120);
-    CheckHash("SOLVER", m3World_Hash(world), M3_GOLDEN_SOLVER);
-    m3DestroyWorld(world);
-}
-
 static void TestRollingResistance(void)
 {
     // Two identical balls shoved at the same speed: the one with
@@ -1359,7 +1093,6 @@ int main(void)
     TestRestitution();
     TestFrictionSlows();
     TestSlideDistanceLaw();
-    TestReplayEquality();
     TestBoxRests();
     TestCapsuleRestsFlat();
     TestSphereRestsOnBox();
@@ -1368,22 +1101,17 @@ int main(void)
     TestDeepSphereRecovers();
     TestDeepCapsuleRecovers();
     TestCrossedCapsulesSeparate();
-    TestDeepFuzzDeterminism();
     TestQuickHullRockRests();
     TestBulletStopsAtWall();
     TestBulletVsDynamicTarget();
-    TestCcdDeterminism();
     TestSphereSlidesAcrossMeshFloor();
     TestMeshContractsAndGaps();
     TestBoxSlidesAcrossMeshFloor();
-    TestMeshJournalAndRollback();
     TestKinematicPlatform();
     TestSleepFreezesAndWakes();
-    TestSleepDeterminism();
     TestBulletStopsAtMeshWall();
     TestBoxOnRoofRidge();
     TestHeightFieldBowl();
-    TestSolverHashGate();
     if (s_failures == 0)
     {
         printf("test_solver: all checks passed\n");

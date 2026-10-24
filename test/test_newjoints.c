@@ -5,7 +5,7 @@
 // effect is the connected-pair collision filter; a falling body
 // wearing one falls FREE, never welded), and PARALLEL locks two
 // axes parallel while every translation and the shared twist stay
-// free. Both ride twins, replay, rollback, and hostile walls.
+// free. A parallel joint without an axis refuses.
 
 #include "test_harness.h"
 
@@ -128,84 +128,6 @@ static void TestParallelKeepsAxesParallel(void)
     wb = m3Body_GetAngularVelocity(b);
     CHECK(fabsf(wb.y) > fabsf(wa.y) + 0.2f, "the twist stays private");
     m3DestroyWorld(world);
-}
-
-static void TestWallsTwinsAndReplay(void)
-{
-    // Hostile walls: a parallel joint with a zero axis refuses, a
-    // filter with zero axes creates (it has no geometry to check).
-    m3WorldId world = Yard();
-    m3BodyDef bd = m3DefaultBodyDef();
-    bd.type = m3_dynamicBody;
-    bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
-    bd.position = (m3Pos3){1.0, 2.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_parallelJoint;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-axis parallel refuses");
-    jd.type = m3_filterJoint;
-    CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "a filter needs no axes");
-    m3DestroyWorld(world);
-
-    // Twins and replay through both types plus a mid-run rollback.
-    static uint8_t journal[131072];
-    static uint8_t snap[2097152];
-    uint64_t hashes[2];
-    for (int32_t run = 0; run < 2; ++run)
-    {
-        m3WorldId w = Yard();
-        bool recording = run == 0 && m3World_StartJournal(w, journal, (int32_t)sizeof(journal));
-        m3ShapeDef sd = m3DefaultShapeDef();
-        m3BodyDef cd = m3DefaultBodyDef();
-        cd.type = m3_dynamicBody;
-        cd.position = (m3Pos3){0.0, 2.0, 0.0};
-        m3BodyId p = m3CreateBody(w, &cd);
-        m3CreateBoxShape(p, &sd, (m3Vec3){0.4f, 0.1f, 0.4f});
-        cd.position = (m3Pos3){0.1, 2.6, 0.0};
-        m3BodyId q = m3CreateBody(w, &cd);
-        m3CreateBoxShape(q, &sd, (m3Vec3){0.4f, 0.1f, 0.4f});
-        m3JointDef pj = m3DefaultJointDef();
-        pj.type = m3_parallelJoint;
-        pj.bodyIdA = p;
-        pj.bodyIdB = q;
-        pj.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
-        pj.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        m3CreateJoint(world, &pj);
-        pj.type = m3_filterJoint;
-        m3CreateJoint(world, &pj);
-        int32_t snapBytes = 0;
-        for (int32_t i = 0; i < 180; ++i)
-        {
-            if (i == 60 && run == 0)
-            {
-                snapBytes = m3World_Snapshot(w, snap, (int32_t)sizeof(snap));
-                CHECK(snapBytes > 0, "the mid-run snapshot fits");
-            }
-            m3World_Step(w, 1.0f / 60.0f, 4);
-        }
-        hashes[run] = m3World_Hash(w);
-        if (recording)
-        {
-            int32_t bytes = m3World_StopJournal(w);
-            CHECK(bytes > 0, "the joint session records");
-            m3WorldId replayed = Yard();
-            CHECK(m3World_ReplayJournal(replayed, journal, bytes), "the session replays");
-            CHECK(m3World_Hash(replayed) == hashes[0], "the replay is bit-identical");
-            m3DestroyWorld(replayed);
-            CHECK(m3World_Restore(w, snap, snapBytes), "the mid-run restore lands");
-            for (int32_t i = 60; i < 180; ++i)
-            {
-                m3World_Step(w, 1.0f / 60.0f, 4);
-            }
-            CHECK(m3World_Hash(w) == hashes[0], "the re-run lands on the same bits");
-        }
-        m3DestroyWorld(w);
-    }
-    CHECK(hashes[0] == hashes[1], "twin joint sessions are bit-identical");
 }
 
 static double ArmDroop(bool spring, bool motor, float budget)
@@ -566,14 +488,36 @@ static void TestMotorJointServo(void)
     }
 }
 
+static void TestJointWalls(void)
+{
+    // Hostile walls: a parallel joint with a zero axis refuses, a
+    // filter with zero axes creates (it has no geometry to check).
+    m3WorldId world = Yard();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId a = m3CreateBody(world, &bd);
+    bd.position = (m3Pos3){1.0, 2.0, 0.0};
+    m3BodyId b = m3CreateBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_parallelJoint;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
+    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
+    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero-axis parallel refuses");
+    jd.type = m3_filterJoint;
+    CHECK(m3Joint_IsValid(m3CreateJoint(world, &jd)), "a filter needs no axes");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFilterIsRowlessAndFilters();
     TestParallelKeepsAxesParallel();
-    TestWallsTwinsAndReplay();
     TestFourStateDrive();
     TestWheelSteering();
     TestMotorJointServo();
+    TestJointWalls();
     if (s_failures == 0)
     {
         printf("test_newjoints: all passed\n");

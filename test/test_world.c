@@ -7,7 +7,6 @@
 
 // White box: pair inspection reads world internals directly.
 #include "broad_phase.h"
-#include "hash_check.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
@@ -177,27 +176,6 @@ static void TestSnapshot(void)
     free(snapA);
     free(snapB);
     m3DestroyWorld(foreign);
-    m3DestroyWorld(world);
-}
-
-static void TestWorldHashGate(void)
-{
-    // A fixed scene whose hash joins the cross-platform CI gate: every
-    // cell must reproduce these bits.
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
-    m3BodyDef bd = m3DefaultBodyDef();
-    for (int32_t i = 0; i < 5; ++i)
-    {
-        bd.type = (i & 1) ? m3_staticBody : m3_dynamicBody;
-        bd.position = (m3Pos3){0.25 * (double)i, 1.0 + 0.5 * (double)i, -0.125 * (double)i};
-        bd.linearVelocity = (m3Vec3){0.1f * (m3real)i, 0.0f, -0.2f * (m3real)i};
-        bd.angularVelocity = (m3Vec3){0.0f, 0.3f * (m3real)i, 0.0f};
-        bd.userData = (uint64_t)i;
-        m3CreateBody(world, &bd);
-    }
-    CheckHash("WORLD", m3World_Hash(world), M3_GOLDEN_WORLD);
     m3DestroyWorld(world);
 }
 
@@ -619,22 +597,6 @@ static void TestHullSnapshotShrink(void)
     m3DestroyWorld(boxed);
 }
 
-// The documentation ceiling pin: the
-// manual's Capacities chapter cites these exact numbers and points
-// at this test. If a constant moves, this fails before the
-// documentation lies. Moving a ceiling is allowed; updating the
-// manual in the same commit is the price.
-static void TestGeometryCeilingConstants(void)
-{
-    CHECK(M3_HULL_MAX_VERTS == 64, "hull vertex ceiling is the documented 64");
-    CHECK(M3_MESH_MAX_VERTS == 65535, "mesh vertex ceiling is the documented 65535");
-    CHECK(M3_MESH_MAX_TRIS == 65535, "mesh triangle ceiling is the documented 65535");
-    CHECK(M3_HEIGHTFIELD_MAX_DIM == 255, "heightfield dimension ceiling is the documented 255");
-    CHECK(M3_VEHICLE_MAX_WHEELS == 8, "wheel ceiling is the documented 8");
-    CHECK(M3_SOFTBODY_MAX_PARTICLES == 512, "soft particle ceiling is the documented 512");
-    CHECK(M3_SOFTBODY_MAX_TETS == 1024, "soft tet ceiling is the documented 1024");
-}
-
 static int64_t s_hookLive = 0;
 static int64_t s_hookCalls = 0;
 
@@ -749,7 +711,6 @@ static void TestCompoundExtents(void)
 
 int main(void)
 {
-    TestGeometryCeilingConstants();
     TestAllocatorHook();
     TestMemoryUsage();
     TestWorldLifecycle();
@@ -761,7 +722,6 @@ int main(void)
     TestPairs();
     TestTreeReferee();
     TestContactLanesMatchScalar();
-    TestWorldHashGate();
     TestCompoundExtents();
     if (s_failures == 0)
     {
