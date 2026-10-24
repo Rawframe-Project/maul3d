@@ -11,6 +11,7 @@
 // MEANING of the bytes (engine version, solver revision, precision,
 // FP policy) and restore refuses a mismatch loudly.
 
+#include "hull.h"
 #include "misuse.h"
 #include "shape.h"
 #include "voxel_coverage.h"
@@ -441,6 +442,14 @@ static int32_t HullTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             {
                 return -1;
             }
+            // The content lands only if it is a hull the builders make.
+            m3HullData incoming;
+            memset(&incoming, 0, sizeof(incoming));
+            m3Walk walk = {NULL, raw, m3_walkRead, cursor - 16};
+            if (!WalkHull(&walk, &incoming) || !m3HullDataValid(&incoming))
+            {
+                return -1;
+            }
             cursor += (int32_t)content;
         }
     }
@@ -470,16 +479,33 @@ static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int3
         {
             return -1;
         }
-        (void)hcell;
-        if (hnx > 0)
+        if (hnx == 0)
         {
-            int64_t content = 8 + (int64_t)hnx * hnz * 4; // min/max + samples
-            if ((int64_t)size - cursor < content)
+            if (hcell != 0.0f)
             {
-                return -1;
+                return -1; // an empty slot is all zeros
             }
-            cursor += (int32_t)content;
+            continue;
         }
+        int64_t content = 8 + (int64_t)hnx * hnz * 4; // min/max + samples
+        if ((int64_t)size - cursor < content)
+        {
+            return -1;
+        }
+        // The create door's wall, and the extremes it bakes from the
+        // samples.
+        float storedMin;
+        float storedMax;
+        memcpy(&storedMin, raw + cursor, 4);
+        memcpy(&storedMax, raw + cursor + 4, 4);
+        float lo;
+        float hi;
+        if (!m3HeightFieldSamplesValid(hnx, hnz, hcell, raw + cursor + 8, &lo, &hi) ||
+            storedMin != lo || storedMax != hi)
+        {
+            return -1;
+        }
+        cursor += (int32_t)content;
     }
     return cursor;
 }

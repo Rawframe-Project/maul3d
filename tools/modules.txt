@@ -63,7 +63,7 @@ shape_mass: shape world_internal
 shape_params: body_state broad_phase journal misuse shape shape_state world_internal
 shape_state: world_internal
 simd:
-snapshot: misuse shape voxel_coverage world_internal world_state
+snapshot: hull misuse shape voxel_coverage world_internal world_state
 softbody: body_state journal misuse world_internal
 softbody_pairs: softbody world_internal
 softbody_solver: shape_state softbody solver_math voxel world_internal

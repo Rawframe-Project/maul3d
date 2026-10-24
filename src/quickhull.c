@@ -701,11 +701,7 @@ static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t 
         ok = EmitHull(b, poly, count, origin, out) && MassProperties(out);
     }
     m3Free(heap, poly);
-    if (ok)
-    {
-        m3HullBuildHalfEdges(out);
-    }
-    return ok;
+    return ok && m3HullBuildHalfEdges(out);
 }
 
 bool m3ComputeHull(m3Heap* heap, const m3Vec3* points, int32_t count, m3HullData* out)

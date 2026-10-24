@@ -100,7 +100,8 @@ static bool MeshContentValid(const m3MeshData* mesh)
 // The body and content rules every create door shares, here because
 // replay hands m3CreateShapeInternal raw journal bytes: planes, meshes,
 // terrain and voxel chunks are static geometry, a voxel chunk is never
-// a sensor and never empty, and a mesh indexes only its own vertices.
+// a sensor and never empty, a mesh indexes only its own vertices, and a
+// hull is what the builders make.
 static bool ShapeContentValid(const m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeDef* def, const m3ShapeContent* content)
 {
@@ -111,6 +112,10 @@ static bool ShapeContentValid(const m3World* world, int32_t bodyIndex, uint8_t t
         return false;
     }
     if (content->mesh != NULL && !MeshContentValid(content->mesh))
+    {
+        return false;
+    }
+    if (content->hull != NULL && !m3HullDataValid(content->hull))
     {
         return false;
     }

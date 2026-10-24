@@ -16,7 +16,15 @@ void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents);
 // construction, the invariant the Gauss-map edge query leans on).
 // One law for every hull source: the box builder and QuickHull both
 // finish through this.
-void m3HullBuildHalfEdges(m3HullData* hull);
+// False when the face loops do not close into a hull's edges.
+bool m3HullBuildHalfEdges(m3HullData* hull);
+
+// Whether hull data is what the builders make: 4..64 finite vertices,
+// 4..124 faces with finite planes, each a loop of three or more of the
+// hull's vertices in consecutive runs of the index list, finite mass
+// properties, and the half edges and center the loops give. Create and
+// restore both hold hull content to it.
+bool m3HullDataValid(const m3HullData* hull);
 
 int32_t m3InternHull(m3World* world, const m3HullData* data); // -1 = pool exhausted
 void m3ReleaseHull(m3World* world, int32_t hullIndex);
