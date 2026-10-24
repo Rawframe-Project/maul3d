@@ -164,10 +164,9 @@ m3_errorCapacity. Backing out never needs memory, because the replay
 takes it up front: for the whole call it holds a snapshot of the world
 (m3World_SnapshotSize bytes) and a second copy of the world's mesh and
 height field content and mesh trees (about contentBytes of
-m3World_GetMemoryUsage), every live voxel chunk's surface, and a few
-arrays sized by the mesh, shape and voxel capacities. Budget that
-headroom on a tight allocator: without it the replay is refused with
-m3_errorCapacity before any op runs.
+m3World_GetMemoryUsage) and a few arrays sized by the mesh and shape
+capacities. Budget that headroom on a tight allocator: without it the
+replay is refused with m3_errorCapacity before any op runs.
 
 **The composition rule:** a journal must close BEFORE a rollback
 block. A restore is not an op; a journal spanning one would replay a
@@ -289,6 +288,11 @@ Edits are commands: set a voxel (with payload), clear a voxel,
 clear a box region, set a fill fraction. Every edit is journaled
 and replayed like any other mutation; the surface follows the grid
 as a pure function; dynamic bodies touching the edited region wake.
+No edit asks the allocator: each voxel slot's collision tree is sized
+for its worst case when the world is created (about 84 KB per slot of
+voxelCapacity, plus one 76 KB build scratch per world), so an edit, an
+explosion's carve or the fracture it causes always leaves a tree that
+answers.
 Fill is mass, never geometry: a worn voxel collides at full size
 but its fragment weighs fill over 255. A chunk edited to empty
 stays a valid shape that collides with nothing.

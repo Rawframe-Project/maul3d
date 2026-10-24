@@ -64,10 +64,9 @@ static void FreeWorldStorage(m3World* world)
         m3MeshDataFree(&world->heap, &world->meshes.meshData[m]);
         m3MeshBvhFree(&world->heap, &world->meshes.meshBvh[m]);
     }
-    for (int32_t v = 0; world->voxels.voxelSurface != NULL && v < world->voxels.voxelCapacity; ++v)
-    {
-        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
-    }
+    m3Free(&world->heap, world->voxels.voxelTreeNodes);
+    m3Free(&world->heap, world->voxels.voxelTreeOrder);
+    m3Free(&world->heap, world->voxels.voxelTreeScratch);
     m3StateFree(world);
     m3IdPoolDestroy(&world->heap, &world->bodies.bodyPool);
     m3IdPoolDestroy(&world->heap, &world->shapes.shapePool);
@@ -208,7 +207,22 @@ static bool CreatePools(m3World* world)
     world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
     // Step scratch grows between steps on m3_errorCapacity, never mid-step.
     world->scratch = m3StackCreate(&world->heap, 256 * 1024);
-    return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0;
+    // Every voxel slot's surface tree at its worst case, so no rebuild
+    // allocates.
+    int64_t treeNodes = 2LL * M3_VOXEL_MAX_BOXES * world->voxels.voxelCapacity;
+    int64_t treeOrder = (int64_t)M3_VOXEL_MAX_BOXES * world->voxels.voxelCapacity;
+    world->voxels.voxelTreeNodes =
+        (m3MeshBvhNode*)m3AllocArray(&world->heap, treeNodes, (int64_t)sizeof(m3MeshBvhNode));
+    world->voxels.voxelTreeOrder =
+        (uint16_t*)m3AllocArray(&world->heap, treeOrder, (int64_t)sizeof(uint16_t));
+    world->voxels.voxelTreeScratch =
+        m3AllocZeroed(&world->heap, m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES));
+    world->memoryBytes += treeNodes * (int64_t)sizeof(m3MeshBvhNode) +
+                          treeOrder * (int64_t)sizeof(uint16_t) +
+                          m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES);
+    return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0 &&
+           world->voxels.voxelTreeNodes != NULL && world->voxels.voxelTreeOrder != NULL &&
+           world->voxels.voxelTreeScratch != NULL;
 }
 
 static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** worldOut)

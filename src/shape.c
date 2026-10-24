@@ -244,11 +244,7 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
         }
         world->voxels.voxelData[v] = *content->voxels;
         sh->shapeVoxelIndex[index] = v;
-        if (!m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
-                                 &world->voxels.voxelData[v]))
-        {
-            return false; // UndoShapeCreate rewinds the slot
-        }
+        m3VoxelSurfaceBuild(world, v);
         world->voxels.voxelRefCounts[v] = 1;
         world->voxels.voxelShape[v] = index;
         // A new chunk can weld to existing ones and change their border
@@ -315,7 +311,6 @@ static void ReleaseShapeContent(m3World* world, int32_t index)
     if (v >= 0 && --world->voxels.voxelRefCounts[v] == 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         m3IdPoolFree(&world->voxels.voxelPool, v);
@@ -368,7 +363,6 @@ static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMark
     if (v >= 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         world->voxels.voxelRefCounts[v] = 0;

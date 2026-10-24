@@ -563,8 +563,6 @@ static void FreeStageArrays(m3World* world, m3RestoreStage* stage)
     m3Free(&world->heap, stage->meshes);
     m3Free(&world->heap, stage->meshBvhs);
     m3Free(&world->heap, stage->heightFields);
-    m3Free(&world->heap, stage->surfaces);
-    m3Free(&world->heap, stage->chunk);
     memset(stage, 0, sizeof(*stage));
 }
 
@@ -582,10 +580,6 @@ void m3RestoreDrop(m3World* world, m3RestoreStage* stage)
     for (int32_t h = 0; stage->heightFields != NULL && h < world->shapes.shapeCapacity; ++h)
     {
         m3HeightFieldDataFree(heap, &stage->heightFields[h]);
-    }
-    for (int32_t v = 0; stage->surfaces != NULL && v < world->voxels.voxelCapacity; ++v)
-    {
-        m3MeshBvhFree(heap, &stage->surfaces[v].bvh);
     }
     FreeStageArrays(world, stage);
 }
@@ -606,14 +600,11 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
     m3Heap* heap = &world->heap;
     int32_t meshCap = world->meshes.meshCapacity;
     int32_t shapeCap = world->shapes.shapeCapacity;
-    int32_t voxelCap = world->voxels.voxelCapacity;
     memset(stage, 0, sizeof(*stage));
     if (!StageArray(heap, (void**)&stage->meshes, meshCap, (int32_t)sizeof(m3MeshData)) ||
         !StageArray(heap, (void**)&stage->meshBvhs, meshCap, (int32_t)sizeof(m3MeshBvh)) ||
         !StageArray(heap, (void**)&stage->heightFields, shapeCap,
-                    (int32_t)sizeof(m3HeightFieldData)) ||
-        !StageArray(heap, (void**)&stage->surfaces, voxelCap, (int32_t)sizeof(m3VoxelSurface)) ||
-        !StageArray(heap, (void**)&stage->chunk, 1, (int32_t)sizeof(m3VoxelChunkData)))
+                    (int32_t)sizeof(m3HeightFieldData)))
     {
         return false;
     }
@@ -645,22 +636,6 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
             return false;
         }
     }
-    const uint8_t* voxelAlive =
-        prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelPool.alive));
-    const uint8_t* chunks = prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelData));
-    for (int32_t v = 0; v < voxelCap; ++v)
-    {
-        if (voxelAlive[v] == 0)
-        {
-            continue;
-        }
-        memcpy(stage->chunk, chunks + (size_t)v * sizeof(m3VoxelChunkData),
-               sizeof(m3VoxelChunkData));
-        if (!m3VoxelSurfaceBuild(heap, &stage->surfaces[v], stage->chunk))
-        {
-            return false;
-        }
-    }
     return true;
 }
 
@@ -668,7 +643,8 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
 // frozen-pair buffer came from a pair list the restore replaced, so the
 // next update requeries the whole tree. Mesh BVHs and voxel surfaces are
 // pure functions of the restored content, so they match the ones create
-// built.
+// built; voxel surfaces rebuild here, into storage the world keeps for
+// them.
 void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
 {
     const uint8_t* raw = stage->data;
@@ -697,12 +673,18 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
         m3HeightFieldDataFree(heap, &world->heightFields.hfData[h]);
         world->heightFields.hfData[h] = stage->heightFields[h];
     }
-    for (int32_t v = 0; stage->surfaces != NULL && v < world->voxels.voxelCapacity; ++v)
-    {
-        m3MeshBvhFree(heap, &world->voxels.voxelSurface[v].bvh);
-        world->voxels.voxelSurface[v] = stage->surfaces[v];
-    }
     FreeStageArrays(world, stage);
+    for (int32_t v = 0; v < world->voxels.voxelCapacity; ++v)
+    {
+        if (world->voxels.voxelPool.alive[v] != 0)
+        {
+            m3VoxelSurfaceBuild(world, v);
+        }
+        else
+        {
+            memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
+        }
+    }
     world->contacts.sleepingPairCount = 0;
     world->contacts.pairsFullQuery = 1;
     world->broadphase.candidatesFresh = 0;

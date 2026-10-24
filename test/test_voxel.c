@@ -230,10 +230,8 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     uint64_t hashBefore = m3World_Hash(world);
 
     m3World* wp = world;
-    // The scrub must FREE the embedded tree first (the build owns it):
-    // a raw memset wipes live pointers and LSAN reports the leak.
-    m3MeshBvhFree(&wp->heap,
-                  &wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]].bvh);
+    // The tree's storage is the world's, kept for the slot, so the scrub
+    // frees nothing.
     memset(&wp->voxels.voxelSurface[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]], 0,
            sizeof(m3VoxelSurface));
     for (int32_t i = 0; i < 30; ++i)

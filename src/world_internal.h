@@ -278,6 +278,16 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
                           int32_t count);
 
+// The bytes of scratch a build over count bounds takes.
+int32_t m3MeshBvhScratchBytes(int32_t count);
+
+// Builds over count bounds (1 to M3_MESH_MAX_TRIS) into storage the
+// caller owns, allocating nothing: bvh->nodes holds 2 * count nodes,
+// bvh->order count entries, and scratch m3MeshBvhScratchBytes(count)
+// bytes.
+void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratch, const m3Vec3* los, const m3Vec3* his,
+                      int32_t count);
+
 // The fragment events one step holds, and the island voxels their
 // recipes hold together. Past either, the fracture still happens: a
 // dropped event is counted, an oversized recipe is left out of its event.
@@ -325,8 +335,9 @@ typedef struct m3VoxelSurface
 bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
                     m3real cellSize);
-// False, with the surface's BVH empty, when an allocation is refused.
-bool m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk);
+// Rebuilds slot's surface from its grid, the tree into the slot's own
+// storage (m3Voxels): allocates nothing, so it never fails.
+void m3VoxelSurfaceBuild(m3World* world, int32_t slot);
 void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi);
 void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3HullData* out);
@@ -512,6 +523,13 @@ typedef struct m3Voxels
     struct m3VoxelSurface* voxelSurface; // derived, not snapshot
     int32_t* voxelShape;                 // owning shape per slot, -1 free
     int32_t* voxelNeighbors;             // derived: 6 welded slots per
+    // Each slot's surface tree, sized for the worst case at world
+    // creation, so an edit, a fracture or a restore rebuilds it in place
+    // and never asks the allocator: 2 * M3_VOXEL_MAX_BOXES nodes and
+    // M3_VOXEL_MAX_BOXES order entries per slot, and one build scratch.
+    m3MeshBvhNode* voxelTreeNodes;
+    uint16_t* voxelTreeOrder;
+    void* voxelTreeScratch;
 } m3Voxels;
 
 // Broadphase: the fat-AABB tree and each shape's proxy.

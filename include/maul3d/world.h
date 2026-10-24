@@ -72,7 +72,7 @@ extern "C"
         int32_t shapeCapacity;
         int32_t meshCapacity; // static triangle-mesh slots (24 KB each)
         int32_t jointCapacity;
-        int32_t voxelCapacity;        // voxel chunk slots
+        int32_t voxelCapacity;        // voxel chunk slots (about 84 KB each)
         int32_t characterCapacity;    // character controllers
         int32_t vehicleCapacity;      // raycast vehicles
         int32_t softBodyCapacity;     // XPBD lattices
@@ -706,9 +706,8 @@ extern "C"
     /// fail: for the whole call the replay holds a snapshot of the
     /// world (m3World_SnapshotSize bytes) and a second copy of its
     /// mesh and height field content and mesh trees (about
-    /// contentBytes of m3World_GetMemoryUsage), every live voxel
-    /// chunk's surface, and arrays sized by the mesh, shape and voxel
-    /// capacities. A tape that fits a tight allocator without that
+    /// contentBytes of m3World_GetMemoryUsage) and arrays sized by the
+    /// mesh and shape capacities. A tape that fits a tight allocator without that
     /// headroom is refused with m3_errorCapacity before any op runs.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
                                                        int32_t size);
