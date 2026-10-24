@@ -78,10 +78,11 @@ void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3],
 /// in canonical order: a median split along the axis where the centroids
 /// spread widest (ties keep the input order), so the shape is a pure
 /// function of the input list. Writes each input's new leaf id to
-/// outNodes. Returns false, with the old tree untouched, when count
-/// exceeds the capacity or memory runs out.
-bool m3TreeRebuild(m3Heap* heap, m3Tree* tree, const double (*los)[3], const double (*his)[3],
-                   const int32_t* userDatas, const uint32_t* masks, int32_t count,
+/// outNodes. order is the caller's scratch of 2 * count entries, so the
+/// rebuild takes no memory and cannot fail halfway. Returns false, with
+/// the old tree untouched, when count exceeds the capacity.
+bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
+                   const int32_t* userDatas, const uint32_t* masks, int32_t count, int32_t* order,
                    int32_t* outNodes);
 
 /// Test oracle: links both ways, heights, AVL balance, box containment
