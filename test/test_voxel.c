@@ -460,8 +460,9 @@ static void TestEditRefusalsAndEmptyEnd(void)
     uint64_t misuse = m3World_GetCounters(world).misuse;
     CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, hi) == -1, "an inverted region refuses");
     CHECK(m3World_GetCounters(world).misuse == misuse + 1, "and counts one misuse");
+    int32_t origin[3] = {0, 0, 0};
     int32_t past[3] = {0, 0, 16};
-    CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, past) == -1,
+    CHECK(m3VoxelChunk_ClearBox(world, chunkShape, origin, past) == -1,
           "a region past the chunk refuses");
     CHECK(m3World_GetCounters(world).misuse == misuse + 2, "and counts one misuse");
     m3ShapeId stale = chunkShape;

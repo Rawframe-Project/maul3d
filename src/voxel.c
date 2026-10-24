@@ -595,7 +595,7 @@ void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {
-        return; // fill zero is a clear in disguise: refused
+        return;
     }
     if (!VoxelCoordsValid(x, y, z) || fill == 0)
     {
