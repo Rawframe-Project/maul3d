@@ -1,9 +1,10 @@
 # Test suites. See cmake/Testing.cmake for the flags.
 maul_add_test(golden THREADS)
 
-# The benchmark scenes, pinned like the golden ones. They take minutes, so
-# they run only in Release builds without sanitizers, labeled bench, which
-# the pull request presets leave out and the nightly presets run.
+# The benchmark scenes, pinned like the golden ones. They take about twenty
+# seconds in Release and far longer in Debug and sanitizer builds, so they
+# run only in Release builds without sanitizers, labeled bench, which the
+# pull request presets leave out and the nightly presets run.
 if(NOT ${MAUL_PREFIX}_SANITIZE AND NOT ${MAUL_PREFIX}_TSAN AND
    (CMAKE_CONFIGURATION_TYPES OR CMAKE_BUILD_TYPE STREQUAL "Release"))
     add_executable(test_bench ${PROJECT_SOURCE_DIR}/test/test_bench.c

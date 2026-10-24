@@ -8,7 +8,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: "47 3 * * 2"
+    - cron: "41 8 * * 4"
 
 permissions: {}
 
@@ -20,7 +20,7 @@ jobs:
   analyze:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
     permissions:
       contents: read
       security-events: write
