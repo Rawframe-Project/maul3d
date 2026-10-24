@@ -693,7 +693,7 @@ submerged centroid (off-center bites right a listing crate), drag
 that pulls their velocity toward the flow, and spin damping; the
 model reads shape bounds, deliberately approximate and
 deterministically so. Soft particles trade gravity for buoyancy
-under the rho-1000 particle convention (density 1000 suspends a
+under the density-1000 particle convention (density 1000 suspends a
 particle, denser fluids lift it, thinner ones let it sink) and
 drag toward the flow like wind. The tide law: creating or
 destroying a volume wakes every body its box touches, so sleepers

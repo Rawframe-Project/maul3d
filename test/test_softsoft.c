@@ -68,9 +68,9 @@ static void TestJelliesRefuseToMerge(void)
     sd.radius = 0.12f;
     sd.position = (m3Pos3){0.0, 0.15, 0.0};
     m3SoftBodyId lower = NewSoftBody(world, &sd);
-    // Dead-center drop from a modest height: the first draft's
-    // offset landing SLID OFF sideways (correct physics, wrong
-    // premise for a stacking proof).
+    // Dead-center drop from a modest height: an offset landing
+    // SLIDES OFF sideways (correct physics, wrong premise for a
+    // stacking proof).
     sd.position = (m3Pos3){0.0, 1.4, 0.0};
     m3SoftBodyId upper = NewSoftBody(world, &sd);
     CHECK(m3SoftBody_IsValid(world, lower) && m3SoftBody_IsValid(world, upper),

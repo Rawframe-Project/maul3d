@@ -689,8 +689,7 @@ static tbScene SceneWalker(void)
 
     m3CharacterDef cd = m3DefaultCharacterDef();
     // The keep's voxel floor slab tops at y = 1: the spawn stands ON
-    // it (the old y = 1.0 buried the capsule to the waist, invisible
-    // in wireframe, obvious the moment the renderer went solid).
+    // it (at y = 1.0 the capsule would be buried to the waist).
     cd.position = (m3Pos3){0.0, 2.2, 4.0};
     scene.hero = NewCharacter(scene.world, &cd);
     return scene;
@@ -910,8 +909,8 @@ static tbScene SceneTower(void)
     m3BodyDef wd = m3DefaultBodyDef();
     wd.type = m3_dynamicBody;
     // Pulled back along -x so the pendulum swings THROUGH the post
-    // line and arrives exactly at the tower (the first draft pulled
-    // it sideways and it swung parallel to the stack forever).
+    // line and arrives exactly at the tower (pulled sideways, it
+    // would swing parallel to the stack forever).
     wd.position = (m3Pos3){-12.0, 8.0, 0.0};
     m3BodyId ball = NewBody(scene.world, &wd);
     m3ShapeDef bs = m3DefaultShapeDef();
@@ -1236,10 +1235,9 @@ static void SpawnFragments(m3World* world)
         if (ev->recipeCount > 0 && ev->recipeStart >= 0 && ev->voxelCount <= 32)
         {
             // A compound of unit boxes, one per voxel (child offsets):
-            // the fragment keeps its true silhouette. The old recipe
-            // hulled small islands (a convex hull bevels an L into a
-            // chipped cube) and boxed big ones (an L became a slab);
-            // the Windows run caught both in one carve.
+            // the fragment keeps its true silhouette, where a convex
+            // hull would bevel an L into a chipped cube and a single
+            // box would make it a slab.
             fd.density = ev->mass / (m3real)ev->voxelCount;
             int32_t made = 0;
             for (int32_t k = 0; k < ev->recipeCount; ++k)

@@ -21,9 +21,9 @@
 #include "maul3d/world.h"
 
 // (int32_t) from a float is UB on NaN and outside the int range:
-// x86 shrugs INT_MIN, wasm TRAPS, and the wide fuzz walked a
-// mutated-snapshot NaN into a heightfield gather (shape_data.c). Every
-// grid-cell cast goes through this park-and-clamp. Legitimate
+// x86 gives INT_MIN, wasm TRAPS, and a mutated snapshot can carry a
+// NaN into a heightfield gather (shape_data.c). Every grid-cell cast
+// goes through this park-and-clamp. Legitimate
 // values are bit-identical: no real grid nears two billion cells.
 // nanPark picks which way a poisoned bound falls so lo/hi ranges
 // come out EMPTY, never huge.

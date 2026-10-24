@@ -170,7 +170,7 @@ static void TestWaterWalls(void)
 
 static void TestSoftBuoyancy(void)
 {
-    // The rho-1000 particle convention: in a density-1500
+    // The density-1000 particle convention: in a density-1500
     // basin a cloth hangs high in the water column while its dry
     // twin crumples to the floor; a current drags the wet one
     // downstream.

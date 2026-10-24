@@ -218,9 +218,8 @@ static void TestRopeInBowlAndCarve(void)
 
     // A HORIZONTAL rope: a vertical one balances forever on its
     // own perfect symmetry (deterministic floats carry no noise to
-    // seed the buckle: the first draft stood the rope on its head
-    // like a pole and it stayed there, which is the engine being
-    // RIGHT and the test being wrong).
+    // seed the buckle: a rope stood on its head like a pole stays
+    // there, which is the engine being RIGHT and proves nothing).
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     sb.position = (m3Pos3){-0.66, 2.0, 0.0}; // spans the bowl mouth
     sb.countX = 12;

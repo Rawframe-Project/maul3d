@@ -237,7 +237,7 @@ static void TestFuzz(void)
     uint8_t* mutant = (uint8_t*)malloc((size_t)bytes);
     // The container is snapshot-dominated, so pure-random offsets
     // almost never touch the 32-byte header or the journal tail
-    // (the first draft proved it: 200 draws, zero framing hits).
+    // (200 random draws can hit the framing zero times).
     // Half the mutations aim at the framing on purpose; the other
     // half roam the whole container.
     m3ReplayView valid;
