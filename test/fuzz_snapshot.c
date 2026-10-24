@@ -57,7 +57,7 @@ int LLVMFuzzerInitialize(int* argc, char*** argv)
     (void)argv;
     m3World* world = FreshWorld();
     FuzzScene scene;
-    FuzzBuild(world, &scene);
+    Require(FuzzBuild(world, &scene) && FuzzCountsHold(world, &scene));
     FuzzSession(world, &scene);
     s_scene = SnapshotOf(world, &s_sceneBytes);
     m3DestroyWorld(world);

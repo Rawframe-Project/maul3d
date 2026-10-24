@@ -84,6 +84,28 @@ static m3World* FreshWorld(void)
     return world;
 }
 
+// The scene, whole: every create succeeds and the world holds what
+// fuzz_scene.h intends, kind by kind, or the seeds would silently thin.
+static void BuildScene(m3World* world, FuzzScene* scene)
+{
+    if (!FuzzBuild(world, scene))
+    {
+        fprintf(stderr, "fuzz_seeds: %d of the scene's creates refused\n", scene->failures);
+        exit(1);
+    }
+    if (!FuzzCountsHold(world, scene))
+    {
+        m3Counters c = m3World_GetCounters(world);
+        fprintf(stderr,
+                "fuzz_seeds: the scene holds %d bodies, %d shapes, %d joints, %d vehicles, %d soft "
+                "bodies, %d characters, %d voxel chunks and %d meshes, not what fuzz_scene.h "
+                "intends\n",
+                c.bodyCount, c.shapeCount, c.jointCount, c.vehicleCount, c.softBodyCount,
+                c.characterCount, c.voxelChunkCount, c.meshCount);
+        exit(1);
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -109,7 +131,7 @@ int main(int argc, char** argv)
     {
         Fail("the build's journal");
     }
-    FuzzBuild(world, &scene);
+    BuildScene(world, &scene);
     if (m3World_StopJournal(world, &tapeBytes) != m3_success)
     {
         Fail("the build's tape");
@@ -125,7 +147,7 @@ int main(int argc, char** argv)
     {
         Fail("the session's journal");
     }
-    FuzzBuild(world, &scene);
+    BuildScene(world, &scene);
     FuzzSession(world, &scene);
     if (m3World_StopJournal(world, &tapeBytes) != m3_success)
     {

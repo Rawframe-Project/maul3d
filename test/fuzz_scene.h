@@ -38,54 +38,96 @@ static inline m3WorldDef FuzzWorldDef(void)
     return def;
 }
 
+// What FuzzBuild makes, which FuzzCountsHold checks the world against:
+// a create that starts failing must fail the seeds, not thin them. The
+// character brings a body and a shape of its own, and the height field is
+// a grid of its own, not a mesh.
+enum
+{
+    FUZZ_BODIES = 12,
+    FUZZ_SHAPES = 11,
+    FUZZ_JOINTS = 2,
+    FUZZ_VEHICLES = 1,
+    FUZZ_SOFT_BODIES = 2,
+    FUZZ_CHARACTERS = 1,
+    FUZZ_VOXEL_CHUNKS = 1,
+    FUZZ_MESHES = 1,
+};
+
 typedef struct FuzzScene
 {
     m3BodyId crate;
     m3BodyId ball;
     m3ShapeId voxels;
     m3JointId hinge;
+    m3WaterVolumeId pool;
+    int32_t failures; // creates that refused
 } FuzzScene;
 
-static inline m3BodyId FuzzBody(m3World* world, m3BodyType type, double x, double y, double z)
+static inline void FuzzCreated(FuzzScene* scene, bool valid)
+{
+    scene->failures += valid ? 0 : 1;
+}
+
+static inline m3BodyId FuzzBody(m3World* world, FuzzScene* scene, m3BodyType type, double x,
+                                double y, double z)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = type;
     bd.position = (m3Pos3){x, y, z};
-    return NewBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
+    FuzzCreated(scene, m3Body_IsValid(world, body));
+    return body;
 }
 
-static inline void FuzzBuild(m3World* world, FuzzScene* scene)
+static inline m3ShapeId FuzzShape(const m3World* world, FuzzScene* scene, m3ShapeId shape)
+{
+    FuzzCreated(scene, m3Shape_IsValid(world, shape));
+    return shape;
+}
+
+// Builds the scene; false when any create refused.
+static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
 {
     memset(scene, 0, sizeof(*scene));
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3BodyId ground = FuzzBody(world, m3_staticBody, 0.0, 0.0, 0.0);
+    m3BodyId ground = FuzzBody(world, scene, m3_staticBody, 0.0, 0.0, 0.0);
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    NewPlaneShape(world, ground, &sd, &floor);
+    FuzzShape(world, scene, NewPlaneShape(world, ground, &sd, &floor));
 
-    scene->crate = FuzzBody(world, m3_dynamicBody, 0.0, 1.0, 0.0);
-    NewBoxShape(world, scene->crate, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-    scene->ball = FuzzBody(world, m3_dynamicBody, 1.0, 1.5, 0.0);
+    scene->crate = FuzzBody(world, scene, m3_dynamicBody, 0.0, 1.0, 0.0);
+    FuzzShape(world, scene, NewBoxShape(world, scene->crate, &sd, (m3Vec3){0.3f, 0.3f, 0.3f}));
+    scene->ball = FuzzBody(world, scene, m3_dynamicBody, 1.0, 1.5, 0.0);
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    NewSphereShape(world, scene->ball, &sd, &ball);
+    FuzzShape(world, scene, NewSphereShape(world, scene->ball, &sd, &ball));
     m3Capsule rod = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.15f};
-    NewCapsuleShape(world, FuzzBody(world, m3_dynamicBody, 2.0, 1.0, 0.0), &sd, &rod);
+    FuzzShape(
+        world, scene,
+        NewCapsuleShape(world, FuzzBody(world, scene, m3_dynamicBody, 2.0, 1.0, 0.0), &sd, &rod));
     m3Cylinder can = {{0.0f, -0.3f, 0.0f}, {0.0f, 0.3f, 0.0f}, 0.3f};
-    NewCylinderShape(world, FuzzBody(world, m3_dynamicBody, 3.0, 1.0, 0.0), &sd, &can, 8);
+    FuzzShape(world, scene,
+              NewCylinderShape(world, FuzzBody(world, scene, m3_dynamicBody, 3.0, 1.0, 0.0), &sd,
+                               &can, 8));
     static const m3Vec3 rock[5] = {{-0.3f, 0.0f, -0.3f},
                                    {0.3f, 0.0f, -0.3f},
                                    {0.3f, 0.0f, 0.3f},
                                    {-0.3f, 0.0f, 0.3f},
                                    {0.0f, 0.5f, 0.0f}};
-    NewHullShape(world, FuzzBody(world, m3_dynamicBody, 4.0, 1.0, 0.0), &sd, rock, 5);
-    FuzzBody(world, m3_kinematicBody, 5.0, 1.0, 0.0);
+    FuzzShape(
+        world, scene,
+        NewHullShape(world, FuzzBody(world, scene, m3_dynamicBody, 4.0, 1.0, 0.0), &sd, rock, 5));
+    FuzzBody(world, scene, m3_kinematicBody, 5.0, 1.0, 0.0);
 
     static const m3Vec3 corners[4] = {
         {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 1.0f}};
     static const uint16_t quad[6] = {0, 2, 1, 0, 3, 2};
-    NewMeshShape(world, FuzzBody(world, m3_staticBody, 0.0, 0.2, 3.0), &sd, corners, 4, quad, 2);
+    FuzzShape(world, scene,
+              NewMeshShape(world, FuzzBody(world, scene, m3_staticBody, 0.0, 0.2, 3.0), &sd,
+                           corners, 4, quad, 2));
     static const float bumps[9] = {0.0f, 0.1f, 0.0f, 0.1f, 0.3f, 0.1f, 0.0f, 0.1f, 0.0f};
-    NewHeightFieldGridShape(world, FuzzBody(world, m3_staticBody, 3.0, 0.0, 3.0), &sd, bumps, 3, 3,
-                            1.0f);
+    FuzzShape(world, scene,
+              NewHeightFieldGridShape(world, FuzzBody(world, scene, m3_staticBody, 3.0, 0.0, 3.0),
+                                      &sd, bumps, 3, 3, 1.0f));
     // A 2 x 2 x 2 block on the chunk's base layer, so a clearing edit
     // fractures what it cuts loose.
     static uint8_t cells[16 * 16 * 16];
@@ -94,8 +136,10 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
     {
         cells[(i & 1) + 16 * (((i >> 1) & 1) + 16 * ((i >> 2) & 1))] = 1;
     }
-    scene->voxels = NewVoxelChunkShape(world, FuzzBody(world, m3_staticBody, -3.0, 0.0, 0.0), &sd,
-                                       cells, NULL, 0.25f);
+    scene->voxels =
+        FuzzShape(world, scene,
+                  NewVoxelChunkShape(world, FuzzBody(world, scene, m3_staticBody, -3.0, 0.0, 0.0),
+                                     &sd, cells, NULL, 0.25f));
 
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_distanceJoint;
@@ -104,7 +148,7 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
     jd.enableLimit = true;
     jd.lowerLimit = 0.5f;
     jd.upperLimit = 2.0f;
-    NewJoint(world, &jd);
+    FuzzCreated(scene, m3Joint_IsValid(world, NewJoint(world, &jd)));
     jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
     jd.bodyIdA = ground;
@@ -117,9 +161,10 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
     jd.motorSpeed = 1.0f;
     jd.maxMotorEffort = 5.0f;
     scene->hinge = NewJoint(world, &jd);
+    FuzzCreated(scene, m3Joint_IsValid(world, scene->hinge));
 
-    m3BodyId chassis = FuzzBody(world, m3_dynamicBody, 0.0, 1.0, -4.0);
-    NewBoxShape(world, chassis, &sd, (m3Vec3){0.8f, 0.2f, 0.4f});
+    m3BodyId chassis = FuzzBody(world, scene, m3_dynamicBody, 0.0, 1.0, -4.0);
+    FuzzShape(world, scene, NewBoxShape(world, chassis, &sd, (m3Vec3){0.8f, 0.2f, 0.4f}));
     m3VehicleDef vd = m3DefaultVehicleDef();
     vd.chassisId = chassis;
     vd.wheelCount = 4;
@@ -129,7 +174,7 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
             (m3Vec3){(w & 1) != 0 ? 0.6f : -0.6f, -0.2f, (w & 2) != 0 ? 0.35f : -0.35f};
         vd.wheels[w].driven = true;
     }
-    NewVehicle(world, &vd);
+    FuzzCreated(scene, m3Vehicle_IsValid(world, NewVehicle(world, &vd)));
 
     m3SoftBodyDef rope = m3DefaultSoftBodyDef();
     rope.position = (m3Pos3){-1.0, 2.0, 2.0};
@@ -138,7 +183,7 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
     rope.countZ = 1;
     rope.spacing = 0.25f;
     rope.radius = 0.06f;
-    NewSoftBody(world, &rope);
+    FuzzCreated(scene, m3SoftBody_IsValid(world, NewSoftBody(world, &rope)));
     m3SoftBodyDef jelly = m3DefaultSoftBodyDef();
     jelly.position = (m3Pos3){2.0, 1.0, 2.0};
     jelly.compliance = 1.0e-4f;
@@ -146,18 +191,32 @@ static inline void FuzzBuild(m3World* world, FuzzScene* scene)
     static const m3Vec3 points[4] = {
         {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.0f, 0.0f, 0.4f}};
     static const uint16_t tets[4] = {0, 1, 2, 3};
-    NewSoftBodyTet(world, &jelly, points, 4, tets, 1);
+    FuzzCreated(scene,
+                m3SoftBody_IsValid(world, NewSoftBodyTet(world, &jelly, points, 4, tets, 1)));
 
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.radius = 0.2f;
     cd.halfHeight = 0.3f;
     cd.position = (m3Pos3){-2.0, 1.0, -2.0};
-    NewCharacter(world, &cd);
+    FuzzCreated(scene, m3Character_IsValid(world, NewCharacter(world, &cd)));
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
     pool.lo = (m3Pos3){1.0, 0.0, 1.0};
     pool.hi = (m3Pos3){3.0, 1.0, 3.0};
-    NewWaterVolume(world, &pool);
+    scene->pool = NewWaterVolume(world, &pool);
+    FuzzCreated(scene, m3WaterVolume_IsValid(world, scene->pool));
+    return scene->failures == 0;
+}
+
+// Whether the world holds what FuzzBuild makes, kind by kind.
+static inline bool FuzzCountsHold(const m3World* world, const FuzzScene* scene)
+{
+    m3Counters c = m3World_GetCounters(world);
+    return c.bodyCount == FUZZ_BODIES && c.shapeCount == FUZZ_SHAPES &&
+           c.jointCount == FUZZ_JOINTS && c.vehicleCount == FUZZ_VEHICLES &&
+           c.softBodyCount == FUZZ_SOFT_BODIES && c.characterCount == FUZZ_CHARACTERS &&
+           c.voxelChunkCount == FUZZ_VOXEL_CHUNKS && c.meshCount == FUZZ_MESHES &&
+           m3WaterVolume_IsValid(world, scene->pool);
 }
 
 static inline void FuzzStep(m3World* world, int32_t steps)
