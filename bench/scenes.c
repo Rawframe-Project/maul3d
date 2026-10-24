@@ -644,3 +644,76 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
     m3DestroyWorld(sea);
     return hash;
 }
+
+uint64_t BenchSoftfield(int32_t steps, BenchClock* clock, double* ms)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2048;
+    def.shapeCapacity = 2048;
+    def.softBodyCapacity = 8;
+    m3World* field = NewWorld(&def);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyDef ground = m3DefaultBodyDef();
+    NewBoxShape(field, NewBody(field, &ground), &sd, (m3Vec3){10.0f, 0.5f, 10.0f});
+    // The far field: spheres, capsules and boxes in a ring 40 to 90 m out.
+    uint64_t rng = 0x50F7F1E1Dull;
+    for (int32_t k = 0; k < 2000; ++k)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3Pos3 p = RandPos3(&rng, -90.0, 90.0, 0.0, 20.0);
+        if (p.x > -40.0 && p.x < 40.0 && p.z > -40.0 && p.z < 40.0)
+        {
+            p.x += p.x < 0.0 ? -50.0 : 50.0;
+        }
+        bd.position = p;
+        m3BodyId body = NewBody(field, &bd);
+        if (k % 3 == 0)
+        {
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.3, 1.0)};
+            NewSphereShape(field, body, &sd, &ball);
+        }
+        else if (k % 3 == 1)
+        {
+            m3Capsule c = {
+                {-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.5)};
+            NewCapsuleShape(field, body, &sd, &c);
+        }
+        else
+        {
+            NewBoxShape(field, body, &sd, RandVec3(&rng, 0.3, 1.0));
+        }
+    }
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m3SoftBodyDef cloth = m3DefaultSoftBodyDef();
+        cloth.position = (m3Pos3){-8.0 + 4.5 * (double)i, 3.0 + 0.5 * (double)i, -6.0};
+        cloth.countX = 12;
+        cloth.countY = 1;
+        cloth.countZ = 12;
+        cloth.spacing = 0.25f;
+        cloth.radius = 0.06f;
+        NewSoftBody(field, &cloth);
+    }
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        m3SoftBodyDef jelly = m3DefaultSoftBodyDef();
+        jelly.position = (m3Pos3){-4.0 + 6.0 * (double)i, 2.0, 3.0};
+        jelly.countX = 5;
+        jelly.countY = 5;
+        jelly.countZ = 5;
+        jelly.spacing = 0.3f;
+        jelly.compliance = 1.0e-4f;
+        jelly.radius = 0.1f;
+        jelly.pressure = 1.0f;
+        NewSoftBody(field, &jelly);
+    }
+    double t0 = Now(clock);
+    for (int32_t i = 0; i < steps; ++i)
+    {
+        m3World_Step(field, 1.0f / 60.0f, 4);
+    }
+    *ms = Now(clock) - t0;
+    uint64_t hash = m3World_Hash(field);
+    m3DestroyWorld(field);
+    return hash;
+}
