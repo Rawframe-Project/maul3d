@@ -512,9 +512,9 @@ static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
     poly->indexCount = write;
 }
 
-// Writes the hull: vertices in input order and the face loops. The
-// planes come from the emitted vertices (m3HullFacePlanes), so a restore
-// can rebuild them bit for bit.
+// Writes the hull: vertices in input order, each face's plane from
+// Newell's method over its loop, pushed out to its farthest vertex so
+// every vertex lies on or below every plane.
 static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, m3Vec3 origin,
                      m3HullData* out)
 {
@@ -549,10 +549,29 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
         {
             return false;
         }
+        m3Vec3 normal = {0.0f, 0.0f, 0.0f};
         for (int32_t k = 0; k < n; ++k)
         {
+            m3Vec3 p = b->p[poly->loop[poly->start[f] + k]];
+            m3Vec3 q = b->p[poly->loop[poly->start[f] + (k + 1) % n]];
+            normal.x += (p.y - q.y) * (p.z + q.z);
+            normal.y += (p.z - q.z) * (p.x + q.x);
+            normal.z += (p.x - q.x) * (p.y + q.y);
+        }
+        m3real length = m3Length3(normal);
+        if (!(length > 0.0f))
+        {
+            return false;
+        }
+        normal = m3MulSV3(1.0f / length, normal);
+        m3real offset = -FLT_MAX;
+        for (int32_t k = 0; k < n; ++k)
+        {
+            offset = m3MaxF(offset, m3Dot3(normal, b->p[poly->loop[poly->start[f] + k]]));
             out->faceIndices[poly->start[f] + k] = (uint8_t)index[poly->loop[poly->start[f] + k]];
         }
+        out->faceNormals[f] = normal;
+        out->faceOffsets[f] = offset + m3Dot3(normal, origin);
         out->faceVertCounts[f] = (uint8_t)n;
         out->faceVertStart[f] = poly->start[f];
         edges += n;
@@ -561,8 +580,7 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
     out->faceCount = poly->faceCount;
     out->indexCount = poly->indexCount;
     // Euler's formula for a closed convex surface.
-    return vertexCount - edges / 2 + poly->faceCount == 2 && poly->faceCount >= 4 &&
-           m3HullFacePlanes(out);
+    return vertexCount - edges / 2 + poly->faceCount == 2 && poly->faceCount >= 4;
 }
 
 // Coordinates past 1e18 or non-finite are refused, never built.
