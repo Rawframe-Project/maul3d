@@ -8,6 +8,7 @@
 
 #include "body_state.h"
 #include "broad_phase.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "world_internal.h"
@@ -89,8 +90,8 @@ void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot)
     m3IdPoolFree(&world->water.waterPool, slot);
 }
 
-m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
-                             m3WaterVolumeId* volumeOut)
+static M3_NOINLINE m3Result CreateWaterVolumeWorker(m3World* world, const m3WaterVolumeDef* def,
+                                                    m3WaterVolumeId* volumeOut)
 {
     if (volumeOut == NULL)
     {
@@ -123,6 +124,15 @@ m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
     return m3_success;
 }
 
+m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
+                             m3WaterVolumeId* volumeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateWaterVolumeWorker(world, def, volumeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 static int32_t WaterSlot(const m3World* world, m3WaterVolumeId id)
 {
     int32_t index = id.index1 - 1;
@@ -138,7 +148,7 @@ bool m3WaterVolume_IsValid(const m3World* world, m3WaterVolumeId volume)
     return WaterSlot(world, volume) >= 0;
 }
 
-m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
+static M3_NOINLINE m3Result DestroyWaterVolumeWorker(m3World* world, m3WaterVolumeId volume)
 {
     if (m3WorldBusy(world))
     {
@@ -155,6 +165,14 @@ m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
     }
     m3DestroyWaterVolumeInternal(world, slot);
     return m3_success;
+}
+
+m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroyWaterVolumeWorker(world, volume);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 // The part of one shape's box inside one water volume: buoyancy

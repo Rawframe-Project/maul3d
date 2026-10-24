@@ -5,6 +5,7 @@
 // against every shape kind, gathered in ascending shape order.
 
 #include "distance.h"
+#include "fpenv.h"
 #include "manifold.h"
 #include "misuse.h"
 #include "query.h"
@@ -228,9 +229,10 @@ static int32_t ProxyOverlapGather(const m3World* world, m3ProxyOverlapContext* c
     return m3SelectionFinish(&ctx->selection);
 }
 
-int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base, const m3Vec3* points,
-                                  int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity,
-                                  m3QueryFilter filter)
+static M3_NOINLINE int32_t WorldOverlapHullPointsWorker(const m3World* world, m3Pos3 base,
+                                                        const m3Vec3* points, int32_t count,
+                                                        m3real radius, m3ShapeId* shapes,
+                                                        int32_t capacity, m3QueryFilter filter)
 {
     if (world == NULL || points == NULL || count < 1 || count > 64 || shapes == NULL ||
         capacity <= 0 || !m3FinitePos3(base) || !m3FiniteF(radius) || radius < 0.0f)
@@ -280,8 +282,20 @@ int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base, const m3Vec
     return ProxyOverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
-                               m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base, const m3Vec3* points,
+                                  int32_t count, m3real radius, m3ShapeId* shapes, int32_t capacity,
+                                  m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result =
+        WorldOverlapHullPointsWorker(world, base, points, count, radius, shapes, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos3 p1, m3Pos3 p2,
+                                                     m3real radius, m3ShapeId* shapes,
+                                                     int32_t capacity, m3QueryFilter filter)
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
@@ -293,8 +307,19 @@ int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3rea
     return m3World_OverlapHullPoints(world, p1, pts, 2, radius, shapes, capacity, filter);
 }
 
-int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
-                           m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
+                               m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldOverlapCapsuleWorker(world, p1, p2, radius, shapes, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE int32_t WorldOverlapBoxWorker(const m3World* world, m3Pos3 center,
+                                                 m3Vec3 halfExtents, m3Quat rotation,
+                                                 m3ShapeId* shapes, int32_t capacity,
+                                                 m3QueryFilter filter)
 {
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
@@ -311,4 +336,14 @@ int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExten
         corners[c] = m3RotateVec3(rotation, e);
     }
     return m3World_OverlapHullPoints(world, center, corners, 8, 0.0f, shapes, capacity, filter);
+}
+
+int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
+                           m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result =
+        WorldOverlapBoxWorker(world, center, halfExtents, rotation, shapes, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
 }

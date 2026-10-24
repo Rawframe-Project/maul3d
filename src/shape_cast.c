@@ -5,6 +5,7 @@
 // world with the shared time-of-impact kernel, closest hit first.
 
 #include "distance.h"
+#include "fpenv.h"
 #include "manifold.h"
 #include "misuse.h"
 #include "query.h"
@@ -431,8 +432,10 @@ static m3RayCastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base,
     return ctx.best;
 }
 
-m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
-                                       m3Quat rotation, m3Vec3 translation, m3QueryFilter filter)
+static M3_NOINLINE m3RayCastResult WorldCastBoxClosestWorker(const m3World* world, m3Pos3 center,
+                                                             m3Vec3 halfExtents, m3Quat rotation,
+                                                             m3Vec3 translation,
+                                                             m3QueryFilter filter)
 {
     m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
@@ -462,8 +465,20 @@ m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Ve
     return CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter);
 }
 
-m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
-                                        int32_t count, m3Vec3 translation, m3QueryFilter filter)
+m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
+                                       m3Quat rotation, m3Vec3 translation, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3RayCastResult result =
+        WorldCastBoxClosestWorker(world, center, halfExtents, rotation, translation, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3RayCastResult WorldCastHullClosestWorker(const m3World* world, m3Pos3 base,
+                                                              const m3Vec3* points, int32_t count,
+                                                              m3Vec3 translation,
+                                                              m3QueryFilter filter)
 {
     m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
@@ -489,6 +504,16 @@ m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base, const
     return CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter);
 }
 
+m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
+                                        int32_t count, m3Vec3 translation, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3RayCastResult result =
+        WorldCastHullClosestWorker(world, base, points, count, translation, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 m3RayCastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
                                       int32_t pointCount, m3real radius, m3Vec3 translation,
                                       int32_t ignoreBody)
@@ -497,17 +522,41 @@ m3RayCastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, cons
                               m3DefaultQueryFilter());
 }
 
-m3RayCastResult m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
-                                          m3Vec3 translation, m3QueryFilter filter)
+static M3_NOINLINE m3RayCastResult WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center,
+                                                                m3real radius, m3Vec3 translation,
+                                                                m3QueryFilter filter)
 {
     m3Vec3 point = {0.0f, 0.0f, 0.0f};
     return CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
+}
+
+m3RayCastResult m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
+                                          m3Vec3 translation, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3RayCastResult result =
+        WorldCastSphereClosestWorker(world, center, radius, translation, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3RayCastResult WorldCastCapsuleClosestWorker(const m3World* world,
+                                                                 m3Pos3 center, m3Vec3 point1,
+                                                                 m3Vec3 point2, m3real radius,
+                                                                 m3Vec3 translation,
+                                                                 m3QueryFilter filter)
+{
+    m3Vec3 points[2] = {point1, point2};
+    return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
 }
 
 m3RayCastResult m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1,
                                            m3Vec3 point2, m3real radius, m3Vec3 translation,
                                            m3QueryFilter filter)
 {
-    m3Vec3 points[2] = {point1, point2};
-    return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
+    uint64_t env = m3FloatEnvEnter();
+    m3RayCastResult result =
+        WorldCastCapsuleClosestWorker(world, center, point1, point2, radius, translation, filter);
+    m3FloatEnvLeave(env);
+    return result;
 }

@@ -54,7 +54,8 @@ contract).
 **Promised:** the same build of Maul3D, given the same sequence of
 API calls with the same arguments, produces bit-identical simulation
 state on every supported platform, compiler, architecture and
-worker count. This is CI-enforced across seven cells
+worker count, whatever rounding mode or flush-to-zero setting the
+host's threads run in. This is CI-enforced across seven cells
 (Linux gcc and clang, Debug and Release, sanitizers, macOS arm64,
 Windows MSVC, and wasm32 under node)
 whose printed state hashes must be equal on every commit.
@@ -80,6 +81,15 @@ fixed-timestep loop you would use for rollback netcode anyway.
 Fast-math is refused at configure time; the build owns its float
 semantics (`-ffp-contract=off`, no unsafe optimizations, `/fp:precise
 /fp:contract-` on MSVC).
+
+The host's floating-point setting never reaches a result. Every call
+that computes runs in the library's own setting (round to nearest,
+subnormals kept, exceptions masked) and gives the thread back its
+rounding mode and flush-to-zero and denormals-are-zero bits as it found
+them. The allocator, the task hooks and the debug draw callbacks run in
+the thread's own setting; a task range enters the library's on whatever
+thread the host runs it; the pre-solve callback runs in the library's,
+since its answer decides contacts.
 
 ## The step
 

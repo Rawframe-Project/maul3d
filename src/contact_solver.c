@@ -12,6 +12,7 @@
 #include "contact_solver.h"
 
 #include "contact_kernel.h"
+#include "parallel.h"
 #include "solver_math.h"
 #include "world_internal.h"
 
@@ -469,8 +470,7 @@ static void RunColor(m3World* world, const m3ContactPlan* plan, int32_t color, m
     }
     if (world->enqueueTask != NULL && size >= 16 && color < M3_GRAPH_COLORS)
     {
-        void* handle = world->enqueueTask(fn, items, minRange, &task, world->userTaskContext);
-        world->finishTask(handle, world->userTaskContext);
+        m3RunTasks(world, fn, &task, items, minRange);
     }
     else if (items > 0)
     {

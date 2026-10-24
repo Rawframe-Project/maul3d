@@ -6,6 +6,8 @@
 // only +, -, *, / and the IEEE-exact floorf, sqrtf and remainderf are
 // used, and the build turns floating-point contraction off.
 
+#include "fpenv.h"
+
 #include "maul3d/core_math.h"
 
 // atan2 from the ratio a = min(|x|, |y|) / max(|x|, |y|) in [0, 1]. Above
@@ -13,7 +15,7 @@
 // sqrt(3))) moves the argument into [-tan(pi/12), tan(pi/12)], where the
 // odd Taylor series through t^11 is accurate to below 3e-9. The octant and
 // quadrant then follow from the signs and the larger component.
-m3real m3Atan2(m3real y, m3real x)
+static M3_NOINLINE m3real Atan2Worker(m3real y, m3real x)
 {
     // (0, 0) returns 0 instead of NaN: the sim path is NaN-free by contract.
     if (x == 0.0f && y == 0.0f)
@@ -50,6 +52,14 @@ m3real m3Atan2(m3real y, m3real x)
     return r;
 }
 
+m3real m3Atan2(m3real y, m3real x)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = Atan2Worker(y, x);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 // Cosine and sine. The angle, folded into [-pi, pi], is reduced to r in
 // [-pi/4, pi/4] around the nearest multiple of pi/2, with pi/2 split into a
 // float-exact high part and a low correction so the reduction loses no
@@ -57,7 +67,7 @@ m3real m3Atan2(m3real y, m3real x)
 // cosine through r^8 are accurate to well below float resolution
 // (truncation under 3e-8), and the quadrant maps the pair back. The pair
 // is then normalized so c*c + s*s is one to float rounding.
-m3CosSin m3ComputeCosSin(m3real radians)
+static M3_NOINLINE m3CosSin ComputeCosSinWorker(m3real radians)
 {
     const m3real halfPiHigh = 1.5707964f;    // pi/2 rounded to float
     const m3real halfPiLow = -4.371139e-08f; // pi/2 - halfPiHigh
@@ -95,4 +105,12 @@ m3CosSin m3ComputeCosSin(m3real radians)
     m3real invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
     m3CosSin cs = {cosine * invMag, sine * invMag};
     return cs;
+}
+
+m3CosSin m3ComputeCosSin(m3real radians)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3CosSin result = ComputeCosSinWorker(radians);
+    m3FloatEnvLeave(env);
+    return result;
 }

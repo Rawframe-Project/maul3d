@@ -11,6 +11,7 @@
 
 #include "body_state.h"
 #include "cpu.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "world_internal.h"
@@ -210,7 +211,7 @@ static bool CreatePools(m3World* world)
     return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0;
 }
 
-m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut)
+static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** worldOut)
 {
     if (worldOut == NULL)
     {
@@ -257,7 +258,15 @@ m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut)
     return m3_success;
 }
 
-void m3DestroyWorld(m3World* world)
+m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateWorldWorker(def, worldOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void DestroyWorldWorker(m3World* world)
 {
     if (m3WorldBusy(world))
     {
@@ -268,6 +277,13 @@ void m3DestroyWorld(m3World* world)
     {
         FreeWorldStorage(world);
     }
+}
+
+void m3DestroyWorld(m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    DestroyWorldWorker(world);
+    m3FloatEnvLeave(env);
 }
 
 int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity)
@@ -374,7 +390,7 @@ void m3EnableContinuousInternal(m3World* world, int32_t on)
     world->continuousEnabled = on != 0 ? 1 : 0;
 }
 
-void m3World_SetGravity(m3World* world, m3Vec3 gravity)
+static M3_NOINLINE void WorldSetGravityWorker(m3World* world, m3Vec3 gravity)
 {
     if (m3WorldBusy(world))
     {
@@ -393,13 +409,29 @@ void m3World_SetGravity(m3World* world, m3Vec3 gravity)
     m3SetGravityInternal(world, gravity);
 }
 
-m3Vec3 m3World_GetGravity(const m3World* world)
+void m3World_SetGravity(m3World* world, m3Vec3 gravity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetGravityWorker(world, gravity);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE m3Vec3 WorldGetGravityWorker(const m3World* world)
 {
     m3Vec3 zero = {0.0f, 0.0f, 0.0f};
     return world != NULL ? world->gravity : zero;
 }
 
-void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, float pushMaxSpeed)
+m3Vec3 m3World_GetGravity(const m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Vec3 result = WorldGetGravityWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void WorldSetContactTuningWorker(m3World* world, float hertz, float dampingRatio,
+                                                    float pushMaxSpeed)
 {
     if (m3WorldBusy(world))
     {
@@ -424,7 +456,14 @@ void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, f
     m3SetContactTuningInternal(world, hertz, dampingRatio, pushMaxSpeed);
 }
 
-void m3World_SetRestitutionThreshold(m3World* world, float value)
+void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, float pushMaxSpeed)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetContactTuningWorker(world, hertz, dampingRatio, pushMaxSpeed);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void WorldSetRestitutionThresholdWorker(m3World* world, float value)
 {
     if (m3WorldBusy(world))
     {
@@ -443,7 +482,14 @@ void m3World_SetRestitutionThreshold(m3World* world, float value)
     m3SetRestitutionThresholdInternal(world, value);
 }
 
-void m3World_SetMaximumLinearSpeed(m3World* world, float value)
+void m3World_SetRestitutionThreshold(m3World* world, float value)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetRestitutionThresholdWorker(world, value);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void WorldSetMaximumLinearSpeedWorker(m3World* world, float value)
 {
     if (m3WorldBusy(world))
     {
@@ -462,7 +508,14 @@ void m3World_SetMaximumLinearSpeed(m3World* world, float value)
     m3SetMaximumLinearSpeedInternal(world, value);
 }
 
-void m3World_SetMaximumAngularSpeed(m3World* world, float value)
+void m3World_SetMaximumLinearSpeed(m3World* world, float value)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetMaximumLinearSpeedWorker(world, value);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void WorldSetMaximumAngularSpeedWorker(m3World* world, float value)
 {
     if (m3WorldBusy(world))
     {
@@ -481,6 +534,13 @@ void m3World_SetMaximumAngularSpeed(m3World* world, float value)
     m3SetMaximumAngularSpeedInternal(world, value);
 }
 
+void m3World_SetMaximumAngularSpeed(m3World* world, float value)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetMaximumAngularSpeedWorker(world, value);
+    m3FloatEnvLeave(env);
+}
+
 // Live slots without a scan: the pool hands out from the free queue
 // or bumps maxIndex, and retirement is the only other exit.
 static int32_t PoolLive(const m3IdPool* pool)
@@ -488,7 +548,7 @@ static int32_t PoolLive(const m3IdPool* pool)
     return pool->maxIndex - pool->freeCount - pool->retiredCount;
 }
 
-m3MemoryUsage m3World_GetMemoryUsage(const m3World* world)
+static M3_NOINLINE m3MemoryUsage WorldGetMemoryUsageWorker(const m3World* world)
 {
     m3MemoryUsage usage;
     memset(&usage, 0, sizeof(usage));
@@ -522,6 +582,14 @@ m3MemoryUsage m3World_GetMemoryUsage(const m3World* world)
     usage.scratchCapacity = world->scratch.capacity;
     usage.scratchPeak = world->lastScratchPeak;
     return usage;
+}
+
+m3MemoryUsage m3World_GetMemoryUsage(const m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3MemoryUsage result = WorldGetMemoryUsageWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 m3Counters m3World_GetCounters(const m3World* world)
@@ -568,7 +636,7 @@ m3Counters m3World_GetCounters(const m3World* world)
     return counters;
 }
 
-m3Profile m3World_GetProfile(const m3World* world)
+static M3_NOINLINE m3Profile WorldGetProfileWorker(const m3World* world)
 {
     if (world == NULL)
     {
@@ -579,7 +647,15 @@ m3Profile m3World_GetProfile(const m3World* world)
     return world->profile;
 }
 
-void m3World_EnableSleeping(m3World* world, bool flag)
+m3Profile m3World_GetProfile(const m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Profile result = WorldGetProfileWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void WorldEnableSleepingWorker(m3World* world, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -599,12 +675,19 @@ void m3World_EnableSleeping(m3World* world, bool flag)
     m3EnableSleepingInternal(world, flag ? 1 : 0);
 }
 
+void m3World_EnableSleeping(m3World* world, bool flag)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldEnableSleepingWorker(world, flag);
+    m3FloatEnvLeave(env);
+}
+
 bool m3World_IsSleepingEnabled(const m3World* world)
 {
     return world != NULL && world->sleepEnabled != 0;
 }
 
-void m3World_EnableContinuous(m3World* world, bool flag)
+static M3_NOINLINE void WorldEnableContinuousWorker(m3World* world, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -624,6 +707,13 @@ void m3World_EnableContinuous(m3World* world, bool flag)
     m3EnableContinuousInternal(world, flag ? 1 : 0);
 }
 
+void m3World_EnableContinuous(m3World* world, bool flag)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldEnableContinuousWorker(world, flag);
+    m3FloatEnvLeave(env);
+}
+
 bool m3World_IsContinuousEnabled(const m3World* world)
 {
     return world != NULL && world->continuousEnabled != 0;
@@ -638,8 +728,8 @@ void m3SetWindInternal(m3World* world, m3Vec3 dir, float speed, float gustHertz,
     // The phase deliberately SURVIVES a retune: the wave continues.
 }
 
-void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
-                     float gustScale)
+static M3_NOINLINE void WorldSetWindWorker(m3World* world, m3Vec3 direction, float speed,
+                                           float gustHertz, float gustScale)
 {
     if (m3WorldBusy(world))
     {
@@ -672,6 +762,14 @@ void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHe
         m3JournalRecord(world, m3_opSetWind, &record, (int32_t)sizeof(record));
     }
     m3SetWindInternal(world, direction, speed, gustHertz, gustScale);
+}
+
+void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
+                     float gustScale)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldSetWindWorker(world, direction, speed, gustHertz, gustScale);
+    m3FloatEnvLeave(env);
 }
 
 // The broadphase rebuild's scratch, taken whole before anything is
@@ -785,7 +883,7 @@ bool m3RebuildBroadphaseInternal(m3World* world)
     return true;
 }
 
-m3Result m3World_RebuildBroadphase(m3World* world)
+static M3_NOINLINE m3Result WorldRebuildBroadphaseWorker(m3World* world)
 {
     if (m3WorldBusy(world))
     {
@@ -810,4 +908,12 @@ m3Result m3World_RebuildBroadphase(m3World* world)
     RebuildWithScratch(world, &scratch);
     DropRebuildScratch(world, &scratch);
     return m3_success;
+}
+
+m3Result m3World_RebuildBroadphase(m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = WorldRebuildBroadphaseWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
 }

@@ -9,6 +9,7 @@
 #include "maul3d/draw.h"
 
 #include "broad_phase.h"
+#include "fpenv.h"
 #include "manifold.h"
 #include "misuse.h"
 #include "shape_state.h"
@@ -33,6 +34,30 @@ typedef struct m3DrawContext
     const m3World* world;
 } m3DrawContext;
 
+// The callbacks are host code: they run in the host's floating-point
+// environment, each through a helper whose body is only that call.
+static M3_NOINLINE void HostSegment(const m3DebugDraw* draw, m3Pos3 p1, m3Pos3 p2, uint32_t color)
+{
+    m3FloatHost host = m3FloatHostEnter();
+    draw->drawSegment(p1, p2, color, draw->context);
+    m3FloatHostLeave(host);
+}
+
+static M3_NOINLINE void HostPoint(const m3DebugDraw* draw, m3Pos3 p, m3real size, uint32_t color)
+{
+    m3FloatHost host = m3FloatHostEnter();
+    draw->drawPoint(p, size, color, draw->context);
+    m3FloatHostLeave(host);
+}
+
+static M3_NOINLINE void HostTriangle(const m3DebugDraw* draw, m3Pos3 a, m3Pos3 b, m3Pos3 c,
+                                     uint32_t color)
+{
+    m3FloatHost host = m3FloatHostEnter();
+    draw->drawTriangle(a, b, c, color, draw->context);
+    m3FloatHostLeave(host);
+}
+
 static m3Pos3 ToWorld(const m3Transform* xf, m3Vec3 local)
 {
     m3Vec3 r = m3RotateVec3(xf->q, local);
@@ -43,7 +68,7 @@ static void Segment(const m3DrawContext* ctx, m3Pos3 p1, m3Pos3 p2, uint32_t col
 {
     if (ctx->draw->drawSegment != NULL)
     {
-        ctx->draw->drawSegment(p1, p2, color, ctx->draw->context);
+        HostSegment(ctx->draw, p1, p2, color);
     }
 }
 
@@ -51,7 +76,7 @@ static void Point(const m3DrawContext* ctx, m3Pos3 p, m3real size, uint32_t colo
 {
     if (ctx->draw->drawPoint != NULL)
     {
-        ctx->draw->drawPoint(p, size, color, ctx->draw->context);
+        HostPoint(ctx->draw, p, size, color);
     }
 }
 
@@ -376,8 +401,7 @@ typedef struct m3SolidContext
 static void SolidTri(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3 a, m3Vec3 b, m3Vec3 c,
                      uint32_t color)
 {
-    ctx->draw->drawTriangle(ToWorld(xf, a), ToWorld(xf, b), ToWorld(xf, c), color,
-                            ctx->draw->context);
+    HostTriangle(ctx->draw, ToWorld(xf, a), ToWorld(xf, b), ToWorld(xf, c), color);
 }
 
 // A unit-lattitude point on the sphere around `center`.
@@ -611,7 +635,7 @@ static void ExtraBoxEdges(const m3DebugDraw* draw, const double lo[3], const dou
     }
     for (int32_t k = 0; k < 12; ++k)
     {
-        draw->drawSegment(c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], color, draw->context);
+        HostSegment(draw, c[s_boxEdges[k][0]], c[s_boxEdges[k][1]], color);
     }
 }
 
@@ -636,7 +660,7 @@ static void DrawExtras(const m3World* world, const m3DebugDraw* draw)
             m3Pos3 com = {world->bodies.transforms[i].p.x + (double)rc.x,
                           world->bodies.transforms[i].p.y + (double)rc.y,
                           world->bodies.transforms[i].p.z + (double)rc.z};
-            draw->drawPoint(com, 0.15f, palette[world->bodies.bodyIsland[i] & 7], draw->context);
+            HostPoint(draw, com, 0.15f, palette[world->bodies.bodyIsland[i] & 7]);
         }
     }
     if (draw->drawMassAxes && draw->drawSegment != NULL)
@@ -661,7 +685,7 @@ static void DrawExtras(const m3World* world, const m3DebugDraw* draw)
             {
                 m3Vec3 d = m3RotateVec3(q, axes[a]);
                 m3Pos3 tip = {o.x + (double)d.x, o.y + (double)d.y, o.z + (double)d.z};
-                draw->drawSegment(o, tip, axisColors[a], draw->context);
+                HostSegment(draw, o, tip, axisColors[a]);
             }
         }
     }
@@ -682,7 +706,7 @@ static void DrawExtras(const m3World* world, const m3DebugDraw* draw)
     }
 }
 
-void m3World_Draw(const m3World* world, const m3DebugDraw* draw)
+static M3_NOINLINE void WorldDrawWorker(const m3World* world, const m3DebugDraw* draw)
 {
     if (world == NULL || draw == NULL)
     {
@@ -698,4 +722,11 @@ void m3World_Draw(const m3World* world, const m3DebugDraw* draw)
     DrawWire(world, draw);
     DrawExtras(world, draw);
     m3WorldLeave(world);
+}
+
+void m3World_Draw(const m3World* world, const m3DebugDraw* draw)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldDrawWorker(world, draw);
+    m3FloatEnvLeave(env);
 }

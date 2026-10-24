@@ -5,6 +5,7 @@
 // read over two worlds' body books. Never state, never hashed,
 // never inside the step.
 
+#include "fpenv.h"
 #include "world_internal.h"
 
 #include "maul3d/replay.h"
@@ -55,8 +56,8 @@ static void KeepWorst(m3BodyDiff* out, int32_t capacity, int32_t* written, const
     *written = last + 1;
 }
 
-int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
-                        int32_t capacity, int32_t* outCount)
+static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3World* worldB,
+                                              m3BodyDiff* out, int32_t capacity, int32_t* outCount)
 {
     const m3World* a = worldA;
     const m3World* b = worldB;
@@ -114,4 +115,13 @@ int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff
     }
     *outCount = written;
     return found;
+}
+
+int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
+                        int32_t capacity, int32_t* outCount)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldCompareWorker(worldA, worldB, out, capacity, outCount);
+    m3FloatEnvLeave(env);
+    return result;
 }

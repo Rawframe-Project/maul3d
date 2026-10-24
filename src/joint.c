@@ -9,6 +9,7 @@
 #include "joint.h"
 
 #include "body_state.h"
+#include "fpenv.h"
 #include "joint_solver.h"
 #include "journal.h"
 #include "manifold.h"
@@ -552,7 +553,8 @@ void m3DestroyJointInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->joints.jointPool, index);
 }
 
-m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOut)
+static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* def,
+                                              m3JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -595,7 +597,15 @@ m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOu
     return m3_success;
 }
 
-m3Result m3DestroyJoint(m3World* world, m3JointId joint)
+m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateJointWorker(world, def, jointOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result DestroyJointWorker(m3World* world, m3JointId joint)
 {
     if (m3WorldBusy(world))
     {
@@ -612,6 +622,14 @@ m3Result m3DestroyJoint(m3World* world, m3JointId joint)
     }
     m3DestroyJointInternal(world, index);
     return m3_success;
+}
+
+m3Result m3DestroyJoint(m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroyJointWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 bool m3Joint_IsValid(const m3World* world, m3JointId joint)

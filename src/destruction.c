@@ -7,6 +7,7 @@
 #include "body.h"
 #include "body_state.h"
 #include "distance.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "manifold.h"
 #include "misuse.h"
@@ -275,7 +276,7 @@ m3ExplosionDef m3DefaultExplosionDef(void)
     return def;
 }
 
-void m3World_Explode(m3World* world, const m3ExplosionDef* def)
+static M3_NOINLINE void WorldExplodeWorker(m3World* world, const m3ExplosionDef* def)
 {
     if (m3WorldBusy(world))
     {
@@ -296,4 +297,11 @@ void m3World_Explode(m3World* world, const m3ExplosionDef* def)
     {
         m3JournalRecord(world, m3_opWorldExplode, def, (int32_t)sizeof(*def));
     }
+}
+
+void m3World_Explode(m3World* world, const m3ExplosionDef* def)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldExplodeWorker(world, def);
+    m3FloatEnvLeave(env);
 }

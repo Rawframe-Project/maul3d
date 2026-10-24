@@ -79,6 +79,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/fpenv.c
     src/hash.c
     src/hull.c
     src/island.c
@@ -110,6 +111,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/misuse.c
     src/mover.c
     src/narrowphase.c
+    src/parallel.c
     src/query.c
     src/query_proxy.c
     src/quickhull.c

@@ -8,6 +8,7 @@
 #include "maul3d/softbody.h"
 
 #include "body_state.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "softbody.h"
@@ -467,9 +468,10 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
     return slot;
 }
 
-m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
-                             int32_t pointCount, const uint16_t* tets, int32_t tetCount,
-                             m3SoftBodyId* softBodyOut)
+static M3_NOINLINE m3Result CreateSoftBodyTetWorker(m3World* world, const m3SoftBodyDef* def,
+                                                    const m3Vec3* points, int32_t pointCount,
+                                                    const uint16_t* tets, int32_t tetCount,
+                                                    m3SoftBodyId* softBodyOut)
 {
     if (softBodyOut == NULL)
     {
@@ -508,7 +510,19 @@ m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3V
     return m3_success;
 }
 
-m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId* softBodyOut)
+m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
+                             int32_t pointCount, const uint16_t* tets, int32_t tetCount,
+                             m3SoftBodyId* softBodyOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result =
+        CreateSoftBodyTetWorker(world, def, points, pointCount, tets, tetCount, softBodyOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateSoftBodyWorker(m3World* world, const m3SoftBodyDef* def,
+                                                 m3SoftBodyId* softBodyOut)
 {
     if (softBodyOut == NULL)
     {
@@ -541,7 +555,15 @@ m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId
     return m3_success;
 }
 
-m3Result m3DestroySoftBody(m3World* world, m3SoftBodyId softBody)
+m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId* softBodyOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateSoftBodyWorker(world, def, softBodyOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result DestroySoftBodyWorker(m3World* world, m3SoftBodyId softBody)
 {
     if (m3WorldBusy(world))
     {
@@ -560,12 +582,21 @@ m3Result m3DestroySoftBody(m3World* world, m3SoftBodyId softBody)
     return m3_success;
 }
 
+m3Result m3DestroySoftBody(m3World* world, m3SoftBodyId softBody)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroySoftBodyWorker(world, softBody);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody)
 {
     return m3SoftBodySlot(world, softBody) >= 0;
 }
 
-void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
+static M3_NOINLINE void SoftBodyPinParticleWorker(m3World* world, m3SoftBodyId softBody,
+                                                  int32_t particle)
 {
     if (m3WorldBusy(world))
     {
@@ -587,6 +618,13 @@ void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t parti
         m3JournalRecord(world, m3_opSoftBodyPin, &record, (int32_t)sizeof(record));
     }
     m3SoftBodyPinInternal(world, slot, particle);
+}
+
+void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
+{
+    uint64_t env = m3FloatEnvEnter();
+    SoftBodyPinParticleWorker(world, softBody, particle);
+    m3FloatEnvLeave(env);
 }
 
 void m3SoftBodyPinInternal(m3World* world, int32_t slot, int32_t particle)
@@ -634,8 +672,9 @@ void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particl
     world->softBodies.softSoftCount[slotA] = a + 1;
 }
 
-void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
-                             m3SoftBodyId softBodyB, int32_t particleB)
+static M3_NOINLINE void SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBodyId softBodyA,
+                                                   int32_t particleA, m3SoftBodyId softBodyB,
+                                                   int32_t particleB)
 {
     if (m3WorldBusy(world))
     {
@@ -665,8 +704,16 @@ void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t par
     m3SoftBodyAnchorSoftInternal(world, slotA, particleA, slotB, particleB);
 }
 
-void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
-                               m3BodyId body)
+void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
+                             m3SoftBodyId softBodyB, int32_t particleB)
+{
+    uint64_t env = m3FloatEnvEnter();
+    SoftBodyAnchorToSoftWorker(world, softBodyA, particleA, softBodyB, particleB);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void SoftBodyAnchorParticleWorker(m3World* world, m3SoftBodyId softBody,
+                                                     int32_t particle, m3BodyId body)
 {
     if (m3WorldBusy(world))
     {
@@ -694,6 +741,14 @@ void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t pa
     m3SoftBodyAnchorInternal(world, slot, particle, bodyIndex);
 }
 
+void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
+                               m3BodyId body)
+{
+    uint64_t env = m3FloatEnvEnter();
+    SoftBodyAnchorParticleWorker(world, softBody, particle, body);
+    m3FloatEnvLeave(env);
+}
+
 int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)
 {
     int32_t slot = m3SoftBodySlot(world, softBody);
@@ -705,7 +760,8 @@ int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)
     return world->softBodies.softParticleCount[slot];
 }
 
-m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBody, int32_t particle)
+static M3_NOINLINE m3Pos3 SoftBodyGetParticlePositionWorker(const m3World* world,
+                                                            m3SoftBodyId softBody, int32_t particle)
 {
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
@@ -714,4 +770,12 @@ m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBod
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return world->softBodies.softPos[slot * M3_SOFTBODY_MAX_PARTICLES + particle];
+}
+
+m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBody, int32_t particle)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Pos3 result = SoftBodyGetParticlePositionWorker(world, softBody, particle);
+    m3FloatEnvLeave(env);
+    return result;
 }

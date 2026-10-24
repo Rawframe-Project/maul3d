@@ -17,6 +17,7 @@
 #include "character.h"
 #include "contact_solver.h"
 #include "continuous.h"
+#include "fpenv.h"
 #include "integrate.h"
 #include "island.h"
 #include "joint.h"
@@ -422,7 +423,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     world->lastScratchPeak = world->scratch.top;
 }
 
-void m3World_Step(m3World* world, float dt, int32_t substeps)
+static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t substeps)
 {
     if (m3WorldBusy(world))
     {
@@ -458,4 +459,11 @@ void m3World_Step(m3World* world, float dt, int32_t substeps)
         record.substeps = substeps;
         m3JournalRecord(world, m3_opStep, &record, (int32_t)sizeof(record));
     }
+}
+
+void m3World_Step(m3World* world, float dt, int32_t substeps)
+{
+    uint64_t env = m3FloatEnvEnter();
+    WorldStepWorker(world, dt, substeps);
+    m3FloatEnvLeave(env);
 }

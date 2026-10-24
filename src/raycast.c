@@ -12,6 +12,7 @@
 
 #include "raycast.h"
 
+#include "fpenv.h"
 #include "misuse.h"
 #include "shape_state.h"
 #include "world_internal.h"
@@ -550,8 +551,18 @@ m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 trans
     return m3RayClosestFiltered(world, origin, translation, -1, m3DefaultQueryFilter());
 }
 
+static M3_NOINLINE m3RayCastResult WorldCastRayClosestWorker(const m3World* world, m3Pos3 origin,
+                                                             m3Vec3 translation,
+                                                             m3QueryFilter filter)
+{
+    return m3RayClosestFiltered(world, origin, translation, -1, filter);
+}
+
 m3RayCastResult m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                        m3QueryFilter filter)
 {
-    return m3RayClosestFiltered(world, origin, translation, -1, filter);
+    uint64_t env = m3FloatEnvEnter();
+    m3RayCastResult result = WorldCastRayClosestWorker(world, origin, translation, filter);
+    m3FloatEnvLeave(env);
+    return result;
 }

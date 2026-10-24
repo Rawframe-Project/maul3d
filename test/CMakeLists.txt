@@ -1,5 +1,9 @@
 # Test suites. See cmake/Testing.cmake for the flags.
 maul_add_test(golden THREADS)
+# The golden scenes on a hostile host's floating-point settings, a test of
+# its own so each stays fast under the sanitizers.
+add_test(NAME golden_hostile COMMAND test_golden hostile)
+set_tests_properties(golden_hostile PROPERTIES LABELS golden_hostile)
 
 # The benchmark scenes, pinned like the golden ones. They take about twenty
 # seconds in Release and far longer in Debug and sanitizer builds, so they
@@ -90,5 +94,7 @@ maul_add_test(distance WHITEBOX)
 maul_add_test(quickhull WHITEBOX)
 maul_add_test(voxel WHITEBOX)
 maul_add_test(bvh WHITEBOX)
+maul_add_test(fpenv WHITEBOX)
 maul_add_test(concurrency POSIX)
 maul_add_header_tests()
+maul_add_exports_test()

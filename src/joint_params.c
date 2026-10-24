@@ -6,6 +6,7 @@
 // journal; the internal setters mutate and are what replay drives.
 
 #include "body_state.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
@@ -197,7 +198,8 @@ static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
     return true;
 }
 
-void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower, float upper)
+static M3_NOINLINE void JointSetLimitsWorker(m3World* world, m3JointId joint, bool enable,
+                                             float lower, float upper)
 {
     if (m3WorldBusy(world))
     {
@@ -243,8 +245,16 @@ void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower
     m3JointSetLimitsInternal(world, slot, enable ? 1 : 0, lower, upper);
 }
 
-void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
-                      float zeta, float maxEffort)
+void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower, float upper)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetLimitsWorker(world, joint, enable, lower, upper);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, bool enable,
+                                            float targetAngle, float hertz, float zeta,
+                                            float maxEffort)
 {
     if (m3WorldBusy(world))
     {
@@ -278,7 +288,15 @@ void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float target
     m3JointSetSteerInternal(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort);
 }
 
-float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
+void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
+                      float zeta, float maxEffort)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetSteerWorker(world, joint, enable, targetAngle, hertz, zeta, maxEffort);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE float JointGetSteerAngleWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
@@ -303,7 +321,16 @@ float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
     return 2.0f * m3Atan2(relQ.x, relQ.w);
 }
 
-void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat rotation)
+float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    float result = JointGetSteerAngleWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void JointSetMotorPoseWorker(m3World* world, m3JointId joint, m3Vec3 offset,
+                                                m3Quat rotation)
 {
     if (m3WorldBusy(world))
     {
@@ -335,7 +362,15 @@ void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat
     m3JointSetMotorPoseInternal(world, slot, offset, rotation);
 }
 
-void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed, float maxEffort)
+void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat rotation)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetMotorPoseWorker(world, joint, offset, rotation);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, bool enable,
+                                            float speed, float maxEffort)
 {
     if (m3WorldBusy(world))
     {
@@ -365,7 +400,15 @@ void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
     m3JointSetMotorInternal(world, slot, enable ? 1 : 0, speed, maxEffort);
 }
 
-void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
+void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed, float maxEffort)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetMotorWorker(world, joint, enable, speed, maxEffort);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void JointSetCollideConnectedWorker(m3World* world, m3JointId joint,
+                                                       bool collide)
 {
     if (m3WorldBusy(world))
     {
@@ -388,13 +431,21 @@ void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
     m3JointSetCollideInternal(world, slot, collide ? 1 : 0);
 }
 
+void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetCollideConnectedWorker(world, joint, collide);
+    m3FloatEnvLeave(env);
+}
+
 bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     return ResolveJoint(world, joint, &slot) && world->joints.jointCollide[slot] != 0;
 }
 
-void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce, float maxTorque)
+static M3_NOINLINE void JointSetBreakThresholdsWorker(m3World* world, m3JointId joint,
+                                                      float maxForce, float maxTorque)
 {
     if (m3WorldBusy(world))
     {
@@ -423,7 +474,14 @@ void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce,
     m3JointSetBreakInternal(world, slot, maxForce, maxTorque);
 }
 
-m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint)
+void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce, float maxTorque)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetBreakThresholdsWorker(world, joint, maxForce, maxTorque);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE m3real JointGetConstraintForceWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
@@ -436,7 +494,15 @@ m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint)
     return force;
 }
 
-m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint)
+m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = JointGetConstraintForceWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3real JointGetConstraintTorqueWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
@@ -449,7 +515,15 @@ m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint)
     return torque;
 }
 
-m3real m3Joint_GetAngle(const m3World* world, m3JointId joint)
+m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = JointGetConstraintTorqueWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3real JointGetAngleWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
@@ -472,7 +546,15 @@ m3real m3Joint_GetAngle(const m3World* world, m3JointId joint)
     return 2.0f * twist;
 }
 
-m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint)
+m3real m3Joint_GetAngle(const m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = JointGetAngleWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3real JointGetTranslationWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
@@ -504,6 +586,14 @@ m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint)
     return m3Dot3(d, axis);
 }
 
+m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = JointGetTranslationWorker(world, joint);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 // --- Position drive --------------------------------------------------
 
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta)
@@ -531,8 +621,8 @@ static int JointTypeDrives(uint8_t type)
            type == (uint8_t)m3_motorJoint;
 }
 
-void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
-                       float dampingRatio)
+static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bool enable,
+                                             float hertz, float dampingRatio)
 {
     if (m3WorldBusy(world))
     {
@@ -563,6 +653,14 @@ void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz
     m3JointSetSpringInternal(world, slot, enable ? 1 : 0, hertz, dampingRatio);
 }
 
+void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
+                       float dampingRatio)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetSpringWorker(world, joint, enable, hertz, dampingRatio);
+    m3FloatEnvLeave(env);
+}
+
 static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float scalar, m3Quat q)
 {
     if (world->recorder.journalActive != 0)
@@ -577,7 +675,7 @@ static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float
     m3JointSetTargetInternal(world, slot, scalar, q);
 }
 
-void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
+static M3_NOINLINE void JointSetTargetAngleWorker(m3World* world, m3JointId joint, float radians)
 {
     if (m3WorldBusy(world))
     {
@@ -598,7 +696,15 @@ void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
     JointTargetOp(world, joint, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
+void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetTargetAngleWorker(world, joint, radians);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void JointSetTargetTranslationWorker(m3World* world, m3JointId joint,
+                                                        float meters)
 {
     if (m3WorldBusy(world))
     {
@@ -620,7 +726,14 @@ void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
     JointTargetOp(world, joint, slot, meters, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
+void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetTargetTranslationWorker(world, joint, meters);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void JointSetTargetRotationWorker(m3World* world, m3JointId joint, m3Quat target)
 {
     if (m3WorldBusy(world))
     {
@@ -645,4 +758,11 @@ void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
         return; // not a unit rotation: refuse by doing nothing
     }
     JointTargetOp(world, joint, slot, 0.0f, target);
+}
+
+void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetTargetRotationWorker(world, joint, target);
+    m3FloatEnvLeave(env);
 }
