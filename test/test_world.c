@@ -7,10 +7,10 @@
 
 // White box: pair inspection reads world internals directly.
 #include "broad_phase.h"
+#include "helpers.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include "maul3d/shape.h"
 
@@ -22,20 +22,17 @@
 static void TestWorldLifecycle(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&def);
-    CHECK(m3World_IsValid(world), "world creation");
+    m3World* world = NewWorld(&def);
+    CHECK(world != NULL, "world creation");
 
     m3WorldDef bad;
     memset(&bad, 0, sizeof(bad));
-    CHECK(!m3World_IsValid(m3CreateWorld(&bad)), "a zeroed def is rejected loudly");
+    CHECK(NewWorld(&bad) == NULL, "a zeroed def is rejected loudly");
 
+    // Worlds are independent: a second one lives beside the first.
+    m3World* again = NewWorld(&def);
+    CHECK(again != NULL && again != world, "a second world creates");
     m3DestroyWorld(world);
-    CHECK(!m3World_IsValid(world), "a destroyed world id goes stale");
-
-    // The recycled slot gets a new generation: the old id stays dead.
-    m3WorldId again = m3CreateWorld(&def);
-    CHECK(m3World_IsValid(again), "the slot recycles");
-    CHECK(!m3World_IsValid(world), "the old world id is still stale after recycling");
     m3DestroyWorld(again);
 }
 
@@ -43,64 +40,64 @@ static void TestBodies(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 4;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){1.0, 2.0, 3.0};
     bd.linearVelocity = (m3Vec3){0.5f, 0.0f, -0.5f};
     bd.userData = 77;
-    m3BodyId a = m3CreateBody(world, &bd);
-    CHECK(m3Body_IsValid(a), "body creation");
+    m3BodyId a = NewBody(world, &bd);
+    CHECK(m3Body_IsValid(world, a), "body creation");
 
-    m3Pos3 p = m3Body_GetPosition(a);
+    m3Pos3 p = m3Body_GetPosition(world, a);
     CHECK(p.x == 1.0 && p.y == 2.0 && p.z == 3.0, "position round-trips through the def");
-    m3Vec3 v = m3Body_GetLinearVelocity(a);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, a);
     CHECK(v.x == 0.5f && v.z == -0.5f, "velocity round-trips");
-    CHECK(m3Body_GetUserData(a) == 77, "user data is carried verbatim");
-    CHECK(m3Body_GetType(a) == m3_dynamicBody, "type reads back");
-    m3Quat q = m3Body_GetRotation(a);
+    CHECK(m3Body_GetUserData(world, a) == 77, "user data is carried verbatim");
+    CHECK(m3Body_GetType(world, a) == m3_dynamicBody, "type reads back");
+    m3Quat q = m3Body_GetRotation(world, a);
     CHECK(q.w == 1.0f, "default rotation is identity");
 
     // Journaled setters mutate.
-    m3Body_SetLinearVelocity(a, (m3Vec3){9.0f, 0.0f, 0.0f});
-    CHECK(m3Body_GetLinearVelocity(a).x == 9.0f, "setter applies");
+    m3Body_SetLinearVelocity(world, a, (m3Vec3){9.0f, 0.0f, 0.0f});
+    CHECK(m3Body_GetLinearVelocity(world, a).x == 9.0f, "setter applies");
 
     // Destroy: the id goes stale, the slot recycles FIFO.
-    m3BodyId b = m3CreateBody(world, &bd);
-    m3DestroyBody(a);
-    CHECK(!m3Body_IsValid(a), "a destroyed body id goes stale");
-    CHECK(m3Body_IsValid(b), "other bodies are untouched");
-    m3BodyId c = m3CreateBody(world, &bd);
+    m3BodyId b = NewBody(world, &bd);
+    DestroyBody(world, a);
+    CHECK(!m3Body_IsValid(world, a), "a destroyed body id goes stale");
+    CHECK(m3Body_IsValid(world, b), "other bodies are untouched");
+    m3BodyId c = NewBody(world, &bd);
     CHECK(c.index1 == a.index1 && c.generation != a.generation,
           "the slot recycles with a fresh generation");
-    CHECK(!m3Body_IsValid(a), "the stale id still fails after recycling");
+    CHECK(!m3Body_IsValid(world, a), "the stale id still fails after recycling");
 
     // Capacity exhaustion returns the null id, never a hidden growth.
     m3BodyDef sd = m3DefaultBodyDef();
-    m3CreateBody(world, &sd);
-    m3CreateBody(world, &sd);
-    m3BodyId overflow = m3CreateBody(world, &sd);
+    NewBody(world, &sd);
+    NewBody(world, &sd);
+    m3BodyId overflow = NewBody(world, &sd);
     CHECK(overflow.index1 == 0, "an exhausted pool returns the null id");
 
     m3DestroyWorld(world);
-    CHECK(!m3Body_IsValid(b), "bodies die with their world");
 }
 
 static void TestTwoWorldsIsolation(void)
 {
-    // A body id is pinned to its world: handing it to another world's
-    // bodies must fail validation, never alias.
+    // Two worlds hand out ids independently, and destroying one leaves
+    // the other's bodies as they were.
     m3WorldDef def = m3DefaultWorldDef();
-    m3WorldId w1 = m3CreateWorld(&def);
-    m3WorldId w2 = m3CreateWorld(&def);
+    m3World* w1 = NewWorld(&def);
+    m3World* w2 = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
-    m3BodyId b1 = m3CreateBody(w1, &bd);
-    m3BodyId b2 = m3CreateBody(w2, &bd);
-    CHECK(b1.world != b2.world, "ids carry their world slot");
-    CHECK(m3Body_IsValid(b1) && m3Body_IsValid(b2), "both bodies are live");
+    m3BodyId b1 = NewBody(w1, &bd);
+    m3BodyId b2 = NewBody(w2, &bd);
+    CHECK(b1.index1 == b2.index1 && b1.generation == b2.generation,
+          "each world numbers its own bodies");
+    CHECK(m3Body_IsValid(w1, b1) && m3Body_IsValid(w2, b2), "both bodies are live");
     m3DestroyWorld(w1);
-    CHECK(!m3Body_IsValid(b1) && m3Body_IsValid(b2), "destroying one world spares the other");
+    CHECK(m3Body_IsValid(w2, b2), "destroying one world spares the other");
     m3DestroyWorld(w2);
 }
 
@@ -110,15 +107,15 @@ static void TestSnapshot(void)
     // byte-identically, the architecture is already wrong.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     int32_t size = m3World_SnapshotSize(world);
     CHECK(size > 0, "the empty world has a snapshot size");
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
-    CHECK(m3World_Snapshot(world, snapA, size) == size, "empty world snapshots");
-    CHECK(m3World_Restore(world, snapA, size), "empty world restores into itself");
-    CHECK(m3World_Snapshot(world, snapB, size) == size, "re-snapshot");
+    CHECK(Snapshot(world, snapA, size) == size, "empty world snapshots");
+    CHECK(Restore(world, snapA, size), "empty world restores into itself");
+    CHECK(Snapshot(world, snapB, size) == size, "re-snapshot");
     CHECK(memcmp(snapA, snapB, (size_t)size) == 0, "restore then snapshot is byte-identical");
 
     // Populate, snapshot, mutate, restore: the mutation must vanish
@@ -126,31 +123,31 @@ static void TestSnapshot(void)
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
-    m3BodyId doomed = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
+    m3BodyId doomed = NewBody(world, &bd);
     uint64_t hashBefore = m3World_Hash(world);
-    CHECK(m3World_Snapshot(world, snapA, size) == size, "populated snapshot");
+    CHECK(Snapshot(world, snapA, size) == size, "populated snapshot");
 
-    m3Body_SetLinearVelocity(a, (m3Vec3){5.0f, 0.0f, 0.0f});
-    m3DestroyBody(doomed);
-    m3BodyId intruder = m3CreateBody(world, &bd); // reuses doomed's slot
+    m3Body_SetLinearVelocity(world, a, (m3Vec3){5.0f, 0.0f, 0.0f});
+    DestroyBody(world, doomed);
+    m3BodyId intruder = NewBody(world, &bd); // reuses doomed's slot
     uint64_t hashMutated = m3World_Hash(world);
     CHECK(hashMutated != hashBefore, "mutations move the hash");
-    CHECK(m3Body_IsValid(intruder), "the intruder is live before the rollback");
+    CHECK(m3Body_IsValid(world, intruder), "the intruder is live before the rollback");
 
-    CHECK(m3World_Restore(world, snapA, size), "restore rolls the world back");
+    CHECK(Restore(world, snapA, size), "restore rolls the world back");
     CHECK(m3World_Hash(world) == hashBefore, "the hash returns to the snapshot value");
-    CHECK(m3World_Snapshot(world, snapB, size) == size, "post-restore snapshot");
+    CHECK(Snapshot(world, snapB, size) == size, "post-restore snapshot");
     CHECK(memcmp(snapA, snapB, (size_t)size) == 0, "the bytes return too");
-    CHECK(m3Body_IsValid(doomed), "the destroyed body lives again after rollback");
-    CHECK(!m3Body_IsValid(intruder), "the post-snapshot body is stale after rollback");
-    CHECK(m3Body_GetLinearVelocity(a).x == 0.0f, "the setter is rolled back");
+    CHECK(m3Body_IsValid(world, doomed), "the destroyed body lives again after rollback");
+    CHECK(!m3Body_IsValid(world, intruder), "the post-snapshot body is stale after rollback");
+    CHECK(m3Body_GetLinearVelocity(world, a).x == 0.0f, "the setter is rolled back");
 
     // The mini rollback-determinism proof: rerun the SAME mutations
     // and the timeline repeats exactly, minted id and hash included.
-    m3Body_SetLinearVelocity(a, (m3Vec3){5.0f, 0.0f, 0.0f});
-    m3DestroyBody(doomed);
-    m3BodyId reMinted = m3CreateBody(world, &bd);
+    m3Body_SetLinearVelocity(world, a, (m3Vec3){5.0f, 0.0f, 0.0f});
+    DestroyBody(world, doomed);
+    m3BodyId reMinted = NewBody(world, &bd);
     CHECK(reMinted.index1 == intruder.index1 && reMinted.generation == intruder.generation,
           "rerunning the ops after rollback repeats the minted id");
     CHECK(m3World_Hash(world) == hashMutated, "and repeats the hash bit for bit");
@@ -161,16 +158,16 @@ static void TestSnapshot(void)
     uint64_t untouched = m3World_Hash(world);
     uint8_t* corrupt = (uint8_t*)snapA;
     corrupt[8] ^= 0xFF; // configHash byte
-    CHECK(!m3World_Restore(world, corrupt, size), "a corrupted config hash is refused");
+    CHECK(!Restore(world, corrupt, size), "a corrupted config hash is refused");
     corrupt[8] ^= 0xFF;
     corrupt[0] ^= 0xFF; // magic byte
-    CHECK(!m3World_Restore(world, corrupt, size), "a corrupted magic is refused");
+    CHECK(!Restore(world, corrupt, size), "a corrupted magic is refused");
     corrupt[0] ^= 0xFF;
-    CHECK(!m3World_Restore(world, corrupt, size - 4), "a truncated snapshot is refused");
+    CHECK(!Restore(world, corrupt, size - 4), "a truncated snapshot is refused");
     m3WorldDef other = m3DefaultWorldDef();
     other.bodyCapacity = 16;
-    m3WorldId foreign = m3CreateWorld(&other);
-    CHECK(!m3World_Restore(foreign, snapA, size), "a foreign capacity is refused");
+    m3World* foreign = NewWorld(&other);
+    CHECK(!Restore(foreign, snapA, size), "a foreign capacity is refused");
     CHECK(m3World_Hash(world) == untouched, "refused restores never touch the world");
 
     free(snapA);
@@ -184,19 +181,19 @@ static void TestShapes(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 2.0f;
 
     // Analytic sphere mass: r = 0.5, density 2 -> m = 2 * 4/3 pi / 8.
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3ShapeId s = m3CreateSphereShape(body, &sd, &ball);
-    CHECK(m3Shape_IsValid(s), "sphere created");
-    m3World* w = m3WorldFromId(world);
+    m3ShapeId s = NewSphereShape(world, body, &sd, &ball);
+    CHECK(m3Shape_IsValid(world, s), "sphere created");
+    m3World* w = world;
     float expectedMass = 2.0f * (4.0f / 3.0f) * M3_PI * 0.125f;
     float gotMass = 1.0f / w->bodies.invMass[body.index1 - 1];
     CHECK(gotMass > expectedMass - 1.0e-4f && gotMass < expectedMass + 1.0e-4f,
@@ -211,33 +208,33 @@ static void TestShapes(void)
     // Loud refusals: plane on a dynamic body, off-origin dynamic
     // sphere, zero radius.
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    CHECK(!m3Shape_IsValid(m3CreatePlaneShape(body, &sd, &floor)),
+    CHECK(!m3Shape_IsValid(world, NewPlaneShape(world, body, &sd, &floor)),
           "a plane on a dynamic body is refused");
     // The 2a refusal flips into a feature. An offset sphere on
     // its own body puts the COM at the offset and keeps the tensor at
     // the centroid value (no parallel-axis term about the COM itself).
     m3BodyDef od = m3DefaultBodyDef();
     od.type = m3_dynamicBody;
-    m3BodyId offsetBody = m3CreateBody(world, &od);
+    m3BodyId offsetBody = NewBody(world, &od);
     m3Sphere offset = {{1.0f, 0.0f, 0.0f}, 0.5f};
-    CHECK(m3Shape_IsValid(m3CreateSphereShape(offsetBody, &sd, &offset)),
+    CHECK(m3Shape_IsValid(world, NewSphereShape(world, offsetBody, &sd, &offset)),
           "an off-origin dynamic sphere is exact under the tensor");
     m3Vec3 lc = w->bodies.localCenters[offsetBody.index1 - 1];
     CHECK(lc.x == 1.0f && lc.y == 0.0f && lc.z == 0.0f, "the COM sits at the sphere center");
     float gotOffsetI = 1.0f / w->bodies.invInertiaLocal[offsetBody.index1 - 1].cx.x;
     CHECK(gotOffsetI > expectedI - 1.0e-4f && gotOffsetI < expectedI + 1.0e-4f,
           "inertia about the COM is the centroid value");
-    m3DestroyBody(offsetBody);
+    DestroyBody(world, offsetBody);
 
     // Two spheres at plus and minus x: COM at the origin, and the
     // parallel axis theorem shows up in yy and zz but not xx.
     m3BodyDef td = m3DefaultBodyDef();
     td.type = m3_dynamicBody;
-    m3BodyId twin = m3CreateBody(world, &td);
+    m3BodyId twin = NewBody(world, &td);
     m3Sphere left = {{-1.0f, 0.0f, 0.0f}, 0.5f};
     m3Sphere right = {{1.0f, 0.0f, 0.0f}, 0.5f};
-    CHECK(m3Shape_IsValid(m3CreateSphereShape(twin, &sd, &left)) &&
-              m3Shape_IsValid(m3CreateSphereShape(twin, &sd, &right)),
+    CHECK(m3Shape_IsValid(world, NewSphereShape(world, twin, &sd, &left)) &&
+              m3Shape_IsValid(world, NewSphereShape(world, twin, &sd, &right)),
           "the twin-sphere body builds");
     m3Vec3 tlc = w->bodies.localCenters[twin.index1 - 1];
     CHECK(tlc.x == 0.0f && tlc.y == 0.0f && tlc.z == 0.0f, "symmetric twins center the COM");
@@ -247,46 +244,47 @@ static void TestShapes(void)
     float eyy = 2.0f * (expectedI + expectedMass * 1.0f);
     CHECK(ixx > exx - 1.0e-3f && ixx < exx + 1.0e-3f, "xx skips the parallel axis term");
     CHECK(iyy > eyy - 1.0e-3f && iyy < eyy + 1.0e-3f, "yy carries the parallel axis term");
-    m3DestroyBody(twin);
+    DestroyBody(world, twin);
     m3Sphere flat = {{0.0f, 0.0f, 0.0f}, 0.0f};
-    CHECK(!m3Shape_IsValid(m3CreateSphereShape(body, &sd, &flat)), "zero radius is refused");
+    CHECK(!m3Shape_IsValid(world, NewSphereShape(world, body, &sd, &flat)),
+          "zero radius is refused");
 
     // Boxes: analytic mass (8 rho hx hy hz) and inertia
     // (m/3 (hy^2+hz^2) on xx), plus intern dedupe and refcounts.
     m3BodyDef xd = m3DefaultBodyDef();
     xd.type = m3_dynamicBody;
-    m3BodyId boxBody = m3CreateBody(world, &xd);
+    m3BodyId boxBody = NewBody(world, &xd);
     m3ShapeDef xs = m3DefaultShapeDef();
     xs.density = 2.0f;
-    m3ShapeId box1 = m3CreateBoxShape(boxBody, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
-    CHECK(m3Shape_IsValid(box1), "box created");
+    m3ShapeId box1 = NewBoxShape(world, boxBody, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
+    CHECK(m3Shape_IsValid(world, box1), "box created");
     float bm = 2.0f * 8.0f * 0.5f * 0.25f * 1.0f;
     float gotBm = 1.0f / w->bodies.invMass[boxBody.index1 - 1];
     CHECK(gotBm > bm - 1.0e-4f && gotBm < bm + 1.0e-4f, "box mass is analytic");
     float bIxx = (bm / 3.0f) * (0.25f * 0.25f + 1.0f * 1.0f);
     float gotBIxx = 1.0f / w->bodies.invInertiaLocal[boxBody.index1 - 1].cx.x;
     CHECK(gotBIxx > bIxx - 1.0e-3f && gotBIxx < bIxx + 1.0e-3f, "box inertia is analytic");
-    CHECK(!m3Shape_IsValid(m3CreateBoxShape(boxBody, &xs, (m3Vec3){0.0f, 1.0f, 1.0f})),
+    CHECK(!m3Shape_IsValid(world, NewBoxShape(world, boxBody, &xs, (m3Vec3){0.0f, 1.0f, 1.0f})),
           "a degenerate box extent is refused");
 
     // Identical boxes intern to ONE hull slot; a different box gets
     // its own; releasing the twin frees nothing until both die.
-    m3BodyId boxBody2 = m3CreateBody(world, &xd);
-    m3CreateBoxShape(boxBody2, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
+    m3BodyId boxBody2 = NewBody(world, &xd);
+    NewBoxShape(world, boxBody2, &xs, (m3Vec3){0.5f, 0.25f, 1.0f});
     int32_t slot1 = w->shapes.shapeHullIndex[box1.index1 - 1];
     CHECK(w->hulls.hullRefCounts[slot1] == 2, "identical boxes share one interned hull");
-    m3BodyId boxBody3 = m3CreateBody(world, &xd);
-    m3CreateBoxShape(boxBody3, &xs, (m3Vec3){0.3f, 0.3f, 0.3f});
+    m3BodyId boxBody3 = NewBody(world, &xd);
+    NewBoxShape(world, boxBody3, &xs, (m3Vec3){0.3f, 0.3f, 0.3f});
     CHECK(w->hulls.hullPool.maxIndex == 2, "a different box interns a second hull");
-    m3DestroyBody(boxBody2);
+    DestroyBody(world, boxBody2);
     CHECK(w->hulls.hullRefCounts[slot1] == 1, "releasing the twin decrements the refcount");
-    m3DestroyBody(boxBody3);
-    m3DestroyBody(boxBody);
+    DestroyBody(world, boxBody3);
+    DestroyBody(world, boxBody);
     CHECK(w->hulls.hullPool.freeCount == 2, "dead hulls return to the pool");
 
     // The cascade: a body takes its shapes with it.
-    m3DestroyBody(body);
-    CHECK(!m3Shape_IsValid(s), "shapes die with their body");
+    DestroyBody(world, body);
+    CHECK(!m3Shape_IsValid(world, s), "shapes die with their body");
 
     m3DestroyWorld(world);
 }
@@ -300,24 +298,24 @@ static void TestPairs(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromId(world);
+    m3World* world = NewWorld(&def);
+    m3World* w = world;
 
     m3BodyDef ground = m3DefaultBodyDef();
-    m3BodyId groundBody = m3CreateBody(world, &ground);
+    m3BodyId groundBody = NewBody(world, &ground);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(groundBody, &sd, &floor); // shape 0
+    NewPlaneShape(world, groundBody, &sd, &floor); // shape 0
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball); // shape 1 (A)
+    NewSphereShape(world, NewBody(world, &bd), &sd, &ball); // shape 1 (A)
     bd.position = (m3Pos3){0.6, 1.0, 0.0};
-    m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball); // shape 2 (B), overlaps A
+    NewSphereShape(world, NewBody(world, &bd), &sd, &ball); // shape 2 (B), overlaps A
     bd.position = (m3Pos3){100.0, 1.0, 0.0};
-    m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball); // shape 3 (C), far
+    NewSphereShape(world, NewBody(world, &bd), &sd, &ball); // shape 3 (C), far
 
     CHECK(m3UpdatePairs(w) == m3_success, "the pair scan succeeds");
     CHECK(w->contacts.pairCount == 4, "plane pairs with every sphere, plus the A-B overlap");
@@ -333,10 +331,10 @@ static void TestPairs(void)
     // Snapshot round-trip carries the pairs (v2 format).
     int32_t size = m3World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m3World_Snapshot(world, snap, size) == size, "v2 snapshot");
+    CHECK(Snapshot(world, snap, size) == size, "v2 snapshot");
     w->contacts.pairCount = 0;
     memset(w->contacts.pairKeys, 0, sizeof(expected));
-    CHECK(m3World_Restore(world, snap, size), "v2 restore");
+    CHECK(Restore(world, snap, size), "v2 restore");
     CHECK(w->contacts.pairCount == 4 &&
               memcmp(w->contacts.pairKeys, expected, sizeof(expected)) == 0,
           "pairs survive the round-trip");
@@ -379,14 +377,14 @@ static void TestTreeReferee(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
-    m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromId(world);
+    m3World* world = NewWorld(&def);
+    m3World* w = world;
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyId bodies[40];
     for (int32_t i = 0; i < 40; ++i)
@@ -396,17 +394,17 @@ static void TestTreeReferee(void)
         bd.position = (m3Pos3){RefRange(-6.0, 6.0), RefRange(0.5, 6.0), RefRange(-6.0, 6.0)};
         bd.linearVelocity =
             (m3Vec3){(m3real)RefRange(-3.0, 3.0), 0.0f, (m3real)RefRange(-3.0, 3.0)};
-        bodies[i] = m3CreateBody(world, &bd);
+        bodies[i] = NewBody(world, &bd);
         if ((i & 3) == 3)
         {
-            m3CreateBoxShape(bodies[i], &sd,
-                             (m3Vec3){(m3real)RefRange(0.2, 0.7), (m3real)RefRange(0.2, 0.7),
-                                      (m3real)RefRange(0.2, 0.7)});
+            NewBoxShape(world, bodies[i], &sd,
+                        (m3Vec3){(m3real)RefRange(0.2, 0.7), (m3real)RefRange(0.2, 0.7),
+                                 (m3real)RefRange(0.2, 0.7)});
         }
         else
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RefRange(0.2, 0.9)};
-            m3CreateSphereShape(bodies[i], &sd, &ball);
+            NewSphereShape(world, bodies[i], &sd, &ball);
         }
     }
 
@@ -417,8 +415,8 @@ static void TestTreeReferee(void)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.position = (m3Pos3){8.0 + 0.5 * i, 1.0, 8.0};
-        walls[i] = m3CreateBody(world, &bd);
-        m3CreateBoxShape(walls[i], &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+        walls[i] = NewBody(world, &bd);
+        NewBoxShape(world, walls[i], &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     }
 
     for (int32_t round = 0; round < 7; ++round)
@@ -429,16 +427,16 @@ static void TestTreeReferee(void)
         {
             for (int32_t i = 0; i < 10; ++i)
             {
-                m3DestroyBody(bodies[i]); // cascades shapes, removes proxies
+                DestroyBody(world, bodies[i]); // cascades shapes, removes proxies
             }
         }
         if (round == 2)
         {
-            m3Body_SetType(walls[1], m3_dynamicBody);
+            m3Body_SetType(world, walls[1], m3_dynamicBody);
         }
         if (round == 3)
         {
-            m3Body_SetTransform(bodies[20], (m3Pos3){8.0, 2.0, 8.0}, (m3Quat){0, 0, 0, 1});
+            m3Body_SetTransform(world, bodies[20], (m3Pos3){8.0, 2.0, 8.0}, (m3Quat){0, 0, 0, 1});
         }
         if (round == 4)
         {
@@ -446,7 +444,7 @@ static void TestTreeReferee(void)
             bd.type = m3_dynamicBody;
             bd.position = (m3Pos3){7.5, 1.0, 8.0};
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-            m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &ball);
+            NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
         }
         CheckReferee(w);                      // the change alone, before any motion hides it
         m3World_Step(world, 1.0f / 60.0f, 4); // real motion between rounds
@@ -459,25 +457,25 @@ static void TestTreeReferee(void)
 // (two), rolling spheres (one), a bouncing ball, a conveyor mesh, a
 // kinematic paddle, and a slab carrying enough boxes that its contacts
 // overflow the colors.
-static m3WorldId BuildLaneScene(void)
+static m3World* BuildLaneScene(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3Vec3 belt[4] = {
         {6.0f, 0.1f, -2.0f}, {10.0f, 0.1f, -2.0f}, {10.0f, 0.1f, 2.0f}, {6.0f, 0.1f, 2.0f}};
     uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
-    m3ShapeId mesh = m3CreateMeshShape(ground, &sd, belt, 4, tris, 2);
+    m3ShapeId mesh = NewMeshShape(world, ground, &sd, belt, 4, tris, 2);
     m3MeshSurfaceMaterial moving = {0.8f, 0.0f, 0.0f, {1.5f, 0.0f, 0.5f}};
     uint8_t groups[2] = {0, 0};
-    m3Shape_SetMeshMaterials(mesh, &moving, 1, groups);
+    m3Shape_SetMeshMaterials(world, mesh, &moving, 1, groups);
 
     for (int32_t i = 0; i < 40; ++i)
     {
@@ -485,50 +483,50 @@ static m3WorldId BuildLaneScene(void)
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-6.0 + 0.9 * (i % 8), 0.5 + 1.1 * (i / 8), -3.0 + 0.3 * (i % 3)};
         bd.angularVelocity = (m3Vec3){0.3f * (float)(i % 5), 0.0f, 0.2f};
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         sd.friction = 0.2f + 0.1f * (float)(i % 6);
         sd.restitution = i % 7 == 0 ? 0.7f : 0.0f;
         sd.rollingResistance = i % 3 == 0 ? 0.05f : 0.0f;
         if (i % 4 == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
-            m3CreateSphereShape(body, &sd, &ball);
+            NewSphereShape(world, body, &sd, &ball);
         }
         else if (i % 4 == 1)
         {
             m3Capsule cap = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.25f};
-            m3CreateCapsuleShape(body, &sd, &cap);
+            NewCapsuleShape(world, body, &sd, &cap);
         }
         else
         {
-            m3CreateBoxShape(body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+            NewBoxShape(world, body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
         }
     }
     sd = m3DefaultShapeDef();
     m3BodyDef slabDef = m3DefaultBodyDef();
     slabDef.type = m3_dynamicBody;
     slabDef.position = (m3Pos3){0.0, 0.5, 6.0};
-    m3CreateBoxShape(m3CreateBody(world, &slabDef), &sd, (m3Vec3){3.0f, 0.25f, 3.0f});
+    NewBoxShape(world, NewBody(world, &slabDef), &sd, (m3Vec3){3.0f, 0.25f, 3.0f});
     for (int32_t i = 0; i < 25; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-2.4 + 1.2 * (i % 5), 1.05, 3.6 + 1.2 * (i / 5)};
-        m3CreateBoxShape(m3CreateBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+        NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
     }
     for (int32_t i = 0; i < 6; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){7.0 + 0.9 * i, 0.8, 0.0};
-        m3CreateBoxShape(m3CreateBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+        NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
     }
     m3BodyDef paddle = m3DefaultBodyDef();
     paddle.type = m3_kinematicBody;
     paddle.position = (m3Pos3){-3.0, 0.6, -6.0};
     paddle.linearVelocity = (m3Vec3){0.0f, 0.0f, 2.0f};
     paddle.angularVelocity = (m3Vec3){0.0f, 1.0f, 0.0f};
-    m3CreateBoxShape(m3CreateBody(world, &paddle), &sd, (m3Vec3){2.0f, 0.5f, 0.3f});
+    NewBoxShape(world, NewBody(world, &paddle), &sd, (m3Vec3){2.0f, 0.5f, 0.3f});
     return world;
 }
 
@@ -536,9 +534,9 @@ static void TestContactLanesMatchScalar(void)
 {
     // The lane kernel against the scalar rows it transcribes: the same
     // scene stepped both ways must agree on every bit, every step.
-    m3WorldId lanes = BuildLaneScene();
-    m3WorldId rows = BuildLaneScene();
-    m3World* scalar = m3WorldFromId(rows);
+    m3World* lanes = BuildLaneScene();
+    m3World* rows = BuildLaneScene();
+    m3World* scalar = rows;
     scalar->contacts.scalarRows = 1;
     int32_t firstMismatch = -1;
     for (int32_t step = 0; step < 240 && firstMismatch < 0; ++step)
@@ -564,30 +562,30 @@ static void TestHullSnapshotShrink(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m3WorldId bare = m3CreateWorld(&def);
+    m3World* bare = NewWorld(&def);
     int32_t bareBytes = m3World_SnapshotSize(bare);
     m3WorldDef def2 = def;
-    m3WorldId boxed = m3CreateWorld(&def2);
+    m3World* boxed = NewWorld(&def2);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId body = m3CreateBody(boxed, &bd);
+    m3BodyId body = NewBody(boxed, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    NewBoxShape(boxed, body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
     int32_t boxedBytes = m3World_SnapshotSize(boxed);
     CHECK(boxedBytes - bareBytes < (int32_t)sizeof(m3HullData),
           "one box hull travels lighter than one fixed slab");
 
     // The round trip still lands on the same bits.
     static uint8_t snap[2097152];
-    int32_t bytes = m3World_Snapshot(boxed, snap, (int32_t)sizeof(snap));
+    int32_t bytes = Snapshot(boxed, snap, (int32_t)sizeof(snap));
     CHECK(bytes == boxedBytes, "the measured size is the written size");
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(boxed, 1.0f / 60.0f, 4);
     }
     uint64_t after = m3World_Hash(boxed);
-    CHECK(m3World_Restore(boxed, snap, bytes), "the hull snapshot restores");
+    CHECK(Restore(boxed, snap, bytes), "the hull snapshot restores");
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(boxed, 1.0f / 60.0f, 4);
@@ -600,16 +598,19 @@ static void TestHullSnapshotShrink(void)
 static int64_t s_hookLive = 0;
 static int64_t s_hookCalls = 0;
 
-static void* HookAlloc(size_t bytes, void* context)
+static void* HookAlloc(size_t bytes, size_t alignment, void* context)
 {
+    (void)alignment;
     (void)context;
     s_hookLive += 1;
     s_hookCalls += 1;
     return malloc(bytes);
 }
 
-static void HookFree(void* memory, void* context)
+static void HookFree(void* memory, size_t bytes, size_t alignment, void* context)
 {
+    (void)bytes;
+    (void)alignment;
     (void)context;
     if (memory != NULL)
     {
@@ -618,32 +619,31 @@ static void HookFree(void* memory, void* context)
     free(memory);
 }
 
-// A world born under a host allocator routes every
-// persistent allocation and free through it, and dies in balance.
+// A world given a host allocator routes every allocation and free
+// through it, and dies in balance.
 static void TestAllocatorHook(void)
 {
-    m3SetAllocator(HookAlloc, HookFree, NULL);
     s_hookLive = 0;
     s_hookCalls = 0;
     m3WorldDef def = m3DefaultWorldDef();
+    def.allocator = (m3Allocator){HookAlloc, HookFree, NULL};
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     CHECK(s_hookCalls > 0, "the hook saw the world's allocations");
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
+    m3BodyId b = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(b, &sd, &ball);
+    NewSphereShape(world, b, &sd, &ball);
     for (int32_t i = 0; i < 10; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3DestroyWorld(world);
     CHECK(s_hookLive == 0, "every hooked allocation was freed through the hook");
-    m3SetAllocator(NULL, NULL, NULL);
 }
 
 // The total is computed, not accumulated, so it
@@ -654,17 +654,17 @@ static void TestMemoryUsage(void)
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
     def.meshCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3MemoryUsage before = m3World_GetMemoryUsage(world);
     CHECK(before.persistentBytes > 0, "a world weighs something");
     CHECK(before.contentBytes == 0, "no content yet");
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Vec3 verts[4] = {
         {-5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, -5.0f}, {5.0f, 0.0f, 5.0f}, {-5.0f, 0.0f, 5.0f}};
     uint16_t tris[6] = {0, 1, 2, 0, 2, 3};
-    m3CreateMeshShape(ground, &sd, verts, 4, tris, 2);
+    NewMeshShape(world, ground, &sd, verts, 4, tris, 2);
     m3MemoryUsage after = m3World_GetMemoryUsage(world);
     CHECK(after.contentBytes > 0, "mesh content is on the ledger");
     CHECK(after.persistentBytes == before.persistentBytes,
@@ -672,9 +672,9 @@ static void TestMemoryUsage(void)
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
+    m3BodyId b = NewBody(world, &bd);
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(b, &sd, &ball);
+    NewSphereShape(world, b, &sd, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -691,17 +691,17 @@ static void TestMemoryUsage(void)
 static void TestCompoundExtents(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.25f};
     sd.localPosition = (m3Vec3){3.0f, 0.0f, 0.0f};
-    m3CreateSphereShape(body, &sd, &ball);
+    NewSphereShape(world, body, &sd, &ball);
     sd.localPosition = (m3Vec3){-3.0f, 0.0f, 0.0f};
-    m3CreateSphereShape(body, &sd, &ball);
-    m3World* w = m3WorldFromId(world);
+    NewSphereShape(world, body, &sd, &ball);
+    m3World* w = world;
     int32_t slot = body.index1 - 1;
     CHECK(fabsf(w->bodies.maxExtents[slot] - 3.25f) < 1.0e-5f,
           "the dumbbell reaches 3.25 from its center of mass");

@@ -14,7 +14,6 @@
 #include "manifold.h"
 #include "misuse.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -90,8 +89,7 @@ static m3Quat QuatFromAxisZ(m3Vec3 axis)
 int32_t m3JointSlot(const m3World* world, m3JointId jointId)
 {
     int32_t index = jointId.index1 - 1;
-    if (world == NULL || jointId.world != world->idWorld ||
-        !m3IdPoolValid(&world->joints.jointPool, index, jointId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->joints.jointPool, index, jointId.generation))
     {
         return -1;
     }
@@ -538,44 +536,42 @@ static bool JointDefIsValid(const m3JointDef* def)
            !(def->enableCone && def->coneAngle < 0.0f);
 }
 
-m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def)
+m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOut)
 {
-    m3World* world = m3WorldFromId(worldId);
+    if (jointOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *jointOut = m3_nullJointId;
     if (world == NULL || def == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId;
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (!JointDefIsValid(def))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId;
-    }
-    if (def->bodyIdA.world != world->idWorld || def->bodyIdB.world != world->idWorld)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId; // both bodies must live in this world
+        return m3Refuse(world, m3_errorInvalid);
     }
     int32_t bodyA = m3BodySlot(world, def->bodyIdA);
     int32_t bodyB = m3BodySlot(world, def->bodyIdB);
-    if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
+    if (bodyA < 0 || bodyB < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId;
+        return m3Refuse(world, m3MissingId(bodyA < 0 ? def->bodyIdA.index1 : def->bodyIdB.index1));
+    }
+    if (bodyA == bodyB)
+    {
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (world->bodies.types[bodyA] != (uint8_t)m3_dynamicBody &&
         world->bodies.types[bodyB] != (uint8_t)m3_dynamicBody)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullJointId; // a joint between immovables is inert
+        return m3Refuse(world, m3_errorInvalid); // a joint between immovables is inert
     }
     int32_t index = m3CreateJointInternal(world, def, bodyA, bodyB);
     if (index < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullJointId;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3JointId id = {index + 1, world->idWorld, world->joints.jointPool.generations[index]};
+    m3JointId id = {index + 1, world->joints.jointPool.generations[index]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateJointOp record;
@@ -584,84 +580,69 @@ m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def)
         record.expected = id;
         m3JournalRecord(world, m3_opCreateJoint, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *jointOut = id;
+    return m3_success;
 }
 
-void m3DestroyJoint(m3JointId jointId)
+m3Result m3DestroyJoint(m3World* world, m3JointId joint)
 {
-    m3World* world = m3WorldFromTag(jointId.world);
-    int32_t index = world != NULL ? m3JointSlot(world, jointId) : -1;
+    int32_t index = m3JointSlot(world, joint);
     if (index < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale id: a quiet no-op is the destroy contract
+        return m3Refuse(world, m3MissingId(joint.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroyJoint, &jointId, (int32_t)sizeof(jointId));
+        m3JournalRecord(world, m3_opDestroyJoint, &joint, (int32_t)sizeof(joint));
     }
     m3DestroyJointInternal(world, index);
+    return m3_success;
 }
 
-bool m3Joint_IsValid(m3JointId jointId)
+bool m3Joint_IsValid(const m3World* world, m3JointId joint)
 {
-    m3World* world = m3WorldFromTag(jointId.world);
-    return world != NULL && m3JointSlot(world, jointId) >= 0;
+    return m3JointSlot(world, joint) >= 0;
 }
 
-// Resolves a joint id to its world and slot; for anything stale or
-// foreign, refuses and returns NULL.
-static m3World* ResolveJoint(m3JointId jointId, int32_t* outIndex)
+// Resolves a joint id to its slot; for a stale id, refuses and returns
+// false.
+static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 {
-    m3World* world = m3WorldFromTag(jointId.world);
-    int32_t index = world != NULL ? m3JointSlot(world, jointId) : -1;
-    if (index < 0)
+    int32_t slot = m3JointSlot(world, id);
+    if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
-        return NULL;
+        return false;
     }
-    *outIndex = index;
-    return world;
+    *slotOut = slot;
+    return true;
 }
 
-m3WorldId m3Joint_GetWorld(m3JointId jointId)
+m3JointType m3Joint_GetType(const m3World* world, m3JointId joint)
 {
     int32_t index;
-    m3World* world = ResolveJoint(jointId, &index);
-    m3WorldId id = {0, 0};
-    if (world != NULL)
-    {
-        id = (m3WorldId){(uint16_t)(world->slot + 1), world->generation};
-    }
-    return id;
+    return ResolveJoint(world, joint, &index) ? (m3JointType)world->joints.jointType[index]
+                                              : m3_sphericalJoint;
 }
 
-m3JointType m3Joint_GetType(m3JointId jointId)
+static m3BodyId JointBody(const m3World* world, m3JointId jointId, bool sideB)
 {
     int32_t index;
-    m3World* world = ResolveJoint(jointId, &index);
-    return world != NULL ? (m3JointType)world->joints.jointType[index] : m3_sphericalJoint;
-}
-
-static m3BodyId JointBody(m3JointId jointId, bool sideB)
-{
-    int32_t index;
-    m3World* world = ResolveJoint(jointId, &index);
-    m3BodyId id = {0, 0, 0};
-    if (world != NULL)
+    m3BodyId id = m3_nullBodyId;
+    if (ResolveJoint(world, jointId, &index))
     {
         int32_t body = sideB ? world->joints.jointBodyB[index] : world->joints.jointBodyA[index];
-        id = (m3BodyId){body + 1, world->idWorld, world->bodies.bodyPool.generations[body]};
+        id = (m3BodyId){body + 1, world->bodies.bodyPool.generations[body]};
     }
     return id;
 }
 
-m3BodyId m3Joint_GetBodyA(m3JointId jointId)
+m3BodyId m3Joint_GetBodyA(const m3World* world, m3JointId joint)
 {
-    return JointBody(jointId, false);
+    return JointBody(world, joint, false);
 }
 
-m3BodyId m3Joint_GetBodyB(m3JointId jointId)
+m3BodyId m3Joint_GetBodyB(const m3World* world, m3JointId joint)
 {
-    return JointBody(jointId, true);
+    return JointBody(world, joint, true);
 }

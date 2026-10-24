@@ -6,10 +6,10 @@
 // the exact per-triangle test, must equal the full scan filtered by the
 // same test. Plus the degenerate boxes.
 
+#include "helpers.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,15 +28,15 @@ static float RandRange(float lo, float hi)
 }
 
 // A bumpy heightfield: 1922 triangles, the realistic midphase load.
-static m3WorldId MakeMeshWorld(m3ShapeId* meshShapeOut)
+static m3World* MakeMeshWorld(m3ShapeId* meshShapeOut)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.meshCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     float heights[32 * 32];
     for (int32_t z = 0; z < 32; ++z)
@@ -47,7 +47,7 @@ static m3WorldId MakeMeshWorld(m3ShapeId* meshShapeOut)
             heights[z * 32 + x] = 0.25f * (float)((x * 7 + z * 13) % 5) - 0.5f;
         }
     }
-    m3ShapeId meshShape = m3CreateHeightFieldShape(ground, &sd, heights, 32, 32, 1.0f);
+    m3ShapeId meshShape = NewHeightFieldShape(world, ground, &sd, heights, 32, 32, 1.0f);
     if (meshShapeOut != NULL)
     {
         *meshShapeOut = meshShape;
@@ -55,15 +55,15 @@ static m3WorldId MakeMeshWorld(m3ShapeId* meshShapeOut)
     return world;
 }
 
-static const m3MeshData* MeshOf(m3WorldId worldId, m3ShapeId shape)
+static const m3MeshData* MeshOf(m3World* worldId, m3ShapeId shape)
 {
-    m3World* world = m3WorldFromId(worldId);
+    m3World* world = worldId;
     return &world->meshes.meshData[world->shapes.shapeMeshIndex[shape.index1 - 1]];
 }
 
-static const m3MeshBvh* BvhOf(m3WorldId worldId, m3ShapeId shape)
+static const m3MeshBvh* BvhOf(m3World* worldId, m3ShapeId shape)
 {
-    m3World* world = m3WorldFromId(worldId);
+    m3World* world = worldId;
     return &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape.index1 - 1]];
 }
 
@@ -87,7 +87,7 @@ static bool BoxesOverlap(m3Vec3 alo, m3Vec3 ahi, m3Vec3 blo, m3Vec3 bhi)
 static void TestRefereeGather(void)
 {
     m3ShapeId meshShape;
-    m3WorldId world = MakeMeshWorld(&meshShape);
+    m3World* world = MakeMeshWorld(&meshShape);
     const m3MeshData* mesh = MeshOf(world, meshShape);
     const m3MeshBvh* bvh = BvhOf(world, meshShape);
     CHECK(mesh->triangleCount == 2 * 31 * 31, "heightfield triangulates fully");

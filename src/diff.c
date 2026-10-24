@@ -6,11 +6,9 @@
 // never inside the step.
 
 #include "world_internal.h"
-#include "world_table.h"
 
 #include "maul3d/replay.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 static m3real DiffTotal(const m3BodyDiff* d)
@@ -36,11 +34,32 @@ static int DiffCompare(const void* pa, const void* pb)
     return a->bodyId.index1 < b->bodyId.index1 ? -1 : (a->bodyId.index1 > b->bodyId.index1 ? 1 : 0);
 }
 
-int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int32_t capacity,
-                        int32_t* outCount)
+// Puts row into the worst-first list out[0, *written), which holds at
+// most capacity rows. Rows arrive in ascending body index, and a row
+// goes after every row it ties with, so the list matches a sort of all
+// rows by DiffCompare.
+static void KeepWorst(m3BodyDiff* out, int32_t capacity, int32_t* written, const m3BodyDiff* row)
 {
-    m3World* a = m3WorldFromId(worldA);
-    m3World* b = m3WorldFromId(worldB);
+    int32_t at = *written;
+    while (at > 0 && DiffCompare(row, &out[at - 1]) < 0)
+    {
+        at -= 1;
+    }
+    if (at >= capacity)
+    {
+        return;
+    }
+    int32_t last = *written < capacity ? *written : capacity - 1;
+    memmove(&out[at + 1], &out[at], (size_t)(last - at) * sizeof(m3BodyDiff));
+    out[at] = *row;
+    *written = last + 1;
+}
+
+int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
+                        int32_t capacity, int32_t* outCount)
+{
+    const m3World* a = worldA;
+    const m3World* b = worldB;
     if (a == NULL || b == NULL || out == NULL || capacity <= 0 || outCount == NULL ||
         a->bodies.bodyCapacity != b->bodies.bodyCapacity)
     {
@@ -53,17 +72,8 @@ int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int
     int32_t maxA = a->bodies.bodyPool.maxIndex;
     int32_t maxB = b->bodies.bodyPool.maxIndex;
     int32_t maxIndex = maxA > maxB ? maxA : maxB;
-    m3BodyDiff* rows = (m3BodyDiff*)m3AllocZeroed(
-        maxIndex > 0 ? maxIndex * (int32_t)sizeof(m3BodyDiff) : (int32_t)sizeof(m3BodyDiff));
-    if (rows == NULL)
-    {
-        if (outCount != NULL)
-        {
-            *outCount = 0;
-        }
-        return -1; // out of memory
-    }
     int32_t found = 0;
+    int32_t written = 0;
     for (int32_t i = 0; i < maxIndex; ++i)
     {
         int aliveA = i < maxA && a->bodies.bodyPool.alive[i] != 0;
@@ -74,14 +84,14 @@ int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int
         }
         m3BodyDiff d;
         memset(&d, 0, sizeof(d));
-        d.bodyId = (m3BodyId){i + 1, a->idWorld,
-                              aliveA ? a->bodies.bodyPool.generations[i]
-                                     : b->bodies.bodyPool.generations[i]};
+        d.bodyId = (m3BodyId){(uint32_t)i + 1u, aliveA ? a->bodies.bodyPool.generations[i]
+                                                       : b->bodies.bodyPool.generations[i]};
         if (aliveA != aliveB)
         {
             d.onlyInA = aliveA != 0;
             d.onlyInB = aliveB != 0;
-            rows[found++] = d;
+            found += 1;
+            KeepWorst(out, capacity, &written, &d);
             continue;
         }
         m3Vec3 dp = {(m3real)(a->bodies.transforms[i].p.x - b->bodies.transforms[i].p.x),
@@ -98,13 +108,10 @@ int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out, int
         if (d.positionError != 0.0f || d.rotationError != 0.0f || d.velocityError != 0.0f ||
             a->bodies.awake[i] != b->bodies.awake[i])
         {
-            rows[found++] = d;
+            found += 1;
+            KeepWorst(out, capacity, &written, &d);
         }
     }
-    qsort(rows, (size_t)found, sizeof(m3BodyDiff), DiffCompare);
-    int32_t written = found < capacity ? found : capacity;
-    memcpy(out, rows, (size_t)written * sizeof(m3BodyDiff));
     *outCount = written;
-    m3Free(rows);
     return found;
 }

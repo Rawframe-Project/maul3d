@@ -83,23 +83,27 @@ extern "C"
 
     /// Create a sphere on a body and recompute the body's mass from
     /// its shapes (sphere mass = density * 4/3 pi r^3, inertia
-    /// 0.4 m r^2). Returns the null id on an invalid def, a stale
-    /// body, an exhausted pool, or an off-origin center on a dynamic
-    /// body (the 2a rule: scalar inertia stays exact; the full tensor
-    /// arrives in 2b).
-    M3_API m3ShapeId m3CreateSphereShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                         const m3Sphere* sphere);
+    /// 0.4 m r^2). Returns m3_errorInvalid for an invalid def or
+    /// geometry, m3_errorStale for a stale body and m3_errorCapacity for
+    /// an exhausted pool; every shape create leaves *shapeOut the null
+    /// id on any failure.
+    M3_NODISCARD M3_API m3Result m3CreateSphereShape(m3World* world, m3BodyId body,
+                                                     const m3ShapeDef* def, const m3Sphere* sphere,
+                                                     m3ShapeId* shapeOut);
 
     /// Create a half-space on a STATIC body (a plane on a dynamic body
-    /// returns the null id loudly). The normal is normalized on create.
-    M3_API m3ShapeId m3CreatePlaneShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                        const m3Plane* plane);
+    /// returns m3_errorInvalid). The normal is normalized on create.
+    M3_NODISCARD M3_API m3Result m3CreatePlaneShape(m3World* world, m3BodyId body,
+                                                    const m3ShapeDef* def, const m3Plane* plane,
+                                                    m3ShapeId* shapeOut);
 
     /// Create a box (a convex hull with analytic mass properties:
     /// m = 8 rho hx hy hz, I = m/3 diag(hy^2+hz^2, ...) about the
     /// center). Hull collision lands in the GJK and SAT slices; until
     /// then a box participates in the broadphase and in mass only.
-    M3_API m3ShapeId m3CreateBoxShape(m3BodyId bodyId, const m3ShapeDef* def, m3Vec3 halfExtents);
+    M3_NODISCARD M3_API m3Result m3CreateBoxShape(m3World* world, m3BodyId body,
+                                                  const m3ShapeDef* def, m3Vec3 halfExtents,
+                                                  m3ShapeId* shapeOut);
 
     /// A capsule: the segment p1-p2 swept by a radius. Mass is the
     /// closed-form cylinder plus two hemispheres about the midpoint.
@@ -113,8 +117,10 @@ extern "C"
     /// A capsule: the segment point1..point2 inflated by radius. A
     /// zero-length segment is refused (that shape is a sphere; use
     /// m3CreateSphereShape).
-    M3_API m3ShapeId m3CreateCapsuleShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                          const m3Capsule* capsule);
+    M3_NODISCARD M3_API m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body,
+                                                      const m3ShapeDef* def,
+                                                      const m3Capsule* capsule,
+                                                      m3ShapeId* shapeOut);
 
     /// A faceted cylinder: the factory builds a
     /// 2N-vertex prism through the interned hull path (N = segments,
@@ -131,8 +137,10 @@ extern "C"
         m3real radius;
     } m3Cylinder;
 
-    M3_API m3ShapeId m3CreateCylinderShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                           const m3Cylinder* cylinder, int32_t segments);
+    M3_NODISCARD M3_API m3Result m3CreateCylinderShape(m3World* world, m3BodyId body,
+                                                       const m3ShapeDef* def,
+                                                       const m3Cylinder* cylinder, int32_t segments,
+                                                       m3ShapeId* shapeOut);
 
     /// Runtime geometry replacement: swap a sphere or capsule
     /// shape's geometry in place; conversions between the two are
@@ -140,16 +148,17 @@ extern "C"
     /// (interned slabs are immutable by law). Journaled; mass,
     /// extents, and the broadphase follow, and sleepers around both
     /// the old and the new bounds wake.
-    M3_API bool m3Shape_SetSphere(m3ShapeId shapeId, const m3Sphere* sphere);
-    M3_API bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule);
+    M3_API void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere);
+    M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
 
     /// A convex hull built from a point cloud (QuickHull, coplanar
     /// faces merged, mass integrated). Between 4 and 64 finite points;
     /// degenerate clouds (coplanar, collinear) and hulls that exceed
     /// the 64-vertex budget (input clouds up to 256 points) return
-    /// the null id, loudly.
-    M3_API m3ShapeId m3CreateHullShape(m3BodyId bodyId, const m3ShapeDef* def, const m3Vec3* points,
-                                       int32_t count);
+    /// m3_errorInvalid.
+    M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
+                                                   const m3ShapeDef* def, const m3Vec3* points,
+                                                   int32_t count, m3ShapeId* shapeOut);
 
     /// A static triangle mesh (level geometry, voxel chunk surfaces).
     /// Static bodies only; up to 65,535 vertices and 65,535 triangles
@@ -157,9 +166,10 @@ extern "C"
     /// contacts cull the back side). Ghost collisions on shared edges
     /// are filtered by feature welding. Refused loudly on a dynamic
     /// body, out-of-cap counts, or out-of-range indices.
-    M3_API m3ShapeId m3CreateMeshShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                       const m3Vec3* vertices, int32_t vertexCount,
-                                       const uint16_t* indices, int32_t triangleCount);
+    M3_NODISCARD M3_API m3Result m3CreateMeshShape(m3World* world, m3BodyId body,
+                                                   const m3ShapeDef* def, const m3Vec3* vertices,
+                                                   int32_t vertexCount, const uint16_t* indices,
+                                                   int32_t triangleCount, m3ShapeId* shapeOut);
 
     /// A per-triangle surface material for mesh shapes: the
     /// struck triangle's entry replaces the SHAPE's friction,
@@ -181,7 +191,8 @@ extern "C"
     /// Journaled; refuses loudly on a non-mesh shape, hostile
     /// values, or out-of-range group bytes. A mesh without painted
     /// materials keeps using its shape material everywhere.
-    M3_API void m3Shape_SetMeshMaterials(m3ShapeId shapeId, const m3MeshSurfaceMaterial* materials,
+    M3_API void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
+                                         const m3MeshSurfaceMaterial* materials,
                                          int32_t materialCount, const uint8_t* triangleMaterials);
 
     /// A heightfield chunk: an nx by nz grid of heights (row-major,
@@ -190,9 +201,11 @@ extern "C"
     /// Grid limits per chunk: 2..32 in each direction (the mesh caps);
     /// larger terrain tiles as chunks, the voxel-world model. The
     /// grid's minimum corner sits at the body origin.
-    M3_API m3ShapeId m3CreateHeightFieldShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                              const float* heights, int32_t nx, int32_t nz,
-                                              m3real cellSize);
+    M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
+                                                          const m3ShapeDef* def,
+                                                          const float* heights, int32_t nx,
+                                                          int32_t nz, m3real cellSize,
+                                                          m3ShapeId* shapeOut);
 
     /// The NATIVE grid heightfield: the same nx-by-nz grid
     /// contract as above, but stored as raw heights (four bytes per
@@ -200,12 +213,12 @@ extern "C"
     /// terrain path. Grid limits per chunk: 2..255 in each
     /// direction; larger terrain tiles as chunks. Static bodies
     /// only; the minimum corner sits at the body origin.
-    M3_API m3ShapeId m3CreateHeightFieldGridShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                                  const float* heights, int32_t nx, int32_t nz,
-                                                  m3real cellSize);
+    M3_NODISCARD M3_API m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body,
+                                                              const m3ShapeDef* def,
+                                                              const float* heights, int32_t nx,
+                                                              int32_t nz, m3real cellSize,
+                                                              m3ShapeId* shapeOut);
 
-    /// True while the id names a live shape in a live world; false
-    /// for the null id, stale generations, and destroyed worlds.
     /// A voxel chunk: a dense 16x16x16 grid anchored at the body
     /// origin, cells of `cellSize` meters. `voxels` is one byte per
     /// voxel (zero = empty), x fastest then y then z; `payload` is
@@ -227,9 +240,11 @@ extern "C"
     /// and slide across chunk boundaries without seam impulses.
     /// Rotated or misaligned chunks still collide correctly; they
     /// just do not weld.
-    M3_API m3ShapeId m3CreateVoxelChunkShape(m3BodyId bodyId, const m3ShapeDef* def,
-                                             const uint8_t* voxels, const uint16_t* payload,
-                                             m3real cellSize);
+    M3_NODISCARD M3_API m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body,
+                                                         const m3ShapeDef* def,
+                                                         const uint8_t* voxels,
+                                                         const uint16_t* payload, m3real cellSize,
+                                                         m3ShapeId* shapeOut);
 
     /// Voxel edits: deterministic state transitions, journaled
     /// and replayed like every other mutation, fully inside the
@@ -250,13 +265,14 @@ extern "C"
     /// y = 0. Voxels with no path to the base layer survive
     /// creation but fragment on the first clearing edit anywhere in
     /// the chunk (the sweep is chunk-wide by design).
-    M3_API bool m3VoxelChunk_SetVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z,
-                                      uint16_t payload);
-    M3_API bool m3VoxelChunk_ClearVoxel(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z);
+    M3_API void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                      int32_t z, uint16_t payload);
+    M3_API void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                        int32_t z);
     /// Clears the inclusive box [lo, hi] per axis. Returns the
     /// number of voxels that were actually cleared (zero is legal),
     /// or -1 on a stale id, a non-voxel shape, or a bad region.
-    M3_API int32_t m3VoxelChunk_ClearBox(m3ShapeId shapeId, const int32_t lo[3],
+    M3_API int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
                                          const int32_t hi[3]);
     /// Fill fraction: 255 is a whole voxel, 1 a sliver. A
     /// mass and destruction property, never geometry: the voxel
@@ -264,70 +280,73 @@ extern "C"
     /// by fill / 255. Refuses zero fill (that is a clear: use
     /// m3VoxelChunk_ClearVoxel) and empty voxels. Journaled state,
     /// hashed, inside the rollback delta like every edit.
-    M3_API bool m3VoxelChunk_SetFill(m3ShapeId shapeId, int32_t x, int32_t y, int32_t z,
-                                     uint8_t fill);
+    M3_API void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                     int32_t z, uint8_t fill);
 
-    M3_API bool m3Shape_IsValid(m3ShapeId shapeId);
+    /// True while the id names a live shape of this world; false for
+    /// the null id and stale generations, without counting misuse.
+    M3_API bool m3Shape_IsValid(const m3World* world, m3ShapeId shape);
 
     /// The owning body, so a mover can tell its own shape from the
     /// world's. Null id for stale shapes.
-    M3_API m3BodyId m3Shape_GetBody(m3ShapeId shapeId);
+    M3_API m3BodyId m3Shape_GetBody(const m3World* world, m3ShapeId shape);
     /// Readback, as in Maul2D. GetAabb is the shape's broadphase bounds
     /// (margin included). Thread class: reader.
-    M3_API m3WorldId m3Shape_GetWorld(m3ShapeId shapeId);
-    M3_API m3ShapeType m3Shape_GetType(m3ShapeId shapeId);
-    M3_API uint64_t m3Shape_GetUserData(m3ShapeId shapeId);
+    M3_API m3ShapeType m3Shape_GetType(const m3World* world, m3ShapeId shape);
+    M3_API uint64_t m3Shape_GetUserData(const m3World* world, m3ShapeId shape);
     /// Journaled. Thread class: writer.
-    M3_API void m3Shape_SetUserData(m3ShapeId shapeId, uint64_t userData);
-    M3_API bool m3Shape_IsSensor(m3ShapeId shapeId);
-    M3_API m3AabbResult m3Shape_GetAabb(m3ShapeId shapeId);
+    M3_API void m3Shape_SetUserData(m3World* world, m3ShapeId shape, uint64_t userData);
+    M3_API bool m3Shape_IsSensor(const m3World* world, m3ShapeId shape);
+    M3_API m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape);
     /// Who touches this shape now: fills up to capacity
     /// entries and returns the count written. See m3ContactData.
-    M3_API int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity);
+    M3_API int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
+                                          int32_t capacity);
 
     /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
     /// mass.
-    M3_API void m3DestroyShape(m3ShapeId shapeId);
+    M3_NODISCARD M3_API m3Result m3DestroyShape(m3World* world, m3ShapeId shape);
 
     /// Runtime material setters. Journaled; contacts read
     /// materials at prepare, so changes bind from the next step. A
     /// sleeping stack keeps its old mix until something wakes it.
-    M3_API void m3Shape_SetFriction(m3ShapeId shapeId, float friction);
-    M3_API float m3Shape_GetFriction(m3ShapeId shapeId);
-    M3_API void m3Shape_SetRestitution(m3ShapeId shapeId, float restitution);
-    M3_API float m3Shape_GetRestitution(m3ShapeId shapeId);
-    M3_API void m3Shape_SetRollingResistance(m3ShapeId shapeId, float value);
-    M3_API float m3Shape_GetRollingResistance(m3ShapeId shapeId);
+    M3_API void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction);
+    M3_API float m3Shape_GetFriction(const m3World* world, m3ShapeId shape);
+    M3_API void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution);
+    M3_API float m3Shape_GetRestitution(const m3World* world, m3ShapeId shape);
+    M3_API void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value);
+    M3_API float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape);
 
     /// Set the density and optionally rebuild the owning body's
     /// mass, center and inertia from all its shapes. Journaled.
-    M3_API void m3Shape_SetDensity(m3ShapeId shapeId, float density, bool updateBodyMass);
-    M3_API float m3Shape_GetDensity(m3ShapeId shapeId);
+    M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density,
+                                   bool updateBodyMass);
+    M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);
 
     /// Opt a shape into hit events / the pre-solve veto.
     /// Journaled; the flags are state and snapshot with the world.
-    M3_API void m3Shape_EnableHitEvents(m3ShapeId shapeId, bool flag);
-    M3_API bool m3Shape_IsHitEventsEnabled(m3ShapeId shapeId);
-    M3_API void m3Shape_EnablePreSolve(m3ShapeId shapeId, bool flag);
-    M3_API bool m3Shape_IsPreSolveEnabled(m3ShapeId shapeId);
+    M3_API void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag);
+    M3_API bool m3Shape_IsHitEventsEnabled(const m3World* world, m3ShapeId shape);
+    M3_API void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag);
+    M3_API bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape);
 
     /// The collision filter, changed at runtime: shapes it touched wake
     /// and every pair is filtered again on the next step. Journaled.
     /// GetFilter's out pointers may be NULL.
-    M3_API void m3Shape_SetFilter(m3ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
-                                  int32_t groupIndex);
-    M3_API void m3Shape_GetFilter(m3ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
-                                  int32_t* groupIndex);
+    M3_API void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits,
+                                  uint64_t maskBits, int32_t groupIndex);
+    M3_API void m3Shape_GetFilter(const m3World* world, m3ShapeId shape, uint64_t* categoryBitsOut,
+                                  uint64_t* maskBitsOut, int32_t* groupIndexOut);
 
     /// Conveyor: a world-frame surface velocity on the
     /// shape. Contacts drive B's tangential speed relative to A
     /// toward the difference of the two surfaces. Journaled; state, hashed when
     /// nonzero.
-    M3_API void m3Shape_SetSurfaceVelocity(m3ShapeId shapeId, m3Vec3 velocity);
+    M3_API void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity);
 
-    static const m3ShapeId m3_nullShapeId = {0, 0, 0};
+    static const m3ShapeId m3_nullShapeId = {0, 0};
 
 #ifdef __cplusplus
 }

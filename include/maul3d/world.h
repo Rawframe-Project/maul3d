@@ -14,6 +14,11 @@ extern "C"
 {
 #endif
 
+    /// A world: everything the simulation holds, owned by the program
+    /// through this pointer from m3CreateWorld to m3DestroyWorld. Worlds
+    /// share nothing, so separate worlds may live on separate threads.
+    typedef struct m3World m3World;
+
     /// The task interface: the HOST owns the threads, the
     /// library only describes work. enqueueTask receives a task
     /// function, the item count, and a minimum grain; the host splits
@@ -41,10 +46,16 @@ extern "C"
 
     M3_API m3QueryFilter m3DefaultQueryFilter(void);
 
-    /// World definition. Build with m3DefaultWorldDef so the cookie is
-    /// valid; a zeroed or hand-rolled def is rejected loudly.
+    /// World definition. Build with m3DefaultWorldDef so the cookie and
+    /// the ABI version are valid; a zeroed or hand-rolled def is refused.
     typedef struct m3WorldDef
     {
+        // The def's cookie and the ABI version stay the first two fields in
+        // every version, so that m3CreateWorld can refuse a def of another
+        // layout before it reads anything else.
+        int32_t internalValue;
+        // M3_ABI_VERSION of the headers the program was built with.
+        uint32_t version;
         m3Vec3 gravity;
         int32_t bodyCapacity;
         int32_t shapeCapacity;
@@ -54,12 +65,6 @@ extern "C"
         int32_t characterCapacity;    // character controllers
         int32_t vehicleCapacity;      // raycast vehicles
         int32_t softBodyCapacity;     // XPBD lattices
-        int32_t workerCount;          // HOST HINT ONLY: the engine never
-                                      // reads it (parallelism comes from
-                                      // the task hooks' ranges); kept for
-                                      // ABI and deliberately outside the
-                                      // config hash so twin worlds with
-                                      // different counts hash equal
         m3EnqueueTaskFn* enqueueTask; // both null = serial (the default)
         m3FinishTaskFn* finishTask;
         void* userTaskContext;
@@ -76,24 +81,42 @@ extern "C"
         bool enableContinuous;      // the continuous phase runs (default true)
         float hitEventThreshold;    // hit events need approach speed
                                     // above this (default 1)
-        int32_t internalValue;
+        // The allocator the world keeps for its lifetime; zeroed means the
+        // C library's.
+        m3Allocator allocator;
     } m3WorldDef;
 
-    /// The pinned world defaults: gravity (0, -10, 0), 1024 bodies,
-    /// 2048 shapes, 64 joints, 4 meshes, 4 voxel chunks, 4
-    /// characters, 2 vehicles, one worker, no task hooks, and the
-    /// def cookie every create demands.
-    M3_API m3WorldDef m3DefaultWorldDef(void);
+    /// The library's world defaults: gravity (0, -10, 0), 1024 bodies,
+    /// 2048 shapes, 64 joints, 4 meshes, 4 voxel chunks, 4 characters, 2
+    /// vehicles, no task hooks, the C library's allocator, and the def
+    /// cookie, with version left 0. Call m3DefaultWorldDef instead, which
+    /// stamps the version of the program's headers.
+    M3_API m3WorldDef m3DefaultWorldDefValues(void);
 
-    /// Create a world. Returns the null id on an invalid def or an
-    /// exhausted world table (diagnostic in debug builds).
-    M3_API m3WorldId m3CreateWorld(const m3WorldDef* def);
-    M3_API void m3DestroyWorld(m3WorldId worldId);
-    M3_API bool m3World_IsValid(m3WorldId worldId);
+    /// The world defaults, stamped with M3_ABI_VERSION of the headers the
+    /// program is built with, so m3CreateWorld can refuse a def made for
+    /// another release's binary interface.
+    static inline m3WorldDef m3DefaultWorldDef(void)
+    {
+        m3WorldDef def = m3DefaultWorldDefValues();
+        def.version = M3_ABI_VERSION;
+        return def;
+    }
+
+    /// Creates a world. The checks run in order: the CPU must run the
+    /// library's SIMD backend (m3_errorUnsupported), the def's cookie must
+    /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
+    /// (m3_errorVersion), and the rest of the def must hold
+    /// (m3_errorInvalid); the allocator may refuse (m3_errorCapacity).
+    /// *worldOut is null on any failure.
+    M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
+    /// Destroys a world and everything it owns; ids it issued mean nothing
+    /// after. Null is a no-op.
+    M3_API void m3DestroyWorld(m3World* world);
 
     /// Set the gravity vector. Journaled; sleeping islands stay
     /// asleep until disturbed.
-    M3_API void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity);
+    M3_API void m3World_SetGravity(m3World* world, m3Vec3 gravity);
 
     /// Rebuild the broadphase tree top-down into a balanced shape
     ///. Bulk shape creation grows the tree one insertion at
@@ -101,7 +124,7 @@ extern "C"
     /// building a level and queries walk a balanced tree instead.
     /// Deterministic and journaled: the rebuilt shape is a pure
     /// function of the live shapes, so twins and replays agree.
-    M3_API void m3World_RebuildBroadphase(m3WorldId worldId);
+    M3_API void m3World_RebuildBroadphase(m3World* world);
     /// A water volume: a world-anchored axis-aligned box of
     /// still or flowing water. The surface is the box top; there is
     /// no fluid simulation BY LAW. Rigid bodies inside get buoyancy
@@ -121,54 +144,56 @@ extern "C"
 
     typedef struct m3WaterVolumeId
     {
-        int32_t index1;
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1;
+        uint32_t generation;
     } m3WaterVolumeId;
+
+    static const m3WaterVolumeId m3_nullWaterVolumeId = {0, 0};
 
     M3_API m3WaterVolumeDef m3DefaultWaterVolumeDef(void);
     /// Up to 8 volumes per world; journaled, snapshotted, hashed
     /// off-default. Creating or destroying a volume wakes every
     /// body whose bounds touch it (the tide moves things).
-    M3_API m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* def);
-    M3_API void m3DestroyWaterVolume(m3WaterVolumeId id);
-    M3_API bool m3WaterVolume_IsValid(m3WaterVolumeId id);
+    M3_NODISCARD M3_API m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
+                                                     m3WaterVolumeId* volumeOut);
+    M3_NODISCARD M3_API m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume);
+    M3_API bool m3WaterVolume_IsValid(const m3World* world, m3WaterVolumeId volume);
 
     /// Current gravity.
-    M3_API m3Vec3 m3World_GetGravity(m3WorldId worldId);
+    M3_API m3Vec3 m3World_GetGravity(const m3World* world);
 
     /// Contact softness tuning: frequency (hertz), damping ratio and
     /// the maximum depenetration speed. Journaled. Static contacts
     /// use twice the frequency: a soft row against something
     /// immovable stores energy under a tall stack.
-    M3_API void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio,
+    M3_API void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio,
                                          float pushMaxSpeed);
 
     /// Impact speed below the threshold does not bounce. Journaled.
-    M3_API void m3World_SetRestitutionThreshold(m3WorldId worldId, float value);
+    M3_API void m3World_SetRestitutionThreshold(m3World* world, float value);
 
     /// Hard cap on any body's linear speed, applied every substep.
     /// Journaled.
-    M3_API void m3World_SetMaximumLinearSpeed(m3WorldId worldId, float value);
+    M3_API void m3World_SetMaximumLinearSpeed(m3World* world, float value);
 
     /// Hard cap on any body's angular speed in rad/s, applied every
     /// substep. The default (800) is a catastrophe guard, not a
     /// gameplay clamp; bodies flagged with
     /// m3Body_EnableFastRotation bypass it. Journaled.
-    M3_API void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value);
+    M3_API void m3World_SetMaximumAngularSpeed(m3World* world, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
     /// sleeping body. Journaled.
-    M3_API void m3World_EnableSleeping(m3WorldId worldId, bool flag);
+    M3_API void m3World_EnableSleeping(m3World* world, bool flag);
 
     /// Whether island sleeping is enabled.
-    M3_API bool m3World_IsSleepingEnabled(m3WorldId worldId);
+    M3_API bool m3World_IsSleepingEnabled(const m3World* world);
 
     /// Turn the continuous phase (CCD) on or off. Journaled.
-    M3_API void m3World_EnableContinuous(m3WorldId worldId, bool flag);
+    M3_API void m3World_EnableContinuous(m3World* world, bool flag);
 
     /// Whether the continuous phase is enabled.
-    M3_API bool m3World_IsContinuousEnabled(m3WorldId worldId);
+    M3_API bool m3World_IsContinuousEnabled(const m3World* world);
 
     /// Wind: a deterministic field applied to soft-body
     /// particles as proportional drag toward the wind velocity.
@@ -178,7 +203,7 @@ extern "C"
     /// direction must be near-unit when speed is nonzero. Rigid
     /// bodies are not wind-blown in v1 (documented: the force API
     /// already serves them); journaled.
-    M3_API void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gustHertz,
+    M3_API void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                                 float gustScale);
 
     /// Advance the simulation: collide, then the Soft Step solver
@@ -193,27 +218,28 @@ extern "C"
     /// fully independent: stepping two worlds on two host threads
     /// is supported and bit-identical to stepping them serially
     /// (the concurrency suite proves it; the TSAN cell polices it).
-    /// m3CreateWorld and m3DestroyWorld touch a process-wide slot
-    /// registry and must be serialized BY THE HOST across threads;
-    /// the library adds no lock (zero-dependency law). Reading a
-    /// world WHILE it steps is undefined.
-    M3_API void m3World_Step(m3WorldId worldId, float dt, int32_t substeps);
+    /// The library keeps no process-wide state, so worlds may be
+    /// created and destroyed on any threads at once. Reading a world
+    /// WHILE it steps is undefined.
+    M3_API void m3World_Step(m3World* world, float dt, int32_t substeps);
 
     /// Snapshot and rollback, first-class from day one. The format is
     /// portable and versioned: field blocks in little-endian order with
-    /// a header carrying a config hash (engine version, solver
+    /// a header carrying a config hash (snapshot format, solver
     /// revision, precision, FP policy). Restore refuses a mismatched
-    /// config, format or world shape with m3_errorConfig, restores in
+    /// config, format or world shape with m3_errorInvalid, restores in
     /// place, and the restored world resimulates bit-exactly. Before any
     /// byte lands, every block is checked: out-of-range indices and
     /// counts, flags that are not flags, and non-finite state refuse with
     /// m3_errorInvalid and leave the world as it was. The checks make
     /// every index safe to use; they do not re-derive every structural
     /// invariant (tree shape, list links), so restore only snapshots this
-    /// engine wrote.
-    M3_API int32_t m3World_SnapshotSize(m3WorldId worldId);
-    M3_API int32_t m3World_Snapshot(m3WorldId worldId, void* out, int32_t capacity);
-    M3_API bool m3World_Restore(m3WorldId worldId, const void* data, int32_t size);
+    /// engine wrote. Snapshot writes m3World_SnapshotSize bytes and sets
+    /// *bytesOut; a smaller buffer returns m3_errorCapacity.
+    M3_API int32_t m3World_SnapshotSize(const m3World* world);
+    M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
+                                                  int32_t capacity, int32_t* bytesOut);
+    M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int32_t size);
 
     /// Contact events: begin fires on the step two shapes
     /// first touch, end fires on the step they separate. Derived from
@@ -262,7 +288,7 @@ extern "C"
         int32_t hitsDropped;
     } m3ContactEvents;
 
-    M3_API m3ContactEvents m3World_GetContactEvents(m3WorldId worldId);
+    M3_API m3ContactEvents m3World_GetContactEvents(const m3World* world);
 
     /// Sensor overlap events, the same law as contact events but in
     /// their own streams (a sensor touch is not a contact). shapeIdA
@@ -275,7 +301,7 @@ extern "C"
         int32_t endCount;
     } m3SensorEvents;
 
-    M3_API m3SensorEvents m3World_GetSensorEvents(m3WorldId worldId);
+    M3_API m3SensorEvents m3World_GetSensorEvents(const m3World* world);
 
     /// A fragment-spawn event: a voxel edit disconnected an
     /// island from its chunk's base layer (y = 0 voxels anchor a
@@ -319,10 +345,10 @@ extern "C"
         int32_t fragmentsDropped;
     } m3FragmentEvents;
 
-    M3_API m3FragmentEvents m3World_GetFragmentEvents(m3WorldId worldId);
+    M3_API m3FragmentEvents m3World_GetFragmentEvents(const m3World* world);
 
     /// Hit events require approach speed above this. Journaled.
-    M3_API void m3World_SetHitEventThreshold(m3WorldId worldId, float value);
+    M3_API void m3World_SetHitEventThreshold(m3World* world, float value);
 
     /// A body move event: one per body that MOVED this step
     /// (every mover), in ascending body order, carrying the post-step
@@ -342,7 +368,7 @@ extern "C"
         int32_t moveCount;
     } m3BodyEvents;
 
-    M3_API m3BodyEvents m3World_GetBodyEvents(m3WorldId worldId);
+    M3_API m3BodyEvents m3World_GetBodyEvents(const m3World* world);
 
     /// A joint break event. The id is already stale when the
     /// event is read: the joint destroyed itself. Use it as a key,
@@ -358,7 +384,7 @@ extern "C"
         int32_t breakCount;
     } m3JointEvents;
 
-    M3_API m3JointEvents m3World_GetJointEvents(m3WorldId worldId);
+    M3_API m3JointEvents m3World_GetJointEvents(const m3World* world);
 
     /// Pre-solve veto: called during contact preparation, in
     /// canonical pair order, for pairs where either shape opted in
@@ -385,7 +411,7 @@ extern "C"
     /// no callback installed and lands on the recorded bits. During
     /// such a step the recorded set wins and any installed callback
     /// stays silent; do not expect callbacks to fire under replay.
-    M3_API void m3World_SetPreSolveCallback(m3WorldId worldId, m3PreSolveFn* fn, void* context);
+    M3_API void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFn* fn, void* context);
 
     /// The closest hit of a ray or shape cast: origin in world doubles,
     /// translation = direction times reach, fraction in [0, 1] along
@@ -432,13 +458,13 @@ extern "C"
 
     /// Cast the mover capsule along a translation; the closest
     /// blocking hit (sensors are invisible to movers).
-    M3_API m3RayCastResult m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight,
+    M3_API m3RayCastResult m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
                                              m3real radius, m3Vec3 translation);
 
     /// Collect contact planes for the mover at rest: every shape
     /// within `skin` of the capsule contributes one plane. Returns
     /// the count written (ascending shape order, deterministic).
-    M3_API int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight,
+    M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight,
                                         m3real radius, m3real skin, m3MoverPlane* planes,
                                         int32_t capacity);
 
@@ -457,14 +483,14 @@ extern "C"
     /// all. The closest front-face hit along origin + t * translation
     /// for t in [0, 1]: rays MISS shapes they start inside or exactly
     /// on (front faces only); ask m3World_TestPoint for containment.
-    M3_API m3RayCastResult m3World_CastRayClosest(m3WorldId worldId, m3Pos3 origin,
+    M3_API m3RayCastResult m3World_CastRayClosest(const m3World* world, m3Pos3 origin,
                                                   m3Vec3 translation, m3QueryFilter filter);
 
     /// Every ray hit along the translation, one entry point per
     /// shape, sorted by fraction (ties to the lower shape index).
     /// Returns the count written (never more than capacity; excess
     /// hits are dropped from the FAR end, deterministically).
-    M3_API int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation,
+    M3_API int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                       m3RayHit* hits, int32_t capacity, m3QueryFilter filter);
 
     /// Closest-hit shape casts: sweep a sphere or a capsule along a
@@ -478,32 +504,32 @@ extern "C"
     /// earliest touch in [0, 1], start-overlapped reports fraction
     /// zero with a zero normal, hostile inputs miss. A single point
     /// is a ray: use the ray casts.
-    M3_API m3RayCastResult m3World_CastBoxClosest(m3WorldId worldId, m3Pos3 center,
+    M3_API m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center,
                                                   m3Vec3 halfExtents, m3Quat rotation,
                                                   m3Vec3 translation, m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastHullClosest(m3WorldId worldId, m3Pos3 base,
+    M3_API m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base,
                                                    const m3Vec3* points, int32_t count,
                                                    m3Vec3 translation, m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastSphereClosest(m3WorldId worldId, m3Pos3 center,
+    M3_API m3RayCastResult m3World_CastSphereClosest(const m3World* world, m3Pos3 center,
                                                      m3real radius, m3Vec3 translation,
                                                      m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastCapsuleClosest(m3WorldId worldId, m3Pos3 center,
+    M3_API m3RayCastResult m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center,
                                                       m3Vec3 point1, m3Vec3 point2, m3real radius,
                                                       m3Vec3 translation, m3QueryFilter filter);
 
     /// The first shape (lowest index) whose volume contains the
     /// point, or the null id. Meshes are open surfaces and never
     /// contain points; planes are solid half spaces.
-    M3_API m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point);
+    M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point);
 
     /// Shapes whose tight bounds overlap the box, in ascending shape
     /// index order. Returns the count written.
-    M3_API int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
-                                       int32_t capacity, m3QueryFilter filter);
+    M3_API int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi,
+                                       m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 
     /// Shapes within reach of the sphere (exact per family), in
     /// ascending shape index order. Returns the count written.
-    M3_API int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius,
+    M3_API int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius,
                                          m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
 
     /// The exact overlap family: capsule, oriented box, and
@@ -512,15 +538,16 @@ extern "C"
     /// and voxel/mesh handled per family), ascending shape index,
     /// filtered, read-only. Clouds carry base-relative points (the
     /// cast convention), at most 64 of them.
-    M3_API int32_t m3World_OverlapCapsule(m3WorldId worldId, m3Pos3 p1, m3Pos3 p2, m3real radius,
+    M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
                                           m3ShapeId* shapes, int32_t capacity,
                                           m3QueryFilter filter);
-    M3_API int32_t m3World_OverlapBox(m3WorldId worldId, m3Pos3 center, m3Vec3 halfExtents,
+    M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                       m3Quat rotation, m3ShapeId* shapes, int32_t capacity,
                                       m3QueryFilter filter);
-    M3_API int32_t m3World_OverlapHullPoints(m3WorldId worldId, m3Pos3 base, const m3Vec3* points,
-                                             int32_t count, m3real radius, m3ShapeId* shapes,
-                                             int32_t capacity, m3QueryFilter filter);
+    M3_API int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base,
+                                             const m3Vec3* points, int32_t count, m3real radius,
+                                             m3ShapeId* shapes, int32_t capacity,
+                                             m3QueryFilter filter);
 
     /// Explosion definition: one journaled call pushes every
     /// dynamic convex shape in range. The impulse scales with the
@@ -548,19 +575,19 @@ extern "C"
 
     /// Apply the explosion now. Journaled; hostile defs apply
     /// nothing and journal nothing.
-    M3_API void m3World_Explode(m3WorldId worldId, const m3ExplosionDef* def);
+    M3_API void m3World_Explode(m3World* world, const m3ExplosionDef* def);
 
     /// FNV-1a 64 over the curated deterministic state (transforms,
     /// velocities, mass, types, step count, gravity) in canonical slot
     /// order. The value every gate compares.
-    M3_API uint64_t m3World_Hash(m3WorldId worldId);
+    M3_API uint64_t m3World_Hash(const m3World* world);
 
     /// Every live body or joint, up to capacity ids in ascending slot
     /// order; returns the total. The step count is the number of steps
     /// taken (snapshot state). Thread class: reader.
-    M3_API int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity);
-    M3_API int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity);
-    M3_API uint64_t m3World_GetStepCount(m3WorldId worldId);
+    M3_API int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity);
+    M3_API int32_t m3World_GetJoints(const m3World* world, m3JointId* ids, int32_t capacity);
+    M3_API uint64_t m3World_GetStepCount(const m3World* world);
 
     /// Live contact readback: one entry per manifold touching
     /// the queried body or shape, in canonical pair order. Pure
@@ -605,7 +632,7 @@ extern "C"
         uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
     } m3Counters;
 
-    M3_API m3Counters m3World_GetCounters(m3WorldId worldId);
+    M3_API m3Counters m3World_GetCounters(const m3World* world);
 
     /// Per-world memory accounting, computed
     /// on demand so it cannot drift: persistentBytes is the fixed
@@ -622,7 +649,7 @@ extern "C"
         int32_t scratchCapacity;
         int32_t scratchPeak;
     } m3MemoryUsage;
-    M3_API m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId);
+    M3_API m3MemoryUsage m3World_GetMemoryUsage(const m3World* world);
 
     /// Wall-clock milliseconds per phase of the last completed step,
     /// measured with a monotonic clock for observation only. Never
@@ -644,20 +671,25 @@ extern "C"
         float softBodies;  // the soft body pass
     } m3Profile;
 
-    M3_API m3Profile m3World_GetProfile(m3WorldId worldId);
+    M3_API m3Profile m3World_GetProfile(const m3World* world);
 
     /// Journal: every mutation of the world is a discrete recorded op,
     /// and replaying the stream through the same internal functions
-    /// reproduces the world bit for bit. Begin hands the world a
-    /// caller-owned buffer; End returns the bytes written (or -1 after
-    /// an overflow, loudly); Replay applies a stream to this world.
-    M3_API bool m3World_StartJournal(m3WorldId worldId, void* buffer, int32_t capacity);
-    M3_API int32_t m3World_StopJournal(m3WorldId worldId);
+    /// reproduces the world bit for bit. Start hands the world a
+    /// caller-owned buffer (m3_errorState while a journal is already
+    /// running); Stop sets *bytesOut to the bytes written, or returns
+    /// m3_errorCapacity when the buffer overflowed (m3_errorState when
+    /// none was running); Replay applies a stream to this world.
+    M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
+                                                      int32_t capacity);
+    M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal (truncation, corruption, an op that cannot re-mint
     /// its recorded id) the world is restored to its pre-call state
-    /// and false returns; a half-applied session is impossible.
-    M3_API bool m3World_ReplayJournal(m3WorldId worldId, const void* data, int32_t size);
+    /// and m3_errorInvalid returns; a half-applied session is
+    /// impossible.
+    M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
+                                                       int32_t size);
 
 #ifdef __cplusplus
 }

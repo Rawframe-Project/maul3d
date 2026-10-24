@@ -6,6 +6,7 @@
 // and is refused, and a destroyed chassis takes its vehicle with
 // it. Wheels are casts, not bodies: nothing here touches contacts.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -16,31 +17,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId PlaneWorld(void)
+static m3World* PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.vehicleCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
 // A one-box car: half extents (1.0, 0.25, 0.5), four corner wheels.
-static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
+static m3VehicleId MakeCar(m3World* world, m3Pos3 at, m3BodyId* outChassis)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = at;
-    m3BodyId chassis = m3CreateBody(world, &bd);
+    m3BodyId chassis = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 300.0f; // mass 300 over 1 m^3
-    m3CreateBoxShape(chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(world, chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
     if (outChassis != NULL)
     {
         *outChassis = chassis;
@@ -55,7 +56,7 @@ static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
         vd.wheels[w].driven = true;
         vd.wheels[w].steerable = (w & 1) != 0; // the +x pair steers
     }
-    return m3CreateVehicle(world, &vd);
+    return NewVehicle(world, &vd);
 }
 
 static void TestStraightLine(void)
@@ -64,27 +65,27 @@ static void TestStraightLine(void)
     // on 300 kg accelerate inside the analytic band, dead straight,
     // and the wheels visibly spin. Setting commands wakes a
     // sleeping chassis (the settle is long enough to sleep one).
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 start = m3Body_GetPosition(chassis);
-    m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
+    m3Pos3 start = m3Body_GetPosition(world, chassis);
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(chassis);
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     // 3200 N / 300 kg for two seconds is 21.3 m/s in vacuum; the
     // damper phase and tire losses eat some of it.
     CHECK(v.x > 10.0f && v.x < 23.0f, "the car accelerates inside the analytic band");
     CHECK(fabsf(v.z) < 0.01f, "the run is dead straight in velocity");
     CHECK(fabs(p.z - start.z) < 0.01, "the run is dead straight in position");
-    CHECK(m3Vehicle_GetWheelSpin(car, 0) > 10.0f, "the wheels spin as they roll");
+    CHECK(m3Vehicle_GetWheelSpin(world, car, 0) > 10.0f, "the wheels spin as they roll");
     m3DestroyWorld(world);
 }
 
@@ -93,20 +94,20 @@ static void TestSteerCircle(void)
     // A steady steer at modest speed circles with the turning
     // radius in the Ackermann neighborhood: R is wheelbase over
     // tan(steer angle), 1.6 / tan(0.6) = 2.3 m, and slip widens it.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vehicle_SetCommands(car, 0.4f, 1.0f, 0.0f);
+    m3Vehicle_SetCommands(world, car, 0.4f, 1.0f, 0.0f);
     for (int32_t i = 0; i < 600; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(chassis);
-    m3Vec3 w = m3Body_GetAngularVelocity(chassis);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
+    m3Vec3 w = m3Body_GetAngularVelocity(world, chassis);
     m3real speed = sqrtf(v.x * v.x + v.z * v.z);
     CHECK(speed > 1.0f, "the circling car keeps real speed");
     CHECK(fabsf(w.y) > 0.3f, "the steer turns the car");
@@ -120,32 +121,32 @@ static void TestBrakeStop(void)
     // Full brake from speed: 1600 N on 300 kg stops a 15 m/s car
     // in under three seconds, and a stopped car STAYS stopped (the
     // brake clamp never reverses rolling).
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetLinearVelocity(chassis).x > 8.0f, "the car reaches braking speed");
-    m3Vehicle_SetCommands(car, 0.0f, 0.0f, 1.0f);
+    CHECK(m3Body_GetLinearVelocity(world, chassis).x > 8.0f, "the car reaches braking speed");
+    m3Vehicle_SetCommands(world, car, 0.0f, 0.0f, 1.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(chassis);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
     CHECK(fabsf(v.x) < 0.2f, "full brake stops the car");
-    m3Pos3 before = m3Body_GetPosition(chassis);
+    m3Pos3 before = m3Body_GetPosition(world, chassis);
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 after = m3Body_GetPosition(chassis);
+    m3Pos3 after = m3Body_GetPosition(world, chassis);
     CHECK(fabs(after.x - before.x) < 0.05, "the stopped car stays stopped");
     m3DestroyWorld(world);
 }
@@ -156,9 +157,9 @@ static void TestSuspensionSettle(void)
     // stiffness = (m / 4) * omega^2 the balance compression is
     // g / omega^2 for ANY mass: hertz 1.5 and gravity 10 give
     // 10 / (2 pi 1.5)^2 = 0.1126 m. The suite reads it back.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, NULL);
-    CHECK(m3Vehicle_IsValid(car), "the car creates");
+    CHECK(m3Vehicle_IsValid(world, car), "the car creates");
     for (int32_t i = 0; i < 360; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -168,15 +169,16 @@ static void TestSuspensionSettle(void)
     float sum = 0.0f;
     for (int32_t w = 0; w < 4; ++w)
     {
-        float x = m3Vehicle_GetCompression(car, w);
-        CHECK(m3Vehicle_IsWheelGrounded(car, w), "every wheel finds the plane");
+        float x = m3Vehicle_GetCompression(world, car, w);
+        CHECK(m3Vehicle_IsWheelGrounded(world, car, w), "every wheel finds the plane");
         CHECK(x > 0.8f * balance && x < 1.2f * balance,
               "the compression sits at the analytic balance");
         sum += x;
     }
     for (int32_t w = 1; w < 4; ++w)
     {
-        CHECK(fabsf(m3Vehicle_GetCompression(car, w) - m3Vehicle_GetCompression(car, 0)) < 0.01f,
+        CHECK(fabsf(m3Vehicle_GetCompression(world, car, w) -
+                    m3Vehicle_GetCompression(world, car, 0)) < 0.01f,
               "the symmetric drop loads all four corners alike");
     }
     CHECK(sum > 0.0f, "the suspension carries weight");
@@ -192,7 +194,7 @@ static void TestVoxelDeckAndSeam(void)
     def.shapeCapacity = 16;
     def.voxelCapacity = 2;
     def.vehicleCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     static uint8_t deck[16 * 16 * 16];
     memset(deck, 0, sizeof(deck));
     for (int32_t z = 0; z < 16; ++z)
@@ -206,32 +208,34 @@ static void TestVoxelDeckAndSeam(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef ga = m3DefaultBodyDef();
     ga.position = (m3Pos3){-8.0, 0.0, -4.0};
-    CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(m3CreateBody(world, &ga), &sd, deck, NULL, 0.5f)),
+    CHECK(m3Shape_IsValid(world,
+                          NewVoxelChunkShape(world, NewBody(world, &ga), &sd, deck, NULL, 0.5f)),
           "the west deck creates");
     m3BodyDef gb = m3DefaultBodyDef();
     gb.position = (m3Pos3){0.0, 0.0, -4.0}; // exactly one extent east: welded
-    CHECK(m3Shape_IsValid(m3CreateVoxelChunkShape(m3CreateBody(world, &gb), &sd, deck, NULL, 0.5f)),
+    CHECK(m3Shape_IsValid(world,
+                          NewVoxelChunkShape(world, NewBody(world, &gb), &sd, deck, NULL, 0.5f)),
           "the east deck creates");
 
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){-5.0, 2.0, 0.0}, &chassis);
-    CHECK(m3Vehicle_IsValid(car), "the deck car creates");
+    CHECK(m3Vehicle_IsValid(world, car), "the deck car creates");
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vehicle_SetCommands(car, 0.5f, 0.0f, 0.0f);
+    m3Vehicle_SetCommands(world, car, 0.5f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Pos3 q = m3Body_GetPosition(chassis);
+        m3Pos3 q = m3Body_GetPosition(world, chassis);
         CHECK(q.y > 1.3 && q.y < 2.2, "the deck ride never hitches");
         if (q.x > 5.0)
         {
             break;
         }
     }
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     CHECK(p.x > 3.0, "the car crosses the welded seam");
     CHECK(fabs(p.z) < 0.05, "the seam crossing stays dead straight");
     m3DestroyWorld(world);
@@ -247,12 +251,12 @@ static void TestRampClimbAndWall(void)
     def.shapeCapacity = 16;
     def.voxelCapacity = 2;
     def.vehicleCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     // The ramp chunk: one layer per two cells from x = 4.
     static uint8_t ramp[16 * 16 * 16];
@@ -270,9 +274,9 @@ static void TestRampClimbAndWall(void)
     }
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){0.0, 0.0, -2.0};
-    CHECK(
-        m3Shape_IsValid(m3CreateVoxelChunkShape(m3CreateBody(world, &rd), &sd, ramp, NULL, 0.25f)),
-        "the ramp creates");
+    CHECK(m3Shape_IsValid(world,
+                          NewVoxelChunkShape(world, NewBody(world, &rd), &sd, ramp, NULL, 0.25f)),
+          "the ramp creates");
 
     // The wall chunk: a two-meter cliff just past the ramp.
     static uint8_t wall[16 * 16 * 16];
@@ -289,9 +293,9 @@ static void TestRampClimbAndWall(void)
     }
     m3BodyDef wd = m3DefaultBodyDef();
     wd.position = (m3Pos3){6.0, 1.5, -2.0};
-    CHECK(
-        m3Shape_IsValid(m3CreateVoxelChunkShape(m3CreateBody(world, &wd), &sd, wall, NULL, 0.25f)),
-        "the wall creates");
+    CHECK(m3Shape_IsValid(world,
+                          NewVoxelChunkShape(world, NewBody(world, &wd), &sd, wall, NULL, 0.25f)),
+          "the wall creates");
 
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){-2.5, 1.0, 0.0}, &chassis);
@@ -299,16 +303,16 @@ static void TestRampClimbAndWall(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double y0 = m3Body_GetPosition(chassis).y;
-    m3Vehicle_SetCommands(car, 0.6f, 0.0f, 0.0f);
+    double y0 = m3Body_GetPosition(world, chassis).y;
+    m3Vehicle_SetCommands(world, car, 0.6f, 0.0f, 0.0f);
     double peak = y0;
     for (int32_t i = 0; i < 420; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        double y = m3Body_GetPosition(chassis).y;
+        double y = m3Body_GetPosition(world, chassis).y;
         peak = y > peak ? y : peak;
     }
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     CHECK(peak - y0 > 0.8, "the quarter-cell ramp climbs like road");
     CHECK(p.x < 6.2, "the two-meter wall is a wall");
     CHECK(isfinite(p.x) && isfinite(p.y) && isfinite(p.z), "the blocked car stays finite");
@@ -326,7 +330,7 @@ static void TestCarveUnderParkedCar(void)
     def.shapeCapacity = 16;
     def.voxelCapacity = 1;
     def.vehicleCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     static uint8_t deck[16 * 16 * 16];
     memset(deck, 0, sizeof(deck));
     for (int32_t z = 0; z < 16; ++z)
@@ -340,28 +344,28 @@ static void TestCarveUnderParkedCar(void)
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-4.0, 0.0, -4.0};
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3ShapeId chunk = m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, deck, NULL, 0.5f);
-    CHECK(m3Shape_IsValid(chunk), "the parking deck creates");
+    m3ShapeId chunk = NewVoxelChunkShape(world, NewBody(world, &gd), &sd, deck, NULL, 0.5f);
+    CHECK(m3Shape_IsValid(world, chunk), "the parking deck creates");
 
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 2.2, 0.0}, &chassis);
-    CHECK(m3Vehicle_IsValid(car), "the parked car creates");
+    CHECK(m3Vehicle_IsValid(world, car), "the parked car creates");
     for (int32_t i = 0; i < 600; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4); // long enough to sleep
     }
-    double parked = m3Body_GetPosition(chassis).y;
+    double parked = m3Body_GetPosition(world, chassis).y;
     CHECK(parked > 1.4 && parked < 2.0, "the car parks on the deck");
 
     // Carve everything under and around the car.
     int32_t lo[3] = {4, 0, 4};
     int32_t hi[3] = {12, 1, 12};
-    CHECK(m3VoxelChunk_ClearBox(chunk, lo, hi) > 0, "the carve clears the deck");
+    CHECK(m3VoxelChunk_ClearBox(world, chunk, lo, hi) > 0, "the carve clears the deck");
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     CHECK(parked - p.y > 0.5, "the sleeping car drops the step its floor vanishes");
     m3DestroyWorld(world);
 }
@@ -374,7 +378,7 @@ static void TestHeightfieldDrive(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.vehicleCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     static float heights[32 * 32];
     for (int32_t z = 0; z < 32; ++z)
     {
@@ -387,7 +391,7 @@ static void TestHeightfieldDrive(void)
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
     m3ShapeDef sd = m3DefaultShapeDef();
     CHECK(m3Shape_IsValid(
-              m3CreateHeightFieldShape(m3CreateBody(world, &gd), &sd, heights, 32, 32, 0.5f)),
+              world, NewHeightFieldShape(world, NewBody(world, &gd), &sd, heights, 32, 32, 0.5f)),
           "the terrain creates");
 
     m3BodyId chassis;
@@ -396,16 +400,16 @@ static void TestHeightfieldDrive(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vehicle_SetCommands(car, 0.5f, 0.0f, 0.0f);
+    m3Vehicle_SetCommands(world, car, 0.5f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        if (m3Body_GetPosition(chassis).x > 4.0)
+        if (m3Body_GetPosition(world, chassis).x > 4.0)
         {
             break; // stop well before the terrain's east edge
         }
     }
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     CHECK(p.x > -1.0, "the car crosses the swells");
     CHECK(fabs(p.z) < 0.2, "the swells do not steal the line");
     CHECK(p.y > 0.5 && p.y < 2.5, "the ride height stays sane");
@@ -417,24 +421,24 @@ static void TestPoolAndCascade(void)
     // Capacity two: the third car refuses; destroying a chassis
     // destroys its vehicle (the cascade rule); stale handles no-op
     // and read zeros.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassisA;
     m3VehicleId a = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassisA);
     m3VehicleId b = MakeCar(world, (m3Pos3){4.0, 1.0, 0.0}, NULL);
-    CHECK(m3Vehicle_IsValid(a) && m3Vehicle_IsValid(b), "the pool serves two");
+    CHECK(m3Vehicle_IsValid(world, a) && m3Vehicle_IsValid(world, b), "the pool serves two");
     m3VehicleId c = MakeCar(world, (m3Pos3){8.0, 1.0, 0.0}, NULL);
-    CHECK(!m3Vehicle_IsValid(c), "the full pool refuses the third");
+    CHECK(!m3Vehicle_IsValid(world, c), "the full pool refuses the third");
 
-    m3DestroyBody(chassisA);
-    CHECK(!m3Vehicle_IsValid(a), "the chassis takes its vehicle with it");
-    CHECK(m3Vehicle_GetCompression(a, 0) == 0.0f, "a stale handle reads zero");
-    CHECK(!m3Vehicle_IsWheelGrounded(a, 0), "a stale handle grounds nothing");
-    m3DestroyVehicle(a); // stale: no-op
+    DestroyBody(world, chassisA);
+    CHECK(!m3Vehicle_IsValid(world, a), "the chassis takes its vehicle with it");
+    CHECK(m3Vehicle_GetCompression(world, a, 0) == 0.0f, "a stale handle reads zero");
+    CHECK(!m3Vehicle_IsWheelGrounded(world, a, 0), "a stale handle grounds nothing");
+    DestroyVehicle(world, a); // stale: no-op
     m3World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m3Vehicle_IsValid(b), "the survivor drives on");
+    CHECK(m3Vehicle_IsValid(world, b), "the survivor drives on");
 
     m3VehicleId d = MakeCar(world, (m3Pos3){8.0, 1.0, 0.0}, NULL);
-    CHECK(m3Vehicle_IsValid(d), "the freed slot serves again");
+    CHECK(m3Vehicle_IsValid(world, d), "the freed slot serves again");
     m3DestroyWorld(world);
 }
 
@@ -444,39 +448,39 @@ static void TestFerryRideAndChurn(void)
     // rides it (the tire works in surface-relative velocity), and
     // stops with it; then vehicle churn twins prove the pool under
     // create/destroy load.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef fd = m3DefaultBodyDef();
     fd.type = m3_kinematicBody;
     fd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId ferry = m3CreateBody(world, &fd);
-    m3CreateBoxShape(ferry, &sd, (m3Vec3){3.0f, 0.25f, 3.0f}); // top at 1.25
+    m3BodyId ferry = NewBody(world, &fd);
+    NewBoxShape(world, ferry, &sd, (m3Vec3){3.0f, 0.25f, 3.0f}); // top at 1.25
 
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 2.5, 0.0}, &chassis);
-    CHECK(m3Vehicle_IsValid(car), "the ferry car creates");
+    CHECK(m3Vehicle_IsValid(world, car), "the ferry car creates");
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double x0 = m3Body_GetPosition(chassis).x;
+    double x0 = m3Body_GetPosition(world, chassis).x;
     // Handbrake on: free-rolling wheels have no longitudinal grip
     // by design (that is what wheels are), so parking on a ferry
     // that sails along the car's forward axis takes the brake.
-    m3Vehicle_SetCommands(car, 0.0f, 0.0f, 1.0f);
-    m3Body_SetLinearVelocity(ferry, (m3Vec3){0.6f, 0.0f, 0.0f});
+    m3Vehicle_SetCommands(world, car, 0.0f, 0.0f, 1.0f);
+    m3Body_SetLinearVelocity(world, ferry, (m3Vec3){0.6f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(chassis);
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
     CHECK(p.x - x0 > 0.9 && p.x - x0 < 1.3, "the parked car rides the ferry");
-    m3Body_SetLinearVelocity(ferry, (m3Vec3){0.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ferry, (m3Vec3){0.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(chassis);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
     CHECK(fabsf(v.x) < 0.05f, "the car stops with its ferry");
     m3DestroyWorld(world);
 
@@ -484,24 +488,24 @@ static void TestFerryRideAndChurn(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId sea = PlaneWorld();
+        m3World* sea = PlaneWorld();
         for (int32_t cycle = 0; cycle < 6; ++cycle)
         {
             m3BodyId body;
             m3VehicleId veh = MakeCar(sea, (m3Pos3){(double)(cycle % 3) * 3.0, 1.0, 0.0}, &body);
-            CHECK(m3Vehicle_IsValid(veh), "the churn car creates");
-            m3Vehicle_SetCommands(veh, 0.7f, cycle % 2 == 0 ? 0.4f : -0.4f, 0.0f);
+            CHECK(m3Vehicle_IsValid(sea, veh), "the churn car creates");
+            m3Vehicle_SetCommands(sea, veh, 0.7f, cycle % 2 == 0 ? 0.4f : -0.4f, 0.0f);
             for (int32_t i = 0; i < 30; ++i)
             {
                 m3World_Step(sea, 1.0f / 60.0f, 4);
             }
             if (cycle % 2 == 0)
             {
-                m3DestroyVehicle(veh); // the chassis remains a plain body
+                DestroyVehicle(sea, veh); // the chassis remains a plain body
             }
             else
             {
-                m3DestroyBody(body); // the cascade path
+                DestroyBody(sea, body); // the cascade path
             }
         }
         hashes[run] = m3World_Hash(sea);
@@ -523,23 +527,23 @@ static void TestDriveOnFragment(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.vehicleCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef gs = m3DefaultShapeDef();
     gs.friction = 0.0f; // a frictionless table: it holds the raft
                         // up and hides nothing sideways (geometric
                         // mixing makes the pair friction zero)
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &gs, &floor);
+    NewPlaneShape(world, ground, &gs, &floor);
 
     m3BodyDef slabDef = m3DefaultBodyDef();
     slabDef.type = m3_dynamicBody;
     slabDef.position = (m3Pos3){0.0, 0.15, 0.0};
-    m3BodyId slab = m3CreateBody(world, &slabDef);
+    m3BodyId slab = NewBody(world, &slabDef);
     m3ShapeDef ss = m3DefaultShapeDef();
     ss.density = 500.0f; // 4 x 0.3 x 4 slab: 2400 kg
-    m3CreateBoxShape(slab, &ss, (m3Vec3){2.0f, 0.15f, 2.0f});
+    NewBoxShape(world, slab, &ss, (m3Vec3){2.0f, 0.15f, 2.0f});
 
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){-1.0, 1.2, 0.0}, &chassis);
@@ -547,13 +551,13 @@ static void TestDriveOnFragment(void)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 40; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Vec3 vCar = m3Body_GetLinearVelocity(chassis);
-    m3Vec3 vSlab = m3Body_GetLinearVelocity(slab);
+    m3Vec3 vCar = m3Body_GetLinearVelocity(world, chassis);
+    m3Vec3 vSlab = m3Body_GetLinearVelocity(world, slab);
     CHECK(vCar.x > 0.5f, "the car drives forward off the raft");
     CHECK(vSlab.x < -0.05f, "the raft takes the drive reaction backward");
     m3DestroyWorld(world);
@@ -562,33 +566,33 @@ static void TestDriveOnFragment(void)
 static void TestVehicleContracts(void)
 {
     // Hostile defs refuse with the null id, loudly documented.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId chassis = m3CreateBody(world, &bd);
+    m3BodyId chassis = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(world, chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
 
     m3VehicleDef vd = m3DefaultVehicleDef();
     vd.chassisId = chassis;
     vd.wheelCount = 0;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "zero wheels refuse");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "zero wheels refuse");
     vd.wheelCount = M3_VEHICLE_MAX_WHEELS + 1;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "nine wheels refuse");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "nine wheels refuse");
     vd.wheelCount = 4;
     vd.wheels[2].radius = 0.0f;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a zero radius refuses");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a zero radius refuses");
     vd = m3DefaultVehicleDef();
     vd.chassisId = chassis;
     vd.wheelCount = 4;
     vd.wheels[1].travel = vd.wheels[1].restLength + 0.1f;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "travel past rest length refuses");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "travel past rest length refuses");
     vd = m3DefaultVehicleDef();
     vd.chassisId = chassis;
     vd.wheelCount = 4;
     vd.wheels[0].direction = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a zero direction refuses");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a zero direction refuses");
     vd = m3DefaultVehicleDef();
     vd.chassisId = chassis;
     vd.wheelCount = 4;
@@ -596,16 +600,16 @@ static void TestVehicleContracts(void)
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
     vd.wheels[3].hertz = bad;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a NaN hertz refuses");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a NaN hertz refuses");
 
     // A static chassis refuses (vehicles spring against dynamics).
     m3BodyDef st = m3DefaultBodyDef();
     st.position = (m3Pos3){4.0, 1.0, 0.0};
-    m3BodyId wallBody = m3CreateBody(world, &st);
+    m3BodyId wallBody = NewBody(world, &st);
     vd = m3DefaultVehicleDef();
     vd.chassisId = wallBody;
     vd.wheelCount = 4;
-    CHECK(!m3Vehicle_IsValid(m3CreateVehicle(world, &vd)), "a static chassis refuses");
+    CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a static chassis refuses");
 
     // The airborne contract: a car in the air reads zero compression
     // and no contact on every wheel.
@@ -617,15 +621,15 @@ static void TestVehicleContracts(void)
         good.wheels[w].anchor =
             (m3Vec3){(w & 1) != 0 ? 0.8f : -0.8f, -0.25f, (w & 2) != 0 ? 0.45f : -0.45f};
     }
-    m3VehicleId car = m3CreateVehicle(world, &good);
-    CHECK(m3Vehicle_IsValid(car), "the good def creates");
-    m3Body_SetLinearVelocity(chassis, (m3Vec3){0.0f, 10.0f, 0.0f});
+    m3VehicleId car = NewVehicle(world, &good);
+    CHECK(m3Vehicle_IsValid(world, car), "the good def creates");
+    m3Body_SetLinearVelocity(world, chassis, (m3Vec3){0.0f, 10.0f, 0.0f});
     m3World_Step(world, 1.0f / 60.0f, 4);
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Vehicle_GetCompression(car, 5) == 0.0f, "an out-of-range wheel reads zero");
+    CHECK(m3Vehicle_GetCompression(world, car, 5) == 0.0f, "an out-of-range wheel reads zero");
     m3DestroyWorld(world);
 }
 

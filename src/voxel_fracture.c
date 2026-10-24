@@ -133,8 +133,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         }
         m3FragmentEvent* ev = &world->events.fragmentEvents[world->events.fragmentEventCount];
         memset(ev, 0, sizeof(*ev));
-        ev->chunkShapeId =
-            (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
+        ev->chunkShapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
         ev->voxelCount = count;
         if (world->events.fragmentRecipeCount + count <= M3_FRAGMENT_RECIPE_CAP)
         {
@@ -170,7 +169,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
     if (removedAny)
     {
         // The surface follows the grid, always (the derived law).
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[slot], chunk);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[slot], chunk);
         m3VoxelCoverageRefreshAround(world, slot);
     }
 }

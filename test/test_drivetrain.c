@@ -7,6 +7,7 @@
 // the pinned RPMs on identical bits, and hostile defs bounce off
 // the validation wall without touching state.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -17,50 +18,50 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId PlaneWorld(void)
+static m3World* PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.vehicleCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
 // A plane tilted about z: uphill is +x. Fifteen degrees is enough
 // for gravity to beat top gear and lose to first (the analytic
 // heart of the bog-or-climb test).
-static m3WorldId RampWorld(void)
+static m3World* RampWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.vehicleCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane slope = {{-0.25881904510252076f, 0.96592582628906829f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &slope);
+    NewPlaneShape(world, ground, &sd, &slope);
     return world;
 }
 
 // The same one-box car the vehicle gate drives: half extents
 // (1.0, 0.25, 0.5), 300 kg, four corner wheels, all driven.
-static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
+static m3VehicleId MakeCar(m3World* world, m3Pos3 at, m3BodyId* outChassis)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = at;
-    m3BodyId chassis = m3CreateBody(world, &bd);
+    m3BodyId chassis = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 300.0f;
-    m3CreateBoxShape(chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(world, chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
     if (outChassis != NULL)
     {
         *outChassis = chassis;
@@ -75,7 +76,7 @@ static m3VehicleId MakeCar(m3WorldId world, m3Pos3 at, m3BodyId* outChassis)
         vd.wheels[w].driven = true;
         vd.wheels[w].steerable = (w & 1) != 0;
     }
-    return m3CreateVehicle(world, &vd);
+    return NewVehicle(world, &vd);
 }
 
 static void TestUphillBogAndClimb(void)
@@ -87,25 +88,25 @@ static void TestUphillBogAndClimb(void)
     double progress[2];
     for (int32_t attempt = 0; attempt < 2; ++attempt)
     {
-        m3WorldId world = RampWorld();
+        m3World* world = RampWorld();
         m3BodyId chassis;
         m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
         m3DrivetrainDef dt = m3DefaultDrivetrainDef();
         dt.autoShift = false; // the gear is the experiment variable
-        m3Vehicle_SetDrivetrain(car, &dt);
-        m3Vehicle_SelectGear(car, attempt == 0 ? 5 : 1);
+        m3Vehicle_SetDrivetrain(world, car, &dt);
+        m3Vehicle_SelectGear(world, car, attempt == 0 ? 5 : 1);
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4); // settle on the slope
         }
-        double startX = m3Body_GetPosition(chassis).x;
-        m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
+        double startX = m3Body_GetPosition(world, chassis).x;
+        m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
         for (int32_t i = 0; i < 300; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        progress[attempt] = m3Body_GetPosition(chassis).x - startX;
-        CHECK(m3Vehicle_GetGear(car) == (attempt == 0 ? 5 : 1), "the manual gear holds");
+        progress[attempt] = m3Body_GetPosition(world, chassis).x - startX;
+        CHECK(m3Vehicle_GetGear(world, car) == (attempt == 0 ? 5 : 1), "the manual gear holds");
         if (attempt == 1)
         {
         }
@@ -123,24 +124,24 @@ static void TestAutoShiftSprintTwins(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = PlaneWorld();
+        m3World* world = PlaneWorld();
         m3BodyId chassis;
         m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
         m3DrivetrainDef dt = m3DefaultDrivetrainDef();
-        m3Vehicle_SetDrivetrain(car, &dt);
+        m3Vehicle_SetDrivetrain(world, car, &dt);
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
-        int32_t lastGear = m3Vehicle_GetGear(car);
+        m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
+        int32_t lastGear = m3Vehicle_GetGear(world, car);
         int32_t shifts = 0;
         m3real rpmBefore = 0.0f;
         for (int32_t i = 0; i < 1500; ++i)
         {
-            m3real rpmPrev = m3Vehicle_GetEngineRpm(car);
+            m3real rpmPrev = m3Vehicle_GetEngineRpm(world, car);
             m3World_Step(world, 1.0f / 60.0f, 4);
-            int32_t gear = m3Vehicle_GetGear(car);
+            int32_t gear = m3Vehicle_GetGear(world, car);
             if (run == 0)
             {
                 CHECK(gear >= lastGear, "a flat sprint never downshifts");
@@ -160,7 +161,7 @@ static void TestAutoShiftSprintTwins(void)
             CHECK(lastGear >= 4, "the sprint climbs at least to fourth");
             CHECK(shifts >= 3, "at least three upshifts happen");
             CHECK(rpmBefore > 5300.0f, "the first upshift waits for the pinned RPM");
-            m3Vec3 v = m3Body_GetLinearVelocity(chassis);
+            m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
             CHECK(v.x > 20.0f, "the geared sprint is genuinely fast");
         }
         hashes[run] = m3World_Hash(world);
@@ -174,30 +175,30 @@ static void TestNeutralAndReverse(void)
     // Neutral holds the car still under full throttle; reverse
     // drives it backward off throttle magnitude alone (with a
     // drivetrain, direction belongs to the gear, not the pedal).
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
     dt.autoShift = false;
-    m3Vehicle_SetDrivetrain(car, &dt);
-    m3Vehicle_SelectGear(car, 0);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
+    m3Vehicle_SelectGear(world, car, 0);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double startX = m3Body_GetPosition(chassis).x;
-    m3Vehicle_SetCommands(car, 1.0f, 0.0f, 0.0f);
+    double startX = m3Body_GetPosition(world, chassis).x;
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(fabs(m3Body_GetPosition(chassis).x - startX) < 0.1, "neutral drives nothing");
-    m3Vehicle_SelectGear(car, -1);
+    CHECK(fabs(m3Body_GetPosition(world, chassis).x - startX) < 0.1, "neutral drives nothing");
+    m3Vehicle_SelectGear(world, car, -1);
     for (int32_t i = 0; i < 180; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(chassis).x < startX - 1.0, "reverse drives backward");
+    CHECK(m3Body_GetPosition(world, chassis).x < startX - 1.0, "reverse drives backward");
     m3DestroyWorld(world);
 }
 
@@ -206,21 +207,21 @@ static double DiffYaw(int32_t mode, m3real couple, uint64_t* outHash)
     // Same car, same throttle, same steer; only the differential
     // changes. The coupling resists the inner/outer wheel speed
     // split a turn creates, so a locked diff yaws less than open.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 0.6, 0.0}, &chassis);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
     dt.autoShift = false;
     dt.diffMode = mode;
     dt.diffCouple = couple;
-    m3Vehicle_SetDrivetrain(car, &dt);
-    m3Vehicle_SelectGear(car, 1);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
+    m3Vehicle_SelectGear(world, car, 1);
     double yaw = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3Vehicle_SetCommands(car, 1.0f, 0.6f, 0.0f);
+        m3Vehicle_SetCommands(world, car, 1.0f, 0.6f, 0.0f);
         m3World_Step(world, 1.0f / 60.0f, 4);
-        yaw += (double)m3Body_GetAngularVelocity(chassis).y;
+        yaw += (double)m3Body_GetAngularVelocity(world, chassis).y;
     }
     if (outHash != NULL)
     {
@@ -252,18 +253,18 @@ static void TestDifferentials(void)
     CHECK(lockedA == lockedB, "twin locked runs are bit-identical");
 
     // The hostile wall: bad modes and couplings never attach.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 0.6, 0.0}, NULL);
     m3DrivetrainDef bad = m3DefaultDrivetrainDef();
     bad.diffMode = 3;
-    m3Vehicle_SetDrivetrain(car, &bad);
+    m3Vehicle_SetDrivetrain(world, car, &bad);
     m3DrivetrainDef good = m3DefaultDrivetrainDef();
     good.diffMode = 2;
     good.diffCouple = -1.0f;
-    m3Vehicle_SetDrivetrain(car, &good);
+    m3Vehicle_SetDrivetrain(world, car, &good);
     // Neither hostile def attached: gear selection still refuses
     // like a drivetrain-less car accepts nothing but neutral.
-    m3Vehicle_SelectGear(car, 1);
+    m3Vehicle_SelectGear(world, car, 1);
     m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
@@ -282,41 +283,41 @@ static void TestTankSteer(void)
         m3WorldDef wd = m3DefaultWorldDef();
         wd.bodyCapacity = 16;
         wd.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&wd);
+        m3World* world = NewWorld(&wd);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
         m3BodyId hullOut;
         m3VehicleId tank = MakeCar(world, (m3Pos3){0.0, 0.62, 0.0}, &hullOut);
         m3BodyId hull = hullOut;
-        m3Vehicle_SetTankCommands(tank, 1.0f, 1.0f, 0.0f);
+        m3Vehicle_SetTankCommands(world, tank, 1.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 90; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
         if (run == 0)
         {
-            straightX = m3Body_GetPosition(hull).x;
-            straightZdrift = m3Body_GetPosition(hull).z;
+            straightX = m3Body_GetPosition(world, hull).x;
+            straightZdrift = m3Body_GetPosition(world, hull).z;
         }
         // Tracks brake the run speed off first: a spin attempt at
         // 20 m/s only proves the lateral tire kill is a good yaw
         // damper. Pivot turns happen from rest.
-        m3Vehicle_SetTankCommands(tank, 0.0f, 0.0f, 1.0f);
+        m3Vehicle_SetTankCommands(world, tank, 0.0f, 0.0f, 1.0f);
         for (int32_t i = 0; i < 300; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Vehicle_SetTankCommands(tank, 1.0f, -1.0f, 0.0f);
+        m3Vehicle_SetTankCommands(world, tank, 1.0f, -1.0f, 0.0f);
         for (int32_t i = 0; i < 180; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
         if (run == 0)
         {
-            yawSpin = (double)fabsf(m3Body_GetAngularVelocity(hull).y);
+            yawSpin = (double)fabsf(m3Body_GetAngularVelocity(world, hull).y);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -329,15 +330,15 @@ static void TestTankSteer(void)
 
 // A two-wheeler: narrow box, one wheel at each end, the front one
 // steerable. The lean gain is the experiment variable.
-static m3VehicleId MakeBike(m3WorldId world, m3Pos3 at, m3real leanGain, m3BodyId* outChassis)
+static m3VehicleId MakeBike(m3World* world, m3Pos3 at, m3real leanGain, m3BodyId* outChassis)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = at;
-    m3BodyId chassis = m3CreateBody(world, &bd);
+    m3BodyId chassis = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 800.0f;
-    m3CreateBoxShape(chassis, &sd, (m3Vec3){0.7f, 0.3f, 0.1f});
+    NewBoxShape(world, chassis, &sd, (m3Vec3){0.7f, 0.3f, 0.1f});
     if (outChassis != NULL)
     {
         *outChassis = chassis;
@@ -352,7 +353,7 @@ static m3VehicleId MakeBike(m3WorldId world, m3Pos3 at, m3real leanGain, m3BodyI
     vd.wheels[1].anchor = (m3Vec3){0.6f, -0.3f, 0.0f};
     vd.wheels[1].driven = true;
     vd.wheels[1].steerable = true;
-    return m3CreateVehicle(world, &vd);
+    return NewVehicle(world, &vd);
 }
 
 static void TestMotorcycleLean(void)
@@ -368,26 +369,26 @@ static void TestMotorcycleLean(void)
         m3WorldDef wd = m3DefaultWorldDef();
         wd.bodyCapacity = 16;
         wd.shapeCapacity = 16;
-        m3WorldId world = m3CreateWorld(&wd);
+        m3World* world = NewWorld(&wd);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
         m3BodyId frame;
         m3VehicleId bike =
             MakeBike(world, (m3Pos3){0.0, 0.75, 0.0}, run == 1 ? 0.0f : 25.0f, &frame);
-        m3Vehicle_SetCommands(bike, 1.0f, 0.0f, 0.0f);
+        m3Vehicle_SetCommands(world, bike, 1.0f, 0.0f, 0.0f);
         for (int32_t i = 0; i < 45; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Vehicle_SetCommands(bike, 0.0f, 0.15f, 0.0f);
+        m3Vehicle_SetCommands(world, bike, 0.0f, 0.15f, 0.0f);
         for (int32_t i = 0; i < 240; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Quat q = m3Body_GetRotation(frame);
+        m3Quat q = m3Body_GetRotation(world, frame);
         m3Vec3 up = m3RotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f});
         upAtEnd[run] = (double)up.y;
         hashes[run] = m3World_Hash(world);
@@ -405,64 +406,64 @@ static void TestHostileWall(void)
     // the car keeps its flat model (gear reads 0) and the world
     // keeps stepping. The validation wall is the same one replay
     // uses against fuzzed journal bytes.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, NULL);
 
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
     dt.internalValue = 0; // bad cookie
-    m3Vehicle_SetDrivetrain(car, &dt);
-    CHECK(m3Vehicle_GetGear(car) == 0, "a bad cookie bounces");
+    m3Vehicle_SetDrivetrain(world, car, &dt);
+    CHECK(m3Vehicle_GetGear(world, car) == 0, "a bad cookie bounces");
 
     dt = m3DefaultDrivetrainDef();
     dt.curveCount = 1;
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.curveCount = 99;
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.curveRpm[1] = dt.curveRpm[0]; // not ascending
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&dt.curveTorque[1], &nanBits, sizeof(float));
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.gearCount = 0;
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.gearRatio[2] = -1.0f;
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.shiftUpRpm = dt.shiftDownRpm; // shift band collapses
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.clutchSteps = -5;
-    m3Vehicle_SetDrivetrain(car, &dt);
+    m3Vehicle_SetDrivetrain(world, car, &dt);
     dt = m3DefaultDrivetrainDef();
     dt.finalDrive = 0.0f;
-    m3Vehicle_SetDrivetrain(car, &dt);
-    CHECK(m3Vehicle_GetGear(car) == 0, "nine garbage defs all bounce");
-    CHECK(m3Vehicle_GetEngineRpm(car) == 0.0f, "no drivetrain, no tachometer");
+    m3Vehicle_SetDrivetrain(world, car, &dt);
+    CHECK(m3Vehicle_GetGear(world, car) == 0, "nine garbage defs all bounce");
+    CHECK(m3Vehicle_GetEngineRpm(world, car) == 0.0f, "no drivetrain, no tachometer");
 
-    m3Vehicle_SelectGear(car, 3); // no drivetrain attached
-    CHECK(m3Vehicle_GetGear(car) == 0, "gear select without a drivetrain bounces");
+    m3Vehicle_SelectGear(world, car, 3); // no drivetrain attached
+    CHECK(m3Vehicle_GetGear(world, car) == 0, "gear select without a drivetrain bounces");
 
     dt = m3DefaultDrivetrainDef();
     dt.reverseRatio = 0.0f; // this car forbids reverse
-    m3Vehicle_SetDrivetrain(car, &dt);
-    CHECK(m3Vehicle_GetGear(car) == 1, "the valid def lands in first");
-    m3Vehicle_SelectGear(car, -1);
-    CHECK(m3Vehicle_GetGear(car) == 1, "reverse without a reverse ratio bounces");
-    m3Vehicle_SelectGear(car, 6); // gearCount is 5
-    CHECK(m3Vehicle_GetGear(car) == 1, "an out-of-range gear bounces");
+    m3Vehicle_SetDrivetrain(world, car, &dt);
+    CHECK(m3Vehicle_GetGear(world, car) == 1, "the valid def lands in first");
+    m3Vehicle_SelectGear(world, car, -1);
+    CHECK(m3Vehicle_GetGear(world, car) == 1, "reverse without a reverse ratio bounces");
+    m3Vehicle_SelectGear(world, car, 6); // gearCount is 5
+    CHECK(m3Vehicle_GetGear(world, car) == 1, "an out-of-range gear bounces");
 
-    m3Vehicle_SetDrivetrain(m3_nullVehicleId, &dt); // stale id no-op
-    m3Vehicle_SelectGear(m3_nullVehicleId, 1);
+    m3Vehicle_SetDrivetrain(world, m3_nullVehicleId, &dt); // stale id no-op
+    m3Vehicle_SelectGear(world, m3_nullVehicleId, 1);
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Vehicle_GetGear(car) == 1, "the world steps on through all of it");
+    CHECK(m3Vehicle_GetGear(world, car) == 1, "the world steps on through all of it");
     m3DestroyWorld(world);
 }
 

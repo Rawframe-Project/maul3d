@@ -8,8 +8,7 @@
 int32_t m3ShapeSlot(const m3World* world, m3ShapeId shapeId)
 {
     int32_t index = shapeId.index1 - 1;
-    if (world == NULL || shapeId.world != world->idWorld ||
-        !m3IdPoolValid(&world->shapes.shapePool, index, shapeId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->shapes.shapePool, index, shapeId.generation))
     {
         return -1;
     }

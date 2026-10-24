@@ -167,30 +167,35 @@ extern "C"
     M3_API m3JointDef m3DefaultJointDef(void);
 
     /// Create a joint between two distinct bodies of the same world
-    /// (at least one dynamic). Returns the null id on a bad def, a
-    /// stale body, or an exhausted pool. Journaled; replay verifies
-    /// the minted id. Destroying either body destroys the joint.
-    M3_API m3JointId m3CreateJoint(m3WorldId worldId, const m3JointDef* def);
-    M3_API void m3DestroyJoint(m3JointId jointId);
-    M3_API bool m3Joint_IsValid(m3JointId jointId);
+    /// (at least one dynamic). Returns m3_errorInvalid for a bad def,
+    /// m3_errorStale for a stale body and m3_errorCapacity for an
+    /// exhausted pool; *jointOut is the null id on any failure.
+    /// Journaled; replay verifies the minted id. Destroying either body
+    /// destroys the joint.
+    M3_NODISCARD M3_API m3Result m3CreateJoint(m3World* world, const m3JointDef* def,
+                                               m3JointId* jointOut);
+    M3_NODISCARD M3_API m3Result m3DestroyJoint(m3World* world, m3JointId joint);
+    M3_API bool m3Joint_IsValid(const m3World* world, m3JointId joint);
     /// Readback, as in Maul2D. Thread class: reader.
-    M3_API m3WorldId m3Joint_GetWorld(m3JointId jointId);
-    M3_API m3JointType m3Joint_GetType(m3JointId jointId);
-    M3_API m3BodyId m3Joint_GetBodyA(m3JointId jointId);
-    M3_API m3BodyId m3Joint_GetBodyB(m3JointId jointId);
+    M3_API m3JointType m3Joint_GetType(const m3World* world, m3JointId joint);
+    M3_API m3BodyId m3Joint_GetBodyA(const m3World* world, m3JointId joint);
+    M3_API m3BodyId m3Joint_GetBodyB(const m3World* world, m3JointId joint);
 
     /// Runtime joint control. All journaled; both bodies wake
     /// on any change. Limits and motor reuse the def semantics per
     /// type (angles for revolute and spherical twist, meters for
     /// prismatic and distance); toggling zeroes the row's stored
     /// impulse so a stale warm start cannot kick.
-    M3_API void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper);
-    M3_API void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffort);
+    M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower,
+                                  float upper);
+    M3_API void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
+                                 float maxEffort);
 
     /// Aim the MOTOR joint: offset in body A's joint frame,
     /// rotation as the target relative orientation. Journaled;
     /// refused loudly on other types and hostile values.
-    M3_API void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation);
+    M3_API void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset,
+                                     m3Quat rotation);
 
     /// Wheel steering: a soft target-angle drive about the
     /// strut axis. While enabled, the wheel's frame-x lock becomes
@@ -198,17 +203,17 @@ extern "C"
     /// targetAngle (radians, |target| <= 1) at the given stiffness;
     /// maxEffort > 0 caps the torque, 0 leaves it uncapped. Wheel
     /// joints only; refused loudly elsewhere. Journaled.
-    M3_API void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float hertz,
-                                 float zeta, float maxEffort);
+    M3_API void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle,
+                                 float hertz, float zeta, float maxEffort);
 
     /// The current strut twist in radians (wheel joints; 0 for
     /// every other type and stale ids).
-    M3_API float m3Joint_GetSteerAngle(m3JointId jointId);
+    M3_API float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint);
 
     /// Let (or forbid) the two jointed bodies collide with each
     /// other. Journaled; binds at the next step's pair scan.
-    M3_API void m3Joint_SetCollideConnected(m3JointId jointId, bool collide);
-    M3_API bool m3Joint_GetCollideConnected(m3JointId jointId);
+    M3_API void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide);
+    M3_API bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint);
 
     /// Breakage: rollback games need breakage as a deterministic in-step
     /// state transition, not a host poll racing the journal. When
@@ -216,7 +221,8 @@ extern "C"
     /// step, the joint destroys itself and emits the joint break
     /// event (see world.h). Zero disables a cap; both zero (the
     /// default) means unbreakable.
-    M3_API void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorque);
+    M3_API void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce,
+                                           float maxTorque);
 
     /// Reaction readback: MAGNITUDES of the last step's
     /// constraint reactions, assembled per type from the stored
@@ -224,14 +230,14 @@ extern "C"
     /// torque; the generic joint reports a conservative sum). Reads
     /// 0 before the first step after a restore (documented
     /// transient).
-    M3_API m3real m3Joint_GetConstraintForce(m3JointId jointId);
-    M3_API m3real m3Joint_GetConstraintTorque(m3JointId jointId);
+    M3_API m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint);
+    M3_API m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint);
 
     /// Geometry reads: the revolute twist angle about the hinge
     /// (radians) and the prismatic translation along the slide axis
     /// (meters). Wrong-type calls read 0.
-    M3_API m3real m3Joint_GetAngle(m3JointId jointId);
-    M3_API m3real m3Joint_GetTranslation(m3JointId jointId);
+    M3_API m3real m3Joint_GetAngle(const m3World* world, m3JointId joint);
+    M3_API m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint);
 
     /// Position drive: a soft
     /// constraint with the given frequency and damping ratio pulls
@@ -239,15 +245,16 @@ extern "C"
     /// prismatic the translation, spherical the relative rotation;
     /// other types refuse. Toggling zeroes the spring's stored
     /// impulse. All journaled; both bodies wake.
-    M3_API void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampingRatio);
-    M3_API void m3Joint_SetTargetAngle(m3JointId jointId, float radians);
-    M3_API void m3Joint_SetTargetTranslation(m3JointId jointId, float meters);
+    M3_API void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
+                                  float dampingRatio);
+    M3_API void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
+    M3_API void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters);
     /// The target must be a unit rotation; garbage refuses loudly by
     /// doing nothing. The target lives in the JOINT FRAMES (frame z
     /// is the create-time local axis): it is the desired rotation of
     /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
-    M3_API void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target);
+    M3_API void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
 
 #ifdef __cplusplus
 }

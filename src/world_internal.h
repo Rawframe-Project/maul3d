@@ -34,9 +34,6 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
     return (int32_t)f;
 }
 
-#define M3_MAX_WORLDS 64
-_Static_assert(M3_MAX_WORLDS <= (1 << M3_WORLD_SLOT_BITS), "a world slot fits the id bits");
-
 // Bumped on any change that alters simulation behavior (solver math,
 // integration order, constants). It is part of the snapshot config hash,
 // so a snapshot from another behavior revision is refused instead of
@@ -148,8 +145,8 @@ typedef struct m3MeshData
 // sizes new ones from the counts already in the struct; Free
 // releases and zeroes. The snapshot read pass and every create
 // and destroy path share these two gates.
-bool m3MeshDataAlloc(m3MeshData* mesh);
-void m3MeshDataFree(m3MeshData* mesh);
+bool m3MeshDataAlloc(m3Heap* heap, m3MeshData* mesh);
+void m3MeshDataFree(m3Heap* heap, m3MeshData* mesh);
 
 // Bakes the edge flags. The scratch holds m3MeshEdgeScratchCount ints.
 int32_t m3MeshEdgeScratchCount(const m3MeshData* mesh);
@@ -174,8 +171,8 @@ typedef struct m3HeightFieldData
 
 // Count-derived ownership: Alloc sizes from the counts already in the
 // struct, Free releases and zeroes.
-bool m3HeightFieldDataAlloc(m3HeightFieldData* hf);
-void m3HeightFieldDataFree(m3HeightFieldData* hf);
+bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf);
+void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf);
 
 // One cell's two triangles, split by diagonal parity: the one rule every
 // consumer shares (contacts, rays, queries, draw, soft particles).
@@ -250,7 +247,7 @@ typedef struct m3MeshBvh
     m3Vec3 quantScale;    // world-to-grid; 0 on a flat axis (always hits)
 } m3MeshBvh;
 
-void m3MeshBvhBuild(m3MeshBvh* bvh, const m3MeshData* mesh);
+void m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 
 // Gather every triangle in a leaf whose box overlaps [lo, hi], in
 // ascending triangle order (each triangle lives in exactly one leaf,
@@ -259,12 +256,13 @@ void m3MeshBvhBuild(m3MeshBvh* bvh, const m3MeshData* mesh);
 // reject test, so behavior stays bit-identical to the full scan this
 // replaces. `out` must hold M3_MESH_MAX_TRIS entries.
 int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out);
-void m3MeshBvhFree(m3MeshBvh* bvh);
+void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh
 // build wraps this with triangle boxes; the voxel surface feeds
 // merged-box bounds). Count is capped at M3_MESH_MAX_TRIS.
-void m3MeshBvhBuildBounds(m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his, int32_t count);
+void m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
+                          int32_t count);
 
 // The fragment events one step holds, and the island voxels their
 // recipes hold together. Past either, the fracture still happens: a
@@ -313,7 +311,7 @@ typedef struct m3VoxelSurface
 bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
                     m3real cellSize);
-void m3VoxelSurfaceBuild(m3VoxelSurface* surface, const m3VoxelChunkData* chunk);
+void m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk);
 void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi);
 void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3HullData* out);
@@ -848,13 +846,10 @@ typedef struct m3World
     float windGustScale;
     float windPhase;
     uint64_t stepCount;
-    int32_t workerCount;
+    m3Heap heap; // the def's allocator; every allocation of this world goes through it
     m3EnqueueTaskFn* enqueueTask; // host threading hooks (never state)
     m3FinishTaskFn* finishTask;
     void* userTaskContext;
-    uint16_t generation; // this world slot's generation
-    uint16_t slot;       // 0-based slot in the world table
-    uint16_t idWorld;    // the world field of every id this world hands out
     // Persistent bytes this world holds (arrays at create plus
     // count-derived content while it lives) and the step scratch
     // capacity; the scratch PEAK already rides m3Counters.

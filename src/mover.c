@@ -10,7 +10,6 @@
 #include "query.h"
 #include "shape_state.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <float.h>
 #include <string.h>
@@ -21,13 +20,12 @@
 // or hashes. Hosts compose them into their own movers; the engine
 // keeps its kinematic controller as the built-in path.
 
-m3RayCastResult m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight,
+m3RayCastResult m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
                                   m3real radius, m3Vec3 translation)
 {
     m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
     miss.fraction = 1.0f;
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FinitePos3(center) || !m3FiniteF(halfHeight) || halfHeight < 0.0f ||
         !m3FiniteF(radius) || !(radius > 0.0f) || !m3FiniteV3(translation))
     {
@@ -40,7 +38,7 @@ m3RayCastResult m3World_CastMover(m3WorldId worldId, m3Pos3 center, m3real halfH
 
 typedef struct m3MoverCollideCtx
 {
-    m3World* world;
+    const m3World* world;
     m3Pos3 center;
     m3real halfHeight;
     m3real radius;
@@ -101,7 +99,7 @@ static void MoverOfferPlane(m3MoverCollideCtx* ctx, m3MoverPlane plane)
 static bool MoverGatherCallback(int32_t shape, void* userContext)
 {
     m3MoverCollideCtx* ctx = (m3MoverCollideCtx*)userContext;
-    m3World* world = ctx->world;
+    const m3World* world = ctx->world;
     if (world->shapes.shapeSensor[shape] != 0 ||
         world->bodies.bodyEnabled[world->shapes.shapeBody[shape]] == 0)
     {
@@ -143,16 +141,14 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
         plane.normal = (m3Vec3){0.0f, 1.0f, 0.0f};
     }
     plane.separation = gap;
-    plane.shapeId =
-        (m3ShapeId){shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
+    plane.shapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
     MoverOfferPlane(ctx, plane);
     return true;
 }
 
-int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight, m3real radius,
+int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight, m3real radius,
                              m3real skin, m3MoverPlane* planes, int32_t capacity)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || planes == NULL || capacity <= 0 || !m3FinitePos3(center) ||
         !m3FiniteF(halfHeight) || halfHeight < 0.0f || !m3FiniteF(radius) || !(radius > 0.0f) ||
         !m3FiniteF(skin) || skin < 0.0f)
@@ -196,7 +192,7 @@ int32_t m3World_CollideMover(m3WorldId worldId, m3Pos3 center, m3real halfHeight
         m3MoverPlane plane;
         plane.normal = n;
         plane.separation = gap;
-        plane.shapeId = (m3ShapeId){s + 1, world->idWorld, world->shapes.shapePool.generations[s]};
+        plane.shapeId = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         MoverOfferPlane(&ctx, plane);
     }
     // Ascending shape order keeps the plane list canonical.

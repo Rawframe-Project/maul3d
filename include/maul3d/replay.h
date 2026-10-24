@@ -24,7 +24,7 @@ extern "C"
     /// its own framing.
     ///
     /// Layout, little-endian: magic "M3J1" (4) | container version
-    /// u32 (1) | snapshotBytes i32 | journalBytes i32 | stepCount
+    /// u32 (2) | snapshotBytes i32 | journalBytes i32 | stepCount
     /// i32 | opCount i32 | finalHash u64 | snapshot | journal.
 
     /// Counts from a raw journal byte stream: total records, and
@@ -35,7 +35,8 @@ extern "C"
         int32_t stepCount;
     } m3JournalInfo;
 
-    M3_API bool m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* out);
+    M3_NODISCARD M3_API m3Result m3DescribeJournal(const void* journal, int32_t bytes,
+                                                   m3JournalInfo* infoOut);
 
     /// A decoded view into an encoded container: pointers alias the
     /// input buffer, nothing is copied.
@@ -54,16 +55,19 @@ extern "C"
 
     /// Encode a container. finalHash is the recorder's end hash
     /// (m3World_Hash after the session); verifiers compare against
-    /// it. Returns bytes written, or 0 on refusal (bad sizes, small
-    /// capacity, malformed journal).
-    M3_API int32_t m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
-                                  int32_t journalBytes, uint64_t finalHash, void* out,
-                                  int32_t capacity);
+    /// it. Sets *bytesOut to the bytes written. Returns m3_errorInvalid
+    /// for bad sizes or a malformed journal and m3_errorCapacity for a
+    /// small buffer.
+    M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes,
+                                                const void* journal, int32_t journalBytes,
+                                                uint64_t finalHash, void* out, int32_t capacity,
+                                                int32_t* bytesOut);
 
     /// Decode and validate framing (magic, version, lengths, journal
-    /// record walk). Returns false on any corruption; the view is
-    /// untouched on refusal.
-    M3_API bool m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* out);
+    /// record walk). Returns m3_errorInvalid on any corruption, with the
+    /// view untouched.
+    M3_NODISCARD M3_API m3Result m3DecodeReplay(const void* data, int32_t bytes,
+                                                m3ReplayView* viewOut);
 
     /// One row of a world-versus-world body comparison. A
     /// DEBUG READ for the divergence finder: never state, never
@@ -85,7 +89,7 @@ extern "C"
     /// number written, and returns the TOTAL number of differing
     /// slots (which may exceed capacity), or -1 on refusal. Zero
     /// means the worlds agree body-for-body.
-    M3_API int32_t m3World_Compare(m3WorldId worldA, m3WorldId worldB, m3BodyDiff* out,
+    M3_API int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
                                    int32_t capacity, int32_t* outCount);
 
 #ifdef __cplusplus

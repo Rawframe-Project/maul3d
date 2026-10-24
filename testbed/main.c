@@ -23,6 +23,7 @@
 // simulation stays untouched (the solid walk is read-only and held
 // by the same purity test as the wireframe one).
 
+#include "helpers.h"
 #include "raylib.h"
 #include "rlgl.h"
 
@@ -220,7 +221,7 @@ static void DrawGround(void)
 // -------------------------------------------------------------- scenes
 typedef struct tbScene
 {
-    m3WorldId world;
+    m3World* world;
     m3ShapeId chunk;    // the carvable chunk, if the scene has one
     m3CharacterId hero; // the playable walker, if the scene has one
     m3VehicleId car;    // the playable car, if the scene has one
@@ -249,13 +250,13 @@ static m3WorldDef SceneDef(void)
     return def;
 }
 
-static void AddFloor(m3WorldId world)
+static void AddFloor(m3World* world)
 {
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 }
 
 // Scene 1: the keep. A hollow voxel fort; carve it, shoot it, rewind
@@ -268,7 +269,7 @@ static tbScene SceneKeep(void)
     scene.blurb = "E carves at the crosshair, left click shoots, R rewinds time";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
 
     static uint8_t voxels[16 * 16 * 16];
@@ -292,10 +293,10 @@ static tbScene SceneKeep(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId keep = m3CreateBody(scene.world, &gd);
+    m3BodyId keep = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
-    scene.chunk = m3CreateVoxelChunkShape(keep, &sd, voxels, NULL, 1.0f);
+    scene.chunk = NewVoxelChunkShape(scene.world, keep, &sd, voxels, NULL, 1.0f);
     return scene;
 }
 
@@ -312,7 +313,7 @@ static tbScene SceneBlastyard(void)
     scene.blurb = "X detonates at the crosshair; carve, shove, and rewind it all";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     static uint8_t voxels[16 * 16 * 16];
     memset(voxels, 0, sizeof(voxels));
@@ -326,10 +327,10 @@ static tbScene SceneBlastyard(void)
     }
     m3BodyDef wd = m3DefaultBodyDef();
     wd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId wall = m3CreateBody(scene.world, &wd);
+    m3BodyId wall = NewBody(scene.world, &wd);
     m3ShapeDef vd = m3DefaultShapeDef();
     vd.friction = 0.6f;
-    scene.chunk = m3CreateVoxelChunkShape(wall, &vd, voxels, NULL, 1.0f);
+    scene.chunk = NewVoxelChunkShape(scene.world, wall, &vd, voxels, NULL, 1.0f);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.5f;
     for (int32_t i = 0; i < 10; ++i)
@@ -338,26 +339,26 @@ static tbScene SceneBlastyard(void)
         bd.type = m3_dynamicBody;
         double a = 0.628318530718 * (double)i;
         bd.position = (m3Pos3){5.5 * cos(a), 0.55, 4.0 + 4.5 * sin(a)};
-        m3BodyId crate = m3CreateBody(scene.world, &bd);
-        m3CreateBoxShape(crate, &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
+        m3BodyId crate = NewBody(scene.world, &bd);
+        NewBoxShape(scene.world, crate, &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
     }
     for (int32_t i = 0; i < 4; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-3.0 + 2.0 * (double)i, 0.5, 2.5};
-        m3BodyId barrel = m3CreateBody(scene.world, &bd);
+        m3BodyId barrel = NewBody(scene.world, &bd);
         m3Capsule keg = {{0.0f, -0.22f, 0.0f}, {0.0f, 0.22f, 0.0f}, 0.28f};
-        m3CreateCapsuleShape(barrel, &sd, &keg);
+        NewCapsuleShape(scene.world, barrel, &sd, &keg);
     }
     for (int32_t i = 0; i < 3; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-2.0 + 2.0 * (double)i, 0.4, 6.5};
-        m3BodyId ball = m3CreateBody(scene.world, &bd);
+        m3BodyId ball = NewBody(scene.world, &bd);
         m3Sphere orb = {{0.0f, 0.0f, 0.0f}, 0.4f};
-        m3CreateSphereShape(ball, &sd, &orb);
+        NewSphereShape(scene.world, ball, &sd, &orb);
     }
     // The flooded quarter: a basin beside the keep, debris
     // that floats, and a current that ferries it along.
@@ -365,16 +366,16 @@ static tbScene SceneBlastyard(void)
     water.lo = (m3Pos3){8.0, 0.0, -6.0};
     water.hi = (m3Pos3){20.0, 2.5, 6.0};
     water.flow = (m3Vec3){0.0f, 0.0f, 0.6f};
-    m3CreateWaterVolume(scene.world, &water);
+    NewWaterVolume(scene.world, &water);
     for (int32_t k = 0; k < 6; ++k)
     {
         m3BodyDef fd2 = m3DefaultBodyDef();
         fd2.type = m3_dynamicBody;
         fd2.position = (m3Pos3){10.0 + (double)(k % 3) * 2.0, 3.0, -3.0 + (double)(k / 3) * 2.0};
-        m3BodyId flotsam = m3CreateBody(scene.world, &fd2);
+        m3BodyId flotsam = NewBody(scene.world, &fd2);
         m3ShapeDef fs = m3DefaultShapeDef();
         fs.density = 350.0f;
-        m3CreateBoxShape(flotsam, &fs, (m3Vec3){0.3f, 0.2f, 0.3f});
+        NewBoxShape(scene.world, flotsam, &fs, (m3Vec3){0.3f, 0.2f, 0.3f});
     }
     return scene;
 }
@@ -388,7 +389,7 @@ static tbScene SceneRain(void)
     scene.blurb = "mixed bodies fall on a pyramid; B drops crates";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.5f;
@@ -403,9 +404,9 @@ static tbScene SceneRain(void)
             {
                 bd.position = (m3Pos3){(double)i - 0.5 * (double)n, 0.5 + 1.02 * (double)layer,
                                        (double)j - 0.5 * (double)n};
-                m3BodyId body = m3CreateBody(scene.world, &bd);
+                m3BodyId body = NewBody(scene.world, &bd);
                 m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-                m3CreateSphereShape(body, &sd, &ball);
+                NewSphereShape(scene.world, body, &sd, &ball);
             }
         }
     }
@@ -413,20 +414,20 @@ static tbScene SceneRain(void)
     {
         bd.position =
             (m3Pos3){-6.0 + 0.31 * (double)k, 8.0 + 0.6 * (double)k, -5.0 + 0.27 * (double)(k % 7)};
-        m3BodyId body = m3CreateBody(scene.world, &bd);
+        m3BodyId body = NewBody(scene.world, &bd);
         if (k % 3 == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
-            m3CreateSphereShape(body, &sd, &ball);
+            NewSphereShape(scene.world, body, &sd, &ball);
         }
         else if (k % 3 == 1)
         {
-            m3CreateBoxShape(body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+            NewBoxShape(scene.world, body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
         }
         else
         {
             m3Capsule capsule = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.2f};
-            m3CreateCapsuleShape(body, &sd, &capsule);
+            NewCapsuleShape(scene.world, body, &sd, &capsule);
         }
     }
     return scene;
@@ -442,19 +443,19 @@ static tbScene SceneMachines(void)
     scene.blurb = "joints at work: motor door, chain, shoulder, slider";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
 
     // The motor door.
     m3BodyDef fd = m3DefaultBodyDef();
     fd.position = (m3Pos3){-6.0, 2.0, 0.0};
-    m3BodyId frame = m3CreateBody(scene.world, &fd);
+    m3BodyId frame = NewBody(scene.world, &fd);
     m3BodyDef dd = m3DefaultBodyDef();
     dd.type = m3_dynamicBody;
     dd.position = (m3Pos3){-5.0, 2.0, 0.0};
-    m3BodyId door = m3CreateBody(scene.world, &dd);
-    m3CreateBoxShape(door, &sd, (m3Vec3){1.0f, 1.8f, 0.1f});
+    m3BodyId door = NewBody(scene.world, &dd);
+    NewBoxShape(scene.world, door, &sd, (m3Vec3){1.0f, 1.8f, 0.1f});
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
     jd.bodyIdA = frame;
@@ -465,21 +466,21 @@ static tbScene SceneMachines(void)
     jd.enableMotor = true;
     jd.motorSpeed = 1.2f;
     jd.maxMotorEffort = 60.0f;
-    m3CreateJoint(scene.world, &jd);
+    NewJoint(scene.world, &jd);
 
     // The chain: five spherical links from a high post.
     m3BodyDef pd = m3DefaultBodyDef();
     pd.position = (m3Pos3){0.0, 9.0, 0.0};
-    m3BodyId post = m3CreateBody(scene.world, &pd);
+    m3BodyId post = NewBody(scene.world, &pd);
     m3BodyId previous = post;
     for (int32_t k = 0; k < 5; ++k)
     {
         m3BodyDef ld = m3DefaultBodyDef();
         ld.type = m3_dynamicBody;
         ld.position = (m3Pos3){0.6 * (double)(k + 1), 9.0, 0.0};
-        m3BodyId link = m3CreateBody(scene.world, &ld);
+        m3BodyId link = NewBody(scene.world, &ld);
         m3Capsule seg = {{-0.25f, 0.0f, 0.0f}, {0.25f, 0.0f, 0.0f}, 0.09f};
-        m3CreateCapsuleShape(link, &sd, &seg);
+        NewCapsuleShape(scene.world, link, &sd, &seg);
         m3JointDef cd = m3DefaultJointDef();
         cd.type = m3_sphericalJoint;
         cd.bodyIdA = previous;
@@ -487,20 +488,20 @@ static tbScene SceneMachines(void)
         cd.localAnchorA = previous.index1 == post.index1 ? (m3Vec3){0.0f, 0.0f, 0.0f}
                                                          : (m3Vec3){0.3f, 0.0f, 0.0f};
         cd.localAnchorB = (m3Vec3){-0.3f, 0.0f, 0.0f};
-        m3CreateJoint(scene.world, &cd);
+        NewJoint(scene.world, &cd);
         previous = link;
     }
 
     // The shoulder: a cone-limited arm.
     m3BodyDef ad = m3DefaultBodyDef();
     ad.position = (m3Pos3){5.0, 6.0, 0.0};
-    m3BodyId anchor = m3CreateBody(scene.world, &ad);
+    m3BodyId anchor = NewBody(scene.world, &ad);
     m3BodyDef armDef = m3DefaultBodyDef();
     armDef.type = m3_dynamicBody;
     armDef.position = (m3Pos3){5.0, 5.2, 0.0};
-    m3BodyId arm = m3CreateBody(scene.world, &armDef);
+    m3BodyId arm = NewBody(scene.world, &armDef);
     m3Capsule armSeg = {{0.0f, 0.4f, 0.0f}, {0.0f, -0.4f, 0.0f}, 0.12f};
-    m3CreateCapsuleShape(arm, &sd, &armSeg);
+    NewCapsuleShape(scene.world, arm, &sd, &armSeg);
     m3JointDef shoulder = m3DefaultJointDef();
     shoulder.type = m3_sphericalJoint;
     shoulder.bodyIdA = anchor;
@@ -510,17 +511,17 @@ static tbScene SceneMachines(void)
     shoulder.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
     shoulder.enableCone = true;
     shoulder.coneAngle = 0.7f;
-    m3CreateJoint(scene.world, &shoulder);
+    NewJoint(scene.world, &shoulder);
 
     // The slider: a motored cart on a rail.
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){0.0, 1.0, 6.0};
-    m3BodyId rail = m3CreateBody(scene.world, &rd);
+    m3BodyId rail = NewBody(scene.world, &rd);
     m3BodyDef cd2 = m3DefaultBodyDef();
     cd2.type = m3_dynamicBody;
     cd2.position = (m3Pos3){0.0, 1.0, 6.0};
-    m3BodyId cart = m3CreateBody(scene.world, &cd2);
-    m3CreateBoxShape(cart, &sd, (m3Vec3){0.35f, 0.25f, 0.25f});
+    m3BodyId cart = NewBody(scene.world, &cd2);
+    NewBoxShape(scene.world, cart, &sd, (m3Vec3){0.35f, 0.25f, 0.25f});
     m3JointDef sj = m3DefaultJointDef();
     sj.type = m3_prismaticJoint;
     sj.bodyIdA = rail;
@@ -533,22 +534,22 @@ static tbScene SceneMachines(void)
     sj.enableMotor = true;
     sj.motorSpeed = 1.5f;
     sj.maxMotorEffort = 40.0f;
-    m3CreateJoint(scene.world, &sj);
+    NewJoint(scene.world, &sj);
 
     // The gear pair: the motor door's hinge work echoed
     // through a 2:1 mesh; the small wheel spins twice as fast,
     // backwards.
     m3BodyDef gearFrame = m3DefaultBodyDef();
     gearFrame.position = (m3Pos3){-5.0, 5.5, -4.0};
-    m3BodyId gearPost = m3CreateBody(scene.world, &gearFrame);
+    m3BodyId gearPost = NewBody(scene.world, &gearFrame);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.type = m3_dynamicBody;
     gd.position = (m3Pos3){-5.6, 5.5, -4.0};
-    m3BodyId big = m3CreateBody(scene.world, &gd);
-    m3CreateBoxShape(big, &sd, (m3Vec3){0.5f, 0.5f, 0.08f});
+    m3BodyId big = NewBody(scene.world, &gd);
+    NewBoxShape(scene.world, big, &sd, (m3Vec3){0.5f, 0.5f, 0.08f});
     gd.position = (m3Pos3){-4.4, 5.5, -4.0};
-    m3BodyId small = m3CreateBody(scene.world, &gd);
-    m3CreateBoxShape(small, &sd, (m3Vec3){0.25f, 0.25f, 0.08f});
+    m3BodyId small = NewBody(scene.world, &gd);
+    NewBoxShape(scene.world, small, &sd, (m3Vec3){0.25f, 0.25f, 0.08f});
     m3JointDef gh = m3DefaultJointDef();
     gh.type = m3_revoluteJoint;
     gh.bodyIdA = gearPost;
@@ -559,11 +560,11 @@ static tbScene SceneMachines(void)
     gh.enableMotor = true;
     gh.motorSpeed = 1.0f;
     gh.maxMotorEffort = 30.0f;
-    m3CreateJoint(scene.world, &gh);
+    NewJoint(scene.world, &gh);
     gh.bodyIdB = small;
     gh.localAnchorA = (m3Vec3){0.6f, 0.0f, 0.0f};
     gh.enableMotor = false;
-    m3CreateJoint(scene.world, &gh);
+    NewJoint(scene.world, &gh);
     m3JointDef mesh = m3DefaultJointDef();
     mesh.type = m3_gearJoint;
     mesh.bodyIdA = big;
@@ -571,18 +572,18 @@ static tbScene SceneMachines(void)
     mesh.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     mesh.ratio = 0.5f; // big drives: small turns twice as fast
-    m3CreateJoint(scene.world, &mesh);
+    NewJoint(scene.world, &mesh);
 
     // The pulley: a heavy crate and a light one trade rope
     // over two fixed points.
     m3BodyDef crateDef = m3DefaultBodyDef();
     crateDef.type = m3_dynamicBody;
     crateDef.position = (m3Pos3){8.0, 3.0, -4.0};
-    m3BodyId heavy = m3CreateBody(scene.world, &crateDef);
-    m3CreateBoxShape(heavy, &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
+    m3BodyId heavy = NewBody(scene.world, &crateDef);
+    NewBoxShape(scene.world, heavy, &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
     crateDef.position = (m3Pos3){10.0, 3.0, -4.0};
-    m3BodyId light = m3CreateBody(scene.world, &crateDef);
-    m3CreateBoxShape(light, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    m3BodyId light = NewBody(scene.world, &crateDef);
+    NewBoxShape(scene.world, light, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
     m3JointDef rope = m3DefaultJointDef();
     rope.type = m3_pulleyJoint;
     rope.bodyIdA = heavy;
@@ -590,25 +591,25 @@ static tbScene SceneMachines(void)
     rope.groundAnchorA = (m3Pos3){8.0, 6.5, -4.0};
     rope.groundAnchorB = (m3Pos3){10.0, 6.5, -4.0};
     rope.ratio = 1.0f;
-    m3CreateJoint(scene.world, &rope);
+    NewJoint(scene.world, &rope);
 
     // The servo weld: a plate held in the air by pure
     // budgeted drive, no rows of steel.
     m3BodyDef servoAnchor = m3DefaultBodyDef();
     servoAnchor.position = (m3Pos3){0.0, 4.0, -6.0};
-    m3BodyId servoPost = m3CreateBody(scene.world, &servoAnchor);
+    m3BodyId servoPost = NewBody(scene.world, &servoAnchor);
     m3BodyDef plateDef = m3DefaultBodyDef();
     plateDef.type = m3_dynamicBody;
     plateDef.position = (m3Pos3){0.0, 3.0, -6.0};
-    m3BodyId plate = m3CreateBody(scene.world, &plateDef);
-    m3CreateBoxShape(plate, &sd, (m3Vec3){0.6f, 0.08f, 0.6f});
+    m3BodyId plate = NewBody(scene.world, &plateDef);
+    NewBoxShape(scene.world, plate, &sd, (m3Vec3){0.6f, 0.08f, 0.6f});
     m3JointDef servo = m3DefaultJointDef();
     servo.type = m3_motorJoint;
     servo.bodyIdA = servoPost;
     servo.bodyIdB = plate;
-    m3JointId hold = m3CreateJoint(scene.world, &servo);
-    m3Joint_SetSpring(hold, true, 5.0f, 1.0f);
-    m3Joint_SetMotorPose(hold, (m3Vec3){0.0f, -1.0f, 0.0f},
+    m3JointId hold = NewJoint(scene.world, &servo);
+    m3Joint_SetSpring(scene.world, hold, true, 5.0f, 1.0f);
+    m3Joint_SetMotorPose(scene.world, hold, (m3Vec3){0.0f, -1.0f, 0.0f},
                          (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
     return scene;
 }
@@ -627,7 +628,7 @@ static tbScene SceneWalker(void)
     scene.blurb = "WASD walk, SPACE jump, E carve under feet, ride the ferry";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
 
     // The fort, same bones as the keep, with a stair ramp of voxel
@@ -659,10 +660,10 @@ static tbScene SceneWalker(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId keep = m3CreateBody(scene.world, &gd);
+    m3BodyId keep = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
-    scene.chunk = m3CreateVoxelChunkShape(keep, &sd, voxels, NULL, 1.0f);
+    scene.chunk = NewVoxelChunkShape(scene.world, keep, &sd, voxels, NULL, 1.0f);
 
     // Crates to shove around the yard.
     m3ShapeDef crateShape = m3DefaultShapeDef();
@@ -672,26 +673,26 @@ static tbScene SceneWalker(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-2.0 + (double)k * 1.6, 1.46, -3.0};
-        m3BodyId crate = m3CreateBody(scene.world, &bd);
-        m3CreateBoxShape(crate, &crateShape, (m3Vec3){0.45f, 0.45f, 0.45f});
+        m3BodyId crate = NewBody(scene.world, &bd);
+        NewBoxShape(scene.world, crate, &crateShape, (m3Vec3){0.45f, 0.45f, 0.45f});
     }
 
     // The ferry: a host-driven kinematic platform shuttling along z.
     m3BodyDef fd = m3DefaultBodyDef();
     fd.type = m3_kinematicBody;
     fd.position = (m3Pos3){9.0, 0.6, 0.0};
-    scene.ferry = m3CreateBody(scene.world, &fd);
+    scene.ferry = NewBody(scene.world, &fd);
     m3ShapeDef fsd = m3DefaultShapeDef();
     fsd.friction = 0.8f;
-    m3CreateBoxShape(scene.ferry, &fsd, (m3Vec3){1.6f, 0.25f, 1.6f});
-    m3Body_SetLinearVelocity(scene.ferry, (m3Vec3){0.0f, 0.0f, 1.2f});
+    NewBoxShape(scene.world, scene.ferry, &fsd, (m3Vec3){1.6f, 0.25f, 1.6f});
+    m3Body_SetLinearVelocity(scene.world, scene.ferry, (m3Vec3){0.0f, 0.0f, 1.2f});
 
     m3CharacterDef cd = m3DefaultCharacterDef();
     // The keep's voxel floor slab tops at y = 1: the spawn stands ON
     // it (the old y = 1.0 buried the capsule to the waist, invisible
     // in wireframe, obvious the moment the renderer went solid).
     cd.position = (m3Pos3){0.0, 2.2, 4.0};
-    scene.hero = m3CreateCharacter(scene.world, &cd);
+    scene.hero = NewCharacter(scene.world, &cd);
     return scene;
 }
 
@@ -706,7 +707,7 @@ static tbScene SceneCircuit(void)
     scene.blurb = "W/S throttle, A/D steer, SPACE handbrake, crash the fort";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
@@ -733,8 +734,8 @@ static tbScene SceneCircuit(void)
     }
     m3BodyDef kd = m3DefaultBodyDef();
     kd.position = (m3Pos3){4.0, 0.0, -8.0};
-    m3BodyId keep = m3CreateBody(scene.world, &kd);
-    scene.chunk = m3CreateVoxelChunkShape(keep, &sd, voxels, NULL, 1.0f);
+    m3BodyId keep = NewBody(scene.world, &kd);
+    scene.chunk = NewVoxelChunkShape(scene.world, keep, &sd, voxels, NULL, 1.0f);
 
     // A quarter-cell ramp west of the fort.
     static uint8_t rampVox[16 * 16 * 16];
@@ -752,7 +753,7 @@ static tbScene SceneCircuit(void)
     }
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){-18.0, 0.0, -2.0};
-    m3CreateVoxelChunkShape(m3CreateBody(scene.world, &rd), &sd, rampVox, NULL, 0.25f);
+    NewVoxelChunkShape(scene.world, NewBody(scene.world, &rd), &sd, rampVox, NULL, 0.25f);
 
     // Crates around the yard for the bumper.
     m3ShapeDef cs = m3DefaultShapeDef();
@@ -764,18 +765,18 @@ static tbScene SceneCircuit(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-6.0 + (double)(k % 3) * 2.0, 0.45, 2.0 + (double)(k / 3) * 2.0};
-        m3CreateBoxShape(m3CreateBody(scene.world, &bd), &cs, (m3Vec3){0.4f, 0.4f, 0.4f});
+        NewBoxShape(scene.world, NewBody(scene.world, &bd), &cs, (m3Vec3){0.4f, 0.4f, 0.4f});
     }
 
     // The car.
     m3BodyDef cd = m3DefaultBodyDef();
     cd.type = m3_dynamicBody;
     cd.position = (m3Pos3){-10.0, 1.2, 4.0};
-    scene.carBody = m3CreateBody(scene.world, &cd);
+    scene.carBody = NewBody(scene.world, &cd);
     m3ShapeDef bodyShape = m3DefaultShapeDef();
     bodyShape.density = 300.0f;
     bodyShape.friction = 0.3f;
-    m3CreateBoxShape(scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(scene.world, scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
     m3VehicleDef vd = m3DefaultVehicleDef();
     vd.chassisId = scene.carBody;
     vd.wheelCount = 4;
@@ -786,7 +787,7 @@ static tbScene SceneCircuit(void)
         vd.wheels[w].driven = true;
         vd.wheels[w].steerable = (w & 1) != 0;
     }
-    scene.car = m3CreateVehicle(scene.world, &vd);
+    scene.car = NewVehicle(scene.world, &vd);
     return scene;
 }
 
@@ -801,7 +802,7 @@ static tbScene SceneJelly(void)
     m3WorldDef def = SceneDef();
     def.softBodyCapacity = 2;
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
 
     static uint8_t voxels[16 * 16 * 16];
@@ -825,10 +826,10 @@ static tbScene SceneJelly(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId keep = m3CreateBody(scene.world, &gd);
+    m3BodyId keep = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
-    scene.chunk = m3CreateVoxelChunkShape(keep, &sd, voxels, NULL, 1.0f);
+    scene.chunk = NewVoxelChunkShape(scene.world, keep, &sd, voxels, NULL, 1.0f);
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     // A GENTLE drop onto the rampart: particles are not bullets, and
@@ -845,7 +846,7 @@ static tbScene SceneJelly(void)
     // particle peaks at rest); 0.08 settles below 2 m/s.
     sb.radius = 0.08f;
     sb.particleMass = 0.08f;
-    scene.jelly = m3CreateSoftBody(scene.world, &sb);
+    scene.jelly = NewSoftBody(scene.world, &sb);
     return scene;
 }
 
@@ -858,7 +859,7 @@ static tbScene ScenePyramid(void)
     scene.blurb = "the classic box pyramid; LMB shoots, R rewinds the collapse";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
@@ -874,8 +875,8 @@ static tbScene ScenePyramid(void)
                 bd.type = m3_dynamicBody;
                 bd.position = (m3Pos3){(double)i - 0.5 * (double)n, 0.4 + 0.81 * (double)layer,
                                        (double)j - 0.5 * (double)n};
-                m3BodyId body = m3CreateBody(scene.world, &bd);
-                m3CreateBoxShape(body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+                m3BodyId body = NewBody(scene.world, &bd);
+                NewBoxShape(scene.world, body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
             }
         }
     }
@@ -891,7 +892,7 @@ static tbScene SceneTower(void)
     scene.blurb = "a tall stack and a wrecking ball; cut the chain with a shot";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
@@ -900,23 +901,23 @@ static tbScene SceneTower(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 0.45 + 0.91 * (double)k, 0.0};
-        m3CreateBoxShape(m3CreateBody(scene.world, &bd), &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
+        NewBoxShape(scene.world, NewBody(scene.world, &bd), &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
     }
     // The ball hangs from a post on a breakable distance rope.
     m3BodyDef pd = m3DefaultBodyDef();
     pd.position = (m3Pos3){-6.0, 14.0, 0.0};
-    m3BodyId post = m3CreateBody(scene.world, &pd);
+    m3BodyId post = NewBody(scene.world, &pd);
     m3BodyDef wd = m3DefaultBodyDef();
     wd.type = m3_dynamicBody;
     // Pulled back along -x so the pendulum swings THROUGH the post
     // line and arrives exactly at the tower (the first draft pulled
     // it sideways and it swung parallel to the stack forever).
     wd.position = (m3Pos3){-12.0, 8.0, 0.0};
-    m3BodyId ball = m3CreateBody(scene.world, &wd);
+    m3BodyId ball = NewBody(scene.world, &wd);
     m3ShapeDef bs = m3DefaultShapeDef();
     bs.density = 8.0f;
     m3Sphere heavy = {{0.0f, 0.0f, 0.0f}, 0.9f};
-    m3CreateSphereShape(ball, &bs, &heavy);
+    NewSphereShape(scene.world, ball, &bs, &heavy);
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_distanceJoint;
     jd.bodyIdA = post;
@@ -924,8 +925,8 @@ static tbScene SceneTower(void)
     jd.enableLimit = true;
     jd.lowerLimit = 0.0f;
     jd.upperLimit = 8.4f;
-    m3JointId rope = m3CreateJoint(scene.world, &jd);
-    m3Joint_SetBreakThresholds(rope, 2200.0f, 0.0f);
+    m3JointId rope = NewJoint(scene.world, &jd);
+    m3Joint_SetBreakThresholds(scene.world, rope, 2200.0f, 0.0f);
     return scene;
 }
 
@@ -939,7 +940,7 @@ static tbScene SceneHill(void)
     scene.blurb = "geared car: W throttle, A/D steer, Q reverse, watch the gear HUD";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.8f;
@@ -949,23 +950,23 @@ static tbScene SceneHill(void)
     // climbs it, fifth gear bogs, exactly as the model predicts.
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){4.0, 0.0, 0.0};
-    m3BodyId hill = m3CreateBody(scene.world, &rd);
+    m3BodyId hill = NewBody(scene.world, &rd);
     m3Vec3 wedge[6] = {{0.0f, 0.0f, -5.0f}, {0.0f, 0.0f, 5.0f},   {12.0f, 0.0f, -5.0f},
                        {12.0f, 0.0f, 5.0f}, {12.0f, 3.5f, -5.0f}, {12.0f, 3.5f, 5.0f}};
-    m3CreateHullShape(hill, &sd, wedge, 6);
+    NewHullShape(scene.world, hill, &sd, wedge, 6);
     // The summit plateau, so the climb has a finish line.
     m3BodyDef td = m3DefaultBodyDef();
     td.position = (m3Pos3){20.0, 1.75, 0.0};
-    m3CreateBoxShape(m3CreateBody(scene.world, &td), &sd, (m3Vec3){4.0f, 1.75f, 5.0f});
+    NewBoxShape(scene.world, NewBody(scene.world, &td), &sd, (m3Vec3){4.0f, 1.75f, 5.0f});
 
     m3BodyDef cd = m3DefaultBodyDef();
     cd.type = m3_dynamicBody;
     cd.position = (m3Pos3){-8.0, 1.2, 0.0};
-    scene.carBody = m3CreateBody(scene.world, &cd);
+    scene.carBody = NewBody(scene.world, &cd);
     m3ShapeDef bodyShape = m3DefaultShapeDef();
     bodyShape.density = 300.0f;
     bodyShape.friction = 0.3f;
-    m3CreateBoxShape(scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(scene.world, scene.carBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
     m3VehicleDef vd = m3DefaultVehicleDef();
     vd.chassisId = scene.carBody;
     vd.wheelCount = 4;
@@ -977,9 +978,9 @@ static tbScene SceneHill(void)
         vd.wheels[w].driven = true;
         vd.wheels[w].steerable = (w & 1) != 0;
     }
-    scene.car = m3CreateVehicle(scene.world, &vd);
+    scene.car = NewVehicle(scene.world, &vd);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
-    m3Vehicle_SetDrivetrain(scene.car, &dt); // auto shift on
+    m3Vehicle_SetDrivetrain(scene.world, scene.car, &dt); // auto shift on
     scene.geared = true;
     return scene;
 }
@@ -994,7 +995,7 @@ static tbScene SceneJointCart(void)
     scene.blurb = "wheel-joint cart: W/S drive, A/D steer; axles snap in the rubble";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
@@ -1004,27 +1005,27 @@ static tbScene SceneJointCart(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){4.0 + (double)(i % 4) * 1.1, 0.13, -1.6 + (double)(i / 4) * 1.0};
-        m3CreateBoxShape(m3CreateBody(scene.world, &bd), &sd, (m3Vec3){0.24f, 0.12f, 0.24f});
+        NewBoxShape(scene.world, NewBody(scene.world, &bd), &sd, (m3Vec3){0.24f, 0.12f, 0.24f});
     }
     m3BodyDef cd = m3DefaultBodyDef();
     cd.type = m3_dynamicBody;
     cd.position = (m3Pos3){-4.0, 0.66, 0.0};
-    scene.chaseBody = m3CreateBody(scene.world, &cd);
+    scene.chaseBody = NewBody(scene.world, &cd);
     m3ShapeDef bodyShape = m3DefaultShapeDef();
     bodyShape.density = 300.0f;
-    m3CreateBoxShape(scene.chaseBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(scene.world, scene.chaseBody, &bodyShape, (m3Vec3){1.0f, 0.25f, 0.5f});
     for (int32_t w = 0; w < 4; ++w)
     {
         m3Vec3 local = {(w & 1) != 0 ? 0.8f : -0.8f, -0.35f, (w & 2) != 0 ? 0.45f : -0.45f};
         m3BodyDef wd = m3DefaultBodyDef();
         wd.type = m3_dynamicBody;
         wd.position = (m3Pos3){-4.0 + (double)local.x, 0.66 + (double)local.y, (double)local.z};
-        m3BodyId wheel = m3CreateBody(scene.world, &wd);
+        m3BodyId wheel = NewBody(scene.world, &wd);
         m3ShapeDef ws = m3DefaultShapeDef();
         ws.density = 120.0f;
         ws.friction = 0.9f;
         m3Sphere tire = {{0.0f, 0.0f, 0.0f}, 0.3f};
-        m3CreateSphereShape(wheel, &ws, &tire);
+        NewSphereShape(scene.world, wheel, &ws, &tire);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_wheelJoint;
         jd.bodyIdA = scene.chaseBody;
@@ -1035,14 +1036,14 @@ static tbScene SceneJointCart(void)
         jd.enableLimit = true;
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
-        scene.axles[w] = m3CreateJoint(scene.world, &jd);
-        m3Joint_SetSpring(scene.axles[w], true, 4.0f, 0.7f);
-        m3Joint_SetTargetTranslation(scene.axles[w], 0.0f);
+        scene.axles[w] = NewJoint(scene.world, &jd);
+        m3Joint_SetSpring(scene.world, scene.axles[w], true, 4.0f, 0.7f);
+        m3Joint_SetTargetTranslation(scene.world, scene.axles[w], 0.0f);
         // The break cap sits ABOVE the drive torque: plain driving
         // never snaps an axle (the first tuning had them inverted
         // and the cart shed wheels pulling away); rubble impacts
         // spike the collinearity torque past it.
-        m3Joint_SetBreakThresholds(scene.axles[w], 0.0f, 240.0f);
+        m3Joint_SetBreakThresholds(scene.world, scene.axles[w], 0.0f, 240.0f);
     }
     return scene;
 }
@@ -1057,20 +1058,20 @@ static tbScene SceneTunnel(void)
     scene.blurb = "WASD walk, C crouch: the stand-up veto refuses under the slab";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef rd = m3DefaultBodyDef();
     rd.position = (m3Pos3){6.0, 1.55, 0.0};
-    m3BodyId roof = m3CreateBody(scene.world, &rd);
-    m3CreateBoxShape(roof, &sd, (m3Vec3){3.0f, 0.25f, 3.0f});
+    m3BodyId roof = NewBody(scene.world, &rd);
+    NewBoxShape(scene.world, roof, &sd, (m3Vec3){3.0f, 0.25f, 3.0f});
     rd.position = (m3Pos3){6.0, 0.75, 3.4};
-    m3CreateBoxShape(m3CreateBody(scene.world, &rd), &sd, (m3Vec3){3.0f, 0.75f, 0.4f});
+    NewBoxShape(scene.world, NewBody(scene.world, &rd), &sd, (m3Vec3){3.0f, 0.75f, 0.4f});
     rd.position = (m3Pos3){6.0, 0.75, -3.4};
-    m3CreateBoxShape(m3CreateBody(scene.world, &rd), &sd, (m3Vec3){3.0f, 0.75f, 0.4f});
+    NewBoxShape(scene.world, NewBody(scene.world, &rd), &sd, (m3Vec3){3.0f, 0.75f, 0.4f});
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.position = (m3Pos3){0.0, 1.0, 0.0};
-    scene.hero = m3CreateCharacter(scene.world, &cd);
+    scene.hero = NewCharacter(scene.world, &cd);
     return scene;
 }
 
@@ -1085,7 +1086,7 @@ static tbScene SceneClothWind(void)
     m3WorldDef def = SceneDef();
     def.softBodyCapacity = 2;
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     AddFloor(scene.world);
 
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
@@ -1097,22 +1098,22 @@ static tbScene SceneClothWind(void)
     sb.compliance = 4.0e-4f;
     sb.radius = 0.09f; // 0.07 left 0.10 m holes; shots slipped through
     sb.particleMass = 0.05f;
-    scene.cloth = m3CreateSoftBody(scene.world, &sb);
+    scene.cloth = NewSoftBody(scene.world, &sb);
     // Pin the west edge: a hanging line, free to billow east.
     for (int32_t z = 0; z < 9; ++z)
     {
-        m3SoftBody_PinParticle(scene.cloth, 0 + 13 * (0 + 1 * z));
+        m3SoftBody_PinParticle(scene.world, scene.cloth, 0 + 13 * (0 + 1 * z));
     }
     m3World_SetWind(scene.world, (m3Vec3){1.0f, 0.0f, 0.15f}, 6.0f, 0.4f, 0.6f);
 
     // The belt: a static slab with a surface velocity, fed crates.
     m3BodyDef beltDef = m3DefaultBodyDef();
     beltDef.position = (m3Pos3){0.0, 0.25, 4.0};
-    m3BodyId belt = m3CreateBody(scene.world, &beltDef);
+    m3BodyId belt = NewBody(scene.world, &beltDef);
     m3ShapeDef beltShape = m3DefaultShapeDef();
     beltShape.friction = 1.0f;
-    m3ShapeId beltTop = m3CreateBoxShape(belt, &beltShape, (m3Vec3){7.0f, 0.25f, 1.2f});
-    m3Shape_SetSurfaceVelocity(beltTop, (m3Vec3){1.6f, 0.0f, 0.0f});
+    m3ShapeId beltTop = NewBoxShape(scene.world, belt, &beltShape, (m3Vec3){7.0f, 0.25f, 1.2f});
+    m3Shape_SetSurfaceVelocity(scene.world, beltTop, (m3Vec3){1.6f, 0.0f, 0.0f});
     m3ShapeDef crateShape = m3DefaultShapeDef();
     crateShape.friction = 0.5f;
     crateShape.density = 80.0f;
@@ -1121,8 +1122,8 @@ static tbScene SceneClothWind(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-6.0 + (double)k * 2.2, 0.95, 4.0};
-        m3CreateBoxShape(m3CreateBody(scene.world, &bd), &crateShape,
-                         (m3Vec3){0.35f, 0.35f, 0.35f});
+        NewBoxShape(scene.world, NewBody(scene.world, &bd), &crateShape,
+                    (m3Vec3){0.35f, 0.35f, 0.35f});
     }
     return scene;
 }
@@ -1137,7 +1138,7 @@ static tbScene SceneMeadow(void)
     scene.blurb = "hulls rain on a rolling heightfield; B drops crates";
     m3WorldDef def = SceneDef();
     scene.def = def;
-    scene.world = m3CreateWorld(&def);
+    scene.world = NewWorld(&def);
     static float heights[24 * 24];
     for (int32_t z = 0; z < 24; ++z)
     {
@@ -1149,10 +1150,10 @@ static tbScene SceneMeadow(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-11.5, 0.0, -11.5};
-    m3BodyId ground = m3CreateBody(scene.world, &gd);
+    m3BodyId ground = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.7f;
-    m3CreateHeightFieldShape(ground, &sd, heights, 24, 24, 1.0f);
+    NewHeightFieldShape(scene.world, ground, &sd, heights, 24, 24, 1.0f);
 
     m3ShapeDef hd = m3DefaultShapeDef();
     hd.friction = 0.5f;
@@ -1162,7 +1163,7 @@ static tbScene SceneMeadow(void)
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){-7.0 + 0.47 * (double)k, 7.0 + 0.8 * (double)k,
                                -6.0 + 0.83 * (double)(k % 13)};
-        m3BodyId rock = m3CreateBody(scene.world, &bd);
+        m3BodyId rock = NewBody(scene.world, &bd);
         m3Vec3 cloud[10];
         for (int32_t v = 0; v < 10; ++v)
         {
@@ -1172,9 +1173,9 @@ static tbScene SceneMeadow(void)
                          0.35f * (float)sin(a * 1.7),
                          0.45f * (float)sin(a) * (0.6f + 0.4f * (float)((v * 53 % 10)) * 0.1f)};
         }
-        if (!m3Shape_IsValid(m3CreateHullShape(rock, &hd, cloud, 10)))
+        if (!m3Shape_IsValid(scene.world, NewHullShape(scene.world, rock, &hd, cloud, 10)))
         {
-            m3CreateBoxShape(rock, &hd, (m3Vec3){0.35f, 0.3f, 0.35f});
+            NewBoxShape(scene.world, rock, &hd, (m3Vec3){0.35f, 0.3f, 0.35f});
         }
     }
     return scene;
@@ -1204,7 +1205,7 @@ static const tbSceneEntry s_scenes[] = {
 static bool s_blastArmed = false;
 static m3Pos3 s_blastAt;
 
-static void SpawnFragments(m3WorldId world)
+static void SpawnFragments(m3World* world)
 {
     m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
     const uint16_t* recipe = fragments.recipe;
@@ -1226,7 +1227,7 @@ static void SpawnFragments(m3WorldId world)
                 (m3Vec3){dx * inv * speed, dy * inv * speed + 2.0f, dz * inv * speed};
             bd.angularVelocity = (m3Vec3){dz * inv * 2.0f, 1.0f, -dx * inv * 2.0f};
         }
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         m3Vec3 half = {0.5f * (m3real)(ev->boundsHi[0] - ev->boundsLo[0] + 1),
                        0.5f * (m3real)(ev->boundsHi[1] - ev->boundsLo[1] + 1),
                        0.5f * (m3real)(ev->boundsHi[2] - ev->boundsLo[2] + 1)};
@@ -1250,7 +1251,8 @@ static void SpawnFragments(m3WorldId world)
                 m3ShapeDef cell = fd;
                 cell.localPosition = (m3Vec3){x + 0.5f - ev->comChunk.x, y + 0.5f - ev->comChunk.y,
                                               z + 0.5f - ev->comChunk.z};
-                if (m3Shape_IsValid(m3CreateBoxShape(body, &cell, (m3Vec3){0.5f, 0.5f, 0.5f})))
+                if (m3Shape_IsValid(world,
+                                    NewBoxShape(world, body, &cell, (m3Vec3){0.5f, 0.5f, 0.5f})))
                 {
                     made += 1;
                 }
@@ -1261,7 +1263,7 @@ static void SpawnFragments(m3WorldId world)
             }
         }
         fd.density = ev->mass / (8.0f * half.x * half.y * half.z);
-        m3CreateBoxShape(body, &fd, half);
+        NewBoxShape(world, body, &fd, half);
     }
 }
 
@@ -1368,24 +1370,24 @@ static m3WorldDef s_recordDef; // the probe recipe for verify
 // Arm on the CURRENT world: the container's snapshot covers all
 // state up to this moment and the journal covers everything after,
 // which is exactly the M3J1 contract.
-static void RecordArm(m3WorldId world, m3WorldDef def)
+static void RecordArm(m3World* world, m3WorldDef def)
 {
     s_recordDef = def;
     s_recordSnapBytes = m3World_SnapshotSize(world);
     free(s_recordSnap);
     s_recordSnap = (uint8_t*)malloc((size_t)s_recordSnapBytes);
-    m3World_Snapshot(world, s_recordSnap, s_recordSnapBytes);
-    s_recording = m3World_StartJournal(world, s_journal, TB_JOURNAL_BYTES);
+    Snapshot(world, s_recordSnap, s_recordSnapBytes);
+    s_recording = StartJournal(world, s_journal, TB_JOURNAL_BYTES);
     snprintf(s_recordStatus, sizeof(s_recordStatus), s_recording ? "recording..." : "arm failed");
 }
 
-static void RecordSave(m3WorldId world)
+static void RecordSave(m3World* world)
 {
     if (!s_recording)
     {
         return;
     }
-    int32_t journalBytes = m3World_StopJournal(world);
+    int32_t journalBytes = StopJournal(world);
     s_recording = false;
     if (journalBytes <= 0)
     {
@@ -1396,7 +1398,7 @@ static void RecordSave(m3WorldId world)
     int32_t need = m3GetEncodedReplaySize(s_recordSnapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
     int32_t wrote =
-        m3EncodeReplay(s_recordSnap, s_recordSnapBytes, s_journal, journalBytes, final, blob, need);
+        EncodeReplay(s_recordSnap, s_recordSnapBytes, s_journal, journalBytes, final, blob, need);
     if (wrote != need)
     {
         free(blob);
@@ -1432,15 +1434,15 @@ static void RecordVerify(void)
     size_t got = fread(blob, 1, (size_t)size, f);
     fclose(f);
     m3ReplayView view;
-    if (got != (size_t)size || !m3DecodeReplay(blob, (int32_t)size, &view))
+    if (got != (size_t)size || !DecodeReplay(blob, (int32_t)size, &view))
     {
         free(blob);
         snprintf(s_recordStatus, sizeof(s_recordStatus), "decode refused");
         return;
     }
-    m3WorldId probe = m3CreateWorld(&s_recordDef);
-    bool ok = m3World_Restore(probe, view.snapshot, view.snapshotBytes) &&
-              m3World_ReplayJournal(probe, view.journal, view.journalBytes) &&
+    m3World* probe = NewWorld(&s_recordDef);
+    bool ok = Restore(probe, view.snapshot, view.snapshotBytes) &&
+              ReplayJournal(probe, view.journal, view.journalBytes) &&
               m3World_Hash(probe) == view.finalHash;
     m3DestroyWorld(probe);
     free(blob);
@@ -1559,17 +1561,17 @@ int main(void)
         float panSpeed = 0.25f;
         Vector3 forward = {-cosf(s_yaw), 0.0f, -sinf(s_yaw)};
         Vector3 rightv = {-forward.z, 0.0f, forward.x};
-        bool walkerScene = m3Character_IsValid(scene.hero);
-        bool driveScene = m3Vehicle_IsValid(scene.car);
-        bool cartScene = !driveScene && m3Body_IsValid(scene.chaseBody);
+        bool walkerScene = m3Character_IsValid(scene.world, scene.hero);
+        bool driveScene = m3Vehicle_IsValid(scene.world, scene.car);
+        bool cartScene = !driveScene && m3Body_IsValid(scene.world, scene.chaseBody);
         if (driveScene)
         {
-            m3Pos3 cp = m3Body_GetPosition(scene.carBody);
+            m3Pos3 cp = m3Body_GetPosition(scene.world, scene.carBody);
             s_target = (Vector3){(float)cp.x, (float)cp.y + 1.0f, (float)cp.z};
         }
         else if (cartScene)
         {
-            m3Pos3 cp = m3Body_GetPosition(scene.chaseBody);
+            m3Pos3 cp = m3Body_GetPosition(scene.world, scene.chaseBody);
             s_target = (Vector3){(float)cp.x, (float)cp.y + 1.0f, (float)cp.z};
         }
         else if (!walkerScene)
@@ -1597,7 +1599,7 @@ int main(void)
         }
         else
         {
-            m3Pos3 hp = m3Character_GetPosition(scene.hero);
+            m3Pos3 hp = m3Character_GetPosition(scene.world, scene.hero);
             s_target = (Vector3){(float)hp.x, (float)hp.y + 0.8f, (float)hp.z};
         }
         Camera3D camera = OrbitCamera();
@@ -1619,15 +1621,15 @@ int main(void)
             float speed = 70.0f;
             bd.linearVelocity = (m3Vec3){pick.direction.x * speed, pick.direction.y * speed,
                                          pick.direction.z * speed};
-            m3BodyId bullet = m3CreateBody(scene.world, &bd);
+            m3BodyId bullet = NewBody(scene.world, &bd);
             m3ShapeDef sd = m3DefaultShapeDef();
             sd.density = 4.0f;
             m3Sphere slug = {{0.0f, 0.0f, 0.0f}, 0.15f};
-            m3CreateSphereShape(bullet, &sd, &slug);
+            NewSphereShape(scene.world, bullet, &sd, &slug);
         }
-        if (IsKeyPressed(KEY_E) && walkerScene && m3Shape_IsValid(scene.chunk))
+        if (IsKeyPressed(KEY_E) && walkerScene && m3Shape_IsValid(scene.world, scene.chunk))
         {
-            m3Pos3 hp = m3Character_GetPosition(scene.hero);
+            m3Pos3 hp = m3Character_GetPosition(scene.world, scene.hero);
             int32_t cx = (int32_t)floor(hp.x + 8.0);
             int32_t cy = (int32_t)floor(hp.y - 0.93);
             int32_t cz = (int32_t)floor(hp.z + 8.0);
@@ -1635,13 +1637,13 @@ int main(void)
             {
                 int32_t lo[3] = {cx - 1 < 0 ? 0 : cx - 1, cy, cz - 1 < 0 ? 0 : cz - 1};
                 int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy, cz + 1 > 15 ? 15 : cz + 1};
-                if (m3VoxelChunk_ClearBox(scene.chunk, lo, hi) > 0)
+                if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
                 {
                     SpawnFragments(scene.world);
                 }
             }
         }
-        else if (IsKeyPressed(KEY_E) && look.hit && m3Shape_IsValid(scene.chunk) &&
+        else if (IsKeyPressed(KEY_E) && look.hit && m3Shape_IsValid(scene.world, scene.chunk) &&
                  look.shapeId.index1 == scene.chunk.index1)
         {
             int32_t cx = (int32_t)floor(look.point.x + 8.0);
@@ -1651,7 +1653,7 @@ int main(void)
                              cz - 1 < 0 ? 0 : cz - 1};
             int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy + 1 > 15 ? 15 : cy + 1,
                              cz + 1 > 15 ? 15 : cz + 1};
-            if (m3VoxelChunk_ClearBox(scene.chunk, lo, hi) > 0)
+            if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
             {
                 SpawnFragments(scene.world);
             }
@@ -1678,10 +1680,10 @@ int main(void)
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
             bd.position = (m3Pos3){look.point.x, look.point.y + 4.0, look.point.z};
-            m3BodyId crate = m3CreateBody(scene.world, &bd);
+            m3BodyId crate = NewBody(scene.world, &bd);
             m3ShapeDef sd = m3DefaultShapeDef();
             sd.friction = 0.5f;
-            m3CreateBoxShape(crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+            NewBoxShape(scene.world, crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
         }
 
         // ---- time and toggles
@@ -1701,7 +1703,7 @@ int main(void)
         {
             showContacts = !showContacts;
         }
-        if (IsKeyPressed(KEY_F3) && m3SoftBody_IsValid(scene.cloth))
+        if (IsKeyPressed(KEY_F3) && m3SoftBody_IsValid(scene.world, scene.cloth))
         {
             windOn = !windOn;
             m3World_SetWind(scene.world, (m3Vec3){1.0f, 0.0f, 0.15f}, windOn ? 6.0f : 0.0f, 0.4f,
@@ -1727,22 +1729,22 @@ int main(void)
                 double a = (double)dripped * 0.61803;
                 bd.position = (m3Pos3){8.0 * sin(a * 6.2831), 20.0 + 2.0 * sin(a * 2.7),
                                        8.0 * cos(a * 6.2831)};
-                m3BodyId body = m3CreateBody(scene.world, &bd);
+                m3BodyId body = NewBody(scene.world, &bd);
                 m3ShapeDef sd = m3DefaultShapeDef();
                 sd.friction = 0.5f;
                 if (dripped % 3 == 0)
                 {
                     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.35f};
-                    m3CreateSphereShape(body, &sd, &ball);
+                    NewSphereShape(scene.world, body, &sd, &ball);
                 }
                 else if (dripped % 3 == 1)
                 {
-                    m3CreateBoxShape(body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+                    NewBoxShape(scene.world, body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
                 }
                 else
                 {
                     m3Capsule capsule = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.2f};
-                    m3CreateCapsuleShape(body, &sd, &capsule);
+                    NewCapsuleShape(scene.world, body, &sd, &capsule);
                 }
             }
         }
@@ -1771,7 +1773,7 @@ int main(void)
                 wish.x *= speed / wl;
                 wish.z *= speed / wl;
             }
-            bool grounded = m3Character_IsGrounded(scene.hero);
+            bool grounded = m3Character_IsGrounded(scene.world, scene.hero);
             if (grounded && IsKeyPressed(KEY_SPACE))
             {
                 heroVy = 5.2f;
@@ -1788,14 +1790,14 @@ int main(void)
             {
                 if (!crouched)
                 {
-                    if (m3Character_SetStance(scene.hero, 0.2f, 0.4f))
+                    if (SetStance(scene.world, scene.hero, 0.2f, 0.4f))
                     {
                         crouched = true;
                     }
                 }
                 else
                 {
-                    if (m3Character_SetStance(scene.hero, 0.5f, 0.4f))
+                    if (SetStance(scene.world, scene.hero, 0.5f, 0.4f))
                     {
                         crouched = false;
                     }
@@ -1805,7 +1807,8 @@ int main(void)
                     }
                 }
             }
-            m3Character_Move(scene.hero, (m3Vec3){wish.x / 60.0f, heroVy / 60.0f, wish.z / 60.0f});
+            m3Character_Move(scene.world, scene.hero,
+                             (m3Vec3){wish.x / 60.0f, heroVy / 60.0f, wish.z / 60.0f});
         }
 
         // The raycast car (flat or geared): W/S throttle, A/D steer.
@@ -1814,7 +1817,7 @@ int main(void)
             if (scene.geared && IsKeyPressed(KEY_Q))
             {
                 reverseGear = !reverseGear;
-                m3Vehicle_SelectGear(scene.car, reverseGear ? -1 : 1);
+                m3Vehicle_SelectGear(scene.world, scene.car, reverseGear ? -1 : 1);
             }
             float throttle;
             if (scene.geared)
@@ -1828,7 +1831,7 @@ int main(void)
             float steer = (IsKeyDown(KEY_A) ? 1.0f : 0.0f) - (IsKeyDown(KEY_D) ? 1.0f : 0.0f);
             float brake = scene.geared ? (IsKeyDown(KEY_S) ? 1.0f : 0.0f)
                                        : (IsKeyDown(KEY_SPACE) ? 1.0f : 0.0f);
-            m3Vehicle_SetCommands(scene.car, throttle, steer, brake);
+            m3Vehicle_SetCommands(scene.world, scene.car, throttle, steer, brake);
         }
 
         // The joint cart: spin the surviving axles, steer the
@@ -1839,29 +1842,30 @@ int main(void)
             float steer = (IsKeyDown(KEY_A) ? 0.45f : 0.0f) - (IsKeyDown(KEY_D) ? 0.45f : 0.0f);
             for (int32_t w = 0; w < 4; ++w)
             {
-                if (m3Joint_IsValid(scene.axles[w]))
+                if (m3Joint_IsValid(scene.world, scene.axles[w]))
                 {
-                    m3Joint_SetMotor(scene.axles[w], spin != 0.0f, spin, 70.0f);
+                    m3Joint_SetMotor(scene.world, scene.axles[w], spin != 0.0f, spin, 70.0f);
                     if ((w & 1) != 0)
                     {
                         // The +x pair leads under W's forward spin.
-                        m3Joint_SetSteer(scene.axles[w], true, steer, 8.0f, 1.0f, 0.0f);
+                        m3Joint_SetSteer(scene.world, scene.axles[w], true, steer, 8.0f, 1.0f,
+                                         0.0f);
                     }
                 }
             }
         }
 
         // The ferry.
-        if (walkerScene && m3Body_IsValid(scene.ferry) && !paused)
+        if (walkerScene && m3Body_IsValid(scene.world, scene.ferry) && !paused)
         {
-            m3Pos3 fp = m3Body_GetPosition(scene.ferry);
+            m3Pos3 fp = m3Body_GetPosition(scene.world, scene.ferry);
             if (fp.z > 6.0)
             {
-                m3Body_SetLinearVelocity(scene.ferry, (m3Vec3){0.0f, 0.0f, -1.2f});
+                m3Body_SetLinearVelocity(scene.world, scene.ferry, (m3Vec3){0.0f, 0.0f, -1.2f});
             }
             else if (fp.z < -6.0)
             {
-                m3Body_SetLinearVelocity(scene.ferry, (m3Vec3){0.0f, 0.0f, 1.2f});
+                m3Body_SetLinearVelocity(scene.world, scene.ferry, (m3Vec3){0.0f, 0.0f, 1.2f});
             }
         }
 
@@ -1870,7 +1874,7 @@ int main(void)
         {
             ringHead = (ringHead + RING - 1) % RING;
             ringCount -= 1;
-            m3World_Restore(scene.world, ring[ringHead], snapBytes);
+            Restore(scene.world, ring[ringHead], snapBytes);
         }
         else if ((!paused && !rewinding) || IsKeyPressed(KEY_F))
         {
@@ -1882,7 +1886,7 @@ int main(void)
             {
                 // The rewind ring pauses while a recording runs: a
                 // restore would fork the journaled timeline.
-                if (m3World_Snapshot(scene.world, ring[ringHead], snapBytes) == snapBytes)
+                if (Snapshot(scene.world, ring[ringHead], snapBytes) == snapBytes)
                 {
                     ringHead = (ringHead + 1) % RING;
                     if (ringCount < RING)
@@ -1945,7 +1949,7 @@ int main(void)
         for (int32_t soft = 0; soft < 2; ++soft)
         {
             m3SoftBodyId body = soft == 0 ? scene.jelly : scene.cloth;
-            if (!m3SoftBody_IsValid(body))
+            if (!m3SoftBody_IsValid(scene.world, body))
             {
                 continue;
             }
@@ -1959,12 +1963,14 @@ int main(void)
                 {
                     for (int32_t x = 0; x < 12; ++x)
                     {
-                        Vector3 p00 = FromPos(m3SoftBody_GetParticlePosition(body, x + 13 * z));
-                        Vector3 p10 = FromPos(m3SoftBody_GetParticlePosition(body, x + 1 + 13 * z));
-                        Vector3 p01 =
-                            FromPos(m3SoftBody_GetParticlePosition(body, x + 13 * (z + 1)));
-                        Vector3 p11 =
-                            FromPos(m3SoftBody_GetParticlePosition(body, x + 1 + 13 * (z + 1)));
+                        Vector3 p00 =
+                            FromPos(m3SoftBody_GetParticlePosition(scene.world, body, x + 13 * z));
+                        Vector3 p10 = FromPos(
+                            m3SoftBody_GetParticlePosition(scene.world, body, x + 1 + 13 * z));
+                        Vector3 p01 = FromPos(
+                            m3SoftBody_GetParticlePosition(scene.world, body, x + 13 * (z + 1)));
+                        Vector3 p11 = FromPos(m3SoftBody_GetParticlePosition(scene.world, body,
+                                                                             x + 1 + 13 * (z + 1)));
                         DrawTriangle3D(p00, p10, p11, tone);
                         DrawTriangle3D(p00, p11, p01, tone);
                         DrawTriangle3D(p00, p11, p10, tone);
@@ -1974,28 +1980,28 @@ int main(void)
             }
             else
             {
-                int32_t pc = m3SoftBody_GetParticleCount(body);
+                int32_t pc = m3SoftBody_GetParticleCount(scene.world, body);
                 for (int32_t p = 0; p < pc; ++p)
                 {
-                    m3Pos3 q = m3SoftBody_GetParticlePosition(body, p);
+                    m3Pos3 q = m3SoftBody_GetParticlePosition(scene.world, body, p);
                     DrawCubeV(FromPos(q), (Vector3){0.13f, 0.13f, 0.13f}, tone);
                 }
             }
         }
         if (driveScene)
         {
-            m3Pos3 cp = m3Body_GetPosition(scene.carBody);
-            m3Quat cq = m3Body_GetRotation(scene.carBody);
+            m3Pos3 cp = m3Body_GetPosition(scene.world, scene.carBody);
+            m3Quat cq = m3Body_GetRotation(scene.world, scene.carBody);
             for (int32_t w = 0; w < 4; ++w)
             {
                 m3Vec3 anchor = {(w & 1) != 0 ? 0.8f : -0.8f, -0.25f,
                                  (w & 2) != 0 ? 0.45f : -0.45f};
-                float suspLen = 0.4f - m3Vehicle_GetCompression(scene.car, w);
+                float suspLen = 0.4f - m3Vehicle_GetCompression(scene.world, scene.car, w);
                 m3Vec3 local = {anchor.x, anchor.y - suspLen, anchor.z};
                 m3Vec3 world3 = m3RotateVec3(cq, local);
                 Vector3 hub = {(float)cp.x + world3.x, (float)cp.y + world3.y,
                                (float)cp.z + world3.z};
-                bool on = m3Vehicle_IsWheelGrounded(scene.car, w);
+                bool on = m3Vehicle_IsWheelGrounded(scene.world, scene.car, w);
                 DrawSphere(hub, 0.3f, on ? (Color){90, 96, 104, 255} : (Color){150, 150, 160, 255});
             }
         }
@@ -2015,10 +2021,10 @@ int main(void)
         UiLabel(&ui, TextFormat("step %d", stepCounter), (Color){150, 200, 150, 255});
         if (scene.geared)
         {
-            int32_t gear = m3Vehicle_GetGear(scene.car);
+            int32_t gear = m3Vehicle_GetGear(scene.world, scene.car);
             UiLabel(&ui,
                     TextFormat("gear %s%d   rpm %.0f", gear < 0 ? "R" : "", gear < 0 ? -gear : gear,
-                               (double)m3Vehicle_GetEngineRpm(scene.car)),
+                               (double)m3Vehicle_GetEngineRpm(scene.world, scene.car)),
                     (Color){235, 220, 160, 255});
         }
         if (cartScene)
@@ -2026,7 +2032,7 @@ int main(void)
             int32_t alive = 0;
             for (int32_t w = 0; w < 4; ++w)
             {
-                alive += m3Joint_IsValid(scene.axles[w]) ? 1 : 0;
+                alive += m3Joint_IsValid(scene.world, scene.axles[w]) ? 1 : 0;
             }
             UiLabel(&ui, TextFormat("axles %d/4", alive), (Color){235, 220, 160, 255});
         }

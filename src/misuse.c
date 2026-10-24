@@ -10,19 +10,22 @@
 #include <intrin.h>
 #endif
 
-void m3Refuse(m3World* world, m3Result reason)
+m3Result m3Refuse(const m3World* world, m3Result reason)
 {
-    m3NoteResult(reason);
-    if (world != NULL && reason == m3_errorInvalid)
+    if (world == NULL || reason == m3_errorCapacity || reason == m3_errorUnsupported ||
+        reason == m3_errorVersion)
     {
-        // Reader-class calls refuse too, possibly on several threads at
-        // once, so the counter is bumped atomically.
-#if defined(_MSC_VER)
-        _InterlockedIncrement64(&world->misuseCount);
-#else
-        __atomic_fetch_add(&world->misuseCount, 1, __ATOMIC_RELAXED);
-#endif
+        return reason; // not the caller's bug against this world
     }
+    // Reader calls refuse too, possibly on several threads at once, so the
+    // counter is bumped atomically; it is the one field a reader writes.
+    m3World* counted = (m3World*)world;
+#if defined(_MSC_VER)
+    _InterlockedIncrement64(&counted->misuseCount);
+#else
+    __atomic_fetch_add(&counted->misuseCount, 1, __ATOMIC_RELAXED);
+#endif
+    return reason;
 }
 
 uint64_t m3MisuseCount(const m3World* world)

@@ -6,6 +6,7 @@
 // its current, and wakes sleepers when the tide arrives or leaves.
 // No fluid sim BY LAW.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -16,23 +17,23 @@
 #include <stdio.h>
 #include <string.h>
 
-static m3WorldId Pool(m3WaterVolumeId* outWater, float flowX)
+static m3World* Pool(m3WaterVolumeId* outWater, float flowX)
 {
     // A floor at y = 0 and a 4-meter-deep basin of water above it.
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 16;
     wd.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
     wdf.lo = (m3Pos3){-10.0, 0.0, -10.0};
     wdf.hi = (m3Pos3){10.0, 4.0, 10.0};
     wdf.flow = (m3Vec3){flowX, 0.0f, 0.0f};
-    m3WaterVolumeId water = m3CreateWaterVolume(world, &wdf);
+    m3WaterVolumeId water = NewWaterVolume(world, &wdf);
     if (outWater != NULL)
     {
         *outWater = water;
@@ -40,31 +41,31 @@ static m3WorldId Pool(m3WaterVolumeId* outWater, float flowX)
     return world;
 }
 
-static m3BodyId DropCrate(m3WorldId world, double x, double y, float density)
+static m3BodyId DropCrate(m3World* world, double x, double y, float density)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){x, y, 0.0};
-    m3BodyId crate = m3CreateBody(world, &bd);
+    m3BodyId crate = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = density;
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
     return crate;
 }
 
 static void TestFloatAndSink(void)
 {
     m3WaterVolumeId water;
-    m3WorldId world = Pool(&water, 0.0f);
-    CHECK(m3WaterVolume_IsValid(water), "the basin fills");
+    m3World* world = Pool(&water, 0.0f);
+    CHECK(m3WaterVolume_IsValid(world, water), "the basin fills");
     m3BodyId cork = DropCrate(world, -2.0, 6.0, 400.0f);  // lighter than water
     m3BodyId anvil = DropCrate(world, 2.0, 6.0, 3000.0f); // heavier than water
     for (int32_t i = 0; i < 420; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double corkY = m3Body_GetPosition(cork).y;
-    double anvilY = m3Body_GetPosition(anvil).y;
+    double corkY = m3Body_GetPosition(world, cork).y;
+    double anvilY = m3Body_GetPosition(world, anvil).y;
     CHECK(corkY > 2.5 && corkY < 4.6, "the light crate floats near the surface");
     CHECK(anvilY < 0.8, "the dense crate sinks to the floor");
     m3DestroyWorld(world);
@@ -72,8 +73,8 @@ static void TestFloatAndSink(void)
 
 static void TestFlowCarries(void)
 {
-    m3WorldId still = Pool(NULL, 0.0f);
-    m3WorldId river = Pool(NULL, 1.5f);
+    m3World* still = Pool(NULL, 0.0f);
+    m3World* river = Pool(NULL, 1.5f);
     m3BodyId a = DropCrate(still, 0.0, 3.5, 400.0f);
     m3BodyId b = DropCrate(river, 0.0, 3.5, 400.0f);
     for (int32_t i = 0; i < 300; ++i)
@@ -81,8 +82,8 @@ static void TestFlowCarries(void)
         m3World_Step(still, 1.0f / 60.0f, 4);
         m3World_Step(river, 1.0f / 60.0f, 4);
     }
-    double ax = m3Body_GetPosition(a).x;
-    double bx = m3Body_GetPosition(b).x;
+    double ax = m3Body_GetPosition(still, a).x;
+    double bx = m3Body_GetPosition(river, b).x;
     CHECK(fabs(ax) < 0.2, "still water leaves the floater in place");
     CHECK(bx > 2.0, "the current carries the floater downstream");
     m3DestroyWorld(still);
@@ -97,34 +98,34 @@ static void TestTideWakesSleepers(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 16;
     wd.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     m3BodyId crate = DropCrate(world, 0.0, 0.6, 300.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m3Body_IsAwake(crate), "the crate sleeps on the dry floor");
+    CHECK(!m3Body_IsAwake(world, crate), "the crate sleeps on the dry floor");
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
     wdf.lo = (m3Pos3){-5.0, 0.0, -5.0};
     wdf.hi = (m3Pos3){5.0, 3.0, 5.0};
-    m3WaterVolumeId tide = m3CreateWaterVolume(world, &wdf);
-    CHECK(m3Body_IsAwake(crate), "the incoming tide wakes the sleeper");
+    m3WaterVolumeId tide = NewWaterVolume(world, &wdf);
+    CHECK(m3Body_IsAwake(world, crate), "the incoming tide wakes the sleeper");
     for (int32_t i = 0; i < 420; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(crate).y > 1.5, "the woken crate floats up");
-    m3DestroyWaterVolume(tide);
+    CHECK(m3Body_GetPosition(world, crate).y > 1.5, "the woken crate floats up");
+    DestroyWaterVolume(world, tide);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(crate).y < 0.8, "the ebb drops the floater back");
+    CHECK(m3Body_GetPosition(world, crate).y < 0.8, "the ebb drops the floater back");
     m3DestroyWorld(world);
 }
 
@@ -133,20 +134,20 @@ static void TestWaterWalls(void)
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     uint64_t before = m3World_Hash(world);
     m3WaterVolumeDef def = m3DefaultWaterVolumeDef();
     def.hi = def.lo; // empty box
-    CHECK(!m3WaterVolume_IsValid(m3CreateWaterVolume(world, &def)), "an empty box refuses");
+    CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "an empty box refuses");
     def = m3DefaultWaterVolumeDef();
     def.density = -5.0f;
-    CHECK(!m3WaterVolume_IsValid(m3CreateWaterVolume(world, &def)), "negative density refuses");
+    CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "negative density refuses");
     def = m3DefaultWaterVolumeDef();
     def.lo.x = (double)NAN;
-    CHECK(!m3WaterVolume_IsValid(m3CreateWaterVolume(world, &def)), "a NaN corner refuses");
+    CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "a NaN corner refuses");
     def = m3DefaultWaterVolumeDef();
     def.linearDrag = -1.0f;
-    CHECK(!m3WaterVolume_IsValid(m3CreateWaterVolume(world, &def)), "negative drag refuses");
+    CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "negative drag refuses");
     CHECK(m3World_Hash(world) == before, "refused water moved no bits");
     // The ninth volume refuses loudly.
     m3WaterVolumeId ids[8];
@@ -155,15 +156,15 @@ static void TestWaterWalls(void)
     {
         def.lo = (m3Pos3){(double)k * 3.0, 0.0, 0.0};
         def.hi = (m3Pos3){(double)k * 3.0 + 2.0, 2.0, 2.0};
-        ids[k] = m3CreateWaterVolume(world, &def);
-        CHECK(m3WaterVolume_IsValid(ids[k]), "eight volumes fit");
+        ids[k] = NewWaterVolume(world, &def);
+        CHECK(m3WaterVolume_IsValid(world, ids[k]), "eight volumes fit");
     }
     def.lo = (m3Pos3){30.0, 0.0, 0.0};
     def.hi = (m3Pos3){32.0, 2.0, 2.0};
-    CHECK(!m3WaterVolume_IsValid(m3CreateWaterVolume(world, &def)), "the ninth refuses");
-    m3DestroyWaterVolume(ids[3]);
-    CHECK(!m3WaterVolume_IsValid(ids[3]), "a destroyed volume goes stale");
-    m3DestroyWaterVolume(ids[3]); // stale destroy: quiet no-op
+    CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "the ninth refuses");
+    DestroyWaterVolume(world, ids[3]);
+    CHECK(!m3WaterVolume_IsValid(world, ids[3]), "a destroyed volume goes stale");
+    DestroyWaterVolume(world, ids[3]); // stale destroy: quiet no-op
     m3DestroyWorld(world);
 }
 
@@ -181,12 +182,12 @@ static void TestSoftBuoyancy(void)
         m3WorldDef wd = m3DefaultWorldDef();
         wd.bodyCapacity = 8;
         wd.shapeCapacity = 8;
-        m3WorldId world = m3CreateWorld(&wd);
+        m3World* world = NewWorld(&wd);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
         if (pass == 1)
         {
             m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
@@ -194,7 +195,7 @@ static void TestSoftBuoyancy(void)
             wdf.hi = (m3Pos3){8.0, 4.0, 8.0};
             wdf.density = 1500.0f;
             wdf.flow = (m3Vec3){0.8f, 0.0f, 0.0f};
-            m3CreateWaterVolume(world, &wdf);
+            NewWaterVolume(world, &wdf);
         }
         m3SoftBodyDef sb = m3DefaultSoftBodyDef();
         sb.position = (m3Pos3){0.0, 3.0, 0.0};
@@ -202,13 +203,13 @@ static void TestSoftBuoyancy(void)
         sb.countY = 1;
         sb.countZ = 4;
         sb.spacing = 0.25f;
-        m3SoftBodyId cloth = m3CreateSoftBody(world, &sb);
-        CHECK(m3SoftBody_IsValid(cloth), "the cloth creates");
+        m3SoftBodyId cloth = NewSoftBody(world, &sb);
+        CHECK(m3SoftBody_IsValid(world, cloth), "the cloth creates");
         for (int32_t i = 0; i < 300; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Pos3 c = m3SoftBody_GetParticlePosition(cloth, 5);
+        m3Pos3 c = m3SoftBody_GetParticlePosition(world, cloth, 5);
         if (pass == 0)
         {
             dryY = c.y;

@@ -19,7 +19,6 @@
 #include "shape.h"
 #include "solver_math.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -45,8 +44,7 @@ m3CharacterDef m3DefaultCharacterDef(void)
 int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId)
 {
     int32_t index = characterId.index1 - 1;
-    if (world == NULL || characterId.world != world->idWorld ||
-        !m3IdPoolValid(&world->characters.charPool, index, characterId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->characters.charPool, index, characterId.generation))
     {
         return -1;
     }
@@ -458,9 +456,13 @@ void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* ro
     }
 }
 
-m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
+m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def, m3CharacterId* characterOut)
 {
-    m3World* world = m3WorldFromId(worldId);
+    if (characterOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *characterOut = m3_nullCharacterId;
     if (world == NULL || def == NULL || def->internalValue != M3_CHARACTER_COOKIE ||
         !m3FinitePos3(def->position) || !m3FiniteF(def->radius) || !(def->radius > 0.0f) ||
         !m3FiniteF(def->halfHeight) || def->halfHeight < 0.0f || !m3FiniteF(def->maxSlopeAngle) ||
@@ -469,16 +471,14 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
         !m3FiniteF(def->stepHeight) || def->stepHeight < 0.0f || !m3FiniteF(def->mass) ||
         !(def->mass > 0.0f) || !m3FiniteF(def->pushMaxMassRatio) || def->pushMaxMassRatio < 0.0f)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullCharacterId;
+        return m3Refuse(world, m3_errorInvalid);
     }
     int32_t slot = m3CreateCharacterInternal(world, def);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullCharacterId;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3CharacterId id = {slot + 1, world->idWorld, world->characters.charPool.generations[slot]};
+    m3CharacterId id = {slot + 1, world->characters.charPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateCharacter record;
@@ -487,35 +487,33 @@ m3CharacterId m3CreateCharacter(m3WorldId worldId, const m3CharacterDef* def)
         record.expected = id;
         m3JournalRecord(world, m3_opCreateCharacter, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *characterOut = id;
+    return m3_success;
 }
 
-void m3DestroyCharacter(m3CharacterId characterId)
+m3Result m3DestroyCharacter(m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale: the quiet destroy contract
+        return m3Refuse(world, m3MissingId(character.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroyCharacter, &characterId, (int32_t)sizeof(characterId));
+        m3JournalRecord(world, m3_opDestroyCharacter, &character, (int32_t)sizeof(character));
     }
     m3DestroyCharacterInternal(world, slot);
+    return m3_success;
 }
 
-bool m3Character_IsValid(m3CharacterId characterId)
+bool m3Character_IsValid(const m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    return world != NULL && m3CharacterSlot(world, characterId) >= 0;
+    return m3CharacterSlot(world, character) >= 0;
 }
 
-void m3Character_Move(m3CharacterId characterId, m3Vec3 translation)
+void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translation)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0 || !m3FiniteV3(translation) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
@@ -529,17 +527,16 @@ void m3Character_Move(m3CharacterId characterId, m3Vec3 translation)
     {
         m3OpCharacterMove record;
         memset(&record, 0, sizeof(record));
-        record.id = characterId;
+        record.id = character;
         record.translation = translation;
         m3JournalRecord(world, m3_opCharacterMove, &record, (int32_t)sizeof(record));
     }
     m3CharacterMoveInternal(world, slot, translation);
 }
 
-m3Pos3 m3Character_GetPosition(m3CharacterId characterId)
+m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -548,17 +545,15 @@ m3Pos3 m3Character_GetPosition(m3CharacterId characterId)
     return world->bodies.transforms[world->characters.charBody[slot]].p;
 }
 
-bool m3Character_IsGrounded(m3CharacterId characterId)
+bool m3Character_IsGrounded(const m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     return slot >= 0 && world->characters.charGrounded[slot] != 0;
 }
 
-m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId)
+m3Vec3 m3Character_GetGroundNormal(const m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -567,10 +562,9 @@ m3Vec3 m3Character_GetGroundNormal(m3CharacterId characterId)
     return world->characters.charGroundNormal[slot];
 }
 
-m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
+m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0 || world->characters.charGrounded[slot] == 0)
     {
         return m3_nullBodyId;
@@ -581,7 +575,7 @@ m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
     {
         return m3_nullBodyId; // destroyed or recycled: no impostors
     }
-    return (m3BodyId){under + 1, world->idWorld, world->bodies.bodyPool.generations[under]};
+    return (m3BodyId){under + 1, world->bodies.bodyPool.generations[under]};
 }
 
 // The stance change: resize the capsule FEET ANCHORED. The
@@ -591,13 +585,13 @@ m3BodyId m3Character_GetGroundBody(m3CharacterId characterId)
 // refuses just like a pressing ceiling); the cast reaches one skin
 // upward so the standing gap survives the change. Shrinks skip the
 // veto by law: removing volume cannot create contact.
-bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius)
+m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius)
 {
     if (!m3FiniteF(halfHeight) || !m3FiniteF(radius) || halfHeight < 0.05f || radius < 0.05f ||
         halfHeight > 10.0f || radius > 10.0f)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // hostile dimensions never touch state (a veto is not misuse)
+        // Hostile dimensions never touch state (a veto is not misuse).
+        return m3Refuse(world, m3_errorInvalid);
     }
     int32_t body = world->characters.charBody[slot];
     m3real oldHh = world->characters.charHalfHeight[slot];
@@ -614,7 +608,7 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
                                   (m3Vec3){0.0f, world->characters.charSkin[slot], 0.0f}, body);
         if (hit.hit)
         {
-            return false; // the stand-up veto: something presses
+            return m3_errorState; // the stand-up veto: something presses
         }
     }
     world->characters.charHalfHeight[slot] = halfHeight;
@@ -629,44 +623,44 @@ bool m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, 
     // The grounded state stays correct through the resize (the same
     // refresh a restore runs).
     RefreshGroundingCore(world, slot);
-    return true;
+    return m3_success;
 }
 
-bool m3Character_SetStance(m3CharacterId characterId, m3real halfHeight, m3real radius)
+m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real halfHeight,
+                               m3real radius)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
+    int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false;
+        return m3Refuse(world, m3MissingId(character.index1));
     }
-    if (!m3CharacterStanceInternal(world, slot, halfHeight, radius))
+    m3Result result = m3CharacterStanceInternal(world, slot, halfHeight, radius);
+    if (result != m3_success)
     {
-        return false; // vetoed or hostile: never journals
+        return result; // vetoed or hostile: never journals
     }
     if (world->recorder.journalActive != 0)
     {
         m3OpCharacterStance record;
         memset(&record, 0, sizeof(record));
-        record.id = characterId;
+        record.id = character;
         record.halfHeight = halfHeight;
         record.radius = radius;
         m3JournalRecord(world, m3_opCharacterStance, &record, (int32_t)sizeof(record));
     }
-    return true;
+    return m3_success;
 }
 
-void m3Character_GetStance(m3CharacterId characterId, m3real* halfHeight, m3real* radius)
+void m3Character_GetStance(const m3World* world, m3CharacterId character, m3real* halfHeightOut,
+                           m3real* radiusOut)
 {
-    m3World* world = m3WorldFromTag(characterId.world);
-    int32_t slot = world != NULL ? m3CharacterSlot(world, characterId) : -1;
-    if (halfHeight != NULL)
+    int32_t slot = m3CharacterSlot(world, character);
+    if (halfHeightOut != NULL)
     {
-        *halfHeight = slot >= 0 ? world->characters.charHalfHeight[slot] : 0.0f;
+        *halfHeightOut = slot >= 0 ? world->characters.charHalfHeight[slot] : 0.0f;
     }
-    if (radius != NULL)
+    if (radiusOut != NULL)
     {
-        *radius = slot >= 0 ? world->characters.charRadius[slot] : 0.0f;
+        *radiusOut = slot >= 0 ? world->characters.charRadius[slot] : 0.0f;
     }
 }

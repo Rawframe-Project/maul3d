@@ -7,6 +7,7 @@
 // pre-solve veto builds a one-way platform under the loud purity
 // contract; streams replay identically on twins.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -16,17 +17,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId PlaneWorld(m3ShapeId* outFloor)
+static m3World* PlaneWorld(m3ShapeId* outFloor)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId fs = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId fs = NewPlaneShape(world, ground, &sd, &floor);
     if (outFloor != NULL)
     {
         *outFloor = fs;
@@ -42,19 +43,19 @@ static void TestHitEvents(void)
     for (int32_t mode = 0; mode < 3; ++mode)
     {
         m3ShapeId floor;
-        m3WorldId world = PlaneWorld(&floor);
+        m3World* world = PlaneWorld(&floor);
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 2.0, 0.0};
-        m3BodyId ball = m3CreateBody(world, &bd);
+        m3BodyId ball = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.5f};
-        m3ShapeId shape = m3CreateSphereShape(ball, &sd, &s);
+        m3ShapeId shape = NewSphereShape(world, ball, &sd, &s);
         (void)shape;
         if (mode >= 1)
         {
-            m3Shape_EnableHitEvents(floor, true);
-            CHECK(m3Shape_IsHitEventsEnabled(floor), "hit flag reads back");
+            m3Shape_EnableHitEvents(world, floor, true);
+            CHECK(m3Shape_IsHitEventsEnabled(world, floor), "hit flag reads back");
         }
         if (mode == 2)
         {
@@ -101,13 +102,13 @@ static void TestBodyMoveEvents(void)
 {
     // The falling crate reports its transform every step; the step
     // it drops off to sleep is marked, then silence until disturbed.
-    m3WorldId world = PlaneWorld(NULL);
+    m3World* world = PlaneWorld(NULL);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId crate = m3CreateBody(world, &bd);
+    m3BodyId crate = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
 
     int32_t sleepEdges = 0;
     int32_t silentSteps = 0;
@@ -123,7 +124,7 @@ static void TestBodyMoveEvents(void)
             if (ev[k].bodyId.index1 == crate.index1)
             {
                 found = true;
-                m3Pos3 p = m3Body_GetPosition(crate);
+                m3Pos3 p = m3Body_GetPosition(world, crate);
                 if (fabs(ev[k].transform.p.y - p.y) > 1.0e-12)
                 {
                     transformsMatch = false;
@@ -142,7 +143,7 @@ static void TestBodyMoveEvents(void)
     CHECK(transformsMatch, "move events mirror the body transform");
     CHECK(sleepEdges == 1, "exactly one fell-asleep edge");
     CHECK(silentSteps > 100, "a sleeping body emits nothing");
-    CHECK(!m3Body_IsAwake(crate), "the crate did sleep");
+    CHECK(!m3Body_IsAwake(world, crate), "the crate did sleep");
     m3DestroyWorld(world);
 }
 
@@ -167,41 +168,41 @@ static void TestPreSolveOneWay(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &fl);
+    NewPlaneShape(world, ground, &sd, &fl);
     m3BodyDef pd = m3DefaultBodyDef();
     pd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId plate = m3CreateBody(world, &pd);
-    m3ShapeId plateShape = m3CreateBoxShape(plate, &sd, (m3Vec3){2.0f, 0.1f, 2.0f});
-    m3Shape_EnablePreSolve(plateShape, true);
-    CHECK(m3Shape_IsPreSolveEnabled(plateShape), "pre-solve flag reads back");
+    m3BodyId plate = NewBody(world, &pd);
+    m3ShapeId plateShape = NewBoxShape(world, plate, &sd, (m3Vec3){2.0f, 0.1f, 2.0f});
+    m3Shape_EnablePreSolve(world, plateShape, true);
+    CHECK(m3Shape_IsPreSolveEnabled(world, plateShape), "pre-solve flag reads back");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(ball, &sd, &s);
+    NewSphereShape(world, ball, &sd, &s);
 
     int calls = 0;
     m3World_SetPreSolveCallback(world, OneWayVeto, &calls);
-    m3Body_SetLinearVelocity(ball, (m3Vec3){0.0f, 12.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, 12.0f, 0.0f});
     double peak = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
-        double y = m3Body_GetPosition(ball).y;
+        double y = m3Body_GetPosition(world, ball).y;
         if (y > peak)
         {
             peak = y;
         }
     }
     CHECK(peak > 4.0, "the ball passes the plate on the way up");
-    double restY = m3Body_GetPosition(ball).y;
+    double restY = m3Body_GetPosition(world, ball).y;
     CHECK(restY > 3.3 && restY < 3.8, "the ball lands ON the plate coming down");
     CHECK(calls > 0, "the veto was consulted");
 
@@ -220,17 +221,17 @@ static void TestEventTwinsAndJointStream(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         m3ShapeId floor;
-        m3WorldId world = PlaneWorld(&floor);
-        m3Shape_EnableHitEvents(floor, true);
+        m3World* world = PlaneWorld(&floor);
+        m3Shape_EnableHitEvents(world, floor, true);
         for (int32_t b = 0; b < 4; ++b)
         {
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
             bd.position = (m3Pos3){(double)b * 1.5, 1.5 + (double)b * 0.5, 0.0};
-            m3BodyId ball = m3CreateBody(world, &bd);
+            m3BodyId ball = NewBody(world, &bd);
             m3ShapeDef sd = m3DefaultShapeDef();
             m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.4f};
-            m3CreateSphereShape(ball, &sd, &s);
+            NewSphereShape(world, ball, &sd, &s);
         }
         uint64_t digest = 1469598103934665603ull;
         for (int32_t i = 0; i < 120; ++i)
@@ -240,11 +241,7 @@ static void TestEventTwinsAndJointStream(void)
             int32_t n = m3World_GetContactEvents(world).hitCount;
             for (int32_t k = 0; k < n; ++k)
             {
-                // The twins are different worlds, so ids differ in
-                // their world field and nothing else.
                 m3ContactHitEvent hit = ev[k];
-                hit.shapeIdA.world = 0;
-                hit.shapeIdB.world = 0;
                 const uint8_t* bytes = (const uint8_t*)&hit;
                 for (size_t j = 0; j < sizeof(m3ContactHitEvent); ++j)
                 {
@@ -263,13 +260,13 @@ static void TestEventTwinsAndJointStream(void)
 static void TestHostileEvents(void)
 {
     m3ShapeId floor;
-    m3WorldId world = PlaneWorld(&floor);
+    m3World* world = PlaneWorld(&floor);
     m3World_SetHitEventThreshold(world, -1.0f);
     m3World_SetHitEventThreshold(world, NAN);
     m3ShapeId stale = floor;
     stale.index1 += 999;
-    m3Shape_EnableHitEvents(stale, true);
-    CHECK(!m3Shape_IsHitEventsEnabled(stale), "stale flag set refuses");
+    m3Shape_EnableHitEvents(world, stale, true);
+    CHECK(!m3Shape_IsHitEventsEnabled(world, stale), "stale flag set refuses");
     m3ContactEvents none = m3World_GetContactEvents(world);
     CHECK(none.hitCount == 0 && none.hitsDropped == 0, "no events before any step");
     m3DestroyWorld(world);

@@ -17,7 +17,6 @@
 #include "raycast.h"
 #include "shape_state.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <float.h>
 #include <string.h>
@@ -28,7 +27,7 @@
 
 typedef struct m3RayAllContext
 {
-    m3World* world;
+    const m3World* world;
     m3Pos3 origin;
     m3Vec3 translation;
     m3RayHit* hits;
@@ -48,8 +47,9 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3RayCastResult* hit, int32
     while (pos > 0)
     {
         const m3RayHit* prev = &ctx->hits[pos - 1];
-        int after = hit->fraction > prev->fraction ||
-                    (hit->fraction == prev->fraction && shapeIndex > prev->shapeId.index1 - 1);
+        int after =
+            hit->fraction > prev->fraction ||
+            (hit->fraction == prev->fraction && shapeIndex > (int32_t)prev->shapeId.index1 - 1);
         if (after)
         {
             break;
@@ -92,10 +92,9 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     return true;
 }
 
-int32_t m3World_CastRayAll(m3WorldId worldId, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
+int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
                            int32_t capacity, m3QueryFilter filter)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
         !(m3Dot3(translation, translation) > 0.0f) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
@@ -212,9 +211,8 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     return m3VoxelGet(&world->voxels.voxelData[slot], x, y, z) ? 1 : 0;
 }
 
-m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point)
+m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FinitePos3(point))
     {
         m3Refuse(world, m3_errorInvalid);
@@ -225,7 +223,7 @@ m3ShapeId m3World_TestPoint(m3WorldId worldId, m3Pos3 point)
     {
         if (world->shapes.shapePool.alive[s] != 0 && PointInShape(world, s, point))
         {
-            return (m3ShapeId){s + 1, world->idWorld, world->shapes.shapePool.generations[s]};
+            return (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
     }
     return m3_nullShapeId;
@@ -264,7 +262,7 @@ static void SelectionSiftDown(m3ShapeId* heap, int32_t size, int32_t i)
 
 void m3SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape)
 {
-    m3ShapeId id = {shape + 1, world->idWorld, world->shapes.shapePool.generations[shape]};
+    m3ShapeId id = {shape + 1, world->shapes.shapePool.generations[shape]};
     if (sel->size < sel->capacity)
     {
         int32_t i = sel->size++;
@@ -299,7 +297,7 @@ int32_t m3SelectionFinish(m3ShapeSelection* sel)
 
 typedef struct m3OverlapContext
 {
-    m3World* world;
+    const m3World* world;
     m3Pos3 center;
     m3real radius; // < 0 = pure AABB gather
     double lo[3];
@@ -308,7 +306,7 @@ typedef struct m3OverlapContext
     m3QueryFilter filter;
 } m3OverlapContext;
 
-static int SphereReachesShape(m3World* world, int32_t shape, m3Pos3 center, m3real radius)
+static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center, m3real radius)
 {
     uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_planeShape)
@@ -464,7 +462,7 @@ static bool OverlapCallback(int32_t shape, void* userContext)
     return true;
 }
 
-static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* shapes,
+static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3ShapeId* shapes,
                              int32_t capacity)
 {
     ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
@@ -501,10 +499,9 @@ static int32_t OverlapGather(m3World* world, m3OverlapContext* ctx, m3ShapeId* s
     return m3SelectionFinish(&ctx->selection);
 }
 
-int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
+int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
                             int32_t capacity, m3QueryFilter filter)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
         !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
     {
@@ -525,10 +522,9 @@ int32_t m3World_OverlapAabb(m3WorldId worldId, m3Pos3 lo, m3Pos3 hi, m3ShapeId* 
     return OverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapSphere(m3WorldId worldId, m3Pos3 center, m3real radius, m3ShapeId* shapes,
+int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius, m3ShapeId* shapes,
                               int32_t capacity, m3QueryFilter filter)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FiniteF(radius) ||
         !(radius > 0.0f) || !m3FinitePos3(center))
     {
@@ -558,10 +554,8 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
     uint64_t key = world->contacts.pairKeys[pair];
     int32_t shapeA = (int32_t)(key >> 32);
     int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-    out->shapeIdA =
-        (m3ShapeId){shapeA + 1, world->idWorld, world->shapes.shapePool.generations[shapeA]};
-    out->shapeIdB =
-        (m3ShapeId){shapeB + 1, world->idWorld, world->shapes.shapePool.generations[shapeB]};
+    out->shapeIdA = (m3ShapeId){shapeA + 1, world->shapes.shapePool.generations[shapeA]};
+    out->shapeIdB = (m3ShapeId){shapeB + 1, world->shapes.shapePool.generations[shapeB]};
     out->normal = manifold->normal;
     int32_t count = manifold->pointCount;
     out->pointCount = count;
@@ -587,18 +581,16 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
     }
 }
 
-int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t capacity)
+int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
+                               int32_t capacity)
 {
-    m3World* world = m3WorldFromTag(shapeId.world);
     if (world == NULL || out == NULL || capacity <= 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    int32_t shape = shapeId.index1 - 1;
-    if (shape < 0 || shape >= world->shapes.shapePool.maxIndex ||
-        world->shapes.shapePool.alive[shape] == 0 ||
-        world->shapes.shapePool.generations[shape] != shapeId.generation)
+    int32_t slot = m3ShapeSlot(world, shape);
+    if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -609,7 +601,7 @@ int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t ca
         uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        if ((shapeA == shape || shapeB == shape) && world->contacts.manifolds[i].pointCount > 0)
+        if ((shapeA == slot || shapeB == slot) && world->contacts.manifolds[i].pointCount > 0)
         {
             FillContactData(world, i, &out[written]);
             written += 1;
@@ -618,16 +610,16 @@ int32_t m3Shape_GetContactData(m3ShapeId shapeId, m3ContactData* out, int32_t ca
     return written;
 }
 
-int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capacity)
+int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* out,
+                              int32_t capacity)
 {
-    m3World* world = m3WorldFromTag(bodyId.world);
     if (world == NULL || out == NULL || capacity <= 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    int32_t body = m3BodySlot(world, bodyId);
-    if (body < 0)
+    int32_t bodyIndex = m3BodySlot(world, body);
+    if (bodyIndex < 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -638,7 +630,8 @@ int32_t m3Body_GetContactData(m3BodyId bodyId, m3ContactData* out, int32_t capac
         uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
-        if ((world->shapes.shapeBody[shapeA] == body || world->shapes.shapeBody[shapeB] == body) &&
+        if ((world->shapes.shapeBody[shapeA] == bodyIndex ||
+             world->shapes.shapeBody[shapeB] == bodyIndex) &&
             world->contacts.manifolds[i].pointCount > 0)
         {
             FillContactData(world, i, &out[written]);

@@ -18,7 +18,6 @@
 #include "solver_math.h"
 #include "vehicle.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <math.h>
 #include <string.h>
@@ -81,8 +80,7 @@ m3VehicleDef m3DefaultVehicleDef(void)
 int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
 {
     int32_t index = vehicleId.index1 - 1;
-    if (world == NULL || vehicleId.world != world->idWorld ||
-        !m3IdPoolValid(&world->vehicles.vehPool, index, vehicleId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->vehicles.vehPool, index, vehicleId.generation))
     {
         return -1;
     }
@@ -727,21 +725,23 @@ void m3VehicleCommandsInternal(m3World* world, int32_t slot, m3real throttle, m3
     }
 }
 
-m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
+m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* vehicleOut)
 {
-    m3World* world = m3WorldFromId(worldId);
+    if (vehicleOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *vehicleOut = m3_nullVehicleId;
     if (world == NULL || def == NULL || def->internalValue != M3_VEHICLE_COOKIE)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullVehicleId; // field checks live in the internal
+        return m3Refuse(world, m3_errorInvalid); // field checks live in the internal
     }
     int32_t slot = m3CreateVehicleInternal(world, def);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullVehicleId;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3VehicleId id = {slot + 1, world->idWorld, world->vehicles.vehPool.generations[slot]};
+    m3VehicleId id = {slot + 1, world->vehicles.vehPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateVehicle record;
@@ -750,35 +750,33 @@ m3VehicleId m3CreateVehicle(m3WorldId worldId, const m3VehicleDef* def)
         record.expected = id;
         m3JournalRecord(world, m3_opCreateVehicle, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *vehicleOut = id;
+    return m3_success;
 }
 
-void m3DestroyVehicle(m3VehicleId vehicleId)
+m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale: the quiet destroy contract
+        return m3Refuse(world, m3MissingId(vehicle.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroyVehicle, &vehicleId, (int32_t)sizeof(vehicleId));
+        m3JournalRecord(world, m3_opDestroyVehicle, &vehicle, (int32_t)sizeof(vehicle));
     }
     m3DestroyVehicleInternal(world, slot);
+    return m3_success;
 }
 
-bool m3Vehicle_IsValid(m3VehicleId vehicleId)
+bool m3Vehicle_IsValid(const m3World* world, m3VehicleId vehicle)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    return world != NULL && m3VehicleSlot(world, vehicleId) >= 0;
+    return m3VehicleSlot(world, vehicle) >= 0;
 }
 
-m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel)
+m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {
         m3Refuse(world, m3_errorInvalid);
@@ -787,10 +785,10 @@ m3real m3Vehicle_GetCompression(m3VehicleId vehicleId, int32_t wheel)
     return world->vehicles.vehWheelCompression[slot * M3_VEHICLE_MAX_WHEELS + wheel];
 }
 
-void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer, m3real brake)
+void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle, m3real steer,
+                           m3real brake)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || !m3FiniteF(throttle) || !m3FiniteF(steer) || !m3FiniteF(brake))
     {
         m3Refuse(world, m3_errorInvalid);
@@ -800,7 +798,7 @@ void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
     {
         m3OpVehicleCommands record;
         memset(&record, 0, sizeof(record));
-        record.id = vehicleId;
+        record.id = vehicle;
         record.throttle = throttle;
         record.steer = steer;
         record.brake = brake;
@@ -809,10 +807,10 @@ void m3Vehicle_SetCommands(m3VehicleId vehicleId, m3real throttle, m3real steer,
     m3VehicleCommandsInternal(world, slot, throttle, steer, brake);
 }
 
-void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right, m3real brake)
+void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left, m3real right,
+                               m3real brake)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || !m3FiniteF(left) || !m3FiniteF(right) || !m3FiniteF(brake) ||
         world->vehicles.vehDtActive[slot] != 0)
     {
@@ -823,7 +821,7 @@ void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
     {
         m3OpVehicleTankCommands record;
         memset(&record, 0, sizeof(record));
-        record.id = vehicleId;
+        record.id = vehicle;
         record.left = left;
         record.right = right;
         record.brake = brake;
@@ -832,10 +830,9 @@ void m3Vehicle_SetTankCommands(m3VehicleId vehicleId, m3real left, m3real right,
     m3VehicleTankCommandsInternal(world, slot, left, right, brake);
 }
 
-m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel)
+m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {
         m3Refuse(world, m3_errorInvalid);
@@ -844,10 +841,9 @@ m3real m3Vehicle_GetWheelSpin(m3VehicleId vehicleId, int32_t wheel)
     return world->vehicles.vehWheelSpin[slot * M3_VEHICLE_MAX_WHEELS + wheel];
 }
 
-bool m3Vehicle_IsWheelGrounded(m3VehicleId vehicleId, int32_t wheel)
+bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_t wheel)
 {
-    m3World* world = m3WorldFromTag(vehicleId.world);
-    int32_t slot = world != NULL ? m3VehicleSlot(world, vehicleId) : -1;
+    int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
     {
         m3Refuse(world, m3_errorInvalid);

@@ -6,6 +6,7 @@
 // flips rebuild the books, disabled bodies vanish everywhere,
 // motion locks hold their axes exact, and sleep knobs obey.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -29,28 +30,28 @@ static uint32_t Bits(m3MotionLocks l)
            (l.angularX ? 0x08u : 0u) | (l.angularY ? 0x10u : 0u) | (l.angularZ ? 0x20u : 0u);
 }
 
-static m3WorldId PlaneWorld(void)
+static m3World* PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
-static m3BodyId Crate(m3WorldId world, m3Pos3 at)
+static m3BodyId Crate(m3World* world, m3Pos3 at)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = at;
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     return body;
 }
 
@@ -59,21 +60,21 @@ static void TestTeleportWakes(void)
     // A crate sleeps on the plane; another crate teleports right
     // above it: BOTH the sleeper and the traveler end awake, and
     // the sleeper takes the landing.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId sleeper = Crate(world, (m3Pos3){0.0, 0.5, 0.0});
     m3BodyId traveler = Crate(world, (m3Pos3){10.0, 0.5, 0.0});
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m3Body_IsAwake(sleeper), "the crate sleeps before the teleport");
-    m3Body_SetTransform(traveler, (m3Pos3){0.0, 2.0, 0.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-    CHECK(m3Body_IsAwake(sleeper), "the arrival neighborhood wakes");
+    CHECK(!m3Body_IsAwake(world, sleeper), "the crate sleeps before the teleport");
+    m3Body_SetTransform(world, traveler, (m3Pos3){0.0, 2.0, 0.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    CHECK(m3Body_IsAwake(world, sleeper), "the arrival neighborhood wakes");
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 t = m3Body_GetPosition(traveler);
+    m3Pos3 t = m3Body_GetPosition(world, traveler);
     CHECK(t.y > 1.3 && t.y < 1.7, "the traveler lands on the sleeper");
     m3DestroyWorld(world);
 }
@@ -82,26 +83,27 @@ static void TestKinematicServo(void)
 {
     // The servo lands the kinematic slab exactly on its target
     // after one step, then holds (the order clears).
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId slab = m3CreateBody(world, &bd);
+    m3BodyId slab = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(slab, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
+    NewBoxShape(world, slab, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
 
-    m3Body_SetTargetTransform(slab, (m3Pos3){1.5, 2.5, -0.5}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    m3Body_SetTargetTransform(world, slab, (m3Pos3){1.5, 2.5, -0.5},
+                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
     m3World_Step(world, 1.0f / 60.0f, 4);
-    m3Pos3 p = m3Body_GetPosition(slab);
+    m3Pos3 p = m3Body_GetPosition(world, slab);
     CHECK(fabs(p.x - 1.5) < 1.0e-4 && fabs(p.y - 2.5) < 1.0e-4 && fabs(p.z + 0.5) < 1.0e-4,
           "the servo lands on the target in one step");
     // Documented contract: the servo clears its order but leaves
     // the exit velocity on the body; the host zeroes it or issues
     // the next target. Zero it here and prove no further pull.
-    m3Body_SetLinearVelocity(slab, (m3Vec3){0.0f, 0.0f, 0.0f});
-    m3Body_SetAngularVelocity(slab, (m3Vec3){0.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, slab, (m3Vec3){0.0f, 0.0f, 0.0f});
+    m3Body_SetAngularVelocity(world, slab, (m3Vec3){0.0f, 0.0f, 0.0f});
     m3World_Step(world, 1.0f / 60.0f, 4);
-    m3Pos3 q = m3Body_GetPosition(slab);
+    m3Pos3 q = m3Body_GetPosition(world, slab);
     CHECK(fabs(q.x - p.x) < 1.0e-6 && fabs(q.y - p.y) < 1.0e-6,
           "the order cleared: no further servo pull");
     m3DestroyWorld(world);
@@ -114,25 +116,25 @@ static void TestTypeFlipAndDisable(void)
     // first draft of this test learned that premise the hard way).
     // Then a crate disables mid-scene: contacts and queries lose
     // it, and enabling brings it back awake.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef pd = m3DefaultBodyDef();
     pd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId shelf = m3CreateBody(world, &pd);
+    m3BodyId shelf = NewBody(world, &pd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(shelf, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
+    NewBoxShape(world, shelf, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 3.8, 0.0});
     for (int32_t i = 0; i < 120; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double restY = m3Body_GetPosition(crate).y;
+    double restY = m3Body_GetPosition(world, crate).y;
     CHECK(restY > 3.5, "the crate rests on the hovering static shelf");
-    m3Body_SetType(shelf, m3_dynamicBody);
+    m3Body_SetType(world, shelf, m3_dynamicBody);
     for (int32_t i = 0; i < 180; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetPosition(crate).y < 1.8, "the freed shelf drops its rider");
+    CHECK(m3Body_GetPosition(world, crate).y < 1.8, "the freed shelf drops its rider");
 
     // Disable: the crate vanishes from a ray and from contacts.
     m3BodyId lid = Crate(world, (m3Pos3){10.0, 0.5, 0.0});
@@ -143,13 +145,13 @@ static void TestTypeFlipAndDisable(void)
     m3RayCastResult before = m3World_CastRayClosest(
         world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(before.hit && before.point.y > 0.9, "the ray sees the enabled crate");
-    m3Body_Disable(lid);
-    CHECK(!m3Body_IsEnabled(lid), "disabled reads back");
+    m3Body_Disable(world, lid);
+    CHECK(!m3Body_IsEnabled(world, lid), "disabled reads back");
     m3RayCastResult after = m3World_CastRayClosest(
         world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(after.hit && after.point.y < 0.1, "the ray passes through the disabled crate");
-    m3Body_Enable(lid);
-    CHECK(m3Body_IsEnabled(lid) && m3Body_IsAwake(lid), "enabling wakes the body");
+    m3Body_Enable(world, lid);
+    CHECK(m3Body_IsEnabled(world, lid) && m3Body_IsAwake(world, lid), "enabling wakes the body");
     m3DestroyWorld(world);
 }
 
@@ -159,19 +161,19 @@ static void TestMotionLocks(void)
     // angular z let the first draft's crate trip over its leading
     // edge and tumble home: physical, but noise here). Shoved
     // diagonally, it slides in x only and never rotates.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 0.5, 0.0});
     // lock linear z (bit 2), angular x y z (bits 3, 4, 5).
-    m3Body_SetMotionLocks(crate, Locks((1u << 2) | (1u << 3) | (1u << 4) | (1u << 5)));
-    CHECK(Bits(m3Body_GetMotionLocks(crate)) == 0x3Cu, "locks read back");
-    m3Body_ApplyLinearImpulse(crate, (m3Vec3){3.0f, 0.0f, 3.0f});
-    m3Body_ApplyAngularImpulse(crate, (m3Vec3){0.0f, 0.4f, 0.0f});
+    m3Body_SetMotionLocks(world, crate, Locks((1u << 2) | (1u << 3) | (1u << 4) | (1u << 5)));
+    CHECK(Bits(m3Body_GetMotionLocks(world, crate)) == 0x3Cu, "locks read back");
+    m3Body_ApplyLinearImpulse(world, crate, (m3Vec3){3.0f, 0.0f, 3.0f});
+    m3Body_ApplyAngularImpulse(world, crate, (m3Vec3){0.0f, 0.4f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 p = m3Body_GetPosition(crate);
-    m3Quat q = m3Body_GetRotation(crate);
+    m3Pos3 p = m3Body_GetPosition(world, crate);
+    m3Quat q = m3Body_GetRotation(world, crate);
     // The criterion is the lock asymmetry (x free, z frozen), not
     // the slide distance, which the friction tests pin down.
     CHECK(p.x > 0.05, "the unlocked axis carries the shove");
@@ -194,57 +196,57 @@ static void TestSleepKnobsAndControlReplay(void)
         m3WorldDef def = m3DefaultWorldDef();
         def.bodyCapacity = 32;
         def.shapeCapacity = 32;
-        m3WorldId world = m3CreateWorld(&def);
-        bool recording = run == 0 && m3World_StartJournal(world, journal, (int32_t)sizeof(journal));
+        m3World* world = NewWorld(&def);
+        bool recording = run == 0 && StartJournal(world, journal, (int32_t)sizeof(journal));
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sg = m3DefaultShapeDef();
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sg, &floor);
+        NewPlaneShape(world, ground, &sg, &floor);
         m3BodyId restless = Crate(world, (m3Pos3){0.0, 0.5, 0.0});
         m3BodyId normal = Crate(world, (m3Pos3){3.0, 0.5, 0.0});
-        m3Body_EnableSleep(restless, false);
+        m3Body_EnableSleep(world, restless, false);
 
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 260; ++i)
         {
             if (i == 40)
             {
-                m3Body_SetMotionLocks(normal, Locks(1u << 4));
+                m3Body_SetMotionLocks(world, normal, Locks(1u << 4));
             }
             if (i == 80)
             {
-                m3Body_SetTransform(restless, (m3Pos3){0.0, 3.0, 1.0},
+                m3Body_SetTransform(world, restless, (m3Pos3){0.0, 3.0, 1.0},
                                     (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
             }
             if (i == 160)
             {
-                m3Body_SetAwake(normal, false); // force-sleep
+                m3Body_SetAwake(world, normal, false); // force-sleep
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
             if (i == 120 && run == 0)
             {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+                snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
                 CHECK(snapBytes > 0, "the control snapshot fits");
             }
         }
-        CHECK(m3Body_IsAwake(restless), "the can-never-sleep crate is still awake");
-        CHECK(!m3Body_IsAwake(normal), "the forced sleeper stays down");
+        CHECK(m3Body_IsAwake(world, restless), "the can-never-sleep crate is still awake");
+        CHECK(!m3Body_IsAwake(world, normal), "the forced sleeper stays down");
         uint64_t final = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = m3World_StopJournal(world);
+            int32_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the control session records");
-            m3WorldId fresh = m3CreateWorld(&def);
-            CHECK(m3World_ReplayJournal(fresh, journal, bytes), "the control session replays");
+            m3World* fresh = NewWorld(&def);
+            CHECK(ReplayJournal(fresh, journal, bytes), "the control session replays");
             CHECK(m3World_Hash(fresh) == final, "the replay is bit-identical");
             m3DestroyWorld(fresh);
-            CHECK(m3World_Restore(world, snap, snapBytes), "the control restore lands");
+            CHECK(Restore(world, snap, snapBytes), "the control restore lands");
             for (int32_t i = 121; i < 260; ++i)
             {
                 if (i == 160)
                 {
-                    m3Body_SetAwake(normal, false);
+                    m3Body_SetAwake(world, normal, false);
                 }
                 m3World_Step(world, 1.0f / 60.0f, 4);
             }
@@ -262,12 +264,12 @@ static void TestDefsCarrySettings(void)
     // given at creation, and lands the same way.
     m3WorldDef wd = m3DefaultWorldDef();
     wd.maximumAngularSpeed = 5.0f;
-    m3WorldId world = m3CreateWorld(&wd);
+    m3World* world = NewWorld(&wd);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef belt = m3DefaultShapeDef();
     belt.surfaceVelocity = (m3Vec3){2.0f, 0.0f, 0.0f};
-    m3CreateBoxShape(ground, &belt, (m3Vec3){20.0f, 0.5f, 20.0f});
+    NewBoxShape(world, ground, &belt, (m3Vec3){20.0f, 0.5f, 20.0f});
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -275,39 +277,39 @@ static void TestDefsCarrySettings(void)
     bd.motionLocks = Locks(0x28u); // linear z and angular y
     bd.enableSleep = false;
     bd.sleepThreshold = 0.25f;
-    m3BodyId crate = m3CreateBody(world, &bd);
+    m3BodyId crate = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    CHECK(Bits(m3Body_GetMotionLocks(crate)) == 0x28u, "locks from the def");
-    CHECK(!m3Body_IsSleepEnabled(crate), "sleep switch from the def");
-    CHECK(m3Body_GetSleepThreshold(crate) == 0.25f, "sleep threshold from the def");
+    NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(Bits(m3Body_GetMotionLocks(world, crate)) == 0x28u, "locks from the def");
+    CHECK(!m3Body_IsSleepEnabled(world, crate), "sleep switch from the def");
+    CHECK(m3Body_GetSleepThreshold(world, crate) == 0.25f, "sleep threshold from the def");
 
     bd.position = (m3Pos3){6.0, 4.0, 0.0};
     bd.motionLocks = Locks(0u);
     bd.angularVelocity = (m3Vec3){0.0f, 50.0f, 0.0f};
-    m3BodyId spinner = m3CreateBody(world, &bd);
-    m3CreateBoxShape(spinner, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3BodyId spinner = NewBody(world, &bd);
+    NewBoxShape(world, spinner, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     bd.enableFastRotation = true;
     bd.position = (m3Pos3){-6.0, 4.0, 0.0};
-    m3BodyId wheel = m3CreateBody(world, &bd);
-    m3CreateBoxShape(wheel, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    CHECK(m3Body_IsFastRotationEnabled(wheel), "fast rotation from the def");
+    m3BodyId wheel = NewBody(world, &bd);
+    NewBoxShape(world, wheel, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    CHECK(m3Body_IsFastRotationEnabled(world, wheel), "fast rotation from the def");
 
     bd.isEnabled = false;
     bd.position = (m3Pos3){0.0, 8.0, 6.0};
-    m3BodyId dormant = m3CreateBody(world, &bd);
-    CHECK(!m3Body_IsEnabled(dormant), "created disabled from the def");
+    m3BodyId dormant = NewBody(world, &bd);
+    CHECK(!m3Body_IsEnabled(world, dormant), "created disabled from the def");
 
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Body_GetLinearVelocity(crate).x > 1.0f,
+    CHECK(m3Body_GetLinearVelocity(world, crate).x > 1.0f,
           "the belt from the shape def carries the crate");
-    CHECK(m3Body_GetPosition(dormant).y == 8.0, "a disabled body does not fall");
-    m3Vec3 w = m3Body_GetAngularVelocity(spinner);
+    CHECK(m3Body_GetPosition(world, dormant).y == 8.0, "a disabled body does not fall");
+    m3Vec3 w = m3Body_GetAngularVelocity(world, spinner);
     CHECK(w.x * w.x + w.y * w.y + w.z * w.z <= 25.0f * 1.0001f, "the world def caps angular speed");
-    m3Vec3 fast = m3Body_GetAngularVelocity(wheel);
+    m3Vec3 fast = m3Body_GetAngularVelocity(world, wheel);
     CHECK(fast.y > 5.0f, "a fast-rotation body passes the cap");
     m3DestroyWorld(world);
 }

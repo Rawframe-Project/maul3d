@@ -10,6 +10,8 @@ if(NOT ${MAUL_PREFIX}_SANITIZE AND NOT ${MAUL_PREFIX}_TSAN AND
     add_executable(test_bench ${PROJECT_SOURCE_DIR}/test/test_bench.c
                               ${PROJECT_SOURCE_DIR}/bench/scenes.c)
     target_link_libraries(test_bench PRIVATE ${PROJECT_NAME})
+    # The scenes build through the suites' helpers (test/helpers.h).
+    target_include_directories(test_bench PRIVATE ${PROJECT_SOURCE_DIR}/test)
     maul_apply_flags(test_bench)
     if(CMAKE_CONFIGURATION_TYPES)
         add_test(NAME bench COMMAND test_bench CONFIGURATIONS Release)

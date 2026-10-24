@@ -11,7 +11,6 @@
 #include "journal.h"
 #include "misuse.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -90,22 +89,24 @@ void m3DestroyWaterVolumeInternal(m3World* world, int32_t slot)
     m3IdPoolFree(&world->water.waterPool, slot);
 }
 
-m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* def)
+m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
+                             m3WaterVolumeId* volumeOut)
 {
-    m3WaterVolumeId null = {0, 0, 0};
-    m3World* world = m3WorldFromId(worldId);
+    if (volumeOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *volumeOut = m3_nullWaterVolumeId;
     if (world == NULL || def == NULL || def->internalValue != M3_WATER_COOKIE)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return null;
+        return m3Refuse(world, m3_errorInvalid);
     }
     int32_t slot = m3CreateWaterVolumeInternal(world, def);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return null;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3WaterVolumeId id = {slot + 1, world->idWorld, world->water.waterPool.generations[slot]};
+    m3WaterVolumeId id = {slot + 1, world->water.waterPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateWaterVolume record;
@@ -114,40 +115,38 @@ m3WaterVolumeId m3CreateWaterVolume(m3WorldId worldId, const m3WaterVolumeDef* d
         record.expected = id;
         m3JournalRecord(world, m3_opCreateWaterVolume, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *volumeOut = id;
+    return m3_success;
 }
 
 static int32_t WaterSlot(const m3World* world, m3WaterVolumeId id)
 {
     int32_t index = id.index1 - 1;
-    if (world == NULL || id.world != world->idWorld ||
-        !m3IdPoolValid(&world->water.waterPool, index, id.generation))
+    if (world == NULL || !m3IdPoolValid(&world->water.waterPool, index, id.generation))
     {
         return -1;
     }
     return index;
 }
 
-bool m3WaterVolume_IsValid(m3WaterVolumeId id)
+bool m3WaterVolume_IsValid(const m3World* world, m3WaterVolumeId volume)
 {
-    m3World* world = m3WorldFromTag(id.world);
-    return world != NULL && WaterSlot(world, id) >= 0;
+    return WaterSlot(world, volume) >= 0;
 }
 
-void m3DestroyWaterVolume(m3WaterVolumeId id)
+m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
 {
-    m3World* world = m3WorldFromTag(id.world);
-    int32_t slot = world != NULL ? WaterSlot(world, id) : -1;
+    int32_t slot = WaterSlot(world, volume);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3MissingId(volume.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroyWaterVolume, &id, (int32_t)sizeof(id));
+        m3JournalRecord(world, m3_opDestroyWaterVolume, &volume, (int32_t)sizeof(volume));
     }
     m3DestroyWaterVolumeInternal(world, slot);
+    return m3_success;
 }
 
 // The part of one shape's box inside one water volume: buoyancy

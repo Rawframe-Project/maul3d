@@ -11,7 +11,6 @@
 #include "journal.h"
 #include "misuse.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -186,24 +185,26 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
     *outTorque = torque * invH;
 }
 
-static m3World* ResolveJoint(m3JointId jointId, int32_t* outSlot)
+static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 {
-    m3World* world = m3WorldFromTag(jointId.world);
-    int32_t slot = world != NULL ? m3JointSlot(world, jointId) : -1;
+    int32_t slot = m3JointSlot(world, id);
     if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
-        return NULL;
+        return false;
     }
-    *outSlot = slot;
-    return world;
+    *slotOut = slot;
+    return true;
 }
 
-void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
+void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower, float upper)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || !m3FiniteF(lower) || !m3FiniteF(upper))
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (!m3FiniteF(lower) || !m3FiniteF(upper))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -226,7 +227,7 @@ void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
     {
         m3OpJointVector record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.enable = enable ? 1 : 0;
         record.a = lower;
         record.b = upper;
@@ -235,15 +236,17 @@ void m3Joint_SetLimits(m3JointId jointId, bool enable, float lower, float upper)
     m3JointSetLimitsInternal(world, slot, enable ? 1 : 0, lower, upper);
 }
 
-void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float hertz, float zeta,
-                      float maxEffort)
+void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
+                      float zeta, float maxEffort)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->joints.jointType[slot] != (uint8_t)m3_wheelJoint ||
-        !m3FiniteF(targetAngle) || m3AbsF(targetAngle) > 1.0f || !m3FiniteF(hertz) ||
-        !m3FiniteF(zeta) || !m3FiniteF(maxEffort) || zeta < 0.0f || maxEffort < 0.0f ||
-        (enable && !(hertz > 0.0f)))
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return; // steering is a wheel contract, refused loudly
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_wheelJoint || !m3FiniteF(targetAngle) ||
+        m3AbsF(targetAngle) > 1.0f || !m3FiniteF(hertz) || !m3FiniteF(zeta) ||
+        !m3FiniteF(maxEffort) || zeta < 0.0f || maxEffort < 0.0f || (enable && !(hertz > 0.0f)))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // steering is a wheel contract, refused loudly
@@ -252,7 +255,7 @@ void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float h
     {
         m3OpJointSetSteer record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.enable = enable ? 1 : 0;
         record.target = targetAngle;
         record.hertz = hertz;
@@ -263,11 +266,14 @@ void m3Joint_SetSteer(m3JointId jointId, bool enable, float targetAngle, float h
     m3JointSetSteerInternal(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort);
 }
 
-float m3Joint_GetSteerAngle(m3JointId jointId)
+float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->joints.jointType[slot] != (uint8_t)m3_wheelJoint)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return 0.0f;
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_wheelJoint)
     {
         m3Refuse(world, m3_errorInvalid);
         return 0.0f;
@@ -285,14 +291,17 @@ float m3Joint_GetSteerAngle(m3JointId jointId)
     return 2.0f * m3Atan2(relQ.x, relQ.w);
 }
 
-void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation)
+void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat rotation)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
     m3real q2 = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
                 rotation.w * rotation.w;
-    if (world == NULL || world->joints.jointType[slot] != (uint8_t)m3_motorJoint ||
-        !m3FiniteV3(offset) || !m3FiniteQuat(rotation) || q2 < 0.81f || q2 > 1.21f)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return; // the servo aim is a motor-joint contract
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_motorJoint || !m3FiniteV3(offset) ||
+        !m3FiniteQuat(rotation) || q2 < 0.81f || q2 > 1.21f)
     {
         m3Refuse(world, m3_errorInvalid);
         return; // the servo aim is a motor-joint contract
@@ -301,7 +310,7 @@ void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation)
     {
         m3OpJointSetMotorPose record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.offset = offset;
         record.rotation = rotation;
         m3JournalRecord(world, m3_opJointSetMotorPose, &record, (int32_t)sizeof(record));
@@ -309,11 +318,14 @@ void m3Joint_SetMotorPose(m3JointId jointId, m3Vec3 offset, m3Quat rotation)
     m3JointSetMotorPoseInternal(world, slot, offset, rotation);
 }
 
-void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffort)
+void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed, float maxEffort)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || !m3FiniteF(speed) || !m3FiniteF(maxEffort) || maxEffort < 0.0f)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (!m3FiniteF(speed) || !m3FiniteF(maxEffort) || maxEffort < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -322,7 +334,7 @@ void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffo
     {
         m3OpJointVector record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.enable = enable ? 1 : 0;
         record.a = speed;
         record.b = maxEffort;
@@ -331,11 +343,10 @@ void m3Joint_SetMotor(m3JointId jointId, bool enable, float speed, float maxEffo
     m3JointSetMotorInternal(world, slot, enable ? 1 : 0, speed, maxEffort);
 }
 
-void m3Joint_SetCollideConnected(m3JointId jointId, bool collide)
+void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL)
+    if (!ResolveJoint(world, joint, &slot))
     {
         return;
     }
@@ -343,26 +354,27 @@ void m3Joint_SetCollideConnected(m3JointId jointId, bool collide)
     {
         m3OpJointSetCollide record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.on = collide ? 1 : 0;
         m3JournalRecord(world, m3_opJointSetCollide, &record, (int32_t)sizeof(record));
     }
     m3JointSetCollideInternal(world, slot, collide ? 1 : 0);
 }
 
-bool m3Joint_GetCollideConnected(m3JointId jointId)
+bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    return world != NULL && world->joints.jointCollide[slot] != 0;
+    return ResolveJoint(world, joint, &slot) && world->joints.jointCollide[slot] != 0;
 }
 
-void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorque)
+void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce, float maxTorque)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || !m3FiniteF(maxForce) || maxForce < 0.0f || !m3FiniteF(maxTorque) ||
-        maxTorque < 0.0f)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (!m3FiniteF(maxForce) || maxForce < 0.0f || !m3FiniteF(maxTorque) || maxTorque < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -371,7 +383,7 @@ void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorq
     {
         m3OpJointSetBreak record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.maxForce = maxForce;
         record.maxTorque = maxTorque;
         m3JournalRecord(world, m3_opJointSetBreak, &record, (int32_t)sizeof(record));
@@ -379,11 +391,10 @@ void m3Joint_SetBreakThresholds(m3JointId jointId, float maxForce, float maxTorq
     m3JointSetBreakInternal(world, slot, maxForce, maxTorque);
 }
 
-m3real m3Joint_GetConstraintForce(m3JointId jointId)
+m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->lastInvH == 0.0f)
+    if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
     {
         return 0.0f;
     }
@@ -393,11 +404,10 @@ m3real m3Joint_GetConstraintForce(m3JointId jointId)
     return force;
 }
 
-m3real m3Joint_GetConstraintTorque(m3JointId jointId)
+m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->lastInvH == 0.0f)
+    if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
     {
         return 0.0f;
     }
@@ -407,12 +417,15 @@ m3real m3Joint_GetConstraintTorque(m3JointId jointId)
     return torque;
 }
 
-m3real m3Joint_GetAngle(m3JointId jointId)
+m3real m3Joint_GetAngle(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || (world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint &&
-                          world->joints.jointType[slot] != (uint8_t)m3_wheelJoint))
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return 0.0f; // the wheel's frame z is its axle: same twist read
+    }
+    if ((world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint &&
+         world->joints.jointType[slot] != (uint8_t)m3_wheelJoint))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0.0f; // the wheel's frame z is its axle: same twist read
@@ -427,12 +440,15 @@ m3real m3Joint_GetAngle(m3JointId jointId)
     return 2.0f * twist;
 }
 
-m3real m3Joint_GetTranslation(m3JointId jointId)
+m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || (world->joints.jointType[slot] != (uint8_t)m3_prismaticJoint &&
-                          world->joints.jointType[slot] != (uint8_t)m3_wheelJoint))
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return 0.0f;
+    }
+    if ((world->joints.jointType[slot] != (uint8_t)m3_prismaticJoint &&
+         world->joints.jointType[slot] != (uint8_t)m3_wheelJoint))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0.0f;
@@ -483,12 +499,16 @@ static int JointTypeDrives(uint8_t type)
            type == (uint8_t)m3_motorJoint;
 }
 
-void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampingRatio)
+void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
+                       float dampingRatio)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || !JointTypeDrives(world->joints.jointType[slot]) || !m3FiniteF(hertz) ||
-        hertz <= 0.0f || !m3FiniteF(dampingRatio) || dampingRatio < 0.0f)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (!JointTypeDrives(world->joints.jointType[slot]) || !m3FiniteF(hertz) || hertz <= 0.0f ||
+        !m3FiniteF(dampingRatio) || dampingRatio < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -497,7 +517,7 @@ void m3Joint_SetSpring(m3JointId jointId, bool enable, float hertz, float dampin
     {
         m3OpJointSetSpring record;
         memset(&record, 0, sizeof(record));
-        record.id = jointId;
+        record.id = joint;
         record.enable = enable ? 1 : 0;
         record.hertz = hertz;
         record.zeta = dampingRatio;
@@ -520,40 +540,47 @@ static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float
     m3JointSetTargetInternal(world, slot, scalar, q);
 }
 
-void m3Joint_SetTargetAngle(m3JointId jointId, float radians)
+void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint ||
-        !m3FiniteF(radians) || radians < -M3_PI || radians > M3_PI)
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint || !m3FiniteF(radians) ||
+        radians < -M3_PI || radians > M3_PI)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    JointTargetOp(world, jointId, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    JointTargetOp(world, joint, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetTranslation(m3JointId jointId, float meters)
+void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL ||
-        (world->joints.jointType[slot] != (uint8_t)m3_prismaticJoint &&
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return; // the wheel's drive is its suspension spring
+    }
+    if ((world->joints.jointType[slot] != (uint8_t)m3_prismaticJoint &&
          world->joints.jointType[slot] != (uint8_t)m3_wheelJoint) ||
         !m3FiniteF(meters))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // the wheel's drive is its suspension spring
     }
-    JointTargetOp(world, jointId, slot, meters, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    JointTargetOp(world, joint, slot, meters, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target)
+void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
 {
     int32_t slot;
-    m3World* world = ResolveJoint(jointId, &slot);
-    if (world == NULL || world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint ||
-        !m3FiniteQuat(target))
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint || !m3FiniteQuat(target))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -565,5 +592,5 @@ void m3Joint_SetTargetRotation(m3JointId jointId, m3Quat target)
         m3Refuse(world, m3_errorInvalid);
         return; // not a unit rotation: refuse by doing nothing
     }
-    JointTargetOp(world, jointId, slot, 0.0f, target);
+    JointTargetOp(world, joint, slot, 0.0f, target);
 }

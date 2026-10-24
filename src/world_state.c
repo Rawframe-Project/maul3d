@@ -565,7 +565,7 @@ bool m3StateAllocate(m3World* world)
             continue;
         }
         int64_t elements = ExtentCount(world, entry->extent);
-        void* array = m3AllocArray(elements, (int64_t)entry->elementSize);
+        void* array = m3AllocArray(&world->heap, elements, (int64_t)entry->elementSize);
         if (array == NULL)
         {
             return false;
@@ -587,7 +587,7 @@ void m3StateFree(m3World* world)
             continue;
         }
         void** field = FieldPointer(world, entry);
-        m3Free(*field);
+        m3Free(&world->heap, *field);
         *field = NULL;
     }
 }

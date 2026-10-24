@@ -100,11 +100,14 @@ void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity
     world->bodies.angularVelocities[index] = velocity;
 }
 
-void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force)
+void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(force) || !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(force) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -113,18 +116,21 @@ void m3Body_ApplyForce(m3BodyId bodyId, m3Vec3 force)
     {
         m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = force;
         m3JournalRecord(world, m3_opApplyForce, &record, (int32_t)sizeof(record));
     }
     m3ApplyForceInternal(world, index, force);
 }
 
-void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque)
+void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(torque) || !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(torque) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -133,18 +139,21 @@ void m3Body_ApplyTorque(m3BodyId bodyId, m3Vec3 torque)
     {
         m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = torque;
         m3JournalRecord(world, m3_opApplyTorque, &record, (int32_t)sizeof(record));
     }
     m3ApplyTorqueInternal(world, index, torque);
 }
 
-void m3Body_ApplyLinearImpulse(m3BodyId bodyId, m3Vec3 impulse)
+void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(impulse) || !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(impulse) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -153,18 +162,21 @@ void m3Body_ApplyLinearImpulse(m3BodyId bodyId, m3Vec3 impulse)
     {
         m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = impulse;
         m3JournalRecord(world, m3_opApplyLinearImpulse, &record, (int32_t)sizeof(record));
     }
     m3ApplyLinearImpulseInternal(world, index, impulse);
 }
 
-void m3Body_ApplyAngularImpulse(m3BodyId bodyId, m3Vec3 impulse)
+void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(impulse) || !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(impulse) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -173,19 +185,21 @@ void m3Body_ApplyAngularImpulse(m3BodyId bodyId, m3Vec3 impulse)
     {
         m3OpBodyVector record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = impulse;
         m3JournalRecord(world, m3_opApplyAngularImpulse, &record, (int32_t)sizeof(record));
     }
     m3ApplyAngularImpulseInternal(world, index, impulse);
 }
 
-void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
+void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos3 point)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(force) || !m3FinitePos3(point) ||
-        !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(force) || !m3FinitePos3(point) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -194,7 +208,7 @@ void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
     {
         m3OpBodyVectorAtPoint record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = force;
         record.p = point;
         m3JournalRecord(world, m3_opApplyForceAtPoint, &record, (int32_t)sizeof(record));
@@ -202,12 +216,14 @@ void m3Body_ApplyForceAtPoint(m3BodyId bodyId, m3Vec3 force, m3Pos3 point)
     m3ApplyForceAtPointInternal(world, index, force, point);
 }
 
-void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 point)
+void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impulse, m3Pos3 point)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || !m3FiniteV3(impulse) || !m3FinitePos3(point) ||
-        !ForceTargetValid(world, index))
+    if (!m3ResolveBody(world, body, &index))
+    {
+        return;
+    }
+    if (!m3FiniteV3(impulse) || !m3FinitePos3(point) || !ForceTargetValid(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -216,7 +232,7 @@ void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 po
     {
         m3OpBodyVectorAtPoint record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = impulse;
         record.p = point;
         m3JournalRecord(world, m3_opApplyImpulseAtPoint, &record, (int32_t)sizeof(record));
@@ -224,11 +240,10 @@ void m3Body_ApplyLinearImpulseAtPoint(m3BodyId bodyId, m3Vec3 impulse, m3Pos3 po
     m3ApplyImpulseAtPointInternal(world, index, impulse, point);
 }
 
-void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
+void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return; // stale or foreign id: contract, not invariant
     }
@@ -241,18 +256,17 @@ void m3Body_SetLinearVelocity(m3BodyId bodyId, m3Vec3 velocity)
     {
         m3OpSetLinearVelocity record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = velocity;
         m3JournalRecord(world, m3_opSetLinearVelocity, &record, (int32_t)sizeof(record));
     }
     m3SetLinearVelocityInternal(world, index, velocity);
 }
 
-void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
+void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return; // stale or foreign id: contract, not invariant
     }
@@ -265,7 +279,7 @@ void m3Body_SetAngularVelocity(m3BodyId bodyId, m3Vec3 velocity)
     {
         m3OpSetAngularVelocity record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.v = velocity;
         m3JournalRecord(world, m3_opSetAngularVelocity, &record, (int32_t)sizeof(record));
     }
@@ -288,11 +302,11 @@ void m3SetBodyParamInternal(m3World* world, int32_t index, int32_t param, float 
     }
 }
 
-static void SetBodyParam(m3BodyId bodyId, int32_t param, float value, bool nonNegative)
+static void SetBodyParam(m3World* world, m3BodyId bodyId, int32_t param, float value,
+                         bool nonNegative)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, bodyId, &index))
     {
         return;
     }
@@ -313,19 +327,19 @@ static void SetBodyParam(m3BodyId bodyId, int32_t param, float value, bool nonNe
     m3SetBodyParamInternal(world, index, param, value);
 }
 
-void m3Body_SetGravityScale(m3BodyId bodyId, float scale)
+void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
 {
-    SetBodyParam(bodyId, m3_bodyParamGravityScale, scale, false);
+    SetBodyParam(world, body, m3_bodyParamGravityScale, scale, false);
 }
 
-void m3Body_SetLinearDamping(m3BodyId bodyId, float damping)
+void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
 {
-    SetBodyParam(bodyId, m3_bodyParamLinearDamping, damping, true);
+    SetBodyParam(world, body, m3_bodyParamLinearDamping, damping, true);
 }
 
-void m3Body_SetAngularDamping(m3BodyId bodyId, float damping)
+void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)
 {
-    SetBodyParam(bodyId, m3_bodyParamAngularDamping, damping, true);
+    SetBodyParam(world, body, m3_bodyParamAngularDamping, damping, true);
 }
 
 void m3SetBulletInternal(m3World* world, int32_t index, int bullet)
@@ -333,11 +347,10 @@ void m3SetBulletInternal(m3World* world, int32_t index, int bullet)
     world->bodies.bulletFlags[index] = bullet ? 1 : 0;
 }
 
-void m3Body_SetBullet(m3BodyId bodyId, bool flag)
+void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return;
     }
@@ -345,7 +358,7 @@ void m3Body_SetBullet(m3BodyId bodyId, bool flag)
     {
         m3OpBodyByte record;
         memset(&record, 0, sizeof(record));
-        record.id = bodyId;
+        record.id = body;
         record.value = flag ? 1 : 0;
         m3JournalRecord(world, m3_opSetBullet, &record, (int32_t)sizeof(record));
     }

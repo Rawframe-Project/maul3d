@@ -12,7 +12,6 @@
 #include "misuse.h"
 #include "softbody.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <math.h>
 #include <string.h>
@@ -41,8 +40,7 @@ m3SoftBodyDef m3DefaultSoftBodyDef(void)
 int32_t m3SoftBodySlot(const m3World* world, m3SoftBodyId softId)
 {
     int32_t index = softId.index1 - 1;
-    if (world == NULL || softId.world != world->idWorld ||
-        !m3IdPoolValid(&world->softBodies.softPool, index, softId.generation))
+    if (world == NULL || !m3IdPoolValid(&world->softBodies.softPool, index, softId.generation))
     {
         return -1;
     }
@@ -467,24 +465,26 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
     return slot;
 }
 
-m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, const m3Vec3* points,
-                                 int32_t pointCount, const uint16_t* tets, int32_t tetCount)
+m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
+                             int32_t pointCount, const uint16_t* tets, int32_t tetCount,
+                             m3SoftBodyId* softBodyOut)
 {
-    m3SoftBodyId null = {0, 0, 0};
-    m3World* world = m3WorldFromId(worldId);
+    if (softBodyOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *softBodyOut = m3_nullSoftBodyId;
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE ||
         points == NULL || tets == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return null;
+        return m3Refuse(world, m3_errorInvalid);
     }
     int32_t slot = m3CreateSoftBodyTetInternal(world, def, points, pointCount, tets, tetCount);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return null;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3SoftBodyId id = {slot + 1, world->idWorld, world->softBodies.softPool.generations[slot]};
+    m3SoftBodyId id = {slot + 1, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3CreateSoftBodyTetOp head;
@@ -498,24 +498,27 @@ m3SoftBodyId m3CreateSoftBodyTet(m3WorldId worldId, const m3SoftBodyDef* def, co
                                   {tets, 4 * tetCount * (int32_t)sizeof(uint16_t)}};
         m3JournalRecordParts(world, m3_opCreateSoftBodyTet, parts, 3);
     }
-    return id;
+    *softBodyOut = id;
+    return m3_success;
 }
 
-m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
+m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId* softBodyOut)
 {
-    m3World* world = m3WorldFromId(worldId);
+    if (softBodyOut == NULL)
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *softBodyOut = m3_nullSoftBodyId;
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return m3_nullSoftBodyId; // field checks live in the internal
+        return m3Refuse(world, m3_errorInvalid); // field checks live in the internal
     }
     int32_t slot = m3CreateSoftBodyInternal(world, def);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return m3_nullSoftBodyId;
+        return m3Refuse(world, m3_errorCapacity);
     }
-    m3SoftBodyId id = {slot + 1, world->idWorld, world->softBodies.softPool.generations[slot]};
+    m3SoftBodyId id = {slot + 1, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
     {
         m3OpCreateSoftBody record;
@@ -524,35 +527,33 @@ m3SoftBodyId m3CreateSoftBody(m3WorldId worldId, const m3SoftBodyDef* def)
         record.expected = id;
         m3JournalRecord(world, m3_opCreateSoftBody, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *softBodyOut = id;
+    return m3_success;
 }
 
-void m3DestroySoftBody(m3SoftBodyId softId)
+m3Result m3DestroySoftBody(m3World* world, m3SoftBodyId softBody)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
+    int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale: the quiet destroy contract
+        return m3Refuse(world, m3MissingId(softBody.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroySoftBody, &softId, (int32_t)sizeof(softId));
+        m3JournalRecord(world, m3_opDestroySoftBody, &softBody, (int32_t)sizeof(softBody));
     }
     m3DestroySoftBodyInternal(world, slot);
+    return m3_success;
 }
 
-bool m3SoftBody_IsValid(m3SoftBodyId softId)
+bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    return world != NULL && m3SoftBodySlot(world, softId) >= 0;
+    return m3SoftBodySlot(world, softBody) >= 0;
 }
 
-void m3SoftBody_PinParticle(m3SoftBodyId softId, int32_t particle)
+void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
+    int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
         m3Refuse(world, m3_errorInvalid);
@@ -562,7 +563,7 @@ void m3SoftBody_PinParticle(m3SoftBodyId softId, int32_t particle)
     {
         m3OpSoftBodyPin record;
         memset(&record, 0, sizeof(record));
-        record.id = softId;
+        record.id = softBody;
         record.particle = particle;
         m3JournalRecord(world, m3_opSoftBodyPin, &record, (int32_t)sizeof(record));
     }
@@ -614,12 +615,11 @@ void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particl
     world->softBodies.softSoftCount[slotA] = a + 1;
 }
 
-void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBodyId softIdB,
-                             int32_t particleB)
+void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
+                             m3SoftBodyId softBodyB, int32_t particleB)
 {
-    m3World* world = m3WorldFromTag(softIdA.world);
-    int32_t slotA = world != NULL ? m3SoftBodySlot(world, softIdA) : -1;
-    int32_t slotB = world != NULL ? m3SoftBodySlot(world, softIdB) : -1;
+    int32_t slotA = m3SoftBodySlot(world, softBodyA);
+    int32_t slotB = m3SoftBodySlot(world, softBodyB);
     if (slotA < 0 || slotB < 0 || slotA == slotB || particleA < 0 || particleB < 0 ||
         particleA >= world->softBodies.softParticleCount[slotA] ||
         particleB >= world->softBodies.softParticleCount[slotB] ||
@@ -632,21 +632,21 @@ void m3SoftBody_AnchorToSoft(m3SoftBodyId softIdA, int32_t particleA, m3SoftBody
     {
         m3OpSoftBodyAnchorSoft record;
         memset(&record, 0, sizeof(record));
-        record.idA = softIdA;
+        record.idA = softBodyA;
         record.particleA = particleA;
-        record.idB = softIdB;
+        record.idB = softBodyB;
         record.particleB = particleB;
         m3JournalRecord(world, m3_opSoftBodyAnchorSoft, &record, (int32_t)sizeof(record));
     }
     m3SoftBodyAnchorSoftInternal(world, slotA, particleA, slotB, particleB);
 }
 
-void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId bodyId)
+void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
+                               m3BodyId body)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
-    int32_t body = world != NULL ? m3BodySlot(world, bodyId) : -1;
-    if (slot < 0 || body < 0 || particle < 0 ||
+    int32_t slot = m3SoftBodySlot(world, softBody);
+    int32_t bodyIndex = m3BodySlot(world, body);
+    if (slot < 0 || bodyIndex < 0 || particle < 0 ||
         particle >= world->softBodies.softParticleCount[slot] ||
         world->softBodies.softAnchorCount[slot] >= M3_SOFTBODY_MAX_ANCHORS)
     {
@@ -657,25 +657,23 @@ void m3SoftBody_AnchorParticle(m3SoftBodyId softId, int32_t particle, m3BodyId b
     {
         m3OpSoftBodyAnchor record;
         memset(&record, 0, sizeof(record));
-        record.id = softId;
+        record.id = softBody;
         record.particle = particle;
-        record.body = bodyId;
+        record.body = body;
         m3JournalRecord(world, m3_opSoftBodyAnchor, &record, (int32_t)sizeof(record));
     }
-    m3SoftBodyAnchorInternal(world, slot, particle, body);
+    m3SoftBodyAnchorInternal(world, slot, particle, bodyIndex);
 }
 
-int32_t m3SoftBody_GetParticleCount(m3SoftBodyId softId)
+int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
+    int32_t slot = m3SoftBodySlot(world, softBody);
     return slot >= 0 ? world->softBodies.softParticleCount[slot] : 0;
 }
 
-m3Pos3 m3SoftBody_GetParticlePosition(m3SoftBodyId softId, int32_t particle)
+m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBody, int32_t particle)
 {
-    m3World* world = m3WorldFromTag(softId.world);
-    int32_t slot = world != NULL ? m3SoftBodySlot(world, softId) : -1;
+    int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
         m3Refuse(world, m3_errorInvalid);

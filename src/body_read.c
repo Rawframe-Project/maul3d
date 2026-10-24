@@ -9,50 +9,35 @@
 #include "broad_phase.h"
 #include "world_internal.h"
 
-m3WorldId m3Body_GetWorld(m3BodyId bodyId)
+m3Transform m3Body_GetTransform(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    m3WorldId id = {0, 0};
-    if (world != NULL)
-    {
-        id = (m3WorldId){(uint16_t)(world->slot + 1), world->generation};
-    }
-    return id;
-}
-
-m3Transform m3Body_GetTransform(m3BodyId bodyId)
-{
-    int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
     m3Transform identity = {{0.0, 0.0, 0.0}, {0.0f, 0.0f, 0.0f, 1.0f}};
-    return world != NULL ? world->bodies.transforms[index] : identity;
+    return m3ResolveBody(world, body, &index) ? world->bodies.transforms[index] : identity;
 }
 
-float m3Body_GetMass(m3BodyId bodyId)
+float m3Body_GetMass(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL || world->bodies.invMass[index] <= 0.0f)
+    if (!m3ResolveBody(world, body, &index) || world->bodies.invMass[index] <= 0.0f)
     {
         return 0.0f;
     }
     return 1.0f / world->bodies.invMass[index];
 }
 
-m3Mat3 m3Body_GetRotationalInertia(m3BodyId bodyId)
+m3Mat3 m3Body_GetRotationalInertia(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL ? world->bodies.inertiaLocal[index] : m3MakeZeroMat3();
+    return m3ResolveBody(world, body, &index) ? world->bodies.inertiaLocal[index]
+                                              : m3MakeZeroMat3();
 }
 
-m3Vec3 m3Body_GetLocalCenter(m3BodyId bodyId)
+m3Vec3 m3Body_GetLocalCenter(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
     m3Vec3 zero = {0.0f, 0.0f, 0.0f};
-    return world != NULL ? world->bodies.localCenters[index] : zero;
+    return m3ResolveBody(world, body, &index) ? world->bodies.localCenters[index] : zero;
 }
 
 // A body-local point in world space: the rotation in float, the offset
@@ -64,33 +49,30 @@ static m3Pos3 ToWorld(const m3Transform* xf, m3Vec3 local)
     return p;
 }
 
-m3Pos3 m3Body_GetWorldCenterOfMass(m3BodyId bodyId)
+m3Pos3 m3Body_GetWorldCenterOfMass(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return ToWorld(&world->bodies.transforms[index], world->bodies.localCenters[index]);
 }
 
-m3Pos3 m3Body_GetWorldPoint(m3BodyId bodyId, m3Vec3 localPoint)
+m3Pos3 m3Body_GetWorldPoint(const m3World* world, m3BodyId body, m3Vec3 localPoint)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return ToWorld(&world->bodies.transforms[index], localPoint);
 }
 
-m3Vec3 m3Body_GetLocalPoint(m3BodyId bodyId, m3Pos3 worldPoint)
+m3Vec3 m3Body_GetLocalPoint(const m3World* world, m3BodyId body, m3Pos3 worldPoint)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
@@ -100,22 +82,20 @@ m3Vec3 m3Body_GetLocalPoint(m3BodyId bodyId, m3Pos3 worldPoint)
     return m3InvRotateVec3(xf->q, d);
 }
 
-m3Vec3 m3Body_GetWorldVector(m3BodyId bodyId, m3Vec3 localVector)
+m3Vec3 m3Body_GetWorldVector(const m3World* world, m3BodyId body, m3Vec3 localVector)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     return m3RotateVec3(world->bodies.transforms[index].q, localVector);
 }
 
-m3Vec3 m3Body_GetLocalVector(m3BodyId bodyId, m3Vec3 worldVector)
+m3Vec3 m3Body_GetLocalVector(const m3World* world, m3BodyId body, m3Vec3 worldVector)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
@@ -132,62 +112,55 @@ static m3Vec3 PointVelocity(const m3World* world, int32_t index, m3Pos3 worldPoi
                   m3Cross3(world->bodies.angularVelocities[index], r));
 }
 
-m3Vec3 m3Body_GetWorldPointVelocity(m3BodyId bodyId, m3Pos3 worldPoint)
+m3Vec3 m3Body_GetWorldPointVelocity(const m3World* world, m3BodyId body, m3Pos3 worldPoint)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     return PointVelocity(world, index, worldPoint);
 }
 
-m3Vec3 m3Body_GetLocalPointVelocity(m3BodyId bodyId, m3Vec3 localPoint)
+m3Vec3 m3Body_GetLocalPointVelocity(const m3World* world, m3BodyId body, m3Vec3 localPoint)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     return PointVelocity(world, index, ToWorld(&world->bodies.transforms[index], localPoint));
 }
 
-float m3Body_GetGravityScale(m3BodyId bodyId)
+float m3Body_GetGravityScale(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL ? world->bodies.gravityScales[index] : 0.0f;
+    return m3ResolveBody(world, body, &index) ? world->bodies.gravityScales[index] : 0.0f;
 }
 
-float m3Body_GetLinearDamping(m3BodyId bodyId)
+float m3Body_GetLinearDamping(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL ? world->bodies.linearDamping[index] : 0.0f;
+    return m3ResolveBody(world, body, &index) ? world->bodies.linearDamping[index] : 0.0f;
 }
 
-float m3Body_GetAngularDamping(m3BodyId bodyId)
+float m3Body_GetAngularDamping(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL ? world->bodies.angularDamping[index] : 0.0f;
+    return m3ResolveBody(world, body, &index) ? world->bodies.angularDamping[index] : 0.0f;
 }
 
-bool m3Body_IsBullet(m3BodyId bodyId)
+bool m3Body_IsBullet(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    return world != NULL && world->bodies.bulletFlags[index] != 0;
+    return m3ResolveBody(world, body, &index) && world->bodies.bulletFlags[index] != 0;
 }
 
-m3AabbResult m3Body_ComputeAabb(m3BodyId bodyId)
+m3AabbResult m3Body_ComputeAabb(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
     m3AabbResult result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return result;
     }
@@ -229,11 +202,10 @@ m3AabbResult m3Body_ComputeAabb(m3BodyId bodyId)
     return result;
 }
 
-int32_t m3Body_GetShapes(m3BodyId bodyId, m3ShapeId* ids, int32_t capacity)
+int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids, int32_t capacity)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return 0;
     }
@@ -246,18 +218,17 @@ int32_t m3Body_GetShapes(m3BodyId bodyId, m3ShapeId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            ids[total] = (m3ShapeId){s + 1, world->idWorld, world->shapes.shapePool.generations[s]};
+            ids[total] = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m3Body_GetJoints(m3BodyId bodyId, m3JointId* ids, int32_t capacity)
+int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids, int32_t capacity)
 {
     int32_t index;
-    m3World* world = m3ResolveBody(bodyId, &index);
-    if (world == NULL)
+    if (!m3ResolveBody(world, body, &index))
     {
         return 0;
     }
@@ -271,7 +242,7 @@ int32_t m3Body_GetJoints(m3BodyId bodyId, m3JointId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            ids[total] = (m3JointId){j + 1, world->idWorld, world->joints.jointPool.generations[j]};
+            ids[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
         total += 1;
     }

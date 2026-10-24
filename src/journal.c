@@ -8,7 +8,6 @@
 
 #include "misuse.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -50,72 +49,80 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
     m3JournalRecordParts(world, op, &part, 1);
 }
 
-bool m3World_StartJournal(m3WorldId worldId, void* buffer, int32_t capacity)
+m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL || buffer == NULL || capacity < 8 || world->recorder.journalActive != 0)
+    if (world == NULL || buffer == NULL || capacity < 8)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // contract, not invariant
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        return m3Refuse(world, m3_errorState);
     }
     world->recorder.journalBuffer = (uint8_t*)buffer;
     world->recorder.journalCapacity = capacity;
     world->recorder.journalCursor = 0;
     world->recorder.journalActive = 1;
     world->recorder.journalOverflow = 0;
-    return true;
+    return m3_success;
 }
 
-int32_t m3World_StopJournal(m3WorldId worldId)
+m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || bytesOut == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return -1; // contract, not invariant
+        return m3Refuse(world, m3_errorInvalid);
     }
-    int32_t bytes = world->recorder.journalOverflow != 0 ? -1 : world->recorder.journalCursor;
+    *bytesOut = 0;
+    if (world->recorder.journalActive == 0)
+    {
+        return m3Refuse(world, m3_errorState);
+    }
+    bool overflow = world->recorder.journalOverflow != 0;
+    int32_t bytes = world->recorder.journalCursor;
     world->recorder.journalBuffer = NULL;
     world->recorder.journalCapacity = 0;
     world->recorder.journalCursor = 0;
     world->recorder.journalActive = 0;
     world->recorder.journalOverflow = 0;
-    return bytes;
+    if (overflow)
+    {
+        return m3_errorCapacity; // the buffer filled up: the tape is unusable
+    }
+    *bytesOut = bytes;
+    return m3_success;
 }
 
-bool m3World_ReplayJournal(m3WorldId worldId, const void* data, int32_t size)
+m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || data == NULL || size < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // contract, not invariant
+        return m3Refuse(world, m3_errorInvalid);
     }
     // Atomic replay: the world either takes the whole session
     // or none of it. A pre-replay snapshot backs out any partial
     // application on refusal, so a corrupted or truncated journal
     // can never leave a half-built world behind.
-    int32_t snapBytes = m3World_SnapshotSize(worldId);
-    uint8_t* snap = (uint8_t*)m3AllocZeroed(snapBytes);
+    int32_t snapBytes = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)m3AllocZeroed(&world->heap, snapBytes);
     if (snap == NULL)
     {
-        m3Refuse(world, m3_errorCapacity);
-        return false; // no memory for the guarantee means no replay
+        return m3_errorCapacity; // no memory for the guarantee means no replay
     }
-    if (m3World_Snapshot(worldId, snap, snapBytes) != snapBytes)
+    int32_t written = 0;
+    if (m3World_Snapshot(world, snap, snapBytes, &written) != m3_success || written != snapBytes)
     {
-        m3Free(snap);
-        m3Refuse(world, m3_errorCapacity);
-        return false;
+        m3Free(&world->heap, snap);
+        return m3_errorCapacity;
     }
     bool ok = m3JournalReplayApply(world, data, size);
     if (!ok)
     {
-        bool restored = m3World_Restore(worldId, snap, snapBytes);
-        M3_ASSERT(restored); // our own snapshot must restore: invariant
+        m3Result restored = m3World_Restore(world, snap, snapBytes);
+        M3_ASSERT(restored == m3_success); // our own snapshot must restore: invariant
         (void)restored;
         m3Refuse(world, m3_errorInvalid);
     }
-    m3Free(snap);
-    return ok;
+    m3Free(&world->heap, snap);
+    return ok ? m3_success : m3_errorInvalid;
 }

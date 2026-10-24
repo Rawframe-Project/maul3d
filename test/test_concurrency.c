@@ -8,6 +8,7 @@
 // nothing. One writer per world remains the law; create/destroy
 // stay host-serialized. The TSAN CI cell runs this suite to turn
 // any data race into a red build.
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/body.h"
@@ -20,34 +21,34 @@
 #include <stdio.h>
 #include <string.h>
 
-static m3WorldId BuildWorld(int32_t seed)
+static m3World* BuildWorld(int32_t seed)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 256;
     def.shapeCapacity = 256;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
     sd.rollingResistance = 0.05f;
     m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &fl);
+    NewPlaneShape(world, ground, &sd, &fl);
     for (int32_t i = 0; i < 150; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.9 * (double)(i % 10) - 4.5 + 0.01 * (double)seed,
                                0.6 + 1.0 * (double)(i / 50), 0.9 * (double)((i / 10) % 5) - 1.8};
-        m3BodyId b = m3CreateBody(world, &bd);
+        m3BodyId b = NewBody(world, &bd);
         if (i % 2 == 0)
         {
-            m3CreateBoxShape(b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+            NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
         }
         else
         {
             m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.42f};
-            m3CreateSphereShape(b, &sd, &s);
+            NewSphereShape(world, b, &sd, &s);
         }
     }
     return world;
@@ -55,7 +56,7 @@ static m3WorldId BuildWorld(int32_t seed)
 
 typedef struct StepJob
 {
-    m3WorldId world;
+    m3World* world;
     int32_t steps;
 } StepJob;
 
@@ -72,8 +73,8 @@ static void* StepMain(void* arg)
 // Two worlds, two threads, versus two serial twins.
 static void TestParallelWorldsMatchSerial(void)
 {
-    m3WorldId serialA = BuildWorld(1);
-    m3WorldId serialB = BuildWorld(2);
+    m3World* serialA = BuildWorld(1);
+    m3World* serialB = BuildWorld(2);
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(serialA, 1.0f / 60.0f, 4);
@@ -84,8 +85,8 @@ static void TestParallelWorldsMatchSerial(void)
     m3DestroyWorld(serialA);
     m3DestroyWorld(serialB);
 
-    m3WorldId parA = BuildWorld(1);
-    m3WorldId parB = BuildWorld(2);
+    m3World* parA = BuildWorld(1);
+    m3World* parB = BuildWorld(2);
     StepJob jobA = {parA, 300};
     StepJob jobB = {parB, 300};
     pthread_t tA;
@@ -102,7 +103,7 @@ static void TestParallelWorldsMatchSerial(void)
 
 typedef struct ReaderJob
 {
-    m3WorldId world;
+    m3World* world;
     int32_t rounds;
     int32_t hits;
 } ReaderJob;
@@ -125,7 +126,7 @@ static void* ReaderMain(void* arg)
 // free; the TSAN cell holds the proof to that promise.
 static void TestConcurrentReadersBetweenSteps(void)
 {
-    m3WorldId world = BuildWorld(3);
+    m3World* world = BuildWorld(3);
     for (int32_t i = 0; i < 240; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -146,37 +147,46 @@ static void TestConcurrentReadersBetweenSteps(void)
     m3DestroyWorld(world);
 }
 
-static void* RefuseCapacityMain(void* arg)
+typedef struct StaleReader
 {
-    m3WorldId world = *(const m3WorldId*)arg;
-    m3BodyDef bd = m3DefaultBodyDef();
-    m3CreateBody(world, &bd); // the pool is full: refused for capacity
-    return (void*)(intptr_t)(m3LastResult() == m3_errorCapacity);
+    const m3World* world;
+    m3BodyId stale;
+    int32_t rounds;
+} StaleReader;
+
+static void* StaleReaderMain(void* arg)
+{
+    const StaleReader* reader = (const StaleReader*)arg;
+    for (int32_t i = 0; i < reader->rounds; ++i)
+    {
+        (void)m3Body_GetPosition(reader->world, reader->stale);
+    }
+    return NULL;
 }
 
-static void TestLastResultIsPerThread(void)
+static void TestMisuseFromConcurrentReaders(void)
 {
-    // This thread refuses for invalid input while another refuses for
-    // capacity; each thread reads back its own reason.
+    // Readers on several threads may refuse at once; each refusal counts.
     m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
-    m3CreateBody(world, &bd);
-    m3World_SetGravity(world, (m3Vec3){0.0f, 0.0f, INFINITY});
-    CHECK(m3LastResult() == m3_errorInvalid, "this thread's refusal is invalid");
-    pthread_t other;
-    void* sawCapacity = NULL;
-    pthread_create(&other, NULL, RefuseCapacityMain, &world);
-    pthread_join(other, &sawCapacity);
-    CHECK(sawCapacity != NULL, "the other thread saw its own capacity refusal");
-    CHECK(m3LastResult() == m3_errorInvalid, "and did not overwrite this thread's reason");
+    m3BodyId gone = NewBody(world, &bd);
+    DestroyBody(world, gone);
+    uint64_t before = m3World_GetCounters(world).misuse;
+    StaleReader reader = {world, gone, 2000};
+    pthread_t one;
+    pthread_t two;
+    pthread_create(&one, NULL, StaleReaderMain, &reader);
+    pthread_create(&two, NULL, StaleReaderMain, &reader);
+    pthread_join(one, NULL);
+    pthread_join(two, NULL);
+    CHECK(m3World_GetCounters(world).misuse == before + 4000u, "every concurrent refusal counts");
     m3DestroyWorld(world);
 }
 
 int main(void)
 {
-    TestLastResultIsPerThread();
+    TestMisuseFromConcurrentReaders();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersBetweenSteps();
     if (s_failures == 0)

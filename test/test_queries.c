@@ -5,6 +5,7 @@
 // hand-counted expectations, analytic ray hits on every shape family,
 // closest-of-many ordering, casts and overlaps.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -21,19 +22,19 @@ static void TestContactEvents(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3ShapeId ballShape = m3CreateSphereShape(ball, &sd, &sphere);
+    m3ShapeId ballShape = NewSphereShape(world, ball, &sd, &sphere);
 
     int32_t begins = 0;
     int32_t ends = 0;
@@ -57,10 +58,11 @@ static void TestContactEvents(void)
     CHECK(firstBegin.shapeIdA.index1 == floorShape.index1 &&
               firstBegin.shapeIdB.index1 == ballShape.index1,
           "the begin event names the pair in canonical order");
-    CHECK(m3Shape_IsValid(firstBegin.shapeIdA) && m3Shape_IsValid(firstBegin.shapeIdB),
+    CHECK(m3Shape_IsValid(world, firstBegin.shapeIdA) &&
+              m3Shape_IsValid(world, firstBegin.shapeIdB),
           "event ids are live handles");
 
-    m3Body_SetLinearVelocity(ball, (m3Vec3){0.0f, 8.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, 8.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -72,8 +74,8 @@ static void TestContactEvents(void)
     // Events are transient: a snapshot restore clears them.
     int32_t snapBytes = m3World_SnapshotSize(world);
     void* snap = malloc((size_t)snapBytes);
-    CHECK(m3World_Snapshot(world, snap, snapBytes) == snapBytes, "snapshot writes");
-    CHECK(m3World_Restore(world, snap, snapBytes), "snapshot restores");
+    CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "snapshot writes");
+    CHECK(Restore(world, snap, snapBytes), "snapshot restores");
     int32_t n = m3World_GetContactEvents(world).beginCount;
     CHECK(n == 0, "restore clears begin events");
     n = m3World_GetContactEvents(world).endCount;
@@ -90,30 +92,30 @@ static void TestRayHitsEveryFamily(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     m3ShapeDef sd = m3DefaultShapeDef();
 
     bd.position = (m3Pos3){10.0, 0.0, 0.0};
-    m3BodyId sphereBody = m3CreateBody(world, &bd);
+    m3BodyId sphereBody = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
-    m3CreateSphereShape(sphereBody, &sd, &sphere);
+    NewSphereShape(world, sphereBody, &sd, &sphere);
 
     bd.position = (m3Pos3){10.0, 10.0, 0.0};
-    m3BodyId boxBody = m3CreateBody(world, &bd);
-    m3CreateBoxShape(boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyId boxBody = NewBody(world, &bd);
+    NewBoxShape(world, boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
 
     bd.position = (m3Pos3){10.0, 20.0, 0.0};
-    m3BodyId capBody = m3CreateBody(world, &bd);
+    m3BodyId capBody = NewBody(world, &bd);
     m3Capsule capsule = {{0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.5f};
-    m3CreateCapsuleShape(capBody, &sd, &capsule);
+    NewCapsuleShape(world, capBody, &sd, &capsule);
 
     bd.position = (m3Pos3){8.0, 30.0, -2.0};
-    m3BodyId meshBody = m3CreateBody(world, &bd);
+    m3BodyId meshBody = NewBody(world, &bd);
     m3Vec3 verts[4] = {
         {0.0f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 4.0f}, {4.0f, 0.0f, 4.0f}};
     uint16_t tris[6] = {0, 2, 1, 1, 2, 3};
-    CHECK(m3Shape_IsValid(m3CreateMeshShape(meshBody, &sd, verts, 4, tris, 2)),
+    CHECK(m3Shape_IsValid(world, NewMeshShape(world, meshBody, &sd, verts, 4, tris, 2)),
           "the query mesh builds");
 
     // Sphere: from the origin along +x, entry at x = 9, fraction 0.45.
@@ -159,17 +161,17 @@ static void TestRayClosestOfMany(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     m3ShapeDef sd = m3DefaultShapeDef();
 
     bd.position = (m3Pos3){5.0, 0.0, 0.0};
-    m3BodyId nearBody = m3CreateBody(world, &bd);
+    m3BodyId nearBody = NewBody(world, &bd);
     m3Sphere s1 = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3ShapeId nearShape = m3CreateSphereShape(nearBody, &sd, &s1);
+    m3ShapeId nearShape = NewSphereShape(world, nearBody, &sd, &s1);
     bd.position = (m3Pos3){15.0, 0.0, 0.0};
-    m3BodyId farBody = m3CreateBody(world, &bd);
-    m3ShapeId farShape = m3CreateSphereShape(farBody, &sd, &s1);
+    m3BodyId farBody = NewBody(world, &bd);
+    m3ShapeId farShape = NewSphereShape(world, farBody, &sd, &s1);
 
     m3RayCastResult hit = m3World_CastRayClosest(
         world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
@@ -181,9 +183,9 @@ static void TestRayClosestOfMany(void)
 
     // The infinite plane through the dedicated pass.
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, -2.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 3.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
                                  m3DefaultQueryFilter());
     CHECK(hit.hit && hit.fraction > 0.499f && hit.fraction < 0.501f, "the plane pass hits");
@@ -198,12 +200,12 @@ static void TestShapeCasts(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){10.0, 0.0, 0.0};
-    m3BodyId wall = m3CreateBody(world, &bd);
+    m3BodyId wall = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3CreateBoxShape(wall, &sd, (m3Vec3){0.5f, 2.0f, 2.0f});
+    NewBoxShape(world, wall, &sd, (m3Vec3){0.5f, 2.0f, 2.0f});
 
     // Cast a 0.5-radius sphere from the origin: the box face sits at
     // x = 9.5, the sphere surface leads by 0.5, so centers touch at
@@ -242,29 +244,29 @@ static void TestRayStartInsideContract(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
     m3ShapeDef sd = m3DefaultShapeDef();
 
     bd.position = (m3Pos3){0.0, 0.0, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 1.0f};
-    m3CreateSphereShape(a, &sd, &ball);
+    NewSphereShape(world, a, &sd, &ball);
     m3RayCastResult hit = m3World_CastRayClosest(
         world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(!hit.hit, "a ray starting inside a sphere misses it");
 
     bd.position = (m3Pos3){10.0, 0.0, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
-    m3CreateBoxShape(b, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyId b = NewBody(world, &bd);
+    NewBoxShape(world, b, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
     hit = m3World_CastRayClosest(world, (m3Pos3){10.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
                                  m3DefaultQueryFilter());
     CHECK(!hit.hit, "a ray starting inside a hull misses it");
 
     bd.position = (m3Pos3){20.0, 0.0, 0.0};
-    m3BodyId c = m3CreateBody(world, &bd);
+    m3BodyId c = NewBody(world, &bd);
     m3Capsule capsule = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.5f};
-    m3CreateCapsuleShape(c, &sd, &capsule);
+    NewCapsuleShape(world, c, &sd, &capsule);
     hit = m3World_CastRayClosest(world, (m3Pos3){20.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
                                  m3DefaultQueryFilter());
     CHECK(!hit.hit, "a ray starting inside a capsule misses it");
@@ -279,21 +281,21 @@ static void TestMultiHitSorted(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){4.0, 4.0, 0.0};
-    m3BodyId nearBody = m3CreateBody(world, &bd);
+    m3BodyId nearBody = NewBody(world, &bd);
     m3Sphere s1 = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(nearBody, &sd, &s1);
+    NewSphereShape(world, nearBody, &sd, &s1);
     bd.position = (m3Pos3){8.0, 2.0, 0.0};
-    m3BodyId midBody = m3CreateBody(world, &bd);
-    m3CreateSphereShape(midBody, &sd, &s1);
+    m3BodyId midBody = NewBody(world, &bd);
+    NewSphereShape(world, midBody, &sd, &s1);
 
     // A ray sloping down through both spheres into the floor.
     m3RayHit hits[8];
@@ -320,17 +322,17 @@ static void TestPointAndOverlaps(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){5.0, 2.0, 0.0};
-    m3BodyId boxBody = m3CreateBody(world, &bd);
-    m3ShapeId boxShape = m3CreateBoxShape(boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyId boxBody = NewBody(world, &bd);
+    m3ShapeId boxShape = NewBoxShape(world, boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
 
     // Point containment per family.
     m3ShapeId inBox = m3World_TestPoint(world, (m3Pos3){5.2, 2.3, 0.4});
@@ -366,22 +368,22 @@ static void TestSensorPassThrough(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){0.0, 3.0, 0.0};
-    m3BodyId zone = m3CreateBody(world, &gd);
+    m3BodyId zone = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.isSensor = true;
-    CHECK(m3Shape_IsValid(m3CreateBoxShape(zone, &sd, (m3Vec3){1.0f, 0.5f, 1.0f})),
+    CHECK(m3Shape_IsValid(world, NewBoxShape(world, zone, &sd, (m3Vec3){1.0f, 0.5f, 1.0f})),
           "the sensor zone builds");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 6.0, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3ShapeDef bsd = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    m3CreateSphereShape(ball, &bsd, &sphere);
+    NewSphereShape(world, ball, &bsd, &sphere);
 
     int32_t sensorBegins = 0;
     int32_t sensorEnds = 0;
@@ -401,7 +403,7 @@ static void TestSensorPassThrough(void)
     CHECK(contactBegins == 0, "the contact stream stays silent for sensors");
     // Free fall for 1.5 s from rest: y = 6 - 0.5 * 10 * 1.5^2 = -5.25
     // (substep integration lands within a band).
-    m3Pos3 p = m3Body_GetPosition(ball);
+    m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y < -5.0 && p.y > -5.6, "the fall never slowed: sensors do not respond");
     m3DestroyWorld(world);
 }
@@ -413,27 +415,27 @@ static void TestSensorSleepAndBullets(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.4, 0.0};
-    m3BodyId sleeper = m3CreateBody(world, &bd);
+    m3BodyId sleeper = NewBody(world, &bd);
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
-    m3CreateSphereShape(sleeper, &sd, &ball);
+    NewSphereShape(world, sleeper, &sd, &ball);
 
     // A sensor zone AROUND the resting spot, created before sleep.
     m3BodyDef zd = m3DefaultBodyDef();
     zd.position = (m3Pos3){0.0, 0.5, 0.0};
-    m3BodyId zone = m3CreateBody(world, &zd);
+    m3BodyId zone = NewBody(world, &zd);
     m3ShapeDef zsd = m3DefaultShapeDef();
     zsd.isSensor = true;
-    m3CreateBoxShape(zone, &zsd, (m3Vec3){2.0f, 1.0f, 2.0f});
+    NewBoxShape(world, zone, &zsd, (m3Vec3){2.0f, 1.0f, 2.0f});
 
     int32_t begins = 0;
     int32_t ends = 0;
@@ -445,7 +447,7 @@ static void TestSensorSleepAndBullets(void)
         n = m3World_GetSensorEvents(world).endCount;
         ends += n;
     }
-    m3Vec3 v = m3Body_GetLinearVelocity(sleeper);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, sleeper);
     CHECK(v.x == 0.0f && v.y == 0.0f && v.z == 0.0f,
           "the body sleeps INSIDE the sensor (overlap wakes no one)");
     CHECK(begins == 1 && ends == 0, "the begin holds through sleep with no end");
@@ -453,24 +455,24 @@ static void TestSensorSleepAndBullets(void)
     // A bullet crosses a sensor wall without slowing.
     m3BodyDef wd = m3DefaultBodyDef();
     wd.position = (m3Pos3){10.0, 5.0, 0.0};
-    m3BodyId wall = m3CreateBody(world, &wd);
+    m3BodyId wall = NewBody(world, &wd);
     m3ShapeDef wsd = m3DefaultShapeDef();
     wsd.isSensor = true;
-    m3CreateBoxShape(wall, &wsd, (m3Vec3){0.05f, 2.0f, 2.0f});
+    NewBoxShape(world, wall, &wsd, (m3Vec3){0.05f, 2.0f, 2.0f});
 
     bd.position = (m3Pos3){4.0, 5.0, 0.0};
     bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
     bd.gravityScale = 0.0f;
     bd.isBullet = true;
-    m3BodyId bullet = m3CreateBody(world, &bd);
+    m3BodyId bullet = NewBody(world, &bd);
     m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.1f};
-    m3CreateSphereShape(bullet, &sd, &small);
+    NewSphereShape(world, bullet, &sd, &small);
 
     for (int32_t i = 0; i < 10; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    m3Pos3 bp = m3Body_GetPosition(bullet);
+    m3Pos3 bp = m3Body_GetPosition(world, bullet);
     CHECK(bp.x > 20.0, "the bullet crosses the sensor wall unimpeded");
     m3DestroyWorld(world);
 }
@@ -486,20 +488,20 @@ static void TestCastsAgainstMeshAndPlane(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.meshCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef md = m3DefaultBodyDef();
     md.position = (m3Pos3){4.0, 1.0, 0.0};
-    m3BodyId meshBody = m3CreateBody(world, &md);
+    m3BodyId meshBody = NewBody(world, &md);
     m3Vec3 quad[4] = {
         {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 1.0f}};
     uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
-    m3ShapeId meshShape = m3CreateMeshShape(meshBody, &sd, quad, 4, tris, 2);
+    m3ShapeId meshShape = NewMeshShape(world, meshBody, &sd, quad, 4, tris, 2);
 
     // A sphere cast straight down onto the mesh quad at y = 1:
     // center stops at 1.3, so fraction = (3 - 1.3) / 3.
@@ -540,30 +542,30 @@ static void TestOverlapAndInsideFamilies(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.meshCapacity = 1;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
     m3Vec3 quad[4] = {
         {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 1.0f}};
     uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
     m3BodyDef md = m3DefaultBodyDef();
     md.position = (m3Pos3){6.0, 2.0, 0.0};
-    m3BodyId meshBody = m3CreateBody(world, &md);
-    m3ShapeId meshShape = m3CreateMeshShape(meshBody, &sd, quad, 4, tris, 2);
+    m3BodyId meshBody = NewBody(world, &md);
+    m3ShapeId meshShape = NewMeshShape(world, meshBody, &sd, quad, 4, tris, 2);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){-4.0, 1.0, 0.0};
-    m3BodyId pillBody = m3CreateBody(world, &bd);
+    m3BodyId pillBody = NewBody(world, &bd);
     m3Capsule pill = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.4f};
-    m3ShapeId pillShape = m3CreateCapsuleShape(pillBody, &sd, &pill);
+    m3ShapeId pillShape = NewCapsuleShape(world, pillBody, &sd, &pill);
     bd.position = (m3Pos3){-8.0, 1.0, 0.0};
-    m3BodyId rockBody = m3CreateBody(world, &bd);
+    m3BodyId rockBody = NewBody(world, &bd);
     m3Vec3 cloud[6] = {{0.5f, 0.0f, 0.0f},  {-0.5f, 0.0f, 0.0f}, {0.0f, 0.5f, 0.0f},
                        {0.0f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.5f},  {0.0f, 0.0f, -0.5f}};
-    m3ShapeId rockShape = m3CreateHullShape(rockBody, &sd, cloud, 6);
+    m3ShapeId rockShape = NewHullShape(world, rockBody, &sd, cloud, 6);
 
     // OverlapSphere against the mesh: within a radius of a vertex
     // hits, just beyond misses (the vertex-reach bound).
@@ -610,12 +612,12 @@ static void TestGenericCasts(void)
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(ground, &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
 
     // An axis-aligned unit box cast onto the plane: the lower face
     // leads, contact when center reaches 0.5: fraction = 3.5 / 8
@@ -643,8 +645,8 @@ static void TestGenericCasts(void)
     // lowest vertex leads.
     m3BodyDef bd = m3DefaultBodyDef();
     bd.position = (m3Pos3){5.0, 1.0, 0.0};
-    m3BodyId crateBody = m3CreateBody(world, &bd);
-    m3ShapeId crate = m3CreateBoxShape(crateBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyId crateBody = NewBody(world, &bd);
+    m3ShapeId crate = NewBoxShape(world, crateBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
     m3Vec3 tetra[4] = {
         {0.0f, -0.4f, 0.0f}, {0.3f, 0.4f, 0.0f}, {-0.3f, 0.4f, 0.3f}, {-0.3f, 0.4f, -0.3f}};
     hit = m3World_CastHullClosest(world, (m3Pos3){5.0, 6.0, 0.0}, tetra, 4,
@@ -698,17 +700,17 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = BALLS + 4;
     def.shapeCapacity = BALLS + 4;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef gd = m3DefaultBodyDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3ShapeId floorShape = m3CreatePlaneShape(m3CreateBody(world, &gd), &sd, &floor);
+    m3ShapeId floorShape = NewPlaneShape(world, NewBody(world, &gd), &sd, &floor);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.2f};
     for (int32_t i = 0; i < BALLS; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.position = (m3Pos3){(double)(i % 20), 1.0, (double)(i / 20)};
-        m3CreateSphereShape(m3CreateBody(world, &bd), &sd, &sphere);
+        NewSphereShape(world, NewBody(world, &bd), &sd, &sphere);
     }
     static m3ShapeId all[BALLS + 8];
     int32_t n = m3World_OverlapAabb(world, (m3Pos3){-1.0, 0.5, -1.0}, (m3Pos3){21.0, 1.5, 16.0},

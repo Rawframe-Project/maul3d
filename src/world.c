@@ -15,12 +15,11 @@
 #include "misuse.h"
 #include "world_internal.h"
 #include "world_state.h"
-#include "world_table.h"
 
 #include <stddef.h>
 #include <string.h>
 
-m3WorldDef m3DefaultWorldDef(void)
+m3WorldDef m3DefaultWorldDefValues(void)
 {
     m3WorldDef def;
     memset(&def, 0, sizeof(def));
@@ -33,7 +32,6 @@ m3WorldDef m3DefaultWorldDef(void)
     def.characterCapacity = 4;
     def.vehicleCapacity = 2;
     def.softBodyCapacity = 2;
-    def.workerCount = 1;
     def.contactHertz = M3_CONTACT_HERTZ_DEFAULT;
     def.contactDampingRatio = M3_CONTACT_DAMPING_RATIO_DEFAULT;
     def.contactPushMaxSpeed = M3_CONTACT_PUSH_MAX_SPEED_DEFAULT;
@@ -56,49 +54,47 @@ static void FreeWorldStorage(m3World* world)
     for (int32_t hf = 0; world->heightFields.hfData != NULL && hf < world->shapes.shapeCapacity;
          ++hf)
     {
-        m3HeightFieldDataFree(&world->heightFields.hfData[hf]);
+        m3HeightFieldDataFree(&world->heap, &world->heightFields.hfData[hf]);
     }
     for (int32_t m = 0; world->meshes.meshData != NULL && world->meshes.meshBvh != NULL &&
                         m < world->meshes.meshCapacity;
          ++m)
     {
-        m3MeshDataFree(&world->meshes.meshData[m]);
-        m3MeshBvhFree(&world->meshes.meshBvh[m]);
+        m3MeshDataFree(&world->heap, &world->meshes.meshData[m]);
+        m3MeshBvhFree(&world->heap, &world->meshes.meshBvh[m]);
     }
     for (int32_t v = 0; world->voxels.voxelSurface != NULL && v < world->voxels.voxelCapacity; ++v)
     {
-        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
+        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
     }
     m3StateFree(world);
-    m3IdPoolDestroy(&world->bodies.bodyPool);
-    m3IdPoolDestroy(&world->shapes.shapePool);
-    m3IdPoolDestroy(&world->hulls.hullPool);
-    m3IdPoolDestroy(&world->joints.jointPool);
-    m3IdPoolDestroy(&world->heightFields.hfPool);
-    m3IdPoolDestroy(&world->water.waterPool);
-    m3IdPoolDestroy(&world->characters.charPool);
-    m3IdPoolDestroy(&world->vehicles.vehPool);
-    m3IdPoolDestroy(&world->softBodies.softPool);
-    m3IdPoolDestroy(&world->meshes.meshPool);
-    m3IdPoolDestroy(&world->voxels.voxelPool);
-    m3TreeDestroy(&world->broadphase.tree);
-    m3StackDestroy(&world->scratch);
-    m3Free(world);
+    m3IdPoolDestroy(&world->heap, &world->bodies.bodyPool);
+    m3IdPoolDestroy(&world->heap, &world->shapes.shapePool);
+    m3IdPoolDestroy(&world->heap, &world->hulls.hullPool);
+    m3IdPoolDestroy(&world->heap, &world->joints.jointPool);
+    m3IdPoolDestroy(&world->heap, &world->heightFields.hfPool);
+    m3IdPoolDestroy(&world->heap, &world->water.waterPool);
+    m3IdPoolDestroy(&world->heap, &world->characters.charPool);
+    m3IdPoolDestroy(&world->heap, &world->vehicles.vehPool);
+    m3IdPoolDestroy(&world->heap, &world->softBodies.softPool);
+    m3IdPoolDestroy(&world->heap, &world->meshes.meshPool);
+    m3IdPoolDestroy(&world->heap, &world->voxels.voxelPool);
+    m3TreeDestroy(&world->heap, &world->broadphase.tree);
+    m3StackDestroy(&world->heap, &world->scratch);
+    // The world's own block goes last, through a copy of the heap it lives in.
+    m3Heap heap = world->heap;
+    m3Free(&heap, world);
 }
 
 // User-input validation is contract, not invariant: a bad def is a
 // refusal, never an assert.
 static bool ValidWorldDef(const m3WorldDef* def)
 {
-    if (def == NULL || def->internalValue != M3_WORLD_COOKIE)
-    {
-        return false;
-    }
     bool capacities = def->bodyCapacity > 0 && def->shapeCapacity > 0 && def->meshCapacity > 0 &&
                       def->jointCapacity > 0 && def->voxelCapacity > 0 &&
                       def->characterCapacity > 0 && def->vehicleCapacity > 0 &&
-                      def->softBodyCapacity > 0 && def->workerCount > 0 &&
-                      def->shapeCapacity <= INT32_MAX / 8 && def->voxelCapacity <= INT32_MAX / 6;
+                      def->softBodyCapacity > 0 && def->shapeCapacity <= INT32_MAX / 8 &&
+                      def->voxelCapacity <= INT32_MAX / 6;
     bool tasks = (def->enqueueTask == NULL) == (def->finishTask == NULL);
     bool tuning = m3FiniteV3(def->gravity) && m3FiniteF(def->contactHertz) &&
                   def->contactHertz > 0.0f && m3FiniteF(def->contactDampingRatio) &&
@@ -108,7 +104,7 @@ static bool ValidWorldDef(const m3WorldDef* def)
                   def->maximumLinearSpeed > 0.0f && m3FiniteF(def->maximumAngularSpeed) &&
                   def->maximumAngularSpeed > 0.0f && m3FiniteF(def->hitEventThreshold) &&
                   def->hitEventThreshold >= 0.0f;
-    return capacities && tasks && tuning;
+    return capacities && tasks && tuning && m3AllocatorValid(&def->allocator);
 }
 
 // Copies the def's settings and capacities into a zeroed world.
@@ -132,7 +128,6 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->vehicles.vehicleCapacity = def->vehicleCapacity;
     world->softBodies.softBodyCapacity = def->softBodyCapacity;
     world->joints.jointCapacity = def->jointCapacity;
-    world->workerCount = def->workerCount;
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
@@ -202,80 +197,76 @@ static bool CreatePools(m3World* world)
     bool ok = true;
     for (int32_t p = 0; p < (int32_t)(sizeof(caps) / sizeof(caps[0])); ++p)
     {
-        *pools[p] = m3IdPoolCreate(caps[p]);
+        *pools[p] = m3IdPoolCreate(&world->heap, caps[p]);
         ok = ok && pools[p]->capacity != 0;
         world->memoryBytes +=
             (int64_t)caps[p] * (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
     }
     int32_t shapeCap = world->shapes.shapeCapacity;
-    world->broadphase.tree = m3TreeCreate(2 * shapeCap);
+    world->broadphase.tree = m3TreeCreate(&world->heap, 2 * shapeCap);
     world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
     // Step scratch grows between steps on m3_errorCapacity, never mid-step.
-    world->scratch = m3StackCreate(256 * 1024);
+    world->scratch = m3StackCreate(&world->heap, 256 * 1024);
     return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0;
 }
 
-m3WorldId m3CreateWorld(const m3WorldDef* def)
+m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut)
 {
-    m3WorldId nullId = {0, 0};
+    if (worldOut == NULL)
+    {
+        return m3_errorInvalid;
+    }
+    *worldOut = NULL;
     // Before any solver kernel runs, make sure this CPU can execute the
     // backend the binary was built for: a typed refusal beats a bare
     // illegal-instruction trap on pre-Haswell hardware.
     if (m3CheckCpu(NULL) == 0)
     {
-        m3Refuse(NULL, m3_errorConfig);
-        return nullId;
+        return m3_errorUnsupported;
+    }
+    if (def == NULL || def->internalValue != M3_WORLD_COOKIE)
+    {
+        return m3_errorInvalid;
+    }
+    if (def->version != M3_ABI_VERSION)
+    {
+        return m3_errorVersion;
     }
     if (!ValidWorldDef(def))
     {
-        m3Refuse(NULL, m3_errorInvalid);
-        return nullId;
+        return m3_errorInvalid;
     }
-    int32_t slot = m3WorldTableFreeSlot();
-    m3World* world = slot < 0 ? NULL : (m3World*)m3AllocZeroed((int32_t)sizeof(m3World));
+    m3Heap heap = m3HeapMake(&def->allocator);
+    m3World* world = (m3World*)m3AllocZeroed(&heap, (int32_t)sizeof(m3World));
     if (world == NULL)
     {
-        m3Refuse(NULL, m3_errorCapacity); // the world table is full or memory is out
-        return nullId;
+        return m3_errorCapacity;
     }
+    world->heap = heap;
     ApplyWorldDef(world, def);
-    world->generation = m3WorldTableGeneration(slot);
-    world->slot = (uint16_t)slot;
-    world->idWorld =
-        (uint16_t)(((uint32_t)world->generation << M3_WORLD_SLOT_BITS) | (uint32_t)slot);
     bool ok = m3StateAllocate(world);
     ok = ok && CreatePools(world);
     if (!ok)
     {
-        // Out of memory or an unrepresentable size: release what exists
-        // and refuse. Nothing was registered, so the slot stays free.
+        // Out of memory or an unrepresentable size: release what exists.
         FreeWorldStorage(world);
-        m3Refuse(NULL, m3_errorCapacity);
-        return nullId;
+        return m3_errorCapacity;
     }
     ClearLinks(world);
-    m3WorldTableSet(slot, world);
-    return (m3WorldId){(uint16_t)(slot + 1), world->generation};
+    *worldOut = world;
+    return m3_success;
 }
 
-void m3DestroyWorld(m3WorldId worldId)
+void m3DestroyWorld(m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
-    if (world == NULL)
+    if (world != NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale or foreign id: contract, not invariant
+        FreeWorldStorage(world);
     }
-    int32_t slot = world->slot;
-
-    FreeWorldStorage(world);
-
-    m3WorldTableRelease(slot);
 }
 
-int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity)
+int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -290,16 +281,15 @@ int32_t m3World_GetBodies(m3WorldId worldId, m3BodyId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            ids[total] = (m3BodyId){b + 1, world->idWorld, world->bodies.bodyPool.generations[b]};
+            ids[total] = (m3BodyId){b + 1, world->bodies.bodyPool.generations[b]};
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity)
+int32_t m3World_GetJoints(const m3World* world, m3JointId* ids, int32_t capacity)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -314,22 +304,16 @@ int32_t m3World_GetJoints(m3WorldId worldId, m3JointId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            ids[total] = (m3JointId){j + 1, world->idWorld, world->joints.jointPool.generations[j]};
+            ids[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
         total += 1;
     }
     return total;
 }
 
-uint64_t m3World_GetStepCount(m3WorldId worldId)
+uint64_t m3World_GetStepCount(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     return world != NULL ? world->stepCount : 0u;
-}
-
-bool m3World_IsValid(m3WorldId worldId)
-{
-    return m3WorldFromId(worldId) != NULL;
 }
 
 // --- Tuning knobs -----------------------------------------------------
@@ -385,9 +369,8 @@ void m3EnableContinuousInternal(m3World* world, int32_t on)
     world->continuousEnabled = on != 0 ? 1 : 0;
 }
 
-void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity)
+void m3World_SetGravity(m3World* world, m3Vec3 gravity)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteV3(gravity))
     {
         m3Refuse(world, m3_errorInvalid);
@@ -400,17 +383,14 @@ void m3World_SetGravity(m3WorldId worldId, m3Vec3 gravity)
     m3SetGravityInternal(world, gravity);
 }
 
-m3Vec3 m3World_GetGravity(m3WorldId worldId)
+m3Vec3 m3World_GetGravity(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     m3Vec3 zero = {0.0f, 0.0f, 0.0f};
     return world != NULL ? world->gravity : zero;
 }
 
-void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio,
-                              float pushMaxSpeed)
+void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, float pushMaxSpeed)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(hertz) || hertz <= 0.0f || !m3FiniteF(dampingRatio) ||
         dampingRatio <= 0.0f || !m3FiniteF(pushMaxSpeed) || pushMaxSpeed <= 0.0f)
     {
@@ -429,9 +409,8 @@ void m3World_SetContactTuning(m3WorldId worldId, float hertz, float dampingRatio
     m3SetContactTuningInternal(world, hertz, dampingRatio, pushMaxSpeed);
 }
 
-void m3World_SetRestitutionThreshold(m3WorldId worldId, float value)
+void m3World_SetRestitutionThreshold(m3World* world, float value)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -444,9 +423,8 @@ void m3World_SetRestitutionThreshold(m3WorldId worldId, float value)
     m3SetRestitutionThresholdInternal(world, value);
 }
 
-void m3World_SetMaximumLinearSpeed(m3WorldId worldId, float value)
+void m3World_SetMaximumLinearSpeed(m3World* world, float value)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -459,9 +437,8 @@ void m3World_SetMaximumLinearSpeed(m3WorldId worldId, float value)
     m3SetMaximumLinearSpeedInternal(world, value);
 }
 
-void m3World_SetMaximumAngularSpeed(m3WorldId worldId, float value)
+void m3World_SetMaximumAngularSpeed(m3World* world, float value)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -481,11 +458,10 @@ static int32_t PoolLive(const m3IdPool* pool)
     return pool->maxIndex - pool->freeCount - pool->retiredCount;
 }
 
-m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId)
+m3MemoryUsage m3World_GetMemoryUsage(const m3World* world)
 {
     m3MemoryUsage usage;
     memset(&usage, 0, sizeof(usage));
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -518,11 +494,10 @@ m3MemoryUsage m3World_GetMemoryUsage(m3WorldId worldId)
     return usage;
 }
 
-m3Counters m3World_GetCounters(m3WorldId worldId)
+m3Counters m3World_GetCounters(const m3World* world)
 {
     m3Counters counters;
     memset(&counters, 0, sizeof(counters));
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -556,15 +531,15 @@ m3Counters m3World_GetCounters(m3WorldId worldId)
                               : 0;
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
-    counters.snapshotBytes = m3World_SnapshotSize(worldId);
-    m3DebugAllocCounts(&counters.allocCalls, &counters.freeCalls);
+    counters.snapshotBytes = m3World_SnapshotSize(world);
+    counters.allocCalls = world->heap.allocCalls;
+    counters.freeCalls = world->heap.freeCalls;
     counters.misuse = m3MisuseCount(world);
     return counters;
 }
 
-m3Profile m3World_GetProfile(m3WorldId worldId)
+m3Profile m3World_GetProfile(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Profile zero;
@@ -574,9 +549,8 @@ m3Profile m3World_GetProfile(m3WorldId worldId)
     return world->profile;
 }
 
-void m3World_EnableSleeping(m3WorldId worldId, bool flag)
+void m3World_EnableSleeping(m3World* world, bool flag)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -590,15 +564,13 @@ void m3World_EnableSleeping(m3WorldId worldId, bool flag)
     m3EnableSleepingInternal(world, flag ? 1 : 0);
 }
 
-bool m3World_IsSleepingEnabled(m3WorldId worldId)
+bool m3World_IsSleepingEnabled(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     return world != NULL && world->sleepEnabled != 0;
 }
 
-void m3World_EnableContinuous(m3WorldId worldId, bool flag)
+void m3World_EnableContinuous(m3World* world, bool flag)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -612,9 +584,8 @@ void m3World_EnableContinuous(m3WorldId worldId, bool flag)
     m3EnableContinuousInternal(world, flag ? 1 : 0);
 }
 
-bool m3World_IsContinuousEnabled(m3WorldId worldId)
+bool m3World_IsContinuousEnabled(const m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     return world != NULL && world->continuousEnabled != 0;
 }
 
@@ -627,10 +598,9 @@ void m3SetWindInternal(m3World* world, m3Vec3 dir, float speed, float gustHertz,
     // The phase deliberately SURVIVES a retune: the wave continues.
 }
 
-void m3World_SetWind(m3WorldId worldId, m3Vec3 direction, float speed, float gustHertz,
+void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                      float gustScale)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || !m3FiniteV3(direction) || !m3FiniteF(speed) || speed < 0.0f ||
         !m3FiniteF(gustHertz) || gustHertz < 0.0f || !m3FiniteF(gustScale) || gustScale < 0.0f)
     {
@@ -677,18 +647,20 @@ void m3RebuildBroadphaseInternal(m3World* world)
     {
         return;
     }
-    double (*los)[3] = (double (*)[3])m3AllocZeroed(count * 3 * (int32_t)sizeof(double));
-    double (*his)[3] = (double (*)[3])m3AllocZeroed(count * 3 * (int32_t)sizeof(double));
-    int32_t* uds = (int32_t*)m3AllocZeroed(count * (int32_t)sizeof(int32_t));
-    uint32_t* masks = (uint32_t*)m3AllocZeroed(count * (int32_t)sizeof(uint32_t));
-    int32_t* outNodes = (int32_t*)m3AllocZeroed(count * (int32_t)sizeof(int32_t));
+    double (*los)[3] =
+        (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
+    double (*his)[3] =
+        (double (*)[3])m3AllocZeroed(&world->heap, count * 3 * (int32_t)sizeof(double));
+    int32_t* uds = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
+    uint32_t* masks = (uint32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(uint32_t));
+    int32_t* outNodes = (int32_t*)m3AllocZeroed(&world->heap, count * (int32_t)sizeof(int32_t));
     if (los == NULL || his == NULL || uds == NULL || masks == NULL || outNodes == NULL)
     {
-        m3Free(los);
-        m3Free(his);
-        m3Free(uds);
-        m3Free(masks);
-        m3Free(outNodes);
+        m3Free(&world->heap, los);
+        m3Free(&world->heap, his);
+        m3Free(&world->heap, uds);
+        m3Free(&world->heap, masks);
+        m3Free(&world->heap, outNodes);
         return; // no memory: the old tree stays, correct either way
     }
     int32_t n = 0;
@@ -708,23 +680,22 @@ void m3RebuildBroadphaseInternal(m3World* world)
         masks[n] = leaf->mask;
         n += 1;
     }
-    if (m3TreeRebuild(&world->broadphase.tree, los, his, uds, masks, n, outNodes))
+    if (m3TreeRebuild(&world->heap, &world->broadphase.tree, los, his, uds, masks, n, outNodes))
     {
         for (int32_t i = 0; i < n; ++i)
         {
             world->broadphase.proxyIds[uds[i]] = outNodes[i];
         }
     }
-    m3Free(los);
-    m3Free(his);
-    m3Free(uds);
-    m3Free(masks);
-    m3Free(outNodes);
+    m3Free(&world->heap, los);
+    m3Free(&world->heap, his);
+    m3Free(&world->heap, uds);
+    m3Free(&world->heap, masks);
+    m3Free(&world->heap, outNodes);
 }
 
-void m3World_RebuildBroadphase(m3WorldId worldId)
+void m3World_RebuildBroadphase(m3World* world)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);

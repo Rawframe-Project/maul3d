@@ -6,12 +6,12 @@
 // warm-start carry through a full stash-scan-rebuild cycle. White box.
 
 #include "broad_phase.h"
+#include "helpers.h"
 #include "manifold.h"
 #include "narrowphase.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -84,21 +84,21 @@ static void TestWarmStartCarry(void)
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
-    m3WorldId world = m3CreateWorld(&def);
-    m3World* w = m3WorldFromId(world);
+    m3World* world = NewWorld(&def);
+    m3World* w = world;
 
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.45, 0.0};
-    m3BodyId ball = m3CreateBody(world, &bd);
+    m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3CreateSphereShape(ball, &sd, &sphere);
+    NewSphereShape(world, ball, &sd, &sphere);
 
     CHECK(m3UpdatePairs(w) == m3_success, "pairs");
     CHECK(m3UpdateContacts(w, NULL, NULL, 0) == m3_success, "first contact build");
@@ -122,7 +122,7 @@ static void TestWarmStartCarry(void)
           "the carried point is marked persisted");
 
     // Separate the pair: the contact and its impulse vanish.
-    m3Body_SetLinearVelocity(ball, (m3Vec3){0.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, 0.0f, 0.0f});
     w->bodies.transforms[ball.index1 - 1].p.y = 10.0;
     stashCount = w->contacts.pairCount;
     memcpy(stashKeys, w->contacts.pairKeys, (size_t)stashCount * sizeof(uint64_t));

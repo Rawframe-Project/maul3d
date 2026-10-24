@@ -8,6 +8,7 @@
 // hostile wall refuses geometry that is not a wheel. The raycast
 // vehicle is untouched by all of it.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
@@ -18,18 +19,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m3WorldId PlaneWorld(void)
+static m3World* PlaneWorld(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
     def.jointCapacity = 16;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
     return world;
 }
 
@@ -46,16 +47,16 @@ typedef struct JointCart
 // wheels on wheel joints. Suspension is the joint's drive spring
 // plus travel limits; drive is the joint's spin motor. Wheels are
 // bodies: everything below them is real contact, never a ray.
-static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
+static JointCart MakeJointCart(m3World* world, m3Pos3 at)
 {
     JointCart cart;
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = at;
-    cart.chassis = m3CreateBody(world, &bd);
+    cart.chassis = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 300.0f;
-    m3CreateBoxShape(cart.chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+    NewBoxShape(world, cart.chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
         m3Vec3 local = {(w & 1) != 0 ? 0.8f : -0.8f, -0.35f, (w & 2) != 0 ? 0.45f : -0.45f};
@@ -63,11 +64,11 @@ static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
         wd.type = m3_dynamicBody;
         wd.position =
             (m3Pos3){at.x + (double)local.x, at.y + (double)local.y, at.z + (double)local.z};
-        cart.wheels[w] = m3CreateBody(world, &wd);
+        cart.wheels[w] = NewBody(world, &wd);
         m3ShapeDef ws = m3DefaultShapeDef();
         ws.density = 120.0f; // ~13.6 kg per wheel: real unsprung mass
         m3Sphere tire = {{0.0f, 0.0f, 0.0f}, 0.3f};
-        m3CreateSphereShape(cart.wheels[w], &ws, &tire);
+        NewSphereShape(world, cart.wheels[w], &ws, &tire);
         m3JointDef jd = m3DefaultJointDef();
         jd.type = m3_wheelJoint;
         jd.bodyIdA = cart.chassis;
@@ -79,18 +80,18 @@ static JointCart MakeJointCart(m3WorldId world, m3Pos3 at)
         jd.enableLimit = true;
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
-        cart.joints[w] = m3CreateJoint(world, &jd);
-        m3Joint_SetSpring(cart.joints[w], true, 4.0f, 0.7f);
-        m3Joint_SetTargetTranslation(cart.joints[w], 0.0f);
+        cart.joints[w] = NewJoint(world, &jd);
+        m3Joint_SetSpring(world, cart.joints[w], true, 4.0f, 0.7f);
+        m3Joint_SetTargetTranslation(world, cart.joints[w], 0.0f);
     }
     return cart;
 }
 
-static void DriveCart(const JointCart* cart, float speed, float torque)
+static void DriveCart(m3World* world, const JointCart* cart, float speed, float torque)
 {
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
-        m3Joint_SetMotor(cart->joints[w], true, speed, torque);
+        m3Joint_SetMotor(world, cart->joints[w], true, speed, torque);
     }
 }
 
@@ -99,7 +100,7 @@ static void TestCartRollsOnFlat(void)
     // Settle, drive, arrive: the motorized spin becomes forward
     // travel through nothing but tire contact friction. The
     // suspension carries the chassis inside its travel books.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
     for (int32_t i = 0; i < 180; ++i)
     {
@@ -107,18 +108,18 @@ static void TestCartRollsOnFlat(void)
     }
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
-        m3real t = m3Joint_GetTranslation(cart.joints[w]);
+        m3real t = m3Joint_GetTranslation(world, cart.joints[w]);
         CHECK(t > -0.11f && t < 0.11f, "the settled suspension sits inside its travel");
     }
-    double startX = m3Body_GetPosition(cart.chassis).x;
-    DriveCart(&cart, -20.0f, 60.0f); // negative spin about +z rolls +x
+    double startX = m3Body_GetPosition(world, cart.chassis).x;
+    DriveCart(world, &cart, -20.0f, 60.0f); // negative spin about +z rolls +x
     for (int32_t i = 0; i < 300; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    double gain = m3Body_GetPosition(cart.chassis).x - startX;
+    double gain = m3Body_GetPosition(world, cart.chassis).x - startX;
     CHECK(gain > 2.0, "the motored cart drives forward on contact friction");
-    m3Vec3 spin = m3Body_GetAngularVelocity(cart.wheels[0]);
+    m3Vec3 spin = m3Body_GetAngularVelocity(world, cart.wheels[0]);
     CHECK(spin.z < -5.0f, "the wheels genuinely spin about their axles");
     m3DestroyWorld(world);
 }
@@ -133,25 +134,25 @@ static void TestBrokenAxleDeterministic(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = PlaneWorld();
+        m3World* world = PlaneWorld();
         JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Joint_SetBreakThresholds(cart.joints[1], 0.0f, 25.0f);
-        DriveCart(&cart, -30.0f, 90.0f);
+        m3Joint_SetBreakThresholds(world, cart.joints[1], 0.0f, 25.0f);
+        DriveCart(world, &cart, -30.0f, 90.0f);
         int32_t snapBytes = 0;
         int32_t breakStep = -1;
         for (int32_t i = 0; i < 480; ++i)
         {
             if (i == 10 && run == 0)
             {
-                snapBytes = m3World_Snapshot(world, snap, (int32_t)sizeof(snap));
+                snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
                 CHECK(snapBytes > 0, "the pre-break snapshot fits");
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
-            if (breakStep < 0 && !m3Joint_IsValid(cart.joints[1]))
+            if (breakStep < 0 && !m3Joint_IsValid(world, cart.joints[1]))
             {
                 breakStep = i;
                 int32_t count = m3World_GetJointEvents(world).breakCount;
@@ -159,14 +160,16 @@ static void TestBrokenAxleDeterministic(void)
             }
         }
         CHECK(breakStep >= 0, "the capped axle snaps under overdrive");
-        CHECK(m3Joint_IsValid(cart.joints[0]), "the uncapped axles hold");
-        double dx = m3Body_GetPosition(cart.wheels[1]).x - m3Body_GetPosition(cart.chassis).x;
-        double dz = m3Body_GetPosition(cart.wheels[1]).z - m3Body_GetPosition(cart.chassis).z;
+        CHECK(m3Joint_IsValid(world, cart.joints[0]), "the uncapped axles hold");
+        double dx =
+            m3Body_GetPosition(world, cart.wheels[1]).x - m3Body_GetPosition(world, cart.chassis).x;
+        double dz =
+            m3Body_GetPosition(world, cart.wheels[1]).z - m3Body_GetPosition(world, cart.chassis).z;
         CHECK(dx * dx + dz * dz > 1.0, "the freed wheel leaves the cart");
         hashes[run] = m3World_Hash(world);
         if (run == 0)
         {
-            CHECK(m3World_Restore(world, snap, snapBytes), "the pre-break restore lands");
+            CHECK(Restore(world, snap, snapBytes), "the pre-break restore lands");
             for (int32_t i = 10; i < 480; ++i)
             {
                 m3World_Step(world, 1.0f / 60.0f, 4);
@@ -183,18 +186,18 @@ static void TestHostileWall(void)
     // Geometry that is not a wheel refuses loudly at create; type
     // gates on the read and drive APIs hold; a small real skew is
     // snapped and accepted.
-    m3WorldId world = PlaneWorld();
+    m3World* world = PlaneWorld();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
-    m3BodyId a = m3CreateBody(world, &bd);
+    m3BodyId a = NewBody(world, &bd);
     bd.position = (m3Pos3){0.0, 0.4, 0.0};
-    m3BodyId b = m3CreateBody(world, &bd);
+    m3BodyId b = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 100.0f;
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f};
-    m3CreateSphereShape(a, &sd, &ball);
-    m3CreateSphereShape(b, &sd, &ball);
+    NewSphereShape(world, a, &sd, &ball);
+    NewSphereShape(world, b, &sd, &ball);
 
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_wheelJoint;
@@ -202,26 +205,26 @@ static void TestHostileWall(void)
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f}; // axle along the strut
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "an axle along the strut refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an axle along the strut refuses");
 
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 0.0f};
-    CHECK(!m3Joint_IsValid(m3CreateJoint(world, &jd)), "a zero axle refuses");
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero axle refuses");
 
     jd.localAxisB = (m3Vec3){0.0f, 0.05f, 1.0f}; // ~2.9 degrees of skew
-    m3JointId wheel = m3CreateJoint(world, &jd);
-    CHECK(m3Joint_IsValid(wheel), "a small skew snaps and lands");
-    CHECK(m3Joint_GetAngle(wheel) == 0.0f, "the spin angle starts at the create pose");
+    m3JointId wheel = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, wheel), "a small skew snaps and lands");
+    CHECK(m3Joint_GetAngle(world, wheel) == 0.0f, "the spin angle starts at the create pose");
 
-    m3Joint_SetTargetAngle(wheel, 1.0f); // the wheel's drive is its
-                                         // suspension: angle targets
-                                         // stay revolute-only
-    m3Joint_SetSpring(wheel, true, 3.0f, 0.5f);
-    m3Joint_SetTargetTranslation(wheel, 0.05f);
+    m3Joint_SetTargetAngle(world, wheel, 1.0f); // the wheel's drive is its
+                                                // suspension: angle targets
+                                                // stay revolute-only
+    m3Joint_SetSpring(world, wheel, true, 3.0f, 0.5f);
+    m3Joint_SetTargetTranslation(world, wheel, 0.05f);
     for (int32_t i = 0; i < 60; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Joint_IsValid(wheel), "the wheel survives its first minute");
+    CHECK(m3Joint_IsValid(world, wheel), "the wheel survives its first minute");
 
     // Regression: the older type gates stay closed to the wheel's
     // readers and vice versa.
@@ -231,8 +234,8 @@ static void TestHostileWall(void)
     rd.bodyIdB = b;
     rd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     rd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    m3JointId hinge = m3CreateJoint(world, &rd);
-    CHECK(m3Joint_GetTranslation(hinge) == 0.0f, "a hinge has no translation to read");
+    m3JointId hinge = NewJoint(world, &rd);
+    CHECK(m3Joint_GetTranslation(world, hinge) == 0.0f, "a hinge has no translation to read");
     m3DestroyWorld(world);
 }
 
@@ -245,7 +248,7 @@ static void TestRubbleFieldTwins(void)
     uint64_t hashes[2];
     for (int32_t run = 0; run < 2; ++run)
     {
-        m3WorldId world = PlaneWorld();
+        m3World* world = PlaneWorld();
         // Deterministic rubble: a low wall of loose bricks across
         // the cart's path, plus scattered chunks behind it.
         m3ShapeDef sd = m3DefaultShapeDef();
@@ -257,29 +260,30 @@ static void TestRubbleFieldTwins(void)
             double col = (double)(i % 4);
             double row = (double)(i / 4);
             bd.position = (m3Pos3){3.0 + row * 0.8, 0.14 + row * 0.02, -0.9 + col * 0.6};
-            m3BodyId brick = m3CreateBody(world, &bd);
-            m3CreateBoxShape(brick, &sd, (m3Vec3){0.22f, 0.12f, 0.22f});
+            m3BodyId brick = NewBody(world, &bd);
+            NewBoxShape(world, brick, &sd, (m3Vec3){0.22f, 0.12f, 0.22f});
         }
         JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        DriveCart(&cart, -25.0f, 90.0f);
+        DriveCart(world, &cart, -25.0f, 90.0f);
         bool sank = false;
         for (int32_t i = 0; i < 600; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
             for (int32_t w = 0; w < CART_WHEELS; ++w)
             {
-                if (m3Body_GetPosition(cart.wheels[w]).y < 0.24)
+                if (m3Body_GetPosition(world, cart.wheels[w]).y < 0.24)
                 {
                     sank = true; // radius 0.3 minus contact slop
                 }
             }
         }
         CHECK(!sank, "no wheel ever sinks through the world");
-        CHECK(m3Body_GetPosition(cart.chassis).x > 3.0, "the cart genuinely crosses the rubble");
+        CHECK(m3Body_GetPosition(world, cart.chassis).x > 3.0,
+              "the cart genuinely crosses the rubble");
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
     }

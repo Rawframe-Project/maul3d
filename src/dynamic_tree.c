@@ -85,13 +85,13 @@ static void ResetNodes(m3Tree* tree)
     tree->nodeCount = 0;
 }
 
-m3Tree m3TreeCreate(int32_t capacity)
+m3Tree m3TreeCreate(m3Heap* heap, int32_t capacity)
 {
     m3Tree tree;
     memset(&tree, 0, sizeof(tree));
     tree.root = M3_TREE_NULL;
     tree.freeList = M3_TREE_NULL;
-    M3_ALLOC(tree.nodes, capacity, m3TreeNode);
+    M3_ALLOC(heap, tree.nodes, capacity, m3TreeNode);
     if (tree.nodes != NULL)
     {
         tree.capacity = capacity; // out of memory leaves capacity 0 for the caller
@@ -100,9 +100,9 @@ m3Tree m3TreeCreate(int32_t capacity)
     return tree;
 }
 
-void m3TreeDestroy(m3Tree* tree)
+void m3TreeDestroy(m3Heap* heap, m3Tree* tree)
 {
-    m3Free(tree->nodes);
+    m3Free(heap, tree->nodes);
     memset(tree, 0, sizeof(*tree));
     tree->root = M3_TREE_NULL;
     tree->freeList = M3_TREE_NULL;
@@ -559,7 +559,7 @@ static int32_t BuildRange(m3Tree* tree, RebuildInput* in, int32_t s, int32_t e)
     return id;
 }
 
-bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
+bool m3TreeRebuild(m3Heap* heap, m3Tree* tree, const double (*los)[3], const double (*his)[3],
                    const int32_t* userDatas, const uint32_t* masks, int32_t count,
                    int32_t* outNodes)
 {
@@ -567,7 +567,7 @@ bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
     {
         return false; // a tree over n leaves needs 2n - 1 nodes
     }
-    int32_t* order = (int32_t*)m3AllocZeroed(2 * count * (int32_t)sizeof(int32_t) + 1);
+    int32_t* order = (int32_t*)m3AllocZeroed(heap, 2 * count * (int32_t)sizeof(int32_t) + 1);
     if (order == NULL)
     {
         return false; // the old tree stays untouched
@@ -584,7 +584,7 @@ bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
     {
         tree->root = BuildRange(tree, &in, 0, count);
     }
-    m3Free(order);
+    m3Free(heap, order);
     M3_ASSERT(m3TreeValidate(tree));
     return true;
 }

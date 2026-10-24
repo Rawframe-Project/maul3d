@@ -13,7 +13,6 @@
 #include "misuse.h"
 #include "shape_state.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <stddef.h>
 
@@ -683,9 +682,8 @@ static void DrawExtras(const m3World* world, const m3DebugDraw* draw)
     }
 }
 
-void m3World_Draw(m3WorldId worldId, const m3DebugDraw* draw)
+void m3World_Draw(const m3World* world, const m3DebugDraw* draw)
 {
-    m3World* world = m3WorldFromId(worldId);
     if (world == NULL || draw == NULL)
     {
         m3Refuse(world, m3_errorInvalid);

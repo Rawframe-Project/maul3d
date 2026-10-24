@@ -13,6 +13,6 @@
 // properties integrated. Returns false on degenerate input (fewer than
 // four points, flat clouds, non-finite coordinates) or when the result
 // exceeds the fixed caps.
-bool m3ComputeHull(const m3Vec3* points, int32_t count, m3HullData* out);
+bool m3ComputeHull(m3Heap* heap, const m3Vec3* points, int32_t count, m3HullData* out);
 
 #endif // MAUL3D_SRC_QUICKHULL_H

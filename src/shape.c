@@ -15,7 +15,6 @@
 #include "shape_state.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
-#include "world_table.h"
 
 #include <string.h>
 
@@ -139,8 +138,9 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
             return false;
         }
         world->meshes.meshData[m] = *content->mesh;
-        int32_t* scratch = (int32_t*)m3AllocArray(
-            m3MeshEdgeScratchCount(&world->meshes.meshData[m]), (int64_t)sizeof(int32_t));
+        int32_t* scratch =
+            (int32_t*)m3AllocArray(&world->heap, m3MeshEdgeScratchCount(&world->meshes.meshData[m]),
+                                   (int64_t)sizeof(int32_t));
         if (scratch == NULL)
         {
             // The caller keeps its content.
@@ -149,8 +149,8 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
             return false;
         }
         m3BakeMeshEdgeFlags(&world->meshes.meshData[m], scratch);
-        m3Free(scratch);
-        m3MeshBvhBuild(&world->meshes.meshBvh[m], &world->meshes.meshData[m]);
+        m3Free(&world->heap, scratch);
+        m3MeshBvhBuild(&world->heap, &world->meshes.meshBvh[m], &world->meshes.meshData[m]);
         world->meshes.meshRefCounts[m] = 1;
         sh->shapeMeshIndex[index] = m;
         return true;
@@ -175,7 +175,8 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
             return false;
         }
         world->voxels.voxelData[v] = *content->voxels;
-        m3VoxelSurfaceBuild(&world->voxels.voxelSurface[v], &world->voxels.voxelData[v]);
+        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
+                            &world->voxels.voxelData[v]);
         world->voxels.voxelRefCounts[v] = 1;
         sh->shapeVoxelIndex[index] = v;
         world->voxels.voxelShape[v] = index;
@@ -229,21 +230,21 @@ static void ReleaseShapeContent(m3World* world, int32_t index)
     int32_t m = sh->shapeMeshIndex[index];
     if (m >= 0 && --world->meshes.meshRefCounts[m] == 0)
     {
-        m3MeshDataFree(&world->meshes.meshData[m]);
-        m3MeshBvhFree(&world->meshes.meshBvh[m]);
+        m3MeshDataFree(&world->heap, &world->meshes.meshData[m]);
+        m3MeshBvhFree(&world->heap, &world->meshes.meshBvh[m]);
         m3IdPoolFree(&world->meshes.meshPool, m);
     }
     int32_t h = sh->shapeHfIndex[index];
     if (h >= 0 && --world->heightFields.hfRefCounts[h] == 0)
     {
-        m3HeightFieldDataFree(&world->heightFields.hfData[h]);
+        m3HeightFieldDataFree(&world->heap, &world->heightFields.hfData[h]);
         m3IdPoolFree(&world->heightFields.hfPool, h);
     }
     int32_t v = sh->shapeVoxelIndex[index];
     if (v >= 0 && --world->voxels.voxelRefCounts[v] == 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
+        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         m3IdPoolFree(&world->voxels.voxelPool, v);
@@ -280,7 +281,7 @@ static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMark
     int32_t m = sh->shapeMeshIndex[index];
     if (m >= 0)
     {
-        m3MeshBvhFree(&world->meshes.meshBvh[m]);
+        m3MeshBvhFree(&world->heap, &world->meshes.meshBvh[m]);
         memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
         world->meshes.meshRefCounts[m] = 0;
         m3IdPoolRewind(&world->meshes.meshPool, marks->mesh, m);
@@ -296,7 +297,7 @@ static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMark
     if (v >= 0)
     {
         memset(&world->voxels.voxelData[v], 0, sizeof(m3VoxelChunkData));
-        m3MeshBvhFree(&world->voxels.voxelSurface[v].bvh);
+        m3MeshBvhFree(&world->heap, &world->voxels.voxelSurface[v].bvh);
         memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         world->voxels.voxelShape[v] = -1;
         world->voxels.voxelRefCounts[v] = 0;
@@ -472,22 +473,18 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     return true;
 }
 
-static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeom* geom)
+static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
+                               const m3ShapeGeom* geom)
 {
-    m3World* world = m3WorldFromTag(shapeId.world);
-    if (world == NULL)
+    int32_t slot = m3ShapeSlot(world, shapeId);
+    if (slot < 0)
     {
-        return false;
-    }
-    int32_t slot = shapeId.index1 - 1;
-    if (slot < 0 || slot >= world->shapes.shapePool.maxIndex ||
-        world->shapes.shapePool.alive[slot] == 0 ||
-        world->shapes.shapePool.generations[slot] != shapeId.generation)
-    {
+        m3Refuse(world, m3MissingId(shapeId.index1));
         return false;
     }
     if (!m3SetShapeGeomInternal(world, slot, type, geom))
     {
+        m3Refuse(world, m3_errorInvalid);
         return false; // refused swaps journal nothing
     }
     if (world->recorder.journalActive != 0)
@@ -502,68 +499,63 @@ static bool SetShapeGeomPublic(m3ShapeId shapeId, uint8_t type, const m3ShapeGeo
     return true;
 }
 
-bool m3Shape_SetSphere(m3ShapeId shapeId, const m3Sphere* sphere)
+void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 {
     if (sphere == NULL)
     {
-        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
-        return false;
+        m3Refuse(world, m3_errorInvalid);
+        return;
     }
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
     geom.v = sphere->center;
     geom.s = sphere->radius;
-    return SetShapeGeomPublic(shapeId, (uint8_t)m3_sphereShape, &geom);
+    SetShapeGeomPublic(world, shape, (uint8_t)m3_sphereShape, &geom);
 }
 
-bool m3Shape_SetCapsule(m3ShapeId shapeId, const m3Capsule* capsule)
+void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
 {
     if (capsule == NULL)
     {
-        m3Refuse(m3WorldFromTag(shapeId.world), m3_errorInvalid);
-        return false;
+        m3Refuse(world, m3_errorInvalid);
+        return;
     }
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
     geom.v = capsule->point1;
     geom.s = capsule->radius;
     geom.v2 = capsule->point2;
-    return SetShapeGeomPublic(shapeId, (uint8_t)m3_capsuleShape, &geom);
+    SetShapeGeomPublic(world, shape, (uint8_t)m3_capsuleShape, &geom);
 }
 
-bool m3Shape_IsValid(m3ShapeId shapeId)
+bool m3Shape_IsValid(const m3World* world, m3ShapeId shape)
 {
-    m3World* world = m3WorldFromTag(shapeId.world);
-    return world != NULL && m3ShapeSlot(world, shapeId) >= 0;
+    return m3ShapeSlot(world, shape) >= 0;
 }
 
-m3BodyId m3Shape_GetBody(m3ShapeId shapeId)
+m3BodyId m3Shape_GetBody(const m3World* world, m3ShapeId shape)
 {
-    m3BodyId null = {0, 0, 0};
-    m3World* world = m3WorldFromTag(shapeId.world);
-    int32_t slot = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
+    int32_t slot = m3ShapeSlot(world, shape);
     if (slot < 0)
     {
         m3Refuse(world, m3_errorInvalid);
-        return null;
+        return m3_nullBodyId;
     }
     int32_t body = world->shapes.shapeBody[slot];
-    m3BodyId id = {body + 1, world->idWorld, world->bodies.bodyPool.generations[body]};
+    m3BodyId id = {body + 1, world->bodies.bodyPool.generations[body]};
     return id;
 }
 
-void m3DestroyShape(m3ShapeId shapeId)
+m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
 {
-    m3World* world = m3WorldFromTag(shapeId.world);
-    int32_t index = world != NULL ? m3ShapeSlot(world, shapeId) : -1;
+    int32_t index = m3ShapeSlot(world, shape);
     if (index < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3MissingId(shape.index1));
     }
     if (world->recorder.journalActive != 0)
     {
-        m3JournalRecord(world, m3_opDestroyShape, &shapeId, (int32_t)sizeof(shapeId));
+        m3JournalRecord(world, m3_opDestroyShape, &shape, (int32_t)sizeof(shape));
     }
     int32_t bodyIndex = world->shapes.shapeBody[index];
     m3DestroyShapeInternal(world, index);
@@ -572,4 +564,5 @@ void m3DestroyShape(m3ShapeId shapeId)
     {
         m3SetAwakeInternal(world, bodyIndex, 1);
     }
+    return m3_success;
 }

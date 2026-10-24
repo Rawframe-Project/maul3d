@@ -8,6 +8,8 @@
 
 #include "scenes.h"
 
+#include "helpers.h"
+
 #include "maul3d/shape.h"
 
 #include <stdlib.h>
@@ -60,23 +62,23 @@ static m3Pos3 RandPos3(uint64_t* state, double lo, double hi, double yLo, double
     return (m3Pos3){x, y, z};
 }
 
-static void AddPlane(m3WorldId world)
+static void AddPlane(m3World* world)
 {
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &sd, &floor);
+    NewPlaneShape(world, ground, &sd, &floor);
 }
 
 // Scene 1: the sphere pyramid, the golden scene's big brother.
-static m3WorldId ScenePyramid(void)
+static m3World* ScenePyramid(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 256;
     def.shapeCapacity = 256;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     AddPlane(world);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -91,9 +93,9 @@ static m3WorldId ScenePyramid(void)
             {
                 bd.position = (m3Pos3){(double)i - 0.5 * (double)n + 0.05 * (double)layer,
                                        0.5 + 1.02 * (double)layer, (double)j - 0.5 * (double)n};
-                m3BodyId body = m3CreateBody(world, &bd);
+                m3BodyId body = NewBody(world, &bd);
                 m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-                m3CreateSphereShape(body, &sd, &ball);
+                NewSphereShape(world, body, &sd, &ball);
             }
         }
     }
@@ -101,12 +103,12 @@ static m3WorldId ScenePyramid(void)
 }
 
 // Scene 2: the hull jam, SAT-heavy boxes and rocks in a pit.
-static m3WorldId SceneHullJam(void)
+static m3World* SceneHullJam(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 256;
     def.shapeCapacity = 256;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     AddPlane(world);
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -116,7 +118,7 @@ static m3WorldId SceneHullJam(void)
     for (int32_t k = 0; k < 80; ++k)
     {
         bd.position = RandPosXZ(&rng, -2.0, 2.0, 0.6 + 0.5 * (double)k);
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         if (k % 3 == 0)
         {
             m3Vec3 cloud[12];
@@ -124,14 +126,14 @@ static m3WorldId SceneHullJam(void)
             {
                 cloud[p] = RandVec3(&rng, -0.3, 0.3);
             }
-            if (!m3Shape_IsValid(m3CreateHullShape(body, &sd, cloud, 12)))
+            if (!m3Shape_IsValid(world, NewHullShape(world, body, &sd, cloud, 12)))
             {
-                m3CreateBoxShape(body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+                NewBoxShape(world, body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
             }
         }
         else
         {
-            m3CreateBoxShape(body, &sd, (m3Vec3){0.3f, 0.25f, 0.35f});
+            NewBoxShape(world, body, &sd, (m3Vec3){0.3f, 0.25f, 0.35f});
         }
     }
     return world;
@@ -139,15 +141,15 @@ static m3WorldId SceneHullJam(void)
 
 // Scene 3b: the grand mesh, a ~60k-triangle terrain under
 // a crate rain: the mesh ceiling, timed and pinned.
-static m3WorldId SceneMeshGrand(void)
+static m3World* SceneMeshGrand(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-43.0, 0.0, -43.0};
-    m3BodyId terrain = m3CreateBody(world, &gd);
+    m3BodyId terrain = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.5f;
     enum
@@ -186,7 +188,7 @@ static m3WorldId SceneMeshGrand(void)
             tris[n++] = v11;
         }
     }
-    m3CreateMeshShape(terrain, &sd, verts, GG * GG, tris, n / 3);
+    NewMeshShape(world, terrain, &sd, verts, GG * GG, tris, n / 3);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -194,22 +196,22 @@ static m3WorldId SceneMeshGrand(void)
     for (int32_t k = 0; k < 80; ++k)
     {
         bd.position = RandPosXZ(&rng, -30.0, 30.0, 2.0 + 0.35 * (double)k);
-        m3BodyId body = m3CreateBody(world, &bd);
-        m3CreateBoxShape(body, &sd, (m3Vec3){0.35f, 0.35f, 0.35f});
+        m3BodyId body = NewBody(world, &bd);
+        NewBoxShape(world, body, &sd, (m3Vec3){0.35f, 0.35f, 0.35f});
     }
     return world;
 }
 
 // Scene 3: the mesh field, a midphase workout.
-static m3WorldId SceneMeshField(void)
+static m3World* SceneMeshField(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 256;
     def.shapeCapacity = 256;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-16.0, 0.0, -16.0};
-    m3BodyId terrain = m3CreateBody(world, &gd);
+    m3BodyId terrain = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.5f;
     float heights[32 * 32];
@@ -218,7 +220,7 @@ static m3WorldId SceneMeshField(void)
     {
         heights[i] = (float)RandRange(&hseed, 0.0, 0.8);
     }
-    m3CreateHeightFieldShape(terrain, &sd, heights, 32, 32, 1.0f);
+    NewHeightFieldShape(world, terrain, &sd, heights, 32, 32, 1.0f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -226,21 +228,21 @@ static m3WorldId SceneMeshField(void)
     for (int32_t k = 0; k < 60; ++k)
     {
         bd.position = RandPosXZ(&rng, -10.0, 10.0, 2.0 + 0.4 * (double)k);
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         int32_t family = k % 3;
         if (family == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.35f};
-            m3CreateSphereShape(body, &sd, &ball);
+            NewSphereShape(world, body, &sd, &ball);
         }
         else if (family == 1)
         {
-            m3CreateBoxShape(body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
+            NewBoxShape(world, body, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
         }
         else
         {
             m3Capsule capsule = {{-0.3f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.2f};
-            m3CreateCapsuleShape(body, &sd, &capsule);
+            NewCapsuleShape(world, body, &sd, &capsule);
         }
     }
     return world;
@@ -253,13 +255,13 @@ static m3WorldId SceneMeshField(void)
 // bodies from their voxel corner clouds, large ones become their
 // bounds boxes with density matched to the event mass), then
 // bullets rake the breach. Public API only, front to back.
-static m3WorldId SceneVoxfort(void)
+static m3World* SceneVoxfort(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 512;
     def.shapeCapacity = 512;
     def.voxelCapacity = 2;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     AddPlane(world);
 
     static uint8_t voxels[16 * 16 * 16];
@@ -285,22 +287,22 @@ static m3WorldId SceneVoxfort(void)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
-    m3BodyId keepBody = m3CreateBody(world, &gd);
+    m3BodyId keepBody = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
-    m3CreateVoxelChunkShape(keepBody, &sd, voxels, NULL, 1.0f);
+    NewVoxelChunkShape(world, keepBody, &sd, voxels, NULL, 1.0f);
     return world;
 }
 
 // The host recipe: an island becomes a dynamic body. Small islands
 // get the full QuickHull treatment from their voxel corner clouds;
 // larger ones get their bounds box; density matches the event mass.
-static void SpawnFragment(m3WorldId world, const m3FragmentEvent* ev, const uint16_t* recipe)
+static void SpawnFragment(m3World* world, const m3FragmentEvent* ev, const uint16_t* recipe)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
     bd.position = ev->comWorld;
-    m3BodyId body = m3CreateBody(world, &bd);
+    m3BodyId body = NewBody(world, &bd);
     m3Vec3 half = {0.5f * (m3real)(ev->boundsHi[0] - ev->boundsLo[0] + 1),
                    0.5f * (m3real)(ev->boundsHi[1] - ev->boundsLo[1] + 1),
                    0.5f * (m3real)(ev->boundsHi[2] - ev->boundsLo[2] + 1)};
@@ -324,14 +326,14 @@ static void SpawnFragment(m3WorldId world, const m3FragmentEvent* ev, const uint
                                            z + ((c & 4) != 0 ? 1.0f : 0.0f) - ev->comChunk.z};
             }
         }
-        if (m3Shape_IsValid(m3CreateHullShape(body, &fd, cloud, points)))
+        if (m3Shape_IsValid(world, NewHullShape(world, body, &fd, cloud, points)))
         {
             return;
         }
         // A degenerate cloud (a lone flat island) falls back to the
         // bounds box below, deterministically.
     }
-    m3CreateBoxShape(body, &fd, half);
+    NewBoxShape(world, body, &fd, half);
 }
 
 // Scene 5: the city block, the 5k-body scale proof. A grid
@@ -343,13 +345,13 @@ static void SpawnFragment(m3WorldId world, const m3FragmentEvent* ev, const uint
 // aftermath is the sleeping-heavy sandbox regime a real game
 // lives in. No engine changes rode in with this scene: it is the
 // measuring stick, not the surgery.
-static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
+static m3World* SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
 {
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8192;
     def.shapeCapacity = 8192;
     def.voxelCapacity = 20;
-    m3WorldId world = m3CreateWorld(&def);
+    m3World* world = NewWorld(&def);
     AddPlane(world);
 
     // Nine tower stacks on a 3x3 grid, two welded chunks tall.
@@ -386,10 +388,10 @@ static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
             m3BodyDef gd = m3DefaultBodyDef();
             gd.position = (m3Pos3){bx, 0.0, bz};
             m3ShapeId lower =
-                m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, tower, NULL, 0.5f);
+                NewVoxelChunkShape(world, NewBody(world, &gd), &sd, tower, NULL, 0.5f);
             gd.position = (m3Pos3){bx, 8.0, bz}; // exactly one extent up: welded
             m3ShapeId upper =
-                m3CreateVoxelChunkShape(m3CreateBody(world, &gd), &sd, tower, NULL, 0.5f);
+                NewVoxelChunkShape(world, NewBody(world, &gd), &sd, tower, NULL, 0.5f);
             if (outTowers != NULL && towers + 2 <= 18)
             {
                 outTowers[towers] = lower;
@@ -414,22 +416,22 @@ static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
     for (int32_t k = 0; k < 5000; ++k)
     {
         bd.position = RandPos3(&rng, -34.0, 34.0, 10.0, 42.0);
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         int32_t family = k % 4;
         if (family == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.45)};
-            m3CreateSphereShape(body, &sd, &ball);
+            NewSphereShape(world, body, &sd, &ball);
         }
         else if (family == 1)
         {
-            m3CreateBoxShape(body, &sd, RandVec3(&rng, 0.15, 0.4));
+            NewBoxShape(world, body, &sd, RandVec3(&rng, 0.15, 0.4));
         }
         else if (family == 2)
         {
             m3Capsule capsule = {
                 {-0.25f, 0.0f, 0.0f}, {0.25f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.25)};
-            m3CreateCapsuleShape(body, &sd, &capsule);
+            NewCapsuleShape(world, body, &sd, &capsule);
         }
         else
         {
@@ -438,9 +440,9 @@ static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
             {
                 cloud[c] = RandVec3(&rng, -0.3, 0.3);
             }
-            if (!m3Shape_IsValid(m3CreateHullShape(body, &sd, cloud, 8)))
+            if (!m3Shape_IsValid(world, NewHullShape(world, body, &sd, cloud, 8)))
             {
-                m3CreateBoxShape(body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+                NewBoxShape(world, body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
             }
         }
     }
@@ -449,9 +451,9 @@ static m3WorldId SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
 
 uint64_t BenchStepScene(BenchScene scene, int32_t steps, BenchClock* clock, double* ms)
 {
-    static m3WorldId (*const builders[BENCH_SCENE_COUNT])(void) = {ScenePyramid, SceneHullJam,
-                                                                   SceneMeshField, SceneMeshGrand};
-    m3WorldId world = builders[scene]();
+    static m3World* (*const builders[BENCH_SCENE_COUNT])(void) = {ScenePyramid, SceneHullJam,
+                                                                  SceneMeshField, SceneMeshGrand};
+    m3World* world = builders[scene]();
     double t0 = Now(clock);
     for (int32_t i = 0; i < steps; ++i)
     {
@@ -465,10 +467,10 @@ uint64_t BenchStepScene(BenchScene scene, int32_t steps, BenchClock* clock, doub
 
 uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
 {
-    m3WorldId world = SceneVoxfort();
+    m3World* world = SceneVoxfort();
     // The chunk shape id is deterministic: the first shape after the
     // plane (index1 = 2 in this scene).
-    m3ShapeId keep = {2, 0, 1};
+    m3ShapeId keep = {2, 1};
     double t0 = Now(clock);
     uint64_t rng = 0xF0F7ull;
     int32_t shells = 0;
@@ -482,7 +484,7 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             int32_t sy = 1 + (shells * 2) % 6;
             int32_t lo[3] = {sx, sy, 2};
             int32_t hi[3] = {sx + 1 < 16 ? sx + 1 : 15, sy + 1, 2};
-            m3VoxelChunk_ClearBox(keep, lo, hi);
+            m3VoxelChunk_ClearBox(world, keep, lo, hi);
             shells += 1;
             m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
             for (int32_t e = 0; e < fragments.fragmentCount && e < 16; ++e)
@@ -499,10 +501,10 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             bd.isBullet = true;
             bd.position = (m3Pos3){RandRange(&rng, -4.0, 4.0), 2.5, -20.0};
             bd.linearVelocity = (m3Vec3){0.0f, 0.0f, 150.0f};
-            m3BodyId bullet = m3CreateBody(world, &bd);
+            m3BodyId bullet = NewBody(world, &bd);
             m3ShapeDef sd = m3DefaultShapeDef();
             m3Sphere slug = {{0.0f, 0.0f, 0.0f}, 0.15f};
-            m3CreateSphereShape(bullet, &sd, &slug);
+            NewSphereShape(world, bullet, &sd, &slug);
         }
         m3World_Step(world, 1.0f / 60.0f, 4);
     }
@@ -516,7 +518,7 @@ uint64_t BenchCityblock(int32_t totalSteps, BenchClock* clock, double phaseMs[3]
 {
     m3ShapeId towerIds[18];
     int32_t towerCount = 0;
-    m3WorldId world = SceneCityblock(towerIds, &towerCount);
+    m3World* world = SceneCityblock(towerIds, &towerCount);
     int32_t phase = totalSteps / 3;
     int32_t carves = 0;
     double marks[4] = {0.0, 0.0, 0.0, 0.0};
@@ -531,7 +533,7 @@ uint64_t BenchCityblock(int32_t totalSteps, BenchClock* clock, double phaseMs[3]
             int32_t cy = 2 + (carves / towerCount) % 3;
             int32_t lo[3] = {5, cy, 5};
             int32_t hi[3] = {10, cy, 10};
-            m3VoxelChunk_ClearBox(victim, lo, hi);
+            m3VoxelChunk_ClearBox(world, victim, lo, hi);
             carves += 1;
             m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
             for (int32_t e = 0; e < fragments.fragmentCount && e < 24; ++e)
@@ -565,7 +567,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     BenchRollback result = {0};
     m3ShapeId towerIds[18];
     int32_t towerCount = 0;
-    m3WorldId world = SceneCityblock(towerIds, &towerCount);
+    m3World* world = SceneCityblock(towerIds, &towerCount);
     for (int32_t i = 0; i < settleSteps; ++i)
     {
         m3World_Step(world, 1.0f / 60.0f, 4);
@@ -573,7 +575,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     double t0 = Now(clock);
-    result.bytes = m3World_Snapshot(world, snap, snapBytes);
+    result.bytes = Snapshot(world, snap, snapBytes);
     double t1 = Now(clock);
     uint64_t before = m3World_Hash(world);
     for (int32_t i = 0; i < 30; ++i)
@@ -582,7 +584,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     }
     uint64_t after = m3World_Hash(world);
     double t2 = Now(clock);
-    m3World_Restore(world, snap, result.bytes);
+    Restore(world, snap, result.bytes);
     double t3 = Now(clock);
     result.restoreExact = m3World_Hash(world) == before;
     for (int32_t i = 0; i < 30; ++i)
@@ -604,7 +606,7 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
     def.bodyCapacity = 16384;
     def.shapeCapacity = 16384;
     def.voxelCapacity = 20;
-    m3WorldId sea = m3CreateWorld(&def);
+    m3World* sea = NewWorld(&def);
     AddPlane(sea);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
@@ -615,21 +617,21 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
     for (int32_t k = 0; k < 10000; ++k)
     {
         bd.position = RandPos3(&rng, -46.0, 46.0, 8.0, 60.0);
-        m3BodyId body = m3CreateBody(sea, &bd);
+        m3BodyId body = NewBody(sea, &bd);
         if (k % 3 == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.4)};
-            m3CreateSphereShape(body, &sd, &ball);
+            NewSphereShape(sea, body, &sd, &ball);
         }
         else if (k % 3 == 1)
         {
-            m3CreateBoxShape(body, &sd, RandVec3(&rng, 0.15, 0.35));
+            NewBoxShape(sea, body, &sd, RandVec3(&rng, 0.15, 0.35));
         }
         else
         {
             m3Capsule c = {
                 {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.2)};
-            m3CreateCapsuleShape(body, &sd, &c);
+            NewCapsuleShape(sea, body, &sd, &c);
         }
     }
     double t0 = Now(clock);

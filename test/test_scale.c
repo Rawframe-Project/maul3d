@@ -7,6 +7,7 @@
 // on identical bits. The full-size scenes (five and ten thousand bodies)
 // are pinned by test_bench in the nightly check.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul3d/shape.h"
@@ -133,14 +134,14 @@ static double RandRange(uint64_t* s, double lo, double hi)
 // The mini block: two welded tower chunks and a thousand mixed
 // bodies over a 20 x 20 yard. The city block's little sibling,
 // small enough for every CI cell, big enough to mean it.
-static m3ShapeId BuildMiniBlock(m3WorldId world)
+static m3ShapeId BuildMiniBlock(m3World* world)
 {
     m3BodyDef gd = m3DefaultBodyDef();
-    m3BodyId ground = m3CreateBody(world, &gd);
+    m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef pd = m3DefaultShapeDef();
     pd.friction = 0.6f;
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-    m3CreatePlaneShape(ground, &pd, &floor);
+    NewPlaneShape(world, ground, &pd, &floor);
 
     static uint8_t tower[16 * 16 * 16];
     memset(tower, 0, sizeof(tower));
@@ -165,9 +166,9 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
     sd.friction = 0.6f;
     m3BodyDef td = m3DefaultBodyDef();
     td.position = (m3Pos3){-4.0, 0.0, -4.0};
-    m3ShapeId lower = m3CreateVoxelChunkShape(m3CreateBody(world, &td), &sd, tower, NULL, 0.5f);
+    m3ShapeId lower = NewVoxelChunkShape(world, NewBody(world, &td), &sd, tower, NULL, 0.5f);
     td.position = (m3Pos3){-4.0, 8.0, -4.0}; // welded stack
-    m3CreateVoxelChunkShape(m3CreateBody(world, &td), &sd, tower, NULL, 0.5f);
+    NewVoxelChunkShape(world, NewBody(world, &td), &sd, tower, NULL, 0.5f);
 
     // A jelly rides the block: soft bodies are in the scale gate
     // and the worker-twin proof.
@@ -179,7 +180,7 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
     jd.spacing = 0.2f;
     jd.compliance = 1.0e-4f;
     jd.radius = 0.08f;
-    m3CreateSoftBody(world, &jd);
+    NewSoftBody(world, &jd);
 
     m3ShapeDef bs = m3DefaultShapeDef();
     bs.friction = 0.6f;
@@ -191,25 +192,25 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
     {
         bd.position = (m3Pos3){RandRange(&rng, -10.0, 10.0), RandRange(&rng, 6.0, 26.0),
                                RandRange(&rng, -10.0, 10.0)};
-        m3BodyId body = m3CreateBody(world, &bd);
+        m3BodyId body = NewBody(world, &bd);
         int32_t f = k % 4;
         if (f == 0)
         {
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.4)};
-            m3CreateSphereShape(body, &bs, &ball);
+            NewSphereShape(world, body, &bs, &ball);
         }
         else if (f == 1)
         {
-            m3CreateBoxShape(body, &bs,
-                             (m3Vec3){(m3real)RandRange(&rng, 0.15, 0.35),
-                                      (m3real)RandRange(&rng, 0.15, 0.35),
-                                      (m3real)RandRange(&rng, 0.15, 0.35)});
+            NewBoxShape(world, body, &bs,
+                        (m3Vec3){(m3real)RandRange(&rng, 0.15, 0.35),
+                                 (m3real)RandRange(&rng, 0.15, 0.35),
+                                 (m3real)RandRange(&rng, 0.15, 0.35)});
         }
         else if (f == 2)
         {
             m3Capsule c = {
                 {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.2)};
-            m3CreateCapsuleShape(body, &bs, &c);
+            NewCapsuleShape(world, body, &bs, &c);
         }
         else
         {
@@ -220,9 +221,9 @@ static m3ShapeId BuildMiniBlock(m3WorldId world)
                                  (m3real)RandRange(&rng, -0.25, 0.25),
                                  (m3real)RandRange(&rng, -0.25, 0.25)};
             }
-            if (!m3Shape_IsValid(m3CreateHullShape(body, &bs, cl, 8)))
+            if (!m3Shape_IsValid(world, NewHullShape(world, body, &bs, cl, 8)))
             {
-                m3CreateBoxShape(body, &bs, (m3Vec3){0.2f, 0.2f, 0.2f});
+                NewBoxShape(world, body, &bs, (m3Vec3){0.2f, 0.2f, 0.2f});
             }
         }
     }
@@ -250,11 +251,10 @@ static void TestWorkerTwinsAtScale(void)
         m3WorldDef def = ScaleDef();
         if (run == 1)
         {
-            def.workerCount = POOL_WORKERS;
             def.enqueueTask = PoolEnqueue;
             def.finishTask = PoolFinish;
         }
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3ShapeId chunk = BuildMiniBlock(world);
         for (int32_t i = 0; i < 120; ++i)
         {
@@ -263,7 +263,7 @@ static void TestWorkerTwinsAtScale(void)
                 int32_t cx = 5 + (i / 10) % 6;
                 int32_t lo[3] = {cx, 2, 5};
                 int32_t hi[3] = {cx, 2, 10};
-                m3VoxelChunk_ClearBox(chunk, lo, hi);
+                m3VoxelChunk_ClearBox(world, chunk, lo, hi);
             }
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
@@ -285,19 +285,18 @@ static void TestColoredPileTwins(void)
         m3WorldDef def = m3DefaultWorldDef();
         def.bodyCapacity = 64;
         def.shapeCapacity = 64;
-        def.workerCount = variant == 0 ? 1 : 4;
         if (variant == 1)
         {
             def.enqueueTask = PoolEnqueue;
             def.finishTask = PoolFinish;
         }
-        m3WorldId world = m3CreateWorld(&def);
+        m3World* world = NewWorld(&def);
         m3BodyDef gd = m3DefaultBodyDef();
-        m3BodyId ground = m3CreateBody(world, &gd);
+        m3BodyId ground = NewBody(world, &gd);
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.friction = 0.6f;
         m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
-        m3CreatePlaneShape(ground, &sd, &floor);
+        NewPlaneShape(world, ground, &sd, &floor);
 
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
@@ -307,15 +306,15 @@ static void TestColoredPileTwins(void)
             double z = 0.55 * (double)((k / 4) % 3) - 0.5;
             double y = 0.5 + 0.65 * (double)(k / 12);
             bd.position = (m3Pos3){x, y, z};
-            m3BodyId body = m3CreateBody(world, &bd);
+            m3BodyId body = NewBody(world, &bd);
             if (k % 2 == 0)
             {
-                m3CreateBoxShape(body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+                NewBoxShape(world, body, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
             }
             else
             {
                 m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.27f};
-                m3CreateSphereShape(body, &sd, &ball);
+                NewSphereShape(world, body, &sd, &ball);
             }
         }
         for (int32_t i = 0; i < 150; ++i)

@@ -17,7 +17,7 @@ namespace maul3d_godot
 // A Maul3D world as a Godot node: created on enter, destroyed on
 // exit, stepped from _physics_process with Godot's fixed delta.
 // Bodies hand back an opaque 64-bit id (the 8-byte m3BodyId,
-// bit-cast) that GDScript carries as int. This is the seed of an
+// bit-cast) that GDScript carries as int; 0 when the world refused. This is the seed of an
 // integration, deliberately small: pose reads for rendering,
 // snapshot and restore for rollback, hash for desync checks.
 class M3World3D : public godot::Node3D
@@ -46,7 +46,7 @@ class M3World3D : public godot::Node3D
     static void _bind_methods();
 
   private:
-    m3WorldId world_ = {0, 0};
+    m3World* world_ = nullptr;
     int substeps_ = 4;
 };
 

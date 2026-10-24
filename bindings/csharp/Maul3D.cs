@@ -12,7 +12,10 @@
 // compares Marshal.SizeOf against sizes probed from the C compiler
 // and throws before a mismatch can corrupt anything. Bools in defs
 // are bytes here (C _Bool is one byte; C# bool marshals as four).
-// The rest of the API follows the same pattern; extend as needed.
+// A world is an opaque pointer, every call takes it first, and a
+// create or destroy returns a Result with the new id in an out
+// parameter. The rest of the API follows the same pattern; extend as
+// needed.
 
 using System;
 using System.Runtime.InteropServices;
@@ -42,17 +45,33 @@ namespace Maul3D
         public Pos3(double x, double y, double z) { X = x; Y = y; Z = z; }
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct WorldId { public ushort Index1; public ushort Generation; }
+    /// What a fallible call returns: zero is success, negative values
+    /// are errors (m3Result).
+    public enum Result : int
+    {
+        Success = 0, ErrorInvalid = -1, ErrorCapacity = -2, ErrorStale = -3,
+        ErrorUnsupported = -4, ErrorState = -6, ErrorVersion = -7
+    }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct BodyId { public int Index1; public ushort World; public ushort Generation; }
+    public struct Version { public ushort Major, Minor, Patch; }
+
+    /// Ids name an object of the world that issued them: a 1-based slot
+    /// (0 is the null id) and the slot's generation.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BodyId { public uint Index1; public uint Generation; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct ShapeId { public int Index1; public ushort World; public ushort Generation; }
+    public struct ShapeId { public uint Index1; public uint Generation; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct JointId { public int Index1; public ushort World; public ushort Generation; }
+    public struct JointId { public uint Index1; public uint Generation; }
+
+    /// A host allocator: function pointers taking (size, alignment,
+    /// context) and (memory, size, alignment, context). All zero means
+    /// the C library's allocator.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Allocator { public IntPtr Alloc, Free, Context; }
 
     public enum BodyType : int { Static = 0, Kinematic = 1, Dynamic = 2 }
 
@@ -64,10 +83,13 @@ namespace Maul3D
     }
 
     /// Build with Native.DefaultWorldDef(); the cookie in InternalValue
-    /// is demanded by CreateWorld, so a hand-rolled def refuses loudly.
+    /// and the binary interface in Version are demanded by CreateWorld,
+    /// so a hand-rolled def refuses loudly.
     [StructLayout(LayoutKind.Sequential)]
     public struct WorldDef
     {
+        public int InternalValue;
+        public uint Version;
         public Vec3 Gravity;
         public int BodyCapacity;
         public int ShapeCapacity;
@@ -77,7 +99,6 @@ namespace Maul3D
         public int CharacterCapacity;
         public int VehicleCapacity;
         public int SoftBodyCapacity;
-        public int WorkerCount;
         public IntPtr EnqueueTask;   // both null = serial (the default)
         public IntPtr FinishTask;
         public IntPtr UserTaskContext;
@@ -90,7 +111,7 @@ namespace Maul3D
         public byte EnableSleeping;   // C _Bool
         public byte EnableContinuous; // C _Bool
         public float HitEventThreshold;
-        public int InternalValue;
+        public Allocator Allocator;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -199,83 +220,97 @@ namespace Maul3D
     {
         const string Lib = "maul3d";
 
+        /// M3_ABI_VERSION of the C headers this file mirrors. DefaultWorldDef
+        /// stamps it, so a library built from other headers refuses the
+        /// def with Result.ErrorVersion instead of misreading it.
+        public const uint AbiVersion = 0x80000001u; // 0.0.1
+
         [DllImport(Lib, EntryPoint = "m3GetVersion")]
-        public static extern int GetVersion();
+        public static extern Version GetVersion();
+        [DllImport(Lib, EntryPoint = "m3ResultName")]
+        public static extern IntPtr ResultName(Result result);
 
         // World
-        [DllImport(Lib, EntryPoint = "m3DefaultWorldDef")]
-        public static extern WorldDef DefaultWorldDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultWorldDefValues")]
+        public static extern WorldDef DefaultWorldDefValues();
+        public static WorldDef DefaultWorldDef()
+        {
+            WorldDef def = DefaultWorldDefValues();
+            def.Version = AbiVersion;
+            return def;
+        }
         [DllImport(Lib, EntryPoint = "m3CreateWorld")]
-        public static extern WorldId CreateWorld(ref WorldDef def);
+        public static extern Result CreateWorld(ref WorldDef def, out IntPtr world);
         [DllImport(Lib, EntryPoint = "m3DestroyWorld")]
-        public static extern void DestroyWorld(WorldId world);
+        public static extern void DestroyWorld(IntPtr world);
         [DllImport(Lib, EntryPoint = "m3World_Step")]
-        public static extern void Step(WorldId world, float dt, int substeps);
+        public static extern void Step(IntPtr world, float dt, int substeps);
         [DllImport(Lib, EntryPoint = "m3World_Hash")]
-        public static extern ulong Hash(WorldId world);
+        public static extern ulong Hash(IntPtr world);
 
         // Snapshot and rollback: the buffer is opaque bytes; restore
-        // returns false on any config or version mismatch (loudly, by
-        // contract, never a partial restore).
+        // refuses any config or version mismatch (loudly, by contract,
+        // never a partial restore).
         [DllImport(Lib, EntryPoint = "m3World_SnapshotSize")]
-        public static extern int SnapshotSize(WorldId world);
+        public static extern int SnapshotSize(IntPtr world);
         [DllImport(Lib, EntryPoint = "m3World_Snapshot")]
-        public static extern int Snapshot(WorldId world, byte[] buffer, int capacity);
+        public static extern Result Snapshot(IntPtr world, byte[] buffer, int capacity,
+                                             out int bytes);
         [DllImport(Lib, EntryPoint = "m3World_Restore")]
-        [return: MarshalAs(UnmanagedType.I1)]
-        public static extern bool Restore(WorldId world, byte[] data, int size);
+        public static extern Result Restore(IntPtr world, byte[] data, int size);
 
         // Body
         [DllImport(Lib, EntryPoint = "m3DefaultBodyDef")]
         public static extern BodyDef DefaultBodyDef();
         [DllImport(Lib, EntryPoint = "m3CreateBody")]
-        public static extern BodyId CreateBody(WorldId world, ref BodyDef def);
+        public static extern Result CreateBody(IntPtr world, ref BodyDef def, out BodyId body);
         [DllImport(Lib, EntryPoint = "m3DestroyBody")]
-        public static extern void DestroyBody(BodyId body);
+        public static extern Result DestroyBody(IntPtr world, BodyId body);
         [DllImport(Lib, EntryPoint = "m3Body_GetPosition")]
-        public static extern Pos3 GetPosition(BodyId body);
+        public static extern Pos3 GetPosition(IntPtr world, BodyId body);
         [DllImport(Lib, EntryPoint = "m3Body_GetRotation")]
-        public static extern Quat GetRotation(BodyId body);
+        public static extern Quat GetRotation(IntPtr world, BodyId body);
         [DllImport(Lib, EntryPoint = "m3Body_GetLinearVelocity")]
-        public static extern Vec3 GetLinearVelocity(BodyId body);
+        public static extern Vec3 GetLinearVelocity(IntPtr world, BodyId body);
         [DllImport(Lib, EntryPoint = "m3Body_GetAngularVelocity")]
-        public static extern Vec3 GetAngularVelocity(BodyId body);
+        public static extern Vec3 GetAngularVelocity(IntPtr world, BodyId body);
         [DllImport(Lib, EntryPoint = "m3Body_SetLinearVelocity")]
-        public static extern void SetLinearVelocity(BodyId body, Vec3 velocity);
+        public static extern void SetLinearVelocity(IntPtr world, BodyId body, Vec3 velocity);
         [DllImport(Lib, EntryPoint = "m3Body_SetAngularVelocity")]
-        public static extern void SetAngularVelocity(BodyId body, Vec3 velocity);
+        public static extern void SetAngularVelocity(IntPtr world, BodyId body, Vec3 velocity);
         [DllImport(Lib, EntryPoint = "m3Body_SetTransform")]
-        public static extern void SetTransform(BodyId body, Pos3 position, Quat rotation);
+        public static extern void SetTransform(IntPtr world, BodyId body, Pos3 position,
+                                               Quat rotation);
 
         // Shapes
         [DllImport(Lib, EntryPoint = "m3DefaultShapeDef")]
         public static extern ShapeDef DefaultShapeDef();
         [DllImport(Lib, EntryPoint = "m3CreateSphereShape")]
-        public static extern ShapeId CreateSphereShape(BodyId body, ref ShapeDef def,
-                                                       ref Sphere sphere);
+        public static extern Result CreateSphereShape(IntPtr world, BodyId body, ref ShapeDef def,
+                                                      ref Sphere sphere, out ShapeId shape);
         [DllImport(Lib, EntryPoint = "m3CreateBoxShape")]
-        public static extern ShapeId CreateBoxShape(BodyId body, ref ShapeDef def,
-                                                    Vec3 halfExtents);
+        public static extern Result CreateBoxShape(IntPtr world, BodyId body, ref ShapeDef def,
+                                                   Vec3 halfExtents, out ShapeId shape);
         [DllImport(Lib, EntryPoint = "m3CreateCapsuleShape")]
-        public static extern ShapeId CreateCapsuleShape(BodyId body, ref ShapeDef def,
-                                                        ref Capsule capsule);
+        public static extern Result CreateCapsuleShape(IntPtr world, BodyId body, ref ShapeDef def,
+                                                       ref Capsule capsule, out ShapeId shape);
         [DllImport(Lib, EntryPoint = "m3CreatePlaneShape")]
-        public static extern ShapeId CreatePlaneShape(BodyId body, ref ShapeDef def,
-                                                      ref Plane plane);
+        public static extern Result CreatePlaneShape(IntPtr world, BodyId body, ref ShapeDef def,
+                                                     ref Plane plane, out ShapeId shape);
 
         // Joints
         [DllImport(Lib, EntryPoint = "m3DefaultJointDef")]
         public static extern JointDef DefaultJointDef();
         [DllImport(Lib, EntryPoint = "m3CreateJoint")]
-        public static extern JointId CreateJoint(WorldId world, ref JointDef def);
+        public static extern Result CreateJoint(IntPtr world, ref JointDef def, out JointId joint);
         [DllImport(Lib, EntryPoint = "m3DestroyJoint")]
-        public static extern void DestroyJoint(JointId joint);
+        public static extern Result DestroyJoint(IntPtr world, JointId joint);
 
         // Queries
         [DllImport(Lib, EntryPoint = "m3DefaultQueryFilter")]
         public static extern QueryFilter DefaultQueryFilter();
         [DllImport(Lib, EntryPoint = "m3World_CastRayClosest")]
-        public static extern RayCastResult CastRayClosest(WorldId world, Pos3 origin,
+        public static extern RayCastResult CastRayClosest(IntPtr world, Pos3 origin,
                                                           Vec3 translation, QueryFilter filter);
 
         /// Sizes probed from the C compiler (x86-64 System V and
@@ -286,13 +321,14 @@ namespace Maul3D
             Check<Vec3>(12);
             Check<Quat>(16);
             Check<Pos3>(24);
-            Check<WorldDef>(112);
+            Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
             Check<JointDef>(224);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);
-            Check<WorldId>(4);
+            Check<Version>(6);
+            Check<Allocator>(24);
             Check<BodyId>(8);
             Check<ShapeId>(8);
             Check<JointId>(8);
