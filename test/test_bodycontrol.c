@@ -112,8 +112,7 @@ static void TestKinematicServo(void)
 static void TestTypeFlipAndDisable(void)
 {
     // A static shelf HOVERS with a crate on top, then turns
-    // DYNAMIC: both fall (a grounded pillar would just stand, the
-    // first draft of this test learned that premise the hard way).
+    // DYNAMIC: both fall (a grounded pillar would just stand).
     // Then a crate disables mid-scene: contacts and queries lose
     // it, and enabling brings it back awake.
     m3World* world = PlaneWorld();
@@ -158,8 +157,8 @@ static void TestTypeFlipAndDisable(void)
 static void TestMotionLocks(void)
 {
     // An upright 2.5D crate: linear z and ALL spin locked (a free
-    // angular z let the first draft's crate trip over its leading
-    // edge and tumble home: physical, but noise here). Shoved
+    // angular z lets the crate trip over its leading edge and
+    // tumble home: physical, but noise here). Shoved
     // diagonally, it slides in x only and never rotates.
     m3World* world = PlaneWorld();
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 0.5, 0.0});

@@ -673,7 +673,7 @@ static void TestWeldedSeamWalk(void)
 // Stairs, slopes, the voxel floor, and the welded seam.
 static void TestHostileMoves(void)
 {
-    // Red team: the walker takes abuse without corruption. A
+    // The walker takes abuse without corruption. A
     // planetary-scale move stops at the first wall like any other;
     // denormal dust moves change not one bit; the world stays
     // finite through all of it.

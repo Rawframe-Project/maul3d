@@ -442,10 +442,9 @@ static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t subste
     m3WorldLeave(world);
     if (world->recorder.journalActive != 0)
     {
-        // Recording moved BEHIND the execution: nothing can
-        // journal during a step, so callback-less streams are
-        // byte-identical to the old order, and a step that vetoed
-        // contacts writes those keys first. A bare replay (no
+        // Recording follows the execution, since nothing can
+        // journal during a step: a step that vetoed contacts writes
+        // those keys first. A bare replay (no
         // callback installed) then applies the recorded vetoes and
         // lands on the recorded bits: the tape is self-sufficient.
         if (world->contacts.stepVetoCount > 0)

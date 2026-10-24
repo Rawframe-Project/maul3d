@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Red-team round two: hostile SEQUENCES. Round one poisoned
-// the inputs; this round abuses the order of operations: stale ids
-// into every entry, snapshots into short buffers, corrupted and
-// truncated journals against the new atomic-replay guarantee,
-// destroy cascades racing joint lists, and a pool churned all the
-// way to generation retirement.
+// Hostile SEQUENCES: valid inputs in an abusive order of operations
+// (test_hostile poisons the inputs themselves): stale ids into every
+// entry, snapshots into short buffers, corrupted and truncated
+// journals against the atomic-replay guarantee, destroy cascades
+// racing joint lists, and a pool churned all the way to generation
+// retirement.
 
 #include "helpers.h"
 #include "test_harness.h"

@@ -67,9 +67,8 @@ static void TestForceAndTorqueBooks(void)
 
     // Torque: T = I alpha; unit cube I = 1/6, T = 0.5 N m for one
     // second: w = T t / I = 3 rad/s.
-    // Far from the drifting force cube: the first draft parked
-    // this at x = 5 and the 2 m/s drifter sailed straight through
-    // the spin measurement.
+    // Far from the drifting force cube: at x = 5 the 2 m/s drifter
+    // would sail straight through the spin measurement.
     m3BodyId top = UnitCube(world, (m3Pos3){0.0, 50.0, 0.0});
     for (int32_t i = 0; i < 60; ++i)
     {

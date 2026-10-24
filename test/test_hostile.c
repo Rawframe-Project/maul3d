@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Red-team round one: hostile inputs. Every def field takes
+// Hostile inputs. Every def field takes
 // NaN, both infinities, denormals, and hostile magnitudes; every
 // geometry family takes its degenerate forms. The contract under
 // attack: every refusal is a null id or a no-op, never a crash and
@@ -407,9 +407,9 @@ int main(int argc, char** argv)
     }
     if (s_failures == 0)
     {
-        printf("test_fuzz: all green\n");
+        printf("test_hostile: all green\n");
         return 0;
     }
-    printf("test_fuzz: %d failure(s)\n", s_failures);
+    printf("test_hostile: %d failure(s)\n", s_failures);
     return 1;
 }

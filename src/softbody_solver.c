@@ -647,7 +647,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     v = m3Add3(v, m3MulSV3(h * windDrag, m3Sub3(windVel, v)));
                 }
                 // Water: a submerged particle trades gravity
-                // for buoyancy under the rho-1000 particle
+                // for buoyancy under the density-1000 particle
                 // convention (density 1000 suspends, denser fluids
                 // lift, thinner ones let it sink) and drags toward
                 // the flow like wind. First live volume wins,
