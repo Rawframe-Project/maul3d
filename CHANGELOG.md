@@ -6,6 +6,69 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.1.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.1) (2026-10-24)
+
+### Added
+
+- **`m3Counters.voxelEditsRefused`.** A chunk's surface holds at most
+  2048 merged boxes, the checkerboard's count. An edit whose surface
+  would pass that bound changes nothing, journals nothing and counts no
+  misuse. It counts here instead, and `m3VoxelChunk_ClearBox` returns -1.
+  An explosion skips that chunk's carve and still applies its impulses.
+  A chunk create past the bound is refused with `m3_errorCapacity`, a
+  snapshot chunk past it with `m3_errorInvalid`, and a replayed edit past
+  it refuses the replay, which leaves the world as it was. No grid
+  measured so far reaches the bound. The field is a counter, not
+  state: it is not hashed, and a restore or a replay's back-out leaves
+  it as it is. A program that wants to know whether an edit landed can
+  compare it before and after.
+  ([#38](https://github.com/Rawframe-Project/maul3d/pull/38))
+
+### Changed
+
+- **Voxel memory is reserved per chunk slot.** A voxel slot takes about
+  84 KB for its collision tree when its first chunk is created, and
+  keeps it for later chunks in that slot. Every world also takes about
+  88 KB at creation: a 76 KB build scratch and a 12.5 KB edit staging
+  copy. `m3CreateVoxelChunkShape` returns `m3_errorCapacity` when the
+  allocator refuses the slot's tree, with the world as it was. A restore
+  takes the tree for each live chunk slot that has none yet, and returns
+  `m3_errorCapacity` when refused. `m3MemoryUsage.contentBytes` counts
+  the slot trees. A replay's up-front headroom no longer counts voxel
+  surfaces, only arrays sized by the mesh, shape and voxel capacities.
+  Budget 84 KB per voxel slot a program fills, on top of the
+  world's 88 KB.
+  ([#38](https://github.com/Rawframe-Project/maul3d/pull/38))
+- A mesh shape's create takes a build scratch sized by its triangle
+  count rather than for 65535 triangles, so it needs less temporary
+  memory. Mesh trees and every hash stay the same.
+  ([#38](https://github.com/Rawframe-Project/maul3d/pull/38))
+
+### Fixed
+
+- **The same bits in any host's floating-point setting.** Every public
+  function that computes now runs in the library's own setting (round to
+  nearest, subnormals kept, every exception masked) whatever setting the
+  calling thread has, and gives the thread its setting back on return,
+  sticky exception flags included on x86. Before, a host that ran its
+  threads with flush-to-zero, denormals-are-zero or another rounding
+  mode got different results from the same calls. Host code runs in the
+  host's setting: the allocator, the task hooks and the debug draw
+  callbacks. The pre-solve callback runs in the library's setting,
+  since its answer decides which contacts the solver keeps. Each range
+  a task hook runs enters the library's setting on whatever thread the
+  host gives it. A program changes nothing.
+  ([#35](https://github.com/Rawframe-Project/maul3d/pull/35))
+- **Voxel edits no longer fail for memory.** A set, a clear, a box
+  clear, an explosion's carve or the fracture a clear causes used to
+  rebuild the chunk's collision tree with memory from the allocator.
+  When the allocator refused, the edit still landed and was journaled,
+  but the chunk stopped colliding and answering queries until a later
+  edit or restore. A replay with memory then diverged from the
+  recording. Edits now rebuild in storage reserved ahead of them and ask
+  the allocator for nothing.
+  ([#38](https://github.com/Rawframe-Project/maul3d/pull/38))
+
 ## [0.1.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.1.0) (2026-10-24)
 
 ### Changed
