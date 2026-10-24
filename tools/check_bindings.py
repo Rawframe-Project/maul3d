@@ -11,7 +11,8 @@
 #   it mirrors (sequential layout, computed here; the C side printed by
 #   the C compiler);
 # - the C# version is the headers' version, and the C# AbiVersion
-#   expression, compiled as C, gives M3_ABI_VERSION at that version and
+#   expression, which may name only VersionMajor, VersionMinor and
+#   VersionPatch, compiled as C, gives M3_ABI_VERSION at that version and
 #   at every version in ABI_SAMPLES, so a release that moves the version
 #   in both files keeps them matching and a formula that changes on one
 #   side only fails.
@@ -28,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSHARP = os.path.join(ROOT, "bindings", "csharp", "Maul3D.cs")
 # Versions both ABI formulas are evaluated at, besides the current one:
 # both sides of 1.0 and of the major, minor and patch boundaries.
+VERSION_NAMES = {"VersionMajor", "VersionMinor", "VersionPatch"}
 ABI_SAMPLES = [(0, 0, 1), (0, 1, 0), (0, 3, 7), (1, 0, 0), (1, 2, 3), (2, 15, 4)]
 GODOT = os.path.join(ROOT, "bindings", "godot", "src")
 
@@ -196,8 +198,15 @@ def main():
             failures.append(f"C#: no Version{part}")
     abi = re.search(r"public const uint AbiVersion =\s*([^;]+);", text)
     expression = " ".join(abi.group(1).split()) if abi else "0"
-    if abi is None or not re.fullmatch(r"[\w\s|&^<>=!?:()+*-]+", expression):
-        failures.append("C#: no AbiVersion expression this check can compile")
+    # Only the three version names may appear: any other name would
+    # resolve to the header in the C probe (M3_ABI_VERSION would compare
+    # the header with itself).
+    others = sorted(set(re.findall(r"\b[A-Za-z_]\w*", expression)) - VERSION_NAMES)
+    compiled = abi is not None and not others and re.fullmatch(r"[\w\s|&^<>=!?:()+*-]+",
+                                                              expression)
+    if abi is None or not compiled:
+        failures.append("C#: no AbiVersion expression this check can compile"
+                        + (": it names " + ", ".join(others) if others else ""))
         expression = "0"
     versions = [tuple(numbers)] + [v for v in ABI_SAMPLES if v != tuple(numbers)]
     c = c_layouts(sorted(structs), structs, compiler, expression, versions)
@@ -215,7 +224,7 @@ def main():
         if str(number) != c[part]:
             failures.append(f"C#: Version{part.title()} is not M3_VERSION_{part.upper()} "
                             f"({c[part]})")
-    for major, minor, patch in versions:
+    for major, minor, patch in versions if compiled else []:
         expected, actual = (int(v) for v in c[f"abi {major}.{minor}.{patch}"].split(","))
         if actual != expected:
             failures.append(f"C#: AbiVersion at {major}.{minor}.{patch} is {actual:#x}, "
