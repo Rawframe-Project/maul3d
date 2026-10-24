@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.2.1](https://github.com/Rawframe-Project/maul3d/compare/v0.2.0...v0.2.1) (2026-10-24)
+
+
+### Fixed
+
+* **softbody:** push particles off thin mesh triangles ([#48](https://github.com/Rawframe-Project/maul3d/issues/48)) ([6b20a52](https://github.com/Rawframe-Project/maul3d/commit/6b20a52922214ca79966a0a49a786c0b6e191e10))
+
+
+### Changed
+
+* cull the shapes no particle can reach in the soft body pass ([#47](https://github.com/Rawframe-Project/maul3d/issues/47)) ([2577414](https://github.com/Rawframe-Project/maul3d/commit/25774141fec230f432709b61c7aa3ec60c9907e2))
+
 ## [0.2.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.0) (2026-10-24)
 
 ### Added
