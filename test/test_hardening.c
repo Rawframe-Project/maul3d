@@ -806,11 +806,11 @@ static void TestRestoreRefusesBadCursors(void)
 }
 
 // Restore checks every incoming block before any of it lands: poison
-// the snapshot with a huge 32-bit word at every third byte. The stream is
-// unaligned, and a stride of 3 still writes every byte and meets every
-// field at all four alignments every 12 bytes, at a third of the restores
-// of every offset. A refused restore leaves the world untouched and
-// records a reason.
+// the snapshot with a huge 32-bit word at every third byte, which still
+// writes every byte, since each poison is four bytes wide. Each field
+// meets the poison at one class of shifts mod 3, not at every shift. No
+// poisoned word may crash restore, and a refused restore leaves the world
+// untouched and records a reason.
 static void TestRestoreRefusesPoisonedWords(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
