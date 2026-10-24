@@ -51,4 +51,9 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock);
 // Ten thousand mixed bodies rain onto a plane.
 uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms);
 
+// Cloths and pressured jellies settle on a slab, in a world of two
+// thousand far static shapes none of them can reach: the soft body pass's
+// cost against the world's shape count.
+uint64_t BenchSoftfield(int32_t steps, BenchClock* clock, double* ms);
+
 #endif

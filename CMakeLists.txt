@@ -128,6 +128,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/shape_state.c
     src/snapshot.c
     src/softbody.c
+    src/softbody_cull.c
     src/softbody_pairs.c
     src/softbody_solver.c
     src/solver.c

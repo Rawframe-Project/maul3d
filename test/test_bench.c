@@ -35,6 +35,9 @@
 #ifndef M3_GOLDEN_BENCH_SMOKE10K
 #define M3_GOLDEN_BENCH_SMOKE10K 0
 #endif
+#ifndef M3_GOLDEN_BENCH_SOFTFIELD
+#define M3_GOLDEN_BENCH_SOFTFIELD 0
+#endif
 
 #define STEPS 300
 
@@ -74,6 +77,7 @@ int main(void)
     CHECK(rollback.refightExact, "the re-fought 5k-body tail lands on the same bits");
 
     Expect("SMOKE10K", BenchSmoke10k(STEPS / 2, NULL, &unused), M3_GOLDEN_BENCH_SMOKE10K);
+    Expect("SOFTFIELD", BenchSoftfield(STEPS, NULL, &unused), M3_GOLDEN_BENCH_SOFTFIELD);
     if (s_failures == 0)
     {
         printf("test_bench: all checks passed\n");

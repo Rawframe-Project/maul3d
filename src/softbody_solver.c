@@ -10,6 +10,7 @@
 
 #include "shape_state.h"
 #include "softbody.h"
+#include "softbody_cull.h"
 #include "solver_math.h"
 #include "voxel.h"
 #include "world_internal.h"
@@ -183,13 +184,11 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     world->softBodies.softPos[k].z -= (double)(tang.z * scale);
 }
 
-// One particle against one shape, in the shape body's local frame.
-static void SoftCollideParticle(m3World* world, int32_t slot, int32_t k, int32_t shape,
-                                uint8_t stype, int32_t body, m3real radius, m3real invH)
+// One particle against one shape, in the shape body's local frame. xf is
+// the shape's world transform, which nothing in the pass moves.
+static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_t stype,
+                                int32_t body, const m3Transform* xf, m3real radius, m3real invH)
 {
-    (void)slot;
-    m3Transform xfS = m3ShapeWorldTransform(world, shape);
-    const m3Transform* xf = &xfS;
     m3real mu = world->shapes.shapeFriction[shape];
 
     if (stype == (uint8_t)m3_planeShape)
@@ -399,6 +398,64 @@ static void SoftCollideParticle(m3World* world, int32_t slot, int32_t k, int32_t
             }
         }
         return;
+    }
+}
+
+// The world's surfaces: every particle projects out of every shape
+// family through the shared local kernels, ascending shape order,
+// friction from the touched shape (the PBD tangential rule). Planes stay
+// world-frame; everything else works in body space.
+static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3real invH)
+{
+    int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+    int32_t count = world->softBodies.softParticleCount[slot];
+    m3real radius = world->softBodies.softRadius[slot];
+    // The box of every particle the loop moves, grown by each
+    // projection, so a shape is culled only when no particle can
+    // reach it from where it is now.
+    double plo[3] = {1.0e300, 1.0e300, 1.0e300};
+    double phi[3] = {-1.0e300, -1.0e300, -1.0e300};
+    for (int32_t i = 0; i < count; ++i)
+    {
+        if (world->softBodies.softInvMass[base + i] != 0.0f)
+        {
+            m3SoftGrowBox(plo, phi, world->softBodies.softPos[base + i]);
+        }
+    }
+    for (int32_t sShape = 0; sShape < maxShape; ++sShape)
+    {
+        if (world->shapes.shapePool.alive[sShape] == 0 || world->shapes.shapeSensor[sShape] != 0)
+        {
+            continue;
+        }
+        uint8_t stype = world->shapes.shapeType[sShape];
+        int32_t body = world->shapes.shapeBody[sShape];
+        if (world->bodies.bodyEnabled[body] == 0)
+        {
+            continue; // disabled bodies are ghosts to lattices too
+        }
+        // Projections move particles and body velocities, never
+        // a body, so the shape's transform holds for the loop.
+        m3Transform xf = m3ShapeWorldTransform(world, sShape);
+        m3Vec3 center;
+        m3real bound = m3SoftShapeBound(world, sShape, stype, &center);
+        if (world->softBodies.softCullOff == 0 &&
+            ((bound >= 0.0f && m3SoftShapeOutOfReach(&xf, center, bound, radius, plo, phi)) ||
+             (stype == (uint8_t)m3_hullShape &&
+              m3SoftHullOutOfReach(world, sShape, &xf, radius, plo, phi))))
+        {
+            continue; // no particle can reach it this pass
+        }
+        for (int32_t i = 0; i < count; ++i)
+        {
+            int32_t k = base + i;
+            if (world->softBodies.softInvMass[k] == 0.0f)
+            {
+                continue;
+            }
+            SoftCollideParticle(world, k, sShape, stype, body, &xf, radius, invH);
+            m3SoftGrowBox(plo, phi, world->softBodies.softPos[k]);
+        }
     }
 }
 
@@ -851,35 +908,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 }
             }
 
-            // The world's surfaces: every particle projects
-            // out of every shape family through the shared local
-            // kernels, ascending shape order, friction from the
-            // touched shape (the PBD tangential rule). Planes stay
-            // world-frame; everything else works in body space.
-            m3real radius = world->softBodies.softRadius[slot];
-            for (int32_t sShape = 0; sShape < maxShape; ++sShape)
-            {
-                if (world->shapes.shapePool.alive[sShape] == 0 ||
-                    world->shapes.shapeSensor[sShape] != 0)
-                {
-                    continue;
-                }
-                uint8_t stype = world->shapes.shapeType[sShape];
-                int32_t body = world->shapes.shapeBody[sShape];
-                if (world->bodies.bodyEnabled[body] == 0)
-                {
-                    continue; // disabled bodies are ghosts to lattices too
-                }
-                for (int32_t i = 0; i < count; ++i)
-                {
-                    int32_t k = base + i;
-                    if (world->softBodies.softInvMass[k] == 0.0f)
-                    {
-                        continue;
-                    }
-                    SoftCollideParticle(world, slot, k, sShape, stype, body, radius, invH);
-                }
-            }
+            SoftCollideWorld(world, slot, maxShape, invH);
         }
 
         m3SoftSoftContacts(world);

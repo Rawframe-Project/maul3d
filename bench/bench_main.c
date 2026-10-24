@@ -73,5 +73,8 @@ int main(int argc, char** argv)
 
     BenchSmoke10k(steps / 2, NowMs, &ms);
     Report("smoke10k", steps / 2, ms);
+
+    BenchSoftfield(steps, NowMs, &ms);
+    Report("softfield", steps, ms);
     return 0;
 }
