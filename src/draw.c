@@ -689,10 +689,13 @@ void m3World_Draw(const m3World* world, const m3DebugDraw* draw)
         m3Refuse(world, m3_errorInvalid);
         return;
     }
+    // The callbacks are host code: a writer they call is refused.
+    m3WorldEnter(world);
     if (draw->drawSolidShapes && draw->drawTriangle != NULL)
     {
         DrawSolid(world, draw);
     }
     DrawWire(world, draw);
     DrawExtras(world, draw);
+    m3WorldLeave(world);
 }

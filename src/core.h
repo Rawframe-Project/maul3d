@@ -57,4 +57,36 @@ static inline bool m3FiniteQuat(m3Quat q)
     return m3FiniteF(q.x) && m3FiniteF(q.y) && m3FiniteF(q.z) && m3FiniteF(q.w);
 }
 
+// Finite is not enough for what a def places in a body's frame or feeds
+// into a mass: a finite but huge value turns masses, inertias and solver
+// terms infinite, which a restore then refuses. These bounds lie far past
+// any real scene: an offset in a body's frame (joint anchors, a shape's
+// local position, a lattice spacing), a shape's density, and a world
+// position the step turns into float offsets.
+#define M3_LOCAL_LIMIT    1.0e4f
+#define M3_DENSITY_LIMIT  1.0e6f
+#define M3_POSITION_LIMIT 1.0e15
+
+static inline bool m3LocalF(m3real x)
+{
+    return x >= -M3_LOCAL_LIMIT && x <= M3_LOCAL_LIMIT; // false for NaN
+}
+
+static inline bool m3DensityF(float x)
+{
+    return x > 0.0f && x <= M3_DENSITY_LIMIT; // false for NaN
+}
+
+static inline bool m3LocalV3(m3Vec3 v)
+{
+    return m3LocalF(v.x) && m3LocalF(v.y) && m3LocalF(v.z);
+}
+
+static inline bool m3BoundedPos3(m3Pos3 p)
+{
+    return p.x >= -M3_POSITION_LIMIT && p.x <= M3_POSITION_LIMIT && p.y >= -M3_POSITION_LIMIT &&
+           p.y <= M3_POSITION_LIMIT && p.z >= -M3_POSITION_LIMIT &&
+           p.z <= M3_POSITION_LIMIT; // false for NaN
+}
+
 #endif // MAUL3D_SRC_CORE_H

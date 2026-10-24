@@ -334,7 +334,7 @@ bool m3ReplaySetShapeDensity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3FiniteF(record.value) || record.value <= 0.0f)
+    if (slot < 0 || !m3DensityF(record.value))
     {
         return false; // hostile bytes fail loudly
     }

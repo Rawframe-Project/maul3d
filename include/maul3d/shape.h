@@ -41,7 +41,7 @@ extern "C"
 
     typedef struct m3ShapeDef
     {
-        float density; // kg/m^3
+        float density; // kg/m^3, positive and at most 1e6
         float friction;
         float restitution;
         /// Collision filtering. A pair collides when each
@@ -71,7 +71,8 @@ extern "C"
         bool enablePreSolveEvents; // default false: veto calls cost
         /// Compound offset: the shape's transform relative to
         /// its body. Identity by default; a near-unit rotation is
-        /// demanded, garbage refuses at create.
+        /// demanded and each offset component stays within 1e4 m;
+        /// garbage refuses at create.
         m3Vec3 localPosition;
         m3Quat localRotation;
         int32_t internalValue;
@@ -320,7 +321,8 @@ extern "C"
     M3_API float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape);
 
     /// Set the density and optionally rebuild the owning body's
-    /// mass, center and inertia from all its shapes. Journaled.
+    /// mass, center and inertia from all its shapes. Journaled. The
+    /// density must be positive and at most 1e6, as at creation.
     M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density,
                                    bool updateBodyMass);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);

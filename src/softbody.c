@@ -93,12 +93,14 @@ static bool LatticeDefValid(const m3SoftBodyDef* def)
     }
     bool pressureFits =
         def->pressure == 0.0f || (def->countX >= 2 && def->countY >= 2 && def->countZ >= 2);
-    return m3FinitePos3(def->position) && m3FiniteF(def->spacing) && def->spacing > 0.0f &&
-           m3FiniteF(def->particleMass) && def->particleMass > 0.0f && m3FiniteF(def->compliance) &&
-           def->compliance >= 0.0f && m3FiniteF(def->radius) && def->radius > 0.0f &&
-           m3FiniteF(def->gravityScale) && m3FiniteF(def->bendCompliance) &&
-           def->bendCompliance >= 0.0f && m3FiniteF(def->pressure) && def->pressure >= 0.0f &&
-           pressureFits && m3FiniteF(def->maxDeviation) && def->maxDeviation >= 0.0f &&
+    return m3BoundedPos3(def->position) && m3FiniteF(def->spacing) && def->spacing > 0.0f &&
+           def->spacing <= M3_LOCAL_LIMIT && m3FiniteF(def->particleMass) &&
+           def->particleMass > 0.0f && m3FiniteF(def->compliance) && def->compliance >= 0.0f &&
+           m3FiniteF(def->radius) && def->radius > 0.0f && m3FiniteF(def->gravityScale) &&
+           m3FiniteF(def->bendCompliance) && def->bendCompliance >= 0.0f &&
+           m3FiniteF(def->pressure) && def->pressure >= 0.0f &&
+           def->pressure <= M3_SOFTBODY_MAX_PRESSURE && pressureFits &&
+           m3FiniteF(def->maxDeviation) && def->maxDeviation >= 0.0f &&
            LatticeEdgeCount(def) <= M3_SOFTBODY_MAX_EDGES;
 }
 
@@ -211,12 +213,12 @@ int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
 {
     if (!LatticeDefValid(def))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     int32_t slot = m3IdPoolAlloc(&world->softBodies.softPool);
     if (slot < 0)
     {
-        return -1;
+        return M3_CREATE_FULL;
     }
     int32_t nx = def->countX;
     int32_t ny = def->countY;
@@ -355,7 +357,7 @@ static bool TetDefValid(const m3SoftBodyDef* def, const m3Vec3* points, int32_t 
                         const uint16_t* tets, int32_t tetCount)
 {
     if (pointCount < 4 || pointCount > M3_SOFTBODY_MAX_PARTICLES || tetCount < 1 ||
-        tetCount > M3_SOFTBODY_MAX_TETS || !m3FinitePos3(def->position) ||
+        tetCount > M3_SOFTBODY_MAX_TETS || !m3BoundedPos3(def->position) ||
         !m3FiniteF(def->particleMass) || !(def->particleMass > 0.0f) ||
         !m3FiniteF(def->compliance) || def->compliance < 0.0f || !m3FiniteF(def->radius) ||
         !(def->radius > 0.0f) || !m3FiniteF(def->gravityScale) || def->bendCompliance != 0.0f ||
@@ -365,7 +367,7 @@ static bool TetDefValid(const m3SoftBodyDef* def, const m3Vec3* points, int32_t 
     }
     for (int32_t i = 0; i < pointCount; ++i)
     {
-        if (!m3FiniteV3(points[i]))
+        if (!m3LocalV3(points[i]))
         {
             return false;
         }
@@ -420,13 +422,13 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
 {
     if (!TetDefValid(def, points, pointCount, tets, tetCount))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     m3IdPoolMark mark = m3IdPoolMarkNow(&world->softBodies.softPool);
     int32_t slot = m3IdPoolAlloc(&world->softBodies.softPool);
     if (slot < 0)
     {
-        return -1;
+        return M3_CREATE_FULL;
     }
     m3SoftBodies* sb = &world->softBodies;
     InitSoftSlot(world, slot, def, pointCount);
@@ -449,7 +451,7 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
         // The refusal leaves the pool as if the create never ran.
         ClearSoftSlot(world, slot);
         m3IdPoolRewind(&world->softBodies.softPool, mark, slot);
-        return -1;
+        return M3_CREATE_INVALID;
     }
     sb->softBendStart[slot] = sb->softEdgeCount[slot];
     sb->softTetCount[slot] = tetCount;
@@ -474,6 +476,10 @@ m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3V
         return m3Refuse(world, m3_errorInvalid);
     }
     *softBodyOut = m3_nullSoftBodyId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE ||
         points == NULL || tets == NULL)
     {
@@ -482,7 +488,7 @@ m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3V
     int32_t slot = m3CreateSoftBodyTetInternal(world, def, points, pointCount, tets, tetCount);
     if (slot < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, slot);
     }
     m3SoftBodyId id = {slot + 1, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
@@ -509,6 +515,10 @@ m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId
         return m3Refuse(world, m3_errorInvalid);
     }
     *softBodyOut = m3_nullSoftBodyId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || def == NULL || def->internalValue != M3_SOFTBODY_COOKIE)
     {
         return m3Refuse(world, m3_errorInvalid); // field checks live in the internal
@@ -516,7 +526,7 @@ m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId
     int32_t slot = m3CreateSoftBodyInternal(world, def);
     if (slot < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, slot);
     }
     m3SoftBodyId id = {slot + 1, world->softBodies.softPool.generations[slot]};
     if (world->recorder.journalActive != 0)
@@ -533,6 +543,10 @@ m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def, m3SoftBodyId
 
 m3Result m3DestroySoftBody(m3World* world, m3SoftBodyId softBody)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0)
     {
@@ -553,6 +567,11 @@ bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody)
 
 void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
@@ -618,6 +637,11 @@ void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particl
 void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
                              m3SoftBodyId softBodyB, int32_t particleB)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slotA = m3SoftBodySlot(world, softBodyA);
     int32_t slotB = m3SoftBodySlot(world, softBodyB);
     if (slotA < 0 || slotB < 0 || slotA == slotB || particleA < 0 || particleB < 0 ||
@@ -644,6 +668,11 @@ void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t par
 void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
                                m3BodyId body)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3SoftBodySlot(world, softBody);
     int32_t bodyIndex = m3BodySlot(world, body);
     if (slot < 0 || bodyIndex < 0 || particle < 0 ||
@@ -668,7 +697,12 @@ void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t pa
 int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)
 {
     int32_t slot = m3SoftBodySlot(world, softBody);
-    return slot >= 0 ? world->softBodies.softParticleCount[slot] : 0;
+    if (slot < 0)
+    {
+        m3Refuse(world, m3MissingId(softBody.index1));
+        return 0;
+    }
+    return world->softBodies.softParticleCount[slot];
 }
 
 m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBody, int32_t particle)

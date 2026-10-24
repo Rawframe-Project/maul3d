@@ -269,6 +269,10 @@ static void TestHostileKnobs(void)
     CHECK(m3Shape_GetFriction(world, floor) == f0, "hostile friction refused");
     m3Shape_SetDensity(world, floor, 0.0f, true);
     m3Shape_SetDensity(world, floor, -5.0f, true);
+    float d0 = m3Shape_GetDensity(world, floor);
+    CHECK_REFUSES(world, m3Shape_SetDensity(world, floor, 2.0e6f, true),
+                  "a density create refuses is refused here too");
+    CHECK(m3Shape_GetDensity(world, floor) == d0, "refused density changes nothing");
     m3World_SetContactTuning(world, 0.0f, 10.0f, 3.0f);
     m3World_SetContactTuning(world, 30.0f, 10.0f, NAN);
     m3World_SetMaximumLinearSpeed(world, 0.0f);

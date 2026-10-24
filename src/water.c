@@ -60,12 +60,12 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
         !(def->density > 0.0f) || !m3FiniteF(def->linearDrag) || def->linearDrag < 0.0f ||
         !m3FiniteF(def->angularDrag) || def->angularDrag < 0.0f || !m3FiniteV3(def->flow))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     int32_t slot = m3IdPoolAlloc(&world->water.waterPool);
     if (slot < 0)
     {
-        return -1; // all 8 slots taken: loud at the caller
+        return M3_CREATE_FULL; // all 8 slots taken: loud at the caller
     }
     world->water.waterLo[slot] = def->lo;
     world->water.waterHi[slot] = def->hi;
@@ -97,6 +97,10 @@ m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
         return m3Refuse(world, m3_errorInvalid);
     }
     *volumeOut = m3_nullWaterVolumeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || def == NULL || def->internalValue != M3_WATER_COOKIE)
     {
         return m3Refuse(world, m3_errorInvalid);
@@ -104,7 +108,7 @@ m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
     int32_t slot = m3CreateWaterVolumeInternal(world, def);
     if (slot < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, slot);
     }
     m3WaterVolumeId id = {slot + 1, world->water.waterPool.generations[slot]};
     if (world->recorder.journalActive != 0)
@@ -136,6 +140,10 @@ bool m3WaterVolume_IsValid(const m3World* world, m3WaterVolumeId volume)
 
 m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t slot = WaterSlot(world, volume);
     if (slot < 0)
     {

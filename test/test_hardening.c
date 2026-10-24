@@ -374,6 +374,226 @@ static void TestShapeDefsRefuseAsInvalid(void)
     m3DestroyWorld(world);
 }
 
+// A snapshot or a tape is untrusted data: a damaged, truncated or empty
+// one is refused with its status and counts no misuse. A null pointer
+// with a nonzero size is an argument a correct program never passes, so
+// it does count.
+static void TestUntrustedDataCountsNoMisuse(void)
+{
+    m3World* world = CursorWorld(3);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    static uint8_t tape[4096];
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t tapeBytes = StopJournal(world);
+    CHECK(tapeBytes > 8, "the journal holds a step");
+    CHECK(Restore(world, snap, size), "the clean snapshot restores");
+    uint64_t before = m3World_GetCounters(world).misuse;
+    uint64_t hash = m3World_Hash(world);
+
+    CHECK(m3World_Restore(world, snap, size - 1) == m3_errorInvalid,
+          "a snapshot one byte short is refused");
+    CHECK(m3World_Restore(world, snap, 4) == m3_errorInvalid, "a stub shorter than the header too");
+    CHECK(m3World_Restore(world, snap, 0) == m3_errorInvalid, "and an empty one");
+    snap[0] ^= 0xFFu;
+    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a damaged magic is refused");
+    snap[0] ^= 0xFFu;
+    CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorInvalid,
+          "a tape one byte short is refused");
+    CHECK(m3World_GetCounters(world).misuse == before, "and none of it counts as misuse");
+    CHECK(m3World_Hash(world) == hash, "nor changes the world");
+
+    CHECK(m3World_Restore(world, NULL, size) == m3_errorInvalid, "a null snapshot is refused");
+    CHECK(m3World_ReplayJournal(world, NULL, tapeBytes) == m3_errorInvalid,
+          "a null tape is refused");
+    CHECK(m3World_GetCounters(world).misuse == before + 2, "and those two count");
+    CHECK(m3World_ReplayJournal(world, NULL, 0) == m3_success, "an empty tape replays nothing");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+typedef enum StaticDoor
+{
+    planeDoor,
+    meshDoor,
+    voxelDoor,
+    doorCount
+} StaticDoor;
+
+static void CreateOnGround(m3World* world, m3BodyId ground, StaticDoor door)
+{
+    static const m3Vec3 quad[4] = {
+        {-1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 1.0f}};
+    static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    static uint8_t voxels[16 * 16 * 16];
+    voxels[0] = 1;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Plane plane = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId shape = m3_nullShapeId;
+    if (door == planeDoor)
+    {
+        shape = NewPlaneShape(world, ground, &sd, &plane);
+    }
+    else if (door == meshDoor)
+    {
+        shape = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
+    }
+    else
+    {
+        shape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    }
+    CHECK(m3Shape_IsValid(world, shape), "the clean static shape is created");
+}
+
+// Replays a tape over the snapshot, after an optional change the tape
+// does not hold. Whether it is refused as untrusted data: m3_errorInvalid,
+// no misuse, and the world as it was.
+static bool TapeRefused(m3World* world, const uint8_t* snap, int32_t snapBytes, const uint8_t* tape,
+                        int32_t tapeBytes, m3BodyId makeDynamic)
+{
+    if (!Restore(world, snap, snapBytes))
+    {
+        return false;
+    }
+    if (makeDynamic.index1 != 0)
+    {
+        m3Body_SetType(world, makeDynamic, m3_dynamicBody);
+    }
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t hash = m3World_Hash(world);
+    return m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorInvalid &&
+           m3World_GetCounters(world).misuse == misuse && m3World_Hash(world) == hash;
+}
+
+// Replay builds shapes through the same walls as the public creates: a
+// tape cannot put a plane, a mesh or a voxel chunk on a dynamic body,
+// nor give a mesh an index past its vertices.
+static void TestReplayHoldsTheShapeRules(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    int32_t capacity = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int32_t snapBytes = Snapshot(world, snap, capacity);
+    CHECK(snap != NULL && snapBytes > 0, "the empty ground is snapshotted");
+    static uint8_t tape[65536];
+    for (int32_t door = 0; door < doorCount; ++door)
+    {
+        CHECK(Restore(world, snap, snapBytes), "the ground restores");
+        CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+        CreateOnGround(world, ground, (StaticDoor)door);
+        int32_t tapeBytes = StopJournal(world);
+        CHECK(tapeBytes > 8, "the create is recorded");
+        CHECK(TapeRefused(world, snap, snapBytes, tape, tapeBytes, ground),
+              "a static-only shape on a dynamic body is refused by replay");
+        if (door == meshDoor)
+        {
+            tape[tapeBytes - 1] = 0xFFu; // the last index, past the four vertices
+            tape[tapeBytes - 2] = 0xFFu;
+            CHECK(TapeRefused(world, snap, snapBytes, tape, tapeBytes, m3_nullBodyId),
+                  "a mesh index past its vertices is refused by replay");
+        }
+    }
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+// Host code that Step or Draw runs (the pre-solve callback, debug draw
+// callbacks) cannot change the world under it: a writer it calls is
+// refused with m3_errorState, counts one misuse and changes nothing.
+typedef struct BusyProbe
+{
+    m3World* world;
+    m3BodyId body;
+    int32_t calls;
+    int32_t refused;
+} BusyProbe;
+
+static void TryWriters(BusyProbe* probe)
+{
+    probe->calls += 1;
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId created = m3_nullBodyId;
+    probe->refused += m3CreateBody(probe->world, &bd, &created) == m3_errorState ? 1 : 0;
+    probe->refused += m3DestroyBody(probe->world, probe->body) == m3_errorState ? 1 : 0;
+    m3Body_SetLinearVelocity(probe->world, probe->body, (m3Vec3){0.0f, 50.0f, 0.0f});
+    m3World_Step(probe->world, 1.0f / 60.0f, 4);
+}
+
+static bool BusyPreSolve(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
+                         void* context)
+{
+    (void)shapeA;
+    (void)shapeB;
+    (void)point;
+    (void)normal;
+    TryWriters((BusyProbe*)context);
+    return true;
+}
+
+static void BusyDrawSegment(m3Pos3 p1, m3Pos3 p2, uint32_t color, void* context)
+{
+    (void)p1;
+    (void)p2;
+    (void)color;
+    BusyProbe* probe = (BusyProbe*)context;
+    if (probe->calls < 3)
+    {
+        TryWriters(probe);
+    }
+}
+
+static void TestWritersRefuseWhileBusy(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    NewPlaneShape(world, NewBody(world, &gd), &sd, &floor);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.45, 0.0};
+    m3ShapeDef presolve = m3DefaultShapeDef();
+    presolve.enablePreSolveEvents = true;
+    BusyProbe probe = {world, NewBody(world, &bd), 0, 0};
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, probe.body, &presolve, &ball);
+    m3World_SetPreSolveCallback(world, BusyPreSolve, &probe);
+
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(probe.calls > 0, "the pre-solve callback ran");
+    CHECK(probe.refused == 2 * probe.calls, "every status writer it called was refused");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 4u * (uint64_t)probe.calls,
+          "and every writer it called counted once");
+    CHECK(m3Body_IsValid(world, probe.body) && m3World_GetCounters(world).bodyCount == 2,
+          "nothing was created or destroyed under the step");
+    CHECK(m3Body_GetLinearVelocity(world, probe.body).y < 1.0f, "the velocity write did not land");
+    CHECK(m3World_GetStepCount(world) == 1, "the nested step did not run");
+
+    m3World_SetPreSolveCallback(world, NULL, NULL);
+    probe.calls = 0;
+    probe.refused = 0;
+    m3DebugDraw draw;
+    memset(&draw, 0, sizeof(draw));
+    draw.drawSegment = BusyDrawSegment;
+    draw.context = &probe;
+    draw.drawShapes = true;
+    m3World_Draw(world, &draw);
+    CHECK(probe.calls > 0 && probe.refused == 2 * probe.calls,
+          "a writer called from a draw callback is refused too");
+    CHECK(m3World_GetStepCount(world) == 1, "and steps nothing");
+
+    CHECK(NewBody(world, &bd).index1 != 0, "after the step and the draw, writers work again");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRestoreRefusesPoisonedWords();
@@ -382,6 +602,9 @@ int main(void)
     TestCapacityExhaustion();
     TestJournalOverflowIsLoud();
     TestShapeDefsRefuseAsInvalid();
+    TestUntrustedDataCountsNoMisuse();
+    TestReplayHoldsTheShapeRules();
+    TestWritersRefuseWhileBusy();
     if (s_failures == 0)
     {
         printf("test_hardening: all checks passed\n");

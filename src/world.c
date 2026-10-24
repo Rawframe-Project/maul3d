@@ -259,6 +259,11 @@ m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut)
 
 void m3DestroyWorld(m3World* world)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world != NULL)
     {
         FreeWorldStorage(world);
@@ -371,6 +376,11 @@ void m3EnableContinuousInternal(m3World* world, int32_t on)
 
 void m3World_SetGravity(m3World* world, m3Vec3 gravity)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteV3(gravity))
     {
         m3Refuse(world, m3_errorInvalid);
@@ -391,6 +401,11 @@ m3Vec3 m3World_GetGravity(const m3World* world)
 
 void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, float pushMaxSpeed)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(hertz) || hertz <= 0.0f || !m3FiniteF(dampingRatio) ||
         dampingRatio <= 0.0f || !m3FiniteF(pushMaxSpeed) || pushMaxSpeed <= 0.0f)
     {
@@ -411,6 +426,11 @@ void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio, f
 
 void m3World_SetRestitutionThreshold(m3World* world, float value)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -425,6 +445,11 @@ void m3World_SetRestitutionThreshold(m3World* world, float value)
 
 void m3World_SetMaximumLinearSpeed(m3World* world, float value)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -439,6 +464,11 @@ void m3World_SetMaximumLinearSpeed(m3World* world, float value)
 
 void m3World_SetMaximumAngularSpeed(m3World* world, float value)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -551,6 +581,11 @@ m3Profile m3World_GetProfile(const m3World* world)
 
 void m3World_EnableSleeping(m3World* world, bool flag)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -571,6 +606,11 @@ bool m3World_IsSleepingEnabled(const m3World* world)
 
 void m3World_EnableContinuous(m3World* world, bool flag)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -601,6 +641,11 @@ void m3SetWindInternal(m3World* world, m3Vec3 dir, float speed, float gustHertz,
 void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                      float gustScale)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteV3(direction) || !m3FiniteF(speed) || speed < 0.0f ||
         !m3FiniteF(gustHertz) || gustHertz < 0.0f || !m3FiniteF(gustScale) || gustScale < 0.0f)
     {
@@ -612,7 +657,8 @@ void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHe
         m3real len2 = m3Dot3(direction, direction);
         if (len2 < 0.99f || len2 > 1.01f)
         {
-            return; // a blowing wind demands a near-unit direction
+            m3Refuse(world, m3_errorInvalid); // a blowing wind demands a near-unit direction
+            return;
         }
     }
     if (world->recorder.journalActive != 0)
@@ -696,6 +742,11 @@ void m3RebuildBroadphaseInternal(m3World* world)
 
 void m3World_RebuildBroadphase(m3World* world)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);

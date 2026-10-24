@@ -49,7 +49,7 @@ static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDe
                                           &(m3ShapeContent){NULL, NULL, NULL, NULL});
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -75,6 +75,10 @@ m3Result m3CreateSphereShape(m3World* world, m3BodyId body, const m3ShapeDef* de
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (sphere == NULL || !(sphere->radius > 0.0f) || !m3FiniteF(sphere->radius) ||
         !m3FiniteV3(sphere->center))
     {
@@ -99,6 +103,10 @@ m3Result m3CreatePlaneShape(m3World* world, m3BodyId body, const m3ShapeDef* def
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (plane == NULL || !m3FiniteV3(plane->normal) || !m3FiniteF(plane->offset) ||
         !(m3Dot3(plane->normal, plane->normal) > 1.0e-12f))
     {
@@ -128,6 +136,10 @@ m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body, const m3ShapeDef* d
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (capsule == NULL || !(capsule->radius > 0.0f) || !m3FiniteF(capsule->radius) ||
         !m3FiniteV3(capsule->point1) || !m3FiniteV3(capsule->point2))
     {
@@ -156,6 +168,10 @@ m3Result m3CreateCylinderShape(m3World* world, m3BodyId body, const m3ShapeDef* 
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     // The cylinder is a 2N-vertex prism through the interned hull
     // path. Everything downstream (mass, SAT, casts, CCD, the blast's
     // projected area) treats the prism exactly; the N-gon side is the
@@ -203,6 +219,10 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
     if (target != m3_success)
@@ -233,7 +253,7 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                           &(m3ShapeContent){&data, NULL, NULL, NULL});
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -260,6 +280,10 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
     if (target != m3_success)
@@ -310,7 +334,7 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     if (index < 0)
     {
         m3MeshDataFree(&world->heap, &mesh);
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -342,6 +366,10 @@ m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDe
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (heights == NULL || nx < 2 || nx > 32 || nz < 2 || nz > 32 || !(cellSize > 0.0f) ||
         !m3FiniteF(cellSize))
     {
@@ -410,6 +438,10 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
     if (target != m3_success)
@@ -460,7 +492,7 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
     if (index < 0)
     {
         m3HeightFieldDataFree(&world->heap, &hf);
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -491,6 +523,10 @@ m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
     if (target != m3_success)
@@ -527,7 +563,7 @@ m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef
     m3Free(&world->heap, chunk);
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3ShapeId id = {index + 1, world->shapes.shapePool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -565,6 +601,10 @@ m3Result m3CreateBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def, 
         return m3Refuse(world, m3_errorInvalid);
     }
     *shapeOut = m3_nullShapeId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
         !m3FiniteV3(halfExtents))
     {

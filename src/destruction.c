@@ -261,6 +261,11 @@ m3ExplosionDef m3DefaultExplosionDef(void)
 
 void m3World_Explode(m3World* world, const m3ExplosionDef* def)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || def == NULL || def->internalValue != M3_EXPLOSION_COOKIE)
     {
         m3Refuse(world, m3_errorInvalid);

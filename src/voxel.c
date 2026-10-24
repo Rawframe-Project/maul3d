@@ -525,6 +525,11 @@ static bool ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* shape
 void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
                            uint16_t payload)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {
@@ -551,6 +556,11 @@ void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y
 
 void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {
@@ -577,6 +587,11 @@ void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t
 void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
                           uint8_t fill)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {
@@ -610,6 +625,11 @@ void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
 int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
                               const int32_t hi[3])
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return -1;
+    }
     int32_t index;
     if (!ResolveVoxelShape(world, shape, &index))
     {

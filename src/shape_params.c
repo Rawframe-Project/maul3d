@@ -84,6 +84,11 @@ static void ShapeScalarOp(m3World* world, m3ShapeId shapeId, int32_t op, float v
 
 void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (!m3FiniteF(friction) || friction < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -100,6 +105,11 @@ float m3Shape_GetFriction(const m3World* world, m3ShapeId shape)
 
 void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (!m3FiniteF(restitution) || restitution < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -116,6 +126,11 @@ float m3Shape_GetRestitution(const m3World* world, m3ShapeId shape)
 
 void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (!m3FiniteF(value) || value < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -132,12 +147,17 @@ float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape)
 
 void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool updateBodyMass)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveShape(world, shape, &slot))
     {
         return;
     }
-    if (!m3FiniteF(density) || density <= 0.0f)
+    if (!m3DensityF(density))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -197,6 +217,11 @@ static void ShapeFlagOp(m3World* world, m3ShapeId shapeId, int32_t op, bool flag
 
 void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     ShapeFlagOp(world, shape, m3_opEnableShapeHitEvents, flag);
 }
 
@@ -208,6 +233,11 @@ bool m3Shape_IsHitEventsEnabled(const m3World* world, m3ShapeId shape)
 
 void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     ShapeFlagOp(world, shape, m3_opEnableShapePreSolve, flag);
 }
 
@@ -261,6 +291,11 @@ void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
                               const m3MeshSurfaceMaterial* materials, int32_t materialCount,
                               const uint8_t* triangleMaterials)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveShape(world, shape, &slot))
     {
@@ -312,6 +347,11 @@ void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v)
 
 void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveShape(world, shape, &slot))
     {
@@ -364,6 +404,11 @@ void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, ui
 void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits, uint64_t maskBits,
                        int32_t groupIndex)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveShape(world, shape, &slot))
     {
@@ -437,6 +482,11 @@ m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
 
 void m3Shape_SetUserData(m3World* world, m3ShapeId shape, uint64_t userData)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveShape(world, shape, &slot))
     {

@@ -46,11 +46,11 @@ bool m3ShapeDefValid(const m3ShapeDef* def)
 {
     m3Quat q = def->localRotation;
     float rotLen2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-    return m3FiniteV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
-           rotLen2 <= 1.01f && m3FiniteF(def->density) && def->density > 0.0f &&
-           m3FiniteF(def->friction) && def->friction >= 0.0f && m3FiniteF(def->restitution) &&
-           def->restitution >= 0.0f && m3FiniteF(def->rollingResistance) &&
-           def->rollingResistance >= 0.0f && m3FiniteV3(def->surfaceVelocity);
+    return m3LocalV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
+           rotLen2 <= 1.01f && m3DensityF(def->density) && m3FiniteF(def->friction) &&
+           def->friction >= 0.0f && m3FiniteF(def->restitution) && def->restitution >= 0.0f &&
+           m3FiniteF(def->rollingResistance) && def->rollingResistance >= 0.0f &&
+           m3FiniteV3(def->surfaceVelocity);
 }
 
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
@@ -71,6 +71,56 @@ bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom)
     default:
         return false;
     }
+}
+
+static bool MeshContentValid(const m3MeshData* mesh)
+{
+    if (mesh->vertexCount < 3 || mesh->vertexCount > M3_MESH_MAX_VERTS || mesh->triangleCount < 1 ||
+        mesh->triangleCount > M3_MESH_MAX_TRIS)
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < 3 * mesh->triangleCount; ++i)
+    {
+        if (mesh->indices[i] >= (uint16_t)mesh->vertexCount)
+        {
+            return false;
+        }
+    }
+    for (int32_t i = 0; i < mesh->vertexCount; ++i)
+    {
+        if (!m3FiniteV3(mesh->vertices[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The body and content rules every create door shares, here because
+// replay hands m3CreateShapeInternal raw journal bytes: planes, meshes,
+// terrain and voxel chunks are static geometry, a voxel chunk is never
+// a sensor and never empty, and a mesh indexes only its own vertices.
+static bool ShapeContentValid(const m3World* world, int32_t bodyIndex, uint8_t type,
+                              const m3ShapeDef* def, const m3ShapeContent* content)
+{
+    bool staticOnly = type == (uint8_t)m3_planeShape || type == (uint8_t)m3_meshShape ||
+                      type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelShape;
+    if (staticOnly && world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
+    {
+        return false;
+    }
+    if (content->mesh != NULL && !MeshContentValid(content->mesh))
+    {
+        return false;
+    }
+    if (content->voxels != NULL)
+    {
+        const m3VoxelChunkData* chunk = content->voxels;
+        return !def->isSensor && m3FiniteF(chunk->cellSize) && chunk->cellSize > 0.0f &&
+               chunk->filledCount > 0;
+    }
+    return true;
 }
 
 static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uint8_t type,
@@ -322,9 +372,10 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
 {
     bool prebuilt = content->hull != NULL || content->mesh != NULL ||
                     content->heightField != NULL || content->voxels != NULL;
-    if (!m3ShapeDefValid(def) || (!prebuilt && !m3PlainGeomValid(type, geom)))
+    if (!m3ShapeDefValid(def) || (!prebuilt && !m3PlainGeomValid(type, geom)) ||
+        !ShapeContentValid(world, bodyIndex, type, def, content))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     ShapeCreateMarks marks = {
         m3IdPoolMarkNow(&world->shapes.shapePool), m3IdPoolMarkNow(&world->hulls.hullPool),
@@ -333,7 +384,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     int32_t index = m3IdPoolAlloc(&world->shapes.shapePool);
     if (index < 0)
     {
-        return -1;
+        return M3_CREATE_FULL;
     }
     WriteShapeSlot(world, index, bodyIndex, type, geom, def);
     bool ok = AttachShapeContent(world, index, content);
@@ -352,7 +403,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     if (!ok)
     {
         UndoShapeCreate(world, index, &marks);
-        return -1;
+        return M3_CREATE_FULL;
     }
     m3RecomputeMass(world, bodyIndex);
     if (type == (uint8_t)m3_planeShape)
@@ -501,6 +552,11 @@ static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
 
 void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (sphere == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -515,6 +571,11 @@ void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 
 void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (capsule == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -548,6 +609,10 @@ m3BodyId m3Shape_GetBody(const m3World* world, m3ShapeId shape)
 
 m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t index = m3ShapeSlot(world, shape);
     if (index < 0)
     {
