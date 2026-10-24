@@ -12,6 +12,7 @@
 #include "test_harness.h"
 #include "world_internal.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -236,9 +237,7 @@ static void TestHalfEdgeTwinLaw(void)
 // One cloud of a given kind: a random blob, a small rock as the bench's
 // city block throws, a thin slab, a needle, four tight clusters, and the
 // blob scaled to the local limit and to centimetres. Tighter clusters
-// (near-duplicate points) make QuickHull emit planes that leave vertices
-// outside the hull; the wall refuses those at create (see the hardening
-// suite).
+// have their own sweep below.
 static int32_t Cloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
 {
     int32_t count = kind == 1 ? 8 : 8 + (int32_t)(SplitMix(rng) % 25);
@@ -297,6 +296,76 @@ static void TestEveryBuildPassesTheWall(void)
         printf("M3_QH_WALL %s built=%d refused=%d\n", kinds[kind], built, refused);
         CHECK(refused == 0, "the wall takes every hull QuickHull builds");
     }
+}
+
+// Clouds of near-duplicate points: clusters around the corners of a
+// tetrahedron, of a cube and of four to six random points, each point
+// within a spread of its corner, the spread swept from 1e-4 to 1e-1 of
+// the corners' distance; then needles 4e-3 thick on random axes. Float
+// planes on the sliver faces such clusters make used to leave vertices
+// up to the hull's extent outside it. Every cloud must build a hull the
+// wall takes.
+static void TestClusterSweep(void)
+{
+    static const m3Vec3 tetra[4] = {
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {-1.0f, -1.0f, -1.0f}};
+    uint64_t rng = 0xC105E2ull;
+    int32_t built = 0;
+    int32_t refused = 0;
+    int32_t clouds = 0;
+    for (int32_t layout = 0; layout < 4; ++layout)
+    {
+        for (int32_t step = 0; step < 31; ++step)
+        {
+            float spread = 1.0e-4f * powf(10.0f, (float)step / 10.0f);
+            for (int32_t round = 0; round < 60; ++round)
+            {
+                m3Vec3 corners[8];
+                int32_t cornerCount = 4 + (int32_t)(SplitMix(&rng) % 3);
+                m3Vec3 axis = {RandRange(&rng, -1.0f, 1.0f), RandRange(&rng, -1.0f, 1.0f),
+                               RandRange(&rng, -1.0f, 1.0f)};
+                axis = m3MulSV3(1.0f / m3Length3(axis), axis);
+                for (int32_t c = 0; c < 8; ++c)
+                {
+                    corners[c] =
+                        layout == 0 ? tetra[c % 4]
+                        : layout == 1
+                            ? (m3Vec3){(c & 1) != 0 ? 1.0f : -1.0f, (c & 2) != 0 ? 1.0f : -1.0f,
+                                       (c & 4) != 0 ? 1.0f : -1.0f}
+                            : (m3Vec3){RandRange(&rng, -1.0f, 1.0f), RandRange(&rng, -1.0f, 1.0f),
+                                       RandRange(&rng, -1.0f, 1.0f)};
+                }
+                int32_t count = 8 + (int32_t)(SplitMix(&rng) % 25);
+                m3Vec3 pts[40];
+                for (int32_t i = 0; i < count; ++i)
+                {
+                    m3Vec3 q = {RandRange(&rng, -1.0f, 1.0f), RandRange(&rng, -1.0f, 1.0f),
+                                RandRange(&rng, -1.0f, 1.0f)};
+                    if (layout == 3)
+                    {
+                        // A needle: along the axis, within 2e-3 of it.
+                        m3Vec3 off = m3Sub3(q, m3MulSV3(m3Dot3(q, axis), axis));
+                        pts[i] = m3Add3(m3MulSV3(q.x, axis), m3MulSV3(2.0e-3f, off));
+                    }
+                    else
+                    {
+                        int32_t c = layout == 2 ? i % cornerCount : i % (layout == 0 ? 4 : 8);
+                        pts[i] = m3Add3(corners[c], m3MulSV3(spread, q));
+                    }
+                }
+                clouds += 1;
+                m3HullData hull;
+                if (m3ComputeHull(&s_heap, pts, count, &hull))
+                {
+                    built += 1;
+                    refused += m3HullDataValid(&hull) ? 0 : 1;
+                }
+            }
+        }
+    }
+    printf("M3_QH_CLUSTERS clouds=%d built=%d refused=%d\n", clouds, built, refused);
+    CHECK(built == clouds, "every cluster cloud builds a hull");
+    CHECK(refused == 0, "and the wall takes every one");
 }
 
 static void TestHullWallSeesEveryEdge(void)
@@ -422,6 +491,7 @@ int main(void)
     TestHalfEdgeTwinLaw();
     TestHullWallSeesEveryEdge();
     TestEveryBuildPassesTheWall();
+    TestClusterSweep();
     if (s_failures == 0)
     {
         printf("test_quickhull: all checks passed\n");
