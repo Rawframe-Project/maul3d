@@ -457,7 +457,13 @@ static void TestEditRefusalsAndEmptyEnd(void)
                   "a non-voxel shape refuses edits");
     int32_t lo[3] = {2, 0, 0};
     int32_t hi[3] = {1, 0, 0};
+    uint64_t misuse = m3World_GetCounters(world).misuse;
     CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, hi) == -1, "an inverted region refuses");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "and counts one misuse");
+    int32_t past[3] = {0, 0, 16};
+    CHECK(m3VoxelChunk_ClearBox(world, chunkShape, lo, past) == -1,
+          "a region past the chunk refuses");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 2, "and counts one misuse");
     m3ShapeId stale = chunkShape;
     stale.generation += 1;
     CHECK_REFUSES(world, m3VoxelChunk_ClearVoxel(world, stale, 0, 0, 0),

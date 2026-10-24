@@ -644,7 +644,8 @@ int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[
     {
         if (lo[k] < 0 || hi[k] >= M3_VOXEL_DIM || lo[k] > hi[k])
         {
-            return -1; // bad region: contract, loud
+            m3Refuse(world, m3_errorInvalid);
+            return -1; // a region out of the chunk or inverted
         }
     }
     if (world->recorder.journalActive != 0)
