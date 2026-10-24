@@ -78,31 +78,26 @@ static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
     return geom->v; // sphere center
 }
 
-// One shape's share of the blast: a carve for a voxel chunk, an impulse
-// for a convex shape on a dynamic body in reach.
-static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
+// A voxel chunk's share of the blast. The carve couples the blast to
+// destruction: one call bites the chunk, the fracture sweep frees
+// islands, and the fragment events carry the rest to the host.
+static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
 {
-    uint8_t type = world->shapes.shapeType[shape];
-    if (type == (uint8_t)m3_voxelShape)
+    if (def->voxelCarve > 0.0f)
     {
-        // The carve couples the blast to destruction: one
-        // call bites the chunk, the fracture sweep frees islands,
-        // and the fragment events carry the rest to the host.
-        if (def->voxelCarve > 0.0f)
-        {
-            m3Transform vxf = m3ShapeWorldTransform(world, shape);
-            m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(m3real)(def->position.x - vxf.p.x),
-                                                            (m3real)(def->position.y - vxf.p.y),
-                                                            (m3real)(def->position.z - vxf.p.z)});
-            m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
-        }
-        return;
+        m3Transform vxf = m3ShapeWorldTransform(world, shape);
+        m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(m3real)(def->position.x - vxf.p.x),
+                                                        (m3real)(def->position.y - vxf.p.y),
+                                                        (m3real)(def->position.z - vxf.p.z)});
+        m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
     }
-    if (type != (uint8_t)m3_sphereShape && type != (uint8_t)m3_capsuleShape &&
-        type != (uint8_t)m3_hullShape)
-    {
-        return; // meshes and planes are static scenery
-    }
+}
+
+// A convex shape's share of the blast: an impulse on its body when the
+// body is dynamic, the filter lets the blast through and the shape is in
+// reach.
+static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
+{
     int32_t body = world->shapes.shapeBody[shape];
     if (world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
         world->bodies.bodyEnabled[body] == 0 || world->bodies.invMass[body] <= 0.0f)
@@ -170,6 +165,23 @@ static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shap
         m3Vec3 arm = m3RotateVec3(xf.q, contact);
         m3Pos3 at = {xf.p.x + (double)arm.x, xf.p.y + (double)arm.y, xf.p.z + (double)arm.z};
         m3ApplyImpulseAtPointInternal(world, body, impulse, at);
+    }
+}
+
+// One shape's share of the blast: a carve for a voxel chunk, an impulse
+// for a convex shape. Meshes, height fields and planes are static
+// scenery.
+static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
+{
+    uint8_t type = world->shapes.shapeType[shape];
+    if (type == (uint8_t)m3_voxelShape)
+    {
+        CarveChunk(world, def, shape);
+    }
+    else if (type == (uint8_t)m3_sphereShape || type == (uint8_t)m3_capsuleShape ||
+             type == (uint8_t)m3_hullShape)
+    {
+        PushShape(world, def, shape);
     }
 }
 
