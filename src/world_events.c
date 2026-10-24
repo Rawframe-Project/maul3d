@@ -19,6 +19,11 @@ void m3SetHitEventThresholdInternal(m3World* world, float value)
 
 void m3World_SetHitEventThreshold(m3World* world, float value)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -110,6 +115,11 @@ void m3AppendJointBreakEvent(m3World* world, m3JointId joint)
 
 void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFn* fn, void* context)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);

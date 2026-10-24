@@ -492,9 +492,20 @@ static void RebuildDerived(m3World* world)
 
 m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
 {
-    if (world == NULL || data == NULL || size < (int32_t)sizeof(m3SnapshotHeader))
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
+    // A snapshot is untrusted data: bytes that fail a check, a short or
+    // truncated buffer included, are refused with m3_errorInvalid and
+    // count no misuse. Only arguments a correct program never passes do.
+    if (world == NULL || size < 0 || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    if (size < (int32_t)sizeof(m3SnapshotHeader))
+    {
+        return m3_errorInvalid;
     }
     m3SnapshotHeader header;
     memcpy(&header, data, sizeof(header));
@@ -504,7 +515,7 @@ m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
         header.configHash != ConfigHash() ||
         memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        return m3Refuse(world, m3_errorInvalid); // another build or another world shape
+        return m3_errorInvalid; // another build or another world shape
     }
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
@@ -516,7 +527,7 @@ m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
     if (size < fixed || !m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
         !TailFits(world, raw, size, fixed))
     {
-        return m3Refuse(world, m3_errorInvalid);
+        return m3_errorInvalid;
     }
     ClearEvents(world);
     if (WalkBlocks(world, NULL, raw + sizeof(header), m3_walkRead, 1) < 0)

@@ -34,6 +34,12 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
     return (int32_t)f;
 }
 
+// What a create internal returns instead of a slot: the def failed its
+// checks (the caller's bug, or a damaged tape on replay), or a pool had no
+// room.
+#define M3_CREATE_INVALID (-1)
+#define M3_CREATE_FULL    (-2)
+
 // Bumped on any change that alters simulation behavior (solver math,
 // integration order, constants). It is part of the snapshot config hash,
 // so a snapshot from another behavior revision is refused instead of
@@ -868,6 +874,9 @@ typedef struct m3World
     int32_t lastScratchPeak; // bytes, last completed step
     volatile long long
         misuseCount; // cumulative refusals; atomic access only (m3Refuse, m3MisuseCount)
+    // Step and Draw calls in progress, host code included; atomic access
+    // only (m3WorldEnter, m3WorldLeave, m3WorldBusy).
+    volatile long long busyCount;
 
     m3Bodies bodies;
     m3Shapes shapes;

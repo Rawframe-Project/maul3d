@@ -51,6 +51,10 @@ void m3JournalRecord(m3World* world, int32_t op, const void* payload, int32_t by
 
 m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || buffer == NULL || capacity < 8)
     {
         return m3Refuse(world, m3_errorInvalid);
@@ -69,6 +73,10 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 
 m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || bytesOut == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
@@ -95,9 +103,19 @@ m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
 
 m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
 {
-    if (world == NULL || data == NULL || size < 0)
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
+    // A tape is untrusted data like a snapshot: a damaged or truncated one
+    // is refused with m3_errorInvalid and counts no misuse.
+    if (world == NULL || size < 0 || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    if (size == 0)
+    {
+        return m3_success; // an empty tape holds no op
     }
     // Atomic replay: the world either takes the whole session
     // or none of it. A pre-replay snapshot backs out any partial
@@ -121,7 +139,6 @@ m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
         m3Result restored = m3World_Restore(world, snap, snapBytes);
         M3_ASSERT(restored == m3_success); // our own snapshot must restore: invariant
         (void)restored;
-        m3Refuse(world, m3_errorInvalid);
     }
     m3Free(&world->heap, snap);
     return ok ? m3_success : m3_errorInvalid;

@@ -81,6 +81,7 @@ extern "C"
         int32_t type; // m3JointType
         m3BodyId bodyIdA;
         m3BodyId bodyIdB;
+        // Anchors in each body's frame, each component within 1e4 m.
         m3Vec3 localAnchorA;
         m3Vec3 localAnchorB;
         /// Hinge axis per body frame (unit; revolute only). The two

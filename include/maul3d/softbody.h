@@ -20,6 +20,7 @@ extern "C"
 #define M3_SOFTBODY_MAX_EDGES     5120
 #define M3_SOFTBODY_MAX_ANCHORS   32
 #define M3_SOFTBODY_MAX_TETS      1024
+#define M3_SOFTBODY_MAX_PRESSURE  100.0f
 
     typedef struct m3SoftBodyId
     {
@@ -33,7 +34,7 @@ extern "C"
         int32_t countX;      // particles per axis, each >= 1; the
         int32_t countY;      // product must fit
         int32_t countZ;      // M3_SOFTBODY_MAX_PARTICLES
-        m3real spacing;      // rest distance between lattice neighbors
+        m3real spacing;      // rest distance between lattice neighbors, at most 1e4
         m3real particleMass; // per particle, kilograms
         m3real compliance;   // XPBD compliance; zero = rigid rods
         m3real radius;       // particle collision radius
@@ -50,7 +51,8 @@ extern "C"
         /// Internal pressure: a target volume multiplier for
         /// CLOSED lattices (every axis count >= 2). Zero (default)
         /// is off; 1 holds the create
-        /// volume, 2 inflates toward double. One global volume
+        /// volume, 2 inflates toward double, and no more than
+        /// M3_SOFTBODY_MAX_PRESSURE is taken. One global volume
         /// constraint over the surface, solved beside the edges.
         m3real pressure;
         /// Bind-pose tether: every particle clamps to this

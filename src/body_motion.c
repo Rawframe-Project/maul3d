@@ -102,6 +102,11 @@ void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity
 
 void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -125,6 +130,11 @@ void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
 
 void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -148,6 +158,11 @@ void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
 
 void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -171,6 +186,11 @@ void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 
 void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -194,6 +214,11 @@ void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
 
 void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos3 point)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -218,6 +243,11 @@ void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos
 
 void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impulse, m3Pos3 point)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -242,6 +272,11 @@ void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impu
 
 void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -265,6 +300,11 @@ void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
 
 void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -329,16 +369,31 @@ static void SetBodyParam(m3World* world, m3BodyId bodyId, int32_t param, float v
 
 void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     SetBodyParam(world, body, m3_bodyParamGravityScale, scale, false);
 }
 
 void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     SetBodyParam(world, body, m3_bodyParamLinearDamping, damping, true);
 }
 
 void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     SetBodyParam(world, body, m3_bodyParamAngularDamping, damping, true);
 }
 
@@ -349,6 +404,11 @@ void m3SetBulletInternal(m3World* world, int32_t index, int bullet)
 
 void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {

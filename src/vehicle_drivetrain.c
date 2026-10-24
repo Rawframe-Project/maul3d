@@ -145,6 +145,11 @@ bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear)
 
 void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle, const m3DrivetrainDef* def)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || def == NULL || def->internalValue != M3_DRIVETRAIN_COOKIE)
     {
@@ -168,6 +173,11 @@ void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle, const m3Drivet
 
 void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
@@ -192,9 +202,14 @@ void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
 int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
-    if (slot < 0 || world->vehicles.vehDtActive[slot] == 0)
+    if (slot < 0)
     {
+        m3Refuse(world, m3MissingId(vehicle.index1));
         return 0;
+    }
+    if (world->vehicles.vehDtActive[slot] == 0)
+    {
+        return 0; // no drivetrain: neutral and idle
     }
     return (int32_t)world->vehicles.vehDtGear[slot];
 }
@@ -202,9 +217,14 @@ int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
 m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
-    if (slot < 0 || world->vehicles.vehDtActive[slot] == 0)
+    if (slot < 0)
     {
+        m3Refuse(world, m3MissingId(vehicle.index1));
         return 0.0f;
+    }
+    if (world->vehicles.vehDtActive[slot] == 0)
+    {
+        return 0.0f; // no drivetrain: neutral and idle
     }
     return world->vehicles.vehDtRpm[slot];
 }

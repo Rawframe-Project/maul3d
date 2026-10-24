@@ -567,12 +567,12 @@ typedef struct Cast
     m3ShapeId stairs;
 } Cast;
 
-// A car with a gearbox, a character on voxel stairs, cloth and a jelly in
-// gusting wind, and crates in moving water, (ox, oz) from the origin.
+// A car with a gearbox, a character on voxel stairs, cloth and a jelly,
+// and crates in moving water, (ox, oz) from the origin. The tour adds the
+// wind.
 static Cast AddVehicles(m3World* world, double ox, double oz)
 {
     Cast cast;
-    m3World_SetWind(world, (m3Vec3){1.0f, 0.0f, 0.2f}, 4.0f, 0.5f, 0.5f);
 
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyId chassis = AddBody(world, m3_dynamicBody, 0.0 + ox, 1.0, 0.0 + oz);

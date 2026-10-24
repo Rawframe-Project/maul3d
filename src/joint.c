@@ -120,9 +120,9 @@ static bool GearDefValid(const m3JointDef* def)
 static bool BakePulley(const m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB,
                        JointBake* bake)
 {
-    if (!m3FinitePos3(def->groundAnchorA) || !m3FinitePos3(def->groundAnchorB) ||
-        !m3FiniteF(def->ratio) || !(def->ratio > 0.0f) || !m3FiniteV3(def->localAnchorA) ||
-        !m3FiniteV3(def->localAnchorB))
+    if (!m3BoundedPos3(def->groundAnchorA) || !m3BoundedPos3(def->groundAnchorB) ||
+        !m3FiniteF(def->ratio) || !(def->ratio > 0.0f) || !m3LocalV3(def->localAnchorA) ||
+        !m3LocalV3(def->localAnchorB))
     {
         return false;
     }
@@ -138,7 +138,8 @@ static bool BakePulley(const m3World* world, const m3JointDef* def, int32_t body
                  (m3real)(xfB->p.z + (double)aB.z - def->groundAnchorB.z)};
     bake->pulleyLen1 = m3Length3(u1);
     bake->pulleyLen2 = m3Length3(u2);
-    return bake->pulleyLen1 > 1.0e-3f && bake->pulleyLen2 > 1.0e-3f;
+    return m3FiniteF(bake->pulleyLen1) && m3FiniteF(bake->pulleyLen2) &&
+           bake->pulleyLen1 > 1.0e-3f && bake->pulleyLen2 > 1.0e-3f;
 }
 
 // The wheel frame: x is the suspension axis (from A), z the axle
@@ -307,12 +308,12 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     JointBake bake;
     if (!BakeJointDef(world, def, bodyA, bodyB, &bake))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     int32_t index = m3IdPoolAlloc(&world->joints.jointPool);
     if (index < 0)
     {
-        return -1; // exhausted: loud at the caller
+        return M3_CREATE_FULL; // exhausted: loud at the caller
     }
     m3Joints* j = &world->joints;
     m3Vec3 zero = {0.0f, 0.0f, 0.0f};
@@ -472,6 +473,14 @@ static bool GenericDefValid(const m3JointDef* def)
     {
         return false;
     }
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        if (!m3FiniteF(def->genericLinearLower[i]) || !m3FiniteF(def->genericLinearUpper[i]) ||
+            !m3FiniteF(def->genericAngularLower[i]) || !m3FiniteF(def->genericAngularUpper[i]))
+        {
+            return false;
+        }
+    }
     if (def->genericMotorAxis == 255)
     {
         return true;
@@ -527,7 +536,7 @@ static bool JointDefIsValid(const m3JointDef* def)
     default:
         break;
     }
-    return typeValid && m3FiniteV3(def->localAnchorA) && m3FiniteV3(def->localAnchorB) &&
+    return typeValid && m3LocalV3(def->localAnchorA) && m3LocalV3(def->localAnchorB) &&
            m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
            m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) && m3FiniteF(def->motorSpeed) &&
            m3FiniteF(def->maxMotorEffort) && m3FiniteF(def->coneAngle) &&
@@ -543,6 +552,10 @@ m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOu
         return m3Refuse(world, m3_errorInvalid);
     }
     *jointOut = m3_nullJointId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || def == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
@@ -569,7 +582,7 @@ m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOu
     int32_t index = m3CreateJointInternal(world, def, bodyA, bodyB);
     if (index < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, index);
     }
     m3JointId id = {index + 1, world->joints.jointPool.generations[index]};
     if (world->recorder.journalActive != 0)
@@ -586,6 +599,10 @@ m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOu
 
 m3Result m3DestroyJoint(m3World* world, m3JointId joint)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t index = m3JointSlot(world, joint);
     if (index < 0)
     {

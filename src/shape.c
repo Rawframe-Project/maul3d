@@ -46,11 +46,12 @@ bool m3ShapeDefValid(const m3ShapeDef* def)
 {
     m3Quat q = def->localRotation;
     float rotLen2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-    return m3FiniteV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
+    return m3LocalV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
            rotLen2 <= 1.01f && m3FiniteF(def->density) && def->density > 0.0f &&
-           m3FiniteF(def->friction) && def->friction >= 0.0f && m3FiniteF(def->restitution) &&
-           def->restitution >= 0.0f && m3FiniteF(def->rollingResistance) &&
-           def->rollingResistance >= 0.0f && m3FiniteV3(def->surfaceVelocity);
+           def->density <= M3_DENSITY_LIMIT && m3FiniteF(def->friction) && def->friction >= 0.0f &&
+           m3FiniteF(def->restitution) && def->restitution >= 0.0f &&
+           m3FiniteF(def->rollingResistance) && def->rollingResistance >= 0.0f &&
+           m3FiniteV3(def->surfaceVelocity);
 }
 
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
@@ -501,6 +502,11 @@ static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
 
 void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (sphere == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -515,6 +521,11 @@ void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 
 void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (capsule == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -548,6 +559,10 @@ m3BodyId m3Shape_GetBody(const m3World* world, m3ShapeId shape)
 
 m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t index = m3ShapeSlot(world, shape);
     if (index < 0)
     {

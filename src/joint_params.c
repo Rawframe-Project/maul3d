@@ -199,6 +199,11 @@ static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 
 void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower, float upper)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -216,11 +221,13 @@ void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower
         // the range order rule does not apply but negatives do.
         if (lower < 0.0f || upper < 0.0f)
         {
+            m3Refuse(world, m3_errorInvalid);
             return;
         }
     }
     else if (lower > upper)
     {
+        m3Refuse(world, m3_errorInvalid);
         return;
     }
     if (world->recorder.journalActive != 0)
@@ -239,6 +246,11 @@ void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower
 void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
                       float zeta, float maxEffort)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -293,6 +305,11 @@ float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
 
 void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat rotation)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     m3real q2 = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
                 rotation.w * rotation.w;
@@ -320,6 +337,11 @@ void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat
 
 void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed, float maxEffort)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -345,6 +367,11 @@ void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
 
 void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -369,6 +396,11 @@ bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint)
 
 void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce, float maxTorque)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -502,6 +534,11 @@ static int JointTypeDrives(uint8_t type)
 void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
                        float dampingRatio)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -542,6 +579,11 @@ static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float
 
 void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -558,6 +600,11 @@ void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
 
 void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {
@@ -575,6 +622,11 @@ void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters)
 
 void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
     {

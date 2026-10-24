@@ -424,6 +424,11 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
 
 void m3World_Step(m3World* world, float dt, int32_t substeps)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     if (world == NULL || !m3FiniteF(dt) || !(dt > 0.0f) || substeps < 1 ||
         substeps > M3_MAX_SUBSTEPS)
     {
@@ -431,7 +436,9 @@ void m3World_Step(m3World* world, float dt, int32_t substeps)
         return;
     }
     world->contacts.stepVetoCount = 0;
+    m3WorldEnter(world);
     m3StepInternal(world, dt, substeps);
+    m3WorldLeave(world);
     if (world->recorder.journalActive != 0)
     {
         // Recording moved BEHIND the execution: nothing can

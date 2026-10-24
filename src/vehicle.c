@@ -156,12 +156,12 @@ int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def)
 {
     if (!VehicleDefValid(world, def))
     {
-        return -1;
+        return M3_CREATE_INVALID;
     }
     int32_t slot = m3IdPoolAlloc(&world->vehicles.vehPool);
     if (slot < 0)
     {
-        return -1;
+        return M3_CREATE_FULL;
     }
     m3Vehicles* v = &world->vehicles;
     int32_t chassis = def->chassisId.index1 - 1;
@@ -732,6 +732,10 @@ m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* v
         return m3Refuse(world, m3_errorInvalid);
     }
     *vehicleOut = m3_nullVehicleId;
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     if (world == NULL || def == NULL || def->internalValue != M3_VEHICLE_COOKIE)
     {
         return m3Refuse(world, m3_errorInvalid); // field checks live in the internal
@@ -739,7 +743,7 @@ m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* v
     int32_t slot = m3CreateVehicleInternal(world, def);
     if (slot < 0)
     {
-        return m3Refuse(world, m3_errorCapacity);
+        return m3CreateRefusal(world, slot);
     }
     m3VehicleId id = {slot + 1, world->vehicles.vehPool.generations[slot]};
     if (world->recorder.journalActive != 0)
@@ -756,6 +760,10 @@ m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* v
 
 m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle)
 {
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
@@ -788,6 +796,11 @@ m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32
 void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle, m3real steer,
                            m3real brake)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || !m3FiniteF(throttle) || !m3FiniteF(steer) || !m3FiniteF(brake))
     {
@@ -810,6 +823,11 @@ void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle,
 void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left, m3real right,
                                m3real brake)
 {
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorState);
+        return;
+    }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || !m3FiniteF(left) || !m3FiniteF(right) || !m3FiniteF(brake) ||
         world->vehicles.vehDtActive[slot] != 0)
