@@ -39,7 +39,8 @@ of this repository's CI. Instead, `tools/check_bindings.py` checks in
 CI that every engine call in `src/` names a public function with the
 right number of arguments. Extend `M3World3D` along the same
 pattern: every engine call you need is one bound method away, and
-the C API is documented in `docs/guide.md` and `docs/api.md`.
+the C API is documented in `docs/guide.md` and in the
+[API reference](https://rawframe-project.github.io/maul3d/api.html).
 
 ## Determinism note
 

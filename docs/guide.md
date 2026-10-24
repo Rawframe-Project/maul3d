@@ -614,7 +614,9 @@ construction inserts one shape at a time and can leave the tree
 lopsided; call this once after building and queries walk a
 balanced tree. It changes NO answer: pairs are canonical and the
 tree is never hashed, so a rebuilt world steps bit-identically to
-its unrebuilt twin (the suite proves it by hash equality).
+its unrebuilt twin (the suite proves it by hash equality). It
+returns m3_errorCapacity, with the tree unchanged and nothing
+journaled, when the world's allocator refuses its scratch.
 
 ## The destruction cinematic
 

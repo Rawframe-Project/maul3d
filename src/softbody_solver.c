@@ -18,8 +18,58 @@
 #include <math.h>
 #include <string.h>
 
+// Closest point on segment ab to p. The parameter is clamped before the
+// division, so the point is a convex combination of a and b, and a
+// zero-length segment gives a.
+static m3Vec3 ClosestOnSegment(m3Vec3 p, m3Vec3 a, m3Vec3 b)
+{
+    m3Vec3 ab = m3Sub3(b, a);
+    m3real t = m3Dot3(m3Sub3(p, a), ab);
+    m3real len2 = m3Dot3(ab, ab);
+    if (t <= 0.0f)
+    {
+        return a;
+    }
+    if (t >= len2)
+    {
+        return b;
+    }
+    return m3Add3(a, m3MulSV3(t / len2, ab));
+}
+
+// The nearest to p of the closest points on edges ab, bc and ca; a tie
+// keeps the earlier edge.
+static m3Vec3 ClosestOnEdges(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c, m3real* len2Out)
+{
+    m3Vec3 ends[3][2] = {{a, b}, {b, c}, {c, a}};
+    m3Vec3 best = a;
+    m3real bestLen2 = 0.0f;
+    for (int32_t e = 0; e < 3; ++e)
+    {
+        m3Vec3 q = ClosestOnSegment(p, ends[e][0], ends[e][1]);
+        m3Vec3 d = m3Sub3(p, q);
+        m3real len2 = m3Dot3(d, d);
+        if (e == 0 || len2 < bestLen2)
+        {
+            best = q;
+            bestLen2 = len2;
+        }
+    }
+    *len2Out = bestLen2;
+    return best;
+}
+
 // Closest point on a triangle to a point (barycentric clamp, the
-// textbook regions walk).
+// textbook regions walk). The walk's sign tests and its interior
+// barycentrics cancel catastrophically on a thin triangle: the region
+// can come out wrong and the interior point land far from the closest
+// one, or outside the triangle. So the interior answer is kept only when
+// its barycentrics are in range and it is no farther than the nearest
+// edge, which is computed without cancellation; otherwise the nearest
+// edge point is the answer. Each edge region divides only by a positive
+// denominator, so a triangle with a repeated corner falls through to the
+// edges instead of dividing zero by zero. Every result is a convex
+// combination of the corners, so it stays in the triangle up to rounding.
 static m3Vec3 ClosestOnTriangle(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c)
 {
     m3Vec3 ab = m3Sub3(b, a);
@@ -39,7 +89,7 @@ static m3Vec3 ClosestOnTriangle(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c)
         return b;
     }
     m3real vc = d1 * d4 - d3 * d2;
-    if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f)
+    if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f && d1 - d3 > 0.0f)
     {
         m3real v = d1 / (d1 - d3);
         return m3Add3(a, m3MulSV3(v, ab));
@@ -52,21 +102,32 @@ static m3Vec3 ClosestOnTriangle(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c)
         return c;
     }
     m3real vb = d5 * d2 - d1 * d6;
-    if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f)
+    if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f && d2 - d6 > 0.0f)
     {
         m3real w = d2 / (d2 - d6);
         return m3Add3(a, m3MulSV3(w, ac));
     }
     m3real va = d3 * d6 - d5 * d4;
-    if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f)
+    if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f && (d4 - d3) + (d5 - d6) > 0.0f)
     {
         m3real w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
         return m3Add3(b, m3MulSV3(w, m3Sub3(c, b)));
     }
+    m3real edgeLen2;
+    m3Vec3 edge = ClosestOnEdges(p, a, b, c, &edgeLen2);
     m3real denom = 1.0f / (va + vb + vc);
     m3real v = vb * denom;
     m3real w = vc * denom;
-    return m3Add3(a, m3Add3(m3MulSV3(v, ab), m3MulSV3(w, ac)));
+    if (v >= 0.0f && w >= 0.0f && v + w <= 1.0f)
+    {
+        m3Vec3 inside = m3Add3(a, m3Add3(m3MulSV3(v, ab), m3MulSV3(w, ac)));
+        m3Vec3 d = m3Sub3(p, inside);
+        if (m3Dot3(d, d) <= edgeLen2)
+        {
+            return inside;
+        }
+    }
+    return edge;
 }
 
 // Apply a projection to particle k: push along n (unit, outward) by
