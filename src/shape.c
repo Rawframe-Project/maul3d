@@ -9,6 +9,7 @@
 
 #include "body_state.h"
 #include "broad_phase.h"
+#include "fpenv.h"
 #include "hull.h"
 #include "journal.h"
 #include "misuse.h"
@@ -570,7 +571,8 @@ static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
     return true;
 }
 
-void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
+static M3_NOINLINE void ShapeSetSphereWorker(m3World* world, m3ShapeId shape,
+                                             const m3Sphere* sphere)
 {
     if (m3WorldBusy(world))
     {
@@ -589,7 +591,15 @@ void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
     SetShapeGeomPublic(world, shape, (uint8_t)m3_sphereShape, &geom);
 }
 
-void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
+void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetSphereWorker(world, shape, sphere);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void ShapeSetCapsuleWorker(m3World* world, m3ShapeId shape,
+                                              const m3Capsule* capsule)
 {
     if (m3WorldBusy(world))
     {
@@ -607,6 +617,13 @@ void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsul
     geom.s = capsule->radius;
     geom.v2 = capsule->point2;
     SetShapeGeomPublic(world, shape, (uint8_t)m3_capsuleShape, &geom);
+}
+
+void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetCapsuleWorker(world, shape, capsule);
+    m3FloatEnvLeave(env);
 }
 
 bool m3Shape_IsValid(const m3World* world, m3ShapeId shape)
@@ -627,7 +644,7 @@ m3BodyId m3Shape_GetBody(const m3World* world, m3ShapeId shape)
     return id;
 }
 
-m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
+static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
 {
     if (m3WorldBusy(world))
     {
@@ -650,4 +667,12 @@ m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
         m3SetAwakeInternal(world, bodyIndex, 1);
     }
     return m3_success;
+}
+
+m3Result m3DestroyShape(m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroyShapeWorker(world, shape);
+    m3FloatEnvLeave(env);
+    return result;
 }

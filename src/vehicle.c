@@ -12,6 +12,7 @@
 #include "maul3d/vehicle.h"
 
 #include "body_state.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "raycast.h"
@@ -725,7 +726,8 @@ void m3VehicleCommandsInternal(m3World* world, int32_t slot, m3real throttle, m3
     }
 }
 
-m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* vehicleOut)
+static M3_NOINLINE m3Result CreateVehicleWorker(m3World* world, const m3VehicleDef* def,
+                                                m3VehicleId* vehicleOut)
 {
     if (vehicleOut == NULL)
     {
@@ -758,7 +760,15 @@ m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* v
     return m3_success;
 }
 
-m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle)
+m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def, m3VehicleId* vehicleOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateVehicleWorker(world, def, vehicleOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result DestroyVehicleWorker(m3World* world, m3VehicleId vehicle)
 {
     if (m3WorldBusy(world))
     {
@@ -777,12 +787,21 @@ m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle)
     return m3_success;
 }
 
+m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroyVehicleWorker(world, vehicle);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 bool m3Vehicle_IsValid(const m3World* world, m3VehicleId vehicle)
 {
     return m3VehicleSlot(world, vehicle) >= 0;
 }
 
-m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
+static M3_NOINLINE m3real VehicleGetCompressionWorker(const m3World* world, m3VehicleId vehicle,
+                                                      int32_t wheel)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
@@ -793,8 +812,16 @@ m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32
     return world->vehicles.vehWheelCompression[slot * M3_VEHICLE_MAX_WHEELS + wheel];
 }
 
-void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle, m3real steer,
-                           m3real brake)
+m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = VehicleGetCompressionWorker(world, vehicle, wheel);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void VehicleSetCommandsWorker(m3World* world, m3VehicleId vehicle,
+                                                 m3real throttle, m3real steer, m3real brake)
 {
     if (m3WorldBusy(world))
     {
@@ -820,8 +847,16 @@ void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle,
     m3VehicleCommandsInternal(world, slot, throttle, steer, brake);
 }
 
-void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left, m3real right,
-                               m3real brake)
+void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle, m3real steer,
+                           m3real brake)
+{
+    uint64_t env = m3FloatEnvEnter();
+    VehicleSetCommandsWorker(world, vehicle, throttle, steer, brake);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void VehicleSetTankCommandsWorker(m3World* world, m3VehicleId vehicle,
+                                                     m3real left, m3real right, m3real brake)
 {
     if (m3WorldBusy(world))
     {
@@ -848,7 +883,16 @@ void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left,
     m3VehicleTankCommandsInternal(world, slot, left, right, brake);
 }
 
-m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel)
+void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left, m3real right,
+                               m3real brake)
+{
+    uint64_t env = m3FloatEnvEnter();
+    VehicleSetTankCommandsWorker(world, vehicle, left, right, brake);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE m3real VehicleGetWheelSpinWorker(const m3World* world, m3VehicleId vehicle,
+                                                    int32_t wheel)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0 || wheel < 0 || wheel >= world->vehicles.vehWheelCount[slot])
@@ -857,6 +901,14 @@ m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t
         return 0.0f;
     }
     return world->vehicles.vehWheelSpin[slot * M3_VEHICLE_MAX_WHEELS + wheel];
+}
+
+m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = VehicleGetWheelSpinWorker(world, vehicle, wheel);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_t wheel)

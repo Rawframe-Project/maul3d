@@ -10,6 +10,7 @@
 
 #include "distance.h"
 #include "manifold.h"
+#include "parallel.h"
 #include "shape_state.h"
 #include "world_internal.h"
 
@@ -645,9 +646,7 @@ m3Result m3UpdateContacts(m3World* world, const uint64_t* oldKeys, const m3Manif
     if (world->enqueueTask != NULL && world->contacts.pairCount > 1)
     {
         m3ContactTaskContext ctx = {world, oldKeys, oldManifolds, oldCount};
-        void* task = world->enqueueTask(ContactTask, world->contacts.pairCount, 16, &ctx,
-                                        world->userTaskContext);
-        world->finishTask(task, world->userTaskContext);
+        m3RunTasks(world, ContactTask, &ctx, world->contacts.pairCount, 16);
     }
     else
     {

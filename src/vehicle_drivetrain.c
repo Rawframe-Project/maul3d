@@ -5,6 +5,7 @@
 // engine readback. Public functions validate and journal; replay drives
 // the internal setters.
 
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "vehicle.h"
@@ -143,7 +144,8 @@ bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear)
     return true;
 }
 
-void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle, const m3DrivetrainDef* def)
+static M3_NOINLINE void VehicleSetDrivetrainWorker(m3World* world, m3VehicleId vehicle,
+                                                   const m3DrivetrainDef* def)
 {
     if (m3WorldBusy(world))
     {
@@ -171,7 +173,14 @@ void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle, const m3Drivet
     }
 }
 
-void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
+void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle, const m3DrivetrainDef* def)
+{
+    uint64_t env = m3FloatEnvEnter();
+    VehicleSetDrivetrainWorker(world, vehicle, def);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void VehicleSelectGearWorker(m3World* world, m3VehicleId vehicle, int32_t gear)
 {
     if (m3WorldBusy(world))
     {
@@ -199,6 +208,13 @@ void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
     }
 }
 
+void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
+{
+    uint64_t env = m3FloatEnvEnter();
+    VehicleSelectGearWorker(world, vehicle, gear);
+    m3FloatEnvLeave(env);
+}
+
 int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
@@ -214,7 +230,7 @@ int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
     return (int32_t)world->vehicles.vehDtGear[slot];
 }
 
-m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
+static M3_NOINLINE m3real VehicleGetEngineRpmWorker(const m3World* world, m3VehicleId vehicle)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
@@ -227,4 +243,12 @@ m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
         return 0.0f; // no drivetrain: neutral and idle
     }
     return world->vehicles.vehDtRpm[slot];
+}
+
+m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3real result = VehicleGetEngineRpmWorker(world, vehicle);
+    m3FloatEnvLeave(env);
+    return result;
 }

@@ -12,6 +12,7 @@
 
 #include "body.h"
 #include "character.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "query.h"
@@ -456,7 +457,8 @@ void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* ro
     }
 }
 
-m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def, m3CharacterId* characterOut)
+static M3_NOINLINE m3Result CreateCharacterWorker(m3World* world, const m3CharacterDef* def,
+                                                  m3CharacterId* characterOut)
 {
     if (characterOut == NULL)
     {
@@ -489,7 +491,15 @@ m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def, m3Characte
     return m3_success;
 }
 
-m3Result m3DestroyCharacter(m3World* world, m3CharacterId character)
+m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def, m3CharacterId* characterOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateCharacterWorker(world, def, characterOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result DestroyCharacterWorker(m3World* world, m3CharacterId character)
 {
     if (m3WorldBusy(world))
     {
@@ -508,12 +518,21 @@ m3Result m3DestroyCharacter(m3World* world, m3CharacterId character)
     return m3_success;
 }
 
+m3Result m3DestroyCharacter(m3World* world, m3CharacterId character)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = DestroyCharacterWorker(world, character);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
 bool m3Character_IsValid(const m3World* world, m3CharacterId character)
 {
     return m3CharacterSlot(world, character) >= 0;
 }
 
-void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translation)
+static M3_NOINLINE void CharacterMoveWorker(m3World* world, m3CharacterId character,
+                                            m3Vec3 translation)
 {
     if (m3WorldBusy(world))
     {
@@ -542,7 +561,14 @@ void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translatio
     m3CharacterMoveInternal(world, slot, translation);
 }
 
-m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character)
+void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translation)
+{
+    uint64_t env = m3FloatEnvEnter();
+    CharacterMoveWorker(world, character, translation);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE m3Pos3 CharacterGetPositionWorker(const m3World* world, m3CharacterId character)
 {
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
@@ -551,6 +577,14 @@ m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character)
         return (m3Pos3){0.0, 0.0, 0.0};
     }
     return world->bodies.transforms[world->characters.charBody[slot]].p;
+}
+
+m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Pos3 result = CharacterGetPositionWorker(world, character);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 bool m3Character_IsGrounded(const m3World* world, m3CharacterId character)
@@ -564,7 +598,8 @@ bool m3Character_IsGrounded(const m3World* world, m3CharacterId character)
     return world->characters.charGrounded[slot] != 0;
 }
 
-m3Vec3 m3Character_GetGroundNormal(const m3World* world, m3CharacterId character)
+static M3_NOINLINE m3Vec3 CharacterGetGroundNormalWorker(const m3World* world,
+                                                         m3CharacterId character)
 {
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
@@ -573,6 +608,14 @@ m3Vec3 m3Character_GetGroundNormal(const m3World* world, m3CharacterId character
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     return world->characters.charGroundNormal[slot];
+}
+
+m3Vec3 m3Character_GetGroundNormal(const m3World* world, m3CharacterId character)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Vec3 result = CharacterGetGroundNormalWorker(world, character);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character)
@@ -645,8 +688,8 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
     return m3_success;
 }
 
-m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real halfHeight,
-                               m3real radius)
+static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3CharacterId character,
+                                                     m3real halfHeight, m3real radius)
 {
     if (m3WorldBusy(world))
     {
@@ -676,6 +719,15 @@ m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real h
         m3JournalRecord(world, m3_opCharacterStance, &record, (int32_t)sizeof(record));
     }
     return m3_success;
+}
+
+m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real halfHeight,
+                               m3real radius)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CharacterSetStanceWorker(world, character, halfHeight, radius);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 void m3Character_GetStance(const m3World* world, m3CharacterId character, m3real* halfHeightOut,

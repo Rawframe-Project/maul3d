@@ -8,6 +8,7 @@
 
 #include "body_state.h"
 #include "broad_phase.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "shape.h"
@@ -82,7 +83,7 @@ static void ShapeScalarOp(m3World* world, m3ShapeId shapeId, int32_t op, float v
     }
 }
 
-void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction)
+static M3_NOINLINE void ShapeSetFrictionWorker(m3World* world, m3ShapeId shape, float friction)
 {
     if (m3WorldBusy(world))
     {
@@ -97,13 +98,29 @@ void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction)
     ShapeScalarOp(world, shape, m3_opSetShapeFriction, friction);
 }
 
-float m3Shape_GetFriction(const m3World* world, m3ShapeId shape)
+void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetFrictionWorker(world, shape, friction);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE float ShapeGetFrictionWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) ? world->shapes.shapeFriction[slot] : 0.0f;
 }
 
-void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution)
+float m3Shape_GetFriction(const m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    float result = ShapeGetFrictionWorker(world, shape);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void ShapeSetRestitutionWorker(m3World* world, m3ShapeId shape,
+                                                  float restitution)
 {
     if (m3WorldBusy(world))
     {
@@ -118,13 +135,29 @@ void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution)
     ShapeScalarOp(world, shape, m3_opSetShapeRestitution, restitution);
 }
 
-float m3Shape_GetRestitution(const m3World* world, m3ShapeId shape)
+void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetRestitutionWorker(world, shape, restitution);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE float ShapeGetRestitutionWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) ? world->shapes.shapeRestitution[slot] : 0.0f;
 }
 
-void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value)
+float m3Shape_GetRestitution(const m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    float result = ShapeGetRestitutionWorker(world, shape);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void ShapeSetRollingResistanceWorker(m3World* world, m3ShapeId shape,
+                                                        float value)
 {
     if (m3WorldBusy(world))
     {
@@ -139,13 +172,29 @@ void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value)
     ShapeScalarOp(world, shape, m3_opSetShapeRolling, value);
 }
 
-float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape)
+void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetRollingResistanceWorker(world, shape, value);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE float ShapeGetRollingResistanceWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) ? world->shapes.shapeRollingResistance[slot] : 0.0f;
 }
 
-void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool updateBodyMass)
+float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    float result = ShapeGetRollingResistanceWorker(world, shape);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, float density,
+                                              bool updateBodyMass)
 {
     if (m3WorldBusy(world))
     {
@@ -174,10 +223,25 @@ void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool upd
     m3SetShapeDensityInternal(world, slot, density, updateBodyMass ? 1 : 0);
 }
 
-float m3Shape_GetDensity(const m3World* world, m3ShapeId shape)
+void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool updateBodyMass)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetDensityWorker(world, shape, density, updateBodyMass);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE float ShapeGetDensityWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) ? world->shapes.shapeDensity[slot] : 0.0f;
+}
+
+float m3Shape_GetDensity(const m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    float result = ShapeGetDensityWorker(world, shape);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 void m3EnableShapeHitEventsInternal(m3World* world, int32_t slot, int32_t on)
@@ -215,7 +279,7 @@ static void ShapeFlagOp(m3World* world, m3ShapeId shapeId, int32_t op, bool flag
     }
 }
 
-void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag)
+static M3_NOINLINE void ShapeEnableHitEventsWorker(m3World* world, m3ShapeId shape, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -225,13 +289,20 @@ void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag)
     ShapeFlagOp(world, shape, m3_opEnableShapeHitEvents, flag);
 }
 
+void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeEnableHitEventsWorker(world, shape, flag);
+    m3FloatEnvLeave(env);
+}
+
 bool m3Shape_IsHitEventsEnabled(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) && world->shapes.shapeHitEvents[slot] != 0;
 }
 
-void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag)
+static M3_NOINLINE void ShapeEnablePreSolveWorker(m3World* world, m3ShapeId shape, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -239,6 +310,13 @@ void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag)
         return;
     }
     ShapeFlagOp(world, shape, m3_opEnableShapePreSolve, flag);
+}
+
+void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeEnablePreSolveWorker(world, shape, flag);
+    m3FloatEnvLeave(env);
 }
 
 bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape)
@@ -297,9 +375,10 @@ bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
     return true;
 }
 
-void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
-                              const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                              const uint8_t* triangleMaterials)
+static M3_NOINLINE void ShapeSetMeshMaterialsWorker(m3World* world, m3ShapeId shape,
+                                                    const m3MeshSurfaceMaterial* materials,
+                                                    int32_t materialCount,
+                                                    const uint8_t* triangleMaterials)
 {
     if (m3WorldBusy(world))
     {
@@ -339,6 +418,15 @@ void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
     }
 }
 
+void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
+                              const m3MeshSurfaceMaterial* materials, int32_t materialCount,
+                              const uint8_t* triangleMaterials)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetMeshMaterialsWorker(world, shape, materials, materialCount, triangleMaterials);
+    m3FloatEnvLeave(env);
+}
+
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v)
 {
     world->shapes.shapeSurfaceVel[slot] = v;
@@ -349,7 +437,8 @@ void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v)
     }
 }
 
-void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity)
+static M3_NOINLINE void ShapeSetSurfaceVelocityWorker(m3World* world, m3ShapeId shape,
+                                                      m3Vec3 velocity)
 {
     if (m3WorldBusy(world))
     {
@@ -375,6 +464,13 @@ void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity
         m3JournalRecord(world, m3_opSetSurfaceVelocity, &record, (int32_t)sizeof(record));
     }
     m3SetSurfaceVelocityInternal(world, slot, velocity);
+}
+
+void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetSurfaceVelocityWorker(world, shape, velocity);
+    m3FloatEnvLeave(env);
 }
 
 void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
@@ -405,8 +501,8 @@ void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, ui
     world->shapes.shapeGroup[slot] = groupIndex;
 }
 
-void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits, uint64_t maskBits,
-                       int32_t groupIndex)
+static M3_NOINLINE void ShapeSetFilterWorker(m3World* world, m3ShapeId shape, uint64_t categoryBits,
+                                             uint64_t maskBits, int32_t groupIndex)
 {
     if (m3WorldBusy(world))
     {
@@ -429,6 +525,14 @@ void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits, u
         m3JournalRecord(world, m3_opSetFilter, &record, (int32_t)sizeof(record));
     }
     m3SetFilterInternal(world, slot, categoryBits, maskBits, groupIndex);
+}
+
+void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits, uint64_t maskBits,
+                       int32_t groupIndex)
+{
+    uint64_t env = m3FloatEnvEnter();
+    ShapeSetFilterWorker(world, shape, categoryBits, maskBits, groupIndex);
+    m3FloatEnvLeave(env);
 }
 
 void m3Shape_GetFilter(const m3World* world, m3ShapeId shape, uint64_t* categoryBitsOut,
@@ -469,7 +573,7 @@ bool m3Shape_IsSensor(const m3World* world, m3ShapeId shape)
     return ResolveShape(world, shape, &slot) && world->shapes.shapeSensor[slot] != 0;
 }
 
-m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
+static M3_NOINLINE m3AabbResult ShapeGetAabbWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     m3AabbResult result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
@@ -481,6 +585,14 @@ m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
         result.lowerBound = (m3Pos3){lo[0], lo[1], lo[2]};
         result.upperBound = (m3Pos3){hi[0], hi[1], hi[2]};
     }
+    return result;
+}
+
+m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3AabbResult result = ShapeGetAabbWorker(world, shape);
+    m3FloatEnvLeave(env);
     return result;
 }
 

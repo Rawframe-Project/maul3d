@@ -7,6 +7,7 @@
 // folds in only when it is present or off its default.
 
 #include "body.h"
+#include "fpenv.h"
 #include "joint_solver.h"
 #include "misuse.h"
 #include "world.h"
@@ -618,7 +619,7 @@ static uint64_t HashContacts(const m3World* world, uint64_t h)
     return h;
 }
 
-uint64_t m3World_Hash(const m3World* world)
+static M3_NOINLINE uint64_t WorldHashWorker(const m3World* world)
 {
     if (world == NULL)
     {
@@ -640,4 +641,12 @@ uint64_t m3World_Hash(const m3World* world)
     h = HashWater(world, h);
     h = HashContacts(world, h);
     return h;
+}
+
+uint64_t m3World_Hash(const m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    uint64_t result = WorldHashWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
 }

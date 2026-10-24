@@ -7,6 +7,7 @@
 
 #include "body.h"
 #include "body_state.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "solver_math.h"
@@ -100,7 +101,7 @@ void m3SetAngularVelocityInternal(m3World* world, int32_t index, m3Vec3 velocity
     world->bodies.angularVelocities[index] = velocity;
 }
 
-void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
+static M3_NOINLINE void BodyApplyForceWorker(m3World* world, m3BodyId body, m3Vec3 force)
 {
     if (m3WorldBusy(world))
     {
@@ -128,7 +129,14 @@ void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
     m3ApplyForceInternal(world, index, force);
 }
 
-void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
+void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyForceWorker(world, body, force);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodyApplyTorqueWorker(m3World* world, m3BodyId body, m3Vec3 torque)
 {
     if (m3WorldBusy(world))
     {
@@ -156,7 +164,14 @@ void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
     m3ApplyTorqueInternal(world, index, torque);
 }
 
-void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
+void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyTorqueWorker(world, body, torque);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodyApplyLinearImpulseWorker(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
     if (m3WorldBusy(world))
     {
@@ -184,7 +199,14 @@ void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
     m3ApplyLinearImpulseInternal(world, index, impulse);
 }
 
-void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
+void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyLinearImpulseWorker(world, body, impulse);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodyApplyAngularImpulseWorker(m3World* world, m3BodyId body, m3Vec3 impulse)
 {
     if (m3WorldBusy(world))
     {
@@ -212,7 +234,15 @@ void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
     m3ApplyAngularImpulseInternal(world, index, impulse);
 }
 
-void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos3 point)
+void m3Body_ApplyAngularImpulse(m3World* world, m3BodyId body, m3Vec3 impulse)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyAngularImpulseWorker(world, body, impulse);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodyApplyForceAtPointWorker(m3World* world, m3BodyId body, m3Vec3 force,
+                                                    m3Pos3 point)
 {
     if (m3WorldBusy(world))
     {
@@ -241,7 +271,15 @@ void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos
     m3ApplyForceAtPointInternal(world, index, force, point);
 }
 
-void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impulse, m3Pos3 point)
+void m3Body_ApplyForceAtPoint(m3World* world, m3BodyId body, m3Vec3 force, m3Pos3 point)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyForceAtPointWorker(world, body, force, point);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodyApplyLinearImpulseAtPointWorker(m3World* world, m3BodyId body,
+                                                            m3Vec3 impulse, m3Pos3 point)
 {
     if (m3WorldBusy(world))
     {
@@ -270,7 +308,14 @@ void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impu
     m3ApplyImpulseAtPointInternal(world, index, impulse, point);
 }
 
-void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
+void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impulse, m3Pos3 point)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodyApplyLinearImpulseAtPointWorker(world, body, impulse, point);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodySetLinearVelocityWorker(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
     if (m3WorldBusy(world))
     {
@@ -298,7 +343,14 @@ void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
     m3SetLinearVelocityInternal(world, index, velocity);
 }
 
-void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
+void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetLinearVelocityWorker(world, body, velocity);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodySetAngularVelocityWorker(m3World* world, m3BodyId body, m3Vec3 velocity)
 {
     if (m3WorldBusy(world))
     {
@@ -324,6 +376,13 @@ void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
         m3JournalRecord(world, m3_opSetAngularVelocity, &record, (int32_t)sizeof(record));
     }
     m3SetAngularVelocityInternal(world, index, velocity);
+}
+
+void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetAngularVelocityWorker(world, body, velocity);
+    m3FloatEnvLeave(env);
 }
 
 void m3SetBodyParamInternal(m3World* world, int32_t index, int32_t param, float value)
@@ -367,7 +426,7 @@ static void SetBodyParam(m3World* world, m3BodyId bodyId, int32_t param, float v
     m3SetBodyParamInternal(world, index, param, value);
 }
 
-void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
+static M3_NOINLINE void BodySetGravityScaleWorker(m3World* world, m3BodyId body, float scale)
 {
     if (m3WorldBusy(world))
     {
@@ -377,7 +436,14 @@ void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
     SetBodyParam(world, body, m3_bodyParamGravityScale, scale, false);
 }
 
-void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
+void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetGravityScaleWorker(world, body, scale);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodySetLinearDampingWorker(m3World* world, m3BodyId body, float damping)
 {
     if (m3WorldBusy(world))
     {
@@ -387,7 +453,14 @@ void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
     SetBodyParam(world, body, m3_bodyParamLinearDamping, damping, true);
 }
 
-void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)
+void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetLinearDampingWorker(world, body, damping);
+    m3FloatEnvLeave(env);
+}
+
+static M3_NOINLINE void BodySetAngularDampingWorker(m3World* world, m3BodyId body, float damping)
 {
     if (m3WorldBusy(world))
     {
@@ -397,12 +470,19 @@ void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)
     SetBodyParam(world, body, m3_bodyParamAngularDamping, damping, true);
 }
 
+void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetAngularDampingWorker(world, body, damping);
+    m3FloatEnvLeave(env);
+}
+
 void m3SetBulletInternal(m3World* world, int32_t index, int bullet)
 {
     world->bodies.bulletFlags[index] = bullet ? 1 : 0;
 }
 
-void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
+static M3_NOINLINE void BodySetBulletWorker(m3World* world, m3BodyId body, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -423,4 +503,11 @@ void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
         m3JournalRecord(world, m3_opSetBullet, &record, (int32_t)sizeof(record));
     }
     m3SetBulletInternal(world, index, flag ? 1 : 0);
+}
+
+void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
+{
+    uint64_t env = m3FloatEnvEnter();
+    BodySetBulletWorker(world, body, flag);
+    m3FloatEnvLeave(env);
 }

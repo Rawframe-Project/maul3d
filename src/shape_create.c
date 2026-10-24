@@ -5,6 +5,7 @@
 // geometry, builds any prebuilt content and journals the create.
 
 #include "body_state.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "manifold.h"
 #include "misuse.h"
@@ -67,8 +68,9 @@ static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDe
     return m3_success;
 }
 
-m3Result m3CreateSphereShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                             const m3Sphere* sphere, m3ShapeId* shapeOut)
+static M3_NOINLINE m3Result CreateSphereShapeWorker(m3World* world, m3BodyId body,
+                                                    const m3ShapeDef* def, const m3Sphere* sphere,
+                                                    m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -95,8 +97,18 @@ m3Result m3CreateSphereShape(m3World* world, m3BodyId body, const m3ShapeDef* de
     return CreateShapeCommon(world, body, def, (uint8_t)m3_sphereShape, &geom, shapeOut);
 }
 
-m3Result m3CreatePlaneShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                            const m3Plane* plane, m3ShapeId* shapeOut)
+m3Result m3CreateSphereShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                             const m3Sphere* sphere, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateSphereShapeWorker(world, body, def, sphere, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreatePlaneShapeWorker(m3World* world, m3BodyId body,
+                                                   const m3ShapeDef* def, const m3Plane* plane,
+                                                   m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -128,8 +140,18 @@ m3Result m3CreatePlaneShape(m3World* world, m3BodyId body, const m3ShapeDef* def
     return CreateShapeCommon(world, body, def, (uint8_t)m3_planeShape, &geom, shapeOut);
 }
 
-m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                              const m3Capsule* capsule, m3ShapeId* shapeOut)
+m3Result m3CreatePlaneShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                            const m3Plane* plane, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreatePlaneShapeWorker(world, body, def, plane, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateCapsuleShapeWorker(m3World* world, m3BodyId body,
+                                                     const m3ShapeDef* def,
+                                                     const m3Capsule* capsule, m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -160,8 +182,19 @@ m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body, const m3ShapeDef* d
     return CreateShapeCommon(world, body, def, (uint8_t)m3_capsuleShape, &geom, shapeOut);
 }
 
-m3Result m3CreateCylinderShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                               const m3Cylinder* cylinder, int32_t segments, m3ShapeId* shapeOut)
+m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                              const m3Capsule* capsule, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateCapsuleShapeWorker(world, body, def, capsule, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateCylinderShapeWorker(m3World* world, m3BodyId body,
+                                                      const m3ShapeDef* def,
+                                                      const m3Cylinder* cylinder, int32_t segments,
+                                                      m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -211,8 +244,18 @@ m3Result m3CreateCylinderShape(m3World* world, m3BodyId body, const m3ShapeDef* 
     return m3CreateHullShape(world, body, def, points, 2 * segments, shapeOut);
 }
 
-m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                           const m3Vec3* points, int32_t count, m3ShapeId* shapeOut)
+m3Result m3CreateCylinderShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                               const m3Cylinder* cylinder, int32_t segments, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateCylinderShapeWorker(world, body, def, cylinder, segments, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
+                                                  const m3ShapeDef* def, const m3Vec3* points,
+                                                  int32_t count, m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -271,9 +314,19 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     return m3_success;
 }
 
-m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                           const m3Vec3* vertices, int32_t vertexCount, const uint16_t* indices,
-                           int32_t triangleCount, m3ShapeId* shapeOut)
+m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                           const m3Vec3* points, int32_t count, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateHullShapeWorker(world, body, def, points, count, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateMeshShapeWorker(m3World* world, m3BodyId body,
+                                                  const m3ShapeDef* def, const m3Vec3* vertices,
+                                                  int32_t vertexCount, const uint16_t* indices,
+                                                  int32_t triangleCount, m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -357,9 +410,22 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     return m3_success;
 }
 
-m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                  const float* heights, int32_t nx, int32_t nz, m3real cellSize,
-                                  m3ShapeId* shapeOut)
+m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                           const m3Vec3* vertices, int32_t vertexCount, const uint16_t* indices,
+                           int32_t triangleCount, m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateMeshShapeWorker(world, body, def, vertices, vertexCount, indices,
+                                            triangleCount, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyId body,
+                                                         const m3ShapeDef* def,
+                                                         const float* heights, int32_t nx,
+                                                         int32_t nz, m3real cellSize,
+                                                         m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -429,9 +495,22 @@ m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDe
     return result;
 }
 
-m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                      const float* heights, int32_t nx, int32_t nz, m3real cellSize,
-                                      m3ShapeId* shapeOut)
+m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                                  const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                  m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result =
+        CreateHeightFieldShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3BodyId body,
+                                                             const m3ShapeDef* def,
+                                                             const float* heights, int32_t nx,
+                                                             int32_t nz, m3real cellSize,
+                                                             m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -501,9 +580,22 @@ m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3Sha
     return m3_success;
 }
 
-m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                 const uint8_t* voxels, const uint16_t* payload, m3real cellSize,
-                                 m3ShapeId* shapeOut)
+m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                                      const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                      m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result =
+        CreateHeightFieldGridShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId body,
+                                                        const m3ShapeDef* def,
+                                                        const uint8_t* voxels,
+                                                        const uint16_t* payload, m3real cellSize,
+                                                        m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -580,8 +672,20 @@ m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef
     return m3_success;
 }
 
-m3Result m3CreateBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def, m3Vec3 halfExtents,
-                          m3ShapeId* shapeOut)
+m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                                 const uint8_t* voxels, const uint16_t* payload, m3real cellSize,
+                                 m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result =
+        CreateVoxelChunkShapeWorker(world, body, def, voxels, payload, cellSize, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result CreateBoxShapeWorker(m3World* world, m3BodyId body,
+                                                 const m3ShapeDef* def, m3Vec3 halfExtents,
+                                                 m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -599,4 +703,13 @@ m3Result m3CreateBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def, 
     }
     m3ShapeGeom geom = {halfExtents, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
     return CreateShapeCommon(world, body, def, (uint8_t)m3_hullShape, &geom, shapeOut);
+}
+
+m3Result m3CreateBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* def, m3Vec3 halfExtents,
+                          m3ShapeId* shapeOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = CreateBoxShapeWorker(world, body, def, halfExtents, shapeOut);
+    m3FloatEnvLeave(env);
+    return result;
 }

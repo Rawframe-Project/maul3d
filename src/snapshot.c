@@ -13,6 +13,7 @@
 
 #include "snapshot.h"
 
+#include "fpenv.h"
 #include "hull.h"
 #include "misuse.h"
 #include "shape.h"
@@ -264,7 +265,7 @@ static int32_t WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int 
     return WalkBlocks((m3World*)world, out, NULL, mode, includeMesh);
 }
 
-int32_t m3World_SnapshotSize(const m3World* world)
+static M3_NOINLINE int32_t WorldSnapshotSizeWorker(const m3World* world)
 {
     if (world == NULL)
     {
@@ -274,7 +275,16 @@ int32_t m3World_SnapshotSize(const m3World* world)
     return (int32_t)sizeof(m3SnapshotHeader) + WalkOut(world, NULL, m3_walkMeasure, 1);
 }
 
-m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
+int32_t m3World_SnapshotSize(const m3World* world)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldSnapshotSizeWorker(world);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buffer,
+                                                int32_t capacity, int32_t* bytesOut)
 {
     if (world == NULL || buffer == NULL || bytesOut == NULL)
     {
@@ -302,6 +312,14 @@ m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, 
     WalkOut(world, bytes + sizeof(header), m3_walkWrite, 1);
     *bytesOut = size;
     return m3_success;
+}
+
+m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = WorldSnapshotWorker(world, buffer, capacity, bytesOut);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 static bool BytesZero(const uint8_t* bytes, size_t count)
@@ -748,7 +766,7 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     return m3_success;
 }
 
-m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
+static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data, int32_t size)
 {
     if (m3WorldBusy(world))
     {
@@ -769,4 +787,12 @@ m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
     }
     m3RestoreCommit(world, &stage);
     return m3_success;
+}
+
+m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = WorldRestoreWorker(world, data, size);
+    m3FloatEnvLeave(env);
+    return result;
 }

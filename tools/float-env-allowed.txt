@@ -1,0 +1,78 @@
+# The public functions that compute no floats, so they need not enter
+# the library's floating-point environment (src/fpenv.h), under the
+# reason they need not. Every other public function enters it;
+# tools/check_float_env.py checks both ways.
+
+defs filled with constants:
+    m3DefaultBodyDef
+    m3DefaultCharacterDef
+    m3DefaultDrivetrainDef
+    m3DefaultExplosionDef
+    m3DefaultJointDef
+    m3DefaultQueryFilter
+    m3DefaultShapeDef
+    m3DefaultSoftBodyDef
+    m3DefaultVehicleDef
+    m3DefaultWaterVolumeDef
+    m3DefaultWorldDefValues
+
+the build, the CPU, result names and the integer hash:
+    m3CpuSupportsBackend
+    m3GetSimdBackend
+    m3GetVersion
+    m3Hash64
+    m3ResultName
+
+ids, types, flags, names and user data, read or stored as they are:
+    m3Body_GetJoints
+    m3Body_GetMotionLocks
+    m3Body_GetName
+    m3Body_GetShapes
+    m3Body_GetType
+    m3Body_GetUserData
+    m3Body_IsAwake
+    m3Body_IsBullet
+    m3Body_IsEnabled
+    m3Body_IsFastRotationEnabled
+    m3Body_IsSleepEnabled
+    m3Body_IsValid
+    m3Body_SetName
+    m3Body_SetUserData
+    m3Character_GetGroundBody
+    m3Character_GetStance
+    m3Character_IsGrounded
+    m3Character_IsValid
+    m3Joint_GetBodyA
+    m3Joint_GetBodyB
+    m3Joint_GetCollideConnected
+    m3Joint_GetType
+    m3Joint_IsValid
+    m3Shape_GetBody
+    m3Shape_GetFilter
+    m3Shape_GetType
+    m3Shape_GetUserData
+    m3Shape_IsHitEventsEnabled
+    m3Shape_IsPreSolveEnabled
+    m3Shape_IsSensor
+    m3Shape_IsValid
+    m3Shape_SetUserData
+    m3SoftBody_GetParticleCount
+    m3SoftBody_IsValid
+    m3Vehicle_GetGear
+    m3Vehicle_IsValid
+    m3Vehicle_IsWheelGrounded
+    m3WaterVolume_IsValid
+    m3World_GetBodies
+    m3World_GetCounters
+    m3World_GetJoints
+    m3World_GetStepCount
+    m3World_IsContinuousEnabled
+    m3World_IsSleepingEnabled
+
+journal and replay bytes, framed and counted:
+    m3DescribeJournal
+    m3DecodeReplay
+    m3EncodeReplay
+    m3GetEncodedReplaySize
+    m3World_StartJournal
+    m3World_StopJournal

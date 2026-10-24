@@ -17,6 +17,17 @@ extern "C"
     /// A world: everything the simulation holds, owned by the program
     /// through this pointer from m3CreateWorld to m3DestroyWorld. Worlds
     /// share nothing, so separate worlds may live on separate threads.
+    ///
+    /// A call that computes runs in the library's own floating-point
+    /// setting, whatever the calling thread's is: it rounds to nearest,
+    /// keeps subnormals and masks every exception, and gives the thread
+    /// back its rounding mode and flush-to-zero and denormals-are-zero
+    /// bits as they were. A host may run its threads in any setting and
+    /// still gets the same bits. The host code a world runs (the
+    /// allocator, the task hooks, the debug draw callbacks) runs in the
+    /// thread's own setting, a task range sets the library's on whatever
+    /// thread the host runs it, and the pre-solve callback runs in the
+    /// library's, since its answer decides contacts.
     typedef struct m3World m3World;
 
     /// The task interface: the HOST owns the threads, the

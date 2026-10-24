@@ -11,6 +11,7 @@
 
 #include "body.h"
 #include "body_state.h"
+#include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
 #include "query.h"
@@ -699,7 +700,7 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
     return cursor == size ? m3_success : m3_errorInvalid;
 }
 
-m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
+static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void* data, int32_t size)
 {
     if (m3WorldBusy(world))
     {
@@ -746,4 +747,12 @@ m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
     }
     m3Free(&world->heap, snap);
     return applied;
+}
+
+m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3Result result = WorldReplayJournalWorker(world, data, size);
+    m3FloatEnvLeave(env);
+    return result;
 }

@@ -12,6 +12,7 @@
 
 #include "body_state.h"
 #include "distance.h"
+#include "fpenv.h"
 #include "manifold.h"
 #include "misuse.h"
 #include "raycast.h"
@@ -92,8 +93,9 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     return true;
 }
 
-int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
-                           int32_t capacity, m3QueryFilter filter)
+static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 origin,
+                                                 m3Vec3 translation, m3RayHit* hits,
+                                                 int32_t capacity, m3QueryFilter filter)
 {
     if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
         !(m3Dot3(translation, translation) > 0.0f) ||
@@ -131,6 +133,15 @@ int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translati
         }
     }
     return ctx.count;
+}
+
+int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
+                           int32_t capacity, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldCastRayAllWorker(world, origin, translation, hits, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 // ------------------------------------------------------------------
@@ -211,7 +222,7 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     return m3VoxelGet(&world->voxels.voxelData[slot], x, y, z) ? 1 : 0;
 }
 
-m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point)
+static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 point)
 {
     if (world == NULL || !m3FinitePos3(point))
     {
@@ -227,6 +238,14 @@ m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point)
         }
     }
     return m3_nullShapeId;
+}
+
+m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point)
+{
+    uint64_t env = m3FloatEnvEnter();
+    m3ShapeId result = WorldTestPointWorker(world, point);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 // Keeps the `capacity` lowest shape slots offered, ascending, in the
@@ -499,8 +518,9 @@ static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3Shap
     return m3SelectionFinish(&ctx->selection);
 }
 
-int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
-                            int32_t capacity, m3QueryFilter filter)
+static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3Pos3 lo, m3Pos3 hi,
+                                                  m3ShapeId* shapes, int32_t capacity,
+                                                  m3QueryFilter filter)
 {
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
         !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
@@ -522,8 +542,18 @@ int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi, m3ShapeI
     return OverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius, m3ShapeId* shapes,
-                              int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
+                            int32_t capacity, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldOverlapAabbWorker(world, lo, hi, shapes, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3 center,
+                                                    m3real radius, m3ShapeId* shapes,
+                                                    int32_t capacity, m3QueryFilter filter)
 {
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FiniteF(radius) ||
         !(radius > 0.0f) || !m3FinitePos3(center))
@@ -544,6 +574,15 @@ int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius
     ctx.hi[1] = center.y + (double)radius;
     ctx.hi[2] = center.z + (double)radius;
     return OverlapGather(world, &ctx, shapes, capacity);
+}
+
+int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius, m3ShapeId* shapes,
+                              int32_t capacity, m3QueryFilter filter)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = WorldOverlapSphereWorker(world, center, radius, shapes, capacity, filter);
+    m3FloatEnvLeave(env);
+    return result;
 }
 
 // --- Contact readback ------------------------------------------------
@@ -581,8 +620,8 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
     }
 }
 
-int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
-                               int32_t capacity)
+static M3_NOINLINE int32_t ShapeGetContactDataWorker(const m3World* world, m3ShapeId shape,
+                                                     m3ContactData* out, int32_t capacity)
 {
     if (world == NULL || out == NULL || capacity <= 0)
     {
@@ -610,8 +649,17 @@ int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactD
     return written;
 }
 
-int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* out,
-                              int32_t capacity)
+int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
+                               int32_t capacity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = ShapeGetContactDataWorker(world, shape, out, capacity);
+    m3FloatEnvLeave(env);
+    return result;
+}
+
+static M3_NOINLINE int32_t BodyGetContactDataWorker(const m3World* world, m3BodyId body,
+                                                    m3ContactData* out, int32_t capacity)
 {
     if (world == NULL || out == NULL || capacity <= 0)
     {
@@ -639,4 +687,13 @@ int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData
         }
     }
     return written;
+}
+
+int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* out,
+                              int32_t capacity)
+{
+    uint64_t env = m3FloatEnvEnter();
+    int32_t result = BodyGetContactDataWorker(world, body, out, capacity);
+    m3FloatEnvLeave(env);
+    return result;
 }
