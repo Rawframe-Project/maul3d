@@ -11,6 +11,8 @@
 // MEANING of the bytes (engine version, solver revision, precision,
 // FP policy) and restore refuses a mismatch loudly.
 
+#include "snapshot.h"
+
 #include "hull.h"
 #include "misuse.h"
 #include "shape.h"
@@ -537,23 +539,8 @@ static void ClearEvents(m3World* world)
     world->lastInvH = 0.0f; // readback reads 0 until the next step
 }
 
-// What a restore takes from the allocator, all of it before any byte
-// lands: the incoming mesh and height field content and every tree
-// derived from content (mesh BVHs, voxel surfaces). A refused allocation
-// drops the stage and leaves the world as it was; a whole stage commits
-// without allocating, so it cannot fail halfway.
-typedef struct RestoreStage
-{
-    m3MeshData* meshes;              // per mesh slot
-    m3MeshBvh* meshBvhs;             // per mesh slot, built for live meshes
-    m3HeightFieldData* heightFields; // per shape slot
-    m3VoxelSurface* surfaces;        // per voxel slot, built for live chunks
-    m3VoxelChunkData* chunk;         // an aligned copy of one incoming chunk
-    int32_t hullCursor;              // where the hull tail starts in the buffer
-} RestoreStage;
-
 // Frees the stage's arrays, not what they hold.
-static void FreeStageArrays(m3World* world, RestoreStage* stage)
+static void FreeStageArrays(m3World* world, m3RestoreStage* stage)
 {
     m3Free(&world->heap, stage->meshes);
     m3Free(&world->heap, stage->meshBvhs);
@@ -563,7 +550,7 @@ static void FreeStageArrays(m3World* world, RestoreStage* stage)
     memset(stage, 0, sizeof(*stage));
 }
 
-static void DropStage(m3World* world, RestoreStage* stage)
+void m3RestoreDrop(m3World* world, m3RestoreStage* stage)
 {
     m3Heap* heap = &world->heap;
     for (int32_t m = 0; stage->meshes != NULL && m < world->meshes.meshCapacity; ++m)
@@ -596,7 +583,7 @@ static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementS
 // Fills the stage from a buffer whose every byte has been checked, so a
 // false return means only that the allocator refused.
 static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int32_t fixed,
-                           RestoreStage* stage)
+                           m3RestoreStage* stage)
 {
     m3Heap* heap = &world->heap;
     int32_t meshCap = world->meshes.meshCapacity;
@@ -664,8 +651,9 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
 // next update requeries the whole tree. Mesh BVHs and voxel surfaces are
 // pure functions of the restored content, so they match the ones create
 // built.
-static void CommitRestore(m3World* world, const uint8_t* raw, RestoreStage* stage)
+void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
 {
+    const uint8_t* raw = stage->data;
     m3Heap* heap = &world->heap;
     ClearEvents(world);
     m3StateWalk(world, NULL, raw + sizeof(m3SnapshotHeader), 1);
@@ -722,19 +710,9 @@ static void CommitRestore(m3World* world, const uint8_t* raw, RestoreStage* stag
     }
 }
 
-m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
+m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3RestoreStage* stage)
 {
-    if (m3WorldBusy(world))
-    {
-        return m3Refuse(world, m3_errorState);
-    }
-    // A snapshot is untrusted data: bytes that fail a check, a short or
-    // truncated buffer included, are refused with m3_errorInvalid and
-    // count no misuse. Only arguments a correct program never passes do.
-    if (world == NULL || size < 0 || (data == NULL && size > 0))
-    {
-        return m3Refuse(world, m3_errorInvalid);
-    }
+    memset(stage, 0, sizeof(*stage));
     if (size < (int32_t)sizeof(m3SnapshotHeader))
     {
         return m3_errorInvalid;
@@ -761,12 +739,34 @@ m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
     {
         return m3_errorInvalid;
     }
-    RestoreStage stage;
-    if (!PrepareRestore(world, raw, size, fixed, &stage))
+    if (!PrepareRestore(world, raw, size, fixed, stage))
     {
-        DropStage(world, &stage);
+        m3RestoreDrop(world, stage);
         return m3_errorCapacity; // the world is as it was
     }
-    CommitRestore(world, raw, &stage);
+    stage->data = raw;
+    return m3_success;
+}
+
+m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
+{
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
+    // A snapshot is untrusted data: bytes that fail a check, a short or
+    // truncated buffer included, are refused with m3_errorInvalid and
+    // count no misuse. Only arguments a correct program never passes do.
+    if (world == NULL || size < 0 || (data == NULL && size > 0))
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    m3RestoreStage stage;
+    m3Result prepared = m3RestorePrepare(world, data, size, &stage);
+    if (prepared != m3_success)
+    {
+        return prepared;
+    }
+    m3RestoreCommit(world, &stage);
     return m3_success;
 }

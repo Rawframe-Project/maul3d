@@ -686,10 +686,19 @@ extern "C"
                                                       int32_t capacity);
     M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);
     /// Replay a recorded session into this world. ATOMIC: on any
-    /// refusal (truncation, corruption, an op that cannot re-mint
-    /// its recorded id) the world is restored to its pre-call state
-    /// and m3_errorInvalid returns; a half-applied session is
-    /// impossible.
+    /// refusal the world is restored to its pre-call state; a
+    /// half-applied session is impossible. Returns m3_errorInvalid
+    /// for a damaged tape (truncation, corruption, an op that cannot
+    /// re-mint its recorded id) and m3_errorCapacity when the world's
+    /// allocator refuses what the replay or one of its ops needs.
+    /// The back-out is taken before the first op so that it cannot
+    /// fail: for the whole call the replay holds a snapshot of the
+    /// world (m3World_SnapshotSize bytes) and a second copy of its
+    /// mesh and height field content and mesh trees (about
+    /// contentBytes of m3World_GetMemoryUsage), every live voxel
+    /// chunk's surface, and arrays sized by the mesh, shape and voxel
+    /// capacities. A tape that fits a tight allocator without that
+    /// headroom is refused with m3_errorCapacity before any op runs.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
                                                        int32_t size);
 

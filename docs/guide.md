@@ -145,9 +145,19 @@ one; a world that starts from the same state WILL mint the same ids,
 so a mismatch means the session does not belong to this starting
 state.
 
-**Replay is atomic.** On any refusal (truncation, corruption, an op
-that cannot re-mint its recorded id) the target world is restored to
-its pre-call state. A half-applied session is impossible.
+**Replay is atomic.** On any refusal the target world is restored to
+its pre-call state. A half-applied session is impossible. A damaged
+tape (truncation, corruption, an op that cannot re-mint its recorded
+id) is refused with m3_errorInvalid; a replay the world's allocator
+turns down, before the first op or in the middle of one, with
+m3_errorCapacity. Backing out never needs memory, because the replay
+takes it up front: for the whole call it holds a snapshot of the world
+(m3World_SnapshotSize bytes) and a second copy of the world's mesh and
+height field content and mesh trees (about contentBytes of
+m3World_GetMemoryUsage), every live voxel chunk's surface, and a few
+arrays sized by the mesh, shape and voxel capacities. Budget that
+headroom on a tight allocator: without it the replay is refused with
+m3_errorCapacity before any op runs.
 
 **The composition rule:** a journal must close BEFORE a rollback
 block. A restore is not an op; a journal spanning one would replay a

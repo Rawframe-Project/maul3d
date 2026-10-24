@@ -59,6 +59,7 @@ void* m3AllocZeroed(m3Heap* heap, int32_t bytes)
         (uint8_t*)heap->allocator.alloc(total, M3_ALLOC_ALIGNMENT, heap->allocator.context);
     if (block == NULL)
     {
+        heap->refusedCalls += 1;
         return NULL;
     }
     memset(block, 0, total);

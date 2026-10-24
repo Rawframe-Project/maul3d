@@ -39,7 +39,7 @@ joint_solver: joint_row solver_math world_internal
 joint_spherical: joint_solver manifold world_internal
 joint_wheel: joint_solver solver_math world_internal
 journal: misuse world_internal
-journal_replay: body body_state journal query shape_state solver world world_internal
+journal_replay: body body_state journal misuse query shape_state snapshot solver world world_internal
 journal_replay_actors: body_state character journal journal_replay softbody vehicle water world_internal
 journal_replay_joints: body_state joint journal journal_replay world_internal
 journal_replay_shapes: body_state journal journal_replay quickhull shape shape_state voxel world_internal

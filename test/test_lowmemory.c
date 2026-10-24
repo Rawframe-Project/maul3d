@@ -5,7 +5,8 @@
 // given number of blocks, a call either refuses with m3_errorCapacity
 // and leaves the world as it was, or does all of its work. Each test
 // sweeps the budget from zero until the call succeeds, so every
-// allocation the call makes is refused once.
+// allocation the call makes is refused once. A replay refused memory
+// says so with m3_errorCapacity and backs out whole.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -254,10 +255,78 @@ static void TestCreateUnderBudget(void)
                 "the created chunk's tree answers");
 }
 
+static void TestReplayUnderBudget(void)
+{
+    // A tape whose ops take memory: a mesh floor, a voxel slab, a tree
+    // rebuild and a few steps of a falling box, replayed over the
+    // starting world. A replay the allocator turns down is
+    // m3_errorCapacity, never m3_errorInvalid (the tape is good), and
+    // backs out to the starting world, whatever op it was refused in.
+    Budget budget = {-1};
+    m3World* world = BudgetWorld(&budget);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    gd.position = (m3Pos3){10.0, 0.0, 0.0};
+    m3BodyId slabBody = NewBody(world, &gd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){-1.0, 1.0, -1.0};
+    m3BodyId box = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    int32_t startSize = 0;
+    uint8_t* start = TakeSnapshot(world, &startSize);
+
+    static uint8_t tape[1 << 16];
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+    m3ShapeId floor = m3_nullShapeId;
+    m3ShapeId slab = m3_nullShapeId;
+    CHECK(CreateFloor(world, ground, &floor) == m3_success &&
+              CreateSlab(world, slabBody, &slab) == m3_success,
+          "the floor and the slab create on the tape");
+    CHECK(m3World_RebuildBroadphase(world) == m3_success, "the tree rebuilds on the tape");
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    int32_t tapeBytes = StopJournal(world);
+    int32_t endSize = 0;
+    uint8_t* end = TakeSnapshot(world, &endSize);
+    CHECK(start != NULL && end != NULL && tapeBytes > 0, "the tape and both frames are taken");
+    CHECK(Restore(world, start, startSize), "the world goes back to the start");
+
+    bool refusedWhole = true;
+    int32_t refusals = 0;
+    m3Result result = m3_errorCapacity;
+    for (int32_t n = 0; n < 1000 && result != m3_success; ++n)
+    {
+        budget.left = n;
+        result = m3World_ReplayJournal(world, tape, tapeBytes);
+        budget.left = -1;
+        if (result != m3_success)
+        {
+            refusals += 1;
+            refusedWhole =
+                refusedWhole && result == m3_errorCapacity && SnapshotIs(world, start, startSize);
+        }
+    }
+    CHECK(refusals > 0 && refusedWhole,
+          "a replay the allocator turns down is m3_errorCapacity and backs out whole");
+    CHECK(result == m3_success && SnapshotIs(world, end, endSize),
+          "with enough memory the tape replays to the recorder's world");
+    CHECK(result == m3_success && RayStrikes(world, kOverFloor, floor) &&
+              RayStrikes(world, kOverSlab, slab),
+          "and the replayed trees answer");
+    free(end);
+    free(start);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRestoreUnderBudget();
     TestCreateUnderBudget();
+    TestReplayUnderBudget();
     if (s_failures == 0)
     {
         printf("test_lowmemory: all passed\n");

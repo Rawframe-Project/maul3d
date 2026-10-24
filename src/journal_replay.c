@@ -12,8 +12,10 @@
 #include "body.h"
 #include "body_state.h"
 #include "journal.h"
+#include "misuse.h"
 #include "query.h"
 #include "shape_state.h"
+#include "snapshot.h"
 #include "solver.h"
 #include "world.h"
 #include "world_internal.h"
@@ -659,7 +661,11 @@ static const ReplayCommand s_commands[m3_opCount] = {
     [m3_opJointSetTarget] = {m3ReplayJointSetTarget},
 };
 
-bool m3JournalReplayApply(m3World* world, const void* data, int32_t size)
+// Applies a tape's ops in order through the command table and reports
+// the first refusal: m3_errorCapacity when the op that failed was
+// refused memory, m3_errorInvalid otherwise. Partial application is
+// possible here; m3World_ReplayJournal below makes the whole call atomic.
+static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
 {
     const uint8_t* stream = (const uint8_t*)data;
     int32_t cursor = 0;
@@ -667,7 +673,7 @@ bool m3JournalReplayApply(m3World* world, const void* data, int32_t size)
     {
         if (cursor + 8 > size)
         {
-            return false; // truncated header: reject loudly
+            return m3_errorInvalid; // truncated header: reject loudly
         }
         m3ReplayRecord r;
         memcpy(&r.op, stream + cursor, 4);
@@ -675,18 +681,69 @@ bool m3JournalReplayApply(m3World* world, const void* data, int32_t size)
         cursor += 8;
         if (r.bytes < 0 || cursor + r.bytes > size)
         {
-            return false; // truncated payload
+            return m3_errorInvalid; // truncated payload
         }
         r.payload = stream + cursor;
         cursor += r.bytes;
         if (r.op <= 0 || r.op >= m3_opCount || s_commands[r.op].apply == NULL)
         {
-            return false; // unknown op: reject loudly, never skip
+            return m3_errorInvalid; // unknown op: reject loudly, never skip
         }
+        int64_t refused = world->heap.refusedCalls;
         if (!s_commands[r.op].apply(world, &r))
         {
-            return false;
+            // An op the allocator turned down leaves the tape good.
+            return world->heap.refusedCalls != refused ? m3_errorCapacity : m3_errorInvalid;
         }
     }
-    return cursor == size;
+    return cursor == size ? m3_success : m3_errorInvalid;
+}
+
+m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
+{
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorState);
+    }
+    // A tape is untrusted data like a snapshot: a damaged or truncated one
+    // is refused with m3_errorInvalid and counts no misuse.
+    if (world == NULL || size < 0 || (data == NULL && size > 0))
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    if (size == 0)
+    {
+        return m3_success; // an empty tape holds no op
+    }
+    // Atomic replay: the world either takes the whole session or none of
+    // it. A snapshot of the world before the first op, with the whole
+    // restore of it prepared, backs out any partial application on
+    // refusal without taking memory, so a damaged tape or an op the
+    // allocator turns down can never leave a half-built world behind.
+    int32_t snapBytes = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)m3AllocZeroed(&world->heap, snapBytes);
+    if (snap == NULL)
+    {
+        return m3_errorCapacity; // no memory for the guarantee means no replay
+    }
+    int32_t written = 0;
+    m3RestoreStage backOut;
+    if (m3World_Snapshot(world, snap, snapBytes, &written) != m3_success || written != snapBytes ||
+        m3RestorePrepare(world, snap, snapBytes, &backOut) != m3_success)
+    {
+        // The world's own snapshot is always valid: only memory fails here.
+        m3Free(&world->heap, snap);
+        return m3_errorCapacity;
+    }
+    m3Result applied = ReplayApply(world, data, size);
+    if (applied != m3_success)
+    {
+        m3RestoreCommit(world, &backOut);
+    }
+    else
+    {
+        m3RestoreDrop(world, &backOut);
+    }
+    m3Free(&world->heap, snap);
+    return applied;
 }
