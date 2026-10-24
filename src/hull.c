@@ -233,17 +233,17 @@ static bool IsItsOwnBox(const m3HullData* hull)
 }
 
 // How far a hull's planes may sit from the planes its vertices define.
-// QuickHull derives them by Newell's method about a point the hull does
-// not store, so a restore cannot rebuild them bit for bit; for a sliver
-// face Newell's normal is ill-conditioned and moves by about 1e-4 with
-// that point, and merged faces hold their loops to about 1e-3 of the
-// extent. Far from the body's origin the floats themselves are coarse:
-// rounding the vertices, the offsets and the check's own dot products
-// moves a distance by up to 2.5 ulps of the largest coordinate. The
-// tolerances take those with a margin and refuse a plane that misplaces
-// its face or leaves a vertex outside the hull.
+// QuickHull works its planes in double about a point the hull does not
+// store, so a restore cannot rebuild them bit for bit, and it merges
+// faces whose vertices lie within its tolerance of one plane: measured,
+// a vertex sits up to 8e-6 of the extent off a plane. Far from the
+// body's origin the floats themselves are coarse: rounding the
+// vertices, the offsets and the check's own dot products moves a
+// distance by up to 2.5 ulps of the largest coordinate. The tolerances
+// take those with a margin and refuse a plane that misplaces its face
+// or leaves a vertex outside the hull.
 #define M3_HULL_NORMAL_TOLERANCE   1.0e-3f // | |n| - 1 |
-#define M3_HULL_PLANE_TOLERANCE    1.0e-2f // distances, times the hull's extent
+#define M3_HULL_PLANE_TOLERANCE    1.0e-4f // distances, times the hull's extent
 #define M3_HULL_ROUNDING_TOLERANCE 16.0f   // distances, in FLT_EPSILON of the largest coordinate
 
 // The distance a vertex may sit off a plane: a share of the hull's

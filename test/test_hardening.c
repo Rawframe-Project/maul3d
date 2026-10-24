@@ -491,10 +491,8 @@ static int32_t HullCloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
 
 // A restore accepts every hull a create makes: hulls from every kind of
 // cloud, near-degenerate ones included, created, snapshotted and
-// restored. A create either takes its cloud or refuses it as invalid;
-// tight clusters of near-duplicate points make QuickHull emit planes that
-// leave vertices outside the hull, and the wall refuses those at create
-// rather than creating a hull that collides wrongly.
+// restored. Every cloud creates, tight clusters of near-duplicate points
+// too: QuickHull welds them and its planes hold to the wall.
 static void TestRestoreAcceptsEveryCreatedHull(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -506,8 +504,6 @@ static void TestRestoreAcceptsEveryCreatedHull(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     uint64_t rng = 0xC10D5ull;
     int32_t created = 0;
-    int32_t refusedTight = 0;
-    bool loud = true;
     for (int32_t kind = 0; kind < 7; ++kind)
     {
         for (int32_t round = 0; round < 100; ++round)
@@ -517,13 +513,10 @@ static void TestRestoreAcceptsEveryCreatedHull(void)
             m3ShapeId shape = m3_nullShapeId;
             m3Result result = m3CreateHullShape(world, ground, &sd, pts, count, &shape);
             created += result == m3_success ? 1 : 0;
-            refusedTight += result != m3_success && kind == 4 ? 1 : 0;
-            loud = loud && (result == m3_success || result == m3_errorInvalid);
-            loud = loud && (kind == 4 || kind == 2 || kind == 3 || result == m3_success);
         }
     }
-    printf("M3_HULL_RESTORE created=%d refused-tight=%d\n", created, refusedTight);
-    CHECK(loud, "every cloud but a degenerate one creates, and a refusal is invalid");
+    printf("M3_HULL_RESTORE created=%d of 700\n", created);
+    CHECK(created == 700, "every cloud creates, tight clusters included");
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the hull world is snapshotted");
@@ -651,6 +644,83 @@ static void TestRestoreRefusesBadHullDerived(void)
             PoisonF32(vertsAt - 48, 1.5f * inertiaXX, "an inertia the vertices do not give");
         poisons[n++] = PoisonF32(vertsAt, -2.0e4f, "a vertex past the local limit is refused");
         CheckPoisonsRefused(world, clean, size, poisons, n);
+    }
+    free(clean);
+    m3DestroyWorld(world);
+}
+
+// A needle's side planes are held to a share of the hull's extent, so a
+// slack of 1e-2 of the extent let a forged side plane sit several of
+// the needle's widths off. QuickHull's planes now hold to 1e-5 of the
+// extent and the slack is 1e-4: a side plane pushed out by a quarter of
+// the width along it is refused.
+static void TestRestoreRefusesForgedNeedlePlane(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    // A needle 2 long and 4e-3 thick along a slanted axis. The first
+    // point is the origin, inside the needle, so QuickHull works about it
+    // and the corners are stored as given, in input order.
+    const m3Vec3 axis = {0.8f, 0.48f, 0.36f};
+    const m3Vec3 side = {-0.6f, 0.8f, 0.0f};
+    const m3Vec3 up = m3Cross3(axis, side);
+    m3Vec3 pts[9] = {{0.0f, 0.0f, 0.0f}};
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        float a = (i & 1) != 0 ? 1.0f : -1.0f;
+        float s = (i & 2) != 0 ? 2.0e-3f : -2.0e-3f;
+        float u = (i & 4) != 0 ? 2.0e-3f : -2.0e-3f;
+        pts[i + 1] = m3Add3(m3Add3(m3MulSV3(a, axis), m3MulSV3(s, side)), m3MulSV3(u, up));
+    }
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    NewHullShape(world, NewBody(world, &bd), &sd, pts, 9);
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the needle world is snapshotted");
+    int32_t vertsAt =
+        clean != NULL ? FindBytes(clean, size, &pts[1], 2 * (int32_t)sizeof(m3Vec3)) : -1;
+    int32_t vc = 0;
+    int32_t fc = 0;
+    if (vertsAt >= 80)
+    {
+        memcpy(&vc, clean + vertsAt - 80, 4);
+        memcpy(&fc, clean + vertsAt - 76, 4);
+    }
+    int32_t normalsAt = vertsAt + vc * 12;
+    int32_t offsetsAt = normalsAt + fc * 12;
+    CHECK(vertsAt >= 80 && vc == 8 && fc == 6 && offsetsAt + fc * 4 <= size,
+          "the needle's content is found");
+    if (vertsAt >= 80 && vc == 8 && fc == 6 && offsetsAt + fc * 4 <= size)
+    {
+        // The face across which the needle is thinnest: a side face.
+        int32_t thin = 0;
+        float thinWidth = 1.0e30f;
+        for (int32_t f = 0; f < fc; ++f)
+        {
+            m3Vec3 n;
+            memcpy(&n, clean + normalsAt + 12 * f, sizeof(n));
+            float lo = 1.0e30f;
+            float hi = -1.0e30f;
+            for (int32_t i = 1; i < 9; ++i)
+            {
+                lo = fminf(lo, m3Dot3(n, pts[i]));
+                hi = fmaxf(hi, m3Dot3(n, pts[i]));
+            }
+            thin = hi - lo < thinWidth ? f : thin;
+            thinWidth = fminf(thinWidth, hi - lo);
+        }
+        float offset;
+        memcpy(&offset, clean + offsetsAt + 4 * thin, 4);
+        CHECK(thinWidth < 5.0e-3f, "the needle is about 4e-3 thick");
+        Poison poison = PoisonF32(offsetsAt + 4 * thin, offset + 0.25f * thinWidth,
+                                  "a needle's side plane a quarter width out is refused");
+        CheckPoisonsRefused(world, clean, size, &poison, 1);
     }
     free(clean);
     m3DestroyWorld(world);
@@ -855,6 +925,16 @@ static void TestUntrustedDataCountsNoMisuse(void)
     snap[0] ^= 0xFFu;
     CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a damaged magic is refused");
     snap[0] ^= 0xFFu;
+    // Format 1 held hulls to QuickHull's float planes, which the wall no
+    // longer takes; its snapshots are refused by version, not by plane.
+    uint32_t format = 0;
+    memcpy(&format, snap + 4, 4);
+    CHECK(format == 2u, "a snapshot is written in format 2");
+    format = 1u;
+    memcpy(snap + 4, &format, 4);
+    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a format 1 snapshot is refused");
+    format = 2u;
+    memcpy(snap + 4, &format, 4);
     CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorInvalid,
           "a tape one byte short is refused");
     CHECK(m3World_GetCounters(world).misuse == before, "and none of it counts as misuse");
@@ -1057,6 +1137,7 @@ int main(void)
     TestRestoreAcceptsEveryCreatedHull();
     TestFarHullsCreate();
     TestRestoreRefusesBadHullDerived();
+    TestRestoreRefusesForgedNeedlePlane();
     TestRestoreRefusesBadHeightFieldContent();
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();
