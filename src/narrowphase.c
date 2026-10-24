@@ -497,31 +497,67 @@ static void CollideSphereSpherePair(m3World* world, m3Manifold* fresh, int32_t s
     }
 }
 
+// The function pointer rides in a struct so the table is plain const data.
+typedef struct PairCollider
+{
+    m3CollidePairFn* collide;
+} PairCollider;
+
 // Which collider handles a pair, by the two shape types. The order of
 // precedence: voxel, heightfield and mesh pairs route to their own
 // pipelines; then plane-hull, hull-hull, plane-capsule and hull-capsule
 // have dedicated kernels; any other pair with a hull or a capsule goes
 // through GJK on the cores; the rest are plane-sphere and sphere-sphere.
-static m3CollidePairFn* const s_colliders[M3_SHAPE_TYPE_COUNT][M3_SHAPE_TYPE_COUNT] = {
-    [m3_sphereShape] = {CollideSphereSpherePair, CollidePlaneSpherePair, CollideConvexGjkPair,
-                        CollideConvexGjkPair, CollideMeshPair, CollideVoxelPair,
-                        CollideHeightFieldPair},
-    [m3_planeShape] = {CollidePlaneSpherePair, CollidePlaneSpherePair, CollidePlaneHullPair,
-                       CollidePlaneCapsulePair, CollideMeshPair, CollideVoxelPair,
-                       CollideHeightFieldPair},
-    [m3_hullShape] = {CollideConvexGjkPair, CollidePlaneHullPair, CollideHullHullPair,
-                      CollideHullCapsulePair, CollideMeshPair, CollideVoxelPair,
-                      CollideHeightFieldPair},
-    [m3_capsuleShape] = {CollideConvexGjkPair, CollidePlaneCapsulePair, CollideHullCapsulePair,
-                         CollideConvexGjkPair, CollideMeshPair, CollideVoxelPair,
-                         CollideHeightFieldPair},
-    [m3_meshShape] = {CollideMeshPair, CollideMeshPair, CollideMeshPair, CollideMeshPair,
-                      CollideMeshPair, CollideVoxelPair, CollideHeightFieldPair},
-    [m3_voxelShape] = {CollideVoxelPair, CollideVoxelPair, CollideVoxelPair, CollideVoxelPair,
-                       CollideVoxelPair, CollideVoxelPair, CollideVoxelPair},
-    [m3_heightFieldShape] = {CollideHeightFieldPair, CollideHeightFieldPair, CollideHeightFieldPair,
-                             CollideHeightFieldPair, CollideHeightFieldPair, CollideVoxelPair,
-                             CollideHeightFieldPair},
+static const PairCollider s_colliders[M3_SHAPE_TYPE_COUNT][M3_SHAPE_TYPE_COUNT] = {
+    [m3_sphereShape] = {{CollideSphereSpherePair},
+                        {CollidePlaneSpherePair},
+                        {CollideConvexGjkPair},
+                        {CollideConvexGjkPair},
+                        {CollideMeshPair},
+                        {CollideVoxelPair},
+                        {CollideHeightFieldPair}},
+    [m3_planeShape] = {{CollidePlaneSpherePair},
+                       {CollidePlaneSpherePair},
+                       {CollidePlaneHullPair},
+                       {CollidePlaneCapsulePair},
+                       {CollideMeshPair},
+                       {CollideVoxelPair},
+                       {CollideHeightFieldPair}},
+    [m3_hullShape] = {{CollideConvexGjkPair},
+                      {CollidePlaneHullPair},
+                      {CollideHullHullPair},
+                      {CollideHullCapsulePair},
+                      {CollideMeshPair},
+                      {CollideVoxelPair},
+                      {CollideHeightFieldPair}},
+    [m3_capsuleShape] = {{CollideConvexGjkPair},
+                         {CollidePlaneCapsulePair},
+                         {CollideHullCapsulePair},
+                         {CollideConvexGjkPair},
+                         {CollideMeshPair},
+                         {CollideVoxelPair},
+                         {CollideHeightFieldPair}},
+    [m3_meshShape] = {{CollideMeshPair},
+                      {CollideMeshPair},
+                      {CollideMeshPair},
+                      {CollideMeshPair},
+                      {CollideMeshPair},
+                      {CollideVoxelPair},
+                      {CollideHeightFieldPair}},
+    [m3_voxelShape] = {{CollideVoxelPair},
+                       {CollideVoxelPair},
+                       {CollideVoxelPair},
+                       {CollideVoxelPair},
+                       {CollideVoxelPair},
+                       {CollideVoxelPair},
+                       {CollideVoxelPair}},
+    [m3_heightFieldShape] = {{CollideHeightFieldPair},
+                             {CollideHeightFieldPair},
+                             {CollideHeightFieldPair},
+                             {CollideHeightFieldPair},
+                             {CollideHeightFieldPair},
+                             {CollideVoxelPair},
+                             {CollideHeightFieldPair}},
 };
 
 void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uint64_t* oldKeys,
@@ -540,7 +576,7 @@ void m3UpdateContactsRange(m3World* world, int32_t start, int32_t end, const uin
         m3Manifold fresh;
         uint8_t typeA = world->shapes.shapeType[shapeA];
         uint8_t typeB = world->shapes.shapeType[shapeB];
-        s_colliders[typeA][typeB](world, &fresh, shapeA, shapeB);
+        s_colliders[typeA][typeB].collide(world, &fresh, shapeA, shapeB);
 
         // Warm-start carry: find the old manifold for this key and
         // match points by feature id.

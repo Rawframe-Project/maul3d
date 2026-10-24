@@ -71,9 +71,9 @@ jobs:
           [ -n "$files" ] || { echo "::error::no C sources found"; exit 1; }
           echo "$files" | xargs clang-format --dry-run -Werror
       - name: Family checks
-        # check_source and check_docs arrive with the API that meets the
-        # family conventions.
+        # check_docs arrives with the documentation rewrite.
         run: |
+          python3 tools/check_source.py
           python3 tools/check_modules.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
