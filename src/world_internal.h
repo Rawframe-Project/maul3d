@@ -919,11 +919,13 @@ typedef struct m3World
     int32_t lastIslandCount; // last completed step
     int32_t lastColorCount;  // last completed step
     int32_t lastScratchPeak; // bytes, last completed step
-    volatile long long
-        misuseCount; // cumulative refusals; atomic access only (m3Refuse, m3MisuseCount)
+    // Cumulative refusals; atomic access only (m3Refuse, m3MisuseCount).
+    // Both counters are 8-byte aligned, which a 64-bit integer in a struct
+    // is not on 32-bit x86, so their atomics are lock-free everywhere.
+    alignas(8) volatile long long misuseCount;
     // Step and Draw calls in progress, host code included; atomic access
     // only (m3WorldEnter, m3WorldLeave, m3WorldBusy).
-    volatile long long busyCount;
+    alignas(8) volatile long long busyCount;
 
     m3Bodies bodies;
     m3Shapes shapes;
