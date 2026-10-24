@@ -10,6 +10,7 @@
 
 #include "maul3d/shape.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -666,6 +667,12 @@ static void TestGenericCasts(void)
     hit = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, tetra, 1,
                                   (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(!hit.hit, "a one-point cloud misses by contract (that is a ray)");
+    m3Vec3 poisoned[4] = {tetra[0], tetra[1], {NAN, 0.0f, 0.0f}, tetra[3]};
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    hit = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, poisoned, 4,
+                                  (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(!hit.hit && m3World_GetCounters(world).misuse == misuse + 1,
+          "a cloud with a non-finite point misses and counts one misuse");
     hit = m3World_CastBoxClosest(world, (m3Pos3){40.0, 4.0, 40.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
                                  identity, (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(!hit.hit, "a cast into open air misses");
