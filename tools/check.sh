@@ -31,6 +31,8 @@
 # runs when the organization's .github checkout is at ORG_DEFAULTS
 # (default: ../../.github from the repository). On a shared machine, run
 # it through the workspace's tools/heavy.sh.
+# JOBS sets the parallel jobs, at most CMAKE_BUILD_PARALLEL_LEVEL when that
+# is set; the default is 8.
 set -euo pipefail
 
 tier=${1:-changed}
@@ -47,7 +49,18 @@ root=$PWD
 out=$root/out
 mkdir -p "$out"
 org=${ORG_DEFAULTS:-$root/../../.github}
-jobs=${JOBS:-8}
+# Parallel jobs: JOBS, else CMAKE_BUILD_PARALLEL_LEVEL, else 8, and never
+# more than CMAKE_BUILD_PARALLEL_LEVEL when it is set, since a shared
+# machine sets it as the cap.
+jobs=${JOBS:-${CMAKE_BUILD_PARALLEL_LEVEL:-8}}
+cap=${CMAKE_BUILD_PARALLEL_LEVEL:-$jobs}
+for n in "$jobs" "$cap"; do
+    [[ "$n" =~ ^[1-9][0-9]*$ ]] || {
+        echo "JOBS and CMAKE_BUILD_PARALLEL_LEVEL must be positive integers" >&2
+        exit 2
+    }
+done
+[ "$jobs" -le "$cap" ] || jobs=$cap
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -56,7 +69,7 @@ step() { printf '\n== %s\n' "$*"; }
 preset() {
     local name=$1
     shift
-    step "preset $name"
+    step "preset $name, $jobs jobs"
     cmake --preset "$name" >"$out/$name.log"
     cmake --build --preset "$name" -j "$jobs" >>"$out/$name.log"
     ctest --preset "$name" -j "$jobs" "$@"
@@ -102,14 +115,31 @@ tidy() { # files
         --warnings-as-errors='*' --checks=-readability-function-cognitive-complexity 2>/dev/null
 }
 
-# The files CI formats: the bindings keep their own languages' styles.
+# The files CI formats, untracked ones included, since they are about to
+# be committed: the bindings keep their own languages' styles.
 all_c_files() {
-    git ls-files 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' 'tools/*.[ch]' 'bench/*.[ch]' \
-        'samples/*.[ch]' 'testbed/*.[ch]'
+    git ls-files --cached --others --exclude-standard 'include/*.h' 'src/*.[ch]' 'test/*.[ch]' \
+        'tools/*.[ch]' 'bench/*.[ch]' 'samples/*.[ch]' 'testbed/*.[ch]'
+}
+
+# Whether CI formats this path: the same globs, where * crosses folders
+# as it does in git's pathspecs.
+formatted() {
+    case "$1" in
+    include/*.h | src/*.[ch] | test/*.[ch] | tools/*.[ch] | bench/*.[ch] | samples/*.[ch] | \
+        testbed/*.[ch]) return 0 ;;
+    *) return 1 ;;
+    esac
 }
 
 if [ "$tier" = changed ]; then
-    base=$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)
+    # Against HEAD the diff would hold only uncommitted work and check
+    # nothing that is committed.
+    if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+        echo "origin/main is missing: run git fetch origin main first" >&2
+        exit 2
+    fi
+    base=$(git merge-base HEAD origin/main)
     mapfile -t changed < <({
         git diff --name-only "$base"
         git ls-files --others --exclude-standard
@@ -119,10 +149,9 @@ if [ "$tier" = changed ]; then
         exit 0
     fi
     source_checks
-    mapfile -t formatted < <(all_c_files)
     present=()
     for f in "${changed[@]}"; do
-        if [ -f "$f" ] && printf '%s\n' "${formatted[@]}" | grep -qxF "$f"; then
+        if [ -f "$f" ] && formatted "$f"; then
             present+=("$f")
         fi
     done
@@ -130,9 +159,14 @@ if [ "$tier" = changed ]; then
         step "clang-format on ${#present[@]} changed files"
         clang-format --dry-run -Werror "${present[@]}"
     fi
-    if printf '%s\n' "${changed[@]}" | grep -qE '^(include/maul3d/|bindings/)'; then
-        bindings
-    fi
+    for f in "${changed[@]}"; do
+        case "$f" in
+        include/maul3d/* | bindings/*)
+            bindings
+            break
+            ;;
+        esac
+    done
     sources=()
     for f in "${present[@]+"${present[@]}"}"; do
         case "$f" in src/*.c) sources+=("$f") ;; esac
