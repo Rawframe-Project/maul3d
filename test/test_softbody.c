@@ -696,7 +696,7 @@ static void TestRestoreKeepsPoolCursors(void)
     m3DestroyWorld(world);
 }
 
-static void TestAnchorRedTeam(void)
+static void TestAnchorTableLimits(void)
 {
     // The anchor table's books: exactly 32 anchors fit, the 33rd is
     // a quiet no-op; anchors to a destroyed body release silently
@@ -878,7 +878,7 @@ int main(void)
     TestTetBodies();
     TestBindTether();
     TestRestoreKeepsPoolCursors();
-    TestAnchorRedTeam();
+    TestAnchorTableLimits();
     TestThinTriangles();
     if (s_failures == 0)
     {

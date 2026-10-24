@@ -671,7 +671,7 @@ static void TestWeldedSeamWalk(void)
 }
 
 // Stairs, slopes, the voxel floor, and the welded seam.
-static void TestHostileMovesRedTeam(void)
+static void TestHostileMoves(void)
 {
     // Red team: the walker takes abuse without corruption. A
     // planetary-scale move stops at the first wall like any other;
@@ -738,7 +738,7 @@ int main(void)
     TestPlatformRideAndElevator();
     TestCarouselAndFragmentSurf();
     TestCharacterOnCharacter();
-    TestHostileMovesRedTeam();
+    TestHostileMoves();
     if (s_failures == 0)
     {
         printf("test_character: all green\n");
