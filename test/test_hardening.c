@@ -438,6 +438,224 @@ static void TestRestoreRefusesBadHullContent(void)
     m3DestroyWorld(world);
 }
 
+static uint64_t NextRandom(uint64_t* state)
+{
+    *state = *state * 6364136223846793005ull + 1442695040888963407ull;
+    return *state >> 33;
+}
+
+static float RandomIn(uint64_t* state, float lo, float hi)
+{
+    return lo + (hi - lo) * (float)NextRandom(state) / 2147483648.0f;
+}
+
+// A point cloud of one kind: a blob, a small rock, a slab, a needle, four
+// tight or loose clusters of near-duplicate points, or a large blob.
+static int32_t HullCloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
+{
+    static const m3Vec3 corners[4] = {
+        {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {-1.0f, -1.0f, -1.0f}};
+    int32_t count = 8 + (int32_t)(NextRandom(rng) % 17);
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m3Vec3 p = {RandomIn(rng, -1.0f, 1.0f), RandomIn(rng, -1.0f, 1.0f),
+                    RandomIn(rng, -1.0f, 1.0f)};
+        switch (kind)
+        {
+        case 1:
+            p = m3MulSV3(0.3f, p);
+            break;
+        case 2:
+            p.y *= 1.0e-3f;
+            break;
+        case 3:
+            p.y *= 1.0e-3f;
+            p.z *= 1.0e-3f;
+            break;
+        case 4:
+            p = m3Add3(corners[i % 4], m3MulSV3(1.0e-4f, p));
+            break;
+        case 5:
+            p = m3Add3(corners[i % 4], m3MulSV3(1.0e-2f, p));
+            break;
+        case 6:
+            p = m3MulSV3(9.0e3f, p);
+            break;
+        default:
+            break;
+        }
+        pts[i] = p;
+    }
+    return count;
+}
+
+// A restore accepts every hull a create makes: hulls from every kind of
+// cloud, near-degenerate ones included, created, snapshotted and
+// restored. A create either takes its cloud or refuses it as invalid;
+// tight clusters of near-duplicate points make QuickHull emit planes that
+// leave vertices outside the hull, and the wall refuses those at create
+// rather than creating a hull that collides wrongly.
+static void TestRestoreAcceptsEveryCreatedHull(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 800;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    uint64_t rng = 0xC10D5ull;
+    int32_t created = 0;
+    int32_t refusedTight = 0;
+    bool loud = true;
+    for (int32_t kind = 0; kind < 7; ++kind)
+    {
+        for (int32_t round = 0; round < 100; ++round)
+        {
+            m3Vec3 pts[24];
+            int32_t count = HullCloud(&rng, kind, pts);
+            m3ShapeId shape = m3_nullShapeId;
+            m3Result result = m3CreateHullShape(world, ground, &sd, pts, count, &shape);
+            created += result == m3_success ? 1 : 0;
+            refusedTight += result != m3_success && kind == 4 ? 1 : 0;
+            loud = loud && (result == m3_success || result == m3_errorInvalid);
+            loud = loud && (kind == 4 || kind == 2 || kind == 3 || result == m3_success);
+        }
+    }
+    printf("M3_HULL_RESTORE created=%d refused-tight=%d\n", created, refusedTight);
+    CHECK(loud, "every cloud but a degenerate one creates, and a refusal is invalid");
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the hull world is snapshotted");
+    CHECK(snap != NULL && Restore(world, snap, size), "every created hull restores");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+// A small hull far from its body's origin creates and restores: the
+// floats there are coarse (an ulp is about 1e-3 at 9e3), and the wall's
+// plane slack takes their rounding as well as its share of the extent.
+// Offsets run along an axis and a diagonal up to the local limit, sizes
+// from a centimetre to a metre.
+static void TestFarHullsCreate(void)
+{
+    static const float offsets[7] = {0.0f, 1.0e1f, 1.0e2f, 1.0e3f, 3.0e3f, 9.0e3f, 9.9e3f};
+    static const float sizes[3] = {1.0e-2f, 1.0e-1f, 1.0f};
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 900;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    uint64_t rng = 0xFA2ull;
+    int32_t refused = 0;
+    for (int32_t i = 0; i < 7 * 2 * 3 * 20; ++i)
+    {
+        float offset = offsets[i / 120];
+        float size = sizes[i % 3];
+        m3Vec3 center = (i / 60) % 2 == 0 ? (m3Vec3){offset, 0.0f, 0.0f}
+                                          : m3MulSV3(offset * 0.57735f, (m3Vec3){1.0f, 1.0f, 1.0f});
+        m3Vec3 pts[16];
+        for (int32_t k = 0; k < 16; ++k)
+        {
+            m3Vec3 p = {RandomIn(&rng, -0.5f, 0.5f), RandomIn(&rng, -0.5f, 0.5f),
+                        RandomIn(&rng, -0.5f, 0.5f)};
+            pts[k] = m3Add3(center, m3MulSV3(size, p));
+        }
+        m3ShapeId shape = m3_nullShapeId;
+        if (m3CreateHullShape(world, ground, &sd, pts, 16, &shape) != m3_success)
+        {
+            refused += 1;
+            if (refused == 1)
+            {
+                printf("M3_FAR_HULL refused offset=%g size=%g\n", (double)offset, (double)size);
+            }
+        }
+    }
+    printf("M3_FAR_HULL refused=%d of 840\n", refused);
+    CHECK(refused == 0, "a small hull far from its body's origin creates");
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the far hulls are snapshotted");
+    CHECK(snap != NULL && Restore(world, snap, size), "every far hull restores");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+// A restore lands a hull's planes and mass properties only as the
+// builders make them: a plane that misplaces its face or leaves a vertex
+// outside, a NaN in a plane, mass properties the vertices do not give,
+// or a vertex past the local limit is refused as invalid.
+static void TestRestoreRefusesBadHullDerived(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    // A perturbed cube: every point is a hull vertex, in input order, and
+    // the hull is no box, so its planes and mass come from QuickHull.
+    const m3Vec3 rock[8] = {{-0.31f, -0.29f, -0.33f}, {0.32f, -0.30f, -0.28f},
+                            {0.30f, 0.33f, -0.31f},   {-0.28f, 0.31f, -0.30f},
+                            {-0.33f, -0.28f, 0.29f},  {0.29f, -0.31f, 0.32f},
+                            {0.31f, 0.30f, 0.33f},    {-0.30f, 0.32f, 0.28f}};
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.85, 0.0};
+    NewHullShape(world, NewBody(world, &bd), &sd, rock, 8);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the rock world is snapshotted");
+    // Before the vertices come the four counts, the unit mass, the
+    // centroid, the inertia and the center; after them the face normals
+    // and offsets.
+    int32_t vertsAt =
+        clean != NULL ? FindBytes(clean, size, rock, 2 * (int32_t)sizeof(m3Vec3)) : -1;
+    int32_t vc = 0;
+    int32_t fc = 0;
+    if (vertsAt >= 80)
+    {
+        memcpy(&vc, clean + vertsAt - 80, 4);
+        memcpy(&fc, clean + vertsAt - 76, 4);
+    }
+    int32_t normalsAt = vertsAt + vc * 12;
+    int32_t offsetsAt = normalsAt + fc * 12;
+    CHECK(vertsAt >= 80 && vc == 8 && fc >= 6 && offsetsAt + fc * 4 <= size,
+          "the rock's content is found");
+    if (vertsAt >= 80 && vc == 8 && fc >= 6 && offsetsAt + fc * 4 <= size)
+    {
+        float n0[3];
+        float off0;
+        float mass;
+        float comX;
+        float inertiaXX;
+        memcpy(n0, clean + normalsAt, sizeof(n0));
+        memcpy(&off0, clean + offsetsAt, 4);
+        memcpy(&mass, clean + vertsAt - 64, 4);
+        memcpy(&comX, clean + vertsAt - 60, 4);
+        memcpy(&inertiaXX, clean + vertsAt - 48, 4);
+        Poison poisons[8];
+        int32_t n = 0;
+        poisons[n] = PoisonF32(normalsAt, -n0[0], "a flipped normal is refused as invalid");
+        n += 1;
+        poisons[n] = PoisonF32(offsetsAt, off0 - 0.2f, "a plane below its face is refused");
+        n += 1;
+        poisons[n++] = PoisonF32(normalsAt + 4, NAN, "a NaN normal is refused as invalid");
+        poisons[n++] = PoisonF32(offsetsAt, NAN, "a NaN offset is refused as invalid");
+        poisons[n++] = PoisonF32(vertsAt - 64, 2.0f * mass, "a mass the vertices do not give");
+        poisons[n++] = PoisonF32(vertsAt - 60, comX + 0.01f, "a centroid the vertices do not give");
+        poisons[n++] =
+            PoisonF32(vertsAt - 48, 1.5f * inertiaXX, "an inertia the vertices do not give");
+        poisons[n++] = PoisonF32(vertsAt, -2.0e4f, "a vertex past the local limit is refused");
+        CheckPoisonsRefused(world, clean, size, poisons, n);
+    }
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 // A restore lands height field content only when the grid door would
 // take it: finite samples, a finite positive cell, and the extremes the
 // samples give.
@@ -836,6 +1054,9 @@ int main(void)
     TestRestoreRefusesBadCursors();
     TestRestoreRefusesBadMeshContent();
     TestRestoreRefusesBadHullContent();
+    TestRestoreAcceptsEveryCreatedHull();
+    TestFarHullsCreate();
+    TestRestoreRefusesBadHullDerived();
     TestRestoreRefusesBadHeightFieldContent();
     TestCreateWorldOutOfMemory();
     TestCapacityExhaustion();

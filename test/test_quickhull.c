@@ -233,6 +233,72 @@ static void TestHalfEdgeTwinLaw(void)
     }
 }
 
+// One cloud of a given kind: a random blob, a small rock as the bench's
+// city block throws, a thin slab, a needle, four tight clusters, and the
+// blob scaled to the local limit and to centimetres. Tighter clusters
+// (near-duplicate points) make QuickHull emit planes that leave vertices
+// outside the hull; the wall refuses those at create (see the hardening
+// suite).
+static int32_t Cloud(uint64_t* rng, int32_t kind, m3Vec3* pts)
+{
+    int32_t count = kind == 1 ? 8 : 8 + (int32_t)(SplitMix(rng) % 25);
+    float scale = kind == 5 ? 9.0e3f : (kind == 6 ? 1.0e-2f : 1.0f);
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m3Vec3 p = {RandRange(rng, -1.0f, 1.0f), RandRange(rng, -1.0f, 1.0f),
+                    RandRange(rng, -1.0f, 1.0f)};
+        if (kind == 1)
+        {
+            p = m3MulSV3(0.3f, p);
+        }
+        else if (kind == 2)
+        {
+            p.y *= 1.0e-3f; // a slab: sliver faces round its rim
+        }
+        else if (kind == 3)
+        {
+            p.y *= 1.0e-3f; // a needle
+            p.z *= 1.0e-3f;
+        }
+        else if (kind == 4)
+        {
+            // Four corners, each point within 1e-2 of one of them.
+            static const m3Vec3 corners[4] = {
+                {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {-1.0f, -1.0f, -1.0f}};
+            p = m3Add3(corners[i % 4], m3MulSV3(1.0e-2f, p));
+        }
+        pts[i] = m3MulSV3(scale, p);
+    }
+    return count;
+}
+
+static void TestEveryBuildPassesTheWall(void)
+{
+    // Restore holds hull content to the wall, so the wall must take every
+    // hull QuickHull builds, slivers and near-degenerate clouds included.
+    static const char* const kinds[7] = {"blobs",    "rocks", "slabs", "needles",
+                                         "clusters", "large", "small"};
+    uint64_t rng = 0x5EEDC0FFEEull;
+    for (int32_t kind = 0; kind < 7; ++kind)
+    {
+        int32_t built = 0;
+        int32_t refused = 0;
+        for (int32_t round = 0; round < 2000; ++round)
+        {
+            m3Vec3 pts[40];
+            int32_t count = Cloud(&rng, kind, pts);
+            m3HullData hull;
+            if (m3ComputeHull(&s_heap, pts, count, &hull))
+            {
+                built += 1;
+                refused += m3HullDataValid(&hull) ? 0 : 1;
+            }
+        }
+        printf("M3_QH_WALL %s built=%d refused=%d\n", kinds[kind], built, refused);
+        CHECK(refused == 0, "the wall takes every hull QuickHull builds");
+    }
+}
+
 static void TestHullWallSeesEveryEdge(void)
 {
     // The wall restore holds hull content to: what the builders make
@@ -355,6 +421,7 @@ int main(void)
     TestBoundaryClouds();
     TestHalfEdgeTwinLaw();
     TestHullWallSeesEveryEdge();
+    TestEveryBuildPassesTheWall();
     if (s_failures == 0)
     {
         printf("test_quickhull: all checks passed\n");
