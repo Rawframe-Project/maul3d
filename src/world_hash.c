@@ -60,13 +60,46 @@ enum
 {
     M3_HASH_KEY_BODY_MOTION = 1,
     M3_HASH_KEY_JOINT_ROWS = 2,
-    M3_HASH_KEY_MESH_PAINT = 3
+    M3_HASH_KEY_MESH_PAINT = 3,
+    M3_HASH_KEY_POOL_IDS = 4
 };
 
 static uint64_t HashKey(uint64_t h, int32_t slot, uint8_t field)
 {
     h = m3Hash64(h, &slot, 4);
     return m3Hash64(h, &field, 1);
+}
+
+// A pool's identity: which slots live, their generations, the free ring
+// in reuse order and the cursors. It decides where the next create lands
+// and which ids the program holds, so equal hashes mean the same future
+// ids. Keyed by the pool's place in the walk.
+static uint64_t HashPool(uint64_t h, const m3IdPool* pool, int32_t which)
+{
+    h = HashKey(h, which, M3_HASH_KEY_POOL_IDS);
+    h = m3Hash64(h, &pool->maxIndex, 4);
+    h = m3Hash64(h, pool->alive, pool->maxIndex);
+    h = m3Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint16_t));
+    h = m3Hash64(h, &pool->freeCount, 4);
+    for (int32_t k = 0; k < pool->freeCount; ++k)
+    {
+        h = m3Hash64(h, &pool->freeQueue[(pool->freeHead + k) % pool->capacity], 4);
+    }
+    return m3Hash64(h, &pool->retiredCount, 4);
+}
+
+static uint64_t HashPools(const m3World* world, uint64_t h)
+{
+    const m3IdPool* pools[] = {
+        &world->bodies.bodyPool,     &world->shapes.shapePool,    &world->hulls.hullPool,
+        &world->meshes.meshPool,     &world->heightFields.hfPool, &world->voxels.voxelPool,
+        &world->joints.jointPool,    &world->characters.charPool, &world->vehicles.vehPool,
+        &world->softBodies.softPool, &world->water.waterPool};
+    for (int32_t p = 0; p < (int32_t)(sizeof(pools) / sizeof(pools[0])); ++p)
+    {
+        h = HashPool(h, pools[p], p);
+    }
+    return h;
 }
 
 static uint64_t HashBodies(const m3World* world, uint64_t h)
@@ -185,6 +218,11 @@ static uint64_t HashShapes(const m3World* world, uint64_t h)
             // their exact hash input set (the golden must not move
             // for worlds that never touch voxels).
             h = m3Hash64(h, &world->shapes.shapeVoxelIndex[i], 4);
+        }
+        if (world->shapes.shapeType[i] == (uint8_t)m3_heightFieldShape)
+        {
+            // The step reads the grid through this index.
+            h = m3Hash64(h, &world->shapes.shapeHfIndex[i], 4);
         }
     }
     return h;
@@ -590,6 +628,7 @@ uint64_t m3World_Hash(const m3World* world)
     // Dead slots contribute only their liveness byte: destroy zeroes
     // state, but the hash must not depend on that coincidence.
     uint64_t h = HashWorldHeader(world, M3_HASH_INIT);
+    h = HashPools(world, h);
     h = HashBodies(world, h);
     h = HashShapes(world, h);
     h = HashCharacters(world, h);

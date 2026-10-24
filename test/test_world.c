@@ -800,6 +800,37 @@ static void CheckHashSeesWhichBody(void)
     m3DestroyWorld(two.world);
 }
 
+// Three bodies at one place, two destroyed in the given order: the
+// survivors match, the free queue's order does not.
+static m3World* DestroyInOrder(int32_t first, int32_t second)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 4;
+    wd.shapeCapacity = 4;
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId bodies[3];
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        bodies[i] = NewBody(world, &bd);
+    }
+    DestroyBody(world, bodies[first]);
+    DestroyBody(world, bodies[second]);
+    return world;
+}
+
+static void CheckHashSeesFreeOrder(void)
+{
+    m3World* one = DestroyInOrder(0, 1);
+    m3World* two = DestroyInOrder(1, 0);
+    CHECK(m3World_Hash(one) != m3World_Hash(two), "the hash sees the free queue's order");
+    m3BodyDef bd = m3DefaultBodyDef();
+    CHECK(NewBody(one, &bd).index1 != NewBody(two, &bd).index1,
+          "and the next create lands in a different slot");
+    m3DestroyWorld(one);
+    m3DestroyWorld(two);
+}
+
 static void TestHashSeesSetterState(void)
 {
     CheckHashSees(0, "the hash sees a painted mesh");
@@ -810,6 +841,7 @@ static void TestHashSeesSetterState(void)
     CheckHashSees(5, "the hash sees motor values");
     CheckHashSees(6, "the hash sees a connected pair allowed to collide");
     CheckHashSeesWhichBody();
+    CheckHashSeesFreeOrder();
 }
 
 int main(void)
