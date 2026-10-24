@@ -302,9 +302,9 @@ static void TestEveryBuildPassesTheWall(void)
 // tetrahedron, of a cube and of four to six random points, each point
 // within a spread of its corner, the spread swept from 1e-4 to 1e-1 of
 // the corners' distance; then needles 4e-3 thick on random axes. Float
-// planes on the sliver faces such clusters make used to leave vertices
-// up to the hull's extent outside it. Every cloud must build a hull the
-// wall takes.
+// planes on the sliver faces such clusters make are where a vertex can
+// end up outside the hull, by as much as the hull's extent. Every cloud
+// must build a hull the wall takes.
 static void TestClusterSweep(void)
 {
     static const m3Vec3 tetra[4] = {

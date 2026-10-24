@@ -338,9 +338,9 @@ bool m3ReplayCreateSoftBodyTet(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     // Journal records are byte-packed: typed pointers into the
-    // stream are misaligned UB (the replayfile fuzz caught the
-    // heightfield twin of this line). Aligned stack copies,
-    // bounded by the walls just checked.
+    // stream are misaligned UB, here and in the heightfield record's
+    // twin of this line. Aligned stack copies, bounded by the walls
+    // just checked.
     m3Vec3 pts[M3_SOFTBODY_MAX_PARTICLES];
     uint16_t tets[4 * M3_SOFTBODY_MAX_TETS];
     memcpy(pts, (const uint8_t*)payload + sizeof(head), (size_t)head.pointCount * sizeof(m3Vec3));

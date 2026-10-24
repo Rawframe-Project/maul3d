@@ -437,11 +437,10 @@ static void TestDeepCapsuleRecovers(void)
     // centers are OUTSIDE the side planes, so only the segment SAT
     // sees the right axis (a centroid heuristic would shove it
     // sideways). The deep-recovery promise: the capsule is
-    // EXPELLED and settles somewhere sane. With the rev-20 friction
-    // schedule the pop-out is CLEANER than it used to be (friction
-    // no longer fights the virtual bias motion), so the rod may now
-    // legitimately end BALANCED ON TOP of the box instead of
-    // sliding off: the band accepts both endings.
+    // EXPELLED and settles somewhere sane. Friction does not fight
+    // the virtual bias motion, so the pop-out is clean and the rod
+    // may end BALANCED ON TOP of the box as well as sliding off:
+    // the band accepts both endings.
     m3World* world = MakeWorld();
     AddGroundPlane(world, 0.6f);
 
@@ -906,10 +905,9 @@ static void TestSleepFreezesAndWakes(void)
 
 static void TestBulletStopsAtMeshWall(void)
 {
-    // Meshes are TOI targets now. A 200
-    // m/s bullet used to tunnel straight through a triangulated wall
-    // (the documented gap); it must stop against it like it does
-    // against a box wall.
+    // Meshes are TOI targets: a 200 m/s bullet must stop against a
+    // triangulated wall as it does against a box wall, not tunnel
+    // through it.
     m3WorldDef def = m3DefaultWorldDef();
     def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     def.bodyCapacity = 8;

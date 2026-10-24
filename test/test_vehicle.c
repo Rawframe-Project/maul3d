@@ -519,10 +519,9 @@ static void TestDriveOnFragment(void)
     // Newton holds on loose ground: a car driving across a
     // free-sliding slab (a raft on a frictionless table: held up,
     // free sideways, no outside friction to hide the books) kicks the slab backward
-    // while the car goes forward. The first draft parked the slab
-    // on an icy plane, which proved nothing once the rev-20
-    // friction fix landed: HONEST static friction holds a slab
-    // that diseased frictionless hovering used to let slide.
+    // while the car goes forward. On a plane, even an icy one, the
+    // plane's friction would take part of the kick and hide it; on
+    // the frictionless hover only the car and the slab act sideways.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
