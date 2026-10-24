@@ -444,10 +444,9 @@ static void TestPoolAndCascade(void)
 
 static void TestFerryRideAndChurn(void)
 {
-    // Red team: a car parked on a moving kinematic ferry
-    // rides it (the tire works in surface-relative velocity), and
-    // stops with it; then vehicle churn twins prove the pool under
-    // create/destroy load.
+    // A car parked on a moving kinematic ferry rides it (the tire works in surface-relative
+    // velocity), and stops with it; then vehicle churn twins prove the pool under create/destroy
+    // load.
     m3World* world = PlaneWorld();
     m3ShapeDef sd = m3DefaultShapeDef();
     m3BodyDef fd = m3DefaultBodyDef();

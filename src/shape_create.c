@@ -454,7 +454,7 @@ static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyI
     }
     // Triangulate the grid (CCW seen from +y) and reuse the mesh
     // path whole: welding, journaling, snapshotting all come free.
-    // Heap staging: 65k-scale grids no longer fit a stack.
+    // Heap staging: 65k-scale grids do not fit a stack.
     m3Vec3* verts = (m3Vec3*)m3AllocZeroed(&world->heap, nx * nz * (int32_t)sizeof(m3Vec3));
     uint16_t* tris =
         (uint16_t*)m3AllocZeroed(&world->heap, 6 * (nx - 1) * (nz - 1) * (int32_t)sizeof(uint16_t));

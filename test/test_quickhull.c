@@ -390,9 +390,9 @@ static void TestHullWallSeesEveryEdge(void)
     CHECK(!m3HullDataValid(&crafted), "half edges the builder never writes are refused");
 }
 
-// The parity cap. A dense sphere cloud must produce a hull
-// RICHER than the old 24-vertex ceiling, cap at 64, and hold the
-// half-edge laws; input past M3_HULL_MAX_INPUT refuses.
+// The vertex cap. A dense sphere cloud must produce a hull of more
+// than 24 vertices, cap at 64, and hold the half-edge laws; input past
+// M3_HULL_MAX_INPUT refuses.
 static void TestBigHullCap(void)
 {
     m3Vec3 cloud[256];
@@ -407,11 +407,11 @@ static void TestBigHullCap(void)
     }
     m3HullData hull;
     CHECK(m3ComputeHull(&s_heap, cloud, n, &hull), "a 128-point sphere cloud builds");
-    CHECK(hull.vertexCount > 24, "the hull outgrows the old ceiling");
-    CHECK(hull.vertexCount <= 64, "and respects the new one");
+    CHECK(hull.vertexCount > 24, "the hull holds more than 24 vertices");
+    CHECK(hull.vertexCount <= 64, "and at most 64");
     CHECK(hull.faceCount <= 124, "faces respect Euler at 64");
     CHECK(hull.edgeCount <= 372, "half edges respect Euler at 64");
-    // Twin law sweep at the new scale.
+    // Twin law sweep at 64 vertices.
     for (int32_t e = 0; e < hull.edgeCount; ++e)
     {
         CHECK(hull.edges[hull.edges[e].twin].twin == e, "twins pair at 64-vert scale");

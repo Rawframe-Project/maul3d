@@ -650,8 +650,8 @@ static void TestRestoreRefusesBadHullDerived(void)
 }
 
 // A needle's side planes are held to a share of the hull's extent, so a
-// slack of 1e-2 of the extent let a forged side plane sit several of
-// the needle's widths off. QuickHull's planes now hold to 1e-5 of the
+// slack of 1e-2 of the extent would let a forged side plane sit several
+// of the needle's widths off. QuickHull's planes hold to 1e-5 of the
 // extent and the slack is 1e-4: a side plane pushed out by a quarter of
 // the width along it is refused.
 static void TestRestoreRefusesForgedNeedlePlane(void)

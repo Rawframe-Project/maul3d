@@ -555,10 +555,9 @@ static void TestContactLanesMatchScalar(void)
 
 static void TestHullSnapshotShrink(void)
 {
-    // Hull content is count-derived in the snapshot. A world
-    // paying 5808 bytes per EMPTY hull slot was paying more for
-    // nothing than for all its joints; now an empty slot costs 16
-    // bytes and a box hull only its used prefix.
+    // Hull content is count-derived in the snapshot: an EMPTY hull
+    // slot costs a few bytes, not a whole m3HullData, and a box hull
+    // only its used prefix.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;

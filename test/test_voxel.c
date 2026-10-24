@@ -54,7 +54,7 @@ static const m3VoxelSurface* SurfaceOf(m3World* worldId, m3ShapeId shape)
 }
 
 // Content equality for the pointer-based BVH: derived data
-// must match by VALUE, and the struct now carries heap pointers.
+// must match by VALUE, since the struct carries heap pointers.
 static int VoxBvhSame(const m3MeshBvh* a, const m3MeshBvh* b)
 {
     if (a->nodeCount != b->nodeCount)
@@ -77,7 +77,7 @@ static int VoxBvhSame(const m3MeshBvh* a, const m3MeshBvh* b)
            memcmp(a->order, b->order, (size_t)orderLen * sizeof(uint16_t)) == 0;
 }
 
-// Surfaces embed the pointer-based BVH now: compare the value
+// Surfaces embed the pointer-based BVH: compare the value
 // region up to the tree, then the tree by content.
 static int SurfaceSame(const m3VoxelSurface* a, const m3VoxelSurface* b)
 {

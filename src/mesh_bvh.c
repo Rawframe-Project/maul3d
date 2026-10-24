@@ -240,7 +240,7 @@ bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh)
         m3MeshBvhFree(heap, bvh);
         return triCount <= 0;
     }
-    // Heap staging: 65k bounds no longer fit a stack.
+    // Heap staging: 65k bounds do not fit a stack.
     m3Vec3* los = (m3Vec3*)m3AllocZeroed(heap, triCount * (int32_t)sizeof(m3Vec3));
     m3Vec3* his = (m3Vec3*)m3AllocZeroed(heap, triCount * (int32_t)sizeof(m3Vec3));
     if (los == NULL || his == NULL)
