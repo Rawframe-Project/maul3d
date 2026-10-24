@@ -54,6 +54,21 @@ static uint64_t HashWorldHeader(const m3World* world, uint64_t h)
     return h;
 }
 
+// The key an off-default fold carries: its slot and which state it is, so
+// two worlds that differ in which slot holds a value cannot hash equal.
+enum
+{
+    M3_HASH_KEY_BODY_MOTION = 1,
+    M3_HASH_KEY_JOINT_ROWS = 2,
+    M3_HASH_KEY_MESH_PAINT = 3
+};
+
+static uint64_t HashKey(uint64_t h, int32_t slot, uint8_t field)
+{
+    h = m3Hash64(h, &slot, 4);
+    return m3Hash64(h, &field, 1);
+}
+
 static uint64_t HashBodies(const m3World* world, uint64_t h)
 {
     int32_t maxIndex = world->bodies.bodyPool.maxIndex;
@@ -91,8 +106,9 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
         if (world->bodies.gravityScales[i] != 1.0f || world->bodies.linearDamping[i] != 0.0f ||
             world->bodies.angularDamping[i] != 0.0f)
         {
-            // Gravity scale and damping fold off their defaults: the
-            // step reads them every substep.
+            // Gravity scale and damping fold off their defaults, keyed
+            // by slot and field: the step reads them every substep.
+            h = HashKey(h, i, M3_HASH_KEY_BODY_MOTION);
             h = m3Hash64(h, &world->bodies.gravityScales[i], (int32_t)sizeof(m3real));
             h = m3Hash64(h, &world->bodies.linearDamping[i], (int32_t)sizeof(m3real));
             h = m3Hash64(h, &world->bodies.angularDamping[i], (int32_t)sizeof(m3real));
@@ -436,7 +452,7 @@ static uint64_t HashMeshMaterials(const m3World* world, uint64_t h)
         {
             continue;
         }
-        h = m3Hash64(h, &m, 4);
+        h = HashKey(h, m, M3_HASH_KEY_MESH_PAINT);
         h = m3Hash64(h, &mesh->materialCount, 4);
         h = m3Hash64(h, mesh->materials,
                      mesh->materialCount * (int32_t)sizeof(m3MeshSurfaceMaterial));
@@ -496,7 +512,9 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
         {
             // The limit and motor values (with the steer target, the
             // servo's pose offset and budgets) and the connected-pair
-            // flag fold off-default: the step reads them.
+            // flag fold off-default, keyed by slot and field: the step
+            // reads them.
+            h = HashKey(h, i, M3_HASH_KEY_JOINT_ROWS);
             h = m3Hash64(h, limits, (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, motor, (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->joints.jointCollide[i], 1);

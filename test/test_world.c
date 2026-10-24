@@ -785,6 +785,21 @@ static void CheckHashSees(int which, const char* what)
     m3DestroyWorld(changed.world);
 }
 
+// The same damping on the first body in one world and on the second in
+// the other: the fold is keyed by slot, so the worlds hash differently.
+static void CheckHashSeesWhichBody(void)
+{
+    HashScene one = BuildHashScene();
+    HashScene two = BuildHashScene();
+    m3Body_SetLinearDamping(one.world, one.box, 0.5f);
+    m3BodyId arm = m3Joint_GetBodyB(two.world, two.hinge);
+    m3Body_SetLinearDamping(two.world, arm, 0.5f);
+    CHECK(m3World_Hash(one.world) != m3World_Hash(two.world),
+          "the hash sees which body carries a damping");
+    m3DestroyWorld(one.world);
+    m3DestroyWorld(two.world);
+}
+
 static void TestHashSeesSetterState(void)
 {
     CheckHashSees(0, "the hash sees a painted mesh");
@@ -794,6 +809,7 @@ static void TestHashSeesSetterState(void)
     CheckHashSees(4, "the hash sees limit values");
     CheckHashSees(5, "the hash sees motor values");
     CheckHashSees(6, "the hash sees a connected pair allowed to collide");
+    CheckHashSeesWhichBody();
 }
 
 int main(void)
