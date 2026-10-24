@@ -22,9 +22,13 @@ void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
 
-// The material wall lives in the internal (replay hands it raw
-// bytes): count 1..8, finite entries, nonnegative frictions and
-// resistances, every triangle byte < count.
+// The material wall: count 1..8, finite entries, nonnegative frictions,
+// restitutions and resistances, every triangle byte < count. Set, replay
+// and restore all check paint through it.
+bool m3MeshMaterialsValid(const m3MeshSurfaceMaterial* materials, int32_t materialCount,
+                          const uint8_t* triangleMaterials, int32_t triangleCount);
+
+// Applies paint that passes the wall (replay hands it raw bytes).
 bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
                                 const m3MeshSurfaceMaterial* materials, int32_t materialCount,
                                 const uint8_t* triangleMaterials);

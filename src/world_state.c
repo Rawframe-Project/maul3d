@@ -620,6 +620,26 @@ int32_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int directi
     return cursor;
 }
 
+int32_t m3StateFieldAt(const m3World* world, size_t fieldOffset)
+{
+    int32_t cursor = 0;
+    int32_t count = (int32_t)(sizeof(s_state) / sizeof(s_state[0]));
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const m3StateArray* entry = &s_state[i];
+        if ((entry->flags & M3_STATE_SNAPSHOT) == 0)
+        {
+            continue;
+        }
+        if (entry->offset == fieldOffset)
+        {
+            return cursor;
+        }
+        cursor += (int32_t)(ExtentCount(world, entry->extent) * (int64_t)entry->elementSize);
+    }
+    return -1;
+}
+
 static bool InRange(int64_t value, int64_t lo, int64_t hi)
 {
     return value >= lo && value <= hi;

@@ -83,7 +83,7 @@ static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
 // Deterministic by the fixed scan and growth order; maximal in the
 // greedy sense (not globally optimal, which is NP-hard and
 // unnecessary).
-void m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
+bool m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk)
 {
     ASSERT_FILLED_COUNT(chunk);
     // The embedded BVH owns heap arrays: release them before the wipe or the
@@ -194,7 +194,7 @@ void m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChu
                           (m3real)(surface->boxHi[b][1] + 1) * cell,
                           (m3real)(surface->boxHi[b][2] + 1) * cell};
     }
-    m3MeshBvhBuildBounds(heap, &surface->bvh, los, his, surface->boxCount);
+    return m3MeshBvhBuildBounds(heap, &surface->bvh, los, his, surface->boxCount);
 }
 
 // Chunk-frame bounds of one merged box.

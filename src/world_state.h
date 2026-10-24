@@ -23,6 +23,11 @@ void m3StateFree(m3World* world);
 // number of bytes.
 int32_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int direction);
 
+// Where the snapshot prefix holds a field (its offset in m3World): the
+// byte position of its block, or -1 when the field is not snapshot state.
+// Restore reads incoming state through it before any of it lands.
+int32_t m3StateFieldAt(const m3World* world, size_t fieldOffset);
+
 // Checks the incoming fixed snapshot prefix against the table before any
 // of it lands: every index in range, every flag a flag, every count
 // within its bound, every float finite.

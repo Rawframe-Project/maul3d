@@ -253,7 +253,9 @@ typedef struct m3MeshBvh
     m3Vec3 quantScale;    // world-to-grid; 0 on a flat axis (always hits)
 } m3MeshBvh;
 
-void m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
+// Builds the mesh's BVH. False, with the BVH empty, when an allocation is
+// refused: an empty BVH gathers nothing, so the caller refuses its work.
+bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 
 // Gather every triangle in a leaf whose box overlaps [lo, hi], in
 // ascending triangle order (each triangle lives in exactly one leaf,
@@ -266,8 +268,9 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh
 // build wraps this with triangle boxes; the voxel surface feeds
-// merged-box bounds). Count is capped at M3_MESH_MAX_TRIS.
-void m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
+// merged-box bounds). Count is capped at M3_MESH_MAX_TRIS. False, with
+// the BVH empty, when an allocation is refused.
+bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
                           int32_t count);
 
 // The fragment events one step holds, and the island voxels their
@@ -317,7 +320,8 @@ typedef struct m3VoxelSurface
 bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
                     m3real cellSize);
-void m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk);
+// False, with the surface's BVH empty, when an allocation is refused.
+bool m3VoxelSurfaceBuild(m3Heap* heap, m3VoxelSurface* surface, const m3VoxelChunkData* chunk);
 void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi);
 void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3HullData* out);

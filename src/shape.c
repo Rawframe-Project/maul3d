@@ -187,22 +187,24 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
         {
             return false;
         }
+        // From here a failure leaves the slot to UndoShapeCreate, which
+        // rewinds the pool and hands the content back to the caller.
         world->meshes.meshData[m] = *content->mesh;
+        sh->shapeMeshIndex[index] = m;
         int32_t* scratch =
             (int32_t*)m3AllocArray(&world->heap, m3MeshEdgeScratchCount(&world->meshes.meshData[m]),
                                    (int64_t)sizeof(int32_t));
         if (scratch == NULL)
         {
-            // The caller keeps its content.
-            memset(&world->meshes.meshData[m], 0, sizeof(m3MeshData));
-            m3IdPoolFree(&world->meshes.meshPool, m);
             return false;
         }
         m3BakeMeshEdgeFlags(&world->meshes.meshData[m], scratch);
         m3Free(&world->heap, scratch);
-        m3MeshBvhBuild(&world->heap, &world->meshes.meshBvh[m], &world->meshes.meshData[m]);
+        if (!m3MeshBvhBuild(&world->heap, &world->meshes.meshBvh[m], &world->meshes.meshData[m]))
+        {
+            return false;
+        }
         world->meshes.meshRefCounts[m] = 1;
-        sh->shapeMeshIndex[index] = m;
         return true;
     }
     case m3_heightFieldShape:
@@ -225,10 +227,13 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
             return false;
         }
         world->voxels.voxelData[v] = *content->voxels;
-        m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
-                            &world->voxels.voxelData[v]);
-        world->voxels.voxelRefCounts[v] = 1;
         sh->shapeVoxelIndex[index] = v;
+        if (!m3VoxelSurfaceBuild(&world->heap, &world->voxels.voxelSurface[v],
+                                 &world->voxels.voxelData[v]))
+        {
+            return false; // UndoShapeCreate rewinds the slot
+        }
+        world->voxels.voxelRefCounts[v] = 1;
         world->voxels.voxelShape[v] = index;
         // A new chunk can weld to existing ones and change their border
         // coverage too.

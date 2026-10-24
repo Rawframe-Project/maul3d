@@ -247,19 +247,10 @@ bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape)
     return ResolveShape(world, shape, &slot) && world->shapes.shapePreSolve[slot] != 0;
 }
 
-bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
-                                const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                                const uint8_t* triangleMaterials)
+bool m3MeshMaterialsValid(const m3MeshSurfaceMaterial* materials, int32_t materialCount,
+                          const uint8_t* triangleMaterials, int32_t triangleCount)
 {
-    // The full wall, here because replay hands this function
-    // raw journal bytes: hostile counts, values, or group indices
-    // refuse loudly and paint nothing.
-    if (meshIndex < 0 || materialCount < 1 || materialCount > M3_MESH_MAX_MATERIALS)
-    {
-        return false;
-    }
-    m3MeshData* mesh = &world->meshes.meshData[meshIndex];
-    if (mesh->triangleCount <= 0)
+    if (materialCount < 1 || materialCount > M3_MESH_MAX_MATERIALS || triangleCount <= 0)
     {
         return false;
     }
@@ -273,12 +264,31 @@ bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
             return false;
         }
     }
-    for (int32_t t = 0; t < mesh->triangleCount; ++t)
+    for (int32_t t = 0; t < triangleCount; ++t)
     {
         if (triangleMaterials[t] >= materialCount)
         {
             return false;
         }
+    }
+    return true;
+}
+
+bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
+                                const m3MeshSurfaceMaterial* materials, int32_t materialCount,
+                                const uint8_t* triangleMaterials)
+{
+    // The full wall, here because replay hands this function
+    // raw journal bytes: hostile counts, values, or group indices
+    // refuse loudly and paint nothing.
+    if (meshIndex < 0)
+    {
+        return false;
+    }
+    m3MeshData* mesh = &world->meshes.meshData[meshIndex];
+    if (!m3MeshMaterialsValid(materials, materialCount, triangleMaterials, mesh->triangleCount))
+    {
+        return false;
     }
     mesh->materialCount = materialCount;
     memset(mesh->materials, 0, sizeof(mesh->materials));
