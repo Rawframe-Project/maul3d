@@ -10,6 +10,7 @@
 #include "solver_math.h"
 #include "world_internal.h"
 
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -184,6 +185,32 @@ static void PreparePoints(const m3World* world, m3ContactConstraint* c, const m3
     }
 }
 
+// The inverse of the tangent pair's symmetric 2x2 mass matrix. The direct
+// inverse stands whenever the determinant is a normal float, so every
+// ordinary pair keeps its bits; otherwise the pair is inverted at the
+// scale of its larger diagonal. A singular pair, or one that is not
+// finite even at that scale, gets zero: no tangent rows.
+static void InvertPair(m3real k11, m3real k22, m3real k12, m3ContactConstraint* c)
+{
+    m3real det = k11 * k22 - k12 * k12;
+    if (det >= FLT_MIN && det <= FLT_MAX)
+    {
+        m3real inv = 1.0f / det;
+        c->frictionK11 = k22 * inv;
+        c->frictionK22 = k11 * inv;
+        c->frictionK12 = -k12 * inv;
+        return;
+    }
+    m3real r[3] = {0.0f, 0.0f, 0.0f};
+    if (!(det <= 0.0f))
+    {
+        (void)m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r);
+    }
+    c->frictionK11 = r[0];
+    c->frictionK22 = r[1];
+    c->frictionK12 = r[2];
+}
+
 // The rows at the manifold's center: the tangent pair, inverted once,
 // whose warm impulse comes from the manifold's world-frame store so a
 // new tangent basis cannot scramble it; the twist row about the normal
@@ -214,11 +241,7 @@ static void PrepareCenterRows(m3ContactConstraint* c, const m3Manifold* manifold
     m3real k22 = c->invMassA + c->invMassB + m3Dot3(a2, m3MulMV3(c->invIA, a2)) +
                  m3Dot3(b2, m3MulMV3(c->invIB, b2));
     m3real k12 = m3Dot3(a1, m3MulMV3(c->invIA, a2)) + m3Dot3(b1, m3MulMV3(c->invIB, b2));
-    m3real det = k11 * k22 - k12 * k12;
-    m3real inv = det > 0.0f ? 1.0f / det : 0.0f;
-    c->frictionK11 = det > 0.0f ? k22 * inv : 0.0f;
-    c->frictionK22 = det > 0.0f ? k11 * inv : 0.0f;
-    c->frictionK12 = det > 0.0f ? -k12 * inv : 0.0f;
+    InvertPair(k11, k22, k12, c);
     c->frictionImpulse1 = m3Dot3(manifold->frictionImpulse, c->t1);
     c->frictionImpulse2 = m3Dot3(manifold->frictionImpulse, c->t2);
 

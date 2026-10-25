@@ -19,6 +19,7 @@
 #include "simd.h"
 #include "world_internal.h"
 
+#include <math.h>
 #include <string.h>
 
 typedef struct V3
@@ -108,16 +109,105 @@ static V3 Rotate(V3 u, m3f8 w, V3 v)
     return Add3(Add3(v, Scale3(w, t)), Cross3(u, t));
 }
 
-// m3Solve3 by Cramer's rule; a singular matrix gives zero.
-static V3 Solve3(const Mat* k, V3 b)
+// Cramer's rule, with its determinant.
+static V3 Cramer(const Mat* k, V3 b, m3f8* detOut)
 {
     V3 cxy = Cross3(k->cy, k->cz);
     m3f8 det = Dot3(k->cx, cxy);
     m3f8 inv = m3F8Div(m3F8Set1(1.0f), det);
     V3 x = {m3F8Mul(inv, Dot3(b, cxy)), m3F8Mul(inv, Dot3(k->cx, Cross3(b, k->cz))),
             m3F8Mul(inv, Dot3(k->cx, Cross3(k->cy, b)))};
-    V3 zero = {m3F8Zero(), m3F8Zero(), m3F8Zero()};
-    return Select3(m3F8EQ(det, m3F8Zero()), zero, x);
+    *detOut = det;
+    return x;
+}
+
+static m3f8 Abs(m3f8 a)
+{
+    return m3F8Max(a, m3F8Neg(a));
+}
+
+static bool AllLanesSet(m3f8 mask)
+{
+    float lanes[M3_LANES];
+    m3F8Store(lanes, mask);
+    for (int32_t i = 0; i < M3_LANES; ++i)
+    {
+        uint32_t bits;
+        memcpy(&bits, &lanes[i], sizeof(bits));
+        if (bits == 0u)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// m3Solve3AtScale lane by lane, with the same arithmetic.
+static V3 SolveAtScale(const Mat* k, V3 b, m3f8 scale)
+{
+    m3f8 zero = m3F8Zero();
+    V3 zero3 = {zero, zero, zero};
+    const V3* cols[3] = {&k->cx, &k->cy, &k->cz};
+    Mat unit;
+    V3* units[3] = {&unit.cx, &unit.cy, &unit.cz};
+    for (int32_t c = 0; c < 3; ++c)
+    {
+        units[c]->x = m3F8Div(cols[c]->x, scale);
+        units[c]->y = m3F8Div(cols[c]->y, scale);
+        units[c]->z = m3F8Div(cols[c]->z, scale);
+    }
+    m3f8 det;
+    V3 y = Cramer(&unit, b, &det);
+    y = Select3(m3F8EQ(det, zero), zero3, y);
+    y = (V3){m3F8Div(y.x, scale), m3F8Div(y.y, scale), m3F8Div(y.z, scale)};
+    m3f8 finite = m3F8And(m3F8And(m3F8EQ(m3F8Sub(y.x, y.x), zero), m3F8EQ(m3F8Sub(y.y, y.y), zero)),
+                          m3F8EQ(m3F8Sub(y.z, y.z), zero));
+    m3f8 usable = m3F8And(m3F8And(m3F8GT(scale, zero), m3F8LT(scale, m3F8Set1(HUGE_VALF))), finite);
+    return Select3(usable, y, zero3);
+}
+
+// m3Solve3 lane by lane, with the same arithmetic: a singular matrix
+// gives zero, and a lane whose determinant is not a normal float is
+// solved at the scale of its largest entry. The scaled pass runs only
+// when some lane needs it.
+static V3 Solve3(const Mat* k, V3 b)
+{
+    m3f8 det;
+    V3 x = Cramer(k, b, &det);
+    m3f8 zero = m3F8Zero();
+    V3 zero3 = {zero, zero, zero};
+    m3f8 singular = m3F8EQ(det, zero);
+    m3f8 size = Abs(det);
+    // Above the largest subnormal and below infinity: a normal float.
+    m3f8 normal =
+        m3F8And(m3F8GT(size, m3F8Set1(0x1.fffffcp-127f)), m3F8LT(size, m3F8Set1(HUGE_VALF)));
+    m3f8 direct = m3F8Select(singular, m3F8EQ(zero, zero), normal);
+    x = Select3(singular, zero3, x);
+    if (AllLanesSet(direct))
+    {
+        return x;
+    }
+    m3f8 scale = zero;
+    const V3* cols[3] = {&k->cx, &k->cy, &k->cz};
+    for (int32_t c = 0; c < 3; ++c)
+    {
+        scale = m3F8Max(scale, m3F8Max(Abs(cols[c]->x), m3F8Max(Abs(cols[c]->y), Abs(cols[c]->z))));
+    }
+    return Select3(direct, x, SolveAtScale(k, b, scale));
+}
+
+void m3SolveLanes3(const float k[9][M3_LANES], const float b[3][M3_LANES], float out[3][M3_LANES])
+{
+    Mat m = LoadMat(k);
+    StoreV3(out, Solve3(&m, LoadV3(b)));
+}
+
+void m3SolveLanes3AtScale(const float k[9][M3_LANES], const float b[3][M3_LANES],
+                          const float scale[M3_LANES], float out[3][M3_LANES])
+{
+    Mat m = LoadMat(k);
+    V3 x = SolveAtScale(&m, LoadV3(b), m3F8Load(scale));
+    StoreV3(out, x);
 }
 
 // Both bodies of every lane during one stage.
