@@ -101,7 +101,7 @@ static bool PoolValid(const m3Incoming* inc, int32_t capacity, PoolFields f)
     }
     for (int32_t i = 0; i < maxIndex; ++i)
     {
-        if (alive[i] == 0 && queued[i] == 0 && m3InU16(generations, i) != 0xFFFF)
+        if (alive[i] == 0 && queued[i] == 0 && m3InU32(generations, i) != M3_LAST_GENERATION)
         {
             return false; // dead, not queued, so retired
         }

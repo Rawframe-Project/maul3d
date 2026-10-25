@@ -683,7 +683,7 @@ typedef struct m3Characters
     m3real* charMass;        // kilograms; scales push impulses
     m3real* charPushMax;     // heaviest pushable body / mass ratio
     int32_t* charGroundBody; // body slot under our feet, -1 none
-    uint16_t* charGroundGen; // that body's generation when recorded
+    uint32_t* charGroundGen; // that body's generation when recorded
 } m3Characters;
 
 // Vehicles: pooled raycast vehicles; per-slot config, per-wheel arrays at
@@ -697,7 +697,7 @@ typedef struct m3Vehicles
     int32_t vehicleCapacity;
     m3IdPool vehPool;
     int32_t* vehChassis;     // chassis body slot, -1 free
-    uint16_t* vehChassisGen; // its generation at create
+    uint32_t* vehChassisGen; // its generation at create
     int32_t* vehWheelCount;
     m3real* vehMaxSteer;
     m3real* vehDriveForce;
@@ -804,7 +804,7 @@ typedef struct m3SoftBodies
     int32_t* softAnchorCount;    // per slot
     int32_t* softAnchorParticle; // cap * M3_SOFTBODY_MAX_ANCHORS
     int32_t* softAnchorBody;
-    uint16_t* softAnchorGen;
+    uint32_t* softAnchorGen;
     m3Vec3* softAnchorLocal;
     // Soft-to-soft anchors: lattice A's particle pinned to
     // lattice B's particle, released silently when EITHER side
@@ -812,7 +812,7 @@ typedef struct m3SoftBodies
     int32_t* softSoftCount;     // per slot (owner = LOWER slot)
     int32_t* softSoftParticleA; // cap * M3_SOFTBODY_MAX_ANCHORS
     int32_t* softSoftSlotB;
-    uint16_t* softSoftGenB;
+    uint32_t* softSoftGenB;
     int32_t* softSoftParticleB;
     // Whitebox tests only: 1 tests every particle against every shape,
     // with no cull. Neither state nor journaled.

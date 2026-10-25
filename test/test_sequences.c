@@ -5,8 +5,8 @@
 // (test_hostile poisons the inputs themselves): stale ids into every
 // entry, snapshots into short buffers, corrupted and truncated
 // journals against the atomic-replay guarantee, destroy cascades
-// racing joint lists, and a pool churned all the way to generation
-// retirement.
+// racing joint lists, and a pool churned far past 65,536 objects a
+// slot.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -265,45 +265,41 @@ static void TestCascadeRaces(void)
     CHECK(hashes[0] == hashes[1], "cascade churn is bit-deterministic");
 }
 
-static void TestGenerationRetirement(void)
+static void TestGenerationChurn(void)
 {
-    // Churn one slot to the generation ceiling: the slot retires at
-    // 0xFFFF instead of wrapping, so no stale id can ever alias a
-    // recycled object. With capacity 2 and a FIFO free queue both
-    // slots retire; the pool then refuses, loudly, forever.
+    // Churn one body slot through 200,000 objects, three times what a
+    // 16-bit generation allowed: the FIFO free queue hands the same slot
+    // back each time under the next generation, and no id comes back to
+    // life. Retirement itself, at M3_LAST_GENERATION, is
+    // test_generations' (white box).
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 2;
     def.shapeCapacity = 2;
     m3World* world = NewWorld(&def);
     m3BodyDef bd = m3DefaultBodyDef();
 
-    m3BodyId early = NewBody(world, &bd); // generation 1, slot 0
+    m3BodyId early = NewBody(world, &bd); // generation 0, slot 0
     DestroyBody(world, early);
 
     int32_t created = 0;
-    for (;;)
+    bool fresh = true;
+    for (int32_t k = 0; k < 200000; ++k)
     {
         m3BodyId body = NewBody(world, &bd);
         if (!m3Body_IsValid(world, body))
         {
-            break; // both slots retired
+            break;
         }
         created += 1;
+        fresh = fresh && body.index1 == 1u && body.generation == (uint32_t)k + 1u;
         DestroyBody(world, body);
-        if (created > 300000)
-        {
-            break; // safety net: something is wrong
-        }
     }
-    // Two slots, generations 1..0xFFFE usable after which the free
-    // bumps to 0xFFFF and retires: the exact count is an
-    // implementation detail, the properties below are the contract.
-    CHECK(created > 100000, "the pool survived deep churn");
-    CHECK(created < 300000, "the pool retired instead of wrapping");
-    CHECK(!m3Body_IsValid(world, NewBody(world, &bd)), "a fully retired pool refuses forever");
+    CHECK(created == 200000, "a slot makes far more than 65,536 objects");
+    CHECK(fresh, "each object takes the slot under the next generation");
     CHECK(!m3Body_IsValid(world, early), "the very first id is still stale after the churn");
+    CHECK(m3Body_IsValid(world, NewBody(world, &bd)), "the churned pool still creates");
     m3World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m3World_Hash(world) != 0, "the retired world still steps");
+    CHECK(m3World_Hash(world) != 0, "the churned world still steps");
     m3DestroyWorld(world);
 }
 
@@ -430,7 +426,7 @@ int main(void)
     TestSnapshotRefusals();
     TestJournalCorruptionIsAtomic();
     TestCascadeRaces();
-    TestGenerationRetirement();
+    TestGenerationChurn();
     TestReplayWrongSizePayloads();
     TestStaleRuntimeSetters();
     if (s_failures == 0)

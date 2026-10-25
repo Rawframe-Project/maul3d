@@ -165,7 +165,7 @@ m3IdPool m3IdPoolCreate(m3Heap* heap, int32_t capacity)
         M3_ASSERT(false);
         return pool;
     }
-    M3_ALLOC(heap, pool.generations, capacity, uint16_t);
+    M3_ALLOC(heap, pool.generations, capacity, uint32_t);
     M3_ALLOC(heap, pool.alive, capacity, uint8_t);
     M3_ALLOC(heap, pool.freeQueue, capacity, int32_t);
     if (pool.generations == NULL || pool.alive == NULL || pool.freeQueue == NULL)
@@ -216,7 +216,7 @@ void m3IdPoolFree(m3IdPool* pool, int32_t index)
         return;
     }
     pool->alive[index] = 0;
-    if (pool->generations[index] == 0xFFFF)
+    if (pool->generations[index] == M3_LAST_GENERATION)
     {
         // Retire instead of wrapping: a wrapped generation could make a
         // very stale handle validate again.

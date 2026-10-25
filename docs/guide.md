@@ -32,18 +32,29 @@ reached from outside).
 
 ### Id lifecycle
 
-Ids are generation-tagged: `{index1, world, generation}`. A slot's
+Ids are generation-tagged: `{index1, generation}`, a 1-based slot and
+the generation the slot had when the object was made. A slot's
 generation bumps when the object is destroyed, so a stale id can
-never alias a recycled slot. At generation 0xFFFF the slot retires
-instead of wrapping; a pool whose slots have all retired refuses
-forever, loudly. The rule for staleness is uniform: getters return
-zeros, commands and destroys no-op, creates refuse.
+never alias a recycled slot. The rule for staleness is uniform:
+getters return zeros, commands and destroys no-op, creates refuse.
 
-One id is valid until its object or its world is destroyed. The
-`world` field names the world by its slot and the low bits of its
-generation, so a new world recycling the slot refuses the old
-world's ids (for the first 1024 reuses of that slot). Nothing
-crashes either way.
+A slot names objects under generations 0 to 2^32 - 1, then retires
+instead of wrapping, so a pool of capacity n makes n × 2^32 objects
+over a world's life. With 1000 slots at 1000 creates a second that is
+about 136 years; one slot at 1000 a second lasts about 50 days. A pool
+whose slots have all retired refuses with `m3_errorCapacity`, loudly.
+Every pool follows the rule: bodies, shapes, joints, characters,
+vehicles, soft bodies and water volumes, and the internal hull, mesh,
+height field and voxel slots that shape creates take, so those
+creates can run out the same way. The budget is part of the world's
+state: a snapshot carries every slot's generation and the retired
+slots, and a restore brings back the snapshot's budget, never a fresh
+one.
+
+One id is valid until its object or its world is destroyed. An id
+means something only to the world that issued it: given to another
+world, it names whatever that world holds in the same slot with the
+same generation. Nothing crashes either way.
 
 Destroying a body cascades: its shapes and its joints go with it.
 Destroy of an already-stale id is a quiet no-op (the destroy

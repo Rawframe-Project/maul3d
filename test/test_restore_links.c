@@ -250,8 +250,8 @@ static void VehicleOnStaleChassis(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
     int32_t slot = LiveSlot(world->vehicles.vehPool.alive, world->vehicles.vehPool.capacity);
-    uint16_t stale = (uint16_t)(world->vehicles.vehChassisGen[slot] + 1u);
-    memcpy(At(world, snap, FIELD(vehicles.vehChassisGen), sizeof(uint16_t), slot), &stale,
+    uint32_t stale = world->vehicles.vehChassisGen[slot] + 1u;
+    memcpy(At(world, snap, FIELD(vehicles.vehChassisGen), sizeof(uint32_t), slot), &stale,
            sizeof(stale));
 }
 

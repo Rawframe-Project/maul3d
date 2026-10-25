@@ -77,9 +77,10 @@ extern "C"
                                               m3BodyId* bodyOut);
 
     /// Destroy a body. The id goes stale; the slot recycles FIFO with a
-    /// generation bump and retires instead of wrapping. A stale id returns
-    /// m3_errorStale and the null id m3_errorInvalid; every destroy of an
-    /// object a world owns answers the same way.
+    /// generation bump and retires after 2^32 objects instead of
+    /// wrapping. A stale id returns m3_errorStale and the null id
+    /// m3_errorInvalid; every destroy of an object a world owns answers
+    /// the same way.
     M3_NODISCARD M3_API m3Result m3DestroyBody(m3World* world, m3BodyId body);
 
     M3_API bool m3Body_IsValid(const m3World* world, m3BodyId body);
