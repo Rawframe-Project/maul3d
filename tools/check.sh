@@ -5,12 +5,13 @@
 # The checks, in three tiers. Each tier includes the one before it.
 #
 #   tools/check.sh changed   the files changed against origin/main: the
-#                            source rules, formatting, the bindings when the
-#                            API or a binding changed, clang-tidy on the
-#                            changed sources, and the linux-clang-20-asan
-#                            preset (assertions on) for the tests the
-#                            changes reach. Under two minutes on a warm
-#                            build; run it before every push.
+#                            source and test hygiene rules, formatting,
+#                            the bindings when the API or a binding
+#                            changed, clang-tidy on the changed sources,
+#                            and the linux-clang-20-asan preset
+#                            (assertions on) for the tests the changes
+#                            reach. Under two minutes on a warm build;
+#                            run it before every push.
 #   tools/check.sh pr        what the pull request check runs on this
 #                            machine: every rule, formatting of every file,
 #                            the bindings, the documentation site,
@@ -72,6 +73,7 @@ preset() {
     shift
     step "preset $name, $jobs jobs"
     cmake --preset "$name" >"$out/$name.log"
+    python3 tools/check_test_hygiene.py --ctest "out/$name"
     cmake --build --preset "$name" -j "$jobs" >>"$out/$name.log"
     ctest --preset "$name" -j "$jobs" "$@"
 }
@@ -91,12 +93,14 @@ labels_for() {
 }
 
 source_checks() {
-    step "source, module, length, float environment and snippet rules"
+    step "source, module, length, float environment, snippet and test hygiene rules"
     python3 tools/check_source.py
     python3 tools/check_modules.py
     python3 tools/check_lengths.py
     python3 tools/check_float_env.py
     python3 tools/check_guide.py
+    python3 tools/check_test_hygiene.py --self-test
+    python3 tools/check_test_hygiene.py
     if [ -f "$org/scripts/docs_check.py" ]; then
         python3 "$org/scripts/docs_check.py"
     else
