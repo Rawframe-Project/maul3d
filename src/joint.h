@@ -21,6 +21,11 @@ bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float z
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
                        float hertz, float zeta, float maxEffort);
 bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation);
+// The spring and steering checks for a joint of this type, as restore
+// reads it.
+bool m3JointSpringFits(uint8_t type, float hertz, float zeta);
+bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, float zeta,
+                      float maxEffort);
 
 void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float lower, float upper);
 

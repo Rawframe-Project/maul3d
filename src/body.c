@@ -176,11 +176,15 @@ bool m3PoseValid(m3Transform pose)
 // stays within M3_SPEED_LIMIT.
 bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose)
 {
-    if (world->bodies.types[index] != (uint8_t)m3_kinematicBody || !m3PoseValid(pose))
+    return m3TargetFits(world->bodies.types[index], world->bodies.transforms[index].p, pose);
+}
+
+bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose)
+{
+    if (type != (uint8_t)m3_kinematicBody || !m3PoseValid(pose))
     {
         return false;
     }
-    m3Pos3 now = world->bodies.transforms[index].p;
     double dx = pose.p.x - now.x;
     double dy = pose.p.y - now.y;
     double dz = pose.p.z - now.z;

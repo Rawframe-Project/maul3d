@@ -19,6 +19,7 @@
 #include "snapshot_links.h"
 
 #include "allocator.h"
+#include "snapshot_bounds.h"
 #include "snapshot_values.h"
 
 #include <stddef.h>
@@ -553,7 +554,7 @@ m3Result m3SnapshotLinksCheck(m3World* world, const uint8_t* in)
     }
     bool valid = PoolsValid(&inc) && ContentValid(&inc) && ShapeListsValid(&inc) &&
                  JointListsValid(&inc) && BroadphaseValid(&inc) && PairsValid(&inc) &&
-                 m3SnapshotValuesValid(&inc);
+                 m3SnapshotValuesValid(&inc) && m3SnapshotBoundsValid(&inc);
     m3Free(&world->heap, inc.scratch);
     return valid ? m3_success : m3_errorInvalid;
 }

@@ -2,12 +2,12 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The per-record half of restore's whole-structure checks; the links are
-// in snapshot_links.c. Each live record's values must be ones its setters
-// accept, which the per-block checks (world_state.c) cannot know: world
-// tunables in range, body locks, unit
-// rotations, shape geometry its create accepted, and the indices that
-// characters, vehicles, soft bodies and joints hold landing where the
-// engine would have put them.
+// in snapshot_links.c, the magnitudes in snapshot_bounds.c. Each live
+// record's values must be ones its setters accept, which the per-block
+// checks (world_state.c) cannot know: body locks, unit rotations, shape
+// geometry its create accepted, and the indices that characters,
+// vehicles, soft bodies and joints hold landing where the engine would
+// have put them.
 
 #include "snapshot_values.h"
 
@@ -17,32 +17,6 @@
 
 #include <stddef.h>
 #include <string.h>
-
-// --- World tuning ------------------------------------------------------------
-
-static float InlineF32(const m3Incoming* inc, size_t offset)
-{
-    float value;
-    memcpy(&value, m3InField(inc, offset), sizeof(value));
-    return value;
-}
-
-// The world's tunables are in the ranges their setters accept, which
-// replay checks too: a zero contact hertz or speed cap divides by zero.
-// The block checks have made them finite.
-static bool TuningValid(const m3Incoming* inc)
-{
-    return InlineF32(inc, offsetof(m3World, contactHertz)) > 0.0f &&
-           InlineF32(inc, offsetof(m3World, contactDampingRatio)) > 0.0f &&
-           InlineF32(inc, offsetof(m3World, contactPushMaxSpeed)) > 0.0f &&
-           InlineF32(inc, offsetof(m3World, restitutionThreshold)) >= 0.0f &&
-           InlineF32(inc, offsetof(m3World, maximumLinearSpeed)) > 0.0f &&
-           InlineF32(inc, offsetof(m3World, maximumAngularSpeed)) > 0.0f &&
-           InlineF32(inc, offsetof(m3World, hitEventThreshold)) >= 0.0f &&
-           InlineF32(inc, offsetof(m3World, windSpeed)) >= 0.0f &&
-           InlineF32(inc, offsetof(m3World, windGustHertz)) >= 0.0f &&
-           InlineF32(inc, offsetof(m3World, windGustScale)) >= 0.0f;
-}
 
 // --- Bodies and shape geometry --------------------------------------------
 
@@ -174,21 +148,17 @@ static bool RotationsValid(const m3Incoming* inc)
 
 // A live character owns a live kinematic body whose only shape is its
 // capsule (no call may destroy, retype, reshape or add to them on their
-// own), keeps the dimensions its create and stance changes accepted, and
-// stands on nothing or on a live body (a body's destroy clears the
-// characters standing on it).
+// own), keeps the skin, snap and step its create accepted, and stands on
+// nothing or on a live body (a body's destroy clears the characters
+// standing on it). Its capsule and mass are bounded in snapshot_bounds.c.
 static bool CharactersValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, characters.charPool.alive));
     const uint8_t* body = m3InField(inc, offsetof(m3World, characters.charBody));
     const uint8_t* ground = m3InField(inc, offsetof(m3World, characters.charGroundBody));
-    const uint8_t* radius = m3InField(inc, offsetof(m3World, characters.charRadius));
-    const uint8_t* halfHeight = m3InField(inc, offsetof(m3World, characters.charHalfHeight));
     const uint8_t* skin = m3InField(inc, offsetof(m3World, characters.charSkin));
     const uint8_t* snap = m3InField(inc, offsetof(m3World, characters.charSnap));
     const uint8_t* stepHeight = m3InField(inc, offsetof(m3World, characters.charStepHeight));
-    const uint8_t* mass = m3InField(inc, offsetof(m3World, characters.charMass));
-    const uint8_t* pushMax = m3InField(inc, offsetof(m3World, characters.charPushMax));
     const uint8_t* bodyAlive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
     const uint8_t* bodyTypes = m3InField(inc, offsetof(m3World, bodies.types));
     const uint8_t* shapeHead = m3InField(inc, offsetof(m3World, bodies.bodyShapeHead));
@@ -209,10 +179,7 @@ static bool CharactersValid(const m3Incoming* inc)
         {
             return false;
         }
-        if (!(m3InF32(radius, c) > 0.0f) || m3InF32(halfHeight, c) < 0.0f ||
-            !(m3InF32(skin, c) > 0.0f) || m3InF32(snap, c) < 0.0f ||
-            m3InF32(stepHeight, c) < 0.0f || !(m3InF32(mass, c) > 0.0f) ||
-            m3InF32(pushMax, c) < 0.0f)
+        if (!(m3InF32(skin, c) > 0.0f) || m3InF32(snap, c) < 0.0f || m3InF32(stepHeight, c) < 0.0f)
         {
             return false;
         }
@@ -488,7 +455,6 @@ static bool JointModesValid(const m3Incoming* inc)
 
 bool m3SnapshotValuesValid(const m3Incoming* inc)
 {
-    return TuningValid(inc) && BodiesValid(inc) && RotationsValid(inc) && ShapeGeomValid(inc) &&
-           CharactersValid(inc) && VehiclesValid(inc) && SoftBodiesValid(inc) &&
-           JointModesValid(inc);
+    return BodiesValid(inc) && RotationsValid(inc) && ShapeGeomValid(inc) && CharactersValid(inc) &&
+           VehiclesValid(inc) && SoftBodiesValid(inc) && JointModesValid(inc);
 }

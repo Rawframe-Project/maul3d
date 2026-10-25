@@ -625,19 +625,29 @@ bool m3JointLimitsValid(int32_t type, float lower, float upper)
 
 bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta)
 {
-    return JointTypeDrives(world->joints.jointType[slot]) && hertz > 0.0f &&
-           hertz <= M3_HERTZ_LIMIT && zeta >= 0.0f && zeta <= M3_RATIO_LIMIT;
+    return m3JointSpringFits(world->joints.jointType[slot], hertz, zeta);
+}
+
+bool m3JointSpringFits(uint8_t type, float hertz, float zeta)
+{
+    return JointTypeDrives(type) && hertz > 0.0f && hertz <= M3_HERTZ_LIMIT && zeta >= 0.0f &&
+           zeta <= M3_RATIO_LIMIT;
+}
+
+bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
+                       float hertz, float zeta, float maxEffort)
+{
+    return m3JointSteerFits(world->joints.jointType[slot], enable, target, hertz, zeta, maxEffort);
 }
 
 // Steering is a wheel contract: a target within one radian, and a
 // positive frequency while it is on.
-bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
-                       float hertz, float zeta, float maxEffort)
+bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, float zeta,
+                      float maxEffort)
 {
-    return world->joints.jointType[slot] == (uint8_t)m3_wheelJoint && m3WithinF(target, 1.0f) &&
-           hertz >= 0.0f && hertz <= M3_HERTZ_LIMIT && (enable == 0 || hertz > 0.0f) &&
-           zeta >= 0.0f && zeta <= M3_RATIO_LIMIT && maxEffort >= 0.0f &&
-           maxEffort <= M3_FORCE_LIMIT;
+    return type == (uint8_t)m3_wheelJoint && m3WithinF(target, 1.0f) && hertz >= 0.0f &&
+           hertz <= M3_HERTZ_LIMIT && (enable == 0 || hertz > 0.0f) && zeta >= 0.0f &&
+           zeta <= M3_RATIO_LIMIT && maxEffort >= 0.0f && maxEffort <= M3_FORCE_LIMIT;
 }
 
 bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation)

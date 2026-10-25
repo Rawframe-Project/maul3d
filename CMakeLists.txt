@@ -128,6 +128,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/shape_state.c
     src/snapshot.c
     src/snapshot_links.c
+    src/snapshot_bounds.c
     src/snapshot_values.c
     src/softbody.c
     src/softbody_cull.c

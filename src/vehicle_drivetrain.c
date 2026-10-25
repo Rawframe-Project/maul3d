@@ -50,9 +50,10 @@ m3DrivetrainDef m3DefaultDrivetrainDef(void)
     return def;
 }
 
-// Validation lives here because replay hands this function raw
-// journal bytes: every field earns its range or the op fails loud.
-bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3DrivetrainDef* def)
+// Validation lives here because replay hands the setter raw journal
+// bytes: every field earns its range or the op fails loud. Restore asks
+// it of every stored drivetrain.
+bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
 {
     if (def->curveCount < 2 || def->curveCount > M3_DRIVETRAIN_MAX_CURVE || def->gearCount < 1 ||
         def->gearCount > M3_DRIVETRAIN_MAX_GEARS || def->clutchSteps < 0 || def->clutchSteps > 600)
@@ -90,7 +91,15 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     {
         return false;
     }
+    return true;
+}
 
+bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3DrivetrainDef* def)
+{
+    if (!m3DrivetrainDefValid(def))
+    {
+        return false;
+    }
     world->vehicles.vehDtActive[slot] = 1;
     world->vehicles.vehDtCurveCount[slot] = def->curveCount;
     for (int32_t c = 0; c < M3_DRIVETRAIN_MAX_CURVE; ++c)
