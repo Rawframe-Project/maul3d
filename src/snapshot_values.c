@@ -235,12 +235,12 @@ static bool CharactersValid(const m3Incoming* inc)
     return true;
 }
 
-// A live vehicle has the wheel count its create accepted and wheel flags
-// that are the steer and drive bits. Its drivetrain, when set, has the
-// curve and gear counts its setter accepted, a gear between reverse and
-// the top one and a clutch inside its steps; a vehicle without one holds
-// the zeros the reset wrote. The chassis may be gone: the step checks it
-// by generation.
+// A live vehicle rides a live chassis of the generation it names (a
+// chassis's destroy takes its vehicle with it), has the wheel count its
+// create accepted and wheel flags that are the steer and drive bits. Its
+// drivetrain, when set, has the curve and gear counts its setter
+// accepted, a gear between reverse and the top one and a clutch inside
+// its steps; a vehicle without one holds the zeros the reset wrote.
 static bool VehiclesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, vehicles.vehPool.alive));
@@ -253,6 +253,10 @@ static bool VehiclesValid(const m3Incoming* inc)
     const uint8_t* clutchSteps = m3InField(inc, offsetof(m3World, vehicles.vehDtClutchSteps));
     const uint8_t* clutch = m3InField(inc, offsetof(m3World, vehicles.vehDtClutch));
     const uint8_t* gears = m3InField(inc, offsetof(m3World, vehicles.vehDtGear));
+    const uint8_t* chassis = m3InField(inc, offsetof(m3World, vehicles.vehChassis));
+    const uint8_t* chassisGen = m3InField(inc, offsetof(m3World, vehicles.vehChassisGen));
+    const uint8_t* bodyAlive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
+    const uint8_t* bodyGen = m3InField(inc, offsetof(m3World, bodies.bodyPool.generations));
     for (int32_t v = 0; v < inc->world->vehicles.vehPool.capacity; ++v)
     {
         if (alive[v] == 0)
@@ -260,7 +264,9 @@ static bool VehiclesValid(const m3Incoming* inc)
             continue;
         }
         int32_t wheels = m3InI32(wheelCount, v);
-        if (wheels < 1)
+        int32_t body = m3InI32(chassis, v);
+        if (wheels < 1 || body < 0 || bodyAlive[body] == 0 ||
+            m3InU16(bodyGen, body) != m3InU16(chassisGen, v))
         {
             return false;
         }

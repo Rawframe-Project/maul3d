@@ -200,6 +200,13 @@ static void GearWithoutDrivetrain(const Scene* scene, uint8_t* snap)
     *At(world, snap, FIELD(vehicles.vehDtGear), 1, slot) = 3;
 }
 
+static void VehicleWithoutChassis(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->vehicles.vehPool.alive, world->vehicles.vehPool.capacity);
+    PutI32(I32_AT(vehicles.vehChassis, slot), -1);
+}
+
 static void EdgePastParticles(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -258,6 +265,7 @@ static const Case s_cases[] = {
     {"a joint frame twice unit length", JointFrameLong},
     {"a live character with no body slot", CharacterWithoutBody},
     {"a gear with no drivetrain", GearWithoutDrivetrain},
+    {"a vehicle with no chassis", VehicleWithoutChassis},
     {"a soft edge past the particles", EdgePastParticles},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
