@@ -39,6 +39,7 @@ typedef struct Scene
     int32_t vehicle; // a vehicle with a drivetrain
     int32_t soft;    // a closed lattice with an anchor
     int32_t pool;    // a water volume
+    int32_t rail;    // a kinematic body with a box
 } Scene;
 
 typedef enum Which
@@ -60,6 +61,7 @@ typedef enum Which
     which_particle, // the lattice's second particle; the first is anchored
     which_anchor,
     which_pool,
+    which_rail,
 } Which;
 
 static int32_t SlotOf(const Scene* s, Which which)
@@ -101,6 +103,8 @@ static int32_t SlotOf(const Scene* s, Which which)
         return s->soft * M3_SOFTBODY_MAX_ANCHORS;
     case which_pool:
         return s->pool;
+    case which_rail:
+        return s->rail;
     }
     return 0;
 }
@@ -242,6 +246,11 @@ static const Case s_cases[] = {
     {"particle mass limit", SCALAR(softBodies.softInvMass, which_particle), (double)(1.0f / M3_MASS_LIMIT), -1},
     {"particle kick", COMPONENT(softBodies.softKick, m3Vec3, which_particle, 0), (double)(M3_SPEED_LIMIT), +1},
     {"particle anchor", COMPONENT(softBodies.softAnchorLocal, m3Vec3, which_anchor, 1), (double)(M3_LOCAL_LIMIT), +1},
+    // Positions, past which the step holds every body and particle.
+    {"body position", POSITION(bodies.transforms, m3Transform, which_ball, 0), M3_REACH_LIMIT, +1},
+    {"particle position", POSITION(softBodies.softPos, m3Pos3, which_particle, 8), -M3_REACH_LIMIT, -1},
+    {"particle previous position", POSITION(softBodies.softPrev, m3Pos3, which_particle, 16), M3_REACH_LIMIT, +1},
+    {"particle bind position", POSITION(softBodies.softBindPos, m3Pos3, which_particle, 0), M3_REACH_LIMIT, +1},
     // Water.
     {"water low corner", POSITION(water.waterLo, m3Pos3, which_pool, 0), (double)(-M3_POSITION_LIMIT), -1},
     {"water high corner", POSITION(water.waterHi, m3Pos3, which_pool, 16), (double)(M3_POSITION_LIMIT), +1},
@@ -271,7 +280,7 @@ static void Put(const Scene* s, uint8_t* snap, const Value* v, double x)
 }
 
 // The scene: a ball, a crate on a hinge, a gear, a pulley, a servo and a
-// wheel joint, a character, a vehicle with a drivetrain, a closed lattice
+// wheel joint, a kinematic rail, a character, a vehicle with a drivetrain, a closed lattice
 // anchored to the crate, a water volume and a steady wind.
 static Scene Build(void)
 {
@@ -342,6 +351,13 @@ static Scene Build(void)
     m3JointId wheel = NewJoint(w, &jd);
     s.wheel = wheel.index1 - 1;
     m3Joint_SetSteer(w, wheel, true, 0.1f, 5.0f, 0.7f, 10.0f);
+
+    bd = m3DefaultBodyDef();
+    bd.type = m3_kinematicBody;
+    bd.position = (m3Pos3){8.0, 1.0, 0.0};
+    m3BodyId rail = NewBody(w, &bd);
+    (void)NewBoxShape(w, rail, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    s.rail = rail.index1 - 1;
 
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.radius = 0.2f;
@@ -441,9 +457,70 @@ static void TestBoundsAtTheirEdges(void)
     m3DestroyWorld(world);
 }
 
+// A kinematic body at the kinematic limit and a free lattice moving
+// outward, both restored just inside the reach limit, cross it in one step: the
+// step holds them on it, and the world it made snapshots and restores in
+// a second world, which steps on alike.
+static void TestStepHoldsWithinReach(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
+    if (snap == NULL)
+    {
+        m3DestroyWorld(world);
+        return;
+    }
+    double start = M3_REACH_LIMIT - 1.0e9;
+    PutF64(At(&s, snap, F(bodies.transforms), sizeof(m3Transform), which_rail, 0), start);
+    PutF32(At(&s, snap, F(bodies.linearVelocities), sizeof(m3Vec3), which_rail, 0),
+           M3_KINEMATIC_SPEED_LIMIT);
+    int32_t particles = world->softBodies.softParticleCount[s.soft];
+    for (int32_t i = 0; i < particles; ++i)
+    {
+        size_t at = sizeof(m3Pos3) * (size_t)(s.soft * M3_SOFTBODY_MAX_PARTICLES + i);
+        uint8_t* pos = At(&s, snap, F(softBodies.softPos), 1, which_world, at);
+        uint8_t* prev = At(&s, snap, F(softBodies.softPrev), 1, which_world, at);
+        PutF64(pos, M3_REACH_LIMIT - 1.0);
+        PutF64(prev, M3_REACH_LIMIT - 2.0);
+    }
+    // The lattice lets go of the crate, so it moves as a whole.
+    uint8_t* anchors = At(&s, snap, F(softBodies.softAnchorCount), sizeof(int32_t), which_soft, 0);
+    int32_t none = 0;
+    memcpy(anchors, &none, sizeof(none));
+    CHECK(Restore(world, snap, size), "a world just inside the reach limit restores");
+    m3World_Step(world, 1.0f, 2);
+    double x = world->bodies.transforms[s.rail].p.x;
+    CHECK(x <= M3_REACH_LIMIT && x > M3_REACH_LIMIT - 1.0e3,
+          "the step holds the body on the limit");
+    bool held = true;
+    for (int32_t i = 0; i < particles; ++i)
+    {
+        m3Pos3 p = world->softBodies.softPos[s.soft * M3_SOFTBODY_MAX_PARTICLES + i];
+        held = held && p.x <= M3_REACH_LIMIT && p.x > M3_REACH_LIMIT - 1.0e3;
+    }
+    CHECK(held, "and every particle");
+
+    Scene twin = Build();
+    CHECK(Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
+          "the world the step made restores in a second world");
+    CHECK(m3World_Hash(twin.world) == m3World_Hash(world), "to the same state");
+    m3World_Step(world, 1.0f, 2);
+    m3World_Step(twin.world, 1.0f, 2);
+    CHECK(m3World_Hash(twin.world) == m3World_Hash(world), "and both step on alike");
+    CHECK(Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
+          "held on the limit, it restores again");
+    free(snap);
+    m3DestroyWorld(twin.world);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestBoundsAtTheirEdges();
+    TestStepHoldsWithinReach();
     if (s_failures == 0)
     {
         printf("test_restore_bounds: all checks passed\n");

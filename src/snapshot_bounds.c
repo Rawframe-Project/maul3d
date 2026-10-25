@@ -7,11 +7,10 @@
 // steps within the bounds a world the API built does. The block checks
 // have made every float finite.
 //
-// Positions are the exception: restore asks only that they are finite.
-// A create or teleport places a body within M3_POSITION_LIMIT, but the
-// step may carry it past that over a long run, and a world the engine
-// wrote must restore. Every product the step forms from a position is a
-// difference of nearby positions, taken in double.
+// Positions are bounded by M3_REACH_LIMIT rather than M3_POSITION_LIMIT:
+// a create or teleport places a body within the latter, but the step may
+// carry it further over a long run, holding it within the former, and a
+// world the engine wrote must restore.
 
 #include "snapshot_bounds.h"
 
@@ -69,9 +68,9 @@ static bool WorldValid(const m3Incoming* inc)
 
 // --- Bodies and shapes ---------------------------------------------------------
 
-// A live body's velocities by its type, its scales and damping, the force
-// and torque it holds for the step, and a servo target within reach of a
-// kinematic body.
+// A live body's position within reach, its velocities by its type, its
+// scales and damping, the force and torque it holds for the step, and a
+// servo target within reach of a kinematic body.
 static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(bodies.bodyPool.alive);
@@ -93,7 +92,10 @@ static bool BodiesValid(const m3Incoming* inc)
         {
             continue;
         }
-        if (!m3BodyVelocityValid(types[b], InV3(linear, b)) || !m3BodySpinValid(InV3(angular, b)) ||
+        m3Transform pose;
+        memcpy(&pose, poses + sizeof(m3Transform) * (size_t)b, sizeof(pose));
+        if (!m3WithinReach(pose.p) || !m3BodyVelocityValid(types[b], InV3(linear, b)) ||
+            !m3BodySpinValid(InV3(angular, b)) ||
             !m3BodyParamValid(m3_bodyParamGravityScale, m3InF32(gravityScales, b)) ||
             !m3BodyParamValid(m3_bodyParamLinearDamping, m3InF32(linearDamping, b)) ||
             !m3BodyParamValid(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) ||
@@ -104,9 +106,7 @@ static bool BodiesValid(const m3Incoming* inc)
         }
         if (hasTarget[b] != 0)
         {
-            m3Transform pose;
             m3Transform target;
-            memcpy(&pose, poses + sizeof(m3Transform) * (size_t)b, sizeof(pose));
             memcpy(&target, targets + sizeof(m3Transform) * (size_t)b, sizeof(target));
             if (!m3TargetFits(types[b], pose.p, target))
             {
@@ -358,13 +358,17 @@ static bool VehiclesValid(const m3Incoming* inc)
 }
 
 // A live soft body's particle scalars as its create took them: each
-// particle's inverse mass that of a mass within the floor and ceiling, or
-// zero when pinned, and a pending kick within the speed limit the step
-// held it to; its anchors in their bodies' frames.
+// particle within reach, now, a substep ago and in its bind pose, its
+// inverse mass that of a mass within the floor and ceiling, or zero when
+// pinned, and a pending kick within the speed limit the step held it to;
+// its anchors in their bodies' frames.
 static bool SoftBodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(softBodies.softPool.alive);
     const uint8_t* counts = M3_IN(softBodies.softParticleCount);
+    const uint8_t* positions = M3_IN(softBodies.softPos);
+    const uint8_t* previous = M3_IN(softBodies.softPrev);
+    const uint8_t* binds = M3_IN(softBodies.softBindPos);
     const uint8_t* invMass = M3_IN(softBodies.softInvMass);
     const uint8_t* kicks = M3_IN(softBodies.softKick);
     const uint8_t* anchorCount = M3_IN(softBodies.softAnchorCount);
@@ -389,7 +393,9 @@ static bool SoftBodiesValid(const m3Incoming* inc)
         {
             int32_t k = s * M3_SOFTBODY_MAX_PARTICLES + i;
             float w = m3InF32(invMass, k);
-            if ((w != 0.0f && !InRange(w, 1.0f / M3_MASS_LIMIT, 1.0f / M3_MASS_FLOOR)) ||
+            if (!m3WithinReach(InPos(positions, k)) || !m3WithinReach(InPos(previous, k)) ||
+                !m3WithinReach(InPos(binds, k)) ||
+                (w != 0.0f && !InRange(w, 1.0f / M3_MASS_LIMIT, 1.0f / M3_MASS_FLOOR)) ||
                 !m3WithinV3(InV3(kicks, k), M3_SPEED_LIMIT))
             {
                 return false;

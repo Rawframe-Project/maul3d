@@ -94,6 +94,50 @@ static inline bool m3BoundedPos3(m3Pos3 p)
            p.z <= M3_POSITION_LIMIT; // false for NaN
 }
 
+// How far from the origin any body or soft particle goes, per component,
+// m: restore refuses a position past it and the step holds every mover
+// and particle within it. Two positions within it differ by at most 2e18,
+// and that difference squared, 4e36, is still a float, so every length,
+// lever and offset the step forms from positions stays finite: a contact's
+// lever on a static body (the contact point minus that body's center)
+// times the body's zero inverse mass and inertia stays 0, a rope's or
+// distance joint's length and a soft particle's offset from its bind pose
+// stay floats. Creates and teleports keep M3_POSITION_LIMIT, so a body
+// reaches this only by moving at the kinematic limit for about 1e8 s.
+#define M3_REACH_LIMIT 1.0e18
+
+static inline bool m3WithinReach(m3Pos3 p)
+{
+    return p.x >= -M3_REACH_LIMIT && p.x <= M3_REACH_LIMIT && p.y >= -M3_REACH_LIMIT &&
+           p.y <= M3_REACH_LIMIT && p.z >= -M3_REACH_LIMIT &&
+           p.z <= M3_REACH_LIMIT; // false for NaN
+}
+
+// p held within M3_REACH_LIMIT: past it, scaled toward the origin onto
+// the bound, direction kept, and each component then clamped to the bound
+// so rounding cannot leave it a hair outside. A position within the bound
+// comes back unchanged.
+static inline m3Pos3 m3HoldReach(m3Pos3 p)
+{
+    double big = p.x < 0.0 ? -p.x : p.x;
+    double ay = p.y < 0.0 ? -p.y : p.y;
+    double az = p.z < 0.0 ? -p.z : p.z;
+    big = ay > big ? ay : big;
+    big = az > big ? az : big;
+    if (!(big > M3_REACH_LIMIT))
+    {
+        return p;
+    }
+    double scale = M3_REACH_LIMIT / big;
+    double* c[3] = {&p.x, &p.y, &p.z};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        double x = *c[k] * scale;
+        *c[k] = x > M3_REACH_LIMIT ? M3_REACH_LIMIT : (x < -M3_REACH_LIMIT ? -M3_REACH_LIMIT : x);
+    }
+    return p;
+}
+
 // The step holds every body and particle velocity (m/s and rad/s) and
 // every joint row's correction speed within this, whatever the world's
 // own caps say: 250 times the default linear cap, so no scene meets it,

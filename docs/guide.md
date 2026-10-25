@@ -1166,9 +1166,13 @@ velocity or spin by at most 1e13 per component at that step's own
 masses and levers, whatever the body's mass became since.
 
 Restore refuses the same values past the same limits, with one
-exception: positions need only be finite. A create or teleport
-places a body within 1e15 m, but the step may carry it further over
-a long run, and every snapshot the engine writes must restore.
+exception: positions are bounded at 1e18 m rather than 1e15. A
+create or teleport places a body within 1e15 m, but the step may
+carry it further over a long run, and every snapshot the engine
+writes must restore. The step holds every body and soft particle
+within 1e18 m, direction kept, which keeps every distance it forms
+between two positions, and its square, in float range; a body
+reaches it only by moving at the kinematic limit for about 1e8 s.
 
 ## Capacities
 
