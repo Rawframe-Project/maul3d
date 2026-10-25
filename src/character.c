@@ -75,6 +75,9 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
         return M3_CREATE_FULL;
     }
     int32_t slot = m3IdPoolAlloc(&world->characters.charPool);
+    // The slot is live from here, but owns no body until its capsule is on
+    // one: a stale body slot would refuse the capsule's create.
+    world->characters.charBody[slot] = -1;
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
     bd.position = def->position;
@@ -656,6 +659,15 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
         return m3_errorInvalid;
     }
     int32_t body = world->characters.charBody[slot];
+    int32_t shape = world->bodies.bodyShapeHead[body]; // the capsule is the
+                                                       // character's only shape
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_capsuleShape)
+    {
+        // Unreachable: no call may destroy or reshape a character's own
+        // capsule. Were one to, the stance must still write nothing.
+        M3_ASSERT(false);
+        return m3_errorState;
+    }
     m3real oldHh = world->characters.charHalfHeight[slot];
     m3real oldR = world->characters.charRadius[slot];
     m3real rise = (halfHeight + radius) - (oldHh + oldR); // feet anchor
@@ -675,8 +687,6 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
     }
     world->characters.charHalfHeight[slot] = halfHeight;
     world->characters.charRadius[slot] = radius;
-    int32_t shape = world->bodies.bodyShapeHead[body]; // the capsule is the
-                                                       // character's only shape
     world->shapes.shapeGeom[shape].v = (m3Vec3){0.0f, halfHeight, 0.0f};
     world->shapes.shapeGeom[shape].v2 = (m3Vec3){0.0f, -halfHeight, 0.0f};
     world->shapes.shapeGeom[shape].s = radius;

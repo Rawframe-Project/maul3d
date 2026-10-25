@@ -212,6 +212,133 @@ static void TestCharacterContracts(void)
     m3DestroyWorld(world);
 }
 
+// The character found the way a program finds any shape: its capsule
+// is a query's hit, and the body is the capsule's.
+static m3ShapeId CapsuleOf(const m3World* world, m3Pos3 at)
+{
+    m3RayCastResult hit =
+        m3World_CastRayClosest(world, (m3Pos3){at.x, at.y + 5.0, at.z}, (m3Vec3){0.0f, -5.0f, 0.0f},
+                               m3DefaultQueryFilter());
+    CHECK(hit.hit, "a ray finds the character's capsule");
+    return hit.shapeId;
+}
+
+// A character owns its body and capsule: they go with the character, and
+// no call destroys, retypes, reshapes or adds to them on their own. Each
+// such call refuses as invalid input and leaves the character whole, so
+// its stance still changes and it still walks.
+static void TestCharacterOwnsItsBodyAndCapsule(void)
+{
+    m3World* world = ArenaWorld();
+    m3CharacterDef cd = m3DefaultCharacterDef();
+    cd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3CharacterId hero = NewCharacter(world, &cd);
+    m3ShapeId capsule = CapsuleOf(world, cd.position);
+    m3BodyId body = m3Shape_GetBody(world, capsule);
+    CHECK(m3Shape_GetType(world, capsule) == m3_capsuleShape, "the hit is the capsule");
+
+    CHECK_REFUSES(world, CHECK(m3DestroyShape(world, capsule) == m3_errorInvalid, "destroy"),
+                  "the capsule is not destroyed on its own");
+    CHECK_REFUSES(world, CHECK(m3DestroyBody(world, body) == m3_errorInvalid, "destroy"),
+                  "the body is not destroyed on its own");
+    CHECK_REFUSES(world, m3Body_SetType(world, body, m3_dynamicBody), "the body is not retyped");
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
+    CHECK_REFUSES(world, m3Shape_SetSphere(world, capsule, &ball),
+                  "the capsule is not made a sphere");
+    m3Capsule rod = {{0.0f, -0.2f, 0.0f}, {0.0f, 0.2f, 0.0f}, 0.1f};
+    CHECK_REFUSES(world, m3Shape_SetCapsule(world, capsule, &rod),
+                  "the capsule is not reshaped but by the stance");
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId extra = m3_nullShapeId;
+    CHECK_REFUSES(
+        world,
+        CHECK(m3CreateSphereShape(world, body, &sd, &ball, &extra) == m3_errorInvalid, "create"),
+        "no shape is added to the body");
+
+    CHECK(m3Shape_IsValid(world, capsule) && m3Body_IsValid(world, body) &&
+              m3Body_GetType(world, body) == m3_kinematicBody &&
+              m3Shape_GetType(world, capsule) == m3_capsuleShape,
+          "the character is whole");
+    CHECK(SetStance(world, hero, 0.25f, 0.2f), "its stance changes");
+    m3Character_Move(world, hero, (m3Vec3){0.2f, -0.5f, 0.0f});
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(m3Character_GetPosition(world, hero).x > 0.1, "and it walks");
+
+    DestroyCharacter(world, hero);
+    CHECK(!m3Shape_IsValid(world, capsule) && !m3Body_IsValid(world, body),
+          "destroying the character takes its body and capsule");
+    m3DestroyWorld(world);
+}
+
+// A tape is data: a destroy or a retype aimed at a character's own body
+// or capsule is refused on replay as on the public call. The tape records
+// such a call on an ordinary sphere, and its id is then pointed at the
+// character's.
+static void TestReplayHoldsTheOwnership(void)
+{
+    enum
+    {
+        TAPE_BYTES = 4096
+    };
+    static uint8_t tape[TAPE_BYTES];
+    for (int32_t kind = 0; kind < 3; ++kind)
+    {
+        m3World* world = ArenaWorld();
+        m3CharacterDef cd = m3DefaultCharacterDef();
+        cd.position = (m3Pos3){0.0, 2.0, 0.0};
+        NewCharacter(world, &cd);
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.position = (m3Pos3){4.0, 2.0, 0.0};
+        m3BodyId other = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
+        m3ShapeId otherShape = NewSphereShape(world, other, &sd, &ball);
+        m3ShapeId capsule = CapsuleOf(world, cd.position);
+        m3BodyId body = m3Shape_GetBody(world, capsule);
+        int32_t size = m3World_SnapshotSize(world);
+        uint8_t* start = (uint8_t*)malloc((size_t)size);
+        CHECK(start != NULL && Snapshot(world, start, size) == size, "the start is saved");
+
+        CHECK(StartJournal(world, tape, TAPE_BYTES), "the journal starts");
+        if (kind == 0)
+        {
+            DestroyShape(world, otherShape);
+        }
+        else if (kind == 1)
+        {
+            DestroyBody(world, other);
+        }
+        else
+        {
+            m3Body_SetType(world, other, m3_dynamicBody);
+        }
+        int32_t bytes = StopJournal(world);
+        // The record's payload starts with the id: retarget it.
+        const void* from = kind == 0 ? (const void*)&otherShape : (const void*)&other;
+        const void* to = kind == 0 ? (const void*)&capsule : (const void*)&body;
+        size_t idBytes = kind == 0 ? sizeof(m3ShapeId) : sizeof(m3BodyId);
+        int32_t found = 0;
+        for (int32_t at = 0; at + (int32_t)idBytes <= bytes; ++at)
+        {
+            if (memcmp(tape + at, from, idBytes) == 0)
+            {
+                memcpy(tape + at, to, idBytes);
+                found += 1;
+            }
+        }
+        CHECK(found == 1, "the tape names the ordinary object once");
+
+        CHECK(Restore(world, start, size), "the start is restored");
+        CHECK(m3World_ReplayJournal(world, tape, bytes) == m3_errorInvalid,
+              "a tape aimed at the character's own body or capsule is refused");
+        CHECK(m3Shape_IsValid(world, capsule) && m3Body_IsValid(world, body) &&
+                  m3Body_GetType(world, body) == m3_kinematicBody,
+              "and the character is whole");
+        free(start);
+        m3DestroyWorld(world);
+    }
+}
+
 // Stairs, slopes, the voxel floor, and the welded seam.
 
 static void TestCharacterOnCharacter(void)
@@ -730,6 +857,8 @@ int main(void)
     TestWallSlideAndCeiling();
     TestLedgeDropAndSnap();
     TestCharacterContracts();
+    TestCharacterOwnsItsBodyAndCapsule();
+    TestReplayHoldsTheOwnership();
     TestVoxelStairs();
     TestSteepSlopeRefusal();
     TestCarvedFloorDrop();
