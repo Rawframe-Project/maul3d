@@ -6,6 +6,76 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.4.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.4.0) (2026-10-25)
+
+### Changed
+
+- **Breaking: the API and replay refuse magnitudes past fixed limits.**
+  Every value a call or a recorded op takes is bounded, so every product
+  the step forms from them stays finite. A call past a limit refuses
+  with `m3_errorInvalid` (a create returns the null id), counts one
+  misuse, journals nothing and changes nothing, and replay refuses the
+  same values through the same checks. Among the limits: speeds within
+  1e5 m/s and rad/s per component (a kinematic body's linear speed
+  within 1e10 m/s), gravity within 1e4 m/s^2, frequencies within 1e5 Hz,
+  dimensionless ratios within 1e4, step lengths from 1e-4 to 10 s,
+  forces and torques within 1e20, and on a dynamic body every
+  mass-bearing shape at least 1e-6 kg with every principal moment at
+  least 1e-12 kg m^2 and the body at most 1e20 kg. The guide's
+  "Magnitude limits" chapter and the header docs list every limit per
+  call. A body holding static-only scenery cannot leave static, and a
+  teleport or a type change cancels a pending servo target
+  ([#81](https://github.com/Rawframe-Project/maul3d/pull/81)).
+- **Breaking: `m3Shape_SetDensity` always rebuilds the body's mass.** It
+  takes no `updateBodyMass` argument, and its journal record shrinks
+  from 16 to 12 bytes. A body's mass, center and inertia are now always
+  derived from its type and shapes
+  ([#82](https://github.com/Rawframe-Project/maul3d/pull/82)).
+- **Breaking: the snapshot format is 3.** Mass, center, inertia and
+  extents are rebuilt on restore rather than stored, bit for bit as the
+  source world had them, and a format 2 snapshot is refused
+  ([#82](https://github.com/Rawframe-Project/maul3d/pull/82)).
+- On 32-bit x86 the library is built with SSE2 math
+  (`-msse2 -mfpmath=sse`), so it needs a processor with SSE2, and every
+  build now leaves trapping math at the compiler's default, from the
+  family's compiler flags. On AVX2 the solver's min and max are one
+  instruction each, with the same bits. Every golden scene and bench
+  hash is unchanged on x64 and i686, with GCC and Clang
+  ([#85](https://github.com/Rawframe-Project/maul3d/pull/85)).
+
+### Fixed
+
+- Restore accepts only what a world built through the API could hold.
+  It refuses any value past the limit its create or setter keeps, a
+  position past 1e18 m, a dynamic body whose shapes break the mass
+  floors or limit, and a contact manifold with a float that is not
+  finite. The step holds every body and soft particle within 1e18 m and
+  a loaded warm start within a limit. Every ordinary impulse keeps its
+  bits, and every golden scene's result is unchanged; only the snapshot
+  and journal byte hashes moved with the formats
+  ([#82](https://github.com/Rawframe-Project/maul3d/pull/82)).
+- The step keeps every dynamic body, particle and joint row within
+  1e5 m/s and rad/s after the warm start, restitution and the soft-body
+  pass, and caps a joint row's correction speed there, so an error of
+  any size closes no faster than a body may move. A body's inverse
+  inertia is exact at any scale
+  ([#76](https://github.com/Rawframe-Project/maul3d/pull/76)).
+- The gyroscopic step and the solver's small inverses (the contact
+  tangent pair, the joint row pair and the 3x3 solve) solve at unit
+  scale when the direct result is not finite or the determinant is not
+  a normal float, instead of dropping the term or giving zero. Every
+  ordinary system goes through the same operations and gives the same
+  bits, and every golden and bench hash is unchanged
+  ([#79](https://github.com/Rawframe-Project/maul3d/pull/79),
+  [#80](https://github.com/Rawframe-Project/maul3d/pull/80)).
+- Replay applies each op's public checks: the sleep controls, waking a
+  body, a hull's points, tank commands, joint targets and voxel edits
+  are refused on replay exactly where their calls refuse them, and the
+  journal reader checks each record's length as the replay reader does.
+  A soft lattice def is refused, by the call and on replay, when any one
+  of its counts passes the particle cap
+  ([#86](https://github.com/Rawframe-Project/maul3d/pull/86)).
+
 ## [0.3.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.3.0) (2026-10-25)
 
 ### Changed
