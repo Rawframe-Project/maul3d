@@ -114,7 +114,7 @@ fuzz() { # seconds per target
     cmake --build "$out/check-fuzz" -j "$jobs" >>"$out/check-fuzz.log"
     rm -rf "$out/seeds"
     "$out/check-fuzz/fuzz_seeds" "$out/seeds" >>"$out/check-fuzz.log"
-    for target in snapshot journal replay; do
+    for target in snapshot journal replay restore_step; do
         mkdir -p "$out/corpus/fuzz_$target"
         "$out/check-fuzz/fuzz_$target" -max_total_time="$1" -timeout=10 \
             -artifact_prefix="$out/fuzz_$target-" "$out/corpus/fuzz_$target" \

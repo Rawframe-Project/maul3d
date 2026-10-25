@@ -6,12 +6,14 @@
 //
 //   fuzz_seeds <dir>
 //
-// writes <dir>/fuzz_snapshot/, <dir>/fuzz_journal/ and <dir>/fuzz_replay/:
-// snapshots of the scene before and after its session, the tapes of the
-// build alone and of the build and the session, and the replay container
-// of the whole session from an empty world.
+// writes <dir>/fuzz_snapshot/ and <dir>/fuzz_restore_step/ (the same
+// snapshots), <dir>/fuzz_journal/ and <dir>/fuzz_replay/: snapshots of the
+// scene before and after its session, the tapes of the build alone and of
+// the build and the session, and the replay container of the whole
+// session from an empty world.
 
 #include "fuzz_scene.h"
+#include "journal.h"
 
 #include "maul3d/replay.h"
 
@@ -70,6 +72,7 @@ static void WriteSnapshot(const char* dir, const char* name, const m3World* worl
     int32_t bytes = 0;
     uint8_t* snapshot = SnapshotOf(world, &bytes);
     WriteSeed(dir, "fuzz_snapshot", name, snapshot, bytes);
+    WriteSeed(dir, "fuzz_restore_step", name, snapshot, bytes);
     free(snapshot);
 }
 
@@ -106,6 +109,73 @@ static void BuildScene(m3World* world, FuzzScene* scene)
     }
 }
 
+// What FuzzSession records, kind by kind. A refused call records
+// nothing, so a session call that starts refusing would thin the tape
+// silently; each kind's records past the build's must reach its floor.
+typedef struct SessionOp
+{
+    int32_t op;
+    int32_t floor;
+    const char* name;
+} SessionOp;
+
+static const SessionOp s_sessionOps[] = {
+    {m3_opStep, 16, "steps"},
+    {m3_opSetLinearVelocity, 1, "velocity sets"},
+    {m3_opApplyLinearImpulse, 1, "impulses"},
+    {m3_opSetGravity, 1, "gravity sets"},
+    {m3_opVoxelClear, 1, "voxel clears"},
+    {m3_opWorldExplode, 1, "blasts"},
+    {m3_opDestroyJoint, 1, "joint destroys"},
+};
+
+// The records of one kind on a tape, by the [i32 op][i32 size][payload]
+// walk m3DescribeJournal makes, which must agree with its counts.
+static int32_t CountOps(const uint8_t* tape, int32_t bytes, int32_t op)
+{
+    m3JournalInfo info;
+    if (m3DescribeJournal(tape, bytes, &info) != m3_success)
+    {
+        Fail("a tape's framing");
+    }
+    int32_t records = 0;
+    int32_t steps = 0;
+    int32_t matches = 0;
+    for (int32_t cursor = 0; cursor < bytes;)
+    {
+        int32_t kind;
+        int32_t payload;
+        memcpy(&kind, tape + cursor, 4);
+        memcpy(&payload, tape + cursor + 4, 4);
+        records += 1;
+        steps += kind == m3_opStep ? 1 : 0;
+        matches += kind == op ? 1 : 0;
+        cursor += 8 + payload;
+    }
+    if (records != info.opCount || steps != info.stepCount)
+    {
+        Fail("a tape walk that disagrees with m3DescribeJournal");
+    }
+    return matches;
+}
+
+static void SessionOpsHold(const uint8_t* build, int32_t buildBytes, const uint8_t* session,
+                           int32_t sessionBytes)
+{
+    for (size_t i = 0; i < sizeof(s_sessionOps) / sizeof(s_sessionOps[0]); ++i)
+    {
+        const SessionOp* kind = &s_sessionOps[i];
+        int32_t added =
+            CountOps(session, sessionBytes, kind->op) - CountOps(build, buildBytes, kind->op);
+        if (added < kind->floor)
+        {
+            fprintf(stderr, "fuzz_seeds: the session records %d %s, not the %d FuzzSession makes\n",
+                    added, kind->name, kind->floor);
+            exit(1);
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -137,6 +207,13 @@ int main(int argc, char** argv)
         Fail("the build's tape");
     }
     WriteSeed(dir, "fuzz_journal", "build", tape, tapeBytes);
+    uint8_t* buildTape = (uint8_t*)malloc((size_t)tapeBytes);
+    if (buildTape == NULL)
+    {
+        Fail("the build's tape copy");
+    }
+    memcpy(buildTape, tape, (size_t)tapeBytes);
+    int32_t buildBytes = tapeBytes;
     WriteSnapshot(dir, "built", world);
     m3DestroyWorld(world);
 
@@ -153,6 +230,7 @@ int main(int argc, char** argv)
     {
         Fail("the session's tape");
     }
+    SessionOpsHold(buildTape, buildBytes, tape, tapeBytes);
     WriteSeed(dir, "fuzz_journal", "session", tape, tapeBytes);
     WriteSnapshot(dir, "session", world);
     int32_t replaySize = m3GetEncodedReplaySize(emptyBytes, tapeBytes);
@@ -169,6 +247,7 @@ int main(int argc, char** argv)
     m3DestroyWorld(world);
     free(replay);
     free(empty);
+    free(buildTape);
     free(tape);
     return 0;
 }
