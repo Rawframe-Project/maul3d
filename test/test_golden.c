@@ -942,8 +942,8 @@ static void TourTeardown(const Tour* t)
     DestroyBody(t->world, t->ball);
 }
 
-// One frame of the tour: its calls, then the step.
-static void TourFrame(Tour* t, int32_t frame)
+// One frame of the tour's calls, before its step.
+static void TourCalls(Tour* t, int32_t frame)
 {
     switch (frame)
     {
@@ -1005,7 +1005,47 @@ static void TourFrame(Tour* t, int32_t frame)
         s_failures += 1;
         t->refusalSeen = true;
     }
+}
+
+// One frame of the tour: its calls, then the step.
+static void TourFrame(Tour* t, int32_t frame)
+{
+    TourCalls(t, frame);
     m3World_Step(t->world, DT, 4);
+}
+
+// Every frame of the tour snapshotted between its calls and its step, and
+// restored: an engine-written snapshot restores whenever it is taken,
+// including right after a destroy, before the step rebuilds the pairs.
+// Restoring the world's own state changes nothing, so the tour ends on
+// the bits of a tour that never restored.
+static void CheckRestoreBetweenCallsAndStep(uint64_t expected)
+{
+    Tour t;
+    BuildTour(&t, MakeWorld(0));
+    StepN(t.world, 60);
+    int32_t refused = -1;
+    for (int32_t frame = 0; frame < TOUR_FRAMES; ++frame)
+    {
+        TourCalls(&t, frame);
+        int32_t size = m3World_SnapshotSize(t.world);
+        uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+        if (bytes == NULL || Snapshot(t.world, bytes, size) != size ||
+            !Restore(t.world, bytes, size))
+        {
+            refused = refused < 0 ? frame : refused;
+        }
+        free(bytes);
+        m3World_Step(t.world, DT, 4);
+    }
+    if (refused >= 0)
+    {
+        printf("FAIL: the snapshot taken before frame %d's step does not restore\n", refused);
+        s_failures += 1;
+    }
+    CHECK(m3World_Hash(t.world) == expected,
+          "restoring between the calls and the step changes no bit");
+    m3DestroyWorld(t.world);
 }
 
 // The tour rolled back across its own second half: a snapshot taken
@@ -1439,7 +1479,9 @@ int main(int argc, char** argv)
     Expect("STACK", SceneStack(), M3_GOLDEN_STACK);
     Expect("DESTRUCTION", SceneDestruction(), M3_GOLDEN_DESTRUCTION);
     Expect("VEHICLES", SceneVehicles(), M3_GOLDEN_VEHICLES);
-    Expect("ROLLBACK", SceneRollback(), M3_GOLDEN_ROLLBACK);
+    uint64_t rollback = SceneRollback();
+    Expect("ROLLBACK", rollback, M3_GOLDEN_ROLLBACK);
+    CheckRestoreBetweenCallsAndStep(rollback);
     Expect("JOURNAL", SceneJournal(), M3_GOLDEN_JOURNAL);
     Expect("ROLLBACK_SNAPSHOT", s_snapshotBytesHash, M3_GOLDEN_ROLLBACK_SNAPSHOT);
     Expect("JOURNAL_TAPE", s_tapeBytesHash, M3_GOLDEN_JOURNAL_TAPE);
