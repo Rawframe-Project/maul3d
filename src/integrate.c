@@ -15,25 +15,15 @@
 // body coordinates the step solves I (w2 - w1) + h w2 x (I w2) = 0 for
 // w2; one Newton iteration from w2 = w1 is enough at substep sizes, and
 // the implicit form cannot pump energy into a tumbling body, whatever
-// its shape. An isotropic tensor skips the step: w x (c w) vanishes in
-// real arithmetic but not bit for bit in float, and spheres keep their
-// exact trajectories. The gate compares are exact, so the branch is
-// deterministic.
-static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
+// its shape.
+m3Vec3 m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m3real h)
 {
-    const m3Mat3* inertia = &world->bodies.inertiaLocal[body];
-    const m3real i00 = inertia->cx.x;
-    const m3real i01 = inertia->cy.x;
-    const m3real i02 = inertia->cz.x;
-    const m3real i11 = inertia->cy.y;
-    const m3real i12 = inertia->cz.y;
-    const m3real i22 = inertia->cz.z;
-    if (i01 == 0.0f && i02 == 0.0f && i12 == 0.0f && i00 == i11 && i11 == i22)
-    {
-        return w; // isotropic (or massless): the term vanishes
-    }
-
-    m3Quat q = world->bodies.transforms[body].q;
+    const m3real i00 = inertia->cx.x / scale;
+    const m3real i01 = inertia->cy.x / scale;
+    const m3real i02 = inertia->cz.x / scale;
+    const m3real i11 = inertia->cy.y / scale;
+    const m3real i12 = inertia->cz.y / scale;
+    const m3real i22 = inertia->cz.z / scale;
     m3Vec3 omega1 = m3InvRotateVec3(q, w);
     m3Vec3 omega2 = omega1;
 
@@ -60,11 +50,40 @@ static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
     J.cz = (m3Vec3){i02 + h * (w2 * i22 - w3 * i12 - Iw2), i12 + h * (w3 * i02 - w1 * i22 + Iw1),
                     i22 + h * (w1 * i12 - w2 * i02)};
     omega2 = m3Sub3(omega2, m3Solve3(&J, b));
+    return m3RotateVec3(q, omega2);
+}
 
-    // The Newton step works in w^2 times the inertia, which can leave
-    // float range for a large body; then the spin goes on unchanged, as
+// An isotropic tensor skips the step: w x (c w) vanishes in real
+// arithmetic but not bit for bit in float, and spheres keep their exact
+// trajectories. The gate compares are exact, so the branch is
+// deterministic.
+static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
+{
+    const m3Mat3* inertia = &world->bodies.inertiaLocal[body];
+    const m3real i00 = inertia->cx.x;
+    const m3real i11 = inertia->cy.y;
+    const m3real i22 = inertia->cz.z;
+    if (inertia->cy.x == 0.0f && inertia->cz.x == 0.0f && inertia->cz.y == 0.0f && i00 == i11 &&
+        i11 == i22)
+    {
+        return w; // isotropic (or massless): the term vanishes
+    }
+    m3Quat q = world->bodies.transforms[body].q;
+    m3Vec3 turned = m3GyroscopicStep(inertia, 1.0f, q, w, h);
+    if (m3FiniteV3(turned))
+    {
+        return turned;
+    }
+    // The Newton step works in w^2 times the inertia and its solve in the
+    // cube of that, which a large body takes past float range. Every term
+    // is linear in the inertia, so the step at unit inertia scale gives
+    // the same spin. Should even that fail, the spin goes on unchanged, as
     // it does for a singular Jacobian.
-    m3Vec3 turned = m3RotateVec3(q, omega2);
+    m3real scale = m3MaxF(i00, m3MaxF(i11, i22));
+    if (scale > 0.0f)
+    {
+        turned = m3GyroscopicStep(inertia, scale, q, w, h);
+    }
     return m3FiniteV3(turned) ? turned : w;
 }
 
