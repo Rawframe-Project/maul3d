@@ -169,6 +169,21 @@ static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
 // The suites servo 3 km.
 #define M3_KINEMATIC_SPEED_LIMIT 1.0e10f
 #define M3_SERVO_REACH           1.0e6
+// What a stored contact or joint impulse may change, per component, in a
+// body's velocity (m/s) or spin (rad/s) when the next step's warm start
+// lands it. One step runs at most 513 passes (two per substep, 256
+// substeps, then restitution), each at a relative point speed within
+// about 1.75e10 m/s (a kinematic point against a dynamic one), so the
+// passes of one step build at most about 9e12. Prepare measures each
+// loaded impulse at that step's own masses, inertias and levers, as if
+// every component acted at the longest lever on every axis, and scales
+// it, direction kept, to within this and to a moment, impulse times
+// lever, within M3_WARM_MOMENT_LIMIT, which keeps every term the warm
+// start forms a float. The stored impulses themselves need no bound: the
+// hold acts at load, so any finite one is safe, whatever the body's mass
+// became since it was stored.
+#define M3_WARM_LIMIT        1.0e13f
+#define M3_WARM_MOMENT_LIMIT 1.0e38f
 // A vehicle wheel's radius, m: drive force and wheel spin divide by it.
 // The suites use 0.3.
 #define M3_WHEEL_RADIUS_FLOOR 1.0e-3f
