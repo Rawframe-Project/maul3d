@@ -214,6 +214,24 @@ static void VehicleWithoutChassis(const Scene* scene, uint8_t* snap)
     PutI32(I32_AT(vehicles.vehChassis, slot), -1);
 }
 
+static void VehicleOnDeadChassis(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->vehicles.vehPool.alive, world->vehicles.vehPool.capacity);
+    int32_t dead = world->bodies.bodyPool.capacity - 1; // past every live body
+    CHECK(world->bodies.bodyPool.alive[dead] == 0, "the last body slot is dead");
+    PutI32(I32_AT(vehicles.vehChassis, slot), dead);
+}
+
+static void VehicleOnStaleChassis(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->vehicles.vehPool.alive, world->vehicles.vehPool.capacity);
+    uint16_t stale = (uint16_t)(world->vehicles.vehChassisGen[slot] + 1u);
+    memcpy(At(world, snap, FIELD(vehicles.vehChassisGen), sizeof(uint16_t), slot), &stale,
+           sizeof(stale));
+}
+
 static void EdgePastParticles(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -274,6 +292,8 @@ static const Case s_cases[] = {
     {"a character on a static body", CharacterOnStaticBody},
     {"a gear with no drivetrain", GearWithoutDrivetrain},
     {"a vehicle with no chassis", VehicleWithoutChassis},
+    {"a vehicle on a dead chassis", VehicleOnDeadChassis},
+    {"a vehicle on a chassis of another generation", VehicleOnStaleChassis},
     {"a soft edge past the particles", EdgePastParticles},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
