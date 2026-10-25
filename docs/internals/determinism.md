@@ -37,6 +37,10 @@ The scenes draw every random number in a statement of its own. C leaves the eval
 
 The scenes never call the host's math library for anything that shapes a scene. The platforms' `sinf`, `cosf` and the like differ in the last bits (the Windows x64 C runtime against glibc and macOS, for one), so a terrain built from them differs before the engine runs a step. Scene code uses `m3ComputeCosSin` and `m3Atan2`, which give the same bits everywhere.
 
+## Warm start scenes
+
+Two lines pin the warm start hold, in [`test/test_warmhold.c`](../../test/test_warmhold.c): a box of 8e12 kg, resting on the ground (`WARM_CONTACTS`) or hung from a joint (`WARM_JOINTS`), is made 1.6e-6 kg while its contacts or its joint still hold the impulses it carried. The next step's prepare scales those impulses down, and each line pins where the scene lands four steps on. The hold works in the scalar setup every SIMD backend shares, so every cell must agree on the same bits.
+
 ## Benchmark scenes
 
 The seven `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../bench/scenes.c), which the benchmark and [`test/test_bench.c`](../../test/test_bench.c) share:
@@ -63,7 +67,8 @@ Each scene prints its line, so a deliberate change of results is one regeneratio
 
 ```sh
 for p in linux-gcc-14 linux-gcc-14-bench; do cmake --preset $p && cmake --build --preset $p; done
-(out/linux-gcc-14/test_golden; out/linux-gcc-14-bench/test_bench) | grep -E '^M3_[A-Z0-9_]+_HASH=' > test/hashes.txt
+(out/linux-gcc-14/test_golden; out/linux-gcc-14/test_warmhold; out/linux-gcc-14-bench/test_bench) |
+    grep -E '^M3_[A-Z0-9_]+_HASH=' > test/hashes.txt
 ```
 
 The pull request that regenerates values says which lines moved and why, and CI shows every cell agreeing on the new values.
