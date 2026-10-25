@@ -17,6 +17,7 @@
 #include "hull.h"
 #include "misuse.h"
 #include "shape.h"
+#include "snapshot_links.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -790,6 +791,13 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
         !TailFits(world, raw, size, fixed) || !VoxelSurfacesFit(world, raw))
     {
         return m3_errorInvalid;
+    }
+    // Then the structures as wholes, which the block checks make safe to
+    // walk: what a step follows must be what the engine could have written.
+    m3Result links = m3SnapshotLinksCheck(world, raw + sizeof(m3SnapshotHeader));
+    if (links != m3_success)
+    {
+        return links;
     }
     if (!PrepareRestore(world, raw, size, fixed, stage))
     {

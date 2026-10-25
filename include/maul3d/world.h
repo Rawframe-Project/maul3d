@@ -245,9 +245,13 @@ extern "C"
     /// resimulates bit-exactly. Before any byte lands, every block is
     /// checked: out-of-range indices and counts, flags that are not
     /// flags, and non-finite state refuse with m3_errorInvalid and leave
-    /// the world as it was. The checks make every index safe to use;
-    /// they do not re-derive every structural invariant (tree shape,
-    /// list links), so restore only snapshots this engine wrote.
+    /// the world as it was. Then the structures are checked as wholes:
+    /// id pools, body to shape and joint lists, the broadphase tree, the
+    /// contact pairs, shared content and its reference counts, and the
+    /// links of characters, vehicles, soft bodies and joints must be ones
+    /// this engine could have written, or restore refuses the same way.
+    /// A snapshot restore accepts, from any source, steps, queries and
+    /// snapshots safely.
     /// Snapshot writes m3World_SnapshotSize bytes and sets
     /// *bytesOut; a smaller buffer returns m3_errorCapacity.
     M3_API int32_t m3World_SnapshotSize(const m3World* world);

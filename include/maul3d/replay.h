@@ -19,9 +19,9 @@ extern "C"
     /// The M3J1 replay container: a pure-memory codec for
     /// [initial snapshot + journal] sessions. The LIBRARY never
     /// touches files; tools own IO (the zero-dependency law). The
-    /// embedded snapshot self-validates on restore (config hash,
-    /// format version, capacities), so the container only guards
-    /// its own framing.
+    /// container guards only its own framing: the embedded snapshot is
+    /// checked by m3World_Restore like any other, and the journal's
+    /// records by replay, each op as the API call it stands for.
     ///
     /// Layout, little-endian: magic "M3J1" (4) | container version
     /// u32 (2) | snapshotBytes i32 | journalBytes i32 | stepCount
