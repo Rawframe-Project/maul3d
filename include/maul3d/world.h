@@ -246,12 +246,11 @@ extern "C"
     /// checked: out-of-range indices and counts, flags that are not
     /// flags, and non-finite state refuse with m3_errorInvalid and leave
     /// the world as it was. Then the structures are checked as wholes:
-    /// id pools, body to shape and joint lists, the broadphase tree, the
-    /// contact pairs, shared content and its reference counts, and the
-    /// links of characters, vehicles, soft bodies and joints must be ones
-    /// this engine could have written, or restore refuses the same way.
-    /// A snapshot restore accepts, from any source, steps, queries and
-    /// snapshots safely.
+    /// restore refuses, the same way, any snapshot whose links, lists,
+    /// pools, trees or per-record values this engine could not have
+    /// written (id pools, body to shape and joint lists, the broadphase
+    /// tree, the contact pairs, shared content and its reference counts,
+    /// and the records of characters, vehicles, soft bodies and joints).
     /// Snapshot writes m3World_SnapshotSize bytes and sets
     /// *bytesOut; a smaller buffer returns m3_errorCapacity.
     M3_API int32_t m3World_SnapshotSize(const m3World* world);
