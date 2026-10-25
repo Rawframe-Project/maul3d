@@ -18,4 +18,8 @@ if(MAUL3D_BUILD_TESTS)
     add_test(NAME replaytool COMMAND m3replay selftest)
     add_test(NAME replaydiff COMMAND m3replay difftest)
     add_test(NAME lockstep COMMAND m3lockstep)
+    # Each labeled by its own name, as maul_add_test labels a suite.
+    foreach(name replaytool replaydiff lockstep)
+        set_tests_properties(${name} PROPERTIES LABELS ${name})
+    endforeach()
 endif()
