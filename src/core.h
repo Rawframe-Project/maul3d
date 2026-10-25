@@ -103,10 +103,12 @@ static inline bool m3BoundedPos3(m3Pos3 p)
 
 // v scaled down to length cap when it is longer. A vector within the cap
 // comes back unchanged, and one whose squared length overflows is scaled
-// by its largest component first, so the result is finite either way.
+// by its largest component first, so the result is finite either way. v
+// may hold an infinite component but never a NaN.
 static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
 {
     m3real v2 = m3Dot3(v, v);
+    M3_ASSERT(v2 == v2);
     if (!(v2 > cap * cap))
     {
         return v;
