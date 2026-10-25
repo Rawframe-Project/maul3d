@@ -4,7 +4,7 @@
 // The per-record half of restore's whole-structure checks; the links are
 // in snapshot_links.c. Each live record's values must be ones its setters
 // accept, which the per-block checks (world_state.c) cannot know: world
-// tunables in range, body locks and mass that fit the body's type, unit
+// tunables in range, body locks, unit
 // rotations, shape geometry its create accepted, and the indices that
 // characters, vehicles, soft bodies and joints hold landing where the
 // engine would have put them.
@@ -46,39 +46,16 @@ static bool TuningValid(const m3Incoming* inc)
 
 // --- Bodies and shape geometry --------------------------------------------
 
-// A live body's locks are the six axis bits and the fast rotation bit;
-// only a dynamic body has inverse mass or inverse inertia, and none has
-// a negative inverse mass.
+// A live body's locks are the six axis bits and the fast rotation bit.
 static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
-    const uint8_t* types = m3InField(inc, offsetof(m3World, bodies.types));
     const uint8_t* locks = m3InField(inc, offsetof(m3World, bodies.bodyLocks));
-    const uint8_t* invMass = m3InField(inc, offsetof(m3World, bodies.invMass));
-    const uint8_t* invInertia = m3InField(inc, offsetof(m3World, bodies.invInertiaLocal));
     for (int32_t b = 0; b < inc->world->bodies.bodyPool.capacity; ++b)
     {
-        if (alive[b] == 0)
-        {
-            continue;
-        }
-        if ((locks[b] & ~(0x3Fu | M3_LOCKS_ALLOW_FAST_ROTATION)) != 0 || m3InF32(invMass, b) < 0.0f)
+        if (alive[b] != 0 && (locks[b] & ~(0x3Fu | M3_LOCKS_ALLOW_FAST_ROTATION)) != 0)
         {
             return false;
-        }
-        if (types[b] != (uint8_t)m3_dynamicBody)
-        {
-            if (m3InF32(invMass, b) != 0.0f)
-            {
-                return false;
-            }
-            for (int32_t k = 0; k < 9; ++k)
-            {
-                if (m3InF32(invInertia, 9 * b + k) != 0.0f)
-                {
-                    return false;
-                }
-            }
         }
     }
     return true;

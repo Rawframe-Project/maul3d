@@ -109,10 +109,10 @@ static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat
                            r.cx.z * t.cz.x + r.cy.z * t.cz.y + r.cz.z * t.cz.z};
 }
 
-// Shape s's mass properties as if it had the given type, geometry and
-// density; a hull keeps its interned content.
-static int MassPropsOf(const m3World* world, int32_t s, uint8_t type, const m3ShapeGeom* geom,
-                       float density, float* massOut, m3Vec3* comOut, m3Mat3* inertiaOut)
+// A shape's mass properties from its type, geometry and density, and for
+// a hull its interned content.
+static int MassPropsOf(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull, float density,
+                       float* massOut, m3Vec3* comOut, m3Mat3* inertiaOut)
 {
     if (type == (uint8_t)m3_sphereShape)
     {
@@ -163,7 +163,6 @@ static int MassPropsOf(const m3World* world, int32_t s, uint8_t type, const m3Sh
     }
     if (type == (uint8_t)m3_hullShape)
     {
-        const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s]];
         *massOut = density * hull->unitMass;
         *comOut = hull->unitCom;
         m3Mat3 ic = hull->unitInertiaCom;
@@ -176,10 +175,17 @@ static int MassPropsOf(const m3World* world, int32_t s, uint8_t type, const m3Sh
     return 0;
 }
 
+// Shape s's interned hull, or NULL for a shape that holds none.
+static const m3HullData* ShapeHull(const m3World* world, int32_t s)
+{
+    int32_t h = world->shapes.shapeHullIndex[s];
+    return h >= 0 ? &world->hulls.hullData[h] : NULL;
+}
+
 static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
                           m3Mat3* inertiaOut)
 {
-    return MassPropsOf(world, s, world->shapes.shapeType[s], &world->shapes.shapeGeom[s],
+    return MassPropsOf(world->shapes.shapeType[s], &world->shapes.shapeGeom[s], ShapeHull(world, s),
                        world->shapes.shapeDensity[s], massOut, comOut, inertiaOut);
 }
 
@@ -200,6 +206,20 @@ static bool InertiaAtLeast(const m3Mat3* ic, double floor)
            d * f - e * e >= 0.0 && det >= 0.0; // false for NaN
 }
 
+bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull, float density,
+                       double* total)
+{
+    float m;
+    m3Vec3 c;
+    m3Mat3 ic;
+    if (MassPropsOf(type, geom, hull, density, &m, &c, &ic) == 0)
+    {
+        return true;
+    }
+    *total += (double)m;
+    return m >= M3_MASS_FLOOR && InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR);
+}
+
 // The mass floors and ceiling over body's shapes, with slot (or -1 for
 // none) taking the given type, geometry and density.
 static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t type,
@@ -208,20 +228,14 @@ static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t t
     double total = 0.0;
     for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
     {
-        float m;
-        m3Vec3 c;
-        m3Mat3 ic;
-        int carries = s == slot ? MassPropsOf(world, s, type, geom, density, &m, &c, &ic)
-                                : ShapeMassProps(world, s, &m, &c, &ic);
-        if (carries == 0)
-        {
-            continue;
-        }
-        if (!(m >= M3_MASS_FLOOR) || !InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR))
+        bool fits = s == slot ? m3ShapeMassFloors(type, geom, ShapeHull(world, s), density, &total)
+                              : m3ShapeMassFloors(world->shapes.shapeType[s],
+                                                  &world->shapes.shapeGeom[s], ShapeHull(world, s),
+                                                  world->shapes.shapeDensity[s], &total);
+        if (!fits)
         {
             return false;
         }
-        total += (double)m;
     }
     return total <= (double)M3_MASS_LIMIT;
 }

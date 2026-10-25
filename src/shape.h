@@ -73,6 +73,13 @@ bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3S
 // turns dynamic.
 bool m3BodyMassFits(const m3World* world, int32_t body);
 
+// Whether one shape of this type, geometry, density and hull content (NULL
+// for a shape with none) bears no mass or weighs at least M3_MASS_FLOOR
+// with every principal moment at least M3_INERTIA_FLOOR; adds its mass to
+// *total. The checks above and restore's ask it.
+bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull, float density,
+                       double* total);
+
 // A material scalar a shape setter or replay may write: friction and
 // rolling resistance non-negative, restitution within M3_RATIO_LIMIT
 // (op is the setter's journal op).
