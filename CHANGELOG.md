@@ -6,6 +6,23 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.4.0](https://github.com/Rawframe-Project/maul3d/compare/v0.3.0...v0.4.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* `m3Shape_SetDensity` takes no `updateBodyMass` argument and always rebuilds the body's mass, and its journal record shrinks from 16 to 12 bytes. The snapshot format is 3: mass, center, inertia and extents are rebuilt on restore rather than stored, and format 2 snapshots are refused. Restore refuses any value past the limit its create or setter keeps, a position past 1e18 m, a dynamic body whose shapes break the mass floors or limit, and a contact manifold with a float that is not finite.
+* the API and replay refuse magnitudes past these limits with `m3_errorInvalid`, a create returning the null id. Per component of a vector: speeds within 1e5 m/s and rad/s, a kinematic body's linear speed within 1e10 m/s, a servo target within 1e6 m of its body, gravity within 1e4 m/s^2, frequencies within 1e5 Hz and a spring's or steer's never negative, positive while enabled, damping ratios, restitution, gravity scales and every other dimensionless ratio within 1e4, step lengths from 1e-4 to 10 s, forces, torques and efforts within 1e20, a drivetrain coupling within 1e15 N per m/s, an explosion's impulse per area within 1e10, body-frame sizes and offsets within 1e4 m, world positions within 1e15 m, shape and water densities within 1e6 kg/m^3 and a character move within 1e18 m. An impulse is refused when the velocity it leaves passes 1e5, a force when the step's held force or torque passes 1e20. On a dynamic body every mass-bearing shape weighs at least 1e-6 kg with every principal moment at least 1e-12 kg m^2 and the body at most 1e20 kg, which a shape create, reshape, density change or turn to dynamic must keep; characters and soft particles weigh 1e-6 to 1e20 kg and wheels have a radius of at least 1e-3 m. A body holding static-only scenery cannot leave static, and a teleport or a type change cancels a pending servo target. A bounce asks for at most 1e5 m/s of separation.
+
+### Fixed
+
+* bound the magnitudes the API and replay accept ([#81](https://github.com/Rawframe-Project/maul3d/issues/81)) ([f0cd702](https://github.com/Rawframe-Project/maul3d/commit/f0cd7020c89a15b1128044e772db553c06c87638))
+* bound what restore accepts ([#82](https://github.com/Rawframe-Project/maul3d/issues/82)) ([585bcbc](https://github.com/Rawframe-Project/maul3d/commit/585bcbc3a1b9d2b67d23d9c27287c33f9ccf5c36)), closes [#68](https://github.com/Rawframe-Project/maul3d/issues/68)
+* keep the gyroscopic step finite at any scale ([#79](https://github.com/Rawframe-Project/maul3d/issues/79)) ([2736ea2](https://github.com/Rawframe-Project/maul3d/commit/2736ea207356054e03d03eafe4246ab7a222fcda))
+* keep the mass path and the solver finite ([#76](https://github.com/Rawframe-Project/maul3d/issues/76)) ([cfcd8f4](https://github.com/Rawframe-Project/maul3d/commit/cfcd8f48a7986d657520d60981483bb11412f1d8))
+* keep the solver's small inverses finite at any scale ([#80](https://github.com/Rawframe-Project/maul3d/issues/80)) ([86fd09d](https://github.com/Rawframe-Project/maul3d/commit/86fd09d20cfb1c26731f11fdec484e283a094f46))
+* replay applies each op's public checks ([#86](https://github.com/Rawframe-Project/maul3d/issues/86)) ([219f083](https://github.com/Rawframe-Project/maul3d/commit/219f08384e55e32059da3d37235f2430ec94a4b6)), closes [#83](https://github.com/Rawframe-Project/maul3d/issues/83)
+
 ## [0.3.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.3.0) (2026-10-25)
 
 ### Changed
