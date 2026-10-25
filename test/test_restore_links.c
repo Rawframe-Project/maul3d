@@ -169,6 +169,17 @@ static void BoxBelowMassFloor(const Scene* scene, uint8_t* snap)
            1.0e-30f);
 }
 
+// A stored contact impulse the next step would carry into its warm start.
+static void ContactImpulseNotFinite(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    uint8_t* manifold = At(world, snap, FIELD(contacts.manifolds), sizeof(m3Manifold), 0);
+    float nan;
+    uint32_t bits = 0x7FC00000u;
+    memcpy(&nan, &bits, sizeof(nan));
+    PutF32(manifold + offsetof(m3Manifold, points) + offsetof(m3ManifoldPoint, normalImpulse), nan);
+}
+
 static void SphereRadiusNegative(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -300,6 +311,7 @@ static const Case s_cases[] = {
     {"a lock bit no setter writes", LockBitUnknown},
     {"a ball below the mass floor", BallBelowMassFloor},
     {"a box below the mass floor", BoxBelowMassFloor},
+    {"a contact impulse that is not a number", ContactImpulseNotFinite},
     {"a sphere with a negative radius", SphereRadiusNegative},
     {"a joint frame twice unit length", JointFrameLong},
     {"a live character with no body slot", CharacterWithoutBody},

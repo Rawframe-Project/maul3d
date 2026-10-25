@@ -62,7 +62,7 @@ typedef enum m3Check
     m3_check_bodyType,    // uint8 elements below the body type count
     m3_check_shapeType,   // uint8 elements below the shape type count
     m3_check_jointType,   // uint8 elements below the joint type count
-    m3_check_manifold,    // manifold point counts that fit
+    m3_check_manifold,    // manifold point counts that fit, finite floats
     m3_check_pairKey,     // both shape indices of every pair key in range
     m3_check_treeNode,    // tree node links, leaf payloads, finite bounds
     m3_check_voxel,       // voxel chunk: finite cell size, a fill count that fits
@@ -721,9 +721,21 @@ static bool CheckStructs(const m3World* world, const m3StateArray* array, const 
         {
         case m3_check_manifold:
         {
+            // Every float finite: the next step carries the impulses
+            // into its warm start.
             m3Manifold m;
             memcpy(&m, at, sizeof(m));
-            ok = InRange(m.pointCount, 0, M3_MANIFOLD_MAX_POINTS);
+            ok = InRange(m.pointCount, 0, M3_MANIFOLD_MAX_POINTS) &&
+                 CheckFinite(at, sizeof(m3Vec3), sizeof(float)) &&
+                 CheckFinite(at + offsetof(m3Manifold, frictionImpulse),
+                             offsetof(m3Manifold, points) - offsetof(m3Manifold, frictionImpulse),
+                             sizeof(float));
+            for (int32_t k = 0; ok && k < M3_MANIFOLD_MAX_POINTS; ++k)
+            {
+                ok = CheckFinite(at + offsetof(m3Manifold, points) +
+                                     (size_t)k * sizeof(m3ManifoldPoint),
+                                 offsetof(m3ManifoldPoint, id), sizeof(float));
+            }
             break;
         }
         case m3_check_pairKey:
