@@ -298,7 +298,6 @@ typedef struct m3OpSetShapeDensity
 {
     m3ShapeId id;
     float value;
-    int32_t updateMass;
 } m3OpSetShapeDensity;
 
 typedef struct m3OpSetShapeGeom

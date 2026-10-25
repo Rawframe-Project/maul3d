@@ -6,6 +6,7 @@
 #include "solver_math.h"
 
 #include <float.h>
+#include <string.h>
 
 // With w = 2 pi hertz, stiffness k = m w^2 and damping c = 2 m zeta w, an
 // implicit Euler step of length h turns the spring into a row that solves
@@ -44,6 +45,60 @@ m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body)
     r.cy = m3RotateVec3(q, m3MulMV3(il, m3InvRotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f})));
     r.cz = m3RotateVec3(q, m3MulMV3(il, m3InvRotateVec3(q, (m3Vec3){0.0f, 0.0f, 1.0f})));
     return r;
+}
+
+static double MaxD(double a, double b)
+{
+    return a > b ? a : b;
+}
+
+double m3NormL1(m3Vec3 v)
+{
+    return (double)m3AbsF(v.x) + (double)m3AbsF(v.y) + (double)m3AbsF(v.z);
+}
+
+// The largest change, per component, impulses summing to sum at levers
+// within lever make in a body's velocity or spin: each component of an
+// inverse inertia times a vector is at most three times its largest
+// entry times the vector's largest component.
+static double WarmReach(m3real invMass, const m3Mat3* invI, double lever, double sum)
+{
+    double big = 0.0;
+    const m3Vec3* cols[3] = {&invI->cx, &invI->cy, &invI->cz};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        big = MaxD(big, MaxD((double)m3AbsF(cols[k]->x),
+                             MaxD((double)m3AbsF(cols[k]->y), (double)m3AbsF(cols[k]->z))));
+    }
+    return ((double)invMass + 3.0 * big * (lever + 1.0)) * sum;
+}
+
+m3real m3WarmHold(m3real invMassA, const m3Mat3* invIA, m3real invMassB, const m3Mat3* invIB,
+                  double lever, double sum)
+{
+    double reach =
+        MaxD(WarmReach(invMassA, invIA, lever, sum), WarmReach(invMassB, invIB, lever, sum));
+    double moment = (lever + 1.0) * sum;
+    double scale = 1.0;
+    if (reach > (double)M3_WARM_LIMIT)
+    {
+        scale = (double)M3_WARM_LIMIT / reach;
+    }
+    if (moment * scale > (double)M3_WARM_MOMENT_LIMIT)
+    {
+        scale = (double)M3_WARM_MOMENT_LIMIT / moment;
+    }
+    // Rounded down to a float, so a held impulse lands within the limits
+    // and one past them by a hair is held too.
+    m3real held = (m3real)scale;
+    if ((double)held > scale)
+    {
+        uint32_t bits;
+        memcpy(&bits, &held, sizeof(bits));
+        bits -= 1u; // the next float toward zero; held is positive here
+        memcpy(&held, &bits, sizeof(held));
+    }
+    return held;
 }
 
 // Cramer's rule, with its determinant.

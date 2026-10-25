@@ -62,7 +62,7 @@ typedef enum m3Check
     m3_check_bodyType,    // uint8 elements below the body type count
     m3_check_shapeType,   // uint8 elements below the shape type count
     m3_check_jointType,   // uint8 elements below the joint type count
-    m3_check_manifold,    // manifold point counts that fit
+    m3_check_manifold,    // manifold point counts that fit, finite floats
     m3_check_pairKey,     // both shape indices of every pair key in range
     m3_check_treeNode,    // tree node links, leaf payloads, finite bounds
     m3_check_voxel,       // voxel chunk: finite cell size, a fill count that fits
@@ -129,10 +129,6 @@ static const m3StateArray s_state[] = {
     M3_STATE_CHECKED(bodies.transforms, m3Transform, body, M3_STATE_SNAPSHOT, transform, one),
     M3_STATE_CHECKED(bodies.linearVelocities, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.angularVelocities, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(bodies.invMass, m3real, body, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(bodies.invInertiaLocal, m3Mat3, body, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(bodies.inertiaLocal, m3Mat3, body, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(bodies.localCenters, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.gravityScales, m3real, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.linearDamping, m3real, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.angularDamping, m3real, body, M3_STATE_SNAPSHOT, finite32, one),
@@ -140,8 +136,6 @@ static const m3StateArray s_state[] = {
     M3_STATE_CHECKED(bodies.awake, uint8_t, body, M3_STATE_SNAPSHOT, bool, one),
     M3_STATE_CHECKED(bodies.sleepTimes, float, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.bulletFlags, uint8_t, body, M3_STATE_SNAPSHOT, bool, one),
-    M3_STATE_CHECKED(bodies.minExtents, float, body, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(bodies.maxExtents, float, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_ARRAY(bodies.userData, uint64_t, body, M3_STATE_SNAPSHOT),
     M3_STATE_ARRAY(bodies.bodyNames, char, bodyName, M3_STATE_SNAPSHOT),
     M3_STATE_CHECKED(bodies.bodyForce, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
@@ -453,6 +447,12 @@ static const m3StateArray s_state[] = {
     // Owned but not snapshot state: derived data, per-slot content with
     // its own walk, event buffers and step scratch.
     M3_STATE_ARRAY(bodies.bodyIsland, int32_t, body, 0),
+    M3_STATE_ARRAY(bodies.invMass, m3real, body, 0),
+    M3_STATE_ARRAY(bodies.invInertiaLocal, m3Mat3, body, 0),
+    M3_STATE_ARRAY(bodies.inertiaLocal, m3Mat3, body, 0),
+    M3_STATE_ARRAY(bodies.localCenters, m3Vec3, body, 0),
+    M3_STATE_ARRAY(bodies.minExtents, float, body, 0),
+    M3_STATE_ARRAY(bodies.maxExtents, float, body, 0),
     M3_STATE_ARRAY(shapes.planeShapes, int32_t, shape, 0),
     M3_STATE_ARRAY(broadphase.candidateKeys, uint64_t, pair, 0),
     M3_STATE_ARRAY(broadphase.moved, uint8_t, shape, 0),
@@ -721,9 +721,21 @@ static bool CheckStructs(const m3World* world, const m3StateArray* array, const 
         {
         case m3_check_manifold:
         {
+            // Every float finite: the next step carries the impulses
+            // into its warm start.
             m3Manifold m;
             memcpy(&m, at, sizeof(m));
-            ok = InRange(m.pointCount, 0, M3_MANIFOLD_MAX_POINTS);
+            ok = InRange(m.pointCount, 0, M3_MANIFOLD_MAX_POINTS) &&
+                 CheckFinite(at, sizeof(m3Vec3), sizeof(float)) &&
+                 CheckFinite(at + offsetof(m3Manifold, frictionImpulse),
+                             offsetof(m3Manifold, points) - offsetof(m3Manifold, frictionImpulse),
+                             sizeof(float));
+            for (int32_t k = 0; ok && k < M3_MANIFOLD_MAX_POINTS; ++k)
+            {
+                ok = CheckFinite(at + offsetof(m3Manifold, points) +
+                                     (size_t)k * sizeof(m3ManifoldPoint),
+                                 offsetof(m3ManifoldPoint, id), sizeof(float));
+            }
             break;
         }
         case m3_check_pairKey:

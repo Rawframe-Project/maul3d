@@ -157,10 +157,9 @@ M3_PIN_SIZE(m3OpSetMotionLocks, 12);
 M3_PIN_AT(m3OpSetMotionLocks, id, 0);
 M3_PIN_AT(m3OpSetMotionLocks, locks, 8);
 
-M3_PIN_SIZE(m3OpSetShapeDensity, 16);
+M3_PIN_SIZE(m3OpSetShapeDensity, 12);
 M3_PIN_AT(m3OpSetShapeDensity, id, 0);
 M3_PIN_AT(m3OpSetShapeDensity, value, 8);
-M3_PIN_AT(m3OpSetShapeDensity, updateMass, 12);
 
 M3_PIN_SIZE(m3OpSetShapeGeom, 44);
 M3_PIN_AT(m3OpSetShapeGeom, id, 0);

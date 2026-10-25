@@ -32,13 +32,10 @@ void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value)
     world->shapes.shapeRollingResistance[slot] = value;
 }
 
-void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_t updateMass)
+void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value)
 {
     world->shapes.shapeDensity[slot] = value;
-    if (updateMass != 0)
-    {
-        m3RecomputeMass(world, world->shapes.shapeBody[slot]);
-    }
+    m3RecomputeMass(world, world->shapes.shapeBody[slot]);
 }
 
 // One resolve + one journal + one internal, the body.c pattern.
@@ -193,8 +190,7 @@ float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape)
     return result;
 }
 
-static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, float density,
-                                              bool updateBodyMass)
+static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, float density)
 {
     if (m3WorldBusy(world))
     {
@@ -218,16 +214,15 @@ static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, f
         memset(&record, 0, sizeof(record));
         record.id = shape;
         record.value = density;
-        record.updateMass = updateBodyMass ? 1 : 0;
         m3JournalRecord(world, m3_opSetShapeDensity, &record, (int32_t)sizeof(record));
     }
-    m3SetShapeDensityInternal(world, slot, density, updateBodyMass ? 1 : 0);
+    m3SetShapeDensityInternal(world, slot, density);
 }
 
-void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density, bool updateBodyMass)
+void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density)
 {
     uint64_t env = m3FloatEnvEnter();
-    ShapeSetDensityWorker(world, shape, density, updateBodyMass);
+    ShapeSetDensityWorker(world, shape, density);
     m3FloatEnvLeave(env);
 }
 

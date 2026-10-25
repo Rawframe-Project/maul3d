@@ -158,18 +158,19 @@ static void TestDensityRebuildsMass(void)
     float v1 = m3Body_GetLinearVelocity(world, body).x;
     m3Body_SetLinearVelocity(world, body, (m3Vec3){0.0f, 0.0f, 0.0f});
 
-    m3Shape_SetDensity(world, shape, 8.0f, true);
+    m3Shape_SetDensity(world, shape, 8.0f);
     CHECK(fabsf(m3Shape_GetDensity(world, shape) - 8.0f) < 1.0e-6f, "density reads back");
     m3Body_ApplyLinearImpulse(world, body, (m3Vec3){1.0f, 0.0f, 0.0f});
     float v8 = m3Body_GetLinearVelocity(world, body).x;
     CHECK(fabsf(v1 - 8.0f * v8) < 1.0e-3f, "8x density means an eighth the kick");
 
-    // Without the rebuild flag the books do not move.
-    m3Shape_SetDensity(world, shape, 1.0f, false);
+    // Every density change rebuilds the books: back to 1, back to the
+    // first kick.
+    m3Shape_SetDensity(world, shape, 1.0f);
     m3Body_SetLinearVelocity(world, body, (m3Vec3){0.0f, 0.0f, 0.0f});
     m3Body_ApplyLinearImpulse(world, body, (m3Vec3){1.0f, 0.0f, 0.0f});
-    float vStale = m3Body_GetLinearVelocity(world, body).x;
-    CHECK(fabsf(vStale - v8) < 1.0e-6f, "no rebuild flag: mass books unchanged");
+    float vBack = m3Body_GetLinearVelocity(world, body).x;
+    CHECK(vBack == v1, "the mass follows the density both ways");
     m3DestroyWorld(world);
 }
 
@@ -267,10 +268,10 @@ static void TestHostileKnobs(void)
     m3Shape_SetFriction(world, floor, -1.0f);
     m3Shape_SetFriction(world, floor, NAN);
     CHECK(m3Shape_GetFriction(world, floor) == f0, "hostile friction refused");
-    m3Shape_SetDensity(world, floor, 0.0f, true);
-    m3Shape_SetDensity(world, floor, -5.0f, true);
+    m3Shape_SetDensity(world, floor, 0.0f);
+    m3Shape_SetDensity(world, floor, -5.0f);
     float d0 = m3Shape_GetDensity(world, floor);
-    CHECK_REFUSES(world, m3Shape_SetDensity(world, floor, 2.0e6f, true),
+    CHECK_REFUSES(world, m3Shape_SetDensity(world, floor, 2.0e6f),
                   "a density create refuses is refused here too");
     CHECK(m3Shape_GetDensity(world, floor) == d0, "refused density changes nothing");
     m3World_SetContactTuning(world, 0.0f, 10.0f, 3.0f);

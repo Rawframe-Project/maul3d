@@ -256,7 +256,15 @@ extern "C"
     /// pools, trees or per-record values this engine could not have
     /// written (id pools, body to shape and joint lists, the broadphase
     /// tree, the contact pairs, shared content and its reference counts,
-    /// and the records of characters, vehicles, soft bodies and joints).
+    /// and the records of characters, vehicles, soft bodies and joints),
+    /// and any value past the limit its create or setter keeps (the
+    /// guide's "Magnitude limits"). Positions are bounded at 1e18 m
+    /// rather than 1e15: a create or teleport keeps a body within 1e15 m,
+    /// but the step may carry it further over a long run, holding every
+    /// body and soft particle within 1e18 m. Mass, center, inertia and
+    /// extents are not stored; restore rebuilds them from each body's
+    /// type and shapes. A world restore accepts steps, queries and
+    /// snapshots like one the API built.
     /// Snapshot writes m3World_SnapshotSize bytes and sets
     /// *bytesOut; a smaller buffer returns m3_errorCapacity.
     M3_API int32_t m3World_SnapshotSize(const m3World* world);

@@ -259,6 +259,38 @@ static void PrepareCenterRows(m3ContactConstraint* c, const m3Manifold* manifold
     }
 }
 
+// The loaded impulses, held as a whole within M3_WARM_LIMIT (core.h) at
+// this step's masses and levers. Only a moving side's levers enter the
+// warm start.
+static void HoldWarmStart(m3ContactConstraint* c)
+{
+    double lever = 0.0;
+    double sum = (double)m3AbsF(c->frictionImpulse1) + (double)m3AbsF(c->frictionImpulse2) +
+                 (double)m3AbsF(c->twistImpulse) + m3NormL1(c->rollingImpulse);
+    for (int32_t k = 0; k < c->pointCount; ++k)
+    {
+        const m3ConstraintPoint* cp = &c->points[k];
+        sum += (double)m3AbsF(cp->normalImpulse);
+        double a = c->invMassA > 0.0f ? m3NormL1(cp->rA) : 0.0;
+        double b = c->invMassB > 0.0f ? m3NormL1(cp->rB) : 0.0;
+        lever = lever > a ? lever : a;
+        lever = lever > b ? lever : b;
+    }
+    m3real scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
+    if (scale == 1.0f)
+    {
+        return;
+    }
+    for (int32_t k = 0; k < c->pointCount; ++k)
+    {
+        c->points[k].normalImpulse *= scale;
+    }
+    c->frictionImpulse1 *= scale;
+    c->frictionImpulse2 *= scale;
+    c->twistImpulse *= scale;
+    c->rollingImpulse = m3MulSV3(scale, c->rollingImpulse);
+}
+
 static void PrepareConstraint(const m3World* world, m3ContactConstraint* c, int32_t pair,
                               const m3Softness soft[2])
 {
@@ -285,6 +317,7 @@ static void PrepareConstraint(const m3World* world, m3ContactConstraint* c, int3
     PrepareMaterial(world, c, manifold, shapeA, shapeB);
     PreparePoints(world, c, manifold);
     PrepareCenterRows(c, manifold);
+    HoldWarmStart(c);
 }
 
 int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3real h)

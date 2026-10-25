@@ -150,10 +150,33 @@ static void LockBitUnknown(const Scene* scene, uint8_t* snap)
     *At(world, snap, FIELD(bodies.bodyLocks), 1, scene->crate) = 0x80;
 }
 
-static void StaticBodyWithMass(const Scene* scene, uint8_t* snap)
+// A density no setter accepts on a dynamic body: the shape weighs less
+// than the mass floor. The box's mass comes from its hull in the tail.
+static void BallBelowMassFloor(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
-    PutF32(At(world, snap, FIELD(bodies.invMass), sizeof(float), scene->ground), 1.0f);
+    PutF32(At(world, snap, FIELD(shapes.shapeDensity), sizeof(float),
+              world->bodies.bodyShapeHead[scene->ball]),
+           1.0e-30f);
+}
+
+static void BoxBelowMassFloor(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    PutF32(At(world, snap, FIELD(shapes.shapeDensity), sizeof(float),
+              world->bodies.bodyShapeHead[scene->crate]),
+           1.0e-30f);
+}
+
+// A stored contact impulse the next step would carry into its warm start.
+static void ContactImpulseNotFinite(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    uint8_t* manifold = At(world, snap, FIELD(contacts.manifolds), sizeof(m3Manifold), 0);
+    float nan;
+    uint32_t bits = 0x7FC00000u;
+    memcpy(&nan, &bits, sizeof(nan));
+    PutF32(manifold + offsetof(m3Manifold, points) + offsetof(m3ManifoldPoint, normalImpulse), nan);
 }
 
 static void SphereRadiusNegative(const Scene* scene, uint8_t* snap)
@@ -285,7 +308,9 @@ static const Case s_cases[] = {
     {"contact pairs out of order", PairsOutOfOrder},
     {"a world with no contact stiffness", WorldWithoutStiffness},
     {"a lock bit no setter writes", LockBitUnknown},
-    {"a static body with mass", StaticBodyWithMass},
+    {"a ball below the mass floor", BallBelowMassFloor},
+    {"a box below the mass floor", BoxBelowMassFloor},
+    {"a contact impulse that is not a number", ContactImpulseNotFinite},
     {"a sphere with a negative radius", SphereRadiusNegative},
     {"a joint frame twice unit length", JointFrameLong},
     {"a live character with no body slot", CharacterWithoutBody},

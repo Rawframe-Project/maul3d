@@ -90,7 +90,7 @@ int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
 
 // A wheel lies in its chassis frame: anchor, rest length and radius
 // within M3_LOCAL_LIMIT, the radius at least M3_WHEEL_RADIUS_FLOOR.
-static bool WheelDefValid(const m3WheelDef* wd)
+bool m3WheelDefValid(const m3WheelDef* wd)
 {
     m3real d2 = m3Dot3(wd->direction, wd->direction);
     return m3LocalV3(wd->anchor) && m3FiniteV3(wd->direction) && d2 > 0.81f && d2 < 1.21f &&
@@ -120,7 +120,7 @@ static bool VehicleDefValid(const m3World* world, const m3VehicleDef* def)
     }
     for (int32_t w = 0; w < def->wheelCount; ++w)
     {
-        if (!WheelDefValid(&def->wheels[w]))
+        if (!m3WheelDefValid(&def->wheels[w]))
         {
             return false;
         }

@@ -46,6 +46,17 @@ bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3rea
 
 m3Mat3 m3WorldInvInertia(const m3World* world, int32_t body);
 
+// The factor, at most 1, that holds a loaded warm start within
+// M3_WARM_LIMIT and M3_WARM_MOMENT_LIMIT (core.h): its impulses sum to
+// sum in magnitude and act at levers within lever (L1 norms) on bodies
+// with these inverse masses and world inverse inertias. Exactly 1 when
+// no hold is needed.
+m3real m3WarmHold(m3real invMassA, const m3Mat3* invIA, m3real invMassB, const m3Mat3* invIB,
+                  double lever, double sum);
+
+// |x| + |y| + |z| in double.
+double m3NormL1(m3Vec3 v);
+
 // An impulse scale * dir at arm (from the center of mass) that the step
 // itself lands on a dynamic body: a character's push, a soft particle's,
 // a wheel's. Like the step, it leaves the body within M3_SPEED_LIMIT. When

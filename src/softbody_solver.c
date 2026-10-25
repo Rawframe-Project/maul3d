@@ -543,6 +543,26 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
 }
 
 // The soft pass: XPBD small steps over the full shape set.
+// Every particle within M3_REACH_LIMIT once the substep has placed it, an
+// anchored one included.
+static void HoldParticles(m3World* world)
+{
+    for (int32_t slot = 0; slot < world->softBodies.softPool.maxIndex; ++slot)
+    {
+        if (world->softBodies.softPool.alive[slot] == 0)
+        {
+            continue;
+        }
+        int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+        for (int32_t i = 0; i < world->softBodies.softParticleCount[slot]; ++i)
+        {
+            world->softBodies.softPos[base + i] = m3HoldReach(world->softBodies.softPos[base + i]);
+            world->softBodies.softPrev[base + i] =
+                m3HoldReach(world->softBodies.softPrev[base + i]);
+        }
+    }
+}
+
 void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
 {
     if (world->softBodies.softPool.maxIndex == 0)
@@ -899,5 +919,6 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
 
         m3SoftSoftContacts(world);
         m3SoftSoftAnchors(world);
+        HoldParticles(world);
     }
 }

@@ -128,6 +128,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/shape_state.c
     src/snapshot.c
     src/snapshot_links.c
+    src/snapshot_bounds.c
     src/snapshot_values.c
     src/softbody.c
     src/softbody_cull.c
@@ -195,7 +196,7 @@ if(MAUL3D_FUZZ)
     # The seeds read the journal's op codes to check the session's tape.
     target_include_directories(fuzz_seeds PRIVATE ${PROJECT_SOURCE_DIR}/test ${PROJECT_SOURCE_DIR}/src)
     maul_apply_flags(fuzz_seeds)
-    foreach(maul_input snapshot journal replay)
+    foreach(maul_input snapshot journal replay restore_step)
         add_executable(fuzz_${maul_input} test/fuzz_${maul_input}.c)
         target_link_libraries(fuzz_${maul_input} PRIVATE maul3d)
         target_include_directories(fuzz_${maul_input} PRIVATE ${PROJECT_SOURCE_DIR}/test)

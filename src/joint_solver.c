@@ -96,6 +96,36 @@ static void PrepareCommon(const m3World* world, m3JointConstraint* c, int32_t j,
     *frame = (m3JointFrame){j, h, xfA, xfB, rlcA, rlcB};
 }
 
+// The loaded impulses, held as a whole within M3_WARM_LIMIT (core.h) at
+// this step's masses and levers. A row's lever is an arm, or A's arm
+// plus the gap between the anchors; a gear or pulley row carries its
+// ratio on B's side. Every row reaches both bodies, moving or not.
+static void HoldWarmStart(m3JointConstraint* c)
+{
+    m3Vec3* slots[5] = {&c->impulse, &c->perpImpulse, &c->limitImpulse, &c->angularImpulse,
+                        &c->springImpulse};
+    double sum = 0.0;
+    for (int32_t k = 0; k < 5; ++k)
+    {
+        sum += m3NormL1(*slots[k]);
+    }
+    if (c->type == (uint8_t)m3_gearJoint || c->type == (uint8_t)m3_pulleyJoint)
+    {
+        double ratio = (double)m3AbsF(c->ratio);
+        sum *= ratio > 1.0 ? ratio : 1.0;
+    }
+    double lever = 2.0 * (m3NormL1(c->rA) + m3NormL1(c->rB)) + m3NormL1(c->deltaCenter);
+    m3real scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
+    if (scale == 1.0f)
+    {
+        return;
+    }
+    for (int32_t k = 0; k < 5; ++k)
+    {
+        *slots[k] = m3MulSV3(scale, *slots[k]);
+    }
+}
+
 int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h)
 {
     int32_t count = 0;
@@ -116,6 +146,7 @@ int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h)
         m3JointFrame frame;
         PrepareCommon(world, c, j, h, &frame);
         s_kinds[c->type]->prepare(world, c, &frame);
+        HoldWarmStart(c);
     }
     return count;
 }

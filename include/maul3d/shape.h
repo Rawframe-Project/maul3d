@@ -341,12 +341,11 @@ extern "C"
     M3_API void m3Shape_SetRollingResistance(m3World* world, m3ShapeId shape, float value);
     M3_API float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape);
 
-    /// Set the density and optionally rebuild the owning body's
-    /// mass, center and inertia from all its shapes. Journaled. The
-    /// density must be positive and at most 1e6, and on a dynamic body
-    /// keep the mass floors and limit, as at creation.
-    M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density,
-                                   bool updateBodyMass);
+    /// Set the density and rebuild the owning body's mass, center and
+    /// inertia from all its shapes: a body's mass is always its shapes'.
+    /// Journaled. The density must be positive and at most 1e6, and on
+    /// a dynamic body keep the mass floors and limit, as at creation.
+    M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);
 
     /// Opt a shape into hit events / the pre-solve veto.

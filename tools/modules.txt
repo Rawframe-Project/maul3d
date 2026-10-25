@@ -67,7 +67,8 @@ shape_params: body_state broad_phase fpenv journal misuse shape shape_state worl
 shape_state: world_internal
 simd:
 snapshot: fpenv hull misuse shape snapshot_links voxel_coverage world_internal world_state
-snapshot_links: allocator snapshot_values world_internal world_state
+snapshot_links: allocator snapshot_bounds snapshot_values world_internal world_state
+snapshot_bounds: body joint joint_solver journal shape snapshot_values vehicle world world_internal
 snapshot_values: body_state joint_solver shape world_internal world_state
 softbody: body_state fpenv journal misuse world_internal
 softbody_cull: world_internal

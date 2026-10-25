@@ -894,7 +894,7 @@ static void TourShapes(const Tour* t)
     m3Shape_SetFriction(t->world, t->crateShape, 0.3f);
     m3Shape_SetRestitution(t->world, t->crateShape, 0.2f);
     m3Shape_SetRollingResistance(t->world, t->ballShape, 0.05f);
-    m3Shape_SetDensity(t->world, t->crateShape, 800.0f, true);
+    m3Shape_SetDensity(t->world, t->crateShape, 800.0f);
     m3Shape_EnableHitEvents(t->world, t->crateShape, true);
     m3Shape_EnablePreSolve(t->world, t->deck, true);
     m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0);

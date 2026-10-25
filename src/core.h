@@ -94,6 +94,45 @@ static inline bool m3BoundedPos3(m3Pos3 p)
            p.z <= M3_POSITION_LIMIT; // false for NaN
 }
 
+// How far from the origin any body or soft particle goes, per component,
+// m: restore refuses a position past it and the step holds every mover
+// and particle within it. Creates and teleports keep M3_POSITION_LIMIT,
+// so a body reaches this only by moving at the kinematic limit for about
+// 1e8 s.
+#define M3_REACH_LIMIT 1.0e18
+
+static inline bool m3WithinReach(m3Pos3 p)
+{
+    return p.x >= -M3_REACH_LIMIT && p.x <= M3_REACH_LIMIT && p.y >= -M3_REACH_LIMIT &&
+           p.y <= M3_REACH_LIMIT && p.z >= -M3_REACH_LIMIT &&
+           p.z <= M3_REACH_LIMIT; // false for NaN
+}
+
+// p held within M3_REACH_LIMIT: past it, scaled toward the origin onto
+// the bound, direction kept, and each component then clamped to the bound
+// so rounding cannot leave it a hair outside. A position within the bound
+// comes back unchanged.
+static inline m3Pos3 m3HoldReach(m3Pos3 p)
+{
+    double big = p.x < 0.0 ? -p.x : p.x;
+    double ay = p.y < 0.0 ? -p.y : p.y;
+    double az = p.z < 0.0 ? -p.z : p.z;
+    big = ay > big ? ay : big;
+    big = az > big ? az : big;
+    if (!(big > M3_REACH_LIMIT))
+    {
+        return p;
+    }
+    double scale = M3_REACH_LIMIT / big;
+    double* c[3] = {&p.x, &p.y, &p.z};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        double x = *c[k] * scale;
+        *c[k] = x > M3_REACH_LIMIT ? M3_REACH_LIMIT : (x < -M3_REACH_LIMIT ? -M3_REACH_LIMIT : x);
+    }
+    return p;
+}
+
 // The step holds every body and particle velocity (m/s and rad/s) and
 // every joint row's correction speed within this, whatever the world's
 // own caps say: 250 times the default linear cap, so no scene meets it,
@@ -103,10 +142,12 @@ static inline bool m3BoundedPos3(m3Pos3 p)
 
 // v scaled down to length cap when it is longer. A vector within the cap
 // comes back unchanged, and one whose squared length overflows is scaled
-// by its largest component first, so the result is finite either way.
+// by its largest component first, so the result is finite either way. v
+// may hold an infinite component but never a NaN.
 static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
 {
     m3real v2 = m3Dot3(v, v);
+    M3_ASSERT(v2 == v2);
     if (!(v2 > cap * cap))
     {
         return v;
@@ -169,6 +210,14 @@ static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
 // The suites servo 3 km.
 #define M3_KINEMATIC_SPEED_LIMIT 1.0e10f
 #define M3_SERVO_REACH           1.0e6
+// What a stored contact or joint impulse may change, per component, in a
+// body's velocity (m/s) or spin (rad/s) when the next step's warm start
+// lands it, and the most its moment, impulse times lever, may reach.
+// Prepare measures each loaded impulse at that step's own masses,
+// inertias and levers, as if every component acted at the longest lever
+// on every axis, and scales it, direction kept, to within both.
+#define M3_WARM_LIMIT        1.0e13f
+#define M3_WARM_MOMENT_LIMIT 1.0e38f
 // A vehicle wheel's radius, m: drive force and wheel spin divide by it.
 // The suites use 0.3.
 #define M3_WHEEL_RADIUS_FLOOR 1.0e-3f
