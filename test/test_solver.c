@@ -1103,9 +1103,54 @@ static void TestRollingResistance(void)
     CHECK(hashes[0] == hashes[1], "rolling twins are bit-identical");
 }
 
+// Rolling resistance slows a ball alike at any density. The rolling row's
+// 3x3 is the balls' inverse inertia: at density 6000 its determinant is
+// subnormal, and at 1e6 it underflows to zero, and both are solved at the
+// matrix's own scale.
+static void TestHeavyBallRollsAlike(void)
+{
+    const float densities[3] = {1.0f, 6000.0f, 1.0e6f};
+    m3Vec3 speed[3];
+    m3Vec3 spin[3];
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        m3WorldDef wd = m3DefaultWorldDef();
+        m3World* world = NewWorld(&wd);
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3BodyId ground = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        sd.rollingResistance = 0.05f;
+        m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+        NewPlaneShape(world, ground, &sd, &floor);
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.0, 100.0, 0.0};
+        bd.linearVelocity = (m3Vec3){10.0f, 0.0f, 0.0f};
+        bd.angularVelocity = (m3Vec3){0.0f, 0.0f, -0.1f};
+        m3BodyId ball = NewBody(world, &bd);
+        sd.density = densities[i];
+        m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 100.0f};
+        NewSphereShape(world, ball, &sd, &sphere);
+        for (int32_t k = 0; k < 120; ++k)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        speed[i] = m3Body_GetLinearVelocity(world, ball);
+        spin[i] = m3Body_GetAngularVelocity(world, ball);
+        m3DestroyWorld(world);
+    }
+    CHECK(speed[0].x < 9.5f, "rolling resistance slows the light ball");
+    for (int32_t i = 1; i < 3; ++i)
+    {
+        CHECK(fabsf(speed[i].x - speed[0].x) < 1.0e-4f * speed[0].x &&
+                  fabsf(spin[i].z - spin[0].z) < 1.0e-4f * fabsf(spin[0].z),
+              "a heavier ball slows as the light one does");
+    }
+}
+
 int main(void)
 {
     TestRollingResistance();
+    TestHeavyBallRollsAlike();
     TestFreeFall();
     TestRestOnPlane();
     TestStandingStack();

@@ -166,23 +166,22 @@ static V3 SolveAtScale(const Mat* k, V3 b, m3f8 scale)
     return Select3(usable, y, zero3);
 }
 
-// m3Solve3 lane by lane, with the same arithmetic: a singular matrix
-// gives zero, and a lane whose determinant is not a normal float is
-// solved at the scale of its largest entry. The scaled pass runs only
+// m3Solve3 lane by lane, with the same arithmetic: a lane whose
+// determinant is not a normal float, zero included, is solved at the scale
+// of its largest entry, where a singular matrix gives zero. The scaled pass runs only
 // when some lane needs it.
 static V3 Solve3(const Mat* k, V3 b)
 {
     m3f8 det;
     V3 x = Cramer(k, b, &det);
     m3f8 zero = m3F8Zero();
-    V3 zero3 = {zero, zero, zero};
-    m3f8 singular = m3F8EQ(det, zero);
     m3f8 size = Abs(det);
-    // Above the largest subnormal and below infinity: a normal float.
-    m3f8 normal =
+    // Above the largest subnormal and below infinity: a normal float. A
+    // zero determinant is solved at scale too, which gives zero for a
+    // singular matrix and the solution for one whose determinant only
+    // underflowed.
+    m3f8 direct =
         m3F8And(m3F8GT(size, m3F8Set1(0x1.fffffcp-127f)), m3F8LT(size, m3F8Set1(HUGE_VALF)));
-    m3f8 direct = m3F8Select(singular, m3F8EQ(zero, zero), normal);
-    x = Select3(singular, zero3, x);
     if (AllLanesSet(direct))
     {
         return x;

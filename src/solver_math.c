@@ -143,14 +143,16 @@ m3Vec3 m3Solve3AtScale(const m3Mat3* J, m3Vec3 b, m3real scale)
 // Solve J * x = b for a general 3x3 via Cramer's rule. A singular
 // Jacobian returns zero, which leaves omega unchanged (the safe step).
 // The direct result stands whenever the determinant is a normal float,
-// which covers every ordinary body bit for bit; otherwise J is solved at
-// the scale of its largest entry.
+// which covers every ordinary body bit for bit; otherwise, zero included,
+// J is solved at the scale of its largest entry: a determinant of tiny
+// but well-conditioned entries underflows to zero, and only the scaled
+// solve tells it from a singular J.
 m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b)
 {
     m3real det;
     m3Vec3 x = Cramer(J, b, &det);
     m3real size = m3AbsF(det);
-    if (det == 0.0f || (size >= FLT_MIN && size <= FLT_MAX))
+    if (size >= FLT_MIN && size <= FLT_MAX)
     {
         return x;
     }
@@ -162,6 +164,98 @@ m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b)
                        m3MaxF(m3AbsF(cols[c]->x), m3MaxF(m3AbsF(cols[c]->y), m3AbsF(cols[c]->z))));
     }
     return m3Solve3AtScale(J, b, scale);
+}
+
+bool m3Solve3Direct(const m3Mat3* J, m3Vec3 b, m3Vec3* x)
+{
+    m3real det;
+    *x = Cramer(J, b, &det);
+    return m3DirectHolds(det, J->cx.x * J->cy.y * J->cz.z);
+}
+
+bool m3DirectHolds(m3real det, m3real diag)
+{
+    return det >= FLT_MIN && det <= FLT_MAX && det >= 0x1p-12f * diag;
+}
+
+double m3WideDot(m3Vec3 u, m3Vec3 v)
+{
+    return (double)u.x * (double)v.x + (double)u.y * (double)v.y + (double)u.z * (double)v.z;
+}
+
+double m3WideForm(const m3Mat3* w, m3Vec3 u, m3Vec3 v)
+{
+    m3Vec3 rows[3] = {
+        {w->cx.x, w->cy.x, w->cz.x}, {w->cx.y, w->cy.y, w->cz.y}, {w->cx.z, w->cy.z, w->cz.z}};
+    return (double)u.x * m3WideDot(rows[0], v) + (double)u.y * m3WideDot(rows[1], v) +
+           (double)u.z * m3WideDot(rows[2], v);
+}
+
+// a x b for double triples.
+static void WideCross(const double* a, const double* b, double* out)
+{
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static double WideDot3(const double* a, const double* b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+// (w t) x a, the column a body's turn adds to a point block, for
+// t = a x e.
+static void WideTurn(const m3Mat3* w, const double* a, const double* t, double* out)
+{
+    double wt[3] = {
+        (double)w->cx.x * t[0] + (double)w->cy.x * t[1] + (double)w->cz.x * t[2],
+        (double)w->cx.y * t[0] + (double)w->cy.y * t[1] + (double)w->cz.y * t[2],
+        (double)w->cx.z * t[0] + (double)w->cy.z * t[1] + (double)w->cz.z * t[2],
+    };
+    WideCross(wt, a, out);
+}
+
+void m3WidePointBlock(double mass, const m3Mat3* invIA, m3Vec3 armA, const m3Mat3* invIB,
+                      m3Vec3 armB, double k[9])
+{
+    double a[3] = {(double)armA.x, (double)armA.y, (double)armA.z};
+    double b[3] = {(double)armB.x, (double)armB.y, (double)armB.z};
+    for (int32_t c = 0; c < 3; ++c)
+    {
+        double e[3] = {c == 0 ? 1.0 : 0.0, c == 1 ? 1.0 : 0.0, c == 2 ? 1.0 : 0.0};
+        double t[3];
+        double turnA[3];
+        double turnB[3];
+        WideCross(a, e, t);
+        WideTurn(invIA, a, t, turnA);
+        WideCross(b, e, t);
+        WideTurn(invIB, b, t, turnB);
+        for (int32_t r = 0; r < 3; ++r)
+        {
+            k[3 * c + r] = mass * e[r] + (turnA[r] + turnB[r]);
+        }
+    }
+}
+
+m3Vec3 m3Solve3Wide(const double k[9], m3Vec3 b)
+{
+    m3Vec3 zero = {0.0f, 0.0f, 0.0f};
+    double rhs[3] = {(double)b.x, (double)b.y, (double)b.z};
+    double yz[3];
+    double ry[3];
+    double xr[3];
+    WideCross(k + 3, k + 6, yz);
+    WideCross(rhs, k + 6, ry);
+    WideCross(k + 3, rhs, xr);
+    double det = WideDot3(k, yz);
+    if (det == 0.0)
+    {
+        return zero;
+    }
+    m3Vec3 x = {(m3real)(WideDot3(rhs, yz) / det), (m3real)(WideDot3(k, ry) / det),
+                (m3real)(WideDot3(k, xr) / det)};
+    return m3FiniteV3(x) ? x : zero;
 }
 
 bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3real out[3])
@@ -189,6 +283,24 @@ bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3rea
     out[0] = r11;
     out[1] = r22;
     out[2] = r12;
+    return true;
+}
+
+bool m3SolvePairWide(double k11, double k22, double k12, m3real x, m3real y, m3real out[2])
+{
+    double det = k11 * k22 - k12 * k12;
+    if (!(det > 0.0))
+    {
+        return false;
+    }
+    m3real s1 = (m3real)((k22 * (double)x - k12 * (double)y) / det);
+    m3real s2 = (m3real)((k11 * (double)y - k12 * (double)x) / det);
+    if (!m3FiniteF(s1) || !m3FiniteF(s2))
+    {
+        return false;
+    }
+    out[0] = s1;
+    out[1] = s2;
     return true;
 }
 

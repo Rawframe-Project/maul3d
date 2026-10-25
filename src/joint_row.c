@@ -7,7 +7,6 @@
 
 #include "solver_math.h"
 
-#include <float.h>
 #include <math.h>
 
 m3JointRow m3LineRow(m3Vec3 leverA, m3Vec3 armB, m3Vec3 u)
@@ -42,6 +41,13 @@ static m3real Coupling(const m3JointRow* r, const m3JointRow* s, const m3JointBo
 {
     return b->mA * m3Dot3(r->linA, s->linA) + m3Dot3(r->angA, m3MulMV3(b->iA, s->angA)) +
            b->mB * m3Dot3(r->linB, s->linB) + m3Dot3(r->angB, m3MulMV3(b->iB, s->angB));
+}
+
+// The same coupling in double.
+static double WideCoupling(const m3JointRow* r, const m3JointRow* s, const m3JointBodies* b)
+{
+    return (double)b->mA * m3WideDot(r->linA, s->linA) + m3WideForm(&b->iA, r->angA, s->angA) +
+           (double)b->mB * m3WideDot(r->linB, s->linB) + m3WideForm(&b->iB, r->angB, s->angB);
 }
 
 m3real m3RowMass(const m3JointRow* row, const m3JointBodies* b)
@@ -99,12 +105,21 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
     m3real k12 = Coupling(&rows[0], &rows[1], b);
     m3real k22 = Coupling(&rows[1], &rows[1], b);
     m3real det = k11 * k22 - k12 * k12;
-    // Solve at the larger diagonal's scale when the determinant is not a
-    // normal float; the direct result stands otherwise, so every ordinary
-    // pair keeps its bits.
-    bool normal = det >= FLT_MIN && det <= FLT_MAX;
-    m3real r[3];
-    if (det <= 0.0f || (!normal && !m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r)))
+    m3real x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
+    m3real y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
+    // The direct result stands for every ordinary pair, so it keeps its
+    // bits; a pair whose float determinant underflows or cancels is solved
+    // with its couplings taken in double (m3DirectHolds).
+    m3real solved[2];
+    if (m3DirectHolds(det, k11 * k22))
+    {
+        m3real inv = 1.0f / det;
+        solved[0] = inv * (k22 * x - k12 * y);
+        solved[1] = inv * (k11 * y - k12 * x);
+    }
+    else if (!m3SolvePairWide(WideCoupling(&rows[0], &rows[0], b),
+                              WideCoupling(&rows[1], &rows[1], b),
+                              WideCoupling(&rows[0], &rows[1], b), x, y, solved))
     {
         m3RowDrive one = {bias[0], drive.scale, drive.leak};
         m3RowDrive two = {bias[1], drive.scale, drive.leak};
@@ -112,21 +127,8 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
         m3SolveRow(&rows[1], b, two, second, -M3_ROW_FREE, M3_ROW_FREE);
         return;
     }
-    m3real x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
-    m3real y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
-    m3real dx;
-    m3real dy;
-    if (normal)
-    {
-        m3real inv = 1.0f / det;
-        dx = -inv * (k22 * x - k12 * y) - drive.leak * *first;
-        dy = -inv * (k11 * y - k12 * x) - drive.leak * *second;
-    }
-    else
-    {
-        dx = -(r[0] * x + r[2] * y) - drive.leak * *first;
-        dy = -(r[2] * x + r[1] * y) - drive.leak * *second;
-    }
+    m3real dx = -solved[0] - drive.leak * *first;
+    m3real dy = -solved[1] - drive.leak * *second;
     // Each row's share held within the speed bound at the row's own mass.
     m3real boundX = M3_ROW_SPEED_BOUND / k11;
     m3real boundY = M3_ROW_SPEED_BOUND / k22;
@@ -190,7 +192,16 @@ void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, 
     m3Vec3 speed =
         m3Sub3(m3Add3(b->vB, m3Cross3(b->wB, armB)), m3Add3(b->vA, m3Cross3(b->wA, armA)));
     m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, speed), CapBias3(bias));
-    m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, m3Solve3(&k, rhs)), m3MulSV3(drive.leak, *accumulated));
+    // The direct result stands for every ordinary block; one whose float
+    // determinant underflows or cancels is built and solved in double.
+    m3Vec3 solved;
+    if (!m3Solve3Direct(&k, rhs, &solved))
+    {
+        double wide[9];
+        m3WidePointBlock((double)b->mA + (double)b->mB, &b->iA, armA, &b->iB, armB, wide);
+        solved = m3Solve3Wide(wide, rhs);
+    }
+    m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, solved), m3MulSV3(drive.leak, *accumulated));
     m3PushPoint(armA, armB, b, WithinBall(accumulated, impulse, budget, &k));
 }
 
