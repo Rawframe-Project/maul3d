@@ -6,8 +6,11 @@
 // cross-reference that every block check passes (a cycle, a twice-listed
 // or missing member, a box inside out, a count that disagrees), and
 // requires the restore to refuse it as invalid input with the world left
-// as it was. Every whole-structure check in src/snapshot_links.c has a
-// case here, so removing one fails this suite, not only the fuzzer.
+// as it was. Every whole-structure check (src/snapshot_links.c and
+// src/snapshot_values.c) has a case here, so removing one fails this
+// suite, not only the fuzzer. The other half: a snapshot the engine
+// writes restores whenever it is taken, also between a call and the step
+// that follows it.
 
 #include "fuzz_scene.h"
 #include "test_harness.h"
@@ -183,11 +186,11 @@ static int32_t LiveSlot(const uint8_t* alive, int32_t capacity)
     return 0;
 }
 
-static void CharacterOnStaticBody(const Scene* scene, uint8_t* snap)
+static void CharacterWithoutBody(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
     int32_t slot = LiveSlot(world->characters.charPool.alive, world->characters.charPool.capacity);
-    PutI32(I32_AT(characters.charBody, slot), scene->ground);
+    PutI32(I32_AT(characters.charBody, slot), -1);
 }
 
 static void GearWithoutDrivetrain(const Scene* scene, uint8_t* snap)
@@ -253,7 +256,7 @@ static const Case s_cases[] = {
     {"a static body with mass", StaticBodyWithMass},
     {"a sphere with a negative radius", SphereRadiusNegative},
     {"a joint frame twice unit length", JointFrameLong},
-    {"a character on a static body", CharacterOnStaticBody},
+    {"a live character with no body slot", CharacterWithoutBody},
     {"a gear with no drivetrain", GearWithoutDrivetrain},
     {"a soft edge past the particles", EdgePastParticles},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
@@ -308,9 +311,106 @@ static void TestRestoreRefusesBrokenStructures(void)
     m3DestroyWorld(scene.world);
 }
 
+// --- What the engine writes between a call and the next step -------------
+
+typedef void (*Call)(m3World* world, const FuzzScene* scene);
+
+static void DestroyBall(m3World* world, const FuzzScene* scene)
+{
+    m3ShapeId shapes[1];
+    CHECK(m3Body_GetShapes(world, scene->ball, shapes, 1) == 1, "the ball has its sphere");
+    CHECK(m3DestroyShape(world, shapes[0]) == m3_success, "the sphere is destroyed");
+}
+
+static void DestroyBallAndCreate(m3World* world, const FuzzScene* scene)
+{
+    DestroyBall(world, scene);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    CHECK(m3Shape_IsValid(world, NewSphereShape(world, scene->crate, &sd, &small)),
+          "a new shape takes the freed slot");
+}
+
+static void TeleportCrate(m3World* world, const FuzzScene* scene)
+{
+    m3Body_SetTransform(world, scene->crate, (m3Pos3){40.0, 5.0, 40.0}, m3MakeIdentityQuat());
+}
+
+static m3ShapeId CharacterCapsule(const m3World* world)
+{
+    // The character stands at (-2, 1, -2), clear of every other shape.
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){-2.0, 4.0, -2.0}, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
+    CHECK(hit.hit, "a ray reaches the character's capsule");
+    return hit.shapeId;
+}
+
+static void RetypeCharacterBody(m3World* world, const FuzzScene* scene)
+{
+    (void)scene;
+    m3Body_SetType(world, m3Shape_GetBody(world, CharacterCapsule(world)), m3_dynamicBody);
+}
+
+static void DestroyCharacterCapsule(m3World* world, const FuzzScene* scene)
+{
+    (void)scene;
+    CHECK(m3DestroyShape(world, CharacterCapsule(world)) == m3_success, "the capsule is destroyed");
+}
+
+static void DestroyCharacterBody(m3World* world, const FuzzScene* scene)
+{
+    (void)scene;
+    CHECK(m3DestroyBody(world, m3Shape_GetBody(world, CharacterCapsule(world))) == m3_success,
+          "the character's body is destroyed");
+}
+
+typedef struct EngineCase
+{
+    const char* name;
+    Call call;
+} EngineCase;
+
+static const EngineCase s_engineCases[] = {
+    {"a shape destroyed, its pairs not yet rebuilt", DestroyBall},
+    {"a destroyed shape's slot taken by a new one", DestroyBallAndCreate},
+    {"a body teleported away from its pairs", TeleportCrate},
+    {"a character's body retyped", RetypeCharacterBody},
+    {"a character's capsule destroyed", DestroyCharacterCapsule},
+    {"a character's body destroyed", DestroyCharacterBody},
+};
+
+static void TestRestoreAcceptsWhatTheEngineWrites(void)
+{
+    for (size_t c = 0; c < sizeof(s_engineCases) / sizeof(s_engineCases[0]); ++c)
+    {
+        m3WorldDef def = FuzzWorldDef();
+        m3World* world = NewWorld(&def);
+        FuzzScene scene;
+        CHECK(FuzzBuild(world, &scene), "the scene builds");
+        FuzzStep(world, 4);
+        CHECK(world->contacts.pairCount > 0, "the scene has pairs");
+        s_engineCases[c].call(world, &scene);
+        int32_t size = m3World_SnapshotSize(world);
+        uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+        CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "snapshot taken");
+        uint64_t hash = m3World_Hash(world);
+        bool restored = bytes != NULL && Restore(world, bytes, size);
+        if (!restored)
+        {
+            printf("  refused: %s\n", s_engineCases[c].name);
+        }
+        CHECK(restored, "a snapshot the engine wrote before its next step restores");
+        CHECK(m3World_Hash(world) == hash, "and restoring it changes nothing");
+        FuzzStep(world, 2);
+        free(bytes);
+        m3DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
     TestRestoreRefusesBrokenStructures();
+    TestRestoreAcceptsWhatTheEngineWrites();
     if (s_failures == 0)
     {
         printf("test_restore_links: all checks passed\n");

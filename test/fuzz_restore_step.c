@@ -47,30 +47,24 @@ static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
     return bytes;
 }
 
-// TEMPORARY, until GHSA-7gf6-6fgv-pcfr is fixed: a finite but huge
-// warm-start impulse overflows a step to NaN (inverse mass times impulse
-// is infinite). That is a known class, tracked there and reachable from the
-// API too, not a broken structure, so this target skips such inputs
-// instead of failing on it every night. The fix bounds these magnitudes in
-// the library and removes this filter. The bound is far above any impulse
-// a test scene stores and far below an overflow.
-#define KNOWN_OVERFLOW_IMPULSE 1.0e12f
+// TEMPORARY: a known numeric issue is tracked privately, and this filter
+// skips the inputs that reach it until its fix lands and removes it.
+#define TRACKED_BOUND 1.0e12f
 
-static bool Huge(m3Vec3 v)
+static bool Beyond(m3Vec3 v)
 {
-    return fabsf(v.x) > KNOWN_OVERFLOW_IMPULSE || fabsf(v.y) > KNOWN_OVERFLOW_IMPULSE ||
-           fabsf(v.z) > KNOWN_OVERFLOW_IMPULSE;
+    return fabsf(v.x) > TRACKED_BOUND || fabsf(v.y) > TRACKED_BOUND || fabsf(v.z) > TRACKED_BOUND;
 }
 
-static bool HasKnownOverflow(const m3World* world)
+static bool TrackedIssueInput(const m3World* world)
 {
     const m3Joints* j = &world->joints;
     for (int32_t i = 0; i < j->jointPool.maxIndex; ++i)
     {
         if (j->jointPool.alive[i] != 0 &&
-            (Huge(j->jointImpulse[i]) || Huge(j->jointPerpImpulse[i]) ||
-             Huge(j->jointLimitImpulse[i]) || Huge(j->jointAngularImpulse[i]) ||
-             Huge(j->jointSpringImpulse[i])))
+            (Beyond(j->jointImpulse[i]) || Beyond(j->jointPerpImpulse[i]) ||
+             Beyond(j->jointLimitImpulse[i]) || Beyond(j->jointAngularImpulse[i]) ||
+             Beyond(j->jointSpringImpulse[i])))
         {
             return true;
         }
@@ -78,14 +72,14 @@ static bool HasKnownOverflow(const m3World* world)
     for (int32_t p = 0; p < world->contacts.pairCount; ++p)
     {
         const m3Manifold* m = &world->contacts.manifolds[p];
-        bool huge = Huge(m->frictionImpulse) || Huge(m->rollingImpulse) ||
-                    fabsf(m->twistImpulse) > KNOWN_OVERFLOW_IMPULSE;
+        bool beyond = Beyond(m->frictionImpulse) || Beyond(m->rollingImpulse) ||
+                      fabsf(m->twistImpulse) > TRACKED_BOUND;
         for (int32_t k = 0; k < m->pointCount; ++k)
         {
             const m3ManifoldPoint* point = &m->points[k];
-            huge = huge || fabsf(point->normalImpulse) > KNOWN_OVERFLOW_IMPULSE;
+            beyond = beyond || fabsf(point->normalImpulse) > TRACKED_BOUND;
         }
-        if (huge)
+        if (beyond)
         {
             return true;
         }
@@ -117,7 +111,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
     m3World* world = FreshWorld();
     Require(m3World_Restore(world, s_scene, s_sceneBytes) == m3_success);
-    if (m3World_Restore(world, data, (int32_t)size) == m3_success && !HasKnownOverflow(world))
+    if (m3World_Restore(world, data, (int32_t)size) == m3_success && !TrackedIssueInput(world))
     {
         FuzzStep(world, 3);
         m3Pos3 lo = {-50.0, -50.0, -50.0};

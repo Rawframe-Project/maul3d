@@ -499,53 +499,25 @@ static bool BroadphaseValid(const m3Incoming* inc)
 
 // --- Contact pairs ---------------------------------------------------------
 
-static bool Overlap(const m3TreeNode* a, const m3TreeNode* b)
-{
-    for (int32_t k = 0; k < 3; ++k)
-    {
-        if (a->hi[k] < b->lo[k] || b->hi[k] < a->lo[k])
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-// The pair keys ascend strictly (the step binary-searches them and merges
-// them with the next step's), and each names two live shapes, the lower
-// index first, on different bodies. A pair of two shapes in the tree is
-// one the broadphase found: their fat leaves overlap. A pair with a plane
-// comes from the plane pass and has no leaf to test. The block checks put
-// both halves of every key below the shape capacity and the count within
-// the pair capacity.
+// The pair keys ascend strictly, each with the lower index first: the
+// step stashes them as the old list and merges it with the new one for
+// the begin and end events and the warm starts. That is all a step reads
+// from them. A key may name a dead or reused shape, or shapes whose leaves
+// no longer overlap: a destroy, a create or a teleport changes the shapes
+// at once, while the keys are rebuilt only by the next step, so a snapshot
+// taken between them holds such keys. The block checks put both halves of
+// every key below the shape capacity and the count within the pair
+// capacity.
 static bool PairsValid(const m3Incoming* inc)
 {
-    const uint8_t* shapeAlive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
-    const uint8_t* shapeBody = m3InField(inc, offsetof(m3World, shapes.shapeBody));
-    const uint8_t* proxies = m3InField(inc, offsetof(m3World, broadphase.proxyIds));
-    const uint8_t* nodes = m3InField(inc, offsetof(m3World, broadphase.tree.nodes));
     const uint8_t* keys = m3InField(inc, offsetof(m3World, contacts.pairKeys));
     int32_t count = m3InI32(m3InField(inc, offsetof(m3World, contacts.pairCount)), 0);
     for (int32_t i = 0; i < count; ++i)
     {
         uint64_t key = m3InU64(keys, i);
-        int32_t a = (int32_t)(key >> 32);
-        int32_t b = (int32_t)(key & 0xFFFFFFFFu);
-        if ((i > 0 && key <= m3InU64(keys, i - 1)) || a >= b || shapeAlive[a] == 0 ||
-            shapeAlive[b] == 0 || m3InI32(shapeBody, a) == m3InI32(shapeBody, b))
+        if ((i > 0 && key <= m3InU64(keys, i - 1)) || (key >> 32) >= (key & 0xFFFFFFFFu))
         {
             return false;
-        }
-        int32_t leafA = m3InI32(proxies, a);
-        int32_t leafB = m3InI32(proxies, b);
-        if (leafA != M3_TREE_NULL && leafB != M3_TREE_NULL)
-        {
-            m3TreeNode na = Node(nodes, leafA);
-            m3TreeNode nb = Node(nodes, leafB);
-            if (!Overlap(&na, &nb))
-            {
-                return false;
-            }
         }
     }
     return true;

@@ -205,8 +205,7 @@ if(MAUL3D_FUZZ)
         target_link_options(fuzz_${maul_input} PRIVATE -fsanitize=fuzzer,address,undefined
                             -fno-sanitize-recover=all)
     endforeach()
-    # TEMPORARY, until GHSA-7gf6-6fgv-pcfr is fixed: the restore target's
-    # filter of a known overflow reads the restored world's impulses.
+    # TEMPORARY: the restore target's filter reads the restored world.
     target_include_directories(fuzz_restore_step PRIVATE ${PROJECT_SOURCE_DIR}/src)
 endif()
 
