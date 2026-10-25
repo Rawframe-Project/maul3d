@@ -61,10 +61,10 @@ extern "C"
 #define M3_VERSION_MAJOR 0
 // x-release-please-end
 // x-release-please-start-minor
-#define M3_VERSION_MINOR 2
+#define M3_VERSION_MINOR 3
 // x-release-please-end
 // x-release-please-start-patch
-#define M3_VERSION_PATCH 1
+#define M3_VERSION_PATCH 0
 // x-release-please-end
 
 // The binary interface a program is built for: the whole version before
