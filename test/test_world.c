@@ -8,6 +8,7 @@
 // White box: pair inspection reads world internals directly.
 #include "broad_phase.h"
 #include "helpers.h"
+#include "integrate.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
@@ -553,6 +554,66 @@ static void TestContactLanesMatchScalar(void)
     m3DestroyWorld(rows);
 }
 
+// The gyroscopic step is linear in the inertia, so taking it at another
+// inertia scale must give the same spin to rounding. Swept over
+// anisotropic tensors from a gram-scale bar to a heavy slab, tilted
+// rotations, spins up to the default angular cap and both step sizes the
+// suites use, wherever the step at scale 1 is finite and well conditioned:
+// a single Newton step that changes the spin by more than the spin itself
+// sits near a singular Jacobian, where any two roundings part. Issue #77
+// (the step adds energy there) revisits that skip.
+static void TestGyroscopicScaleMatchesDirect(void)
+{
+    uint32_t seed = 0x6A09E667u;
+    int32_t compared = 0;
+    float worst = 0.0f;
+    for (int32_t k = 0; k < 4000; ++k)
+    {
+        float r[9];
+        for (int32_t j = 0; j < 9; ++j)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            r[j] = (float)(seed >> 8) / 16777216.0f;
+        }
+        // A full symmetric tensor R D R^T, so the off-diagonal terms are
+        // exercised too: column j is R (D (R^T e_j)).
+        float size = powf(10.0f, -3.0f + 11.0f * r[0]);
+        m3Vec3 principal = {size * (0.05f + r[1]), size * (0.05f + r[2]), size * (0.05f + r[3])};
+        m3Quat frame = m3NormalizeQuat((m3Quat){r[6] - 0.5f, r[4] - 0.5f, 0.5f, r[5] - 0.5f});
+        const m3Vec3 basis[3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+        m3Vec3 columns[3];
+        for (int32_t j = 0; j < 3; ++j)
+        {
+            m3Vec3 e = m3InvRotateVec3(frame, basis[j]);
+            e = (m3Vec3){principal.x * e.x, principal.y * e.y, principal.z * e.z};
+            columns[j] = m3RotateVec3(frame, e);
+        }
+        m3Mat3 inertia = {columns[0], columns[1], columns[2]};
+        m3Quat q = m3NormalizeQuat((m3Quat){r[4] - 0.5f, r[5] - 0.5f, r[6] - 0.5f, 0.5f});
+        m3Vec3 w = {800.0f * (r[7] - 0.5f), 800.0f * (r[8] - 0.5f), 300.0f * (r[4] - r[6])};
+        m3real h = (k & 1) != 0 ? 1.0f / 240.0f : 1.0f / 60.0f;
+        m3Vec3 direct = m3GyroscopicStep(&inertia, 1.0f, q, w, h);
+        if (!(direct.x - direct.x == 0.0f && direct.y - direct.y == 0.0f &&
+              direct.z - direct.z == 0.0f))
+        {
+            continue;
+        }
+        if (m3Length3(m3Sub3(direct, w)) > m3Length3(w))
+        {
+            continue;
+        }
+        m3real largest = m3MaxF(inertia.cx.x, m3MaxF(inertia.cy.y, inertia.cz.z));
+        m3Vec3 scaled = m3GyroscopicStep(&inertia, largest, q, w, h);
+        m3Vec3 d = m3Sub3(scaled, direct);
+        float spin = m3Length3(direct) + m3Length3(w);
+        float error = m3Length3(d) / (spin > 1.0f ? spin : 1.0f);
+        worst = error > worst ? error : worst;
+        compared += 1;
+    }
+    CHECK(compared > 3000, "most of the sweep is finite and well conditioned at scale 1");
+    CHECK(worst < 1.0e-4f, "the step at unit inertia scale matches the direct one");
+}
+
 static void TestHullSnapshotShrink(void)
 {
     // Hull content is count-derived in the snapshot: an EMPTY hull
@@ -856,6 +917,7 @@ int main(void)
     TestPairs();
     TestTreeReferee();
     TestContactLanesMatchScalar();
+    TestGyroscopicScaleMatchesDirect();
     TestCompoundExtents();
     TestHashSeesSetterState();
     if (s_failures == 0)
