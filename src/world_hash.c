@@ -80,7 +80,7 @@ static uint64_t HashPool(uint64_t h, const m3IdPool* pool, int32_t which)
     h = HashKey(h, which, M3_HASH_KEY_POOL_IDS);
     h = m3Hash64(h, &pool->maxIndex, 4);
     h = m3Hash64(h, pool->alive, pool->maxIndex);
-    h = m3Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint16_t));
+    h = m3Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint32_t));
     h = m3Hash64(h, &pool->freeCount, 4);
     for (int32_t k = 0; k < pool->freeCount; ++k)
     {
@@ -253,7 +253,7 @@ static uint64_t HashCharacters(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->characters.charMass[i], 4);
         h = m3Hash64(h, &world->characters.charPushMax[i], 4);
         h = m3Hash64(h, &world->characters.charGroundBody[i], 4);
-        h = m3Hash64(h, &world->characters.charGroundGen[i], 2);
+        h = m3Hash64(h, &world->characters.charGroundGen[i], 4);
     }
     return h;
 }
@@ -275,7 +275,7 @@ static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
         int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
         h = m3Hash64(h, &world->softBodies.softAnchorParticle[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorBody[k], 4);
-        h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 2);
+        h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorLocal[k], (int32_t)sizeof(m3Vec3));
     }
     // Soft-to-soft anchors fold off-empty (additive rule).
@@ -408,7 +408,7 @@ static uint64_t HashVehicles(const m3World* world, uint64_t h)
             continue; // live slots only
         }
         h = m3Hash64(h, &world->vehicles.vehChassis[i], 4);
-        h = m3Hash64(h, &world->vehicles.vehChassisGen[i], 2);
+        h = m3Hash64(h, &world->vehicles.vehChassisGen[i], 4);
         h = m3Hash64(h, &world->vehicles.vehWheelCount[i], 4);
         h = m3Hash64(h, &world->vehicles.vehMaxSteer[i], 4);
         h = m3Hash64(h, &world->vehicles.vehDriveForce[i], 4);

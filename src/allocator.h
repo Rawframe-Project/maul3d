@@ -82,16 +82,21 @@ void m3StackDestroy(m3Heap* heap, m3Stack* stack);
 void* m3StackAlloc(m3Stack* stack, int32_t size);
 void m3StackReset(m3Stack* stack);
 
+/// A slot names objects under generations 0 to M3_LAST_GENERATION, then
+/// retires, so a stale id never names a later object in it: a slot makes
+/// 2^32 objects over a world's life.
+#define M3_LAST_GENERATION UINT32_MAX
+
 /// Slot allocator for generation-tagged handles. FIFO free queue (a
 /// freed slot is reused last, in a canonical order) with a generation
 /// bump on free, so stale handles fail validation instead of aliasing
-/// a recycled slot. Generations retire a slot at 0xFFFF instead of
+/// a recycled slot. A slot retires at M3_LAST_GENERATION instead of
 /// wrapping (the Maul2D rule).
 typedef struct m3IdPool
 {
     int32_t capacity;
     int32_t maxIndex; // high-water mark of ever-allocated slots
-    uint16_t* generations;
+    uint32_t* generations;
     uint8_t* alive;
     int32_t* freeQueue; // FIFO ring
     int32_t freeHead;

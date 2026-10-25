@@ -929,15 +929,15 @@ static void TestUntrustedDataCountsNoMisuse(void)
     snap[0] ^= 0xFFu;
     CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a damaged magic is refused");
     snap[0] ^= 0xFFu;
-    // Format 2 stored mass properties that format 3 derives; its
+    // Format 3 kept 16-bit generations that format 4 widens; its
     // snapshots are refused by version, not by layout.
     uint32_t format = 0;
     memcpy(&format, snap + 4, 4);
-    CHECK(format == 3u, "a snapshot is written in format 3");
-    format = 2u;
-    memcpy(snap + 4, &format, 4);
-    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a format 2 snapshot is refused");
+    CHECK(format == 4u, "a snapshot is written in format 4");
     format = 3u;
+    memcpy(snap + 4, &format, 4);
+    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a format 3 snapshot is refused");
+    format = 4u;
     memcpy(snap + 4, &format, 4);
     CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorInvalid,
           "a tape one byte short is refused");

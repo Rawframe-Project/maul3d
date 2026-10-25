@@ -32,7 +32,7 @@
 #endif
 
 #define M3_SNAPSHOT_MAGIC   0x4D33534Eu // 'M3SN'
-#define M3_SNAPSHOT_VERSION 3u          // 3: mass properties derived, not stored
+#define M3_SNAPSHOT_VERSION 4u          // 4: 32-bit generations
 
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.

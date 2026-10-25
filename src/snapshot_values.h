@@ -46,6 +46,13 @@ static inline uint16_t m3InU16(const uint8_t* block, int32_t i)
     return value;
 }
 
+static inline uint32_t m3InU32(const uint8_t* block, int32_t i)
+{
+    uint32_t value;
+    memcpy(&value, block + 4 * (size_t)i, sizeof(value));
+    return value;
+}
+
 static inline uint64_t m3InU64(const uint8_t* block, int32_t i)
 {
     uint64_t value;

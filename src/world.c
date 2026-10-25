@@ -240,7 +240,7 @@ static bool CreatePools(m3World* world)
         *pools[p] = m3IdPoolCreate(&world->heap, caps[p]);
         ok = ok && pools[p]->capacity != 0;
         world->memoryBytes +=
-            (int64_t)caps[p] * (int64_t)(sizeof(uint16_t) + sizeof(uint8_t) + sizeof(int32_t));
+            (int64_t)caps[p] * (int64_t)(sizeof(uint32_t) + sizeof(uint8_t) + sizeof(int32_t));
     }
     int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(&world->heap, 2 * shapeCap);

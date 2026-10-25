@@ -218,7 +218,7 @@ static bool VehiclesValid(const m3Incoming* inc)
         int32_t wheels = m3InI32(wheelCount, v);
         int32_t body = m3InI32(chassis, v);
         if (wheels < 1 || body < 0 || bodyAlive[body] == 0 ||
-            m3InU16(bodyGen, body) != m3InU16(chassisGen, v))
+            m3InU32(bodyGen, body) != m3InU32(chassisGen, v))
         {
             return false;
         }
@@ -369,7 +369,7 @@ static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
         {
             return false;
         }
-        if (f->alive[other] != 0 && m3InU16(f->generations, other) == m3InU16(f->genB, k) &&
+        if (f->alive[other] != 0 && m3InU32(f->generations, other) == m3InU32(f->genB, k) &&
             pb >= m3InI32(f->particles, other))
         {
             return false;
