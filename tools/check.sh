@@ -235,7 +235,9 @@ else
     echo "skipped: python3-markdown is not installed (the CI image has it)"
 fi
 
-mapfile -t sources < <(git ls-files 'src/*.c')
+# Every library source, untracked ones included, as all_c_files lists
+# them: a new file is checked before it is committed, not first in CI.
+mapfile -t sources < <(git ls-files --cached --others --exclude-standard 'src/*.c')
 tidy "${sources[@]}"
 
 preset linux-gcc-14
