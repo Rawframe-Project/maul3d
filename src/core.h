@@ -96,14 +96,9 @@ static inline bool m3BoundedPos3(m3Pos3 p)
 
 // How far from the origin any body or soft particle goes, per component,
 // m: restore refuses a position past it and the step holds every mover
-// and particle within it. Two positions within it differ by at most 2e18,
-// and that difference squared, 4e36, is still a float, so every length,
-// lever and offset the step forms from positions stays finite: a contact's
-// lever on a static body (the contact point minus that body's center)
-// times the body's zero inverse mass and inertia stays 0, a rope's or
-// distance joint's length and a soft particle's offset from its bind pose
-// stay floats. Creates and teleports keep M3_POSITION_LIMIT, so a body
-// reaches this only by moving at the kinematic limit for about 1e8 s.
+// and particle within it. Creates and teleports keep M3_POSITION_LIMIT,
+// so a body reaches this only by moving at the kinematic limit for about
+// 1e8 s.
 #define M3_REACH_LIMIT 1.0e18
 
 static inline bool m3WithinReach(m3Pos3 p)
@@ -217,17 +212,10 @@ static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
 #define M3_SERVO_REACH           1.0e6
 // What a stored contact or joint impulse may change, per component, in a
 // body's velocity (m/s) or spin (rad/s) when the next step's warm start
-// lands it. One step runs at most 513 passes (two per substep, 256
-// substeps, then restitution), each at a relative point speed within
-// about 1.75e10 m/s (a kinematic point against a dynamic one), so the
-// passes of one step build at most about 9e12. Prepare measures each
-// loaded impulse at that step's own masses, inertias and levers, as if
-// every component acted at the longest lever on every axis, and scales
-// it, direction kept, to within this and to a moment, impulse times
-// lever, within M3_WARM_MOMENT_LIMIT, which keeps every term the warm
-// start forms a float. The stored impulses themselves need no bound: the
-// hold acts at load, so any finite one is safe, whatever the body's mass
-// became since it was stored.
+// lands it, and the most its moment, impulse times lever, may reach.
+// Prepare measures each loaded impulse at that step's own masses,
+// inertias and levers, as if every component acted at the longest lever
+// on every axis, and scales it, direction kept, to within both.
 #define M3_WARM_LIMIT        1.0e13f
 #define M3_WARM_MOMENT_LIMIT 1.0e38f
 // A vehicle wheel's radius, m: drive force and wheel spin divide by it.
