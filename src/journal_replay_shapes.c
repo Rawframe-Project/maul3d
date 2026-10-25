@@ -111,7 +111,7 @@ bool m3ReplayCreateHullShape(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t bodyIndex = m3BodySlot(world, record.body);
-    if (bodyIndex < 0)
+    if (bodyIndex < 0 || !m3HullCloudValid(record.points, record.count))
     {
         return false;
     }
@@ -195,7 +195,8 @@ bool m3ReplayVoxelSet(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+        !m3VoxelCoordsValid(record.x, record.y, record.z))
     {
         return false;
     }
@@ -214,7 +215,8 @@ bool m3ReplayVoxelClear(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+        !m3VoxelCoordsValid(record.x, record.y, record.z))
     {
         return false;
     }
@@ -232,7 +234,8 @@ bool m3ReplayVoxelSetFill(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape || record.fill == 0)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+        !m3VoxelCoordsValid(record.x, record.y, record.z) || record.fill == 0)
     {
         return false;
     }

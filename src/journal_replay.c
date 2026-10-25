@@ -334,6 +334,10 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     }
     else
     {
+        if (world->bodies.types[index] != (uint8_t)m3_dynamicBody)
+        {
+            return false; // the public call refuses the same
+        }
         m3SetAwakeInternal(world, index, record.value);
     }
     return true;
@@ -369,9 +373,9 @@ static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0)
+    if (index < 0 || !m3SleepThresholdValid(record.threshold))
     {
-        return false;
+        return false; // the public calls refuse the same
     }
     m3SetSleepControlsInternal(world, index, record.threshold, record.canSleep);
     return true;
@@ -694,7 +698,7 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
     int32_t cursor = 0;
     while (cursor < size)
     {
-        if (cursor + 8 > size)
+        if (size - cursor < 8)
         {
             return m3_errorInvalid; // truncated header: reject loudly
         }
@@ -702,7 +706,7 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
         memcpy(&r.op, stream + cursor, 4);
         memcpy(&r.bytes, stream + cursor + 4, 4);
         cursor += 8;
-        if (r.bytes < 0 || cursor + r.bytes > size)
+        if (r.bytes < 0 || r.bytes > size - cursor)
         {
             return m3_errorInvalid; // truncated payload
         }

@@ -723,6 +723,22 @@ static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t 
     return ok && m3HullBuildHalfEdges(out);
 }
 
+bool m3HullCloudValid(const m3Vec3* points, int32_t count)
+{
+    if (points == NULL || count <= 0 || count > M3_HULL_MAX_INPUT)
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < count; ++i)
+    {
+        if (!m3LocalV3(points[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool m3ComputeHull(m3Heap* heap, const m3Vec3* points, int32_t count, m3HullData* out)
 {
     if (out == NULL || !InputValid(points, count))

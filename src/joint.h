@@ -50,6 +50,13 @@ void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float h
 
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q);
 
+// A drive target the target setters and replay accept for a joint of
+// this type: an angle within [-pi, pi] on a revolute joint and a finite
+// translation on a prismatic or wheel joint, each with the identity
+// rotation, or a rotation within the unit-length band on a spherical
+// joint, with a zero scalar.
+bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q);
+
 // The gear's spin readback: a body's rotation seen in its
 // own gear frame, twisted about that frame's z (the gear axis).
 // Shared by the create bake and the solver's drift measurement so

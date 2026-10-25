@@ -395,7 +395,7 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
     }
 }
 
-static bool VoxelCoordsValid(int32_t x, int32_t y, int32_t z)
+bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z)
 {
     return x >= 0 && x < M3_VOXEL_DIM && y >= 0 && y < M3_VOXEL_DIM && z >= 0 && z < M3_VOXEL_DIM;
 }
@@ -439,6 +439,7 @@ static void ClearCell(m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z)
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload)
 {
+    M3_ASSERT(m3VoxelCoordsValid(x, y, z));
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     int32_t v = x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z);
     if (m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
@@ -468,6 +469,7 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
 
 bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z)
 {
+    M3_ASSERT(m3VoxelCoordsValid(x, y, z));
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     if (m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
@@ -519,6 +521,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
 bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                             uint8_t fill)
 {
+    M3_ASSERT(m3VoxelCoordsValid(x, y, z));
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     if (!m3VoxelGet(chunk, x, y, z))
@@ -616,7 +619,7 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
     {
         return;
     }
-    if (!VoxelCoordsValid(x, y, z))
+    if (!m3VoxelCoordsValid(x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -659,7 +662,7 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
     {
         return;
     }
-    if (!VoxelCoordsValid(x, y, z))
+    if (!m3VoxelCoordsValid(x, y, z))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -700,7 +703,7 @@ static M3_NOINLINE void VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape,
     {
         return;
     }
-    if (!VoxelCoordsValid(x, y, z) || fill == 0)
+    if (!m3VoxelCoordsValid(x, y, z) || fill == 0)
     {
         m3Refuse(world, m3_errorInvalid);
         return; // fill zero is a clear in disguise: refused

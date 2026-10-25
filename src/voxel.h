@@ -19,11 +19,16 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape);
 
 void m3VoxelBoundsHull(m3Vec3 lo, m3Vec3 hi, m3HullData* out);
 
+// Whether a cell lies in a chunk, 0 to M3_VOXEL_DIM - 1 on every axis: the
+// check the public edits and their replay ops ask before an internal.
+bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z);
+
 // Voxel edit internals: apply without journaling (replay
 // drives these); the public entries validate, call, then journal what
-// landed. An edit whose surface would pass the box limit changes
-// nothing, counts in voxelEditsRefused and returns false (-1 for the
-// box clear and the carve).
+// landed. The cell must be one m3VoxelCoordsValid accepts. An edit
+// whose surface would pass the box limit changes nothing, counts in
+// voxelEditsRefused and returns false (-1 for the box clear and the
+// carve).
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload);
 

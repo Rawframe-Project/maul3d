@@ -697,6 +697,25 @@ void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz
     m3FloatEnvLeave(env);
 }
 
+bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q)
+{
+    bool identity = q.x == 0.0f && q.y == 0.0f && q.z == 0.0f && q.w == 1.0f;
+    if (type == (uint8_t)m3_revoluteJoint)
+    {
+        return identity && m3FiniteF(scalar) && scalar >= -M3_PI && scalar <= M3_PI;
+    }
+    if (type == (uint8_t)m3_prismaticJoint || type == (uint8_t)m3_wheelJoint)
+    {
+        return identity && m3FiniteF(scalar);
+    }
+    if (type != (uint8_t)m3_sphericalJoint || scalar != 0.0f || !m3FiniteQuat(q))
+    {
+        return false;
+    }
+    m3real len2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    return len2 >= 0.99f && len2 <= 1.01f;
+}
+
 static void JointTargetOp(m3World* world, m3JointId jointId, int32_t slot, float scalar, m3Quat q)
 {
     if (world->recorder.journalActive != 0)
@@ -723,8 +742,9 @@ static M3_NOINLINE void JointSetTargetAngleWorker(m3World* world, m3JointId join
     {
         return;
     }
-    if (world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint || !m3FiniteF(radians) ||
-        radians < -M3_PI || radians > M3_PI)
+    if (world->joints.jointType[slot] != (uint8_t)m3_revoluteJoint ||
+        !m3JointTargetValid(world->joints.jointType[slot], radians,
+                            (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -754,7 +774,8 @@ static M3_NOINLINE void JointSetTargetTranslationWorker(m3World* world, m3JointI
     }
     if ((world->joints.jointType[slot] != (uint8_t)m3_prismaticJoint &&
          world->joints.jointType[slot] != (uint8_t)m3_wheelJoint) ||
-        !m3FiniteF(meters))
+        !m3JointTargetValid(world->joints.jointType[slot], meters,
+                            (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // the wheel's drive is its suspension spring
@@ -781,14 +802,8 @@ static M3_NOINLINE void JointSetTargetRotationWorker(m3World* world, m3JointId j
     {
         return;
     }
-    if (world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint || !m3FiniteQuat(target))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    m3real len2 =
-        target.x * target.x + target.y * target.y + target.z * target.z + target.w * target.w;
-    if (len2 < 0.99f || len2 > 1.01f)
+    if (world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint ||
+        !m3JointTargetValid(world->joints.jointType[slot], 0.0f, target))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // not a unit rotation: refuse by doing nothing

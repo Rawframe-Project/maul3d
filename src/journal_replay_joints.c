@@ -205,7 +205,7 @@ bool m3ReplayJointSetTarget(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || !m3FiniteF(record.scalar) || !m3FiniteQuat(record.q))
+    if (slot < 0 || !m3JointTargetValid(world->joints.jointType[slot], record.scalar, record.q))
     {
         return false; // hostile bytes fail loudly
     }

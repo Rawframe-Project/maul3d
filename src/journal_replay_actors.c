@@ -150,7 +150,8 @@ bool m3ReplayVehicleTankCommands(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3VehicleSlot(world, record.id);
-    if (slot < 0 || !m3FiniteF(record.left) || !m3FiniteF(record.right) || !m3FiniteF(record.brake))
+    if (slot < 0 ||
+        !m3VehicleTankCommandsValid(world, slot, record.left, record.right, record.brake))
     {
         return false; // hostile bytes fail loudly
     }
