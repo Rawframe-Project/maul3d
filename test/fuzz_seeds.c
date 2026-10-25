@@ -6,11 +6,12 @@
 //
 //   fuzz_seeds <dir>
 //
-// writes <dir>/fuzz_snapshot/, <dir>/fuzz_journal/ and <dir>/fuzz_replay/:
-// snapshots of the scene before and after its session, the tapes of the
-// build alone, of the build and the session and of a call aimed at the
-// character's own capsule, and the replay container of the whole session
-// from an empty world.
+// writes <dir>/fuzz_snapshot/ and <dir>/fuzz_restore_step/ (the same
+// snapshots), <dir>/fuzz_journal/ and <dir>/fuzz_replay/: snapshots of the
+// scene before and after its session, the tapes of the build alone, of the
+// build and the session and of a call aimed at the character's own
+// capsule, and the replay container of the whole session from an empty
+// world.
 
 #include "fuzz_scene.h"
 #include "journal.h"
@@ -72,6 +73,7 @@ static void WriteSnapshot(const char* dir, const char* name, const m3World* worl
     int32_t bytes = 0;
     uint8_t* snapshot = SnapshotOf(world, &bytes);
     WriteSeed(dir, "fuzz_snapshot", name, snapshot, bytes);
+    WriteSeed(dir, "fuzz_restore_step", name, snapshot, bytes);
     free(snapshot);
 }
 
