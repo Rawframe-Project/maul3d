@@ -233,7 +233,9 @@ static void SolveConstraint(m3World* world, const m3ContactPlan* plan, m3Contact
 }
 
 // Bounce: a point that closed faster than the restitution threshold and
-// pushed at some pass is driven apart at restitution times its approach.
+// pushed at some pass is driven apart at restitution times its approach,
+// held within M3_SPEED_LIMIT like every row's correction speed; the step
+// holds the bodies there anyway.
 static void Restitution(m3World* world, m3ContactConstraint* c)
 {
     if (c->restitution == 0.0f)
@@ -250,8 +252,8 @@ static void Restitution(m3World* world, m3ContactConstraint* c)
         }
         m3real vn = m3Dot3(RelativeVelocity(&p, cp->rA, cp->rB), c->normal);
         m3real old = cp->normalImpulse;
-        m3real next =
-            m3MaxF(old + -cp->normalMass * (vn + c->restitution * cp->relativeVelocity), 0.0f);
+        m3real bounce = m3MaxF(c->restitution * cp->relativeVelocity, -M3_SPEED_LIMIT);
+        m3real next = m3MaxF(old + -cp->normalMass * (vn + bounce), 0.0f);
         cp->normalImpulse = next;
         Push(&p, c, m3MulSV3(next - old, c->normal), cp->rA, cp->rB);
     }

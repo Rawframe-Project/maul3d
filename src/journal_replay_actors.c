@@ -65,7 +65,7 @@ bool m3ReplayCharacterMove(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3CharacterSlot(world, record.id);
-    if (slot < 0 || !m3FiniteV3(record.translation))
+    if (slot < 0 || !m3CharacterMoveValid(record.translation))
     {
         return false; // hostile bytes fail loudly
     }

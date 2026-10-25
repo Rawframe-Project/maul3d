@@ -8,6 +8,27 @@
 
 #include "world_internal.h"
 
+// What a force, torque or impulse may add, and the velocities a body of a
+// type may hold (src/body_motion.c): the public calls and replay refuse
+// what these refuse, before anything changes.
+bool m3ForceFits(const m3World* world, int32_t index, m3Vec3 force);
+bool m3TorqueFits(const m3World* world, int32_t index, m3Vec3 torque);
+bool m3ForceAtPointFits(const m3World* world, int32_t index, m3Vec3 force, m3Pos3 point);
+bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
+bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
+bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
+bool m3BodyVelocityValid(uint8_t type, m3Vec3 velocity);
+bool m3BodySpinValid(m3Vec3 velocity);
+
+// The checks the body setters and replay share (src/body.c): a pose
+// within M3_POSITION_LIMIT with a near-unit rotation, a servo target within reach of a kinematic
+// body, a type change that keeps the velocities within the new type's limit, and a gravity scale or
+// damping in range (an m3BodyParam).
+bool m3PoseValid(m3Transform pose);
+bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
+bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type);
+bool m3BodyParamValid(int32_t param, float value);
+
 void m3ApplyForceInternal(m3World* world, int32_t index, m3Vec3 force);
 
 void m3SetTransformInternal(m3World* world, int32_t index, m3Transform pose);

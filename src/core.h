@@ -131,4 +131,61 @@ static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
     return m3MulSV3(cap / sqrtf(m3Dot3(u, u)), u);
 }
 
+// What the API, replay and restore accept, beyond finiteness. Each limit
+// sits far past every value the suites, samples and bench scenes use, and
+// together they keep every product the step forms finite.
+// Gravity, m/s^2: about 1000 g; the suites use at most 20.
+#define M3_ACCEL_LIMIT 1.0e4f
+// A spring, contact, steering or suspension frequency, or the wind's
+// gust frequency, Hz: the suites use at most 30.
+#define M3_HERTZ_LIMIT 1.0e5f
+// A dimensionless factor (a damping ratio, restitution, a gear or pulley
+// ratio, a gravity scale, a gust or push scale): the suites use at most
+// 500, a restitution test; a drivetrain's gear times final drive stays
+// within its square.
+#define M3_RATIO_LIMIT 1.0e4f
+// A step length, s: the suites step 1/60. The floor keeps the servo's
+// turn (at most 2 / dt rad/s) within M3_SPEED_LIMIT and its reach over dt
+// within M3_KINEMATIC_SPEED_LIMIT.
+#define M3_STEP_MIN   1.0e-4f
+#define M3_STEP_LIMIT 10.0f
+// A force (N) or torque (N m), held or accumulated, and a joint or
+// vehicle effort: the suites use at most 1e7.
+#define M3_FORCE_LIMIT 1.0e20f
+// A mass-bearing shape's mass and smallest principal inertia, and a
+// body's total mass (also a character's and a soft particle's): the
+// suites' lightest shape is 3.2e-5 kg with 1.1e-10 kg m^2, their
+// heaviest body 4.2e9 kg. The floors bound every inverse mass and
+// inertia; the ceiling bounds every effective mass in the solve.
+#define M3_MASS_FLOOR    1.0e-6f
+#define M3_INERTIA_FLOOR 1.0e-12f
+#define M3_MASS_LIMIT    1.0e20f
+// A kinematic body's linear speed, m/s, set or servoed; it spins within
+// M3_SPEED_LIMIT like any body. A contact point on a kinematic body moves
+// within this plus the spin times the longest lever (about 3.5e4 m, two
+// body-frame offsets), about 1.4e10 m/s, and times the heaviest body
+// (1e20 kg) and that lever again it stays near 5e34, inside float range.
+// A servo target lies within M3_SERVO_REACH, this over the shortest step.
+// The suites servo 3 km.
+#define M3_KINEMATIC_SPEED_LIMIT 1.0e10f
+#define M3_SERVO_REACH           1.0e6
+// A vehicle wheel's radius, m: drive force and wheel spin divide by it.
+// The suites use 0.3.
+#define M3_WHEEL_RADIUS_FLOOR 1.0e-3f
+// An explosion's impulse per square meter, N s/m^2: the suites use at
+// most 50. Over the largest facing area (4e8 m^2) and the lightest body
+// it stays finite before the speed limit holds the result.
+#define M3_BLAST_LIMIT 1.0e10f
+
+// x within [-limit, limit]; false for NaN.
+static inline bool m3WithinF(m3real x, m3real limit)
+{
+    return x >= -limit && x <= limit;
+}
+
+static inline bool m3WithinV3(m3Vec3 v, m3real limit)
+{
+    return m3WithinF(v.x, limit) && m3WithinF(v.y, limit) && m3WithinF(v.z, limit);
+}
+
 #endif // MAUL3D_SRC_CORE_H

@@ -62,7 +62,7 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     for (int32_t c = 0; c < def->curveCount; ++c)
     {
         if (!m3FiniteF(def->curveRpm[c]) || def->curveRpm[c] < 0.0f ||
-            !m3FiniteF(def->curveTorque[c]) || def->curveTorque[c] < 0.0f)
+            !(def->curveTorque[c] >= 0.0f && def->curveTorque[c] <= M3_FORCE_LIMIT))
         {
             return false;
         }
@@ -73,15 +73,20 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     }
     for (int32_t g = 0; g < def->gearCount; ++g)
     {
-        if (!m3FiniteF(def->gearRatio[g]) || def->gearRatio[g] <= 0.0f)
+        if (!(def->gearRatio[g] > 0.0f && def->gearRatio[g] <= M3_RATIO_LIMIT))
         {
             return false;
         }
     }
-    if (!m3FiniteF(def->reverseRatio) || def->reverseRatio < 0.0f || !m3FiniteF(def->finalDrive) ||
-        def->finalDrive <= 0.0f || !m3FiniteF(def->shiftUpRpm) || !m3FiniteF(def->shiftDownRpm) ||
-        def->shiftDownRpm < 0.0f || def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < 0 ||
-        def->diffMode > 2 || !m3FiniteF(def->diffCouple) || def->diffCouple < 0.0f)
+    // Torques within M3_FORCE_LIMIT and every ratio within M3_RATIO_LIMIT,
+    // so a gear times the final drive stays within its square. The
+    // coupling is a gain in N per m/s: at the speed limit it stays within
+    // the force limit.
+    if (!(def->reverseRatio >= 0.0f && def->reverseRatio <= M3_RATIO_LIMIT) ||
+        !(def->finalDrive > 0.0f && def->finalDrive <= M3_RATIO_LIMIT) ||
+        !m3FiniteF(def->shiftUpRpm) || !m3FiniteF(def->shiftDownRpm) || def->shiftDownRpm < 0.0f ||
+        def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < 0 || def->diffMode > 2 ||
+        !(def->diffCouple >= 0.0f && def->diffCouple <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
     {
         return false;
     }

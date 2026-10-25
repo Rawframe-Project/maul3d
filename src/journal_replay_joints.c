@@ -71,10 +71,7 @@ bool m3ReplayJointSetMotorPose(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    float q2 = record.rotation.x * record.rotation.x + record.rotation.y * record.rotation.y +
-               record.rotation.z * record.rotation.z + record.rotation.w * record.rotation.w;
-    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_motorJoint ||
-        !m3FiniteV3(record.offset) || !m3FiniteQuat(record.rotation) || q2 < 0.81f || q2 > 1.21f)
+    if (slot < 0 || !m3JointMotorPoseValid(world, slot, record.offset, record.rotation))
     {
         return false; // hostile servo bytes fail loudly
     }
@@ -93,11 +90,9 @@ bool m3ReplayJointSetSteer(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_wheelJoint ||
-        !m3FiniteF(record.target) || m3AbsF(record.target) > 1.0f || !m3FiniteF(record.hertz) ||
-        !m3FiniteF(record.zeta) || !m3FiniteF(record.effort) || record.zeta < 0.0f ||
-        record.effort < 0.0f || (record.enable != 0 && !(record.hertz > 0.0f)) ||
-        (record.enable != 0 && record.enable != 1))
+    if (slot < 0 || (record.enable != 0 && record.enable != 1) ||
+        !m3JointSteerValid(world, slot, record.enable, record.target, record.hertz, record.zeta,
+                           record.effort))
     {
         return false; // hostile steer bytes fail loudly
     }
@@ -124,12 +119,7 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opJointSetLimits)
     {
-        // Mirror the public contract: the motor joint's
-        // budgets are independent nonnegatives, every other
-        // type wants an ordered range.
-        if (world->joints.jointType[slot] == (uint8_t)m3_motorJoint
-                ? (record.a < 0.0f || record.b < 0.0f)
-                : record.a > record.b)
+        if (!m3JointLimitsValid(world->joints.jointType[slot], record.a, record.b))
         {
             return false;
         }
@@ -137,6 +127,10 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     else
     {
+        if (!m3JointMotorValid(world->joints.jointType[slot], record.enable, record.a, record.b))
+        {
+            return false;
+        }
         m3JointSetMotorInternal(world, slot, record.enable, record.a, record.b);
     }
     return true;
@@ -192,8 +186,7 @@ bool m3ReplayJointSetSpring(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || !m3FiniteF(record.hertz) || record.hertz <= 0.0f || !m3FiniteF(record.zeta) ||
-        record.zeta < 0.0f)
+    if (slot < 0 || !m3JointSpringValid(world, slot, record.hertz, record.zeta))
     {
         return false; // hostile bytes fail loudly
     }

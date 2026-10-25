@@ -96,8 +96,8 @@ extern "C"
         m3real lowerLimit;
         m3real upperLimit;
         bool enableMotor;
-        m3real motorSpeed; // rad/s or m/s by joint type
-        m3real maxMotorEffort;
+        m3real motorSpeed;     // rad/s or m/s by joint type, within 1e5
+        m3real maxMotorEffort; // non-negative, at most 1e20
         /// Spherical only: the swing cone (the shoulder). enableLimit
         /// doubles as the twist range for the spherical, using
         /// lowerLimit and upperLimit as twist angles.
@@ -107,7 +107,7 @@ extern "C"
         /// 0 <= lowerLimit <= upperLimit meters (a rod is lower ==
         /// upper; a rope is a range). Their optional spring reuses
         /// the motor fields, documented reuse: enableMotor turns it
-        /// on, motorSpeed is the spring hertz (> 0), maxMotorEffort
+        /// on, motorSpeed is the spring hertz (> 0, at most 1e5), maxMotorEffort
         /// is the damping ratio (>= 0); coneAngle (a further
         /// documented reuse) is the spring's rest length when
         /// positive and must sit inside [lower, upper]; when zero,
@@ -153,8 +153,9 @@ extern "C"
         m3real genericAngularLower[3];
         m3real genericAngularUpper[3];
         /// Gear and pulley: the coupling ratio (gear: any
-        /// nonzero, sign picks the mesh; pulley: > 0) and the
-        /// pulley's two fixed WORLD anchor points. Growing this def
+        /// nonzero within 1e4, sign picks the mesh; pulley: > 0 and at
+        /// most 1e4) and the pulley's two fixed WORLD anchor points,
+        /// within 1e15 m. Growing this def
         /// bumps the cookie: stale-compiled callers refuse loudly.
         m3real ratio;
         m3Pos3 groundAnchorA;
@@ -186,15 +187,20 @@ extern "C"
     /// on any change. Limits and motor reuse the def semantics per
     /// type (angles for revolute and spherical twist, meters for
     /// prismatic and distance); toggling zeroes the row's stored
-    /// impulse so a stale warm start cannot kick.
+    /// impulse so a stale warm start cannot kick. A motor joint's limits
+    /// are its force and torque budgets, each in [0, 1e20]; a distance
+    /// joint's motor is its spring, hertz in [0, 1e5] and positive when
+    /// enabled, damping ratio in [0, 1e4]; every other motor runs within
+    /// 1e5 rad/s or m/s with an effort in [0, 1e20].
     M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower,
                                   float upper);
     M3_API void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
                                  float maxEffort);
 
     /// Aim the MOTOR joint: offset in body A's joint frame,
-    /// rotation as the target relative orientation. Journaled;
-    /// refused loudly on other types and hostile values.
+    /// rotation as the target relative orientation. The offset lies
+    /// within 1e4 m on every axis. Journaled; refused loudly on other
+    /// types and hostile values.
     M3_API void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset,
                                      m3Quat rotation);
 
@@ -202,8 +208,9 @@ extern "C"
     /// strut axis. While enabled, the wheel's frame-x lock becomes
     /// the drive (frame y stays locked), so the axle yaws toward
     /// targetAngle (radians, |target| <= 1) at the given stiffness;
-    /// maxEffort > 0 caps the torque, 0 leaves it uncapped. Wheel
-    /// joints only; refused loudly elsewhere. Journaled.
+    /// maxEffort > 0 caps the torque, 0 leaves it uncapped; hertz is
+    /// in [0, 1e5] and positive when enabled, the damping ratio in
+    /// [0, 1e4] and maxEffort at most 1e20. Wheel joints only; refused loudly elsewhere. Journaled.
     M3_API void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle,
                                  float hertz, float zeta, float maxEffort);
 
@@ -244,8 +251,9 @@ extern "C"
     /// constraint with the given frequency and damping ratio pulls
     /// the joint toward its target. Revolute drives the hinge angle,
     /// prismatic the translation, spherical the relative rotation;
-    /// other types refuse. Toggling zeroes the spring's stored
-    /// impulse. All journaled; both bodies wake.
+    /// other types refuse. The frequency is positive and at most 1e5
+    /// Hz, the damping ratio in [0, 1e4]. Toggling zeroes the spring's
+    /// stored impulse. All journaled; both bodies wake.
     M3_API void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
                                   float dampingRatio);
     M3_API void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians);

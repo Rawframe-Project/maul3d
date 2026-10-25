@@ -168,6 +168,12 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
         m3Vec3 arm = m3RotateVec3(xf.q, contact);
         m3Pos3 at = {xf.p.x + (double)arm.x, xf.p.y + (double)arm.y, xf.p.z + (double)arm.z};
         m3ApplyImpulseAtPointInternal(world, body, impulse, at);
+        // The push is an outcome, not a host value: like the step, it
+        // leaves the body within the speed limit.
+        world->bodies.linearVelocities[body] =
+            m3CapSpeed(world->bodies.linearVelocities[body], M3_SPEED_LIMIT);
+        world->bodies.angularVelocities[body] =
+            m3CapSpeed(world->bodies.angularVelocities[body], M3_SPEED_LIMIT);
     }
 }
 
@@ -190,9 +196,10 @@ static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shap
 
 bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
 {
-    if (!m3FinitePos3(def->position) || !m3FiniteF(def->radius) || def->radius < 0.0f ||
-        !m3FiniteF(def->falloff) || def->falloff < 0.0f || !m3FiniteF(def->impulsePerArea) ||
-        !m3FiniteF(def->voxelCarve) || def->voxelCarve < 0.0f || !m3FiniteF(def->softPush))
+    if (!m3BoundedPos3(def->position) || !m3FiniteF(def->radius) || def->radius < 0.0f ||
+        !m3FiniteF(def->falloff) || def->falloff < 0.0f ||
+        !m3WithinF(def->impulsePerArea, M3_BLAST_LIMIT) || !m3FiniteF(def->voxelCarve) ||
+        def->voxelCarve < 0.0f || !m3WithinF(def->softPush, M3_RATIO_LIMIT))
     {
         return false;
     }
@@ -255,9 +262,10 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
                     scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
                 }
                 m3real magnitude = def->impulsePerArea * def->softPush * area * scale;
-                world->softBodies.softKick[k] =
+                world->softBodies.softKick[k] = m3CapSpeed(
                     m3Add3(world->softBodies.softKick[k],
-                           m3MulSV3(magnitude * world->softBodies.softInvMass[k], direction));
+                           m3MulSV3(magnitude * world->softBodies.softInvMass[k], direction)),
+                    M3_SPEED_LIMIT);
             }
         }
     }

@@ -66,8 +66,10 @@ extern "C"
     M3_API m3SoftBodyDef m3DefaultSoftBodyDef(void);
 
     /// Creates the lattice with structural edges and face diagonals
-    /// in fixed index order. Refuses hostile counts and non-finite or
-    /// non-positive geometry (m3_errorInvalid) and a full pool
+    /// in fixed index order. Refuses hostile counts, non-finite or
+    /// non-positive geometry, a particle mass outside 1e-6 to 1e20 kg,
+    /// a radius past 1e4 m and a gravity scale past 1e4
+    /// (m3_errorInvalid) and a full pool
     /// (m3_errorCapacity), leaving *softBodyOut the null id.
     /// Journaled with id verification.
     M3_NODISCARD M3_API m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def,

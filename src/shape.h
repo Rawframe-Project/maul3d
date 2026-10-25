@@ -61,6 +61,24 @@ void m3RebuildPlaneList(m3World* world);
 
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
+// Whether shape slot's body, if dynamic, would keep every mass-bearing
+// shape at M3_MASS_FLOOR and M3_INERTIA_FLOOR or more and its total mass
+// within M3_MASS_LIMIT, with slot given this type, geometry and density
+// (src/shape_mass.c). Create, reshape and density changes ask it first;
+// only a dynamic body's mass reaches the solver.
+bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
+                     float density);
+
+// The same bounds over body's shapes as they stand, asked when a body
+// turns dynamic.
+bool m3BodyMassFits(const m3World* world, int32_t body);
+
+// A material scalar a shape setter or replay may write: friction and
+// rolling resistance non-negative, restitution within M3_RATIO_LIMIT
+// (op is the setter's journal op).
+bool m3ShapeScalarValid(int32_t op, float value);
+bool m3SurfaceVelocityValid(m3Vec3 velocity);
+
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
 void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
                          int32_t groupIndex);
