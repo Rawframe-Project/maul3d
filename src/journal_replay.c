@@ -59,7 +59,7 @@ static bool ApplyDestroyBody(m3World* world, const m3ReplayRecord* r)
     // Recorded ids carry the ORIGINAL world's slot; replay
     // retargets them to this world (the Maul2D rule).
     int32_t index = m3BodySlot(world, id);
-    if (index < 0)
+    if (index < 0 || m3CharacterOwnsBody(world, index))
     {
         return false;
     }
@@ -297,6 +297,11 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opSetType)
     {
+        if (record.value < (int32_t)m3_staticBody || record.value > (int32_t)m3_dynamicBody ||
+            m3CharacterOwnsBody(world, index))
+        {
+            return false; // the public call refuses both
+        }
         m3SetTypeInternal(world, index, (uint8_t)record.value);
     }
     else if (op == m3_opSetEnabled)

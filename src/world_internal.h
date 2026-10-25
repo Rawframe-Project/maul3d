@@ -947,4 +947,20 @@ typedef struct m3World
     m3Recorder recorder;
 } m3World;
 
+// Whether the body in slot index is a live character's own. A character
+// owns its body and the capsule on it: they go with the character, and no
+// call may destroy, retype, reshape or add to them on their own.
+static inline bool m3CharacterOwnsBody(const m3World* world, int32_t index)
+{
+    const m3Characters* c = &world->characters;
+    for (int32_t i = 0; i < c->charPool.maxIndex; ++i)
+    {
+        if (c->charPool.alive[i] != 0 && c->charBody[i] == index)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 #endif // MAUL3D_SRC_WORLD_INTERNAL_H

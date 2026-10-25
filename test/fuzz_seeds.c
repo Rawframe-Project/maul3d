@@ -8,8 +8,9 @@
 //
 // writes <dir>/fuzz_snapshot/, <dir>/fuzz_journal/ and <dir>/fuzz_replay/:
 // snapshots of the scene before and after its session, the tapes of the
-// build alone and of the build and the session, and the replay container
-// of the whole session from an empty world.
+// build alone, of the build and the session and of a call aimed at the
+// character's own capsule, and the replay container of the whole session
+// from an empty world.
 
 #include "fuzz_scene.h"
 
@@ -106,6 +107,55 @@ static void BuildScene(m3World* world, FuzzScene* scene)
     }
 }
 
+// A tape aimed at the character's own capsule: the build, then a destroy
+// recorded on the ball's sphere and pointed at the capsule, then a stance
+// change. Replay must refuse it as the public call does.
+static void WriteOwnedSeed(const char* dir, uint8_t* tape)
+{
+    m3World* world = FreshWorld();
+    FuzzScene scene;
+    int32_t buildBytes = 0;
+    if (m3World_StartJournal(world, tape, TAPE_BYTES) != m3_success)
+    {
+        Fail("the owned seed's journal");
+    }
+    BuildScene(world, &scene);
+    if (m3World_StopJournal(world, &buildBytes) != m3_success)
+    {
+        Fail("the owned seed's build");
+    }
+    m3ShapeId sphere;
+    m3RayCastResult hit = m3World_CastRayClosest(
+        world, (m3Pos3){-2.0, 4.0, -2.0}, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
+    if (m3Body_GetShapes(world, scene.ball, &sphere, 1) != 1 || !hit.hit ||
+        m3World_StartJournal(world, tape + buildBytes, TAPE_BYTES - buildBytes) != m3_success)
+    {
+        Fail("the owned seed's targets");
+    }
+    int32_t callBytes = 0;
+    if (m3DestroyShape(world, sphere) != m3_success ||
+        m3Character_SetStance(world, scene.hero, 0.25f, 0.2f) != m3_success ||
+        m3World_StopJournal(world, &callBytes) != m3_success)
+    {
+        Fail("the owned seed's calls");
+    }
+    int32_t found = 0;
+    for (int32_t at = buildBytes; at + (int32_t)sizeof(sphere) <= buildBytes + callBytes; ++at)
+    {
+        if (memcmp(tape + at, &sphere, sizeof(sphere)) == 0)
+        {
+            memcpy(tape + at, &hit.shapeId, sizeof(hit.shapeId));
+            found += 1;
+        }
+    }
+    if (found != 1)
+    {
+        Fail("the owned seed's retarget");
+    }
+    WriteSeed(dir, "fuzz_journal", "owned", tape, buildBytes + callBytes);
+    m3DestroyWorld(world);
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -164,6 +214,7 @@ int main(int argc, char** argv)
         Fail("the replay container");
     }
     WriteSeed(dir, "fuzz_replay", "session", replay, replayBytes);
+    WriteOwnedSeed(dir, tape);
     printf("fuzz_seeds: snapshot %d bytes, tape %d bytes, replay %d bytes\n", emptyBytes, tapeBytes,
            replayBytes);
     m3DestroyWorld(world);
