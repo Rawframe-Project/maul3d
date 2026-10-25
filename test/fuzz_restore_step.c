@@ -4,9 +4,10 @@
 // libFuzzer target for what a restored world does next. Any bytes are
 // restored over the shared scene; a world restore accepts must step, be
 // queried and snapshot like one the API built, with no sanitizer report,
-// no broken assertion and no endless walk. Restore validates every link
-// and cross-reference a step follows, so a crafted snapshot or replay
-// file is refused before any byte of it lands.
+// no broken assertion and no endless walk, and the snapshot it takes
+// after its steps must restore in turn. Restore validates every link,
+// cross-reference and magnitude a step follows, so a crafted snapshot or
+// replay file is refused before any byte of it lands.
 
 #include "fuzz_scene.h"
 
@@ -76,9 +77,15 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         m3Pos3 hi = {50.0, 50.0, 50.0};
         m3ShapeId hits[16];
         (void)m3World_OverlapAabb(world, lo, hi, hits, 16, m3DefaultQueryFilter());
-        (void)m3World_Hash(world);
+        // What the step made from an accepted world, restore accepts in
+        // turn: the bounds restore keeps are ones the step keeps.
         int32_t bytes = 0;
-        free(SnapshotOf(world, &bytes));
+        uint8_t* stepped = SnapshotOf(world, &bytes);
+        m3World* again = FreshWorld();
+        Require(m3World_Restore(again, stepped, bytes) == m3_success);
+        Require(m3World_Hash(again) == m3World_Hash(world));
+        m3DestroyWorld(again);
+        free(stepped);
     }
     m3DestroyWorld(world);
     return 0;
