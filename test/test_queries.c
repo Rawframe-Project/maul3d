@@ -606,8 +606,7 @@ static void TestOverlapAndInsideFamilies(void)
 }
 
 // A point far from a voxel chunk lies outside it, on every axis and both
-// sides, however far: its cell is bounded before the chunk is read. A
-// point in a filled cell is still inside.
+// sides, however far. A point in a filled cell is still inside.
 static void TestFarPointsMissVoxels(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
