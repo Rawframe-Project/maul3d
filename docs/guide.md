@@ -1120,6 +1120,41 @@ collide. Planes are half-spaces: `dot(normal, p) <= offset` is
 solid. Capsules are a segment plus a radius; a zero-length segment
 is refused (use a sphere).
 
+## Magnitude limits
+
+Every value the API accepts is finite and within a limit, so that
+every product the step forms stays in float range. A call past a
+limit refuses with `m3_errorInvalid` (a create returns the null id),
+counts one misuse, journals nothing and changes nothing; replay
+refuses the same values in a recorded op. Each limit sits far past
+what real scenes use. Vectors are bounded per component.
+
+| Quantity | Limit | Where |
+|---|---|---|
+| Position | 1e15 m | body defs, poses, anchors in the world |
+| Body-frame offset or extent | 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
+| Servo target | 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
+| Character move | 1e18 m | `m3Character_Move` |
+| Speed | 1e5 m/s and rad/s | dynamic body velocities, every body's spin, the world's speed caps, contact push speed, wind speed, water flow, surface velocity, joint motor speed |
+| Kinematic speed | 1e10 m/s | kinematic body linear velocities |
+| Impulse | the velocity it leaves within 1e5 | `m3Body_ApplyLinearImpulse`, `m3Body_ApplyAngularImpulse`, `m3Body_ApplyLinearImpulseAtPoint` |
+| Force and torque | 1e20 N and N m, held or added up over a step | `m3Body_ApplyForce`, `m3Body_ApplyTorque`, `m3Body_ApplyForceAtPoint`, joint motor and steering effort, a servo's budgets, vehicle drive and brake force, engine torque |
+| Acceleration | 1e4 m/s^2 | gravity |
+| Frequency | 1e5 Hz | contact hertz, joint springs and steering, wind gusts, wheel suspension |
+| Ratio | 1e4 | damping ratios, restitution, gravity scales, gear and pulley ratios, gear and final drive ratios, brake share, tire grip, lean gain, wind gust scale, a character's push ratio, an explosion's soft push |
+| Differential coupling | 1e15 N per m/s | `m3DrivetrainDef.diffCouple` |
+| Step length | 1e-4 to 10 s | `m3World_Step` |
+| Density | 1e6 kg/m^3 | shapes, water |
+| Mass | a shape at least 1e-6 kg with every principal moment at least 1e-12 kg m^2; a body at most 1e20 kg | shapes on dynamic bodies, a body turning dynamic, characters, soft particles |
+| Wheel radius | at least 1e-3 m | vehicle wheels |
+| Blast | 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
+
+The step holds what it produces within the same limits: every
+body leaves a substep within 1e5 m/s and 1e5 rad/s, a bounce asks
+for at most 1e5 m/s of separation, and a push the step itself lands
+on a body (a character's, a soft particle's, a wheel's, an
+explosion's) leaves it within 1e5 as well.
+
 ## Capacities
 
 Every pool is fixed at world creation (`bodyCapacity`,

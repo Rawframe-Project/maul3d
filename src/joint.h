@@ -8,6 +8,20 @@
 
 #include "world_internal.h"
 
+// What the joint setters and replay accept for a joint's drives
+// (src/joint_params.c): a motor speed within M3_SPEED_LIMIT and an
+// effort within M3_FORCE_LIMIT, except on a distance joint, whose motor
+// fields carry its spring; a spring or steering frequency non-negative,
+// positive when enabled, within M3_HERTZ_LIMIT and damping within
+// M3_RATIO_LIMIT, on a joint type that drives; an ordered limit range, or on a motor joint, force
+// and torque budgets within M3_FORCE_LIMIT; a motor joint's aim offset within M3_LOCAL_LIMIT.
+bool m3JointMotorValid(int32_t type, int32_t enable, float speed, float maxEffort);
+bool m3JointLimitsValid(int32_t type, float lower, float upper);
+bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta);
+bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
+                       float hertz, float zeta, float maxEffort);
+bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation);
+
 void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float lower, float upper);
 
 void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float speed, float effort);

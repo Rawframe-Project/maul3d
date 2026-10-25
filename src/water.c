@@ -56,10 +56,10 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
 {
     // The full wall, here because replay hands this function
     // raw journal bytes.
-    if (!m3FinitePos3(def->lo) || !m3FinitePos3(def->hi) || !(def->hi.x > def->lo.x) ||
-        !(def->hi.y > def->lo.y) || !(def->hi.z > def->lo.z) || !m3FiniteF(def->density) ||
-        !(def->density > 0.0f) || !m3FiniteF(def->linearDrag) || def->linearDrag < 0.0f ||
-        !m3FiniteF(def->angularDrag) || def->angularDrag < 0.0f || !m3FiniteV3(def->flow))
+    if (!m3BoundedPos3(def->lo) || !m3BoundedPos3(def->hi) || !(def->hi.x > def->lo.x) ||
+        !(def->hi.y > def->lo.y) || !(def->hi.z > def->lo.z) || !m3DensityF(def->density) ||
+        !m3FiniteF(def->linearDrag) || def->linearDrag < 0.0f || !m3FiniteF(def->angularDrag) ||
+        def->angularDrag < 0.0f || !m3WithinV3(def->flow, M3_SPEED_LIMIT))
     {
         return M3_CREATE_INVALID;
     }

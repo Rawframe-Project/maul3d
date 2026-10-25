@@ -434,8 +434,7 @@ static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t subste
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteF(dt) || !(dt > 0.0f) || substeps < 1 ||
-        substeps > M3_MAX_SUBSTEPS)
+    if (world == NULL || !m3StepValid(dt, substeps))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

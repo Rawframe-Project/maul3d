@@ -109,17 +109,18 @@ static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat
                            r.cx.z * t.cz.x + r.cy.z * t.cz.y + r.cz.z * t.cz.z};
 }
 
-static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
-                          m3Mat3* inertiaOut)
+// Shape s's mass properties as if it had the given type, geometry and
+// density; a hull keeps its interned content.
+static int MassPropsOf(const m3World* world, int32_t s, uint8_t type, const m3ShapeGeom* geom,
+                       float density, float* massOut, m3Vec3* comOut, m3Mat3* inertiaOut)
 {
-    uint8_t type = world->shapes.shapeType[s];
     if (type == (uint8_t)m3_sphereShape)
     {
-        float r = world->shapes.shapeGeom[s].s;
-        float m = world->shapes.shapeDensity[s] * (4.0f / 3.0f) * M3_PI * r * r * r;
+        float r = geom->s;
+        float m = density * (4.0f / 3.0f) * M3_PI * r * r * r;
         float ic = 0.4f * m * r * r;
         *massOut = m;
-        *comOut = world->shapes.shapeGeom[s].v;
+        *comOut = geom->v;
         *inertiaOut = m3MakeZeroMat3();
         inertiaOut->cx.x = ic;
         inertiaOut->cy.y = ic;
@@ -134,9 +135,9 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         // because t1(x)t1 + t2(x)t2 = Identity - u(x)u for any
         // orthonormal basis {t1, u, t2}. No basis matrix needed and
         // the result is exactly symmetric.
-        m3Vec3 p1 = world->shapes.shapeGeom[s].v;
-        m3Vec3 p2 = world->shapes.shapeGeom[s].v2;
-        float r = world->shapes.shapeGeom[s].s;
+        m3Vec3 p1 = geom->v;
+        m3Vec3 p2 = geom->v2;
+        float r = geom->s;
         m3Vec3 axis = m3Sub3(p2, p1);
         float length = sqrtf(m3Dot3(axis, axis));
         // The create walls demand length > 0, but a mutated snapshot
@@ -145,7 +146,6 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         // term below vanishes and the isotropic (sphere) inertia is
         // exactly right, so any unit stand-in axis is correct.
         m3Vec3 u = length > 0.0f ? m3MulSV3(1.0f / length, axis) : (m3Vec3){1.0f, 0.0f, 0.0f};
-        float density = world->shapes.shapeDensity[s];
         float mCyl = density * M3_PI * r * r * length;
         float mSph = density * (4.0f / 3.0f) * M3_PI * r * r * r;
         float axial = 0.5f * mCyl * r * r + 0.4f * mSph * r * r;
@@ -164,7 +164,6 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
     if (type == (uint8_t)m3_hullShape)
     {
         const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[s]];
-        float density = world->shapes.shapeDensity[s];
         *massOut = density * hull->unitMass;
         *comOut = hull->unitCom;
         m3Mat3 ic = hull->unitInertiaCom;
@@ -175,6 +174,69 @@ static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec
         return 1;
     }
     return 0;
+}
+
+static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
+                          m3Mat3* inertiaOut)
+{
+    return MassPropsOf(world, s, world->shapes.shapeType[s], &world->shapes.shapeGeom[s],
+                       world->shapes.shapeDensity[s], massOut, comOut, inertiaOut);
+}
+
+// Whether every principal moment of a symmetric inertia is at least
+// floor: inertia - floor E is positive semidefinite exactly when all
+// seven of its principal minors are non-negative. Doubles, no libm, so
+// every platform decides alike.
+static bool InertiaAtLeast(const m3Mat3* ic, double floor)
+{
+    double a = (double)ic->cx.x - floor;
+    double d = (double)ic->cy.y - floor;
+    double f = (double)ic->cz.z - floor;
+    double b = (double)ic->cy.x;
+    double c = (double)ic->cz.x;
+    double e = (double)ic->cz.y;
+    double det = a * (d * f - e * e) - b * (b * f - e * c) + c * (b * e - d * c);
+    return a >= 0.0 && d >= 0.0 && f >= 0.0 && a * d - b * b >= 0.0 && a * f - c * c >= 0.0 &&
+           d * f - e * e >= 0.0 && det >= 0.0; // false for NaN
+}
+
+// The mass floors and ceiling over body's shapes, with slot (or -1 for
+// none) taking the given type, geometry and density.
+static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t type,
+                     const m3ShapeGeom* geom, float density)
+{
+    double total = 0.0;
+    for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
+    {
+        float m;
+        m3Vec3 c;
+        m3Mat3 ic;
+        int carries = s == slot ? MassPropsOf(world, s, type, geom, density, &m, &c, &ic)
+                                : ShapeMassProps(world, s, &m, &c, &ic);
+        if (carries == 0)
+        {
+            continue;
+        }
+        if (!(m >= M3_MASS_FLOOR) || !InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR))
+        {
+            return false;
+        }
+        total += (double)m;
+    }
+    return total <= (double)M3_MASS_LIMIT;
+}
+
+bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
+                     float density)
+{
+    int32_t body = world->shapes.shapeBody[slot];
+    return world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
+           MassFits(world, body, slot, type, geom, density);
+}
+
+bool m3BodyMassFits(const m3World* world, int32_t body)
+{
+    return MassFits(world, body, -1, 0, NULL, 0.0f);
 }
 
 // Adds one shape's inertia about the body center: I += Ic + m (|d|^2 E -

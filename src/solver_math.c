@@ -136,3 +136,54 @@ bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3rea
     out[2] = r12;
     return true;
 }
+
+// v + d from double components, held within the speed limit. Past the
+// limit the sum is scaled by its largest component first, so every
+// product stays finite.
+static m3Vec3 HeldSum(m3Vec3 v, double dx, double dy, double dz)
+{
+    double x = (double)v.x + dx;
+    double y = (double)v.y + dy;
+    double z = (double)v.z + dz;
+    double cap = (double)M3_SPEED_LIMIT;
+    if (x * x + y * y + z * z <= cap * cap)
+    {
+        return (m3Vec3){(m3real)x, (m3real)y, (m3real)z};
+    }
+    double ax = x < 0.0 ? -x : x;
+    double ay = y < 0.0 ? -y : y;
+    double az = z < 0.0 ? -z : z;
+    double big = ax > ay ? ax : ay;
+    big = big > az ? big : az;
+    m3Vec3 unit = {(m3real)(x / big), (m3real)(y / big), (m3real)(z / big)};
+    return m3CapSpeed(m3MulSV3(M3_SPEED_LIMIT, unit), M3_SPEED_LIMIT);
+}
+
+void m3PushHeld(m3World* world, int32_t index, m3real scale, double wideScale, m3Vec3 dir,
+                m3Vec3 arm)
+{
+    m3Mat3 invI = m3WorldInvInertia(world, index);
+    m3real invMass = world->bodies.invMass[index];
+    m3Vec3 impulse = m3MulSV3(scale, dir);
+    m3Vec3 v = m3Add3(world->bodies.linearVelocities[index], m3MulSV3(invMass, impulse));
+    m3Vec3 w =
+        m3Add3(world->bodies.angularVelocities[index], m3MulMV3(invI, m3Cross3(arm, impulse)));
+    if (!m3FiniteV3(v) || !m3FiniteV3(w))
+    {
+        double jx = wideScale * (double)dir.x;
+        double jy = wideScale * (double)dir.y;
+        double jz = wideScale * (double)dir.z;
+        double tx = (double)arm.y * jz - (double)arm.z * jy;
+        double ty = (double)arm.z * jx - (double)arm.x * jz;
+        double tz = (double)arm.x * jy - (double)arm.y * jx;
+        double m = (double)invMass;
+        double i[9] = {(double)invI.cx.x, (double)invI.cx.y, (double)invI.cx.z,
+                       (double)invI.cy.x, (double)invI.cy.y, (double)invI.cy.z,
+                       (double)invI.cz.x, (double)invI.cz.y, (double)invI.cz.z};
+        v = HeldSum(world->bodies.linearVelocities[index], m * jx, m * jy, m * jz);
+        w = HeldSum(world->bodies.angularVelocities[index], i[0] * tx + i[3] * ty + i[6] * tz,
+                    i[1] * tx + i[4] * ty + i[7] * tz, i[2] * tx + i[5] * ty + i[8] * tz);
+    }
+    world->bodies.linearVelocities[index] = m3CapSpeed(v, M3_SPEED_LIMIT);
+    world->bodies.angularVelocities[index] = m3CapSpeed(w, M3_SPEED_LIMIT);
+}

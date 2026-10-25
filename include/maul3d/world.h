@@ -67,7 +67,7 @@ extern "C"
         int32_t internalValue;
         // M3_ABI_VERSION of the headers the program was built with.
         uint32_t version;
-        m3Vec3 gravity;
+        m3Vec3 gravity; // m/s^2, within 1e4 on every axis
         int32_t bodyCapacity;
         int32_t shapeCapacity;
         int32_t meshCapacity; // static triangle-mesh slots (24 KB each)
@@ -82,12 +82,12 @@ extern "C"
         // Tuning knobs. All journaled-settable at runtime too;
         // they are engine STATE: snapshots carry them and replays
         // reproduce them.
-        float contactHertz;         // contact softness frequency (30)
-        float contactDampingRatio;  // contact softness damping (10)
-        float contactPushMaxSpeed;  // max depenetration speed (3)
+        float contactHertz;         // contact softness frequency (30), up to 1e5
+        float contactDampingRatio;  // contact softness damping (10), up to 1e4
+        float contactPushMaxSpeed;  // max depenetration speed (3), up to 1e5
         float restitutionThreshold; // impact speed under it: no bounce (1)
-        float maximumLinearSpeed;   // hard velocity cap (400)
-        float maximumAngularSpeed;  // spin cap, rad/s, unless a body opts out
+        float maximumLinearSpeed;   // hard velocity cap (400), up to 1e5
+        float maximumAngularSpeed;  // spin cap, rad/s, unless a body opts out; up to 1e5
         bool enableSleeping;        // islands may sleep (default true)
         bool enableContinuous;      // the continuous phase runs (default true)
         float hitEventThreshold;    // hit events need approach speed
@@ -125,8 +125,8 @@ extern "C"
     /// after. Null is a no-op.
     M3_API void m3DestroyWorld(m3World* world);
 
-    /// Set the gravity vector. Journaled; sleeping islands stay
-    /// asleep until disturbed.
+    /// Set the gravity vector, within 1e4 m/s^2 on every axis.
+    /// Journaled; sleeping islands stay asleep until disturbed.
     M3_API void m3World_SetGravity(m3World* world, m3Vec3 gravity);
 
     /// Rebuild the broadphase tree top-down into a balanced shape
@@ -146,12 +146,12 @@ extern "C"
     /// model is deliberately approximate and deterministically so.
     typedef struct m3WaterVolumeDef
     {
-        m3Pos3 lo;
-        m3Pos3 hi;             // must exceed lo on every axis
-        m3real density;        // kg/m3; 1000 is water, > 0
+        m3Pos3 lo;             // within 1e15 m of the origin
+        m3Pos3 hi;             // must exceed lo on every axis; within 1e15 m
+        m3real density;        // kg/m3; 1000 is water, > 0 and at most 1e6
         m3real linearDrag;     // per-second rate toward the flow, >= 0
         m3real angularDrag;    // per-second spin damping, >= 0
-        m3Vec3 flow;           // current velocity, world frame
+        m3Vec3 flow;           // current velocity, world frame, within 1e5 m/s
         int32_t internalValue; // from m3DefaultWaterVolumeDef
     } m3WaterVolumeDef;
 
@@ -175,8 +175,9 @@ extern "C"
     /// Current gravity.
     M3_API m3Vec3 m3World_GetGravity(const m3World* world);
 
-    /// Contact softness tuning: frequency (hertz), damping ratio and
-    /// the maximum depenetration speed. Journaled. Static contacts
+    /// Contact softness tuning: frequency (hertz, up to 1e5), damping
+    /// ratio (up to 1e4) and the maximum depenetration speed (up to 1e5
+    /// m/s), each positive. Journaled. Static contacts
     /// use twice the frequency: a soft row against something
     /// immovable stores energy under a tall stack.
     M3_API void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio,
@@ -185,16 +186,17 @@ extern "C"
     /// Impact speed below the threshold does not bounce. Journaled.
     M3_API void m3World_SetRestitutionThreshold(m3World* world, float value);
 
-    /// Hard cap on any body's linear speed, applied every substep.
-    /// The step holds every body within 1e5 m/s whatever the cap, so a
-    /// higher cap acts as 1e5. Journaled.
+    /// Hard cap on any body's linear speed, applied every substep:
+    /// positive and at most 1e5 m/s, the speed the step holds every
+    /// body within. Journaled.
     M3_API void m3World_SetMaximumLinearSpeed(m3World* world, float value);
 
     /// Hard cap on any body's angular speed in rad/s, applied every
     /// substep. The default (800) is a catastrophe guard, not a
     /// gameplay clamp; bodies flagged with
-    /// m3Body_EnableFastRotation bypass it. The step holds every body,
-    /// flagged or not, within 1e5 rad/s whatever the cap. Journaled.
+    /// m3Body_EnableFastRotation bypass it. Positive and at most 1e5
+    /// rad/s; the step holds every body, flagged or not, within 1e5
+    /// rad/s. Journaled.
     M3_API void m3World_SetMaximumAngularSpeed(m3World* world, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
@@ -215,16 +217,18 @@ extern "C"
     /// The gust is a sine of an ACCUMULATED phase (state, in the
     /// snapshot), so rollbacks resume the exact same wave: no host
     /// randomness exists anywhere in it. speed zero disables.
-    /// direction must be near-unit when speed is nonzero. Rigid
+    /// direction must be near-unit when speed is nonzero; speed is
+    /// within 1e5 m/s, gustHertz within 1e5 and gustScale within 1e4,
+    /// each non-negative, on the call and on replay alike. Rigid
     /// bodies are not wind-blown in v1 (documented: the force API
     /// already serves them); journaled.
     M3_API void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                                 float gustScale);
 
     /// Advance the simulation: collide, then the Soft Step solver
-    /// with the given substep count (1..256; out of range refuses
-    /// loudly). Deterministic: same inputs, same bits, on every
-    /// platform and backend. Journaled.
+    /// with the given substep count (1..256) over dt, 1e-4 to 10
+    /// seconds; out of range refuses loudly. Deterministic: same
+    /// inputs, same bits, on every platform and backend. Journaled.
     /// THE THREADING CONTRACT. Per world:
     /// one writer at a time; Step and every mutating call demand
     /// exclusive access to that world. Between steps, any number of
@@ -577,13 +581,13 @@ extern "C"
     /// and planes are static; voxel chunks couple through charges.
     typedef struct m3ExplosionDef
     {
-        m3Pos3 position;      // world-space center
+        m3Pos3 position;      // world-space center, within 1e15 m
         m3QueryFilter filter; // which shapes the blast may touch
         float radius;         // full-impulse radius, >= 0
         float falloff;        // fade band past the radius, >= 0
-        float impulsePerArea; // impulse per m^2 of facing area
+        float impulsePerArea; // impulse per m^2 of facing area, within 1e10
         float voxelCarve;     // carve radius into voxel chunks, 0 = off
-        float softPush;       // soft particle push scale, default 1
+        float softPush;       // soft particle push scale, default 1, within 1e4
         int32_t internalValue;
     } m3ExplosionDef;
 
@@ -593,7 +597,8 @@ extern "C"
     M3_API m3ExplosionDef m3DefaultExplosionDef(void);
 
     /// Apply the explosion now. Journaled; hostile defs apply
-    /// nothing and journal nothing.
+    /// nothing and journal nothing. Every push leaves its body within
+    /// 1e5 m/s and rad/s.
     M3_API void m3World_Explode(m3World* world, const m3ExplosionDef* def);
 
     /// FNV-1a 64 over the deterministic state in canonical slot order:

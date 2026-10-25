@@ -302,7 +302,7 @@ bool m3ReplayShapeScalar(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3FiniteF(record.value) || record.value < 0.0f)
+    if (slot < 0 || !m3ShapeScalarValid(op, record.value))
     {
         return false; // hostile bytes fail loudly
     }
@@ -332,7 +332,9 @@ bool m3ReplaySetShapeDensity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3DensityF(record.value))
+    if (slot < 0 || !m3DensityF(record.value) ||
+        !m3ShapeMassFits(world, slot, world->shapes.shapeType[slot], &world->shapes.shapeGeom[slot],
+                         record.value))
     {
         return false; // hostile bytes fail loudly
     }
@@ -464,7 +466,7 @@ bool m3ReplaySetSurfaceVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3FiniteV3(record.v))
+    if (slot < 0 || !m3SurfaceVelocityValid(record.v))
     {
         return false; // hostile bytes fail loudly
     }

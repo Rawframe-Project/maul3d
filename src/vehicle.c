@@ -88,14 +88,22 @@ int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
     return index;
 }
 
+// A wheel lies in its chassis frame: anchor, rest length and radius
+// within M3_LOCAL_LIMIT, the radius at least M3_WHEEL_RADIUS_FLOOR.
 static bool WheelDefValid(const m3WheelDef* wd)
 {
     m3real d2 = m3Dot3(wd->direction, wd->direction);
-    return m3FiniteV3(wd->anchor) && m3FiniteV3(wd->direction) && d2 > 0.81f && d2 < 1.21f &&
-           m3FiniteF(wd->restLength) && wd->restLength > 0.0f && m3FiniteF(wd->travel) &&
-           wd->travel > 0.0f && wd->travel <= wd->restLength && m3FiniteF(wd->hertz) &&
-           wd->hertz > 0.0f && m3FiniteF(wd->zeta) && wd->zeta >= 0.0f && m3FiniteF(wd->radius) &&
-           wd->radius > 0.0f && m3FiniteF(wd->brakeShare) && wd->brakeShare >= 0.0f;
+    return m3LocalV3(wd->anchor) && m3FiniteV3(wd->direction) && d2 > 0.81f && d2 < 1.21f &&
+           wd->restLength > 0.0f && wd->restLength <= M3_LOCAL_LIMIT && wd->travel > 0.0f &&
+           wd->travel <= wd->restLength && wd->hertz > 0.0f && wd->hertz <= M3_HERTZ_LIMIT &&
+           wd->zeta >= 0.0f && wd->zeta <= M3_RATIO_LIMIT && wd->radius >= M3_WHEEL_RADIUS_FLOOR &&
+           wd->radius <= M3_LOCAL_LIMIT && wd->brakeShare >= 0.0f &&
+           wd->brakeShare <= M3_RATIO_LIMIT; // false for NaN
+}
+
+static bool Within(float x, float limit)
+{
+    return x >= 0.0f && x <= limit; // false for NaN
 }
 
 // Every field check lives here, where the public door and replay both
@@ -105,9 +113,8 @@ static bool VehicleDefValid(const m3World* world, const m3VehicleDef* def)
 {
     if (def->wheelCount < 1 || def->wheelCount > M3_VEHICLE_MAX_WHEELS ||
         !m3FiniteF(def->maxSteerAngle) || def->maxSteerAngle < 0.0f ||
-        !m3FiniteF(def->driveForce) || def->driveForce < 0.0f || !m3FiniteF(def->brakeForce) ||
-        def->brakeForce < 0.0f || !m3FiniteF(def->tireGrip) || def->tireGrip < 0.0f ||
-        !m3FiniteF(def->leanStabilization) || def->leanStabilization < 0.0f)
+        !Within(def->driveForce, M3_FORCE_LIMIT) || !Within(def->brakeForce, M3_FORCE_LIMIT) ||
+        !Within(def->tireGrip, M3_RATIO_LIMIT) || !Within(def->leanStabilization, M3_RATIO_LIMIT))
     {
         return false;
     }
@@ -225,6 +232,36 @@ void m3DestroyVehicleInternal(m3World* world, int32_t slot)
     }
     ResetDrivetrain(world, slot);
     m3IdPoolFree(&world->vehicles.vehPool, slot);
+}
+
+// The friction circle: the tangent impulses (lon, lat) scaled onto the
+// circle of radius budget when they leave it.
+static void HoldInCircle(m3real* lon, m3real* lat, m3real budget)
+{
+    m3real mag2 = *lon * *lon + *lat * *lat;
+    m3real budgetSq = budget * budget;
+    if (!m3FiniteF(mag2) || !m3FiniteF(budgetSq))
+    {
+        // When the squares are not finite, the circle is taken at the
+        // scale of its largest term: the same clamp in real arithmetic.
+        m3real big = m3MaxF(m3MaxF(m3AbsF(*lon), m3AbsF(*lat)), budget);
+        m3real l = *lon / big;
+        m3real t = *lat / big;
+        m3real b = budget / big;
+        m3real m = l * l + t * t;
+        if (m > b * b)
+        {
+            m3real scale = b / sqrtf(m);
+            *lon *= scale;
+            *lat *= scale;
+        }
+    }
+    else if (mag2 > budgetSq && mag2 > 0.0f)
+    {
+        m3real scale = budget / sqrtf(mag2);
+        *lon *= scale;
+        *lat *= scale;
+    }
 }
 
 // The suspension pass: velocity impulses on the chassis, before the
@@ -456,6 +493,14 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             {
                 force = 0.0f; // suspension pushes, never pulls
             }
+            // In one step the suspension at most reverses its share of
+            // the chassis from the speed limit, which also bounds the
+            // friction budget below.
+            m3real most = 2.0f * M3_SPEED_LIMIT * wheelMass / dt;
+            if (force > most)
+            {
+                force = most;
+            }
             m3Vec3 total = m3MulSV3(-force * dt, dir);
             // Impulses apply at the WHEEL HUB, not the ground
             // contact. Along the suspension axis the two points
@@ -583,13 +628,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 // surrender is the drift).
                 m3real lat = -vLat * effLat * share;
                 m3real budget2 = world->vehicles.vehTireGrip[slot] * force * dt;
-                m3real mag2 = lon * lon + lat * lat;
-                if (mag2 > budget2 * budget2 && mag2 > 0.0f)
-                {
-                    m3real scale = budget2 / sqrtf(mag2);
-                    lon *= scale;
-                    lat *= scale;
-                }
+                HoldInCircle(&lon, &lat, budget2);
                 total = m3Add3(total, m3Add3(m3MulSV3(lon, forward), m3MulSV3(lat, side)));
                 world->vehicles.vehWheelSpin[k] += (vLon / world->vehicles.vehWheelRadius[k]) * dt;
             }
@@ -611,25 +650,14 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                                (m3real)(hit.point.y - world->bodies.transforms[under].p.y) - rlcU.y,
                                (m3real)(hit.point.z - world->bodies.transforms[under].p.z) -
                                    rlcU.z};
-                m3Vec3 back = m3MulSV3(-1.0f, total);
-                world->bodies.linearVelocities[under] =
-                    m3Add3(world->bodies.linearVelocities[under],
-                           m3MulSV3(world->bodies.invMass[under], back));
-                world->bodies.angularVelocities[under] =
-                    m3Add3(world->bodies.angularVelocities[under],
-                           m3MulMV3(m3WorldInvInertia(world, under), m3Cross3(armU, back)));
+                m3PushHeld(world, under, -1.0f, -1.0, total, armU);
                 world->bodies.awake[under] = 1;
                 world->bodies.sleepTimes[under] = 0.0f;
             }
         }
         for (int32_t a = 0; a < applied; ++a)
         {
-            world->bodies.linearVelocities[chassis] =
-                m3Add3(world->bodies.linearVelocities[chassis],
-                       m3MulSV3(world->bodies.invMass[chassis], impulses[a]));
-            world->bodies.angularVelocities[chassis] =
-                m3Add3(world->bodies.angularVelocities[chassis],
-                       m3MulMV3(invI, m3Cross3(arms[a], impulses[a])));
+            m3PushHeld(world, chassis, 1.0f, 1.0, impulses[a], arms[a]);
         }
 
         // The lean stabilizer: a two-wheeler is an inverted

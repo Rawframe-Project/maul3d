@@ -44,11 +44,12 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
                 def->rotation.z * def->rotation.z + def->rotation.w * def->rotation.w;
     if ((def->type != m3_staticBody && def->type != m3_kinematicBody &&
          def->type != m3_dynamicBody) ||
-        !m3FinitePos3(def->position) || !m3FiniteQuat(def->rotation) ||
-        !m3FiniteV3(def->linearVelocity) || !m3FiniteV3(def->angularVelocity) ||
-        !m3FiniteF(def->gravityScale) || !m3FiniteF(def->linearDamping) ||
-        !m3FiniteF(def->angularDamping) || def->linearDamping < 0.0f ||
-        def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
+        !m3BoundedPos3(def->position) || !m3FiniteQuat(def->rotation) ||
+        !m3BodyVelocityValid((uint8_t)def->type, def->linearVelocity) ||
+        !m3BodySpinValid(def->angularVelocity) ||
+        !m3BodyParamValid(m3_bodyParamGravityScale, def->gravityScale) ||
+        !m3FiniteF(def->linearDamping) || !m3FiniteF(def->angularDamping) ||
+        def->linearDamping < 0.0f || def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
         !m3FiniteF(def->sleepThreshold) || def->sleepThreshold < 0.0f)
     {
         return M3_CREATE_INVALID;
@@ -162,6 +163,72 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->bodies.bodyPool, index);
 }
 
+bool m3PoseValid(m3Transform pose)
+{
+    m3Quat q = pose.q;
+    m3real qq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    return m3BoundedPos3(pose.p) && m3FiniteQuat(q) && qq > 0.98f && qq < 1.02f;
+}
+
+// A servo target lands in one step at the distance over dt, so it must lie
+// within M3_SERVO_REACH of where the kinematic body is now: over the
+// shortest step that is M3_KINEMATIC_SPEED_LIMIT. Its turn, at most 2 / dt,
+// stays within M3_SPEED_LIMIT.
+bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose)
+{
+    if (world->bodies.types[index] != (uint8_t)m3_kinematicBody || !m3PoseValid(pose))
+    {
+        return false;
+    }
+    m3Pos3 now = world->bodies.transforms[index].p;
+    double dx = pose.p.x - now.x;
+    double dy = pose.p.y - now.y;
+    double dz = pose.p.z - now.z;
+    double limit = (double)M3_SERVO_REACH;
+    return dx * dx + dy * dy + dz * dz <= limit * limit;
+}
+
+// A type change keeps the linear velocity within the new type's limit
+// (turning static zeroes it), keeps static-only scenery (a plane, mesh,
+// height field or voxel chunk) static, as its create required, and holds
+// a body turning dynamic to the mass bounds a dynamic body's shapes meet.
+bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type)
+{
+    if (type < (int32_t)m3_staticBody || type > (int32_t)m3_dynamicBody ||
+        m3CharacterOwnsBody(world, index))
+    {
+        return false;
+    }
+    if (type == (int32_t)m3_staticBody)
+    {
+        return true;
+    }
+    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
+    {
+        uint8_t shape = world->shapes.shapeType[s];
+        if (shape == (uint8_t)m3_planeShape || shape == (uint8_t)m3_meshShape ||
+            shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelShape)
+        {
+            return false;
+        }
+    }
+    if (type == (int32_t)m3_dynamicBody && world->bodies.types[index] != (uint8_t)m3_dynamicBody &&
+        !m3BodyMassFits(world, index))
+    {
+        return false;
+    }
+    return m3BodyVelocityValid((uint8_t)type, world->bodies.linearVelocities[index]);
+}
+
+bool m3BodyParamValid(int32_t param, float value)
+{
+    if (param == m3_bodyParamGravityScale)
+    {
+        return m3WithinF(value, M3_RATIO_LIMIT);
+    }
+    return value >= 0.0f && m3FiniteF(value); // damping
+}
+
 // Runtime control internals: replay and the wrappers share
 // one path each.
 static void BodyRegion(m3World* world, int32_t index, double lo[3], double hi[3])
@@ -187,6 +254,7 @@ void m3SetTransformInternal(m3World* world, int32_t index, m3Transform pose)
     m3WakeRegionAabb(world, lo, hi); // the arrival neighborhood
     world->bodies.awake[index] = 1;
     world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.bodyHasTarget[index] = 0; // a teleport cancels a pending target
 }
 
 void m3SetTargetTransformInternal(m3World* world, int32_t index, m3Transform pose)
@@ -208,6 +276,7 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
     BodyRegion(world, index, lo, hi);
     m3WakeRegionAabb(world, lo, hi);
     world->bodies.types[index] = type;
+    world->bodies.bodyHasTarget[index] = 0; // a type change cancels a pending target
     for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
         if (world->broadphase.proxyIds[s] != M3_TREE_NULL)
@@ -474,18 +543,16 @@ static M3_NOINLINE void BodySetTransformWorker(m3World* world, m3BodyId body, m3
         return;
     }
     int32_t index;
-    m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
-                rotation.w * rotation.w;
     if (!m3ResolveBody(world, body, &index))
     {
         return;
     }
-    if (!m3FinitePos3(position) || !m3FiniteQuat(rotation) || !(qq > 0.98f) || !(qq < 1.02f))
+    m3Transform pose = {position, rotation};
+    if (!m3PoseValid(pose))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    m3Transform pose = {position, rotation};
     if (world->recorder.journalActive != 0)
     {
         m3OpBodyPose record;
@@ -513,19 +580,16 @@ static M3_NOINLINE void BodySetTargetTransformWorker(m3World* world, m3BodyId bo
         return;
     }
     int32_t index;
-    m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
-                rotation.w * rotation.w;
     if (!m3ResolveBody(world, body, &index))
     {
-        return; // kinematic bodies only: the servo contract
-    }
-    if (world->bodies.types[index] != (uint8_t)m3_kinematicBody || !m3FinitePos3(position) ||
-        !m3FiniteQuat(rotation) || !(qq > 0.98f) || !(qq < 1.02f))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return; // kinematic bodies only: the servo contract
+        return;
     }
     m3Transform pose = {position, rotation};
+    if (!m3TargetValid(world, index, pose))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return; // kinematic bodies only, within reach: the servo contract
+    }
     if (world->recorder.journalActive != 0)
     {
         m3OpBodyPose record;
@@ -556,8 +620,7 @@ static M3_NOINLINE void BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyT
     {
         return;
     }
-    if ((type != m3_staticBody && type != m3_kinematicBody && type != m3_dynamicBody) ||
-        m3CharacterOwnsBody(world, index))
+    if (!m3TypeChangeValid(world, index, (int32_t)type))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

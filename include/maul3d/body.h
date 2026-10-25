@@ -43,11 +43,11 @@ extern "C"
     typedef struct m3BodyDef
     {
         int32_t type;           // m3BodyType
-        m3Pos3 position;        // world space, double (hybrid precision)
+        m3Pos3 position;        // world space, double, within 1e15 m
         m3Quat rotation;        // unit quaternion
-        m3Vec3 linearVelocity;  // m/s
-        m3Vec3 angularVelocity; // rad/s, world frame
-        float gravityScale;
+        m3Vec3 linearVelocity;  // m/s, within 1e5 (kinematic: 1e10)
+        m3Vec3 angularVelocity; // rad/s, world frame, within 1e5
+        float gravityScale;     // within 1e4
         float linearDamping;
         float angularDamping;
         M3_ALIGN8 uint64_t userData; // opaque, carried unchanged
@@ -115,7 +115,8 @@ extern "C"
     M3_API float m3Body_GetAngularDamping(const m3World* world, m3BodyId body);
     M3_API bool m3Body_IsBullet(const m3World* world, m3BodyId body);
     /// Journaled setters for what the def set, as in Maul2D. Damping
-    /// must be non-negative; every value finite. Thread class: writer.
+    /// must be finite and non-negative, a gravity scale within 1e4.
+    /// Thread class: writer.
     M3_API void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale);
     M3_API void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping);
     M3_API void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping);
@@ -131,18 +132,24 @@ extern "C"
     /// Runtime control, all journaled. SetTransform is the
     /// teleport: the pose lands instantly, velocities stay, and
     /// bodies around BOTH the old and new locations wake so
-    /// nothing keeps sleeping under or inside a teleported crate.
+    /// nothing keeps sleeping under or inside a teleported crate. The
+    /// position must lie within 1e15 m of the origin on every axis.
     M3_API void m3Body_SetTransform(m3World* world, m3BodyId body, m3Pos3 position,
                                     m3Quat rotation);
     /// Kinematic servo: velocities are chosen at the next step so
     /// the body lands ON the target pose after that step, then the
     /// target clears. Kinematic bodies only (the correct way to
-    /// drive elevators and doors).
+    /// drive elevators and doors), with the target within 1e6 m of
+    /// where the body is.
     M3_API void m3Body_SetTargetTransform(m3World* world, m3BodyId body, m3Pos3 position,
                                           m3Quat rotation);
     /// Switch dynamic, kinematic, static at runtime. Mass rebuilds
     /// from shapes when turning dynamic; velocities zero when
-    /// turning static; the neighborhood wakes.
+    /// turning static; the neighborhood wakes. Refused when the linear
+    /// velocity is past the new type's limit, when the body would
+    /// turn dynamic with a shape below the mass floors or a total mass
+    /// past 1e20 kg, and when it holds a plane, mesh, height field or
+    /// voxel chunk and would leave static.
     M3_API void m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
     /// A disabled body vanishes from simulation AND queries without
     /// being destroyed; enabling wakes its neighborhood. Journaled.
@@ -185,9 +192,12 @@ extern "C"
     /// Forces and torques ACCUMULATE and act over the next step,
     /// then clear; impulses change velocity immediately. Only
     /// awake-able dynamic bodies respond: static and kinematic
-    /// targets and non-finite values are documented no-ops. A
-    /// nonzero application wakes the body. Points are world-space;
-    /// an off-center application adds the matching angular part.
+    /// targets are refused. The force and torque held over a step stay
+    /// within 1e20 on every axis, and an impulse may leave the body
+    /// at most 1e5 m/s or rad/s on every axis; a call past either is
+    /// refused whole, before anything changes. A nonzero application
+    /// wakes the body. Points are world-space; an off-center
+    /// application adds the matching angular part.
     M3_API void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force);
     M3_API void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque);
     M3_API void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse);
@@ -196,6 +206,8 @@ extern "C"
     M3_API void m3Body_ApplyLinearImpulseAtPoint(m3World* world, m3BodyId body, m3Vec3 impulse,
                                                  m3Pos3 point);
 
+    /// Velocities, journaled: within 1e5 m/s on every axis (1e10 m/s
+    /// for a kinematic body), and every body's spin within 1e5 rad/s.
     M3_API void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity);
     M3_API void m3Body_SetAngularVelocity(m3World* world, m3BodyId body, m3Vec3 velocity);
 

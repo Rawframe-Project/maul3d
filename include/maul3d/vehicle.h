@@ -74,7 +74,11 @@ extern "C"
     /// Creates the vehicle bound to its chassis body. Refuses (null
     /// id) a non-dynamic or stale chassis, a wheel count outside
     /// [1, M3_VEHICLE_MAX_WHEELS], or any non-finite or non-positive
-    /// geometry. Journaled with id verification.
+    /// geometry. Each wheel's anchor, rest length and radius lie within
+    /// 1e4 m, its radius at least 1e-3 m, its hertz within 1e5 and its
+    /// damping ratio and brake share within 1e4; drive and brake force
+    /// within 1e20 N, tire grip and lean stabilization within 1e4.
+    /// Journaled with id verification.
     M3_NODISCARD M3_API m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def,
                                                  m3VehicleId* vehicleOut);
     M3_NODISCARD M3_API m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle);
@@ -150,7 +154,7 @@ extern "C"
         /// Differential: 0 open (the equal split), 1 limited
         /// slip, 2 locked. Nonzero modes couple each driven wheel
         /// toward the driven mean of the LAST step's contact speeds
-        /// with diffCouple newtons per m/s of disparity; limited
+        /// with diffCouple newtons per m/s of disparity, at most 1e15; limited
         /// slip additionally clamps the coupling to the engine's
         /// own per-wheel force. One step of lag is the drivetrain's
         /// own convention (engine speed reads wheels the same way).
@@ -164,7 +168,9 @@ extern "C"
     /// Attach a drivetrain (journaled). Replaces the flat driveForce
     /// model for this vehicle; starts in first gear, clutch closed.
     /// Invalid defs (bad cookie, non-ascending curve, out-of-range
-    /// counts, non-finite numbers) are documented no-ops.
+    /// counts, non-finite numbers, a torque past 1e20 N m, a gear,
+    /// final drive or reverse ratio past 1e4, a coupling past 1e15)
+    /// are documented no-ops.
     M3_API void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle,
                                         const m3DrivetrainDef* def);
 

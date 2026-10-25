@@ -25,10 +25,11 @@ extern "C"
 
     typedef struct m3CharacterDef
     {
-        m3Pos3 position; // the capsule CENTER at spawn
-        m3real radius;
-        m3real halfHeight;       // segment half length (total height =
-                                 // 2 * (halfHeight + radius))
+        m3Pos3 position;         // the capsule CENTER at spawn, within 1e15 m
+        m3real radius;           // positive, at most 1e4 m
+        m3real halfHeight;       // segment half length, at most 1e4 m
+                                 // (total height = 2 * (halfHeight +
+                                 // radius))
         m3real maxSlopeAngle;    // radians from horizontal; steeper
                                  // ground never counts as walkable
         m3real snapDistance;     // how far down a grounded character
@@ -36,13 +37,15 @@ extern "C"
         m3real skin;             // the standing gap casts preserve
         m3real stepHeight;       // the tallest riser a walking
                                  // character mounts in one move
-        m3real mass;             // kilograms; a blocked move pushes
-                                 // dynamic bodies with impulse =
-                                 // mass * blocked displacement
+        m3real mass;             // kilograms, 1e-6 to 1e20; a blocked
+                                 // move pushes dynamic bodies with
+                                 // impulse = mass * blocked
+                                 // displacement, which leaves them
+                                 // within 1e5 m/s and rad/s
         m3real pushMaxMassRatio; // the heaviest body a push moves,
                                  // as a multiple of mass; heavier
                                  // bodies are walls (zero: never
-                                 // push)
+                                 // push); at most 1e4
         M3_ALIGN8 uint64_t userData;
         int32_t internalValue;
     } m3CharacterDef;
@@ -67,7 +70,8 @@ extern "C"
     /// the surface, repeat (bounded), then snap to walkable ground
     /// within snapDistance when descending. Walkable is measured
     /// against maxSlopeAngle; ceilings and steep walls only ever
-    /// block and slide. Journaled; hostile translations no-op.
+    /// block and slide. Journaled; a translation past 1e18 m on any
+    /// axis, or not finite, is refused.
     M3_API void m3Character_Move(m3World* world, m3CharacterId character, m3Vec3 translation);
 
     M3_API m3Pos3 m3Character_GetPosition(const m3World* world, m3CharacterId character);

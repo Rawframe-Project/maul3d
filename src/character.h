@@ -14,6 +14,10 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def);
 
 void m3DestroyCharacterInternal(m3World* world, int32_t slot);
 
+// A move the public call and replay accept: within M3_CAST_LIMIT on
+// every axis.
+bool m3CharacterMoveValid(m3Vec3 translation);
+
 void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation);
 
 m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius);

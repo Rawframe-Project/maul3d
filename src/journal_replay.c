@@ -78,7 +78,7 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3FiniteV3(record.v))
+    if (index < 0 || !m3BodyVelocityValid(world->bodies.types[index], record.v))
     {
         return false; // hostile bytes fail loudly
     }
@@ -97,7 +97,7 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3FiniteV3(record.v))
+    if (index < 0 || !m3BodySpinValid(record.v))
     {
         return false; // hostile bytes fail loudly
     }
@@ -128,7 +128,7 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!(record.dt > 0.0f) || record.substeps < 1 || record.substeps > M3_MAX_SUBSTEPS)
+    if (!m3StepValid(record.dt, record.substeps))
     {
         // The upper bound matters: one flipped bit could turn
         // substeps 4 into a billion and a two-second replay into
@@ -152,24 +152,40 @@ static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3FiniteV3(record.v))
+    if (index < 0)
     {
         return false; // hostile bytes fail loudly
     }
     if (op == m3_opApplyForce)
     {
+        if (!m3ForceFits(world, index, record.v))
+        {
+            return false;
+        }
         m3ApplyForceInternal(world, index, record.v);
     }
     else if (op == m3_opApplyTorque)
     {
+        if (!m3TorqueFits(world, index, record.v))
+        {
+            return false;
+        }
         m3ApplyTorqueInternal(world, index, record.v);
     }
     else if (op == m3_opApplyLinearImpulse)
     {
+        if (!m3LinearImpulseFits(world, index, record.v))
+        {
+            return false;
+        }
         m3ApplyLinearImpulseInternal(world, index, record.v);
     }
     else
     {
+        if (!m3AngularImpulseFits(world, index, record.v))
+        {
+            return false;
+        }
         m3ApplyAngularImpulseInternal(world, index, record.v);
     }
     return true;
@@ -187,16 +203,24 @@ static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3FiniteV3(record.v) || !m3FinitePos3(record.p))
+    if (index < 0)
     {
         return false; // hostile bytes fail loudly
     }
     if (op == m3_opApplyForceAtPoint)
     {
+        if (!m3ForceAtPointFits(world, index, record.v, record.p))
+        {
+            return false;
+        }
         m3ApplyForceAtPointInternal(world, index, record.v, record.p);
     }
     else
     {
+        if (!m3ImpulseAtPointFits(world, index, record.v, record.p))
+        {
+            return false;
+        }
         m3ApplyImpulseAtPointInternal(world, index, record.v, record.p);
     }
     return true;
@@ -214,10 +238,8 @@ static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    float qq = record.pose.q.x * record.pose.q.x + record.pose.q.y * record.pose.q.y +
-               record.pose.q.z * record.pose.q.z + record.pose.q.w * record.pose.q.w;
-    if (index < 0 || !m3FinitePos3(record.pose.p) || !m3FiniteQuat(record.pose.q) ||
-        !(qq > 0.98f) || !(qq < 1.02f))
+    if (index < 0 || (op == m3_opSetTransform ? !m3PoseValid(record.pose)
+                                              : !m3TargetValid(world, index, record.pose)))
     {
         return false; // hostile bytes fail loudly
     }
@@ -242,8 +264,7 @@ static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, r->payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || record.param < m3_bodyParamGravityScale ||
-        record.param > m3_bodyParamAngularDamping || !m3FiniteF(record.value) ||
-        (record.param != m3_bodyParamGravityScale && record.value < 0.0f))
+        record.param > m3_bodyParamAngularDamping || !m3BodyParamValid(record.param, record.value))
     {
         return false; // hostile bytes fail loudly
     }
@@ -297,10 +318,9 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opSetType)
     {
-        if (record.value < (int32_t)m3_staticBody || record.value > (int32_t)m3_dynamicBody ||
-            m3CharacterOwnsBody(world, index))
+        if (!m3TypeChangeValid(world, index, record.value))
         {
-            return false; // the public call refuses both
+            return false; // the public call refuses the same
         }
         m3SetTypeInternal(world, index, (uint8_t)record.value);
     }
@@ -367,7 +387,7 @@ static bool ApplySetGravity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&gravity, payload, sizeof(gravity));
-    if (!m3FiniteV3(gravity))
+    if (!m3GravityValid(gravity))
     {
         return false; // hostile bytes fail loudly
     }
@@ -385,8 +405,7 @@ static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!m3FiniteF(record.hertz) || record.hertz <= 0.0f || !m3FiniteF(record.dampingRatio) ||
-        record.dampingRatio <= 0.0f || !m3FiniteF(record.pushSpeed) || record.pushSpeed <= 0.0f)
+    if (!m3ContactTuningValid(record.hertz, record.dampingRatio, record.pushSpeed))
     {
         return false; // hostile bytes fail loudly
     }
@@ -405,8 +424,8 @@ static bool ApplyWorldScalar(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&value, payload, sizeof(value));
-    if (!m3FiniteF(value) || (op == m3_opSetRestitutionThreshold && value < 0.0f) ||
-        (op == m3_opSetMaximumLinearSpeed && value <= 0.0f))
+    if (op == m3_opSetRestitutionThreshold ? !(m3FiniteF(value) && value >= 0.0f)
+                                           : !m3SpeedCapValid(value))
     {
         return false; // hostile bytes fail loudly
     }
@@ -434,7 +453,7 @@ static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&value, payload, sizeof(value));
-    if (!m3FiniteF(value) || value <= 0.0f)
+    if (!m3SpeedCapValid(value))
     {
         return false;
     }
@@ -545,9 +564,7 @@ static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!m3FiniteV3(record.dir) || !m3FiniteF(record.speed) || record.speed < 0.0f ||
-        !m3FiniteF(record.gustHertz) || record.gustHertz < 0.0f || !m3FiniteF(record.gustScale) ||
-        record.gustScale < 0.0f)
+    if (!m3WindValid(record.dir, record.speed, record.gustHertz, record.gustScale))
     {
         return false; // hostile bytes fail loudly
     }

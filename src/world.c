@@ -92,6 +92,43 @@ static void FreeWorldStorage(m3World* world)
 
 // User-input validation is contract, not invariant: a bad def is a
 // refusal, never an assert.
+bool m3GravityValid(m3Vec3 gravity)
+{
+    return m3WithinV3(gravity, M3_ACCEL_LIMIT);
+}
+
+bool m3ContactTuningValid(float hertz, float dampingRatio, float pushSpeed)
+{
+    return hertz > 0.0f && hertz <= M3_HERTZ_LIMIT && dampingRatio > 0.0f &&
+           dampingRatio <= M3_RATIO_LIMIT && pushSpeed > 0.0f &&
+           pushSpeed <= M3_SPEED_LIMIT; // false for NaN
+}
+
+bool m3SpeedCapValid(float value)
+{
+    return value > 0.0f && value <= M3_SPEED_LIMIT; // false for NaN
+}
+
+// A blowing wind demands a near-unit direction; a still one any finite
+// direction.
+bool m3WindValid(m3Vec3 direction, float speed, float gustHertz, float gustScale)
+{
+    if (!m3FiniteV3(direction) || !(speed >= 0.0f && speed <= M3_SPEED_LIMIT) ||
+        !(gustHertz >= 0.0f && gustHertz <= M3_HERTZ_LIMIT) ||
+        !(gustScale >= 0.0f && gustScale <= M3_RATIO_LIMIT))
+    {
+        return false;
+    }
+    m3real len2 = m3Dot3(direction, direction);
+    return speed == 0.0f || (len2 >= 0.99f && len2 <= 1.01f);
+}
+
+bool m3StepValid(float dt, int32_t substeps)
+{
+    return dt >= M3_STEP_MIN && dt <= M3_STEP_LIMIT && substeps >= 1 &&
+           substeps <= M3_MAX_SUBSTEPS; // false for NaN
+}
+
 static bool ValidWorldDef(const m3WorldDef* def)
 {
     bool capacities = def->bodyCapacity > 0 && def->shapeCapacity > 0 && def->meshCapacity > 0 &&
@@ -100,13 +137,12 @@ static bool ValidWorldDef(const m3WorldDef* def)
                       def->softBodyCapacity > 0 && def->shapeCapacity <= INT32_MAX / 8 &&
                       def->voxelCapacity <= INT32_MAX / 6;
     bool tasks = (def->enqueueTask == NULL) == (def->finishTask == NULL);
-    bool tuning = m3FiniteV3(def->gravity) && m3FiniteF(def->contactHertz) &&
-                  def->contactHertz > 0.0f && m3FiniteF(def->contactDampingRatio) &&
-                  def->contactDampingRatio > 0.0f && m3FiniteF(def->contactPushMaxSpeed) &&
-                  def->contactPushMaxSpeed > 0.0f && m3FiniteF(def->restitutionThreshold) &&
-                  def->restitutionThreshold >= 0.0f && m3FiniteF(def->maximumLinearSpeed) &&
-                  def->maximumLinearSpeed > 0.0f && m3FiniteF(def->maximumAngularSpeed) &&
-                  def->maximumAngularSpeed > 0.0f && m3FiniteF(def->hitEventThreshold) &&
+    bool tuning = m3GravityValid(def->gravity) &&
+                  m3ContactTuningValid(def->contactHertz, def->contactDampingRatio,
+                                       def->contactPushMaxSpeed) &&
+                  m3FiniteF(def->restitutionThreshold) && def->restitutionThreshold >= 0.0f &&
+                  m3SpeedCapValid(def->maximumLinearSpeed) &&
+                  m3SpeedCapValid(def->maximumAngularSpeed) && m3FiniteF(def->hitEventThreshold) &&
                   def->hitEventThreshold >= 0.0f;
     return capacities && tasks && tuning && m3AllocatorValid(&def->allocator);
 }
@@ -414,7 +450,7 @@ static M3_NOINLINE void WorldSetGravityWorker(m3World* world, m3Vec3 gravity)
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteV3(gravity))
+    if (world == NULL || !m3GravityValid(gravity))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -455,8 +491,7 @@ static M3_NOINLINE void WorldSetContactTuningWorker(m3World* world, float hertz,
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteF(hertz) || hertz <= 0.0f || !m3FiniteF(dampingRatio) ||
-        dampingRatio <= 0.0f || !m3FiniteF(pushMaxSpeed) || pushMaxSpeed <= 0.0f)
+    if (world == NULL || !m3ContactTuningValid(hertz, dampingRatio, pushMaxSpeed))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -513,7 +548,7 @@ static M3_NOINLINE void WorldSetMaximumLinearSpeedWorker(m3World* world, float v
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
+    if (world == NULL || !m3SpeedCapValid(value))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -539,7 +574,7 @@ static M3_NOINLINE void WorldSetMaximumAngularSpeedWorker(m3World* world, float 
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteF(value) || value <= 0.0f)
+    if (world == NULL || !m3SpeedCapValid(value))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -758,20 +793,10 @@ static M3_NOINLINE void WorldSetWindWorker(m3World* world, m3Vec3 direction, flo
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (world == NULL || !m3FiniteV3(direction) || !m3FiniteF(speed) || speed < 0.0f ||
-        !m3FiniteF(gustHertz) || gustHertz < 0.0f || !m3FiniteF(gustScale) || gustScale < 0.0f)
+    if (world == NULL || !m3WindValid(direction, speed, gustHertz, gustScale))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
-    }
-    if (speed > 0.0f)
-    {
-        m3real len2 = m3Dot3(direction, direction);
-        if (len2 < 0.99f || len2 > 1.01f)
-        {
-            m3Refuse(world, m3_errorInvalid); // a blowing wind demands a near-unit direction
-            return;
-        }
     }
     if (world->recorder.journalActive != 0)
     {

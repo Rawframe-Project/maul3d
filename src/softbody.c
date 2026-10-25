@@ -81,6 +81,16 @@ static int64_t LatticeEdgeCount(const m3SoftBodyDef* def)
     return axes + diagonals + bend;
 }
 
+// A particle's mass, radius and gravity scale, shared by both creates:
+// the mass within the body mass floor and ceiling, the radius within
+// M3_LOCAL_LIMIT, the scale within M3_RATIO_LIMIT.
+static bool ParticleScalarsValid(const m3SoftBodyDef* def)
+{
+    return def->particleMass >= M3_MASS_FLOOR && def->particleMass <= M3_MASS_LIMIT &&
+           def->radius > 0.0f && def->radius <= M3_LOCAL_LIMIT &&
+           m3WithinF(def->gravityScale, M3_RATIO_LIMIT); // false for NaN
+}
+
 // Every field check lives here, where the public door and replay both
 // pass: replay hands raw journal bytes, and a flipped bit could produce
 // NaN positions or an overflowing particle count. The edge count is
@@ -95,9 +105,8 @@ static bool LatticeDefValid(const m3SoftBodyDef* def)
     bool pressureFits =
         def->pressure == 0.0f || (def->countX >= 2 && def->countY >= 2 && def->countZ >= 2);
     return m3BoundedPos3(def->position) && m3FiniteF(def->spacing) && def->spacing > 0.0f &&
-           def->spacing <= M3_LOCAL_LIMIT && m3FiniteF(def->particleMass) &&
-           def->particleMass > 0.0f && m3FiniteF(def->compliance) && def->compliance >= 0.0f &&
-           m3FiniteF(def->radius) && def->radius > 0.0f && m3FiniteF(def->gravityScale) &&
+           def->spacing <= M3_LOCAL_LIMIT && ParticleScalarsValid(def) &&
+           m3FiniteF(def->compliance) && def->compliance >= 0.0f &&
            m3FiniteF(def->bendCompliance) && def->bendCompliance >= 0.0f &&
            m3FiniteF(def->pressure) && def->pressure >= 0.0f &&
            def->pressure <= M3_SOFTBODY_MAX_PRESSURE && pressureFits &&
@@ -359,10 +368,9 @@ static bool TetDefValid(const m3SoftBodyDef* def, const m3Vec3* points, int32_t 
 {
     if (pointCount < 4 || pointCount > M3_SOFTBODY_MAX_PARTICLES || tetCount < 1 ||
         tetCount > M3_SOFTBODY_MAX_TETS || !m3BoundedPos3(def->position) ||
-        !m3FiniteF(def->particleMass) || !(def->particleMass > 0.0f) ||
-        !m3FiniteF(def->compliance) || def->compliance < 0.0f || !m3FiniteF(def->radius) ||
-        !(def->radius > 0.0f) || !m3FiniteF(def->gravityScale) || def->bendCompliance != 0.0f ||
-        def->pressure != 0.0f || !m3FiniteF(def->maxDeviation) || def->maxDeviation < 0.0f)
+        !ParticleScalarsValid(def) || !m3FiniteF(def->compliance) || def->compliance < 0.0f ||
+        def->bendCompliance != 0.0f || def->pressure != 0.0f || !m3FiniteF(def->maxDeviation) ||
+        def->maxDeviation < 0.0f)
     {
         return false;
     }

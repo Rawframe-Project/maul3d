@@ -90,7 +90,7 @@ static M3_NOINLINE void ShapeSetFrictionWorker(m3World* world, m3ShapeId shape, 
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (!m3FiniteF(friction) || friction < 0.0f)
+    if (!m3ShapeScalarValid(m3_opSetShapeFriction, friction))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -127,7 +127,7 @@ static M3_NOINLINE void ShapeSetRestitutionWorker(m3World* world, m3ShapeId shap
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (!m3FiniteF(restitution) || restitution < 0.0f)
+    if (!m3ShapeScalarValid(m3_opSetShapeRestitution, restitution))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -164,7 +164,7 @@ static M3_NOINLINE void ShapeSetRollingResistanceWorker(m3World* world, m3ShapeI
         m3Refuse(world, m3_errorState);
         return;
     }
-    if (!m3FiniteF(value) || value < 0.0f)
+    if (!m3ShapeScalarValid(m3_opSetShapeRolling, value))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -206,7 +206,8 @@ static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, f
     {
         return;
     }
-    if (!m3DensityF(density))
+    if (!m3DensityF(density) || !m3ShapeMassFits(world, slot, world->shapes.shapeType[slot],
+                                                 &world->shapes.shapeGeom[slot], density))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -450,7 +451,7 @@ static M3_NOINLINE void ShapeSetSurfaceVelocityWorker(m3World* world, m3ShapeId 
     {
         return;
     }
-    if (!m3FiniteV3(velocity))
+    if (!m3SurfaceVelocityValid(velocity))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

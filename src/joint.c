@@ -112,8 +112,8 @@ static bool GearDefValid(const m3JointDef* def)
 {
     return m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
            m3Dot3(def->localAxisA, def->localAxisA) > 1.0e-8f &&
-           m3Dot3(def->localAxisB, def->localAxisB) > 1.0e-8f && m3FiniteF(def->ratio) &&
-           def->ratio != 0.0f;
+           m3Dot3(def->localAxisB, def->localAxisB) > 1.0e-8f &&
+           m3WithinF(def->ratio, M3_RATIO_LIMIT) && def->ratio != 0.0f;
 }
 
 // The rope lengths from each anchor to its ground pulley at create. A
@@ -122,7 +122,7 @@ static bool BakePulley(const m3World* world, const m3JointDef* def, int32_t body
                        JointBake* bake)
 {
     if (!m3BoundedPos3(def->groundAnchorA) || !m3BoundedPos3(def->groundAnchorB) ||
-        !m3FiniteF(def->ratio) || !(def->ratio > 0.0f) || !m3LocalV3(def->localAnchorA) ||
+        !(def->ratio > 0.0f && def->ratio <= M3_RATIO_LIMIT) || !m3LocalV3(def->localAnchorA) ||
         !m3LocalV3(def->localAnchorB))
     {
         return false;
@@ -281,10 +281,13 @@ static bool JointDefIsValid(const m3JointDef* def)
     }
     return typeValid && m3LocalV3(def->localAnchorA) && m3LocalV3(def->localAnchorB) &&
            m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
-           m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) && m3FiniteF(def->motorSpeed) &&
-           m3FiniteF(def->maxMotorEffort) && m3FiniteF(def->coneAngle) &&
-           def->maxMotorEffort >= 0.0f &&
-           !(def->enableLimit && def->lowerLimit > def->upperLimit) &&
+           m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
+           m3JointMotorValid(def->type, def->enableMotor ? 1 : 0, def->motorSpeed,
+                             def->maxMotorEffort) &&
+           m3FiniteF(def->coneAngle) &&
+           (def->type == (int32_t)m3_motorJoint
+                ? m3JointLimitsValid(def->type, def->lowerLimit, def->upperLimit)
+                : !(def->enableLimit && def->lowerLimit > def->upperLimit)) &&
            !(def->enableCone && def->coneAngle < 0.0f);
 }
 

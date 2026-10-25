@@ -52,17 +52,25 @@ int32_t m3CharacterSlot(const m3World* world, m3CharacterId characterId)
     return index;
 }
 
+bool m3CharacterMoveValid(m3Vec3 translation)
+{
+    return m3WithinV3(translation, M3_CAST_LIMIT);
+}
+
 int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
 {
     // Input checks live here because replay hands this function raw
     // journal bytes: a flipped radius or slope byte must be refused
     // instead of minting a NaN capsule.
-    if (!m3FinitePos3(def->position) || !m3FiniteF(def->radius) || !(def->radius > 0.0f) ||
-        !m3FiniteF(def->halfHeight) || def->halfHeight < 0.0f || !m3FiniteF(def->maxSlopeAngle) ||
-        def->maxSlopeAngle <= 0.0f || def->maxSlopeAngle > 1.5f || !m3FiniteF(def->snapDistance) ||
-        def->snapDistance < 0.0f || !m3FiniteF(def->skin) || !(def->skin > 0.0f) ||
-        !m3FiniteF(def->stepHeight) || def->stepHeight < 0.0f || !m3FiniteF(def->mass) ||
-        !(def->mass > 0.0f) || !m3FiniteF(def->pushMaxMassRatio) || def->pushMaxMassRatio < 0.0f)
+    // The capsule is bounded like any capsule shape; the walker's own mass
+    // and push ratio are bounded like a body's.
+    if (!m3BoundedPos3(def->position) || !(def->radius > 0.0f && def->radius <= M3_LOCAL_LIMIT) ||
+        !(def->halfHeight >= 0.0f && def->halfHeight <= M3_LOCAL_LIMIT) ||
+        !m3FiniteF(def->maxSlopeAngle) || def->maxSlopeAngle <= 0.0f || def->maxSlopeAngle > 1.5f ||
+        !m3FiniteF(def->snapDistance) || def->snapDistance < 0.0f || !m3FiniteF(def->skin) ||
+        !(def->skin > 0.0f) || !m3FiniteF(def->stepHeight) || def->stepHeight < 0.0f ||
+        !(def->mass >= M3_MASS_FLOOR && def->mass <= M3_MASS_LIMIT) ||
+        !(def->pushMaxMassRatio >= 0.0f && def->pushMaxMassRatio <= M3_RATIO_LIMIT))
     {
         return M3_CREATE_INVALID;
     }
@@ -310,19 +318,15 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
                             world->bodies.invMass[hitBody] &&
                 blocked > 0.0f && into > 0.0f)
             {
-                m3Vec3 impulse = m3MulSV3(-world->characters.charMass[slot] * blocked * into, n);
                 m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[hitBody].q,
                                           world->bodies.localCenters[hitBody]);
                 m3Vec3 arm = {(m3real)(hit.point.x - world->bodies.transforms[hitBody].p.x) - rlc.x,
                               (m3real)(hit.point.y - world->bodies.transforms[hitBody].p.y) - rlc.y,
                               (m3real)(hit.point.z - world->bodies.transforms[hitBody].p.z) -
                                   rlc.z};
-                world->bodies.linearVelocities[hitBody] =
-                    m3Add3(world->bodies.linearVelocities[hitBody],
-                           m3MulSV3(world->bodies.invMass[hitBody], impulse));
-                world->bodies.angularVelocities[hitBody] =
-                    m3Add3(world->bodies.angularVelocities[hitBody],
-                           m3MulMV3(m3WorldInvInertia(world, hitBody), m3Cross3(arm, impulse)));
+                m3real mass = world->characters.charMass[slot];
+                m3PushHeld(world, hitBody, -mass * blocked * into,
+                           -(double)mass * (double)blocked * (double)into, n, arm);
                 world->bodies.awake[hitBody] = 1;
                 world->bodies.sleepTimes[hitBody] = 0.0f;
             }
@@ -543,10 +547,7 @@ static M3_NOINLINE void CharacterMoveWorker(m3World* world, m3CharacterId charac
         return;
     }
     int32_t slot = m3CharacterSlot(world, character);
-    if (slot < 0 || !m3FiniteV3(translation) ||
-        !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
-        !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
-        !(translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT))
+    if (slot < 0 || !m3CharacterMoveValid(translation))
     {
         // A stale id or a hostile move (non-finite, or past the caster's
         // float budget) changes nothing, never journals and counts once.

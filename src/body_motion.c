@@ -17,7 +17,7 @@
 
 // Forces and impulses. One internal per op so replay and the
 // public wrappers share exactly one application path.
-static int ForceTargetValid(m3World* world, int32_t index)
+static bool ForceTargetValid(const m3World* world, int32_t index)
 {
     return world->bodies.types[index] == (uint8_t)m3_dynamicBody &&
            world->bodies.invMass[index] > 0.0f;
@@ -68,6 +68,80 @@ static m3Vec3 ForceArm(const m3World* world, int32_t index, m3Pos3 point)
                     (m3real)(point.z - world->bodies.transforms[index].p.z) - rlc.z};
 }
 
+// Whether a force or impulse may land: on a dynamic body with mass, the
+// accumulated force and torque stay within M3_FORCE_LIMIT, and the
+// velocities an impulse leaves stay within M3_SPEED_LIMIT. Each computes
+// what its internal above writes, so the public calls and replay refuse
+// exactly what would not fit. NaN fails every comparison.
+bool m3ForceFits(const m3World* world, int32_t index, m3Vec3 force)
+{
+    return ForceTargetValid(world, index) &&
+           m3WithinV3(m3Add3(world->bodies.bodyForce[index], force), M3_FORCE_LIMIT);
+}
+
+bool m3TorqueFits(const m3World* world, int32_t index, m3Vec3 torque)
+{
+    return ForceTargetValid(world, index) &&
+           m3WithinV3(m3Add3(world->bodies.bodyTorque[index], torque), M3_FORCE_LIMIT);
+}
+
+bool m3ForceAtPointFits(const m3World* world, int32_t index, m3Vec3 force, m3Pos3 point)
+{
+    if (!m3FinitePos3(point))
+    {
+        return false;
+    }
+    m3Vec3 torque = m3Cross3(ForceArm(world, index, point), force);
+    return m3ForceFits(world, index, force) && m3TorqueFits(world, index, torque);
+}
+
+bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse)
+{
+    if (!ForceTargetValid(world, index) || !m3FiniteV3(impulse))
+    {
+        return false;
+    }
+    m3Vec3 v = m3Add3(world->bodies.linearVelocities[index],
+                      m3MulSV3(world->bodies.invMass[index], impulse));
+    return m3WithinV3(v, M3_SPEED_LIMIT);
+}
+
+bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse)
+{
+    if (!ForceTargetValid(world, index) || !m3FiniteV3(impulse))
+    {
+        return false;
+    }
+    m3Vec3 w = m3Add3(world->bodies.angularVelocities[index],
+                      m3MulMV3(m3WorldInvInertia(world, index), impulse));
+    return m3WithinV3(w, M3_SPEED_LIMIT);
+}
+
+bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point)
+{
+    if (!m3FinitePos3(point))
+    {
+        return false;
+    }
+    m3Vec3 arm = ForceArm(world, index, point);
+    return m3LinearImpulseFits(world, index, impulse) &&
+           m3AngularImpulseFits(world, index, m3Cross3(arm, impulse));
+}
+
+// A kinematic body moves at whatever speed its host or its servo gives
+// it, within M3_KINEMATIC_SPEED_LIMIT; every other body within
+// M3_SPEED_LIMIT. Every body spins within M3_SPEED_LIMIT.
+bool m3BodyVelocityValid(uint8_t type, m3Vec3 velocity)
+{
+    return m3WithinV3(velocity, type == (uint8_t)m3_kinematicBody ? M3_KINEMATIC_SPEED_LIMIT
+                                                                  : M3_SPEED_LIMIT);
+}
+
+bool m3BodySpinValid(m3Vec3 velocity)
+{
+    return m3WithinV3(velocity, M3_SPEED_LIMIT);
+}
+
 void m3ApplyForceAtPointInternal(m3World* world, int32_t index, m3Vec3 force, m3Pos3 point)
 {
     world->bodies.bodyForce[index] = m3Add3(world->bodies.bodyForce[index], force);
@@ -113,7 +187,7 @@ static M3_NOINLINE void BodyApplyForceWorker(m3World* world, m3BodyId body, m3Ve
     {
         return;
     }
-    if (!m3FiniteV3(force) || !ForceTargetValid(world, index))
+    if (!m3ForceFits(world, index, force))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -148,7 +222,7 @@ static M3_NOINLINE void BodyApplyTorqueWorker(m3World* world, m3BodyId body, m3V
     {
         return;
     }
-    if (!m3FiniteV3(torque) || !ForceTargetValid(world, index))
+    if (!m3TorqueFits(world, index, torque))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -183,7 +257,7 @@ static M3_NOINLINE void BodyApplyLinearImpulseWorker(m3World* world, m3BodyId bo
     {
         return;
     }
-    if (!m3FiniteV3(impulse) || !ForceTargetValid(world, index))
+    if (!m3LinearImpulseFits(world, index, impulse))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -218,7 +292,7 @@ static M3_NOINLINE void BodyApplyAngularImpulseWorker(m3World* world, m3BodyId b
     {
         return;
     }
-    if (!m3FiniteV3(impulse) || !ForceTargetValid(world, index))
+    if (!m3AngularImpulseFits(world, index, impulse))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -254,7 +328,7 @@ static M3_NOINLINE void BodyApplyForceAtPointWorker(m3World* world, m3BodyId bod
     {
         return;
     }
-    if (!m3FiniteV3(force) || !m3FinitePos3(point) || !ForceTargetValid(world, index))
+    if (!m3ForceAtPointFits(world, index, force, point))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -291,7 +365,7 @@ static M3_NOINLINE void BodyApplyLinearImpulseAtPointWorker(m3World* world, m3Bo
     {
         return;
     }
-    if (!m3FiniteV3(impulse) || !m3FinitePos3(point) || !ForceTargetValid(world, index))
+    if (!m3ImpulseAtPointFits(world, index, impulse, point))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -327,7 +401,7 @@ static M3_NOINLINE void BodySetLinearVelocityWorker(m3World* world, m3BodyId bod
     {
         return; // stale or foreign id: contract, not invariant
     }
-    if (!m3FiniteV3(velocity))
+    if (!m3BodyVelocityValid(world->bodies.types[index], velocity))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
@@ -362,7 +436,7 @@ static M3_NOINLINE void BodySetAngularVelocityWorker(m3World* world, m3BodyId bo
     {
         return; // stale or foreign id: contract, not invariant
     }
-    if (!m3FiniteV3(velocity))
+    if (!m3BodySpinValid(velocity))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // hostile command: a documented no-op, never poison
@@ -401,15 +475,14 @@ void m3SetBodyParamInternal(m3World* world, int32_t index, int32_t param, float 
     }
 }
 
-static void SetBodyParam(m3World* world, m3BodyId bodyId, int32_t param, float value,
-                         bool nonNegative)
+static void SetBodyParam(m3World* world, m3BodyId bodyId, int32_t param, float value)
 {
     int32_t index;
     if (!m3ResolveBody(world, bodyId, &index))
     {
         return;
     }
-    if (!m3FiniteF(value) || (nonNegative && value < 0.0f))
+    if (!m3BodyParamValid(param, value))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -433,7 +506,7 @@ static M3_NOINLINE void BodySetGravityScaleWorker(m3World* world, m3BodyId body,
         m3Refuse(world, m3_errorState);
         return;
     }
-    SetBodyParam(world, body, m3_bodyParamGravityScale, scale, false);
+    SetBodyParam(world, body, m3_bodyParamGravityScale, scale);
 }
 
 void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale)
@@ -450,7 +523,7 @@ static M3_NOINLINE void BodySetLinearDampingWorker(m3World* world, m3BodyId body
         m3Refuse(world, m3_errorState);
         return;
     }
-    SetBodyParam(world, body, m3_bodyParamLinearDamping, damping, true);
+    SetBodyParam(world, body, m3_bodyParamLinearDamping, damping);
 }
 
 void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping)
@@ -467,7 +540,7 @@ static M3_NOINLINE void BodySetAngularDampingWorker(m3World* world, m3BodyId bod
         m3Refuse(world, m3_errorState);
         return;
     }
-    SetBodyParam(world, body, m3_bodyParamAngularDamping, damping, true);
+    SetBodyParam(world, body, m3_bodyParamAngularDamping, damping);
 }
 
 void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping)

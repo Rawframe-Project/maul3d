@@ -42,16 +42,38 @@ m3ShapeDef m3DefaultShapeDef(void)
     return def;
 }
 
+bool m3ShapeScalarValid(int32_t op, float value)
+{
+    if (op == m3_opSetShapeRestitution)
+    {
+        return value >= 0.0f && value <= M3_RATIO_LIMIT; // false for NaN
+    }
+    return value >= 0.0f && m3FiniteF(value);
+}
+
+bool m3SurfaceVelocityValid(m3Vec3 velocity)
+{
+    return m3WithinV3(velocity, M3_SPEED_LIMIT);
+}
+
 // Materials and the compound pose, checked on every create door.
 bool m3ShapeDefValid(const m3ShapeDef* def)
 {
     m3Quat q = def->localRotation;
     float rotLen2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return m3LocalV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
-           rotLen2 <= 1.01f && m3DensityF(def->density) && m3FiniteF(def->friction) &&
-           def->friction >= 0.0f && m3FiniteF(def->restitution) && def->restitution >= 0.0f &&
-           m3FiniteF(def->rollingResistance) && def->rollingResistance >= 0.0f &&
-           m3FiniteV3(def->surfaceVelocity);
+           rotLen2 <= 1.01f && m3DensityF(def->density) &&
+           m3ShapeScalarValid(m3_opSetShapeFriction, def->friction) &&
+           m3ShapeScalarValid(m3_opSetShapeRestitution, def->restitution) &&
+           m3ShapeScalarValid(m3_opSetShapeRolling, def->rollingResistance) &&
+           m3SurfaceVelocityValid(def->surfaceVelocity);
+}
+
+// A sphere or capsule lies in its body's frame like any other offset: its
+// points and radius within M3_LOCAL_LIMIT.
+static bool LocalRadius(float r)
+{
+    return r > 0.0f && r <= M3_LOCAL_LIMIT; // false for NaN
 }
 
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
@@ -62,13 +84,13 @@ bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom)
     switch (type)
     {
     case m3_sphereShape:
-        return m3FiniteV3(geom->v) && m3FiniteF(geom->s) && geom->s > 0.0f;
+        return m3LocalV3(geom->v) && LocalRadius(geom->s);
     case m3_planeShape:
         return m3FiniteV3(geom->v) && m3FiniteF(geom->s) && m3Dot3(geom->v, geom->v) > 1.0e-12f;
     case m3_capsuleShape:
-        return m3FiniteV3(geom->v) && m3FiniteV3(geom->v2) && m3FiniteF(geom->s) && geom->s > 0.0f;
+        return m3LocalV3(geom->v) && m3LocalV3(geom->v2) && LocalRadius(geom->s);
     case m3_hullShape:
-        return m3FiniteV3(geom->v) && geom->v.x > 0.0f && geom->v.y > 0.0f && geom->v.z > 0.0f;
+        return LocalRadius(geom->v.x) && LocalRadius(geom->v.y) && LocalRadius(geom->v.z);
     default:
         return false;
     }
@@ -416,6 +438,12 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     }
     WriteShapeSlot(world, index, bodyIndex, type, geom, def);
     bool ok = AttachShapeContent(world, index, content);
+    if (ok && !m3ShapeMassFits(world, index, world->shapes.shapeType[index],
+                               &world->shapes.shapeGeom[index], world->shapes.shapeDensity[index]))
+    {
+        UndoShapeCreate(world, index, &marks);
+        return M3_CREATE_INVALID; // too light, too thin or too heavy a body
+    }
     // Infinite planes stay out of the tree and take the dedicated pair pass.
     world->broadphase.proxyIds[index] = M3_TREE_NULL;
     if (ok && type != (uint8_t)m3_planeShape)
@@ -505,15 +533,14 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     }
     if (type == (uint8_t)m3_sphereShape)
     {
-        if (!m3FiniteV3(geom->v) || !m3FiniteF(geom->s) || !(geom->s > 0.0f))
+        if (!m3PlainGeomValid(type, geom))
         {
             return false;
         }
     }
     else if (type == (uint8_t)m3_capsuleShape)
     {
-        if (!m3FiniteV3(geom->v) || !m3FiniteV3(geom->v2) || !m3FiniteF(geom->s) ||
-            !(geom->s > 0.0f))
+        if (!m3PlainGeomValid(type, geom))
         {
             return false;
         }
@@ -524,6 +551,10 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
         }
     }
     else
+    {
+        return false;
+    }
+    if (!m3ShapeMassFits(world, slot, type, geom, world->shapes.shapeDensity[slot]))
     {
         return false;
     }

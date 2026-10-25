@@ -211,23 +211,7 @@ static M3_NOINLINE void JointSetLimitsWorker(m3World* world, m3JointId joint, bo
     {
         return;
     }
-    if (!m3FiniteF(lower) || !m3FiniteF(upper))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    if (world->joints.jointType[slot] == (uint8_t)m3_motorJoint)
-    {
-        // The servo budgets: lower = maxForce, upper =
-        // maxTorque, independent allowances rather than a range, so
-        // the range order rule does not apply but negatives do.
-        if (lower < 0.0f || upper < 0.0f)
-        {
-            m3Refuse(world, m3_errorInvalid);
-            return;
-        }
-    }
-    else if (lower > upper)
+    if (!m3JointLimitsValid(world->joints.jointType[slot], lower, upper))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -266,9 +250,7 @@ static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, boo
     {
         return; // steering is a wheel contract, refused loudly
     }
-    if (world->joints.jointType[slot] != (uint8_t)m3_wheelJoint || !m3FiniteF(targetAngle) ||
-        m3AbsF(targetAngle) > 1.0f || !m3FiniteF(hertz) || !m3FiniteF(zeta) ||
-        !m3FiniteF(maxEffort) || zeta < 0.0f || maxEffort < 0.0f || (enable && !(hertz > 0.0f)))
+    if (!m3JointSteerValid(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // steering is a wheel contract, refused loudly
@@ -338,14 +320,11 @@ static M3_NOINLINE void JointSetMotorPoseWorker(m3World* world, m3JointId joint,
         return;
     }
     int32_t slot;
-    m3real q2 = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
-                rotation.w * rotation.w;
     if (!ResolveJoint(world, joint, &slot))
     {
         return; // the servo aim is a motor-joint contract
     }
-    if (world->joints.jointType[slot] != (uint8_t)m3_motorJoint || !m3FiniteV3(offset) ||
-        !m3FiniteQuat(rotation) || q2 < 0.81f || q2 > 1.21f)
+    if (!m3JointMotorPoseValid(world, slot, offset, rotation))
     {
         m3Refuse(world, m3_errorInvalid);
         return; // the servo aim is a motor-joint contract
@@ -382,7 +361,7 @@ static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, boo
     {
         return;
     }
-    if (!m3FiniteF(speed) || !m3FiniteF(maxEffort) || maxEffort < 0.0f)
+    if (!m3JointMotorValid(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -621,6 +600,54 @@ static int JointTypeDrives(uint8_t type)
            type == (uint8_t)m3_motorJoint;
 }
 
+bool m3JointMotorValid(int32_t type, int32_t enable, float speed, float maxEffort)
+{
+    if (type == m3_distanceJoint) // the spring's hertz and damping ratio
+    {
+        return speed >= 0.0f && speed <= M3_HERTZ_LIMIT && (enable == 0 || speed > 0.0f) &&
+               maxEffort >= 0.0f && maxEffort <= M3_RATIO_LIMIT; // false for NaN
+    }
+    return m3WithinF(speed, M3_SPEED_LIMIT) && maxEffort >= 0.0f &&
+           maxEffort <= M3_FORCE_LIMIT; // false for NaN
+}
+
+bool m3JointLimitsValid(int32_t type, float lower, float upper)
+{
+    if (type == m3_motorJoint)
+    {
+        // The servo budgets: lower = maxForce, upper = maxTorque,
+        // independent allowances rather than a range.
+        return lower >= 0.0f && lower <= M3_FORCE_LIMIT && upper >= 0.0f &&
+               upper <= M3_FORCE_LIMIT; // false for NaN
+    }
+    return m3FiniteF(lower) && m3FiniteF(upper) && lower <= upper;
+}
+
+bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta)
+{
+    return JointTypeDrives(world->joints.jointType[slot]) && hertz > 0.0f &&
+           hertz <= M3_HERTZ_LIMIT && zeta >= 0.0f && zeta <= M3_RATIO_LIMIT;
+}
+
+// Steering is a wheel contract: a target within one radian, and a
+// positive frequency while it is on.
+bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
+                       float hertz, float zeta, float maxEffort)
+{
+    return world->joints.jointType[slot] == (uint8_t)m3_wheelJoint && m3WithinF(target, 1.0f) &&
+           hertz >= 0.0f && hertz <= M3_HERTZ_LIMIT && (enable == 0 || hertz > 0.0f) &&
+           zeta >= 0.0f && zeta <= M3_RATIO_LIMIT && maxEffort >= 0.0f &&
+           maxEffort <= M3_FORCE_LIMIT;
+}
+
+bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation)
+{
+    m3real q2 = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
+                rotation.w * rotation.w;
+    return world->joints.jointType[slot] == (uint8_t)m3_motorJoint && m3LocalV3(offset) &&
+           m3FiniteQuat(rotation) && q2 >= 0.81f && q2 <= 1.21f;
+}
+
 static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bool enable,
                                              float hertz, float dampingRatio)
 {
@@ -634,8 +661,7 @@ static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bo
     {
         return;
     }
-    if (!JointTypeDrives(world->joints.jointType[slot]) || !m3FiniteF(hertz) || hertz <= 0.0f ||
-        !m3FiniteF(dampingRatio) || dampingRatio < 0.0f)
+    if (!m3JointSpringValid(world, slot, hertz, dampingRatio))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

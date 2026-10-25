@@ -27,8 +27,8 @@ extern "C"
 
     typedef struct m3Sphere
     {
-        m3Vec3 center; // body frame; must be the origin on dynamic bodies in 2a
-        m3real radius;
+        m3Vec3 center; // body frame, within 1e4 m; the origin on dynamic bodies in 2a
+        m3real radius; // positive, at most 1e4 m
     } m3Sphere;
 
     /// Half-space: points p with dot(normal, p) <= offset are solid.
@@ -41,9 +41,13 @@ extern "C"
 
     typedef struct m3ShapeDef
     {
-        float density; // kg/m^3, positive and at most 1e6
-        float friction;
-        float restitution;
+        /// kg/m^3, positive and at most 1e6. On a dynamic body every
+        /// shape that carries mass weighs at least 1e-6 kg with every
+        /// principal moment at least 1e-12 kg m^2, and the body at most
+        /// 1e20 kg in all; a create past them is refused.
+        float density;
+        float friction;    // finite, non-negative
+        float restitution; // non-negative, at most 1e4
         /// Collision filtering. A pair collides when each
         /// side's category intersects the other's mask, unless a
         /// shared nonzero groupIndex overrides: positive forces
@@ -59,7 +63,8 @@ extern "C"
         /// pile literally never stops rolling or sleeping.
         float rollingResistance;
         /// Conveyor velocity of the surface, world frame: contacts
-        /// drive the tangential speed toward it. Zero by default.
+        /// drive the tangential speed toward it. Zero by default;
+        /// within 1e5 m/s on every axis.
         m3Vec3 surfaceVelocity;
         M3_ALIGN8 uint64_t userData;
         /// A sensor detects overlap and fires its own begin and end
@@ -110,9 +115,9 @@ extern "C"
     /// closed-form cylinder plus two hemispheres about the midpoint.
     typedef struct m3Capsule
     {
-        m3Vec3 point1;
-        m3Vec3 point2;
-        m3real radius;
+        m3Vec3 point1; // body frame, within 1e4 m
+        m3Vec3 point2; // body frame, within 1e4 m
+        m3real radius; // positive, at most 1e4 m
     } m3Capsule;
 
     /// A capsule: the segment point1..point2 inflated by radius. A
@@ -148,7 +153,8 @@ extern "C"
     /// legal. Hulls, meshes, voxels, and planes refuse loudly
     /// (interned slabs are immutable by law). Journaled; mass,
     /// extents, and the broadphase follow, and sleepers around both
-    /// the old and the new bounds wake.
+    /// the old and the new bounds wake. The new geometry takes the
+    /// create's bounds, the mass floors and limit included.
     M3_API void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere);
     M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
 
@@ -324,9 +330,10 @@ extern "C"
     /// mass.
     M3_NODISCARD M3_API m3Result m3DestroyShape(m3World* world, m3ShapeId shape);
 
-    /// Runtime material setters. Journaled; contacts read
-    /// materials at prepare, so changes bind from the next step. A
-    /// sleeping stack keeps its old mix until something wakes it.
+    /// Runtime material setters, with the def's bounds. Journaled;
+    /// contacts read materials at prepare, so changes bind from the
+    /// next step. A sleeping stack keeps its old mix until something
+    /// wakes it.
     M3_API void m3Shape_SetFriction(m3World* world, m3ShapeId shape, float friction);
     M3_API float m3Shape_GetFriction(const m3World* world, m3ShapeId shape);
     M3_API void m3Shape_SetRestitution(m3World* world, m3ShapeId shape, float restitution);
@@ -336,7 +343,8 @@ extern "C"
 
     /// Set the density and optionally rebuild the owning body's
     /// mass, center and inertia from all its shapes. Journaled. The
-    /// density must be positive and at most 1e6, as at creation.
+    /// density must be positive and at most 1e6, and on a dynamic body
+    /// keep the mass floors and limit, as at creation.
     M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density,
                                    bool updateBodyMass);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);
@@ -358,8 +366,8 @@ extern "C"
 
     /// Conveyor: a world-frame surface velocity on the
     /// shape. Contacts drive B's tangential speed relative to A
-    /// toward the difference of the two surfaces. Journaled; state, hashed when
-    /// nonzero.
+    /// toward the difference of the two surfaces, within 1e5 m/s on
+    /// every axis. Journaled; state, hashed when nonzero.
     M3_API void m3Shape_SetSurfaceVelocity(m3World* world, m3ShapeId shape, m3Vec3 velocity);
 
     static const m3ShapeId m3_nullShapeId = {0, 0};
