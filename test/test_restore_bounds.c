@@ -40,6 +40,7 @@ typedef struct Scene
     int32_t soft;    // a closed lattice with an anchor
     int32_t pool;    // a water volume
     int32_t rail;    // a kinematic body with a box
+    int32_t dot;     // a soft body of one particle
 } Scene;
 
 typedef enum Which
@@ -395,6 +396,13 @@ static Scene Build(void)
     m3SoftBodyId soft = NewSoftBody(w, &jelly);
     s.soft = soft.index1 - 1;
     m3SoftBody_AnchorParticle(w, soft, 0, crate);
+    m3SoftBodyDef single = m3DefaultSoftBodyDef();
+    single.position = (m3Pos3){-4.0, 2.0, 4.0};
+    single.countX = 1;
+    single.countY = 1;
+    single.countZ = 1;
+    single.radius = 0.06f;
+    s.dot = NewSoftBody(w, &single).index1 - 1;
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
     pool.lo = (m3Pos3){4.0, 0.0, 4.0};
@@ -414,7 +422,7 @@ static void TestBoundsAtTheirEdges(void)
     m3World* world = s.world;
     m3Counters counters = m3World_GetCounters(world);
     CHECK(counters.misuse == 0 && counters.jointCount == 5 && counters.vehicleCount == 1 &&
-              counters.softBodyCount == 1 && counters.characterCount == 1 && s.pool >= 0 &&
+              counters.softBodyCount == 2 && counters.characterCount == 1 && s.pool >= 0 &&
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
           "the scene builds");
@@ -457,10 +465,10 @@ static void TestBoundsAtTheirEdges(void)
     m3DestroyWorld(world);
 }
 
-// A kinematic body at the kinematic limit and a free lattice moving
-// outward, both restored just inside the reach limit, cross it in one step: the
-// step holds them on it, and the world it made snapshots and restores in
-// a second world, which steps on alike.
+// A kinematic body at the kinematic limit, a free lattice and a lone
+// particle moving outward, all restored just inside the reach limit,
+// cross it in one step: the step holds them within it, and the world it made snapshots and restores
+// in a second world, which steps on alike.
 static void TestStepHoldsWithinReach(void)
 {
     Scene s = Build();
@@ -481,27 +489,36 @@ static void TestStepHoldsWithinReach(void)
     for (int32_t i = 0; i < particles; ++i)
     {
         size_t at = sizeof(m3Pos3) * (size_t)(s.soft * M3_SOFTBODY_MAX_PARTICLES + i);
-        uint8_t* pos = At(&s, snap, F(softBodies.softPos), 1, which_world, at);
-        uint8_t* prev = At(&s, snap, F(softBodies.softPrev), 1, which_world, at);
-        PutF64(pos, M3_REACH_LIMIT - 1.0);
-        PutF64(prev, M3_REACH_LIMIT - 2.0);
+        PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, at), M3_REACH_LIMIT - 1024.0);
+        PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, at), M3_REACH_LIMIT - 1.0e4);
     }
+    // The wind stills, so nothing slows the particles but the speed cap.
+    PutF32(At(&s, snap, F(windSpeed), sizeof(float), which_world, 0), 0.0f);
+    // A lone particle, free of any constraint, at the world's speed cap.
+    // The spacing of doubles there is 128 m.
+    size_t dot = sizeof(m3Pos3) * (size_t)(s.dot * M3_SOFTBODY_MAX_PARTICLES);
+    PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, dot), M3_REACH_LIMIT - 1024.0);
+    PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, dot), M3_REACH_LIMIT - 1.0e4);
     // The lattice lets go of the crate, so it moves as a whole.
     uint8_t* anchors = At(&s, snap, F(softBodies.softAnchorCount), sizeof(int32_t), which_soft, 0);
     int32_t none = 0;
     memcpy(anchors, &none, sizeof(none));
     CHECK(Restore(world, snap, size), "a world just inside the reach limit restores");
-    m3World_Step(world, 1.0f, 2);
+    // A 10 s step: the particles at the world's speed cap cross too.
+    m3World_Step(world, 10.0f, 2);
     double x = world->bodies.transforms[s.rail].p.x;
     CHECK(x <= M3_REACH_LIMIT && x > M3_REACH_LIMIT - 1.0e3,
           "the step holds the body on the limit");
-    bool held = true;
+    bool within = true;
     for (int32_t i = 0; i < particles; ++i)
     {
-        m3Pos3 p = world->softBodies.softPos[s.soft * M3_SOFTBODY_MAX_PARTICLES + i];
-        held = held && p.x <= M3_REACH_LIMIT && p.x > M3_REACH_LIMIT - 1.0e3;
+        within = within && world->softBodies.softPos[s.soft * M3_SOFTBODY_MAX_PARTICLES + i].x <=
+                               M3_REACH_LIMIT;
     }
-    CHECK(held, "and every particle");
+    CHECK(within, "every lattice particle stays within it");
+    double dotX = world->softBodies.softPos[s.dot * M3_SOFTBODY_MAX_PARTICLES].x;
+    CHECK(dotX <= M3_REACH_LIMIT && dotX > M3_REACH_LIMIT - 1.0e3,
+          "and the lone particle is held on it");
 
     Scene twin = Build();
     CHECK(Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
@@ -517,10 +534,134 @@ static void TestStepHoldsWithinReach(void)
     m3DestroyWorld(world);
 }
 
+// The hold's scale alone can round a component a hair past the bound for
+// positions a character's repeated moves reach; the clamp after it keeps
+// every one within, the direction kept.
+static void TestHoldRoundsWithin(void)
+{
+    const double past[] = {1.9560342718892493e+18, 1.8354988781294495e+18, 1.581204017112003e+18};
+    bool within = true;
+    for (size_t i = 0; i < sizeof(past) / sizeof(past[0]); ++i)
+    {
+        m3Pos3 held = m3HoldReach((m3Pos3){past[i], -0.5 * past[i], 0.0});
+        within = within && held.x <= M3_REACH_LIMIT && held.x > M3_REACH_LIMIT - 1.0e3 &&
+                 fabs(held.y + 0.5 * held.x) <= 1.0e3 && held.z == 0.0;
+    }
+    CHECK(within, "a held position lands within the bound, direction kept");
+    m3Pos3 inside = {M3_REACH_LIMIT, -M3_REACH_LIMIT, 1.0};
+    m3Pos3 kept = m3HoldReach(inside);
+    CHECK(memcmp(&kept, &inside, sizeof(kept)) == 0, "one within it is unchanged");
+}
+
+// A servo target within reach of its kinematic body restores; one just
+// past it is refused.
+static void TestTargetReach(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
+          "snapshot taken");
+    if (clean == NULL || edited == NULL)
+    {
+        free(clean);
+        free(edited);
+        m3DestroyWorld(world);
+        return;
+    }
+    uint64_t hash = m3World_Hash(world);
+    const double reach[2] = {M3_SERVO_REACH, nextafter(M3_SERVO_REACH, 2.0 * M3_SERVO_REACH)};
+    bool restored[2];
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        memcpy(edited, clean, (size_t)size);
+        m3Transform target = world->bodies.transforms[s.rail];
+        target.p.x += reach[k];
+        *At(&s, edited, F(bodies.bodyHasTarget), 1, which_rail, 0) = 1;
+        memcpy(At(&s, edited, F(bodies.bodyTarget), sizeof(m3Transform), which_rail, 0), &target,
+               sizeof(target));
+        restored[k] = m3World_Restore(world, edited, size) == m3_success;
+        CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "back to the scene");
+    }
+    CHECK(restored[0], "a servo target at its reach restores");
+    CHECK(!restored[1], "one just past it is refused");
+    free(edited);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
+// Twelve boxes at the size and density limits and a sphere of radius 1
+// make a body of 9.6e19 kg; the sphere grown to 1e4 m takes it past the
+// mass limit, which restore refuses as the create would.
+static void TestBodyMassLimit(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId heavy = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = M3_DENSITY_LIMIT;
+    for (int32_t i = 0; i < 12; ++i)
+    {
+        (void)NewBoxShape(world, heavy, &sd,
+                          (m3Vec3){M3_LOCAL_LIMIT, M3_LOCAL_LIMIT, M3_LOCAL_LIMIT});
+    }
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
+    m3ShapeId ball = NewSphereShape(world, heavy, &sd, &sphere);
+    CHECK(m3Shape_IsValid(world, ball), "the body builds below the mass limit");
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
+    if (snap == NULL)
+    {
+        m3DestroyWorld(world);
+        return;
+    }
+    CHECK(Restore(world, snap, size), "it restores");
+    uint64_t hash = m3World_Hash(world);
+    int32_t at = m3StateFieldAt(world, F(shapes.shapeGeom));
+    float grown = M3_LOCAL_LIMIT;
+    memcpy(snap + HEADER_BYTES + at + sizeof(m3ShapeGeom) * (size_t)(ball.index1 - 1) +
+               offsetof(m3ShapeGeom, s),
+           &grown, sizeof(grown));
+    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid,
+          "the sphere grown past the mass limit is refused");
+    CHECK(m3World_Hash(world) == hash, "and the world is left as it was");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+// A body turned kinematic has no mass, as one created kinematic, and its
+// snapshot restores to the same state.
+static void TestTypeChangeMass(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    m3BodyId ball = {(uint32_t)s.ball + 1u, world->bodies.bodyPool.generations[s.ball]};
+    m3Body_SetType(world, ball, m3_kinematicBody);
+    CHECK(m3Body_GetMass(world, ball) == 0.0f, "a body turned kinematic has no mass");
+    Scene twin = Build();
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
+          "its world restores in a second world");
+    CHECK(m3World_Hash(twin.world) == m3World_Hash(world), "to the same state");
+    free(snap);
+    m3DestroyWorld(twin.world);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestBoundsAtTheirEdges();
     TestStepHoldsWithinReach();
+    TestHoldRoundsWithin();
+    TestTargetReach();
+    TestBodyMassLimit();
+    TestTypeChangeMass();
     if (s_failures == 0)
     {
         printf("test_restore_bounds: all checks passed\n");
