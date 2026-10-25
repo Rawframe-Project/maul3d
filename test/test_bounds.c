@@ -1125,13 +1125,9 @@ static void TestSites(void)
         {"blast position", NULL, BlastPosition, 1.0e15f, Up(1.0e15f), 8},
         {"blast soft push", NULL, BlastSoftPush, 1.0e4f, Up(1.0e4f), 4},
     };
-    const char* only = getenv("M3_BOUNDS_SITE");
     for (size_t i = 0; i < sizeof(sites) / sizeof(sites[0]); ++i)
     {
-        if (only == NULL || strcmp(only, sites[i].name) == 0)
-        {
-            CheckSite(&sites[i]);
-        }
+        CheckSite(&sites[i]);
     }
 }
 
