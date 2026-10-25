@@ -125,14 +125,21 @@ Deliberately NOT in the snapshot:
   with one and continues bit-identically; parallelism is not state.
 - **Derived data.** Acceleration structures that are pure functions
   of content (the per-mesh BVH) are rebuilt on restore and proven
-  byte-identical by test.
+  byte-identical by test. So is each body's mass, center, inertia and
+  extents: no call sets them directly, so they are a function of the
+  body's type and shapes, and restore rebuilds them with the function
+  every change to those calls.
 - **Event streams.** Events are transient observations; restore
   clears every stream (contact, sensor, and fragment alike).
 
 A snapshot restores only into a world with the same capacities and
 the same build semantics (a config hash guards both). Truncated
 buffers, corrupted headers, and wrong-shaped worlds are refused with
-the target world untouched.
+the target world untouched. So is any snapshot this engine could not
+have written: broken links, lists, pools or trees, and any value past
+the limit its create or setter keeps (see "Magnitude limits"). A
+world restore accepts steps, queries and snapshots like one the API
+built.
 
 The header carries a format version. There is no migration; a
 snapshot is a save-state for rollback and replay, not an archival
@@ -1153,7 +1160,15 @@ The step holds what it produces within the same limits: every
 body leaves a substep within 1e5 m/s and 1e5 rad/s, a bounce asks
 for at most 1e5 m/s of separation, and a push the step itself lands
 on a body (a character's, a soft particle's, a wheel's, an
-explosion's) leaves it within 1e5 as well.
+explosion's) leaves it within 1e5 as well. A stored contact or joint
+impulse is held, direction kept, so its warm start changes a body's
+velocity or spin by at most 1e13 per component at that step's own
+masses and levers, whatever the body's mass became since.
+
+Restore refuses the same values past the same limits, with one
+exception: positions need only be finite. A create or teleport
+places a body within 1e15 m, but the step may carry it further over
+a long run, and every snapshot the engine writes must restore.
 
 ## Capacities
 
