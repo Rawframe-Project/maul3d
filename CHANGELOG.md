@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.3.0](https://github.com/Rawframe-Project/maul3d/compare/v0.2.1...v0.3.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **character:** a character's body and capsule can no longer be destroyed or converted on their own; destroy the character. `m3DestroyShape`, `m3DestroyBody`, `m3Body_SetType`, `m3Shape_SetSphere`, `m3Shape_SetCapsule` and shape creates on a character's body return `m3_errorInvalid` for them.
+
+### Fixed
+
+* **character:** a character owns its body and capsule ([#73](https://github.com/Rawframe-Project/maul3d/issues/73)) ([ade48fb](https://github.com/Rawframe-Project/maul3d/commit/ade48fbeadee6cb8daa2bdd90e7ebc04129507f2))
+* **query:** bound the voxel cell of a far point ([#71](https://github.com/Rawframe-Project/maul3d/issues/71)) ([9a52698](https://github.com/Rawframe-Project/maul3d/commit/9a52698b5f311fa3956fcf2a0254181a318ee162))
+
 ## [0.2.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.1) (2026-10-24)
 
 ### Changed
