@@ -467,8 +467,8 @@ static void TestBoundsAtTheirEdges(void)
 
 // A kinematic body at the kinematic limit, a free lattice and a lone
 // particle moving outward, all restored just inside the reach limit,
-// cross it in one step: the step holds them within it, and the world it made snapshots and restores
-// in a second world, which steps on alike.
+// cross it in one step: the step holds them within it, and the world it
+// made snapshots and restores in a second world, which steps on alike.
 static void TestStepHoldsWithinReach(void)
 {
     Scene s = Build();
