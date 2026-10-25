@@ -99,9 +99,9 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
     m3real k12 = Coupling(&rows[0], &rows[1], b);
     m3real k22 = Coupling(&rows[1], &rows[1], b);
     m3real det = k11 * k22 - k12 * k12;
-    // The determinant works in the square of the inverse masses, which
-    // leaves float range for a body heavy or light enough: then the pair
-    // is inverted at the scale of its larger diagonal.
+    // Solve at the larger diagonal's scale when the determinant is not a
+    // normal float; the direct result stands otherwise, so every ordinary
+    // pair keeps its bits.
     bool normal = det >= FLT_MIN && det <= FLT_MAX;
     m3real r[3];
     if (det <= 0.0f || (!normal && !m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r)))

@@ -28,8 +28,9 @@ typedef struct m3Softness
 m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h);
 
 // Solves the 3x3 system J x = b by Cramer's rule; a singular J gives zero.
-// Cramer works in the cube of J's scale: when the determinant is not a
-// normal float, J is solved at unit scale instead (m3Solve3AtScale).
+// When the determinant is not a normal float, J is solved at its largest
+// entry's scale instead (m3Solve3AtScale); the direct result stands
+// otherwise, so every ordinary system keeps its bits.
 m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b);
 
 // The same solution taken with J divided by scale and the result divided
