@@ -12,6 +12,7 @@
 #include "world_internal.h"
 #include "world_state.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -198,7 +199,9 @@ static const Case s_cases[] = {
     {"motor effort", COMPONENT(joints.jointMotor, m3Vec3, which_hinge, 1), (double)(M3_FORCE_LIMIT), +1},
     {"spring hertz", COMPONENT(joints.jointSpring, m3Vec3, which_hinge, 0), (double)(M3_HERTZ_LIMIT), +1},
     {"gear ratio", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)(M3_RATIO_LIMIT), +1},
+    {"gear ratio not zero", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)FLT_TRUE_MIN, -1},
     {"pulley ratio", COMPONENT(joints.jointMotor, m3Vec3, which_pulley, 2), (double)(M3_RATIO_LIMIT), +1},
+    {"pulley ratio positive", COMPONENT(joints.jointMotor, m3Vec3, which_pulley, 2), (double)FLT_TRUE_MIN, -1},
     {"pulley ground A", POSITION(joints.jointGroundA, m3Pos3, which_pulley, 0), (double)(M3_POSITION_LIMIT), +1},
     {"pulley ground B", POSITION(joints.jointGroundB, m3Pos3, which_pulley, 8), (double)(-M3_POSITION_LIMIT), -1},
     {"servo force budget", COMPONENT(joints.jointLimits, m3Vec3, which_servo, 0), (double)(M3_FORCE_LIMIT), +1},
@@ -209,6 +212,7 @@ static const Case s_cases[] = {
     {"steer effort", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 2), (double)(M3_FORCE_LIMIT), +1},
     // Characters.
     {"character radius", SCALAR(characters.charRadius, which_hero), (double)(M3_LOCAL_LIMIT), +1},
+    {"character radius positive", SCALAR(characters.charRadius, which_hero), (double)FLT_TRUE_MIN, -1},
     {"character half height", SCALAR(characters.charHalfHeight, which_hero), (double)(M3_LOCAL_LIMIT), +1},
     {"character mass", SCALAR(characters.charMass, which_hero), (double)(M3_MASS_LIMIT), +1},
     {"character push ratio", SCALAR(characters.charPushMax, which_hero), (double)(M3_RATIO_LIMIT), +1},
@@ -228,6 +232,7 @@ static const Case s_cases[] = {
     {"gear ratio", SCALAR(vehicles.vehDtGearRatio, which_firstGear), (double)(M3_RATIO_LIMIT), +1},
     // Soft bodies.
     {"particle radius", SCALAR(softBodies.softRadius, which_soft), (double)(M3_LOCAL_LIMIT), +1},
+    {"particle radius positive", SCALAR(softBodies.softRadius, which_soft), (double)FLT_TRUE_MIN, -1},
     {"particle gravity scale", SCALAR(softBodies.softGravityScale, which_soft), (double)(M3_RATIO_LIMIT), +1},
     {"compliance", SCALAR(softBodies.softCompliance, which_soft), (double)(0.0), -1},
     {"bend compliance", SCALAR(softBodies.softBendCompliance, which_soft), (double)(0.0), -1},
@@ -240,6 +245,11 @@ static const Case s_cases[] = {
     // Water.
     {"water low corner", POSITION(water.waterLo, m3Pos3, which_pool, 0), (double)(-M3_POSITION_LIMIT), -1},
     {"water high corner", POSITION(water.waterHi, m3Pos3, which_pool, 16), (double)(M3_POSITION_LIMIT), +1},
+    // The pool spans 4 to 6, 0 to 1 and 4 to 6 m: each high corner just
+    // above its low one restores, one on it is refused.
+    {"water extent x", POSITION(water.waterHi, m3Pos3, which_pool, 0), 4.0 + 0x1p-50, -1},
+    {"water extent y", POSITION(water.waterHi, m3Pos3, which_pool, 8), 0x1p-1074, -1},
+    {"water extent z", POSITION(water.waterHi, m3Pos3, which_pool, 16), 4.0 + 0x1p-50, -1},
     {"water density", SCALAR(water.waterDensity, which_pool), (double)(M3_DENSITY_LIMIT), +1},
     {"water linear drag", SCALAR(water.waterLinDrag, which_pool), (double)(0.0), -1},
     {"water angular drag", SCALAR(water.waterAngDrag, which_pool), (double)(0.0), -1},
