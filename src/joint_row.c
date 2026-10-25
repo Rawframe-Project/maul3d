@@ -7,6 +7,7 @@
 
 #include "solver_math.h"
 
+#include <float.h>
 #include <math.h>
 
 m3JointRow m3LineRow(m3Vec3 leverA, m3Vec3 armB, m3Vec3 u)
@@ -98,7 +99,12 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
     m3real k12 = Coupling(&rows[0], &rows[1], b);
     m3real k22 = Coupling(&rows[1], &rows[1], b);
     m3real det = k11 * k22 - k12 * k12;
-    if (!(det > 0.0f))
+    // The determinant works in the square of the inverse masses, which
+    // leaves float range for a body heavy or light enough: then the pair
+    // is inverted at the scale of its larger diagonal.
+    bool normal = det >= FLT_MIN && det <= FLT_MAX;
+    m3real r[3];
+    if (det <= 0.0f || (!normal && !m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r)))
     {
         m3RowDrive one = {bias[0], drive.scale, drive.leak};
         m3RowDrive two = {bias[1], drive.scale, drive.leak};
@@ -108,9 +114,19 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
     }
     m3real x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
     m3real y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
-    m3real inv = 1.0f / det;
-    m3real dx = -inv * (k22 * x - k12 * y) - drive.leak * *first;
-    m3real dy = -inv * (k11 * y - k12 * x) - drive.leak * *second;
+    m3real dx;
+    m3real dy;
+    if (normal)
+    {
+        m3real inv = 1.0f / det;
+        dx = -inv * (k22 * x - k12 * y) - drive.leak * *first;
+        dy = -inv * (k11 * y - k12 * x) - drive.leak * *second;
+    }
+    else
+    {
+        dx = -(r[0] * x + r[2] * y) - drive.leak * *first;
+        dy = -(r[2] * x + r[1] * y) - drive.leak * *second;
+    }
     // Each row's share held within the speed bound at the row's own mass.
     m3real boundX = M3_ROW_SPEED_BOUND / k11;
     m3real boundY = M3_ROW_SPEED_BOUND / k22;
