@@ -8,8 +8,8 @@
 // a scene that lands elsewhere fails and prints the line it got, so a
 // deliberate change regenerates every line, the bench ones included, with
 //
-//   (out/linux-gcc-14/test_golden; out/linux-gcc-14-bench/test_bench) |
-//       grep -E '^M3_[A-Z0-9_]+_HASH=' > test/hashes.txt
+//   (out/linux-gcc-14/test_golden; out/linux-gcc-14/test_warmhold;
+//    out/linux-gcc-14-bench/test_bench) | grep -E '^M3_[A-Z0-9_]+_HASH=' > test/hashes.txt
 //
 // Run as `test_golden hostile` (the golden_hostile test), it plays a
 // hostile host instead: the floating-point settings test_fenv.h plays
