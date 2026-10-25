@@ -338,7 +338,7 @@ bool m3ReplaySetShapeDensity(m3World* world, const m3ReplayRecord* r)
     {
         return false; // hostile bytes fail loudly
     }
-    m3SetShapeDensityInternal(world, slot, record.value, record.updateMass);
+    m3SetShapeDensityInternal(world, slot, record.value);
     return true;
 }
 

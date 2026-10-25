@@ -582,7 +582,7 @@ either edge.
 
 Shape materials are runtime-settable and journaled:
 `m3Shape_SetFriction`, `SetRestitution`, `SetRollingResistance`,
-and `SetDensity` (the latter with an optional mass rebuild).
+and `SetDensity` (the latter rebuilds the body's mass).
 Contacts read materials at prepare, so changes bind next step; a
 sleeping stack keeps its old mix until something wakes it. World
 knobs: `m3World_SetGravity` (sleepers stay asleep until

@@ -404,7 +404,7 @@ static void TestStaleRuntimeSetters(void)
             m3Shape_SetFriction(world, staleS, 0.1f);
             m3Shape_SetRestitution(world, staleS, 0.9f);
             m3Shape_SetRollingResistance(world, staleS, 0.2f);
-            m3Shape_SetDensity(world, staleS, 4.0f, true);
+            m3Shape_SetDensity(world, staleS, 4.0f);
             m3Shape_EnableHitEvents(world, staleS, true);
             m3Shape_EnablePreSolve(world, staleS, true);
             m3Joint_SetLimits(world, staleJ, true, -1.0f, 1.0f);

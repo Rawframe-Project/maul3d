@@ -290,23 +290,10 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
     {
         world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-        world->bodies.invMass[index] = 0.0f;
-        world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
     }
-    else
-    {
-        // Kinematic keeps zero inverse mass; dynamic rebuilds it
-        // from the shapes it carries.
-        if (type == (uint8_t)m3_dynamicBody)
-        {
-            m3RecomputeMass(world, index);
-        }
-        else
-        {
-            world->bodies.invMass[index] = 0.0f;
-            world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
-        }
-    }
+    // Mass, center and extents are a function of the type and the shapes:
+    // a dynamic body rebuilds them, any other has none.
+    m3RecomputeMass(world, index);
     world->bodies.awake[index] = 1;
     world->bodies.sleepTimes[index] = 0.0f;
 }

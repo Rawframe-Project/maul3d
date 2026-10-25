@@ -18,7 +18,7 @@ void m3SetShapeRestitutionInternal(m3World* world, int32_t slot, float value);
 
 void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value);
 
-void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value, int32_t updateMass);
+void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value);
 
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
 

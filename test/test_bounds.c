@@ -425,7 +425,7 @@ static void Reshape(Scene* s, float v)
 // The box's unit volume makes its density its mass.
 static void Density(Scene* s, float v)
 {
-    m3Shape_SetDensity(s->world, s->boxShape, v, true);
+    m3Shape_SetDensity(s->world, s->boxShape, v);
 }
 
 // Twelve boxes of 8e18 kg leave 4e18 kg of the body's mass limit, a
