@@ -364,6 +364,10 @@ static M3_NOINLINE m3Result DestroyBodyWorker(m3World* world, m3BodyId body)
     {
         return m3Refuse(world, m3MissingId(body.index1));
     }
+    if (m3CharacterOwnsBody(world, index))
+    {
+        return m3Refuse(world, m3_errorInvalid); // destroy the character
+    }
     if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opDestroyBody, &body, (int32_t)sizeof(body));
@@ -552,7 +556,8 @@ static M3_NOINLINE void BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyT
     {
         return;
     }
-    if ((type != m3_staticBody && type != m3_kinematicBody && type != m3_dynamicBody))
+    if ((type != m3_staticBody && type != m3_kinematicBody && type != m3_dynamicBody) ||
+        m3CharacterOwnsBody(world, index))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

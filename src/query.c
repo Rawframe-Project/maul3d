@@ -211,9 +211,9 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
                                         (m3real)(point.z - xf->p.z)});
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     m3real cell = world->voxels.voxelData[slot].cellSize;
-    int32_t x = (int32_t)(local.x / cell);
-    int32_t y = (int32_t)(local.y / cell);
-    int32_t z = (int32_t)(local.z / cell);
+    int32_t x = m3CellFromF(local.x / cell, 2.0e9f);
+    int32_t y = m3CellFromF(local.y / cell, 2.0e9f);
+    int32_t z = m3CellFromF(local.z / cell, 2.0e9f);
     if (local.x < 0.0f || local.y < 0.0f || local.z < 0.0f || x >= M3_VOXEL_DIM ||
         y >= M3_VOXEL_DIM || z >= M3_VOXEL_DIM)
     {

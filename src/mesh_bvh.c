@@ -75,6 +75,14 @@ static void SortByAxis(BvhScratch* scratch, uint16_t* order, int32_t s, int32_t 
     memcpy(order + s, scratch->tmp, (size_t)w * sizeof(uint16_t));
 }
 
+// A coordinate on the 16-bit grid, clamped to it. A NaN, from bounds or a
+// query far outside any real range, parks at the low edge instead of
+// reaching the cast; every other value lands where the plain clamp put it.
+static uint16_t QuantClamp(m3real q)
+{
+    return (uint16_t)(q > 0.0f ? (q < 65535.0f ? q : 65535.0f) : 0.0f);
+}
+
 static int32_t BuildRange(m3MeshBvh* bvh, BvhScratch* scratch, int32_t s, int32_t e)
 {
     int32_t nodeIndex = bvh->nodeCount;
@@ -111,8 +119,8 @@ static int32_t BuildRange(m3MeshBvh* bvh, BvhScratch* scratch, int32_t s, int32_
         m3real sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
         m3real ql = floorf((l - rl) * sc);
         m3real qh = ceilf((h - rl) * sc);
-        node->qlo[k] = (uint16_t)m3MaxF(0.0f, m3MinF(65535.0f, ql));
-        node->qhi[k] = (uint16_t)m3MaxF(0.0f, m3MinF(65535.0f, qh));
+        node->qlo[k] = QuantClamp(ql);
+        node->qhi[k] = QuantClamp(qh);
     }
 
     int32_t count = e - s;
@@ -294,14 +302,6 @@ static void SortAscending(uint16_t* values, int32_t count, uint16_t* tmp)
         tmp[w++] = values[b++];
     }
     memcpy(values, tmp, (size_t)count * sizeof(uint16_t));
-}
-
-// A query coordinate on the 16-bit grid, clamped to it. A NaN, from a
-// query computed far outside any real bounds, parks at the low edge
-// instead of reaching the cast.
-static uint16_t QuantClamp(m3real q)
-{
-    return (uint16_t)(q > 0.0f ? (q < 65535.0f ? q : 65535.0f) : 0.0f);
 }
 
 int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out)

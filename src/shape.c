@@ -400,7 +400,8 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     bool prebuilt = content->hull != NULL || content->mesh != NULL ||
                     content->heightField != NULL || content->voxels != NULL;
     if (!m3ShapeDefValid(def) || (!prebuilt && !m3PlainGeomValid(type, geom)) ||
-        !ShapeContentValid(world, bodyIndex, type, def, content))
+        !ShapeContentValid(world, bodyIndex, type, def, content) ||
+        m3CharacterOwnsBody(world, bodyIndex))
     {
         return M3_CREATE_INVALID;
     }
@@ -497,9 +498,10 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     // Only geometry that LIVES in m3ShapeGeom swaps (sphere and
     // capsule, conversions included); interned slabs are immutable.
     uint8_t current = world->shapes.shapeType[slot];
-    if (current != (uint8_t)m3_sphereShape && current != (uint8_t)m3_capsuleShape)
+    if ((current != (uint8_t)m3_sphereShape && current != (uint8_t)m3_capsuleShape) ||
+        m3CharacterOwnsBody(world, world->shapes.shapeBody[slot]))
     {
-        return false;
+        return false; // a character's capsule changes only through its stance
     }
     if (type == (uint8_t)m3_sphereShape)
     {
@@ -660,6 +662,10 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
     if (index < 0)
     {
         return m3Refuse(world, m3MissingId(shape.index1));
+    }
+    if (m3CharacterOwnsBody(world, world->shapes.shapeBody[index]))
+    {
+        return m3Refuse(world, m3_errorInvalid); // the character's capsule
     }
     if (world->recorder.journalActive != 0)
     {

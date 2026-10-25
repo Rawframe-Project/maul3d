@@ -61,6 +61,7 @@ typedef struct FuzzScene
     m3ShapeId voxels;
     m3JointId hinge;
     m3WaterVolumeId pool;
+    m3CharacterId hero;
     int32_t failures; // creates that refused
 } FuzzScene;
 
@@ -198,7 +199,8 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
     cd.radius = 0.2f;
     cd.halfHeight = 0.3f;
     cd.position = (m3Pos3){-2.0, 1.0, -2.0};
-    FuzzCreated(scene, m3Character_IsValid(world, NewCharacter(world, &cd)));
+    scene->hero = NewCharacter(world, &cd);
+    FuzzCreated(scene, m3Character_IsValid(world, scene->hero));
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
     pool.lo = (m3Pos3){1.0, 0.0, 1.0};

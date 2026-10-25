@@ -276,7 +276,7 @@ bool m3ReplayDestroyShape(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&id, payload, sizeof(id));
     int32_t index = m3ShapeSlot(world, id);
-    if (index < 0)
+    if (index < 0 || m3CharacterOwnsBody(world, world->shapes.shapeBody[index]))
     {
         return false;
     }

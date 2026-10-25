@@ -52,6 +52,11 @@ extern "C"
     /// Creates the character and its internal kinematic capsule
     /// body (destroyed together). The body collides like any
     /// kinematic: dynamics bounce off it; it walks through nothing.
+    /// The character owns the body and the capsule, which queries
+    /// report like any shape: m3DestroyShape, m3DestroyBody,
+    /// m3Body_SetType, m3Shape_SetSphere, m3Shape_SetCapsule and a
+    /// shape create on that body refuse them with m3_errorInvalid.
+    /// Destroy the character instead; m3Character_SetStance resizes it.
     M3_NODISCARD M3_API m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def,
                                                    m3CharacterId* characterOut);
     M3_NODISCARD M3_API m3Result m3DestroyCharacter(m3World* world, m3CharacterId character);
