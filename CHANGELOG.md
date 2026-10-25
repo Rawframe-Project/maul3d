@@ -6,17 +6,45 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [0.3.0](https://github.com/Rawframe-Project/maul3d/compare/v0.2.1...v0.3.0) (2026-10-25)
+## [0.3.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.3.0) (2026-10-25)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **character:** a character's body and capsule can no longer be destroyed or converted on their own; destroy the character. `m3DestroyShape`, `m3DestroyBody`, `m3Body_SetType`, `m3Shape_SetSphere`, `m3Shape_SetCapsule` and shape creates on a character's body return `m3_errorInvalid` for them.
+- **Breaking: a character owns its body and capsule.** Queries report a
+  character's capsule like any shape, and `m3Shape_GetBody` gives its
+  body, so a program could destroy, retype or reshape either one, or add
+  a shape to the body, while the character lived on, which the character
+  does not support. `m3DestroyShape`, `m3DestroyBody`, `m3Body_SetType`,
+  `m3Shape_SetSphere`, `m3Shape_SetCapsule` and a shape create on the
+  character's body now refuse them with `m3_errorInvalid`, count a
+  misuse and change nothing; replay refuses the same ops in a tape.
+  Destroy the character instead: that still takes its body and capsule
+  with it, and `m3Character_SetStance` remains the way to resize it.
+  Replay also refuses a body type the public call refuses (outside
+  static, kinematic and dynamic); it used to set any byte.
+  ([#73](https://github.com/Rawframe-Project/maul3d/pull/73))
 
 ### Fixed
 
-* **character:** a character owns its body and capsule ([#73](https://github.com/Rawframe-Project/maul3d/issues/73)) ([ade48fb](https://github.com/Rawframe-Project/maul3d/commit/ade48fbeadee6cb8daa2bdd90e7ebc04129507f2))
-* **query:** bound the voxel cell of a far point ([#71](https://github.com/Rawframe-Project/maul3d/issues/71)) ([9a52698](https://github.com/Rawframe-Project/maul3d/commit/9a52698b5f311fa3956fcf2a0254181a318ee162))
+- **Restore refuses a snapshot whose structures this engine could not
+  have written.** It checked each snapshot block on its own
+  (indices in range, flags, finite floats) but not the structures the
+  blocks form together. It now also checks, before any byte lands: the
+  id pools, the body to shape and joint lists, the broadphase tree, the
+  contact pairs, shared content and its reference counts, and the
+  records of characters, vehicles, soft bodies and joints. Such a
+  snapshot is refused with `m3_errorInvalid` like every other restore
+  refusal, and the world is left as it was. Nothing is rebuilt, so
+  restored worlds still resimulate bit for bit, and every snapshot this
+  engine writes still restores, also one taken between a call and the
+  next step. The snapshot format is unchanged.
+  ([#70](https://github.com/Rawframe-Project/maul3d/pull/70))
+- **`m3World_TestPoint` reports a point far from a voxel chunk as
+  outside it.** The cell of a point's chunk-local coordinates is now
+  bounded like every other grid-cell cast, and the library's other
+  float-to-int conversions were checked the same way. No result changes
+  for any value in range, and no golden or benchmark hash moved.
+  ([#71](https://github.com/Rawframe-Project/maul3d/pull/71))
 
 ## [0.2.1](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.2.1) (2026-10-24)
 
