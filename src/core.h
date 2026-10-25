@@ -11,6 +11,8 @@
 #include "maul3d/base.h"
 #include "maul3d/core_math.h"
 
+#include <float.h>
+
 // M3_ASSERT states an internal invariant: a state that cannot occur
 // unless the library itself is wrong. Caller input is never asserted; it
 // is refused with a status or counted as misuse. The check traps in every
@@ -90,6 +92,43 @@ static inline bool m3BoundedPos3(m3Pos3 p)
     return p.x >= -M3_POSITION_LIMIT && p.x <= M3_POSITION_LIMIT && p.y >= -M3_POSITION_LIMIT &&
            p.y <= M3_POSITION_LIMIT && p.z >= -M3_POSITION_LIMIT &&
            p.z <= M3_POSITION_LIMIT; // false for NaN
+}
+
+// The step holds every body and particle velocity (m/s and rad/s) and
+// every joint row's correction speed within this, whatever the world's
+// own caps say: 250 times the default linear cap, so no scene meets it,
+// and far enough inside float range that a velocity times any mass,
+// lever or step length the engine accepts stays finite.
+#define M3_SPEED_LIMIT 1.0e5f
+
+// v scaled down to length cap when it is longer. A vector within the cap
+// comes back unchanged, and one whose squared length overflows is scaled
+// by its largest component first, so the result is finite either way.
+static inline m3Vec3 m3CapSpeed(m3Vec3 v, m3real cap)
+{
+    m3real v2 = m3Dot3(v, v);
+    if (!(v2 > cap * cap))
+    {
+        return v;
+    }
+    if (v2 <= FLT_MAX)
+    {
+        return m3MulSV3(cap / sqrtf(v2), v);
+    }
+    m3real big = m3MaxF(m3AbsF(v.x), m3MaxF(m3AbsF(v.y), m3AbsF(v.z)));
+    m3Vec3 u;
+    if (big <= FLT_MAX)
+    {
+        u = m3MulSV3(1.0f / big, v);
+    }
+    else
+    {
+        // An infinite component keeps only the infinite axes' signs.
+        u.x = m3AbsF(v.x) > FLT_MAX ? (v.x > 0.0f ? 1.0f : -1.0f) : 0.0f;
+        u.y = m3AbsF(v.y) > FLT_MAX ? (v.y > 0.0f ? 1.0f : -1.0f) : 0.0f;
+        u.z = m3AbsF(v.z) > FLT_MAX ? (v.z > 0.0f ? 1.0f : -1.0f) : 0.0f;
+    }
+    return m3MulSV3(cap / sqrtf(m3Dot3(u, u)), u);
 }
 
 #endif // MAUL3D_SRC_CORE_H

@@ -141,6 +141,23 @@ static void TestRestitution(void)
     m3DestroyWorld(world);
 }
 
+// Restitution runs after the substeps' speed caps; the step still holds
+// its result within the speed limit (1e5 m/s). A ball arriving at the
+// default 400 m/s cap with restitution 500 would leave at 2e5 m/s.
+static void TestBounceHeldWithinSpeedLimit(void)
+{
+    m3World* world = MakeWorld();
+    AddGroundPlane(world, 0.0f);
+    m3BodyId ball = AddBall(world, 0.0, 0.52, 0.0, 0.5f, 0.0f, 500.0f);
+    m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, -400.0f, 0.0f});
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
+    float speed = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    CHECK(v.y > 400.0f, "the ball bounces harder than it arrived");
+    CHECK(speed <= 1.0e5f * 1.0001f, "the bounce is held within the speed limit");
+    m3DestroyWorld(world);
+}
+
 static void TestFrictionSlows(void)
 {
     // The same sliding ball on a frictionless versus a frictional
@@ -1093,6 +1110,7 @@ int main(void)
     TestRestOnPlane();
     TestStandingStack();
     TestRestitution();
+    TestBounceHeldWithinSpeedLimit();
     TestFrictionSlows();
     TestSlideDistanceLaw();
     TestBoxRests();

@@ -93,6 +93,39 @@ static void TestPendulum(void)
     m3DestroyWorld(world);
 }
 
+// A joint error pushes its bodies back no faster than the speed limit
+// (1e5 m/s): a ball socket pulled 1e4 m out of place closes by at most
+// 1e5 m/s times the step, and closes completely within a few steps.
+static void TestFarErrorClosesAtSpeedLimit(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId anchor = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    m3BodyId bob = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, bob, &sd, &ball);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_sphericalJoint;
+    jd.bodyIdA = anchor;
+    jd.bodyIdB = bob;
+    NewJoint(world, &jd);
+    m3Body_SetTransform(world, bob, (m3Pos3){1.0e4, 0.0, 0.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    m3World_Step(world, 1.0f / 60.0f, 1);
+    double x = m3Body_GetPosition(world, bob).x;
+    CHECK(x < 1.0e4 && x >= 1.0e4 - 1.0e5 / 60.0 * 1.0001,
+          "the error closes no faster than the speed limit");
+    StepN(world, 20);
+    CHECK(fabs(m3Body_GetPosition(world, bob).x) < 1.0, "the error closes");
+    m3DestroyWorld(world);
+}
+
 static void TestChainSettlesAndSleeps(void)
 {
     // Four links hang from a static anchor, settle vertically, and
@@ -1203,6 +1236,7 @@ int main(void)
     TestNewJointContracts();
     TestFrameBuilderBranches();
     TestPendulum();
+    TestFarErrorClosesAtSpeedLimit();
     TestChainSettlesAndSleeps();
     TestJointContracts();
     TestDoorSwings();

@@ -108,6 +108,21 @@ static void TestImpulseBooks(void)
     m3Body_ApplyAngularImpulse(world, three, (m3Vec3){0.0f, 0.0f, 0.5f});
     CHECK(fabsf(m3Body_GetAngularVelocity(world, three).z - 3.0f) < 0.01f,
           "an angular impulse is invI times L");
+
+    // The books hold at any size: a 1 km sphere of density 1 has
+    // I = 0.4 m r^2 = 0.4 (4/3 pi 1e9) 1e6, about 1.68e15, so L = I
+    // turns it at 1 rad/s.
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 5000.0, 0.0};
+    m3BodyId hill = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 1000.0f};
+    NewSphereShape(world, hill, &sd, &ball);
+    float inertia = 0.4f * (4.0f / 3.0f * 3.14159265f * 1.0e9f) * 1.0e6f;
+    m3Body_ApplyAngularImpulse(world, hill, (m3Vec3){0.0f, 0.0f, inertia});
+    CHECK(fabsf(m3Body_GetAngularVelocity(world, hill).z - 1.0f) < 1.0e-3f,
+          "a large body's angular impulse is invI times L too");
     m3DestroyWorld(world);
 }
 

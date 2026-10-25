@@ -151,26 +151,33 @@ void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverC
         w = Gyroscopic(world, i, w, h);
         // Safety caps: a degenerate setup is held here instead of
         // pumping speed into infinity.
-        m3real v2 = m3Dot3(v, v);
-        m3real cap = world->maximumLinearSpeed;
-        if (v2 > cap * cap)
-        {
-            v = m3MulSV3(cap / sqrtf(v2), v);
-        }
+        v = m3CapSpeed(v, world->maximumLinearSpeed);
         // The angular cap is waived for bodies that allow fast
-        // rotation (bodyLocks bit 6). Its default sits far above any
-        // real tumbling.
+        // rotation (bodyLocks bit 6); m3CapMoverSpeeds still holds them
+        // within the speed limit. Its default sits far above any real
+        // tumbling.
         if ((world->bodies.bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
         {
-            m3real w2 = m3Dot3(w, w);
-            m3real wcap = world->maximumAngularSpeed;
-            if (w2 > wcap * wcap)
-            {
-                w = m3MulSV3(wcap / sqrtf(w2), w);
-            }
+            w = m3CapSpeed(w, world->maximumAngularSpeed);
         }
         world->bodies.linearVelocities[i] = v;
         world->bodies.angularVelocities[i] = w;
+    }
+}
+
+void m3CapMoverSpeeds(m3World* world, const int32_t* movers, int32_t moverCount)
+{
+    // Warm starting and restitution add stored impulses to velocities
+    // after the caps above, which a world may set high and a flagged body
+    // skips; this holds every mover within the speed limit before
+    // positions or the next step read it.
+    for (int32_t m = 0; m < moverCount; ++m)
+    {
+        int32_t i = movers[m];
+        world->bodies.linearVelocities[i] =
+            m3CapSpeed(world->bodies.linearVelocities[i], M3_SPEED_LIMIT);
+        world->bodies.angularVelocities[i] =
+            m3CapSpeed(world->bodies.angularVelocities[i], M3_SPEED_LIMIT);
     }
 }
 

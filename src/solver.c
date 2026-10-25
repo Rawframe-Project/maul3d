@@ -297,10 +297,10 @@ static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t sub
     return true;
 }
 
-// The substeps: forces in; warm start, then the biased pass pushing
-// overlap and joint error out (joints first, so contacts see the
-// joints' result); positions move; then the relax pass, unbiased,
-// removes the velocity the push added.
+// The substeps: forces in; warm start, held within the speed limit, then
+// the biased pass pushing overlap and joint error out (joints first, so
+// contacts see the joints' result); positions move; then the relax pass,
+// unbiased, removes the velocity the push added.
 static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
 {
     for (int32_t sub = 0; sub < substeps; ++sub)
@@ -308,6 +308,7 @@ static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
         m3IntegrateVelocities(world, s->movers, s->moverCount, &s->buoy, s->h);
         m3WarmStartJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot);
         m3RunContactStage(world, &s->contacts, m3_contactWarmStart);
+        m3CapMoverSpeeds(world, s->movers, s->moverCount);
         m3SolveJoints(world, s->joints, s->jointCount, s->deltaPos, s->deltaRot, s->h, s->invH,
                       true);
         m3RunContactStage(world, &s->contacts, m3_contactSolve);
@@ -319,7 +320,8 @@ static void SolveSubsteps(m3World* world, m3StepScratch* s, int32_t substeps)
 }
 
 // After the substeps: host forces are consumed (a force lives for one
-// step, and only movers can carry one), restitution runs, impulses are
+// step, and only movers can carry one), restitution runs and the speed
+// limit holds its result, impulses are
 // stored for the next warm start, the wind advances and overloaded
 // joints break.
 static void FinishSolve(m3World* world, const m3StepScratch* s, float dt)
@@ -330,6 +332,7 @@ static void FinishSolve(m3World* world, const m3StepScratch* s, float dt)
         world->bodies.bodyTorque[s->movers[m]] = (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     m3RunContactStage(world, &s->contacts, m3_contactRestitution);
+    m3CapMoverSpeeds(world, s->movers, s->moverCount);
     m3RunContactStage(world, &s->contacts, m3_contactStore);
     m3StoreJointImpulses(world, s->joints, s->jointCount);
     world->lastInvH = s->invH;
