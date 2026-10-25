@@ -61,7 +61,7 @@ extern "C"
         bool enableSleep;        // false = this body never sleeps
         float sleepThreshold;    // resting speed; zero = the world default
         bool isEnabled;          // false = created outside simulation and queries
-        bool enableFastRotation; // may spin past the world's angular speed cap
+        bool enableFastRotation; // may spin past the world's angular cap, up to 1e5 rad/s
         int32_t internalValue;
     } m3BodyDef;
 
@@ -154,7 +154,8 @@ extern "C"
     M3_API void m3Body_SetMotionLocks(m3World* world, m3BodyId body, m3MotionLocks locks);
     M3_API m3MotionLocks m3Body_GetMotionLocks(const m3World* world, m3BodyId body);
     /// Let this body spin past the world's angular speed cap (for
-    /// wheels and other legal fast spinners). Journaled.
+    /// wheels and other legal fast spinners), up to the 1e5 rad/s the
+    /// step holds every body within. Journaled.
     M3_API void m3Body_EnableFastRotation(m3World* world, m3BodyId body, bool flag);
     M3_API bool m3Body_IsFastRotationEnabled(const m3World* world, m3BodyId body);
     /// Debug name, up to 31 bytes plus the terminator; longer names

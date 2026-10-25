@@ -49,6 +49,20 @@ m3real m3RowMass(const m3JointRow* row, const m3JointBodies* b)
     return k > 0.0f ? 1.0f / k : 0.0f;
 }
 
+// A row's correction speed, held within the speed limit: an error of any
+// size is pushed out no faster than a body may move, which keeps every
+// solve below finite. A bias within the limit is returned unchanged.
+static m3real CapBias(m3real bias)
+{
+    return m3ClampF(bias, -M3_SPEED_LIMIT, M3_SPEED_LIMIT);
+}
+
+static m3Vec3 CapBias3(m3Vec3 bias)
+{
+    m3Vec3 capped = {CapBias(bias.x), CapBias(bias.y), CapBias(bias.z)};
+    return capped;
+}
+
 void m3PushRow(const m3JointRow* row, m3JointBodies* b, m3real impulse)
 {
     b->vA = m3Add3(b->vA, m3MulSV3(b->mA * impulse, row->linA));
@@ -67,7 +81,7 @@ m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3r
     }
     m3real old = *accumulated;
     m3real speed = m3RowSpeed(row, b);
-    m3real next = old - mass * (drive.scale * speed + drive.bias) - drive.leak * old;
+    m3real next = old - mass * (drive.scale * speed + CapBias(drive.bias)) - drive.leak * old;
     m3real bound = mass * M3_ROW_SPEED_BOUND;
     lo = m3MaxF(lo, -bound);
     hi = m3MinF(hi, bound);
@@ -92,8 +106,8 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
         m3SolveRow(&rows[1], b, two, second, -M3_ROW_FREE, M3_ROW_FREE);
         return;
     }
-    m3real x = drive.scale * m3RowSpeed(&rows[0], b) + bias[0];
-    m3real y = drive.scale * m3RowSpeed(&rows[1], b) + bias[1];
+    m3real x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
+    m3real y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
     m3real inv = 1.0f / det;
     m3real dx = -inv * (k22 * x - k12 * y) - drive.leak * *first;
     m3real dy = -inv * (k11 * y - k12 * x) - drive.leak * *second;
@@ -159,7 +173,7 @@ void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, 
     }
     m3Vec3 speed =
         m3Sub3(m3Add3(b->vB, m3Cross3(b->wB, armB)), m3Add3(b->vA, m3Cross3(b->wA, armA)));
-    m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, speed), bias);
+    m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, speed), CapBias3(bias));
     m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, m3Solve3(&k, rhs)), m3MulSV3(drive.leak, *accumulated));
     m3PushPoint(armA, armB, b, WithinBall(accumulated, impulse, budget, &k));
 }
@@ -174,7 +188,7 @@ void m3SolveTurnBlock(m3JointBodies* b, m3Vec3 bias, m3RowDrive drive, m3Vec3* a
                       m3real budget)
 {
     m3Mat3 k = {m3Add3(b->iA.cx, b->iB.cx), m3Add3(b->iA.cy, b->iB.cy), m3Add3(b->iA.cz, b->iB.cz)};
-    m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, m3Sub3(b->wB, b->wA)), bias);
+    m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, m3Sub3(b->wB, b->wA)), CapBias3(bias));
     m3Vec3 impulse = m3Sub3(m3MulSV3(-1.0f, m3Solve3(&k, rhs)), m3MulSV3(drive.leak, *accumulated));
     m3PushTurn(b, WithinBall(accumulated, impulse, budget, &k));
 }

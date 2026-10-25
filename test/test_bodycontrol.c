@@ -106,6 +106,15 @@ static void TestKinematicServo(void)
     m3Pos3 q = m3Body_GetPosition(world, slab);
     CHECK(fabs(q.x - p.x) < 1.0e-6 && fabs(q.y - p.y) < 1.0e-6,
           "the order cleared: no further servo pull");
+    // A target 3 km away needs 1.8e5 m/s for one 60 Hz step, past the
+    // speed limit the step holds dynamic bodies to; the servo still
+    // lands it.
+    m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0, 2.5, -0.5},
+                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    m3Pos3 far = m3Body_GetPosition(world, slab);
+    CHECK(fabs(far.x - 3000.0) < 1.0e-2 && fabs(far.y - 2.5) < 1.0e-4,
+          "the servo lands a far target in one step");
     m3DestroyWorld(world);
 }
 

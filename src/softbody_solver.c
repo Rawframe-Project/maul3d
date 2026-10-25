@@ -156,11 +156,14 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
             (m3real)(world->softBodies.softPos[k].x - world->bodies.transforms[body].p.x) - rlc.x,
             (m3real)(world->softBodies.softPos[k].y - world->bodies.transforms[body].p.y) - rlc.y,
             (m3real)(world->softBodies.softPos[k].z - world->bodies.transforms[body].p.z) - rlc.z};
-        world->bodies.linearVelocities[body] =
-            m3Add3(world->bodies.linearVelocities[body], m3MulSV3(world->bodies.invMass[body], J));
+        // The step's last velocity write, so it keeps the speed limit.
+        world->bodies.linearVelocities[body] = m3CapSpeed(
+            m3Add3(world->bodies.linearVelocities[body], m3MulSV3(world->bodies.invMass[body], J)),
+            M3_SPEED_LIMIT);
         world->bodies.angularVelocities[body] =
-            m3Add3(world->bodies.angularVelocities[body],
-                   m3MulMV3(m3WorldInvInertia(world, body), m3Cross3(arm, J)));
+            m3CapSpeed(m3Add3(world->bodies.angularVelocities[body],
+                              m3MulMV3(m3WorldInvInertia(world, body), m3Cross3(arm, J))),
+                       M3_SPEED_LIMIT);
         world->bodies.awake[body] = 1;
         world->bodies.sleepTimes[body] = 0.0f;
     }
@@ -636,12 +639,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 // float overflow, positions went NaN, and a NaN cell
                 // index was undefined behavior. A capped velocity
                 // can never outrun the double range.
-                m3real pv2 = m3Dot3(v, v);
-                m3real pcap = world->maximumLinearSpeed;
-                if (pv2 > pcap * pcap)
-                {
-                    v = m3MulSV3(pcap / sqrtf(pv2), v);
-                }
+                v = m3CapSpeed(v, m3MinF(world->maximumLinearSpeed, M3_SPEED_LIMIT));
                 if (windDrag > 0.0f)
                 {
                     v = m3Add3(v, m3MulSV3(h * windDrag, m3Sub3(windVel, v)));

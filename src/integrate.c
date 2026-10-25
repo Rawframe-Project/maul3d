@@ -61,7 +61,11 @@ static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
                     i22 + h * (w1 * i12 - w2 * i02)};
     omega2 = m3Sub3(omega2, m3Solve3(&J, b));
 
-    return m3RotateVec3(q, omega2);
+    // The Newton step works in w^2 times the inertia, which can leave
+    // float range for a large body; then the spin goes on unchanged, as
+    // it does for a singular Jacobian.
+    m3Vec3 turned = m3RotateVec3(q, omega2);
+    return m3FiniteV3(turned) ? turned : w;
 }
 
 // The mover list: awake dynamics and kinematics in ascending slot order,
@@ -151,26 +155,38 @@ void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverC
         w = Gyroscopic(world, i, w, h);
         // Safety caps: a degenerate setup is held here instead of
         // pumping speed into infinity.
-        m3real v2 = m3Dot3(v, v);
-        m3real cap = world->maximumLinearSpeed;
-        if (v2 > cap * cap)
-        {
-            v = m3MulSV3(cap / sqrtf(v2), v);
-        }
+        v = m3CapSpeed(v, world->maximumLinearSpeed);
         // The angular cap is waived for bodies that allow fast
-        // rotation (bodyLocks bit 6). Its default sits far above any
-        // real tumbling.
+        // rotation (bodyLocks bit 6); m3CapMoverSpeeds still holds them
+        // within the speed limit. Its default sits far above any real
+        // tumbling.
         if ((world->bodies.bodyLocks[i] & M3_LOCKS_ALLOW_FAST_ROTATION) == 0)
         {
-            m3real w2 = m3Dot3(w, w);
-            m3real wcap = world->maximumAngularSpeed;
-            if (w2 > wcap * wcap)
-            {
-                w = m3MulSV3(wcap / sqrtf(w2), w);
-            }
+            w = m3CapSpeed(w, world->maximumAngularSpeed);
         }
         world->bodies.linearVelocities[i] = v;
         world->bodies.angularVelocities[i] = w;
+    }
+}
+
+void m3CapMoverSpeeds(m3World* world, const int32_t* movers, int32_t moverCount)
+{
+    // Warm starting and restitution add stored impulses to velocities
+    // after the caps above, which a world may set high and a flagged body
+    // skips; this holds every dynamic mover within the speed limit before
+    // positions or the next step read it. Kinematic movers take no
+    // impulses, and their servo velocity must land its target.
+    for (int32_t m = 0; m < moverCount; ++m)
+    {
+        int32_t i = movers[m];
+        if (world->bodies.types[i] != (uint8_t)m3_dynamicBody)
+        {
+            continue;
+        }
+        world->bodies.linearVelocities[i] =
+            m3CapSpeed(world->bodies.linearVelocities[i], M3_SPEED_LIMIT);
+        world->bodies.angularVelocities[i] =
+            m3CapSpeed(world->bodies.angularVelocities[i], M3_SPEED_LIMIT);
     }
 }
 

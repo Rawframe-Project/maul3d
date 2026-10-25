@@ -82,6 +82,22 @@ static void TestCapAndEscape(void)
     m3DestroyWorld(world);
 }
 
+// The flag waives the world's cap but not the engine's speed limit
+// (1e5 rad/s). A 1e7 N m torque on the unit cube (I = 1/6) would add
+// 2.5e5 rad/s in the first substep; the step holds it at the limit
+// instead.
+static void TestSpeedLimitHoldsFlaggedSpin(void)
+{
+    m3World* world = SpinWorld();
+    m3BodyId wheel = Spinner(world, 0.0, 0.0f);
+    m3Body_EnableFastRotation(world, wheel, true);
+    m3Body_ApplyTorque(world, wheel, (m3Vec3){0.0f, 1.0e7f, 0.0f});
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(SpinOf(world, wheel) <= 1.0e5f * 1.0001f, "the speed limit holds a flagged body");
+    CHECK(SpinOf(world, wheel) > 0.999e5f, "the limit clamps, it does not kill");
+    m3DestroyWorld(world);
+}
+
 static void TestRuntimeCapAndLockInterplay(void)
 {
     m3World* world = SpinWorld();
@@ -180,6 +196,7 @@ static void TestHostileTape(void)
 int main(void)
 {
     TestCapAndEscape();
+    TestSpeedLimitHoldsFlaggedSpin();
     TestRuntimeCapAndLockInterplay();
     TestHashFoldsOffDefaultOnly();
     TestHostileTape();

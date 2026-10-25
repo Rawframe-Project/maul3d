@@ -186,13 +186,15 @@ extern "C"
     M3_API void m3World_SetRestitutionThreshold(m3World* world, float value);
 
     /// Hard cap on any body's linear speed, applied every substep.
-    /// Journaled.
+    /// The step holds every body within 1e5 m/s whatever the cap, so a
+    /// higher cap acts as 1e5. Journaled.
     M3_API void m3World_SetMaximumLinearSpeed(m3World* world, float value);
 
     /// Hard cap on any body's angular speed in rad/s, applied every
     /// substep. The default (800) is a catastrophe guard, not a
     /// gameplay clamp; bodies flagged with
-    /// m3Body_EnableFastRotation bypass it. Journaled.
+    /// m3Body_EnableFastRotation bypass it. The step holds every body,
+    /// flagged or not, within 1e5 rad/s whatever the cap. Journaled.
     M3_API void m3World_SetMaximumAngularSpeed(m3World* world, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
