@@ -883,6 +883,14 @@ void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle,
     m3FloatEnvLeave(env);
 }
 
+bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, m3real left, m3real right,
+                                m3real brake)
+{
+    // A gearbox and a skid steer are different machines.
+    return m3FiniteF(left) && m3FiniteF(right) && m3FiniteF(brake) &&
+           world->vehicles.vehDtActive[slot] == 0;
+}
+
 static M3_NOINLINE void VehicleSetTankCommandsWorker(m3World* world, m3VehicleId vehicle,
                                                      m3real left, m3real right, m3real brake)
 {
@@ -892,11 +900,10 @@ static M3_NOINLINE void VehicleSetTankCommandsWorker(m3World* world, m3VehicleId
         return;
     }
     int32_t slot = m3VehicleSlot(world, vehicle);
-    if (slot < 0 || !m3FiniteF(left) || !m3FiniteF(right) || !m3FiniteF(brake) ||
-        world->vehicles.vehDtActive[slot] != 0)
+    if (slot < 0 || !m3VehicleTankCommandsValid(world, slot, left, right, brake))
     {
         m3Refuse(world, m3_errorInvalid);
-        return; // a gearbox and a skid steer are different machines
+        return;
     }
     if (world->recorder.journalActive != 0)
     {

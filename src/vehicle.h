@@ -22,6 +22,11 @@ void m3VehicleCommandsInternal(m3World* world, int32_t slot, m3real throttle, m3
 void m3VehicleTankCommandsInternal(m3World* world, int32_t slot, m3real left, m3real right,
                                    m3real brake);
 
+// Skid-steer commands the public call and replay accept: finite, on a
+// vehicle with no drivetrain.
+bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, m3real left, m3real right,
+                                m3real brake);
+
 // The bounds a wheel and a drivetrain must keep, at create, set, replay
 // and restore.
 bool m3WheelDefValid(const m3WheelDef* wd);

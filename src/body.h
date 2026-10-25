@@ -30,6 +30,8 @@ bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
 bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose);
 bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type);
 bool m3BodyParamValid(int32_t param, float value);
+// A sleep threshold, m/s: finite and not negative.
+bool m3SleepThresholdValid(float threshold);
 
 void m3ApplyForceInternal(m3World* world, int32_t index, m3Vec3 force);
 

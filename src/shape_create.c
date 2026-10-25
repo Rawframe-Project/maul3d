@@ -272,17 +272,10 @@ static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
     {
         return target;
     }
-    if (points == NULL || count <= 0)
+    if (!m3HullCloudValid(points, count))
     {
-        return m3Refuse(world, m3_errorInvalid);
-    }
-    for (int32_t i = 0; i < count; ++i)
-    {
-        if (!m3LocalV3(points[i]))
-        {
-            return m3Refuse(world, m3_errorInvalid); // a poisoned or far cloud never
-                                                     // reaches QuickHull's arithmetic
-        }
+        return m3Refuse(world, m3_errorInvalid); // a poisoned or far cloud never
+                                                 // reaches QuickHull's arithmetic
     }
     m3HullData data;
     if (!m3ComputeHull(&world->heap, points, count, &data))

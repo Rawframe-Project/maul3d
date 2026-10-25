@@ -224,6 +224,11 @@ bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type)
     return m3BodyVelocityValid((uint8_t)type, world->bodies.linearVelocities[index]);
 }
 
+bool m3SleepThresholdValid(float threshold)
+{
+    return m3FiniteF(threshold) && threshold >= 0.0f;
+}
+
 bool m3BodyParamValid(int32_t param, float value)
 {
     if (param == m3_bodyParamGravityScale)
@@ -897,7 +902,7 @@ static M3_NOINLINE void BodySetSleepThresholdWorker(m3World* world, m3BodyId bod
     {
         return;
     }
-    if (!m3FiniteF(threshold) || threshold < 0.0f)
+    if (!m3SleepThresholdValid(threshold))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

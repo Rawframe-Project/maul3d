@@ -98,6 +98,8 @@ static bool ParticleScalarsValid(const m3SoftBodyDef* def)
 static bool LatticeDefValid(const m3SoftBodyDef* def)
 {
     if (def->countX < 1 || def->countY < 1 || def->countZ < 1 ||
+        def->countX > M3_SOFTBODY_MAX_PARTICLES || def->countY > M3_SOFTBODY_MAX_PARTICLES ||
+        def->countZ > M3_SOFTBODY_MAX_PARTICLES ||
         (int64_t)def->countX * def->countY * def->countZ > M3_SOFTBODY_MAX_PARTICLES)
     {
         return false;

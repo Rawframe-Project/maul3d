@@ -6,7 +6,7 @@
 // refuses a value just past the limit, counts the refusal once and
 // changes nothing; and a journal recorded at the limit, with that one
 // value changed to just past it, fails to replay while the unchanged
-// journal replays.
+// journal replays. Replay asks the state a call asks as well.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -60,6 +60,7 @@ typedef struct Scene
     m3JointId rope;  // a distance joint with its spring on
     m3JointId servo; // a motor joint
     m3JointId wheel;
+    m3JointId socket; // a site's spherical joint, made in its prepare step
     m3VehicleId car;
     m3CharacterId walker;
 } Scene;
@@ -111,6 +112,7 @@ static void BuildScene(Scene* s)
     m3Capsule rod = {{0.0f, 0.0f, -8.0f}, {1.0f, 0.0f, -8.0f}, 0.5f};
     s->rodShape = NewCapsuleShape(w, s->ground, &sd, &rod);
     s->spare = m3_nullBodyId;
+    s->socket = m3_nullJointId;
 
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;
@@ -358,6 +360,11 @@ static void Target(Scene* s, float v)
     m3Body_SetTargetTransform(s->world, s->kin, (m3Pos3){(double)v, 5.0, 0.0}, s_identity);
 }
 
+static void SleepThreshold(Scene* s, float v)
+{
+    m3Body_SetSleepThreshold(s->world, s->box, v);
+}
+
 static void SpeedKinematic(Scene* s, float v)
 {
     m3Body_SetLinearVelocity(s->world, s->kin, (m3Vec3){0.0f, 0.0f, v});
@@ -528,6 +535,16 @@ static void BoxExtent(Scene* s, float v)
     NewBoxShape(s->world, s->ground, &sd, (m3Vec3){1.0f, v, 1.0f});
 }
 
+// One point of a hull cloud on the ground, v along z; the others keep the
+// cloud from being too thin to build.
+static void HullPoint(Scene* s, float v)
+{
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Vec3 cloud[4] = {
+        {0.0f, 0.0f, 0.0f}, {4000.0f, 0.0f, 0.0f}, {0.0f, 4000.0f, 0.0f}, {0.0f, 0.0f, v}};
+    NewHullShape(s->world, s->ground, &sd, cloud, 4);
+}
+
 // ---- Joints ----
 
 static void MotorSpeed(Scene* s, float v)
@@ -580,6 +597,29 @@ static void SteerEffort(Scene* s, float v)
 static void ServoAim(Scene* s, float v)
 {
     m3Joint_SetMotorPose(s->world, s->servo, (m3Vec3){0.0f, v, 0.0f}, s_identity);
+}
+
+static void HingeTarget(Scene* s, float v)
+{
+    m3Joint_SetTargetAngle(s->world, s->hinge, v);
+}
+
+static void Socket(Scene* s, float v)
+{
+    (void)v;
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_sphericalJoint;
+    jd.bodyIdA = s->ground;
+    jd.bodyIdB = s->box;
+    jd.localAnchorA = (m3Vec3){0.0f, 2.0f, 0.0f};
+    s->socket = NewJoint(s->world, &jd);
+}
+
+// A rotation's w beside z = 0.6: its squared length leaves the unit
+// band, [0.99, 1.01], between 0.806 and 0.807.
+static void SocketTarget(Scene* s, float v)
+{
+    m3Joint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
 }
 
 // A motor joint's limits are its force and torque budgets.
@@ -1050,6 +1090,7 @@ static void TestSites(void)
         {"impulse on a lever", NULL, LeverImpulse, 16650.0f, 16684.0f, 4},
         {"servo target", NULL, Target, 1.0e6f, Up(1.0e6f), 8},
         {"type change speed", SpeedKinematic, TurnDynamic, 1.0e5f, Up(1.0e5f), 4},
+        {"sleep threshold sign", NULL, SleepThreshold, 0.375f, -0.375f, 4},
         {"type change mass", SpeckKinematic, SpareDynamic, 6.25e-3f, 6.15e-3f, 4},
         // Shapes.
         {"shape mass floor", EmptyDynamic, LightSphere, 6.25e-3f, 6.15e-3f, 4},
@@ -1070,6 +1111,7 @@ static void TestSites(void)
         {"capsule radius", NULL, CapsuleRadius, 1.0e4f, Up(1.0e4f), 4},
         {"capsule point", NULL, CapsulePoint, 1.0e4f, Up(1.0e4f), 4},
         {"box extent", NULL, BoxExtent, 1.0e4f, Up(1.0e4f), 4},
+        {"hull point", NULL, HullPoint, 1.0e4f, Up(1.0e4f), 4},
         // Joints.
         {"motor speed", NULL, MotorSpeed, 1.0e5f, Up(1.0e5f), 4},
         {"motor effort", NULL, MotorEffort, 1.0e20f, Up(1.0e20f), 4},
@@ -1081,6 +1123,8 @@ static void TestSites(void)
         {"steer damping", NULL, SteerRatio, 1.0e4f, Up(1.0e4f), 4},
         {"steer effort", NULL, SteerEffort, 1.0e20f, Up(1.0e20f), 4},
         {"servo aim", NULL, ServoAim, 1.0e4f, Up(1.0e4f), 4},
+        {"hinge target angle", NULL, HingeTarget, M3_PI, Up(M3_PI), 4},
+        {"socket target rotation", Socket, SocketTarget, 0.806f, 0.807f, 4},
         {"servo force budget", NULL, ServoForce, 1.0e20f, Up(1.0e20f), 4},
         {"servo torque budget", NULL, ServoTorque, 1.0e20f, Up(1.0e20f), 4},
         {"def motor speed", NULL, DefMotorSpeed, 1.0e5f, Up(1.0e5f), 4},
@@ -1207,6 +1251,72 @@ static void TestMassFloorsDynamicOnly(void)
     m3DestroyWorld(s.world);
 }
 
+// Replay asks the state the public calls ask, not only the values: a
+// journal recorded where a call is accepted refuses to replay onto a world
+// where that call is refused, and replays onto the one it was recorded on.
+typedef void StateFn(Scene* s);
+
+static void TankCommands(Scene* s)
+{
+    m3Vehicle_SetTankCommands(s->world, s->car, 0.5f, 0.25f, 0.0f);
+}
+
+static void Gearbox(Scene* s)
+{
+    m3DrivetrainDef dd = m3DefaultDrivetrainDef();
+    m3Vehicle_SetDrivetrain(s->world, s->car, &dd);
+}
+
+static void PutToSleep(Scene* s)
+{
+    m3Body_SetAwake(s->world, s->box, false);
+}
+
+static void BoxKinematic(Scene* s)
+{
+    m3Body_SetType(s->world, s->box, m3_kinematicBody);
+}
+
+static void CheckReplayState(const char* name, StateFn* call, StateFn* refusing)
+{
+    char what[192];
+    Scene s;
+    BuildScene(&s);
+    int32_t snapshotBytes = m3World_SnapshotSize(s.world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
+    Snapshot(s.world, snapshot, snapshotBytes);
+    uint64_t misuse = Misuse(s.world);
+    StartJournal(s.world, s_journal, (int32_t)sizeof(s_journal));
+    call(&s);
+    int32_t journalBytes = StopJournal(s.world);
+    snprintf(what, sizeof(what), "%s: the call is accepted", name);
+    CHECK(Misuse(s.world) == misuse, what);
+    m3DestroyWorld(s.world);
+    snprintf(what, sizeof(what), "%s: the journal replays as recorded", name);
+    CHECK(ReplaysOnto(snapshot, snapshotBytes, journalBytes), what);
+
+    BuildScene(&s);
+    refusing(&s);
+    misuse = Misuse(s.world);
+    snapshotBytes = m3World_SnapshotSize(s.world);
+    uint8_t* changed = (uint8_t*)realloc(snapshot, (size_t)snapshotBytes);
+    CHECK(changed != NULL, "the snapshot buffer grows");
+    Snapshot(s.world, changed, snapshotBytes);
+    call(&s);
+    snprintf(what, sizeof(what), "%s: the call is refused once the state changes", name);
+    CHECK(Misuse(s.world) == misuse + 1, what);
+    m3DestroyWorld(s.world);
+    snprintf(what, sizeof(what), "%s: replay refuses it onto that state", name);
+    CHECK(!ReplaysOnto(changed, snapshotBytes, journalBytes), what);
+    free(changed);
+}
+
+static void TestReplayState(void)
+{
+    CheckReplayState("skid steer on a gearbox", TankCommands, Gearbox);
+    CheckReplayState("sleep on a body that is not dynamic", PutToSleep, BoxKinematic);
+}
+
 int main(void)
 {
     TestSites();
@@ -1214,6 +1324,7 @@ int main(void)
     TestFrequencySign();
     TestTypeChanges();
     TestMassFloorsDynamicOnly();
+    TestReplayState();
     if (s_failures == 0)
     {
         printf("test_bounds: all green\n");
