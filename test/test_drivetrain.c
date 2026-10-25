@@ -86,7 +86,7 @@ static void TestUphillBogAndClimb(void)
     // and the car bogs; first gear multiplies it past and the car
     // climbs. Flat driveForce could only ever do one of the two.
     double progress[2];
-    for (int32_t attempt = 0; attempt < 2; ++attempt)
+    for (int32_t variant = 0; variant < 2; ++variant)
     {
         m3World* world = RampWorld();
         m3BodyId chassis;
@@ -94,7 +94,7 @@ static void TestUphillBogAndClimb(void)
         m3DrivetrainDef dt = m3DefaultDrivetrainDef();
         dt.autoShift = false; // the gear is the experiment variable
         m3Vehicle_SetDrivetrain(world, car, &dt);
-        m3Vehicle_SelectGear(world, car, attempt == 0 ? 5 : 1);
+        m3Vehicle_SelectGear(world, car, variant == 0 ? 5 : 1);
         for (int32_t i = 0; i < 120; ++i)
         {
             m3World_Step(world, 1.0f / 60.0f, 4); // settle on the slope
@@ -105,11 +105,8 @@ static void TestUphillBogAndClimb(void)
         {
             m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        progress[attempt] = m3Body_GetPosition(world, chassis).x - startX;
-        CHECK(m3Vehicle_GetGear(world, car) == (attempt == 0 ? 5 : 1), "the manual gear holds");
-        if (attempt == 1)
-        {
-        }
+        progress[variant] = m3Body_GetPosition(world, chassis).x - startX;
+        CHECK(m3Vehicle_GetGear(world, car) == (variant == 0 ? 5 : 1), "the manual gear holds");
         m3DestroyWorld(world);
     }
     CHECK(progress[0] < 0.5, "top gear bogs on the slope");
