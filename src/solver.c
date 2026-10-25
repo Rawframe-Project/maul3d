@@ -90,7 +90,8 @@ static void AdvanceWind(m3World* world, float dt)
         world->windPhase += 2.0f * M3_PI * world->windGustHertz * dt;
         if (world->windPhase > 2.0f * M3_PI)
         {
-            world->windPhase -= 2.0f * M3_PI * (m3real)(int32_t)(world->windPhase / (2.0f * M3_PI));
+            world->windPhase -=
+                2.0f * M3_PI * (m3real)m3CellFromF(world->windPhase / (2.0f * M3_PI), 0.0f);
         }
     }
 }
