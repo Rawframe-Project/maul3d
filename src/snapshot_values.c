@@ -195,11 +195,11 @@ static bool RotationsValid(const m3Incoming* inc)
 
 // --- Characters and vehicles ---------------------------------------------
 
-// A live character holds the slot of the body it was made with, which a
-// program can reach and destroy, retype or reshape on its own, keeps the
-// dimensions its create and stance changes accepted, and stands on
-// nothing or on a live body (a body's destroy clears the characters
-// standing on it).
+// A live character owns a live kinematic body whose only shape is its
+// capsule (no call may destroy, retype, reshape or add to them on their
+// own), keeps the dimensions its create and stance changes accepted, and
+// stands on nothing or on a live body (a body's destroy clears the
+// characters standing on it).
 static bool CharactersValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, characters.charPool.alive));
@@ -213,14 +213,22 @@ static bool CharactersValid(const m3Incoming* inc)
     const uint8_t* mass = m3InField(inc, offsetof(m3World, characters.charMass));
     const uint8_t* pushMax = m3InField(inc, offsetof(m3World, characters.charPushMax));
     const uint8_t* bodyAlive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
+    const uint8_t* bodyTypes = m3InField(inc, offsetof(m3World, bodies.types));
+    const uint8_t* shapeHead = m3InField(inc, offsetof(m3World, bodies.bodyShapeHead));
+    const uint8_t* shapeType = m3InField(inc, offsetof(m3World, shapes.shapeType));
+    const uint8_t* shapeNext = m3InField(inc, offsetof(m3World, shapes.shapeNext));
     for (int32_t c = 0; c < inc->world->characters.charPool.capacity; ++c)
     {
         if (alive[c] == 0)
         {
             continue;
         }
+        int32_t b = m3InI32(body, c);
         int32_t under = m3InI32(ground, c);
-        if (m3InI32(body, c) < 0 || (under != -1 && bodyAlive[under] == 0))
+        int32_t capsule = b < 0 ? -1 : m3InI32(shapeHead, b);
+        if (b < 0 || bodyAlive[b] == 0 || bodyTypes[b] != (uint8_t)m3_kinematicBody ||
+            capsule < 0 || shapeType[capsule] != (uint8_t)m3_capsuleShape ||
+            m3InI32(shapeNext, capsule) != -1 || (under != -1 && bodyAlive[under] == 0))
         {
             return false;
         }

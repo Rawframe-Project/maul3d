@@ -193,6 +193,13 @@ static void CharacterWithoutBody(const Scene* scene, uint8_t* snap)
     PutI32(I32_AT(characters.charBody, slot), -1);
 }
 
+static void CharacterOnStaticBody(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->characters.charPool.alive, world->characters.charPool.capacity);
+    PutI32(I32_AT(characters.charBody, slot), scene->ground);
+}
+
 static void GearWithoutDrivetrain(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -264,6 +271,7 @@ static const Case s_cases[] = {
     {"a sphere with a negative radius", SphereRadiusNegative},
     {"a joint frame twice unit length", JointFrameLong},
     {"a live character with no body slot", CharacterWithoutBody},
+    {"a character on a static body", CharacterOnStaticBody},
     {"a gear with no drivetrain", GearWithoutDrivetrain},
     {"a vehicle with no chassis", VehicleWithoutChassis},
     {"a soft edge past the particles", EdgePastParticles},
@@ -344,34 +352,6 @@ static void TeleportCrate(m3World* world, const FuzzScene* scene)
     m3Body_SetTransform(world, scene->crate, (m3Pos3){40.0, 5.0, 40.0}, m3MakeIdentityQuat());
 }
 
-static m3ShapeId CharacterCapsule(const m3World* world)
-{
-    // The character stands at (-2, 1, -2), clear of every other shape.
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){-2.0, 4.0, -2.0}, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit, "a ray reaches the character's capsule");
-    return hit.shapeId;
-}
-
-static void RetypeCharacterBody(m3World* world, const FuzzScene* scene)
-{
-    (void)scene;
-    m3Body_SetType(world, m3Shape_GetBody(world, CharacterCapsule(world)), m3_dynamicBody);
-}
-
-static void DestroyCharacterCapsule(m3World* world, const FuzzScene* scene)
-{
-    (void)scene;
-    CHECK(m3DestroyShape(world, CharacterCapsule(world)) == m3_success, "the capsule is destroyed");
-}
-
-static void DestroyCharacterBody(m3World* world, const FuzzScene* scene)
-{
-    (void)scene;
-    CHECK(m3DestroyBody(world, m3Shape_GetBody(world, CharacterCapsule(world))) == m3_success,
-          "the character's body is destroyed");
-}
-
 typedef struct EngineCase
 {
     const char* name;
@@ -382,9 +362,6 @@ static const EngineCase s_engineCases[] = {
     {"a shape destroyed, its pairs not yet rebuilt", DestroyBall},
     {"a destroyed shape's slot taken by a new one", DestroyBallAndCreate},
     {"a body teleported away from its pairs", TeleportCrate},
-    {"a character's body retyped", RetypeCharacterBody},
-    {"a character's capsule destroyed", DestroyCharacterCapsule},
-    {"a character's body destroyed", DestroyCharacterBody},
 };
 
 static void TestRestoreAcceptsWhatTheEngineWrites(void)
