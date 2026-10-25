@@ -101,6 +101,7 @@ maul_add_test(fpenv WHITEBOX)
 maul_add_test(softcull WHITEBOX)
 maul_add_test(format WHITEBOX)
 maul_add_test(restore_links WHITEBOX)
+maul_add_test(restore_bounds WHITEBOX)
 maul_add_test(warmhold WHITEBOX)
 # The held warm start scenes are pinned in test/hashes.txt too.
 target_compile_definitions(test_warmhold PRIVATE ${maul_golden_definitions})
