@@ -82,7 +82,9 @@ static M3_NOINLINE m3CosSin ComputeCosSinWorker(m3real radians)
         1.0f + r2 * (-0.5f + r2 * (0.041666668f + r2 * (-0.0013888889f + r2 * 2.4801588e-05f)));
     m3real cosine;
     m3real sine;
-    switch ((int32_t)k & 3)
+    // k is in [-2, 2] for a finite angle; a NaN one picks quadrant zero
+    // instead of reaching the cast.
+    switch ((k == k ? (int32_t)k : 0) & 3)
     {
     case 0:
         cosine = c;

@@ -185,9 +185,9 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
 {
     const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     m3real cell = chunk->cellSize;
-    int32_t sx = (int32_t)(localPoint.x / cell);
-    int32_t sy = (int32_t)(localPoint.y / cell);
-    int32_t sz = (int32_t)(localPoint.z / cell);
+    int32_t sx = m3CellFromF(localPoint.x / cell, 2.0e9f);
+    int32_t sy = m3CellFromF(localPoint.y / cell, 2.0e9f);
+    int32_t sz = m3CellFromF(localPoint.z / cell, 2.0e9f);
     if (localPoint.x < 0.0f || localPoint.y < 0.0f || localPoint.z < 0.0f || sx >= M3_VOXEL_DIM ||
         sy >= M3_VOXEL_DIM || sz >= M3_VOXEL_DIM || !m3VoxelGet(chunk, sx, sy, sz))
     {

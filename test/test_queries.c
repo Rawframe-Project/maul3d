@@ -605,6 +605,33 @@ static void TestOverlapAndInsideFamilies(void)
     m3DestroyWorld(world);
 }
 
+// A point far from a voxel chunk lies outside it, on every axis and both
+// sides, however far. A point in a filled cell is still inside.
+static void TestFarPointsMissVoxels(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    static uint8_t cells[16 * 16 * 16];
+    memset(cells, 1, sizeof(cells));
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId chunk = NewVoxelChunkShape(world, ground, &sd, cells, NULL, 0.25f);
+    CHECK(m3World_TestPoint(world, (m3Pos3){0.5, 0.5, 0.5}).index1 == chunk.index1,
+          "a point in a filled cell is inside the chunk");
+    static const double far[] = {1.0e10, 3.0e9, -3.0e9, -1.0e10, 1.0e30};
+    int32_t outside = 0;
+    for (size_t i = 0; i < sizeof(far) / sizeof(far[0]); ++i)
+    {
+        outside += m3World_TestPoint(world, (m3Pos3){far[i], 0.5, 0.5}).index1 == 0 ? 1 : 0;
+        outside += m3World_TestPoint(world, (m3Pos3){0.5, far[i], 0.5}).index1 == 0 ? 1 : 0;
+        outside += m3World_TestPoint(world, (m3Pos3){0.5, 0.5, far[i]}).index1 == 0 ? 1 : 0;
+    }
+    CHECK(outside == 3 * (int32_t)(sizeof(far) / sizeof(far[0])),
+          "a far point on any axis is outside the chunk");
+    m3DestroyWorld(world);
+}
+
 // The generic casts. Boxes carry orientation, hulls carry
 // their cloud, and every cast keeps the family contracts.
 static void TestGenericCasts(void)
@@ -762,6 +789,7 @@ int main(void)
     TestPointAndOverlaps();
     TestCastsAgainstMeshAndPlane();
     TestOverlapAndInsideFamilies();
+    TestFarPointsMissVoxels();
     TestGenericCasts();
     TestSensorPassThrough();
     TestSensorSleepAndBullets();
