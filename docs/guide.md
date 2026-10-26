@@ -1184,10 +1184,12 @@ The step holds what it produces within the same limits: every
 body leaves a substep within 1e5 m/s and 1e5 rad/s, a bounce asks
 for at most 1e5 m/s of separation, and a push the step itself lands
 on a body (a character's, a soft particle's, a wheel's, an
-explosion's) leaves it within 1e5 as well. A stored contact or joint
-impulse is held, direction kept, so its warm start changes a body's
-velocity or spin by at most 1e13 per component at that step's own
-masses and levers.
+explosion's) leaves it within 1e5 as well. A character's, a soft
+particle's or a wheel's push whose float sum overflows is taken again
+in double, and m3Counters.heldPushRetakes counts it. A stored contact
+or joint impulse is held, direction kept, so its warm start changes a
+body's velocity or spin by at most 1e13 per component at that step's
+own masses and levers.
 
 One limit is not refused. Take a jointed body's mass, the arm
 from its center of mass to the joint's anchor, and its moment about

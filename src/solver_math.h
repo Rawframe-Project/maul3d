@@ -102,7 +102,7 @@ double m3NormL1(m3Vec3 v);
 // caller's bounds keep finite; there the bounds on every factor keep each
 // product finite. The result is that double push, held within the limit
 // and rounded to float, so a velocity that was finite in float may move by
-// an ulp.
+// an ulp. Each retake counts in m3Counters.heldPushRetakes.
 void m3PushHeld(m3World* world, int32_t index, m3real scale, m3Vec3 dir, m3Vec3 arm);
 
 #endif

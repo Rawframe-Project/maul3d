@@ -336,6 +336,7 @@ void m3PushHeld(m3World* world, int32_t index, m3real scale, m3Vec3 dir, m3Vec3 
         m3Add3(world->bodies.angularVelocities[index], m3MulMV3(invI, m3Cross3(arm, impulse)));
     if (!m3FiniteV3(v) || !m3FiniteV3(w))
     {
+        world->heldPushRetakes += 1;
         double jx = (double)scale * (double)dir.x;
         double jy = (double)scale * (double)dir.y;
         double jz = (double)scale * (double)dir.z;

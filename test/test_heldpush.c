@@ -8,7 +8,10 @@
 // built so that the push overflows the body's float velocity or spin, and
 // m3PushHeld takes it again in double. The body leaves held at the speed
 // limit, finite, 1e5 m/s and 1e5 rad/s in length, and in the direction
-// the same push takes at a lighter mass, where nothing overflows. Then a
+// the same push takes at a lighter mass, where nothing overflows; each
+// retake counts in m3Counters.heldPushRetakes, which stays at zero for
+// the lighter push and for an ordinary scene that walks, drapes and
+// drives. Then a
 // blast's push and its soft kick, a bounce and a suspension, whose holds
 // keep the direction what remains of the motion takes, or the world's
 // snapshot restorable. Every value is within the magnitude limits; the
@@ -60,16 +63,19 @@ static m3BodyId LightBox(m3World* world, m3Pos3 at, m3Quat rotation, float half)
 
 static const m3Quat s_identity = {0.0f, 0.0f, 0.0f, 1.0f};
 
-// What a push left on the pushed body.
+// What a push left on the pushed body, and how many pushes the world
+// took again in double.
 typedef struct Held
 {
     m3Vec3 v;
     m3Vec3 w;
+    uint64_t retakes;
 } Held;
 
 static Held HeldOf(const m3World* world, m3BodyId body)
 {
-    Held held = {m3Body_GetLinearVelocity(world, body), m3Body_GetAngularVelocity(world, body)};
+    Held held = {m3Body_GetLinearVelocity(world, body), m3Body_GetAngularVelocity(world, body),
+                 m3World_GetCounters(world).heldPushRetakes};
     return held;
 }
 
@@ -92,6 +98,10 @@ static void CheckHeld(const char* what, Held heavy, Held light, bool spinHeld)
     CHECK(AtLimit(light.v) && Gap(heavy.v, light.v) < 1.0e-4, line);
     snprintf(line, sizeof(line), "%s: the spin is finite", what);
     CHECK(Finite(heavy.w), line);
+    snprintf(line, sizeof(line), "%s: the heavy push is taken again and counted", what);
+    CHECK(heavy.retakes > 0, line);
+    snprintf(line, sizeof(line), "%s: the lighter push is not", what);
+    CHECK(light.retakes == 0, line);
     if (spinHeld)
     {
         snprintf(line, sizeof(line), "%s: the spin is held in the lighter push's direction", what);
@@ -335,7 +345,8 @@ static void TestSuspensionHold(void)
 // a 1e20 kg chassis on one wheel, engine torque 1e20 N m through gear and
 // final ratios of 1e4 on a 1e-3 m wheel, tire grip 1e4. The friction
 // circle holds the tire to 2e29 N s, whose moment at the corner overflows
-// the chip's spin by a percent.
+// the chip's spin by a percent. The step is taken from a snapshot of the
+// world before it, and restoring that snapshot leaves the count as it is.
 static void TestWheelPush(void)
 {
     const float chipHalf = 1.2248e-3f; // every principal moment at 1e-12 kg m^2
@@ -385,6 +396,11 @@ static void TestWheelPush(void)
     m3Vehicle_SelectGear(world, vehicle, 1);
     m3Vehicle_SetCommands(world, vehicle, 1.0f, 0.0f, 0.0f);
     CHECK(m3Body_GetMass(world, chassis) > 0.999e20f, "the chassis weighs the mass limit");
+    int32_t size = m3World_SnapshotSize(world);
+    void* before = malloc((size_t)size);
+    int32_t written = 0;
+    CHECK(before != NULL && m3World_Snapshot(world, before, size, &written) == m3_success,
+          "the world before the step snapshots");
     m3World_Step(world, 10.0f, 1);
     CHECK(m3Vehicle_IsWheelGrounded(world, vehicle, 0), "the wheel stands on the chip");
     m3Vec3 v = m3Body_GetLinearVelocity(world, chip);
@@ -392,6 +408,73 @@ static void TestWheelPush(void)
     CHECK(Finite(v) && Length(v) <= 1.0e5 * 1.0001,
           "the wheel's push leaves the chip finite within the limit");
     CHECK(Finite(w) && Length(w) <= 1.0e5 * 1.0001, "and its spin as well");
+    uint64_t retakes = m3World_GetCounters(world).heldPushRetakes;
+    CHECK(retakes > 0, "the wheel's push is taken again and counted");
+    CHECK(m3World_Restore(world, before, size) == m3_success, "the world restores");
+    CHECK(m3World_GetCounters(world).heldPushRetakes == retakes, "and the count is left as it is");
+    free(before);
+    m3DestroyWorld(world);
+}
+
+// A walker shoulders a crate, a jelly rides on it anchored by one corner
+// and a car drives off on four wheels, at everyday masses for two seconds: every
+// route a held push takes, and none of them near the limits, so the
+// count stays at zero.
+static void TestOrdinarySceneRetakesNothing(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    m3ShapeDef gs = m3DefaultShapeDef();
+    NewBoxShape(world, ground, &gs, (m3Vec3){100.0f, 1.0f, 100.0f});
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.5, 0.0};
+    m3BodyId crate = NewBody(world, &bd);
+    m3ShapeDef cs = m3DefaultShapeDef();
+    cs.density = 10.0f; // 10 kg, light enough for an 80 kg walker to slide
+    NewBoxShape(world, crate, &cs, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3SoftBodyDef sd = m3DefaultSoftBodyDef();
+    sd.position = (m3Pos3){-0.2, 2.1, -0.2};
+    sd.countX = 3;
+    sd.countY = 2;
+    sd.countZ = 3;
+    sd.spacing = 0.2f;
+    sd.radius = 0.08f;
+    m3SoftBodyId jelly = NewSoftBody(world, &sd);
+    m3SoftBody_AnchorParticle(world, jelly, 0, crate);
+    m3CharacterDef cd = m3DefaultCharacterDef();
+    cd.position = (m3Pos3){-2.0, 2.0, 0.0};
+    m3CharacterId walker = NewCharacter(world, &cd);
+    bd.position = (m3Pos3){0.0, 2.0, 10.0};
+    m3BodyId chassis = NewBody(world, &bd);
+    m3ShapeDef hs = m3DefaultShapeDef();
+    NewBoxShape(world, chassis, &hs, (m3Vec3){1.0f, 0.3f, 2.0f});
+    m3VehicleDef vd = m3DefaultVehicleDef();
+    vd.chassisId = chassis;
+    vd.wheelCount = 4;
+    for (int32_t k = 0; k < 4; ++k)
+    {
+        vd.wheels[k].anchor = (m3Vec3){(k & 1) != 0 ? 0.9f : -0.9f, -0.3f, k < 2 ? 1.5f : -1.5f};
+        vd.wheels[k].direction = (m3Vec3){0.0f, -1.0f, 0.0f};
+        vd.wheels[k].restLength = 0.4f;
+        vd.wheels[k].travel = 0.3f;
+        vd.wheels[k].radius = 0.35f;
+        vd.wheels[k].driven = k >= 2;
+    }
+    m3VehicleId car = NewVehicle(world, &vd);
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
+    m3Pos3 crateStart = m3Body_GetPosition(world, crate);
+    bool grounded = false;
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m3Character_Move(world, walker, (m3Vec3){2.0f / 60.0f, -0.1f, 0.0f});
+        m3World_Step(world, 1.0f / 60.0f, 4);
+        grounded = grounded || m3Vehicle_IsWheelGrounded(world, car, 0);
+    }
+    CHECK(m3Body_GetPosition(world, crate).x > crateStart.x + 0.1, "the walker moves the crate");
+    CHECK(grounded, "the car's wheels reach the ground");
+    CHECK(m3World_GetCounters(world).heldPushRetakes == 0, "no push is taken again");
     m3DestroyWorld(world);
 }
 
@@ -403,6 +486,7 @@ int main(void)
     TestBounceHold();
     TestSuspensionHold();
     TestWheelPush();
+    TestOrdinarySceneRetakesNothing();
     if (s_failures == 0)
     {
         printf("test_heldpush: all checks passed\n");
