@@ -25,7 +25,7 @@ The golden lines that pin a format's bytes, the snapshot's and the tape's, hash 
 
 ## The headers
 
-`src/state_prefix.h` holds each format's magic, number and header size, and `m3MakeStatePrefix` and `m3CheckStatePrefix` write and check the prefix for all three. The magic is written as a `uint32_t` whose hexadecimal spelling is the name, `0x4D33534E` for `M3SN`, as maul2d writes its own.
+`src/state_prefix.h` holds each format's magic, number and header size, and `m3MakeStatePrefix` and `m3CheckStatePrefix` write and check the prefix for all three. A magic's four bytes are its name's letters in file order, so a hex dump of a snapshot starts `M3SN`; read as a little-endian `uint32_t`, that is `0x4E53334D`.
 
 | Format | Magic | Number | Header | After the prefix |
 |---|---|---|---|---|

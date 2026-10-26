@@ -12,14 +12,16 @@
 #include <stdint.h>
 
 // Each format's magic, its own number, bumped whenever its bytes change,
-// and the size of its whole header, the prefix and its own fields.
-#define M3_SNAPSHOT_MAGIC        0x4D33534Eu // 'M3SN'
+// and the size of its whole header, the prefix and its own fields. A magic
+// is its name's four letters in file order, so a hex dump reads the name:
+// the little-endian uint32_t of "M3SN" is 0x4E53334D.
+#define M3_SNAPSHOT_MAGIC        0x4E53334Du // "M3SN"
 #define M3_SNAPSHOT_VERSION      5u          // 5: the state prefix
 #define M3_SNAPSHOT_HEADER_BYTES 56
-#define M3_JOURNAL_MAGIC         0x4D334A4Eu // 'M3JN'
+#define M3_JOURNAL_MAGIC         0x4E4A334Du // "M3JN"
 #define M3_JOURNAL_VERSION       1u          // 1: the state prefix
 #define M3_JOURNAL_HEADER_BYTES  16
-#define M3_REPLAY_MAGIC          0x4D335250u // 'M3RP'
+#define M3_REPLAY_MAGIC          0x5052334Du // "M3RP"
 #define M3_REPLAY_VERSION        3u          // 3: the state prefix
 #define M3_REPLAY_HEADER_BYTES   40
 

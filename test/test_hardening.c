@@ -991,6 +991,10 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(Restore(world, snap, snapBytes), "the snapshot restores");
     uint64_t hash = m3World_Hash(world);
     uint64_t misuse = m3World_GetCounters(world).misuse;
+    // Each magic is its name in file order, as a hex dump reads it.
+    CHECK(memcmp(snap, "M3SN", 4) == 0 && memcmp(tape, "M3JN", 4) == 0 &&
+              memcmp(box, "M3RP", 4) == 0,
+          "each format's first four bytes spell its name");
 
     enum
     {
