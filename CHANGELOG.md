@@ -6,6 +6,19 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.5.0](https://github.com/Rawframe-Project/maul3d/compare/v0.4.0...v0.5.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* the snapshot format is 4: every id pool's generations, and the generations stored for a character's ground body, a vehicle's chassis and soft body anchors, are 32 bits, so each pool slot takes 2 more bytes. A format 3 snapshot, or a replay container that starts with one, is refused.
+
+### Fixed
+
+* **collision:** keep the contact reduction's picks in range ([#103](https://github.com/Rawframe-Project/maul3d/issues/103)) ([797372b](https://github.com/Rawframe-Project/maul3d/commit/797372b01b5b5fbe2e75bf6f05bd33608a86ffdd))
+* keep 32-bit generations in every id pool ([#92](https://github.com/Rawframe-Project/maul3d/issues/92)) ([ffa70ac](https://github.com/Rawframe-Project/maul3d/commit/ffa70ac980d74ba3cd5837b293f47f9254a486ba)), closes [#89](https://github.com/Rawframe-Project/maul3d/issues/89)
+* solve joint blocks in double when float loses their determinant ([#97](https://github.com/Rawframe-Project/maul3d/issues/97)) ([f59b223](https://github.com/Rawframe-Project/maul3d/commit/f59b223a69dd0e1dd827d907a0170b40c1b542ca)), closes [#95](https://github.com/Rawframe-Project/maul3d/issues/95) [#88](https://github.com/Rawframe-Project/maul3d/issues/88)
+
 ## [0.4.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.4.0) (2026-10-25)
 
 ### Changed
