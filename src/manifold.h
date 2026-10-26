@@ -33,7 +33,8 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
 // on the plane of normal: the deepest, the farthest from it, the one
 // making the largest triangle with those two, and the one reaching
 // farthest outside that triangle. Ties go to the lower index. Writes the
-// chosen indices in ascending order and returns how many.
+// chosen indices in ascending order, each in [0, count), and returns how
+// many.
 int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, int32_t count,
                               m3Vec3 normal, int32_t out[M3_MANIFOLD_MAX_POINTS]);
 
