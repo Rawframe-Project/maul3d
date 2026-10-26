@@ -417,6 +417,75 @@ static void TestGyroscopicTumble(void)
     m3DestroyWorld(world);
 }
 
+// The rotational energy of a box body spinning at w, its principal
+// moments along its own axes.
+static double BoxEnergy(const double moments[3], m3Vec3 w, m3Quat q)
+{
+    m3Vec3 b = m3InvRotateVec3(q, w);
+    return 0.5 * (moments[0] * (double)b.x * (double)b.x + moments[1] * (double)b.y * (double)b.y +
+                  moments[2] * (double)b.z * (double)b.z);
+}
+
+// Issue #77: a free tumbler keeps its rotational energy, so the step may
+// lose it but never gain it, however far the spin turns in a substep.
+// Fifty boxes of three distinct moments tumble for a second at start
+// spins from 30 to 800 rad/s, past a radian per substep, on one substep
+// and on four, with the angular cap raised out of the way.
+static void TestGyroscopicHoldsEnergy(void)
+{
+    const float speeds[4] = {30.0f, 100.0f, 300.0f, 800.0f};
+    double worst = 0.0;
+    for (int32_t substeps = 1; substeps <= 4; substeps += 3)
+    {
+        for (int32_t k = 0; k < 4; ++k)
+        {
+            m3WorldDef def = m3DefaultWorldDef();
+            def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+            def.maximumAngularSpeed = 1.0e5f;
+            def.bodyCapacity = 64;
+            def.shapeCapacity = 64;
+            m3World* world = NewWorld(&def);
+            m3BodyId bodies[50];
+            double moments[50][3];
+            double start[50];
+            for (int32_t t = 0; t < 50; ++t)
+            {
+                m3BodyDef bd = m3DefaultBodyDef();
+                bd.type = m3_dynamicBody;
+                bd.angularDamping = 0.0f;
+                bd.position = (m3Pos3){10.0 * (double)t, 0.0, 0.0};
+                bodies[t] = NewBody(world, &bd);
+                m3ShapeDef sd = m3DefaultShapeDef();
+                double a = 0.3 + 0.05 * (double)t;
+                double b = 0.6;
+                double c = 0.15;
+                NewBoxShape(world, bodies[t], &sd, (m3Vec3){(float)a, (float)b, (float)c});
+                double third = 8.0 * a * b * c / 3.0;
+                moments[t][0] = third * (b * b + c * c);
+                moments[t][1] = third * (a * a + c * c);
+                moments[t][2] = third * (a * a + b * b);
+                float s = speeds[k];
+                m3Vec3 w = {s * sinf(1.3f * (float)t), s * cosf(0.7f * (float)t), 0.5f * s};
+                m3Body_SetAngularVelocity(world, bodies[t], w);
+                start[t] = BoxEnergy(moments[t], w, m3Body_GetRotation(world, bodies[t]));
+            }
+            for (int32_t i = 0; i < 60; ++i)
+            {
+                m3World_Step(world, 1.0f / 60.0f, substeps);
+                for (int32_t t = 0; t < 50; ++t)
+                {
+                    double e = BoxEnergy(moments[t], m3Body_GetAngularVelocity(world, bodies[t]),
+                                         m3Body_GetRotation(world, bodies[t]));
+                    worst = fmax(worst, e / start[t]);
+                }
+            }
+            m3DestroyWorld(world);
+        }
+    }
+    CHECK(worst <= 1.0 + 1.0e-5, "no tumbling box gains rotational energy");
+    printf("gyroscopic energy: worst ratio to the start %.9f\n", worst);
+}
+
 static void TestDeepSphereRecovers(void)
 {
     // A sphere spawned INSIDE a static box (the
@@ -1163,6 +1232,7 @@ int main(void)
     TestSphereRestsOnBox();
     TestSphereRestsOnCapsule();
     TestGyroscopicTumble();
+    TestGyroscopicHoldsEnergy();
     TestDeepSphereRecovers();
     TestDeepCapsuleRecovers();
     TestCrossedCapsulesSeparate();

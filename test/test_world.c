@@ -558,10 +558,10 @@ static void TestContactLanesMatchScalar(void)
 // inertia scale must give the same spin to rounding. Swept over
 // anisotropic tensors from a gram-scale bar to a heavy slab, tilted
 // rotations, spins up to the default angular cap and both step sizes the
-// suites use, wherever the step at scale 1 is finite and well conditioned:
-// a single Newton step that changes the spin by more than the spin itself
-// sits near a singular Jacobian, where any two roundings part. Issue #77
-// (the step adds energy there) revisits that skip.
+// suites use, wherever the step at scale 1 stays in float range. That
+// includes the spins whose single Newton iteration nears a singular
+// Jacobian: the step redoes those in pieces, which both scales take
+// alike.
 static void TestGyroscopicScaleMatchesDirect(void)
 {
     uint32_t seed = 0x6A09E667u;
@@ -592,26 +592,193 @@ static void TestGyroscopicScaleMatchesDirect(void)
         m3Quat q = m3NormalizeQuat((m3Quat){r[4] - 0.5f, r[5] - 0.5f, r[6] - 0.5f, 0.5f});
         m3Vec3 w = {800.0f * (r[7] - 0.5f), 800.0f * (r[8] - 0.5f), 300.0f * (r[4] - r[6])};
         m3real h = (k & 1) != 0 ? 1.0f / 240.0f : 1.0f / 60.0f;
-        m3Vec3 direct = m3GyroscopicStep(&inertia, 1.0f, q, w, h);
-        if (!(direct.x - direct.x == 0.0f && direct.y - direct.y == 0.0f &&
-              direct.z - direct.z == 0.0f))
-        {
-            continue;
-        }
-        if (m3Length3(m3Sub3(direct, w)) > m3Length3(w))
+        m3Vec3 direct;
+        if (!m3GyroscopicStep(&inertia, 1.0f, q, w, h, &direct))
         {
             continue;
         }
         m3real largest = m3MaxF(inertia.cx.x, m3MaxF(inertia.cy.y, inertia.cz.z));
-        m3Vec3 scaled = m3GyroscopicStep(&inertia, largest, q, w, h);
+        m3Vec3 scaled = {0.0f, 0.0f, 0.0f};
+        CHECK(m3GyroscopicStep(&inertia, largest, q, w, h, &scaled),
+              "the step at unit inertia scale stays in float range");
         m3Vec3 d = m3Sub3(scaled, direct);
         float spin = m3Length3(direct) + m3Length3(w);
         float error = m3Length3(d) / (spin > 1.0f ? spin : 1.0f);
         worst = error > worst ? error : worst;
         compared += 1;
     }
-    CHECK(compared > 3000, "most of the sweep is finite and well conditioned at scale 1");
+    CHECK(compared > 3900, "nearly all of the sweep stays in float range at scale 1");
     CHECK(worst < 1.0e-4f, "the step at unit inertia scale matches the direct one");
+}
+
+// Euler's equations for a free body in its principal frame, the right
+// hand side of d omega / dt.
+static void EulerRate(const double moments[3], const double w[3], double rate[3])
+{
+    rate[0] = (moments[1] - moments[2]) * w[1] * w[2] / moments[0];
+    rate[1] = (moments[2] - moments[0]) * w[2] * w[0] / moments[1];
+    rate[2] = (moments[0] - moments[1]) * w[0] * w[1] / moments[2];
+}
+
+// The gyroscopic step is implicit Euler, first order, so it parts from the
+// true spin as the spin turns further in a step; a single Newton iteration
+// of it parts much further, near a singular Jacobian. Over spins that turn
+// one to five radians in a step, the step tracks Euler's equations,
+// integrated finely in double, to within 0.36 of the spin on average
+// (0.32 on this sweep); single Newton iterations part by 0.56.
+static void TestGyroscopicStepTracksEuler(void)
+{
+    uint32_t seed = 0x3C6EF372u;
+    double sum = 0.0;
+    int32_t count = 0;
+    while (count < 400)
+    {
+        float r[6];
+        for (int32_t j = 0; j < 6; ++j)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            r[j] = (float)(seed >> 8) / 16777216.0f;
+        }
+        const double moments[3] = {0.05 + (double)r[0], 0.05 + (double)r[1], 0.05 + (double)r[2]};
+        const float h = 1.0f / 60.0f;
+        m3Vec3 w = {800.0f * (r[3] - 0.5f), 800.0f * (r[4] - 0.5f), 800.0f * (r[5] - 0.5f)};
+        double spin =
+            sqrt((double)w.x * (double)w.x + (double)w.y * (double)w.y + (double)w.z * (double)w.z);
+        double turn = (double)h * spin;
+        if (turn < 1.0 || turn > 5.0)
+        {
+            continue;
+        }
+        m3Mat3 inertia = {{(float)moments[0], 0.0f, 0.0f},
+                          {0.0f, (float)moments[1], 0.0f},
+                          {0.0f, 0.0f, (float)moments[2]}};
+        m3Vec3 stepped = {0.0f, 0.0f, 0.0f};
+        CHECK(m3GyroscopicStep(&inertia, 1.0f, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, w, h, &stepped),
+              "an ordinary tumbler's step stays in float range");
+        // Classic Runge-Kutta in 2000 pieces of the step.
+        double y[3] = {(double)w.x, (double)w.y, (double)w.z};
+        const double dt = (double)h / 2000.0;
+        for (int32_t s = 0; s < 2000; ++s)
+        {
+            double k1[3], k2[3], k3[3], k4[3], t[3];
+            EulerRate(moments, y, k1);
+            for (int32_t j = 0; j < 3; ++j)
+            {
+                t[j] = y[j] + 0.5 * dt * k1[j];
+            }
+            EulerRate(moments, t, k2);
+            for (int32_t j = 0; j < 3; ++j)
+            {
+                t[j] = y[j] + 0.5 * dt * k2[j];
+            }
+            EulerRate(moments, t, k3);
+            for (int32_t j = 0; j < 3; ++j)
+            {
+                t[j] = y[j] + dt * k3[j];
+            }
+            EulerRate(moments, t, k4);
+            for (int32_t j = 0; j < 3; ++j)
+            {
+                y[j] += dt / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
+            }
+        }
+        double dx = (double)stepped.x - y[0];
+        double dy = (double)stepped.y - y[1];
+        double dz = (double)stepped.z - y[2];
+        sum += sqrt(dx * dx + dy * dy + dz * dz) / spin;
+        count += 1;
+    }
+    printf("gyroscopic step against Euler's equations: mean error %.3f of the spin\n", sum / count);
+    CHECK(sum / count < 0.36, "the step tracks Euler's equations at a radian or more per step");
+}
+
+// The energy of a spin w under principal moments m, twice over.
+static double TwiceEnergyOf(const float m[3], m3Vec3 w)
+{
+    return (double)m[0] * (double)w.x * (double)w.x + (double)m[1] * (double)w.y * (double)w.y +
+           (double)m[2] * (double)w.z * (double)w.z;
+}
+
+// A step that gains energy is scaled back to its start energy, not below
+// it. A flat body's spin that turns 0.8 rad in a 1/60 s step gains a
+// tenth of its energy in its single Newton iteration, a change too small
+// to redo; a thin one's spin that turns 1.25 rad changes too much and is
+// redone in pieces, which still gain 7%. Both land on the energy they
+// started with.
+static void TestGyroscopicHoldLandsAtStart(void)
+{
+    const struct
+    {
+        float moments[3];
+        m3Vec3 w;
+    } cases[2] = {
+        {{0.653f, 0.884f, 0.0504f}, {-46.57f, -8.49f, 7.66f}},
+        {{0.2266f, 0.01467f, 0.5916f}, {-44.96f, -59.74f, -6.67f}},
+    };
+    for (int32_t c = 0; c < 2; ++c)
+    {
+        const float* m = cases[c].moments;
+        m3Mat3 inertia = {{m[0], 0.0f, 0.0f}, {0.0f, m[1], 0.0f}, {0.0f, 0.0f, m[2]}};
+        m3Vec3 stepped = {0.0f, 0.0f, 0.0f};
+        CHECK(m3GyroscopicStep(&inertia, 1.0f, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, cases[c].w,
+                               1.0f / 60.0f, &stepped),
+              "the step stays in float range");
+        double ratio = TwiceEnergyOf(m, stepped) / TwiceEnergyOf(m, cases[c].w);
+        CHECK(fabs(ratio - 1.0) < 1.0e-6, "the held spin keeps its start energy");
+    }
+}
+
+// A body heavy and fast enough that the gyroscopic step leaves float range
+// at its own inertia scale takes it at unit scale instead: 96 boxes of
+// half extent 5e3 m at density 1e6, half of them 1e4 m out on each side,
+// give principal moments near 1.6e27 and 1.1e28 kg m^2, and at a spin of
+// 1.4e5 rad/s the step's terms pass 1e38. One 10 s step lands the spin
+// the step at unit scale gives, held within the speed limit, not the spin
+// it started with.
+static void TestGyroscopicStepAtUnitScale(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 128;
+    m3World* world = NewWorld(&def);
+    m3World_SetMaximumAngularSpeed(world, 1.0e5f);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.angularDamping = 0.0f;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = 1.0e6f;
+    for (int32_t k = 0; k < 96; ++k)
+    {
+        sd.localPosition = (m3Vec3){(k & 1) != 0 ? 1.0e4f : -1.0e4f, 0.0f, 0.0f};
+        NewBoxShape(world, body, &sd, (m3Vec3){5.0e3f, 5.0e3f, 5.0e3f});
+    }
+    m3Body_EnableFastRotation(world, body, true);
+    const m3Vec3 spin = {1.0e5f, 2.0e4f, 1.0e5f};
+    m3Body_SetAngularVelocity(world, body, spin);
+
+    int32_t slot = (int32_t)body.index1 - 1;
+    const m3Mat3* inertia = &world->bodies.inertiaLocal[slot];
+    m3Quat q = world->bodies.transforms[slot].q;
+    const float h = 10.0f;
+    m3Vec3 unused;
+    CHECK(!m3GyroscopicStep(inertia, 1.0f, q, spin, h, &unused),
+          "the step leaves float range at the body's own inertia scale");
+    m3real largest = m3MaxF(inertia->cx.x, m3MaxF(inertia->cy.y, inertia->cz.z));
+    m3Vec3 expected = {0.0f, 0.0f, 0.0f};
+    CHECK(m3GyroscopicStep(inertia, largest, q, spin, h, &expected),
+          "the step at unit inertia scale stays in float range");
+    expected = m3CapSpeed(expected, M3_SPEED_LIMIT);
+
+    m3World_Step(world, h, 1);
+    m3Vec3 after = m3Body_GetAngularVelocity(world, body);
+    CHECK(m3Length3(m3Sub3(after, expected)) <= 1.0e-6f * m3Length3(expected),
+          "the world step lands the spin of the step at unit inertia scale");
+    m3Vec3 unchanged = m3CapSpeed(spin, M3_SPEED_LIMIT);
+    CHECK(m3Length3(m3Sub3(after, unchanged)) > 0.1f * m3Length3(unchanged),
+          "the spin turns, rather than going on unchanged");
+    m3DestroyWorld(world);
 }
 
 static void TestHullSnapshotShrink(void)
@@ -918,6 +1085,9 @@ int main(void)
     TestTreeReferee();
     TestContactLanesMatchScalar();
     TestGyroscopicScaleMatchesDirect();
+    TestGyroscopicStepAtUnitScale();
+    TestGyroscopicStepTracksEuler();
+    TestGyroscopicHoldLandsAtStart();
     TestCompoundExtents();
     TestHashSeesSetterState();
     if (s_failures == 0)

@@ -120,7 +120,9 @@ these descriptions, never copied from other implementations (see
   an unbiased relax pass, with restitution after the substeps.
 - E. Catto, "Numerical Methods", Game Developers Conference, 2015. The
   gyroscopic term of Euler's equations integrated implicitly with a
-  Newton step, which keeps tumbling bodies from gaining energy (maul3d).
+  Newton step (maul3d). The exact implicit step never gains energy, but
+  one Newton iteration of it can, so maul3d redoes a large one in pieces
+  and scales away any energy the step still gains.
 - D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
   3D", 2013. Point, hinge, slider and fixed constraints written as rows
   with quaternion based angular errors; maul3d's angular rows follow

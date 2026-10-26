@@ -11,32 +11,44 @@
 
 #include <math.h>
 
-// The gyroscopic term of Euler's equations, integrated implicitly. In
-// body coordinates the step solves I (w2 - w1) + h w2 x (I w2) = 0 for
-// w2; one Newton iteration from w2 = w1 is enough at substep sizes, and
-// the implicit form cannot pump energy into a tumbling body, whatever
-// its shape.
-m3Vec3 m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m3real h)
+// Twice the rotational energy of omega under the inertia i, given by its
+// six distinct entries: omega . (I omega).
+static m3real TwiceEnergy(const m3real i[6], m3Vec3 omega)
 {
-    const m3real i00 = inertia->cx.x / scale;
-    const m3real i01 = inertia->cy.x / scale;
-    const m3real i02 = inertia->cz.x / scale;
-    const m3real i11 = inertia->cy.y / scale;
-    const m3real i12 = inertia->cz.y / scale;
-    const m3real i22 = inertia->cz.z / scale;
-    m3Vec3 omega1 = m3InvRotateVec3(q, w);
-    m3Vec3 omega2 = omega1;
+    m3Vec3 io = {i[0] * omega.x + i[1] * omega.y + i[2] * omega.z,
+                 i[1] * omega.x + i[3] * omega.y + i[4] * omega.z,
+                 i[2] * omega.x + i[4] * omega.y + i[5] * omega.z};
+    return m3Dot3(omega, io);
+}
 
-    // One Newton iteration: residual b = I (w2 - w1) + h (w2 x I w2),
-    // Jacobian J = I + h (skew(w2) I - skew(I w2)).
-    const m3real w1 = omega2.x;
-    const m3real w2 = omega2.y;
-    const m3real w3 = omega2.z;
+// One Newton iteration of I (w2 - w1) + h w2 x (I w2) = 0 from w2 = w1,
+// in body coordinates, for the inertia's six distinct entries
+// i00 i01 i02 i11 i12 i22, writing twice the start's energy,
+// w1 . I w1, to start. Returns false when the residual leaves float
+// range, for which the solve would take a zero step that reads as no
+// change; its sum is checked, and one that overflows only sends the step
+// to the next scale. The Jacobian's entries, the inertia plus h times the
+// inertia times one spin component, stay in range for a body within the
+// speed limit.
+static bool NewtonPiece(const m3real i[6], m3Vec3* omegaInOut, m3real h, m3real* start)
+{
+    const m3Vec3 omega = *omegaInOut;
+    const m3real i00 = i[0];
+    const m3real i01 = i[1];
+    const m3real i02 = i[2];
+    const m3real i11 = i[3];
+    const m3real i12 = i[4];
+    const m3real i22 = i[5];
+    // Residual b = I (w2 - w1) + h (w2 x I w2), Jacobian
+    // J = I + h (skew(w2) I - skew(I w2)).
+    const m3real w1 = omega.x;
+    const m3real w2 = omega.y;
+    const m3real w3 = omega.z;
     const m3real Iw1 = i00 * w1 + i01 * w2 + i02 * w3;
     const m3real Iw2 = i01 * w1 + i11 * w2 + i12 * w3;
     const m3real Iw3 = i02 * w1 + i12 * w2 + i22 * w3;
-    // omega2 - omega1 is zero on the first (only) iteration, so the
-    // residual is just the gyroscopic term.
+    // w2 - w1 is zero where the iteration starts, so the residual is just
+    // the gyroscopic term.
     m3Vec3 b = {
         h * (w2 * Iw3 - w3 * Iw2),
         h * (w3 * Iw1 - w1 * Iw3),
@@ -49,8 +61,94 @@ m3Vec3 m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w,
                     i12 + h * (w1 * i11 - w2 * i01 - Iw1)};
     J.cz = (m3Vec3){i02 + h * (w2 * i22 - w3 * i12 - Iw2), i12 + h * (w3 * i02 - w1 * i22 + Iw1),
                     i22 + h * (w1 * i12 - w2 * i02)};
-    omega2 = m3Sub3(omega2, m3Solve3(&J, b));
-    return m3RotateVec3(q, omega2);
+    *start = w1 * Iw1 + w2 * Iw2 + w3 * Iw3;
+    if (!m3FiniteF(b.x + b.y + b.z))
+    {
+        return false;
+    }
+    *omegaInOut = m3Sub3(omega, m3Solve3(&J, b));
+    return true;
+}
+
+// A single Newton iteration that changes the spin by more than this
+// fraction of it is redone in at least two pieces, up to
+// M3_GYRO_MAX_PIECES, that each turn the spin at most M3_GYRO_PIECE_TURN
+// radians.
+#define M3_GYRO_REDO_CHANGE 0.5f
+#define M3_GYRO_PIECE_TURN  0.5f
+enum
+{
+    M3_GYRO_MAX_PIECES = 32
+};
+static_assert(M3_GYRO_MAX_PIECES >= 2, "a redone step takes at least two pieces");
+// The energy the step may gain before it is scaled back: the two energies
+// are computed in float, and below this they differ by their own
+// rounding.
+#define M3_GYRO_ENERGY_SLACK 0x1p-20f
+
+// The gyroscopic term of Euler's equations, integrated implicitly. In
+// body coordinates the step solves I (w2 - w1) + h w2 x (I w2) = 0 for
+// w2. The exact solution never gains energy: w2 . I (w2 - w1) is zero, so
+// w2 . I w2 is at most w1 . I w1. One Newton iteration from w1 is close
+// to it while it changes the spin little, but it can gain energy, and
+// near a singular Jacobian it overshoots by orders of magnitude: past
+// about a radian of turn in the step, and for a rod or a plate, whose
+// spin precesses many times faster than it turns, at far less. So an
+// iteration that changes the spin by more than half of it is redone in
+// pieces, and any energy the step still gains is scaled away, keeping the
+// spin's direction.
+bool m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m3real h,
+                      m3Vec3* out)
+{
+    const m3real i[6] = {inertia->cx.x / scale, inertia->cy.x / scale, inertia->cz.x / scale,
+                         inertia->cy.y / scale, inertia->cz.y / scale, inertia->cz.z / scale};
+    const m3Vec3 omega1 = m3InvRotateVec3(q, w);
+    const m3real redo = M3_GYRO_REDO_CHANGE;
+    m3Vec3 omega2 = omega1;
+    m3real before = 0.0f;
+    // One pass of one piece, and a second of at least two pieces when the
+    // first changes the spin too much; the second always ends the loop.
+    int32_t pieces = 1;
+    for (;;)
+    {
+        const m3real piece = h / (m3real)pieces;
+        omega2 = omega1;
+        for (int32_t k = 0; k < pieces; ++k)
+        {
+            m3real start;
+            if (!NewtonPiece(i, &omega2, piece, &start))
+            {
+                return false;
+            }
+            before = k == 0 ? start : before;
+        }
+        // Compared squared first, so an ordinary step takes no square
+        // root.
+        const m3Vec3 change = m3Sub3(omega2, omega1);
+        const m3real spin2 = m3Dot3(omega1, omega1);
+        if (pieces > 1 || !(m3Dot3(change, change) > redo * redo * spin2))
+        {
+            break;
+        }
+        // As many pieces as keep each one's turn within M3_GYRO_PIECE_TURN,
+        // at least two, compared as a float first so that a count past the
+        // int32 range takes the most.
+        const m3real wanted = m3MaxF(2.0f, ceilf(h * sqrtf(spin2) / M3_GYRO_PIECE_TURN));
+        pieces = wanted < (m3real)M3_GYRO_MAX_PIECES ? (int32_t)wanted : M3_GYRO_MAX_PIECES;
+    }
+    const m3real after = TwiceEnergy(i, omega2);
+    // A spin or an energy past float range leaves the step to the next
+    // scale.
+    if (!m3FiniteF(before) || !m3FiniteF(after))
+    {
+        return false;
+    }
+    if (after > before * (1.0f + M3_GYRO_ENERGY_SLACK))
+    {
+        omega2 = m3MulSV3(sqrtf(before / after), omega2);
+    }
+    *out = m3RotateVec3(q, omega2);
+    return true;
 }
 
 // An isotropic tensor skips the step: w x (c w) vanishes in real
@@ -69,8 +167,8 @@ static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
         return w; // isotropic (or massless): the term vanishes
     }
     m3Quat q = world->bodies.transforms[body].q;
-    m3Vec3 turned = m3GyroscopicStep(inertia, 1.0f, q, w, h);
-    if (m3FiniteV3(turned))
+    m3Vec3 turned;
+    if (m3GyroscopicStep(inertia, 1.0f, q, w, h, &turned))
     {
         return turned;
     }
@@ -80,11 +178,11 @@ static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
     // the same spin. Should even that fail, the spin goes on unchanged, as
     // it does for a singular Jacobian.
     m3real scale = m3MaxF(i00, m3MaxF(i11, i22));
-    if (scale > 0.0f)
+    if (scale > 0.0f && m3GyroscopicStep(inertia, scale, q, w, h, &turned))
     {
-        turned = m3GyroscopicStep(inertia, scale, q, w, h);
+        return turned;
     }
-    return m3FiniteV3(turned) ? turned : w;
+    return w;
 }
 
 // The mover list: awake dynamics and kinematics in ascending slot order,
