@@ -1177,7 +1177,7 @@ impulse is held, direction kept, so its warm start changes a body's
 velocity or spin by at most 1e13 per component at that step's own
 masses and levers.
 
-One limit is not refused yet. Take a jointed body's mass, the arm
+One limit is not refused. Take a jointed body's mass, the arm
 from its center of mass to the joint's anchor, and its moment about
 the axis that arm turns it. When mass * arm^2 / moment passes about
 1e7, float rounds the mass away in the joint's small systems, and the
@@ -1185,9 +1185,9 @@ joint solves them in double. Double keeps the mass up to a ratio of
 about 1e15. Past it the joint applies nothing, so the body falls
 freely, or it flings the body. The limits above admit far more. A
 capsule of radius 2.4e-5 m and length 2e4 m at density 1e6 weighs
-37 kg with a moment of 1.1e-8 kg m^2 about its axis; on a 1.7e4 m
+36 kg with a moment of 1.04e-8 kg m^2 about its axis; on a 1.7e4 m
 arm it reaches about 1e18. Keep a jointed body's ratio below 1e15;
-#99 tracks refusing a joint past it.
+a joint past it is not refused.
 
 Restore refuses the same values past the same limits, with one
 exception: positions are bounded at 1e18 m rather than 1e15. A
