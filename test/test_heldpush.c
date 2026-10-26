@@ -213,7 +213,9 @@ static Held ParticleContactPush(float mass)
 
 static void TestPushesKeepDirection(void)
 {
-    CheckHeld("a walker's push", WalkerPush(1.0e20f), WalkerPush(1.0e6f), false);
+    Held walker = WalkerPush(1.0e20f);
+    CheckHeld("a walker's push", walker, WalkerPush(1.0e6f), false);
+    CHECK(walker.retakes == 1, "the walker's one push is counted once");
     CheckHeld("an anchor's pull", AnchorPush(1.0e20f), AnchorPush(1.0e10f), true);
     CheckHeld("a particle's push", ParticleContactPush(1.0e20f), ParticleContactPush(1.0e10f),
               true);
