@@ -362,6 +362,29 @@ static void TestReducePicks(void)
     }
 }
 
+// Points that are not finite fail every comparison the reduction makes;
+// each pick must still index the patch.
+static void TestReducePicksNotFinite(void)
+{
+    m3Vec3 points[8];
+    m3real separations[8];
+    int32_t out[M3_MANIFOLD_MAX_POINTS];
+    m3Vec3 up = {0.0f, 0.0f, 1.0f};
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        points[i] = (m3Vec3){NAN, NAN, NAN};
+        separations[i] = -0.01f * (m3real)i;
+    }
+    CheckPicks(points, separations, 8, up, out);
+    // Only the deepest point is not finite.
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        points[i] = (m3Vec3){(m3real)i, (m3real)(i % 3), 0.0f};
+    }
+    points[7] = (m3Vec3){NAN, 0.0f, 0.0f};
+    CheckPicks(points, separations, 8, up, out);
+}
+
 int main(void)
 {
     TestSphereKernels();
@@ -369,6 +392,7 @@ int main(void)
     TestWarmStartCarry();
     TestFallbackSolves();
     TestReducePicks();
+    TestReducePicksNotFinite();
     if (s_failures == 0)
     {
         printf("test_contacts: all checks passed\n");
