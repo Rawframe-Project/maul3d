@@ -105,6 +105,7 @@ maul_add_test(format WHITEBOX)
 maul_add_test(restore_links WHITEBOX)
 maul_add_test(restore_bounds WHITEBOX)
 maul_add_test(warmhold WHITEBOX)
+maul_add_test(rowsolve WHITEBOX)
 # The warm start scenes are pinned in test/hashes.txt too. A shared build
 # leaves the white-box suites out.
 if(TARGET test_warmhold)

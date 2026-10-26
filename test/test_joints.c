@@ -1224,6 +1224,141 @@ static void TestGenericContracts(void)
     m3DestroyWorld(world);
 }
 
+// A ball-and-socket joint holds a hung cube at every mass the API takes.
+// Past about 1e15 kg the point block's determinant, a product of three
+// inverse masses, underflows to zero though the block is well
+// conditioned; it is solved in double, as a subnormal one is.
+static void TestHeavyBodyHangs(void)
+{
+    const float densities[4] = {1.0f, 1.0e5f, 1.0e6f, 1.0e6f};
+    const float halves[4] = {1000.0f, 1000.0f, 2154.0f, 1.0e4f}; // 8e9 to 8e18 kg
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m3WorldDef wd = m3DefaultWorldDef();
+        m3World* world = NewWorld(&wd);
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3BodyId ground = NewBody(world, &bd);
+        bd.type = m3_dynamicBody;
+        m3BodyId cube = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        sd.density = densities[i];
+        NewBoxShape(world, cube, &sd, (m3Vec3){halves[i], halves[i], halves[i]});
+        m3JointDef jd = m3DefaultJointDef();
+        jd.type = m3_sphericalJoint;
+        jd.bodyIdA = ground;
+        jd.bodyIdB = cube;
+        CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the socket builds");
+        for (int32_t k = 0; k < 60; ++k)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        char what[96];
+        snprintf(what, sizeof(what), "a %.0e kg cube stays on its socket",
+                 (double)m3Body_GetMass(world, cube));
+        CHECK(fabs(m3Body_GetPosition(world, cube).y) < 1.0e-3, what);
+        m3DestroyWorld(world);
+    }
+}
+
+// A weld holds a cube by the midpoint of a top edge, so gravity turns it
+// about the weld unless the turn block holds. That block's determinant is
+// a product of three inverse inertias: subnormal for a 100 m cube of
+// density 100 (8e8 kg), and zero from a 1 km cube of density 1 (8e9 kg)
+// on, which let the cube swing. Both are solved at the block's scale.
+static void TestHeavyBodyWelds(void)
+{
+    const float densities[3] = {100.0f, 1.0f, 1.0e6f};
+    const float halves[3] = {100.0f, 1000.0f, 1.0e4f}; // 8e8, 8e9 and 8e18 kg
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        m3WorldDef wd = m3DefaultWorldDef();
+        m3World* world = NewWorld(&wd);
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3BodyId ground = NewBody(world, &bd);
+        bd.type = m3_dynamicBody;
+        m3BodyId cube = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        sd.density = densities[i];
+        NewBoxShape(world, cube, &sd, (m3Vec3){halves[i], halves[i], halves[i]});
+        m3JointDef jd = m3DefaultJointDef();
+        jd.type = m3_fixedJoint;
+        jd.bodyIdA = ground;
+        jd.bodyIdB = cube;
+        jd.localAnchorA = (m3Vec3){-halves[i], halves[i], 0.0f};
+        jd.localAnchorB = jd.localAnchorA;
+        CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the weld builds");
+        for (int32_t k = 0; k < 60; ++k)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        char what[96];
+        snprintf(what, sizeof(what), "a %.0e kg cube stays on its weld",
+                 (double)m3Body_GetMass(world, cube));
+        CHECK(fabs(m3Body_GetPosition(world, cube).y) < 1.0e-3, what);
+        m3DestroyWorld(world);
+    }
+}
+
+// The worst distance, over 1 s, between the ground's pivot and the anchor
+// of a 65 kg ball of radius 0.25 on an arm of length arm, the angle
+// degrees below the x axis in the xy plane: across the slider's axis, z,
+// for the slider, and in full for the others.
+static double PivotDrift(int32_t type, float degrees, float arm)
+{
+    float angle = degrees * M3_PI / 180.0f;
+    m3Vec3 offset = {arm * cosf(angle), -arm * sinf(angle), 0.0f};
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){(double)offset.x, (double)offset.y, 0.0};
+    m3BodyId ball = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = 1000.0f;
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = type;
+    jd.bodyIdA = ground;
+    jd.bodyIdB = ball;
+    jd.localAnchorB = m3MulSV3(-1.0f, offset);
+    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the long arm joint builds");
+    double worst = 0.0;
+    for (int32_t k = 0; k < 60; ++k)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+        m3Pos3 at = m3Body_GetWorldPoint(world, ball, jd.localAnchorB);
+        double z = type == m3_prismaticJoint ? 0.0 : (double)at.z;
+        worst = fmax(worst, sqrt((double)at.x * at.x + (double)at.y * at.y + z * z));
+    }
+    m3DestroyWorld(world);
+    return worst;
+}
+
+// On a 1000 m arm the ball's mass * arm^2 / inertia is 4e7: each float
+// entry of the point block rounds the mass away, and off the axes its
+// determinant cancels to zero, which let the ball fall freely, or to
+// noise, which flung it some 2 km. The block is solved in double then,
+// and the socket and the hinge hold their pivot at every angle.
+static void TestLongArmHolds(void)
+{
+    const int32_t types[2] = {m3_sphericalJoint, m3_revoluteJoint};
+    const float degrees[3] = {30.0f, 45.0f, 60.0f};
+    for (int32_t t = 0; t < 2; ++t)
+    {
+        for (int32_t d = 0; d < 3; ++d)
+        {
+            char what[96];
+            snprintf(what, sizeof(what), "a %s on a 1000 m arm at %.0f degrees holds its pivot",
+                     t == 0 ? "socket" : "hinge", (double)degrees[d]);
+            CHECK(PivotDrift(types[t], degrees[d], 1000.0f) < 0.01, what);
+        }
+    }
+}
+
 int main(void)
 {
     TestGenericAsSpherical();
@@ -1248,6 +1383,9 @@ int main(void)
     TestTwistJacobianFiniteDifference();
     TestShoulderCone();
     TestTwistClamp();
+    TestHeavyBodyHangs();
+    TestHeavyBodyWelds();
+    TestLongArmHolds();
     if (s_failures == 0)
     {
         printf("test_joints: all checks passed\n");

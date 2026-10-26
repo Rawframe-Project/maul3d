@@ -143,11 +143,10 @@ static void TestWarmStartCarry(void)
     m3DestroyWorld(world);
 }
 
-// The solver's small inverses fall back to solving at another scale when
-// a determinant leaves the normal floats. Every system here is ordinary:
-// its direct solve is exact to rounding, the same system at any other
-// scale must give the same solution, and the lane solve must give the
-// scalar one bit for bit.
+// The solver's small solves fall back when a determinant leaves the
+// normal floats or cancels: to another scale or to double. Every system here is ordinary: its
+// direct solve is exact to rounding, each fallback must give the same solution, and the lane solve
+// must give the scalar one bit for bit.
 static uint32_t s_seed = 0x5CA1Eu;
 
 static float Uniform(float lo, float hi)
@@ -178,10 +177,12 @@ static float Gap(m3Vec3 a, m3Vec3 b)
     return sqrtf(m3Dot3(d, d) / m3Dot3(a, a));
 }
 
-static void TestSolvesAtScale(void)
+static void TestFallbackSolves(void)
 {
     float worstSolve = 0.0f;
+    float worstWide = 0.0f;
     float worstPair = 0.0f;
+    float worstPairWide = 0.0f;
     int32_t lanesDiffer = 0;
     enum
     {
@@ -205,6 +206,12 @@ static void TestSolvesAtScale(void)
         m3Vec3 direct = m3Solve3(&J, rhs);
         m3Vec3 scaled = m3Solve3AtScale(&J, rhs, s);
         worstSolve = fmaxf(worstSolve, Gap(direct, scaled));
+        double wide[9];
+        for (int32_t e = 0; e < 9; ++e)
+        {
+            wide[e] = (double)*entries[e];
+        }
+        worstWide = fmaxf(worstWide, Gap(direct, m3Solve3Wide(wide, rhs)));
 
         int32_t lane = i % M3_LANES;
         for (int32_t e = 0; e < 9; ++e)
@@ -245,12 +252,22 @@ static void TestSolvesAtScale(void)
         float r[3] = {0.0f, 0.0f, 0.0f};
         CHECK(m3InvertPairAtScale(k11, k22, k12, s, r), "an ordinary pair inverts at any scale");
         worstPair = fmaxf(worstPair, Gap(inverse, (m3Vec3){r[0], r[1], r[2]}));
+        float px = Uniform(-1.0f, 1.0f);
+        float py = Uniform(-1.0f, 1.0f);
+        m3Vec3 pair = {(k22 * px - k12 * py) / det, (k11 * py - k12 * px) / det, 0.0f};
+        float sol[2] = {0.0f, 0.0f};
+        CHECK(m3SolvePairWide((double)k11, (double)k22, (double)k12, px, py, sol),
+              "an ordinary pair solves in double");
+        worstPairWide = fmaxf(worstPairWide, Gap(pair, (m3Vec3){sol[0], sol[1], 0.0f}));
     }
     CHECK(worstSolve < 1.0e-5f, "a 3x3 solve at another scale matches the direct one");
+    CHECK(worstWide < 1.0e-5f, "a 3x3 solve in double matches the direct one");
     CHECK(worstPair < 1.0e-5f, "a pair inverse at another scale matches the direct one");
+    CHECK(worstPairWide < 1.0e-5f, "a pair solve in double matches the direct one");
     CHECK(lanesDiffer == 0, "the lane solves match the scalar ones bit for bit");
-    printf("solves at scale: worst 3x3 %.3g, worst pair %.3g over %d cases\n", (double)worstSolve,
-           (double)worstPair, CASES);
+    printf("fallback solves: worst 3x3 at scale %.3g, in double %.3g; worst pair at scale %.3g, "
+           "in double %.3g; over %d cases\n",
+           (double)worstSolve, (double)worstWide, (double)worstPair, (double)worstPairWide, CASES);
 }
 
 int main(void)
@@ -258,7 +275,7 @@ int main(void)
     TestSphereKernels();
     TestTangentBasis();
     TestWarmStartCarry();
-    TestSolvesAtScale();
+    TestFallbackSolves();
     if (s_failures == 0)
     {
         printf("test_contacts: all checks passed\n");

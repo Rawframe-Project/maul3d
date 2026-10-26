@@ -187,9 +187,10 @@ static void PreparePoints(const m3World* world, m3ContactConstraint* c, const m3
 
 // The inverse of the tangent pair's symmetric 2x2 mass matrix. The direct
 // inverse stands whenever the determinant is a normal float, so every
-// ordinary pair keeps its bits; otherwise the pair is inverted at the
-// scale of its larger diagonal. A singular pair, or one that is not
-// finite even at that scale, gets zero: no tangent rows.
+// ordinary pair keeps its bits; otherwise, a zero determinant included,
+// the pair is inverted at the scale of its larger diagonal. A singular
+// pair, or one that is not finite even at that scale, gets zero: no
+// tangent rows.
 static void InvertPair(m3real k11, m3real k22, m3real k12, m3ContactConstraint* c)
 {
     m3real det = k11 * k22 - k12 * k12;
@@ -202,7 +203,7 @@ static void InvertPair(m3real k11, m3real k22, m3real k12, m3ContactConstraint* 
         return;
     }
     m3real r[3] = {0.0f, 0.0f, 0.0f};
-    if (!(det <= 0.0f))
+    if (!(det < 0.0f))
     {
         (void)m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r);
     }
