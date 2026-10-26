@@ -9,6 +9,7 @@
 #include "test_harness.h"
 
 #include "maul3d/joint.h"
+#include "maul3d/replay.h"
 #include "maul3d/shape.h"
 
 #include <math.h>
@@ -859,7 +860,11 @@ static void TestRestoreRefusesPoisonedWords(void)
         {
             refused += 1;
             untouched += m3World_Hash(world) == cleanHash ? 1 : 0;
-            reasoned += result == m3_errorInvalid ? 1 : 0;
+            // A word over the release's fields, the ABI and format numbers
+            // and the build hash within the header's first 24 bytes, says
+            // another release wrote the bytes; any other says they are
+            // damaged.
+            reasoned += result == m3_errorInvalid || (result == m3_errorVersion && at < 24) ? 1 : 0;
             continue;
         }
         Restore(world, clean, size);
@@ -917,7 +922,7 @@ static void TestUntrustedDataCountsNoMisuse(void)
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
     m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t tapeBytes = StopJournal(world);
-    CHECK(tapeBytes > 8, "the journal holds a step");
+    CHECK(tapeBytes > 16 + 8, "the journal holds a step after its prefix");
     CHECK(Restore(world, snap, size), "the clean snapshot restores");
     uint64_t before = m3World_GetCounters(world).misuse;
     uint64_t hash = m3World_Hash(world);
@@ -929,16 +934,16 @@ static void TestUntrustedDataCountsNoMisuse(void)
     snap[0] ^= 0xFFu;
     CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a damaged magic is refused");
     snap[0] ^= 0xFFu;
-    // Format 3 kept 16-bit generations that format 4 widens; its
-    // snapshots are refused by version, not by layout.
+    // Format 4 had no state prefix; its snapshots are refused by version,
+    // not by layout.
     uint32_t format = 0;
-    memcpy(&format, snap + 4, 4);
-    CHECK(format == 4u, "a snapshot is written in format 4");
-    format = 3u;
-    memcpy(snap + 4, &format, 4);
-    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid, "a format 3 snapshot is refused");
+    memcpy(&format, snap + 8, 4);
+    CHECK(format == 5u, "a snapshot is written in format 5");
     format = 4u;
-    memcpy(snap + 4, &format, 4);
+    memcpy(snap + 8, &format, 4);
+    CHECK(m3World_Restore(world, snap, size) == m3_errorVersion, "a format 4 snapshot is refused");
+    format = 5u;
+    memcpy(snap + 8, &format, 4);
     CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorInvalid,
           "a tape one byte short is refused");
     CHECK(m3World_GetCounters(world).misuse == before, "and none of it counts as misuse");
@@ -948,7 +953,134 @@ static void TestUntrustedDataCountsNoMisuse(void)
     CHECK(m3World_ReplayJournal(world, NULL, tapeBytes) == m3_errorInvalid,
           "a null tape is refused");
     CHECK(m3World_GetCounters(world).misuse == before + 2, "and those two count");
-    CHECK(m3World_ReplayJournal(world, NULL, 0) == m3_success, "an empty tape replays nothing");
+    CHECK(m3World_ReplayJournal(world, NULL, 0) == m3_errorInvalid,
+          "no bytes are not a tape: it starts with its prefix");
+    CHECK(m3World_ReplayJournal(world, tape, 16) == m3_success, "a tape of no op replays nothing");
+    CHECK(m3World_GetCounters(world).misuse == before + 2, "and neither counts");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
+// One header word changed at a time, every other byte equal: another
+// release's or another build's bytes are refused with m3_errorVersion,
+// bytes that are not the format or are corrupt with m3_errorInvalid. A
+// refusal changes nothing and counts no misuse, and the bytes as written
+// still restore, replay and decode after them. Offsets are the state
+// prefix's (docs/internals/state-formats.md): the ABI version at 4, the
+// format number at 8, the header size at 12, the snapshot's build hash
+// at 16, and a container's snapshot after its 40-byte header.
+static void TestOtherReleasesAreRefused(void)
+{
+    m3World* world = CursorWorld(3);
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t snapBytes = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
+    uint8_t* bad = (uint8_t*)malloc((size_t)snapBytes + 8192);
+    static uint8_t tape[4096];
+    CHECK(snap != NULL && bad != NULL && Snapshot(world, snap, snapBytes) == snapBytes,
+          "the snapshot is taken");
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
+    m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t tapeBytes = StopJournal(world);
+    int32_t boxBytes = m3GetEncodedReplaySize(snapBytes, tapeBytes);
+    uint8_t* box = (uint8_t*)malloc((size_t)boxBytes);
+    int32_t written = 0;
+    CHECK(box != NULL && m3EncodeReplay(snap, snapBytes, tape, tapeBytes, m3World_Hash(world), box,
+                                        boxBytes, &written) == m3_success,
+          "the container is encoded");
+    CHECK(Restore(world, snap, snapBytes), "the snapshot restores");
+    uint64_t hash = m3World_Hash(world);
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+
+    enum
+    {
+        SNAPSHOT,
+        TAPE,
+        CONTAINER
+    };
+    const struct
+    {
+        int32_t format;
+        int32_t at;
+        m3Result expected;
+        const char* what;
+    } cases[] = {
+        {SNAPSHOT, 4, m3_errorVersion, "a snapshot of another ABI version"},
+        {SNAPSHOT, 8, m3_errorVersion, "a snapshot of another format number"},
+        {SNAPSHOT, 16, m3_errorVersion, "a snapshot of another build"},
+        {SNAPSHOT, 0, m3_errorInvalid, "a snapshot with another magic"},
+        {SNAPSHOT, 12, m3_errorInvalid, "a snapshot with another header size"},
+        {TAPE, 4, m3_errorVersion, "a tape of another ABI version"},
+        {TAPE, 8, m3_errorVersion, "a tape of another format number"},
+        {TAPE, 0, m3_errorInvalid, "a tape with another magic"},
+        {TAPE, 12, m3_errorInvalid, "a tape with another header size"},
+        {CONTAINER, 4, m3_errorVersion, "a container of another ABI version"},
+        {CONTAINER, 8, m3_errorVersion, "a container of another format number"},
+        {CONTAINER, 0, m3_errorInvalid, "a container with another magic"},
+        {CONTAINER, 12, m3_errorInvalid, "a container with another header size"},
+        {CONTAINER, 40 + 4, m3_errorVersion, "a container holding another release's snapshot"},
+        {CONTAINER, 40 + 8, m3_errorVersion, "a container holding another snapshot format"},
+        {CONTAINER, -4, m3_errorVersion, "a container holding another release's tape"},
+    };
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
+    {
+        const uint8_t* clean = cases[c].format == SNAPSHOT ? snap
+                               : cases[c].format == TAPE   ? tape
+                                                           : box;
+        int32_t size = cases[c].format == SNAPSHOT ? snapBytes
+                       : cases[c].format == TAPE   ? tapeBytes
+                                                   : written;
+        // A negative offset names the container's tape: its ABI version.
+        int32_t at = cases[c].at >= 0 ? cases[c].at : 40 + snapBytes + 4;
+        memcpy(bad, clean, (size_t)size);
+        uint32_t word = 0;
+        memcpy(&word, bad + at, 4);
+        word += 1u;
+        memcpy(bad + at, &word, 4);
+        m3Result result = m3_success;
+        if (cases[c].format == SNAPSHOT)
+        {
+            result = m3World_Restore(world, bad, size);
+        }
+        else if (cases[c].format == TAPE)
+        {
+            result = m3World_ReplayJournal(world, bad, size);
+            m3JournalInfo info;
+            CHECK(m3DescribeJournal(bad, size, &info) == result,
+                  "describing the tape refuses it the same way");
+        }
+        else
+        {
+            m3ReplayView view;
+            result = m3DecodeReplay(bad, size, &view);
+        }
+        if (result != cases[c].expected)
+        {
+            printf("FAIL: %s returned %d, not %d\n", cases[c].what, (int)result,
+                   (int)cases[c].expected);
+            s_failures += 1;
+        }
+    }
+    CHECK(m3World_Hash(world) == hash, "no refusal changed the world");
+    CHECK(m3World_GetCounters(world).misuse == misuse, "and none counted as misuse");
+
+    CHECK(Restore(world, snap, snapBytes), "the snapshot as written still restores");
+    CHECK(ReplayJournal(world, tape, tapeBytes), "the tape as written still replays");
+    m3ReplayView view;
+    CHECK(m3DecodeReplay(box, written, &view) == m3_success, "the container as written decodes");
+    // Nor does a container wrap what another release wrote.
+    memcpy(bad, snap, (size_t)snapBytes);
+    bad[4] ^= 1u;
+    CHECK(m3EncodeReplay(bad, snapBytes, tape, tapeBytes, 0, box, boxBytes, &written) ==
+              m3_errorVersion,
+          "encoding another release's snapshot is refused");
+    memcpy(bad, tape, (size_t)tapeBytes);
+    bad[4] ^= 1u;
+    CHECK(m3EncodeReplay(snap, snapBytes, bad, tapeBytes, 0, box, boxBytes, &written) ==
+              m3_errorVersion,
+          "and so is encoding another release's tape");
+    free(box);
+    free(bad);
     free(snap);
     m3DestroyWorld(world);
 }
@@ -1148,6 +1280,7 @@ int main(void)
     TestJournalOverflowIsLoud();
     TestShapeDefsRefuseAsInvalid();
     TestUntrustedDataCountsNoMisuse();
+    TestOtherReleasesAreRefused();
     TestReplayHoldsTheShapeRules();
     TestWritersRefuseWhileBusy();
     if (s_failures == 0)

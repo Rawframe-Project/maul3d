@@ -18,6 +18,7 @@
 #include "shape_state.h"
 #include "snapshot.h"
 #include "solver.h"
+#include "state_prefix.h"
 #include "world.h"
 #include "world_internal.h"
 
@@ -733,14 +734,21 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
         return m3Refuse(world, m3_errorState);
     }
     // A tape is untrusted data like a snapshot: a damaged or truncated one
-    // is refused with m3_errorInvalid and counts no misuse.
+    // is refused with m3_errorInvalid, one another release wrote with
+    // m3_errorVersion, and neither counts misuse.
     if (world == NULL || size < 0 || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    if (size == 0)
+    m3Result header = m3CheckStatePrefix(data, size, M3_JOURNAL_MAGIC, M3_JOURNAL_VERSION,
+                                         M3_JOURNAL_HEADER_BYTES);
+    if (header != m3_success)
     {
-        return m3_success; // an empty tape holds no op
+        return header;
+    }
+    if (size == M3_JOURNAL_HEADER_BYTES)
+    {
+        return m3_success; // a tape of no op
     }
     // Atomic replay: the world either takes the whole session or none of
     // it. A snapshot of the world before the first op, with the whole
@@ -762,7 +770,8 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
         m3Free(&world->heap, snap);
         return m3_errorCapacity;
     }
-    m3Result applied = ReplayApply(world, data, size);
+    m3Result applied = ReplayApply(world, (const uint8_t*)data + M3_JOURNAL_HEADER_BYTES,
+                                   size - M3_JOURNAL_HEADER_BYTES);
     if (applied != m3_success)
     {
         m3RestoreCommit(world, &backOut);

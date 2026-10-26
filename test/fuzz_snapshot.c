@@ -2,12 +2,12 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // libFuzzer target for m3World_Restore. Any bytes are refused with
-// m3_errorInvalid and leave the world byte for byte as it was, or are
-// accepted; a world restored from them writes a snapshot that restores
-// into a fresh world and writes the same bytes again. The restored world
-// is not stepped: restore checks every index, count, flag and float, not
-// every structural invariant, so stepping is promised only for snapshots
-// this engine wrote (world.h).
+// m3_errorInvalid or m3_errorVersion and leave the world byte for byte
+// as it was, or are accepted; a world restored from them writes a
+// snapshot that restores into a fresh world and writes the same bytes
+// again. The restored world is not stepped: restore checks every index,
+// count, flag and float, not every structural invariant, so stepping is
+// promised only for snapshots this engine wrote (world.h).
 
 #include "fuzz_scene.h"
 
@@ -73,7 +73,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3World* world = FreshWorld();
     Require(m3World_Restore(world, s_scene, s_sceneBytes) == m3_success);
     m3Result result = m3World_Restore(world, data, (int32_t)size);
-    Require(result == m3_success || result == m3_errorInvalid);
+    Require(result == m3_success || result == m3_errorInvalid || result == m3_errorVersion);
     int32_t bytes = 0;
     uint8_t* written = SnapshotOf(world, &bytes);
     if (result != m3_success)

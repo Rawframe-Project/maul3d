@@ -387,8 +387,9 @@ static void TestHostileDefWall(void)
 
 static void TestHostileTape(void)
 {
-    // One explode op on tape, then surgical damage: a NaN center and
-    // a negative radius must fail the replay loudly.
+    // One explode op on tape, after the tape's 16-byte state prefix, then
+    // surgical damage: a NaN center and a negative radius must fail the
+    // replay loudly.
     static uint8_t tape[256];
     m3World* world = BlastWorld();
     Crate(world, 3.0, 0.0, 0.0);
@@ -398,7 +399,8 @@ static void TestHostileTape(void)
     def.impulsePerArea = 2.0f;
     m3World_Explode(world, &def);
     int32_t bytes = StopJournal(world);
-    CHECK(bytes == 8 + (int32_t)sizeof(m3ExplosionDef), "one blast op is header plus def");
+    CHECK(bytes == 16 + 8 + (int32_t)sizeof(m3ExplosionDef),
+          "one blast op is the prefix, its header and the def");
     m3DestroyWorld(world);
 
     m3World* twin = BlastWorld();
@@ -408,11 +410,11 @@ static void TestHostileTape(void)
     double nanD;
     uint64_t nanBits = 0x7FF8000000000000ull;
     memcpy(&nanD, &nanBits, sizeof(nanD));
-    memcpy(hostile + 8, &nanD, sizeof(nanD)); // position.x
+    memcpy(hostile + 16 + 8, &nanD, sizeof(nanD)); // position.x
     CHECK(!ReplayJournal(twin, hostile, bytes), "a NaN center bounces");
     memcpy(hostile, tape, (size_t)bytes);
     float negative = -2.0f;
-    memcpy(hostile + 8 + 40, &negative, sizeof(negative)); // radius
+    memcpy(hostile + 16 + 8 + 40, &negative, sizeof(negative)); // radius
     CHECK(!ReplayJournal(twin, hostile, bytes), "a negative radius bounces");
     CHECK(Speed(twin, crate) == 0.0f, "the bounced tapes moved nothing");
     CHECK(ReplayJournal(twin, tape, bytes), "the clean tape lands");

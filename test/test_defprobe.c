@@ -163,8 +163,9 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
               StartJournal(world, tape, (int32_t)sizeof(tape)) &&
               target->build(world, target->base) == m3_success;
     int32_t tapeBytes = StopJournal(world);
+    // The records follow the tape's 16-byte state prefix.
     int32_t last = -1;
-    for (int32_t at = 0; ok && at + 8 <= tapeBytes;)
+    for (int32_t at = 16; ok && at + 8 <= tapeBytes;)
     {
         int32_t payloadBytes;
         memcpy(&payloadBytes, tape + at + 4, sizeof(payloadBytes));

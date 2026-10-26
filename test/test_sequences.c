@@ -317,10 +317,10 @@ static void TestReplayWrongSizePayloads(void)
     m3DestroyWorld(source);
     CHECK(bytes > 16, "the session recorded");
 
-    // Walk the op headers; for each op build a stream that inflates
-    // THAT op's byte count and appends four zero bytes, then demand
-    // an atomic refusal.
-    int32_t cursor = 0;
+    // Walk the op headers after the tape's 16-byte state prefix; for
+    // each op build a stream that inflates THAT op's byte count and
+    // appends four zero bytes, then demand an atomic refusal.
+    int32_t cursor = 16;
     int32_t attacked = 0;
     while (cursor + 8 <= bytes)
     {

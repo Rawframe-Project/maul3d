@@ -23,3 +23,6 @@ arm64 macOS, and WebAssembly.
 1. Same inputs, same bits, every platform, every thread count.
 2. Snapshot, restore, journal replay: bit-exact, always.
 3. Bad input is refused with a reason; it never corrupts quietly.
+4. A snapshot, a journal tape and a replay container are read by the
+   release that wrote them; any other refuses them with
+   m3_errorVersion. Keep assets, not state, across an upgrade.

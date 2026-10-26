@@ -143,18 +143,24 @@ Deliberately NOT in the snapshot:
 - **Event streams.** Events are transient observations; restore
   clears every stream (contact, sensor, and fragment alike).
 
-A snapshot restores only into a world with the same capacities and
-the same build semantics (a config hash guards both). Truncated
-buffers, corrupted headers, and wrong-shaped worlds are refused with
-the target world untouched. So is any snapshot this engine could not
+A snapshot restores only into the release that wrote it, built
+with the same semantics, and into a world with the same capacities:
+the header's state prefix guards the release, a config hash the
+build. Another release's or another build's snapshot is refused with
+m3_errorVersion; truncated buffers, corrupted headers, and
+wrong-shaped worlds with m3_errorInvalid; each with the target world
+untouched. So is any snapshot this engine could not
 have written: broken links, lists, pools or trees, and any value past
 the limit its create or setter keeps (see "Magnitude limits"). A
 world restore accepts steps, queries and snapshots like one the API
 built.
 
-The header carries a format version. There is no migration; a
-snapshot is a save-state for rollback and replay, not an archival
-format.
+The header starts with the 16-byte state prefix maul2d shares, which
+carries the writer's ABI version and the format's own number
+([the state formats](internals/state-formats.md)). There is no
+migration; a snapshot is a save-state for rollback and replay, not an
+archival format, and a host keeps assets, not snapshots, across an
+upgrade.
 
 **One layout on every target.** A snapshot and a journal tape are
 little-endian, and every type they carry is laid out as on x86-64,
@@ -172,7 +178,9 @@ payloads), destroys, velocity commands, and steps (dt and substep
 count). Getters and queries are not ops.
 
 `m3World_StartJournal(world, buffer, capacity)` arms recording into a
-caller-owned buffer. `m3World_StopJournal` returns the bytes written,
+caller-owned buffer and writes the tape's 16-byte state prefix at its
+start, so the buffer holds at least those 16 bytes; a session of no
+op is just the prefix. `m3World_StopJournal` returns the bytes written,
 or -1 if the buffer overflowed (an overflowed journal records
 nothing more and can never be mistaken for a good one).
 `m3World_ReplayJournal(world, data, size)` applies a recorded session
@@ -186,7 +194,8 @@ write the same bytes.
 **Replay is atomic.** On any refusal the target world is restored to
 its pre-call state. A half-applied session is impossible. A damaged
 tape (truncation, corruption, an op that cannot re-mint its recorded
-id) is refused with m3_errorInvalid; a replay the world's allocator
+id) is refused with m3_errorInvalid, a tape another release wrote
+with m3_errorVersion, and a replay the world's allocator
 turns down, before the first op or in the middle of one, with
 m3_errorCapacity. Backing out never needs memory, because the replay
 takes it up front: for the whole call it holds a snapshot of the world
@@ -1038,21 +1047,24 @@ the observer purity law throughout.
 
 ## The replay studio
 
-An M3J1 file is [header | initial snapshot | journal], encoded
+A replay file is [header | initial snapshot | journal], encoded
 and decoded by pure-memory calls in maul3d/replay.h; file IO
 belongs to hosts and tools (tools/m3replay is the model
 consumer). The header carries step and op counts and the
 recorder's final hash, so verification is self-contained: restore
-the snapshot, replay the journal, compare hashes. A journal
-prefix cut at record boundaries is itself a valid journal; the
-scrubber in m3replay keyframes every 30 steps and re-steps to
-seek anywhere, proving each landing against a straight-run
-prefix hash. When two sessions disagree, m3replay diff finds the
-first divergent step by prefix-hash binary search and
-m3World_Compare names the worst bodies at it. Corrupt
-containers refuse loudly: the codec validates magic, version,
-exact lengths, record framing, and that the header's counts match
-its own stream.
+the snapshot, replay the journal, compare hashes. A journal cut
+at record boundaries, behind the tape's 16-byte prefix, is itself
+a valid journal; the scrubber in m3replay keyframes every 30
+steps and re-steps to seek anywhere, proving each landing against
+a straight-run prefix hash. When two sessions disagree, m3replay
+diff finds the first divergent step by prefix-hash binary search
+and m3World_Compare names the worst bodies at it. Corrupt
+containers refuse loudly: the codec validates the container's,
+the snapshot's and the tape's headers, exact lengths, record
+framing, and that the header's counts match its own stream. Like
+the snapshot and the tape it holds, a container is read only by
+the release that wrote it; another release's is refused with
+m3_errorVersion.
 
 ## Lockstep and rollback networking
 

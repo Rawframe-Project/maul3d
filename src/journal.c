@@ -7,6 +7,7 @@
 #include "journal.h"
 
 #include "misuse.h"
+#include "state_prefix.h"
 #include "world_internal.h"
 
 #include <stddef.h>
@@ -218,7 +219,8 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
     {
         return m3Refuse(world, m3_errorState);
     }
-    if (world == NULL || buffer == NULL || capacity < 8)
+    // The buffer holds at least the tape's header, which is written now.
+    if (world == NULL || buffer == NULL || capacity < M3_JOURNAL_HEADER_BYTES)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
@@ -226,9 +228,12 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
     {
         return m3Refuse(world, m3_errorState);
     }
+    m3StatePrefix header =
+        m3MakeStatePrefix(M3_JOURNAL_MAGIC, M3_JOURNAL_VERSION, M3_JOURNAL_HEADER_BYTES);
+    memcpy(buffer, &header, sizeof(header));
     world->recorder.journalBuffer = (uint8_t*)buffer;
     world->recorder.journalCapacity = capacity;
-    world->recorder.journalCursor = 0;
+    world->recorder.journalCursor = M3_JOURNAL_HEADER_BYTES;
     world->recorder.journalActive = 1;
     world->recorder.journalOverflow = 0;
     return m3_success;

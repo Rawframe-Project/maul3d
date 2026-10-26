@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The container gate: an M3J1 session round-trips in pure
+// The container gate: a replay container's session round-trips in pure
 // memory onto the recorder's hash, the header's counts match the
 // stream, and every kind of corruption refuses loudly without
 // touching a world.
@@ -116,7 +116,7 @@ static void TestRefusals(void)
     // Truncation, three depths.
     memcpy(bad, blob, (size_t)bytes);
     CHECK(!DecodeReplay(bad, bytes - 1, &view), "truncated tail refuses");
-    CHECK(!DecodeReplay(bad, 16, &view), "truncated header refuses");
+    CHECK(!DecodeReplay(bad, 39, &view), "truncated header refuses");
     CHECK(!DecodeReplay(bad, 0, &view), "empty refuses");
 
     // A corrupted record length inside the journal.
@@ -124,18 +124,23 @@ static void TestRefusals(void)
     DecodeReplay(blob, bytes, &view);
     int32_t journalOffset = (int32_t)((const uint8_t*)view.journal - blob);
     int32_t huge = 1 << 30;
-    memcpy(bad + journalOffset + 4, &huge, 4); // first record's length
+    memcpy(bad + journalOffset + 16 + 4, &huge, 4); // first record's length, after the prefix
     CHECK(!DecodeReplay(bad, bytes, &view), "a corrupt record length refuses");
 
-    // A header that lies about its counts.
+    // A header that lies about its counts: the step count follows the
+    // prefix, the final hash and the two sizes.
     memcpy(bad, blob, (size_t)bytes);
     int32_t lie = 9999;
-    memcpy(bad + 16, &lie, 4);
+    memcpy(bad + 32, &lie, 4);
     CHECK(!DecodeReplay(bad, bytes, &view), "a lying step count refuses");
 
-    // Describe on garbage.
+    // Describe on garbage: a real tape's prefix, then a record whose
+    // payload runs past the end.
     m3JournalInfo info;
-    uint8_t garbage[16] = {7, 0, 0, 0, 99, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t garbage[32] = {0};
+    memcpy(garbage, view.journal, 16);
+    const uint8_t record[16] = {7, 0, 0, 0, 99, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    memcpy(garbage + 16, record, sizeof(record));
     CHECK(!DescribeJournal(garbage, (int32_t)sizeof(garbage), &info),
           "an overlong payload refuses");
     CHECK(DescribeJournal(NULL, 0, &info) == false, "null journal refuses");

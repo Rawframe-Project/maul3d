@@ -319,8 +319,9 @@ static void TestVoxelEditsUnderBudget(void)
             int32_t journaled = StopJournal(world);
             bool refused = m3World_Hash(world) == hash;
             landed += refused ? 0 : 1;
+            // A refused edit journals nothing past the tape's 16-byte prefix.
             whole =
-                whole && (refused ? journaled == 0 && m3World_GetCounters(world).misuse == misuse
+                whole && (refused ? journaled == 16 && m3World_GetCounters(world).misuse == misuse
                                   : RayStrikes(world, kOverSlab, slab));
             m3DestroyWorld(world);
         }
@@ -392,6 +393,12 @@ static void TestReplayUnderBudget(void)
     CHECK(result == m3_success && RayStrikes(world, kOverFloor, floor) &&
               RayStrikes(world, kOverSlab, slab),
           "and the replayed trees answer");
+    // A tape of no op holds nothing to back out, so it replays with no
+    // memory at all.
+    budget.left = 0;
+    CHECK(m3World_ReplayJournal(world, tape, 16) == m3_success,
+          "a tape of no op replays on an allocator that refuses everything");
+    budget.left = -1;
     free(end);
     free(start);
     m3DestroyWorld(world);

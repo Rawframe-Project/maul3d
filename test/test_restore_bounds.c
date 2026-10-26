@@ -8,6 +8,7 @@
 // it was.
 
 #include "helpers.h"
+#include "state_prefix.h"
 #include "test_harness.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -20,9 +21,8 @@
 
 enum
 {
-    // The snapshot header ahead of the fixed prefix (src/snapshot.c
-    // asserts its size).
-    HEADER_BYTES = 48
+    // The snapshot header ahead of the fixed prefix.
+    HEADER_BYTES = M3_SNAPSHOT_HEADER_BYTES
 };
 
 // The live slots the cases write into.
