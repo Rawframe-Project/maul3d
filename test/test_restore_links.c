@@ -13,6 +13,7 @@
 // that follows it.
 
 #include "fuzz_scene.h"
+#include "state_prefix.h"
 #include "test_harness.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -23,9 +24,8 @@
 
 enum
 {
-    // The snapshot header ahead of the fixed prefix (src/snapshot.c
-    // asserts its size).
-    HEADER_BYTES = 48
+    // The snapshot header ahead of the fixed prefix.
+    HEADER_BYTES = M3_SNAPSHOT_HEADER_BYTES
 };
 
 // Where element i of the field at offset sits in a snapshot of world.

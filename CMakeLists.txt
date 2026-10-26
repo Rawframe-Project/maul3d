@@ -136,6 +136,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/softbody_solver.c
     src/solver.c
     src/solver_math.c
+    src/state_prefix.c
     src/triangle_contact.c
     src/vehicle.c
     src/vehicle_drivetrain.c

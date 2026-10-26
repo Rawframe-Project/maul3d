@@ -18,6 +18,7 @@
 #include "misuse.h"
 #include "shape.h"
 #include "snapshot_links.h"
+#include "state_prefix.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -31,9 +32,6 @@
 #error "maul3d snapshots are little-endian only (add the swap in WalkBlocks first)"
 #endif
 
-#define M3_SNAPSHOT_MAGIC   0x4D33534Eu // 'M3SN'
-#define M3_SNAPSHOT_VERSION 4u          // 4: 32-bit generations
-
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.
 _Static_assert(sizeof(m3Vec3) == 12, "m3Vec3 must be padding-free");
@@ -42,17 +40,17 @@ _Static_assert(sizeof(m3Pos3) == 24, "m3Pos3 must be padding-free");
 _Static_assert(sizeof(m3Transform) == 40, "m3Transform must be padding-free");
 _Static_assert(sizeof(m3Mat3) == 36, "m3Mat3 must be padding-free");
 
-// The header says which build and which world shape wrote the bytes;
-// everything else, pool cursors included, is the state table's.
+// The header says which release, which build and which world shape wrote
+// the bytes; everything else, pool cursors included, is the state table's.
 typedef struct m3SnapshotHeader
 {
-    uint32_t magic;
-    uint32_t formatVersion;
+    m3StatePrefix prefix;
     uint64_t configHash;
     int32_t capacities[8];
 } m3SnapshotHeader;
 
-_Static_assert(sizeof(m3SnapshotHeader) == 48, "snapshot header must be padding-free");
+_Static_assert(sizeof(m3SnapshotHeader) == M3_SNAPSHOT_HEADER_BYTES,
+               "snapshot header must be padding-free");
 
 static void WorldCapacities(const m3World* world, int32_t capacities[8])
 {
@@ -68,12 +66,11 @@ static void WorldCapacities(const m3World* world, int32_t capacities[8])
 
 static uint64_t ConfigHash(void)
 {
-    // Everything that changes what the serialized bytes MEAN, and
-    // nothing that does not (SIMD backend and worker count are
-    // deliberately absent: the format is portable across them).
+    // Everything that changes what the serialized bytes MEAN within one
+    // release, and nothing that does not (SIMD backend and worker count
+    // are deliberately absent: the format is portable across them). The
+    // release itself is the prefix's abiVersion.
     uint64_t h = M3_HASH_INIT;
-    // The snapshot format, not the library version: a release that keeps
-    // the format reads its predecessor's snapshots.
     int32_t version = (int32_t)M3_SNAPSHOT_VERSION;
     int32_t solverRev = M3_SOLVER_REV;
     int32_t realSize = (int32_t)sizeof(m3real);
@@ -303,8 +300,8 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
 
     m3SnapshotHeader header;
     memset(&header, 0, sizeof(header));
-    header.magic = M3_SNAPSHOT_MAGIC;
-    header.formatVersion = M3_SNAPSHOT_VERSION;
+    header.prefix =
+        m3MakeStatePrefix(M3_SNAPSHOT_MAGIC, M3_SNAPSHOT_VERSION, M3_SNAPSHOT_HEADER_BYTES);
     header.configHash = ConfigHash();
     WorldCapacities(world, header.capacities);
 
@@ -862,19 +859,27 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
 m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3RestoreStage* stage)
 {
     memset(stage, 0, sizeof(*stage));
-    if (size < (int32_t)sizeof(m3SnapshotHeader))
+    if (data == NULL)
     {
         return m3_errorInvalid;
     }
+    m3Result prefix = m3CheckStatePrefix(data, size, M3_SNAPSHOT_MAGIC, M3_SNAPSHOT_VERSION,
+                                         M3_SNAPSHOT_HEADER_BYTES);
+    if (prefix != m3_success)
+    {
+        return prefix;
+    }
     m3SnapshotHeader header;
     memcpy(&header, data, sizeof(header));
+    if (header.configHash != ConfigHash())
+    {
+        return m3_errorVersion; // another build of this release
+    }
     int32_t capacities[8];
     WorldCapacities(world, capacities);
-    if (header.magic != M3_SNAPSHOT_MAGIC || header.formatVersion != M3_SNAPSHOT_VERSION ||
-        header.configHash != ConfigHash() ||
-        memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
+    if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        return m3_errorInvalid; // another build or another world shape
+        return m3_errorInvalid; // another world shape
     }
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
@@ -916,8 +921,9 @@ static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data,
         return m3Refuse(world, m3_errorState);
     }
     // A snapshot is untrusted data: bytes that fail a check, a short or
-    // truncated buffer included, are refused with m3_errorInvalid and
-    // count no misuse. Only arguments a correct program never passes do.
+    // truncated buffer included, are refused with m3_errorInvalid, bytes
+    // another release or build wrote with m3_errorVersion, and neither
+    // counts misuse. Only arguments a correct program never passes do.
     if (world == NULL || size < 0 || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);

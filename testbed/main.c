@@ -1353,7 +1353,7 @@ static bool UiStepper(tbUi* ui, const char* label, int32_t* value, int32_t lo, i
 
 // ------------------------------------------------------ the recording
 // The replay studio in the testbed: journal the whole scene life,
-// seal it in an M3J1 container, write it to disk, and VERIFY it by
+// seal it in a replay container, write it to disk, and VERIFY it by
 // replaying into a fresh world and comparing final hashes. The
 // moat, clickable.
 
@@ -1367,7 +1367,7 @@ static m3WorldDef s_recordDef; // the probe recipe for verify
 
 // Arm on the CURRENT world: the container's snapshot covers all
 // state up to this moment and the journal covers everything after,
-// which is exactly the M3J1 contract.
+// which is exactly the replay container's contract.
 static void RecordArm(m3World* world, m3WorldDef def)
 {
     s_recordDef = def;

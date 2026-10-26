@@ -285,7 +285,7 @@ static int Info(const char* path)
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
-        fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
+        fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
         return 1;
     }
     printf("m3replay: %s\n  snapshot %d bytes\n  journal  %d bytes\n  ops      %d\n  steps    "
@@ -303,7 +303,7 @@ static int Verify(const char* path)
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
-        fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
+        fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
         return 1;
     }
     m3WorldDef def = DemoDef();
@@ -329,10 +329,11 @@ static int Verify(const char* path)
 
 // --- The step scrubber ------------------------------------------------
 //
-// A journal prefix cut at record boundaries is itself a valid
-// journal, so the scrubber needs no engine additions: it slices
-// the stream into per-step segments (the ops leading up to a step
-// record, plus that step record), replays segments forward, and
+// A run of records cut at record boundaries, behind the tape's
+// 16-byte state prefix, is itself a valid tape, so the scrubber
+// needs no engine additions: it slices the stream into per-step
+// segments (the ops leading up to a step record, plus that step
+// record), replays segments forward, and
 // keyframes a snapshot every M3_SCRUB_INTERVAL steps. Seek =
 // restore the nearest keyframe at or before the target, re-step
 // forward. Bit-exact by the rollback contract, and the selftest
@@ -340,10 +341,14 @@ static int Verify(const char* path)
 
 #define M3_SCRUB_INTERVAL 30
 
+// The tape's state prefix, which every segment replays behind.
+#define M3_SCRUB_PREFIX 16
+
 typedef struct Scrub
 {
     const uint8_t* journal;
     int32_t journalBytes;
+    uint8_t* segment; // the prefix, then one segment's records
     int32_t stepCount;
     int32_t* stepEnds; // byte offset just PAST step i's record
     uint8_t** keys;    // keyframe snapshots, one per interval mark
@@ -359,7 +364,7 @@ typedef struct Scrub
 static bool ScrubIndex(Scrub* s)
 {
     s->stepEnds = (int32_t*)malloc(sizeof(int32_t) * (size_t)(s->stepCount + 1));
-    int32_t cursor = 0;
+    int32_t cursor = M3_SCRUB_PREFIX;
     int32_t step = 0;
     while (cursor < s->journalBytes)
     {
@@ -377,15 +382,27 @@ static bool ScrubIndex(Scrub* s)
     return step == s->stepCount;
 }
 
+// Replays step i's segment, the ops leading up to its step record and
+// that record, into the scrub world.
+static bool ReplaySegment(Scrub* s, int32_t i)
+{
+    int32_t from = i == 0 ? M3_SCRUB_PREFIX : s->stepEnds[i - 1];
+    int32_t to = s->stepEnds[i];
+    memcpy(s->segment + M3_SCRUB_PREFIX, s->journal + from, (size_t)(to - from));
+    return ReplayJournal(s->world, s->segment, M3_SCRUB_PREFIX + to - from);
+}
+
 static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
 {
     s->journal = (const uint8_t*)view->journal;
     s->journalBytes = view->journalBytes;
     s->stepCount = view->info.stepCount;
-    if (!ScrubIndex(s))
+    s->segment = (uint8_t*)malloc((size_t)view->journalBytes);
+    if (s->segment == NULL || !ScrubIndex(s))
     {
         return false;
     }
+    memcpy(s->segment, s->journal, M3_SCRUB_PREFIX);
     m3WorldDef def = DemoDef();
     s->world = NewWorld(&def);
     if (!Restore(s->world, view->snapshot, view->snapshotBytes))
@@ -404,9 +421,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     }
     for (int32_t i = 0; i < s->stepCount; ++i)
     {
-        int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
-        int32_t to = s->stepEnds[i];
-        if (!ReplayJournal(s->world, s->journal + from, to - from))
+        if (!ReplaySegment(s, i))
         {
             return false;
         }
@@ -443,9 +458,7 @@ static bool ScrubSeek(Scrub* s, int32_t stepN)
     }
     for (int32_t i = key * M3_SCRUB_INTERVAL; i < stepN; ++i)
     {
-        int32_t from = i == 0 ? 0 : s->stepEnds[i - 1];
-        int32_t to = s->stepEnds[i];
-        if (!ReplayJournal(s->world, s->journal + from, to - from))
+        if (!ReplaySegment(s, i))
         {
             return false;
         }
@@ -482,6 +495,7 @@ static void ScrubFree(Scrub* s)
     free(s->keys);
     free(s->keySizes);
     free(s->stepEnds);
+    free(s->segment);
     m3DestroyWorld(s->world);
 }
 
@@ -492,7 +506,7 @@ static int Seek(const char* path, int32_t stepN)
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
-        fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
+        fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
         return 1;
     }
     Scrub s;
@@ -524,7 +538,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
     {
-        fprintf(stderr, "m3replay: %s is not a valid M3J1 container\n", path);
+        fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
         return 1;
     }
     Scrub s;
@@ -653,7 +667,7 @@ static int Diff(const char* pathA, const char* pathB)
     if (dataA == NULL || dataB == NULL || !DecodeReplay(dataA, bytesA, &va) ||
         !DecodeReplay(dataB, bytesB, &vb))
     {
-        fprintf(stderr, "m3replay: diff needs two valid M3J1 containers\n");
+        fprintf(stderr, "m3replay: diff needs two valid replay containers\n");
         return 1;
     }
     int rc = DiffViews(&va, &vb);

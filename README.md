@@ -176,6 +176,9 @@ refuses it; a replay file carries its container version the same way.
 - [The API reference](https://rawframe-project.github.io/maul3d/api.html):
   every public function with its documentation, generated from the
   headers.
+- [The state formats](docs/internals/state-formats.md): the
+  snapshot, the journal tape and the replay container, and the
+  16-byte prefix they share with maul2d.
 - [The conventions](docs/internals/maul-conventions.md): the rules
   every Maul library follows, from naming to commits.
 - [The changelog](CHANGELOG.md): every release and what changed.

@@ -244,9 +244,12 @@ extern "C"
 
     /// Snapshot and rollback, first-class from day one. The format is
     /// portable and versioned: field blocks in little-endian order, laid
-    /// out the same on every target, with a header carrying a config
-    /// hash (snapshot format, solver revision, precision, FP policy).
-    /// Restore refuses a mismatched config, format or world shape with
+    /// out the same on every target, after a header carrying the state
+    /// prefix (the writing release's M3_ABI_VERSION and the format's
+    /// number), a config hash (solver revision, precision, FP policy)
+    /// and the world's capacities. Only the release that wrote a
+    /// snapshot reads it: restore refuses another release, format or
+    /// config with m3_errorVersion and another world shape with
     /// m3_errorInvalid, restores in place, and the restored world
     /// resimulates bit-exactly. Before any byte lands, every block is
     /// checked: out-of-range indices and counts, flags that are not
@@ -729,15 +732,19 @@ extern "C"
     /// none was running); Replay applies a stream to this world. A tape
     /// is laid out the same on every target (little-endian, each record
     /// as on x86-64) and never holds a def's padding, so the same calls
-    /// write the same bytes anywhere.
+    /// write the same bytes anywhere. It starts with the 16-byte state
+    /// prefix, written when the journal starts, so the buffer holds at
+    /// least 16 bytes and a session of no op is those 16. Only the
+    /// release that wrote a tape replays it.
     M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
                                                       int32_t capacity);
     M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal the world is restored to its pre-call state; a
-    /// half-applied session is impossible. Returns m3_errorInvalid
-    /// for a damaged tape (truncation, corruption, an op that cannot
-    /// re-mint its recorded id) and m3_errorCapacity when the world's
+    /// half-applied session is impossible. Returns m3_errorVersion for a
+    /// tape another release wrote, m3_errorInvalid for a damaged tape
+    /// (truncation, corruption, an op that cannot re-mint its recorded
+    /// id) and m3_errorCapacity when the world's
     /// allocator refuses what the replay or one of its ops needs.
     /// The back-out is taken before the first op so that it cannot
     /// fail: for the whole call the replay holds a snapshot of the

@@ -15,6 +15,7 @@
 
 #include "fuzz_scene.h"
 #include "journal.h"
+#include "state_prefix.h"
 
 #include "maul3d/replay.h"
 
@@ -142,7 +143,7 @@ static int32_t CountOps(const uint8_t* tape, int32_t bytes, int32_t op)
     int32_t records = 0;
     int32_t steps = 0;
     int32_t matches = 0;
-    for (int32_t cursor = 0; cursor < bytes;)
+    for (int32_t cursor = M3_JOURNAL_HEADER_BYTES; cursor < bytes;)
     {
         int32_t kind;
         int32_t payload;
@@ -179,9 +180,15 @@ static void SessionOpsHold(const uint8_t* build, int32_t buildBytes, const uint8
 
 // A tape aimed at the character's own capsule: the build, then a destroy
 // recorded on the ball's sphere and pointed at the capsule, then a stance
-// change. Replay must refuse it as the public call does.
+// change. Replay must refuse it as the public call does. The calls are
+// recorded on a tape of their own, whose records follow the build's.
 static void WriteOwnedSeed(const char* dir, uint8_t* tape)
 {
+    uint8_t* calls = (uint8_t*)malloc(TAPE_BYTES);
+    if (calls == NULL)
+    {
+        Fail("the owned seed's call tape");
+    }
     m3World* world = FreshWorld();
     FuzzScene scene;
     int32_t buildBytes = 0;
@@ -198,7 +205,7 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
     m3RayCastResult hit = m3World_CastRayClosest(
         world, (m3Pos3){-2.0, 4.0, -2.0}, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
     if (m3Body_GetShapes(world, scene.ball, &sphere, 1) != 1 || !hit.hit ||
-        m3World_StartJournal(world, tape + buildBytes, TAPE_BYTES - buildBytes) != m3_success)
+        m3World_StartJournal(world, calls, TAPE_BYTES - buildBytes) != m3_success)
     {
         Fail("the owned seed's targets");
     }
@@ -209,6 +216,10 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
     {
         Fail("the owned seed's calls");
     }
+    // The call tape's records, past its prefix, after the build's.
+    callBytes -= M3_JOURNAL_HEADER_BYTES;
+    memcpy(tape + buildBytes, calls + M3_JOURNAL_HEADER_BYTES, (size_t)callBytes);
+    free(calls);
     int32_t found = 0;
     for (int32_t at = buildBytes; at + (int32_t)sizeof(sphere) <= buildBytes + callBytes; ++at)
     {

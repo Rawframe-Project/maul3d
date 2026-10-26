@@ -149,23 +149,23 @@ static void TestHashFoldsOffDefaultOnly(void)
 
 static void TestHostileTape(void)
 {
-    // The tape is [op:4][bytes:4][payload], no prologue. One op per
-    // tape, then surgical byte damage: every mutation must fail the
-    // replay loudly and a clean tape must land.
+    // The tape is the 16-byte state prefix, then [op:4][bytes:4][payload].
+    // One op per tape, then surgical byte damage: every mutation must
+    // fail the replay loudly and a clean tape must land.
     static uint8_t tape[64];
     m3World* world = SpinWorld();
     m3BodyId body = Spinner(world, 0.0, 10.0f);
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
     m3Body_EnableFastRotation(world, body, true);
     int32_t bytes = StopJournal(world);
-    CHECK(bytes == 20, "one flag op is 8 header + 12 payload");
+    CHECK(bytes == 16 + 20, "one flag op is the prefix, 8 header and 12 payload");
     m3DestroyWorld(world);
 
     m3World* twin = SpinWorld();
     m3BodyId twinBody = Spinner(twin, 0.0, 10.0f);
     uint8_t hostile[64];
     memcpy(hostile, tape, (size_t)bytes);
-    hostile[16] = 7; // allow must be 0 or 1
+    hostile[16 + 16] = 7; // allow must be 0 or 1
     CHECK(!ReplayJournal(twin, hostile, bytes), "allow=7 bounces");
     CHECK(!ReplayJournal(twin, tape, bytes - 1), "a truncated tape bounces");
     CHECK(!m3Body_IsFastRotationEnabled(twin, twinBody), "the bounced tapes changed nothing");
@@ -178,16 +178,16 @@ static void TestHostileTape(void)
     CHECK(StartJournal(world2, tape, (int32_t)sizeof(tape)), "the cap tape opens");
     m3World_SetMaximumAngularSpeed(world2, 50.0f);
     bytes = StopJournal(world2);
-    CHECK(bytes == 12, "one cap op is 8 header + 4 payload");
+    CHECK(bytes == 16 + 12, "one cap op is the prefix, 8 header and 4 payload");
     m3DestroyWorld(world2);
 
     m3World* twin2 = SpinWorld();
     memcpy(hostile, tape, (size_t)bytes);
     uint32_t nanBits = 0x7FC00000u;
-    memcpy(hostile + 8, &nanBits, 4);
+    memcpy(hostile + 16 + 8, &nanBits, 4);
     CHECK(!ReplayJournal(twin2, hostile, bytes), "a NaN cap bounces");
     float negative = -5.0f;
-    memcpy(hostile + 8, &negative, 4);
+    memcpy(hostile + 16 + 8, &negative, 4);
     CHECK(!ReplayJournal(twin2, hostile, bytes), "a negative cap bounces");
     CHECK(ReplayJournal(twin2, tape, bytes), "the clean cap tape lands");
     m3DestroyWorld(twin2);

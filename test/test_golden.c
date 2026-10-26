@@ -27,10 +27,11 @@
 #include "maul3d/softbody.h"
 #include "maul3d/vehicle.h"
 
-// Only for the op enum: the journal scene requires the tape to hold every
-// op the journal defines. No internal function is called, so the suite
-// still runs against the shared library.
+// Only for the op enum and the formats' header sizes: the journal scene
+// requires the tape to hold every op the journal defines. No internal
+// function is called, so the suite still runs against the shared library.
 #include "../src/journal.h"
+#include "../src/state_prefix.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -213,11 +214,17 @@ static void Expect(const char* name, uint64_t hash, uint64_t committed)
 
 // FNV-1a over a snapshot's or a tape's bytes. The formats are pinned on
 // lines of their own, so a change of format (an id's layout, a new field)
-// shows apart from a change of results.
-static uint64_t HashBytes(const uint8_t* bytes, int32_t count)
+// shows apart from a change of results. The hash starts at offset 8, past
+// the magic and the writer's ABI version, so a release bump moves no
+// line; a check pins the ABI word to this release's instead. Neither
+// format here embeds another's header.
+static uint64_t HashStateBytes(const uint8_t* bytes, int32_t count)
 {
+    uint32_t abi = 0;
+    memcpy(&abi, bytes + 4, sizeof(abi));
+    CHECK(count >= 16 && abi == M3_ABI_VERSION, "the bytes carry this release's ABI version");
     uint64_t h = 0xcbf29ce484222325ull;
-    for (int32_t i = 0; i < count; ++i)
+    for (int32_t i = 8; i < count; ++i)
     {
         h = (h ^ bytes[i]) * 0x100000001b3ull;
     }
@@ -1086,7 +1093,7 @@ static uint64_t SceneRollback(void)
               memcmp(after, again, (size_t)afterSize) == 0,
           "the rerun's snapshot is byte for byte the first one's");
 
-    s_snapshotBytesHash = HashBytes(after, afterSize);
+    s_snapshotBytesHash = HashStateBytes(after, afterSize);
     CHECK(Restore(t.world, before, size), "the snapshot restores twice");
     StepN(t.world, TOUR_FRAMES - TOUR_SNAPSHOT_FRAME);
     CHECK(m3World_Hash(t.world) != first, "a different continuation diverges");
@@ -1290,15 +1297,16 @@ static uint64_t RunWalk(Walk* w, m3World* world, uint64_t seed)
     return m3World_Hash(world);
 }
 
-// Requires every op the journal defines on the tape, and the tape to be a
-// sequence of well-formed [i32 op][i32 size][payload] records. The tour
+// Requires every op the journal defines on the tape, and the tape to be
+// its prefix and then a sequence of well-formed [i32 op][i32 size][payload]
+// records. The tour
 // makes every journaled call, so an op added without a tour call fails
 // here instead of quietly going unreplayed.
 static void CheckTapeHoldsEveryOp(const uint8_t* tape, int32_t bytes)
 {
     bool seen[m3_opCount];
     memset(seen, 0, sizeof(seen));
-    int32_t at = 0;
+    int32_t at = M3_JOURNAL_HEADER_BYTES;
     while (at + 8 <= bytes)
     {
         int32_t op;
@@ -1352,7 +1360,7 @@ static uint64_t SceneJournal(void)
     CHECK(walk.bodyCount > 20, "the walk builds a populated corner");
     int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the session fits its journal");
-    s_tapeBytesHash = HashBytes(tape, bytes);
+    s_tapeBytesHash = HashStateBytes(tape, bytes);
     CheckTapeHoldsEveryOp(tape, bytes);
     m3DestroyWorld(world);
 
