@@ -6,6 +6,55 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.5.0](https://github.com/Rawframe-Project/maul3d/compare/v0.4.0...v0.5.0) (2026-10-26)
+
+### Changed
+
+- **Breaking: every id pool keeps 32-bit generations, and the snapshot
+  format is 4.** A slot retires at its last generation rather than
+  wrapping, and with 16-bit generations a pool allowed only
+  `capacity × 65536` creates over a world's life: a 1000-slot pool
+  creating and destroying 1000 objects a second ran out after about 18
+  hours. A pool of capacity n now makes n × 2^32 objects, about 136
+  years in that case. All 11 pools change, the internal hull, mesh,
+  height field and voxel pools included, and so do the generations
+  stored for a character's ground body, a vehicle's chassis and soft
+  body anchors. Public ids, the API and the ABI are unchanged. A
+  format 3 snapshot, or a replay container that starts with one, is
+  refused; take snapshots again with this release. Every golden hash
+  except the journal tape's moves, because the world hash covers the
+  wider generations
+  ([#92](https://github.com/Rawframe-Project/maul3d/pull/92)).
+
+### Fixed
+
+- Joints keep their hold on very heavy bodies and long arms. A joint
+  block whose float determinant underflowed to zero now takes the
+  scaled solve, and the point block and the joint row pair are built
+  and solved in double when float loses their mass term. A
+  ball-and-socket or hinge on a 1000 m arm now holds its pivot within
+  half a millimetre at every angle measured, 0° to 60°, where it fell
+  freely or was flung 2 km. Hung cubes of 8e16 kg and more and welded
+  cubes from 8e9 kg stay held, and rolling resistance works at
+  4.2e12 kg. The guide states the limit that remains, `mass * arm^2 / moment` below about 1e15. A slider on
+  a 1000 m arm holds again at 30° below its axis and above it, where it
+  was flung hundreds of metres; it still sags about 2 m, and is still
+  flung at 45° and 60° below its axis
+  ([#96](https://github.com/Rawframe-Project/maul3d/issues/96)).
+  Results of ordinary systems are unchanged bit for bit. Long-arm
+  joints cost up to about 22% more instructions, and ordinary joint
+  chains within 3%
+  ([#97](https://github.com/Rawframe-Project/maul3d/pull/97)).
+
+### Security
+
+- The contact reduction's picks always stay within the candidate
+  points, for every caller: plane against hull, hull faces, meshes and
+  triangle clipping. The points kept are unchanged wherever the old
+  picks stayed in range
+  ([#103](https://github.com/Rawframe-Project/maul3d/pull/103),
+  [GHSA-6vg5-vpc9-p7cw](https://github.com/Rawframe-Project/maul3d/security/advisories/GHSA-6vg5-vpc9-p7cw)).
+
 ## [0.4.0](https://github.com/Rawframe-Project/maul3d/releases/tag/v0.4.0) (2026-10-25)
 
 ### Changed
