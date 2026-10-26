@@ -32,7 +32,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@23883e3610442d449485b0a5ec5192709efbc33c # v0.0.23
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       pull-requests: read
 
@@ -46,10 +46,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@23883e3610442d449485b0a5ec5192709efbc33c # v0.0.23
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@23883e3610442d449485b0a5ec5192709efbc33c # v0.0.23
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
 
@@ -133,7 +133,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@23883e3610442d449485b0a5ec5192709efbc33c # v0.0.23
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
     with:
@@ -159,7 +159,7 @@ jobs:
           - { preset: macos-clang-bench, runner: macos-15 }
           - { preset: windows-clang-cl-bench, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl-bench, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@23883e3610442d449485b0a5ec5192709efbc33c # v0.0.23
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
     with:
@@ -267,36 +267,21 @@ jobs:
           key: ccache-fuzz-${{ github.sha }}
       - name: Run
         # As many targets at a time as the runner has cores; each keeps its
-        # full time. A target's output goes to its log, printed when it
-        # finds something.
+        # full time. tools/fuzz_target.sh keeps a target's findings and log
+        # on the runner and reports a finding without its input; the
+        # reports print once every target has finished.
         run: |
-          mkdir -p out/fuzz-logs out/findings
-          fuzz_one() {
-            name=$(basename "$1")
-            mkdir -p "out/corpus/$name"
-            if "$1" -max_total_time="$FUZZ_SECONDS" -timeout=10 -artifact_prefix="out/findings/$name-" \
-              "out/corpus/$name" "out/seeds/$name" >"out/fuzz-logs/$name.log" 2>&1; then
-              echo "$name: no finding"
-            else
-              tail -n 60 "out/fuzz-logs/$name.log"
-              echo "::error::$name found something"
-              return 1
-            fi
-          }
-          export -f fuzz_one
           targets=$(find out/fuzz -maxdepth 1 -name 'fuzz_*' -type f -perm -u+x ! -name fuzz_seeds)
           [ -n "$targets" ] || { echo "::error::no fuzz target was built"; exit 1; }
-          echo "$targets" | xargs -P "$(nproc)" -I {} bash -c 'fuzz_one "$1"' _ {}
-      - name: Fuzz logs and findings
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: fuzz
-          path: |
-            out/fuzz-logs/
-            out/findings/
-          if-no-files-found: ignore
-          retention-days: 7
+          for target in $targets; do mkdir -p "out/corpus/$(basename "$target")"; done
+          rm -rf out/fuzz-reports
+          status=0
+          echo "$targets" |
+            xargs -P "$(nproc)" -I {} sh -c 'name=$(basename "$1"); tools/fuzz_target.sh "$1" \
+              -max_total_time="$FUZZ_SECONDS" -timeout=10 "out/corpus/$name" "out/seeds/$name"' _ {} ||
+            status=$?
+          cat out/fuzz-reports/*.txt 2>/dev/null || true
+          exit "$status"
 
   # The fuzz targets, one per test/fuzz_*.c but the seed writer, for
   # fuzz-nightly's matrix.
@@ -361,6 +346,7 @@ jobs:
           echo "CORPUS_KEY=corpus-$TARGET-$INPUTS-$compiler" >>"$GITHUB_ENV"
       - name: Restore the corpus
         id: restore
+        if: github.event_name != 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
@@ -371,18 +357,32 @@ jobs:
             ${{ env.CORPUS_KEY }}-
             corpus-${{ matrix.target }}-
       - name: Fuzz
+        # tools/fuzz_target.sh keeps the findings and the log on the runner
+        # and reports a finding without its input.
         run: |
-          mkdir -p "out/corpus/$TARGET" out/findings
-          "out/fuzz/$TARGET" -max_total_time=600 -timeout=10 -artifact_prefix=out/findings/ \
-            "out/corpus/$TARGET" "out/seeds/$TARGET"
+          mkdir -p "out/corpus/$TARGET"
+          rm -rf out/fuzz-reports
+          status=0
+          tools/fuzz_target.sh "out/fuzz/$TARGET" -max_total_time=600 -timeout=10 \
+            "out/corpus/$TARGET" "out/seeds/$TARGET" || status=$?
+          cat out/fuzz-reports/*.txt 2>/dev/null || true
+          exit "$status"
       - name: Minimize the corpus
         env:
           MATCHED: ${{ steps.restore.outputs.cache-matched-key }}
         run: |
           # Minimized together: the files of the seeds and the corpus that
-          # keep every feature either reaches, seeds among them.
-          mkdir -p out/merged
-          "out/fuzz/$TARGET" -merge=1 out/merged "out/seeds/$TARGET" "out/corpus/$TARGET"
+          # keep every feature either reaches, seeds among them. The merge
+          # reruns every input, and a crash there dumps it, so its log
+          # stays on the runner and a failure prints only its status.
+          mkdir -p out/merged out/fuzz-logs
+          status=0
+          "out/fuzz/$TARGET" -merge=1 out/merged "out/seeds/$TARGET" "out/corpus/$TARGET" \
+            >"out/fuzz-logs/$TARGET-merge.log" 2>&1 || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::$TARGET: the corpus merge exited with status $status"
+            exit 1
+          fi
           rm -rf "out/corpus/$TARGET"
           mv out/merged "out/corpus/$TARGET"
           coverage() { "out/fuzz/$TARGET" -runs=0 "$@" 2>&1 | sed -n 's/.*INITED cov: \([0-9]*\).*/\1/p'; }
@@ -401,14 +401,6 @@ jobs:
         with:
           path: out/corpus/${{ matrix.target }}
           key: ${{ env.CORPUS_KEY }}-${{ github.run_id }}
-      - name: Upload the findings
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: findings-${{ matrix.target }}
-          path: out/findings/
-          if-no-files-found: ignore
-          retention-days: 7
 
   # The interactive testbed builds against raylib, which it fetches; only on
   # main and at night, since the library cells already compile every source
