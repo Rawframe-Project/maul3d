@@ -1068,6 +1068,21 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(ReplayJournal(world, tape, tapeBytes), "the tape as written still replays");
     m3ReplayView view;
     CHECK(m3DecodeReplay(box, written, &view) == m3_success, "the container as written decodes");
+    // A valid prefix whose header runs past the bytes is refused before the
+    // header is read: 20 bytes of a snapshot or a container, in allocations
+    // of exactly that size, so a sanitizer sees any read of the 56 or 40.
+    uint8_t* stub = (uint8_t*)malloc(20);
+    CHECK(stub != NULL, "the stub is allocated");
+    if (stub != NULL)
+    {
+        memcpy(stub, snap, 20);
+        CHECK(m3World_Restore(world, stub, 20) == m3_errorInvalid,
+              "a snapshot cut inside its header is refused");
+        memcpy(stub, box, 20);
+        CHECK(m3DecodeReplay(stub, 20, &view) == m3_errorInvalid,
+              "a container cut inside its header is refused");
+        free(stub);
+    }
     // Nor does a container wrap what another release wrote.
     memcpy(bad, snap, (size_t)snapBytes);
     bad[4] ^= 1u;

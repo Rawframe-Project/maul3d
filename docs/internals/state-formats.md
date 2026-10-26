@@ -21,7 +21,7 @@ A reader checks in this order:
 
 None of these refusals counts as misuse. A header embedded in another, such as a replay container's snapshot, is checked the same way, and the outer reader returns its refusal.
 
-The golden lines that pin a format's bytes hash them from offset 8, with each embedded header's `abiVersion` zeroed. A separate check confirms that each of those words is this release's, so a release bump moves no line.
+The golden lines that pin a format's bytes, the snapshot's and the tape's, hash them from offset 8, past the magic and the `abiVersion`. A separate check confirms that each `abiVersion` is this release's, so a release bump moves no line. No golden line hashes a replay container, the one format that embeds others' headers; one that did would zero each embedded `abiVersion` in the hashed copy, as maul2d does for its tape's snapshot.
 
 ## The headers
 
