@@ -325,8 +325,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
                               (m3real)(hit.point.z - world->bodies.transforms[hitBody].p.z) -
                                   rlc.z};
                 m3real mass = world->characters.charMass[slot];
-                m3PushHeld(world, hitBody, -mass * blocked * into,
-                           -(double)mass * (double)blocked * (double)into, n, arm);
+                m3PushHeld(world, hitBody, -mass * blocked * into, n, arm);
                 world->bodies.awake[hitBody] = 1;
                 world->bodies.sleepTimes[hitBody] = 0.0f;
             }

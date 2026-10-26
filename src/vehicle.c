@@ -650,14 +650,14 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                                (m3real)(hit.point.y - world->bodies.transforms[under].p.y) - rlcU.y,
                                (m3real)(hit.point.z - world->bodies.transforms[under].p.z) -
                                    rlcU.z};
-                m3PushHeld(world, under, -1.0f, -1.0, total, armU);
+                m3PushHeld(world, under, -1.0f, total, armU);
                 world->bodies.awake[under] = 1;
                 world->bodies.sleepTimes[under] = 0.0f;
             }
         }
         for (int32_t a = 0; a < applied; ++a)
         {
-            m3PushHeld(world, chassis, 1.0f, 1.0, impulses[a], arms[a]);
+            m3PushHeld(world, chassis, 1.0f, impulses[a], arms[a]);
         }
 
         // The lean stabilizer: a two-wheeler is an inverted
