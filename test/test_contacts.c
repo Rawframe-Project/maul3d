@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Narrowphase gate: the pure collide kernels against analytic cases,
-// the speculative band, the fixed tangent basis rule, and the
-// warm-start carry through a full stash-scan-rebuild cycle. White box.
+// the speculative band, the fixed tangent basis rule, the warm-start
+// carry through a full stash-scan-rebuild cycle, and the contact
+// reduction's picks. White box.
 
 #include "broad_phase.h"
 #include "contact_kernel.h"
@@ -270,12 +271,104 @@ static void TestFallbackSolves(void)
            (double)worstSolve, (double)worstWide, (double)worstPair, (double)worstPairWide, CASES);
 }
 
+// Checks one reduction of count points: between one and four picks,
+// ascending, each in [0, count), the deepest among them. Returns how many.
+static int32_t CheckPicks(const m3Vec3* points, const m3real* separations, int32_t count,
+                          m3Vec3 normal, int32_t out[M3_MANIFOLD_MAX_POINTS])
+{
+    int32_t n = m3ReduceContactPoints(points, separations, count, normal, out);
+    int32_t deepest = 0;
+    for (int32_t i = 1; i < count; ++i)
+    {
+        deepest = separations[i] < separations[deepest] ? i : deepest;
+    }
+    int ok = n >= 1 && n <= M3_MANIFOLD_MAX_POINTS;
+    int hasDeepest = 0;
+    for (int32_t k = 0; ok && k < n; ++k)
+    {
+        ok = out[k] >= 0 && out[k] < count && (k == 0 || out[k] > out[k - 1]);
+        hasDeepest |= out[k] == deepest;
+    }
+    CHECK(ok && hasDeepest,
+          "the reduction picks ascending points of the patch, the deepest among them");
+    return n;
+}
+
+static void TestReducePicks(void)
+{
+    enum
+    {
+        MAX_COUNT = 32,
+        CASES = 2000
+    };
+    m3Vec3 points[MAX_COUNT];
+    m3real separations[MAX_COUNT];
+    int32_t out[M3_MANIFOLD_MAX_POINTS];
+
+    // A 2 x 2 square's corners and edge midpoints, deepest at a corner:
+    // the four corners span it.
+    const m3Vec3 ring[8] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f},
+                            {2.0f, 1.0f, 0.0f}, {2.0f, 2.0f, 0.0f}, {1.0f, 2.0f, 0.0f},
+                            {0.0f, 2.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        points[i] = ring[i];
+        separations[i] = i == 0 ? -0.1f : 0.0f;
+    }
+    m3Vec3 up = {0.0f, 0.0f, 1.0f};
+    int32_t n = CheckPicks(points, separations, 8, up, out);
+    CHECK(n == 4 && out[0] == 0 && out[1] == 2 && out[2] == 4 && out[3] == 6,
+          "a square's ring reduces to its corners");
+
+    // Patches that span less than a quad: points on one spot, and points
+    // on one line.
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        points[i] = (m3Vec3){1.0f, -2.0f, 0.5f};
+        separations[i] = -0.01f * (m3real)(i % 3);
+    }
+    CheckPicks(points, separations, 8, up, out);
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        points[i] = (m3Vec3){0.25f * (m3real)i, 0.0f, 0.0f};
+        separations[i] = -0.01f * (m3real)i;
+    }
+    n = CheckPicks(points, separations, 8, up, out);
+    CHECK(n <= 3, "points on one line reduce to at most three");
+
+    // Random patches of five to 32 points around random normals, with
+    // repeated points and repeated depths mixed in.
+    for (int32_t c = 0; c < CASES; ++c)
+    {
+        int32_t count = 5 + (int32_t)Uniform(0.0f, (float)(MAX_COUNT - 4));
+        count = count > MAX_COUNT ? MAX_COUNT : count;
+        m3Vec3 normal = {Uniform(-1.0f, 1.0f), Uniform(-1.0f, 1.0f), Uniform(0.1f, 1.0f)};
+        normal = m3Normalize3(normal);
+        float size = AnyScale();
+        for (int32_t i = 0; i < count; ++i)
+        {
+            if (i > 0 && Uniform(0.0f, 1.0f) < 0.2f)
+            {
+                int32_t from = (int32_t)Uniform(0.0f, (float)i);
+                points[i] = points[from < i ? from : i - 1];
+                separations[i] = separations[from < i ? from : i - 1];
+                continue;
+            }
+            points[i] = (m3Vec3){size * Uniform(-1.0f, 1.0f), size * Uniform(-1.0f, 1.0f),
+                                 size * Uniform(-1.0f, 1.0f)};
+            separations[i] = Uniform(-0.1f, 0.0f);
+        }
+        CheckPicks(points, separations, count, normal, out);
+    }
+}
+
 int main(void)
 {
     TestSphereKernels();
     TestTangentBasis();
     TestWarmStartCarry();
     TestFallbackSolves();
+    TestReducePicks();
     if (s_failures == 0)
     {
         printf("test_contacts: all checks passed\n");
