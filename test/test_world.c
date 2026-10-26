@@ -728,6 +728,28 @@ static void TestGyroscopicHoldLandsAtStart(void)
     }
 }
 
+// A step whose energy leaves float range while its residual does not
+// reports it, rather than holding an infinite energy down to a zero spin.
+// The flat body above, its moments scaled by 2.2e35, starts at twice its
+// energy near 0.96 of the float range, and its 10% gain passes it; the
+// residual, h times the spin times its moment, stays near 5e36. At unit
+// inertia scale the same step lands on its start energy.
+static void TestGyroscopicEnergyLeavesRange(void)
+{
+    const float big = 2.2e35f;
+    const float moments[3] = {0.653f * big, 0.884f * big, 0.0504f * big};
+    m3Mat3 inertia = {{moments[0], 0.0f, 0.0f}, {0.0f, moments[1], 0.0f}, {0.0f, 0.0f, moments[2]}};
+    const m3Vec3 w = {-46.57f, -8.49f, 7.66f};
+    const m3Quat q = {0.0f, 0.0f, 0.0f, 1.0f};
+    m3Vec3 stepped = {0.0f, 0.0f, 0.0f};
+    CHECK(!m3GyroscopicStep(&inertia, 1.0f, q, w, 1.0f / 60.0f, &stepped),
+          "a step whose energy leaves float range reports it");
+    CHECK(m3GyroscopicStep(&inertia, moments[1], q, w, 1.0f / 60.0f, &stepped),
+          "the step at unit inertia scale stays in float range");
+    double ratio = TwiceEnergyOf(moments, stepped) / TwiceEnergyOf(moments, w);
+    CHECK(fabs(ratio - 1.0) < 1.0e-6, "the step at unit inertia scale keeps its start energy");
+}
+
 // A body heavy and fast enough that the gyroscopic step leaves float range
 // at its own inertia scale takes it at unit scale instead: 96 boxes of
 // half extent 5e3 m at density 1e6, half of them 1e4 m out on each side,
@@ -1088,6 +1110,7 @@ int main(void)
     TestGyroscopicStepAtUnitScale();
     TestGyroscopicStepTracksEuler();
     TestGyroscopicHoldLandsAtStart();
+    TestGyroscopicEnergyLeavesRange();
     TestCompoundExtents();
     TestHashSeesSetterState();
     if (s_failures == 0)
