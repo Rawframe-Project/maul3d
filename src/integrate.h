@@ -13,8 +13,11 @@
 // One implicit gyroscopic step of a spin w in world coordinates for a
 // body at rotation q, with its local inertia divided by scale. Every term
 // of the step is linear in the inertia, so any scale gives the same spin
-// in real arithmetic; scale 1 is the step the solver takes first.
-m3Vec3 m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m3real h);
+// in real arithmetic; scale 1 is the step the solver takes first. Writes
+// the new spin to out and returns true, or returns false when a term of
+// the step leaves float range at this scale.
+bool m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m3real h,
+                      m3Vec3* out);
 
 // Awake dynamic and kinematic bodies in ascending slot order; kinematic
 // targets become the velocities that land them this step. Returns the
