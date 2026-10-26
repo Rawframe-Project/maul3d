@@ -326,8 +326,7 @@ static m3Vec3 HeldSum(m3Vec3 v, double dx, double dy, double dz)
     return m3CapSpeed(m3MulSV3(M3_SPEED_LIMIT, unit), M3_SPEED_LIMIT);
 }
 
-void m3PushHeld(m3World* world, int32_t index, m3real scale, double wideScale, m3Vec3 dir,
-                m3Vec3 arm)
+void m3PushHeld(m3World* world, int32_t index, m3real scale, m3Vec3 dir, m3Vec3 arm)
 {
     m3Mat3 invI = m3WorldInvInertia(world, index);
     m3real invMass = world->bodies.invMass[index];
@@ -337,9 +336,10 @@ void m3PushHeld(m3World* world, int32_t index, m3real scale, double wideScale, m
         m3Add3(world->bodies.angularVelocities[index], m3MulMV3(invI, m3Cross3(arm, impulse)));
     if (!m3FiniteV3(v) || !m3FiniteV3(w))
     {
-        double jx = wideScale * (double)dir.x;
-        double jy = wideScale * (double)dir.y;
-        double jz = wideScale * (double)dir.z;
+        world->heldPushRetakes += 1;
+        double jx = (double)scale * (double)dir.x;
+        double jy = (double)scale * (double)dir.y;
+        double jz = (double)scale * (double)dir.z;
         double tx = (double)arm.y * jz - (double)arm.z * jy;
         double ty = (double)arm.z * jx - (double)arm.x * jz;
         double tz = (double)arm.x * jy - (double)arm.y * jx;

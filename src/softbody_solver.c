@@ -156,8 +156,7 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
             (m3real)(world->softBodies.softPos[k].y - world->bodies.transforms[body].p.y) - rlc.y,
             (m3real)(world->softBodies.softPos[k].z - world->bodies.transforms[body].p.z) - rlc.z};
         // The step's last velocity write, so it keeps the speed limit.
-        m3PushHeld(world, body, -depth * invH * mp, -(double)depth * (double)invH * (double)mp, n,
-                   arm);
+        m3PushHeld(world, body, -depth * invH * mp, n, arm);
         world->bodies.awake[body] = 1;
         world->bodies.sleepTimes[body] = 0.0f;
     }
@@ -908,7 +907,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     m3real mp = 1.0f / world->softBodies.softInvMass[k];
                     m3Vec3 rlc = m3RotateVec3(bxf->q, world->bodies.localCenters[body]);
                     m3Vec3 arm = m3Sub3(wl, rlc);
-                    m3PushHeld(world, body, mp * invH, (double)mp * (double)invH, wish, arm);
+                    m3PushHeld(world, body, mp * invH, wish, arm);
                     world->bodies.awake[body] = 1;
                     world->bodies.sleepTimes[body] = 0.0f;
                 }

@@ -679,6 +679,13 @@ extern "C"
         // restore or a replay's back-out leaves it as it is, so a replay
         // refused after an edit was refused leaves it higher.
         uint64_t voxelEditsRefused;
+        // Pushes the step lands on a body, a character's, a soft
+        // particle's or a wheel's, whose float velocity or spin was not
+        // finite and that were taken again in double, cumulative; each
+        // still left the body within the speed limit. A counter, not
+        // state: it is not hashed or snapshotted, and a restore or a
+        // replay's back-out leaves it as it is.
+        uint64_t heldPushRetakes;
     } m3Counters;
 
     M3_API m3Counters m3World_GetCounters(const m3World* world);

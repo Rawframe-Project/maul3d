@@ -97,10 +97,12 @@ double m3NormL1(m3Vec3 v);
 // An impulse scale * dir at arm (from the center of mass) that the step
 // itself lands on a dynamic body: a character's push, a soft particle's,
 // a wheel's. Like the step, it leaves the body within M3_SPEED_LIMIT. When
-// the float velocities are not finite, the push is taken again in double
-// from wideScale, scale's own double value, where the bounds on every
-// factor keep each product finite.
-void m3PushHeld(m3World* world, int32_t index, m3real scale, double wideScale, m3Vec3 dir,
-                m3Vec3 arm);
+// the float velocity or spin is not finite, the push is taken again in
+// double, velocity and spin both, from the same float scale, which every
+// caller's bounds keep finite; there the bounds on every factor keep each
+// product finite. The result is that double push, held within the limit
+// and rounded to float, so a velocity that was finite in float may move by
+// an ulp. Each retake counts in m3Counters.heldPushRetakes.
+void m3PushHeld(m3World* world, int32_t index, m3real scale, m3Vec3 dir, m3Vec3 arm);
 
 #endif
