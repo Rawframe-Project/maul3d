@@ -80,7 +80,7 @@ What the family shares:
 - **Soft bodies**: XPBD particle lattices (boxes, ropes, cloth) that
   collide with the rigid world and with each other, anchor to bodies
   or to other lattices, and respond to wind.
-- **Replays**: the M3J1 container seals a snapshot, a journal and the
+- **Replays**: the M3RP container seals a snapshot, a journal and the
   final hash into one file. The `m3replay` tool records, verifies,
   seeks, plays and compares two runs down to the first diverging
   frame; `m3lockstep` runs a two-peer lockstep exchange in one process
@@ -126,7 +126,7 @@ The interactive testbed builds with `-DMAUL3D_BUILD_TESTBED=ON`. Its
 fourteen scenes cover benchmarks, voxel destruction, three kinds of
 vehicle, a playable character, cloth in gusting wind and a
 heightfield, with a recording panel that seals the session into an
-M3J1 replay and verifies it. Hold R and time runs backward.
+M3RP replay and verifies it. Hold R and time runs backward.
 
 [`bindings/`](bindings/) holds starter kits for C# (one P/Invoke file)
 and Godot (a GDExtension node). CI checks both against the C API: every
