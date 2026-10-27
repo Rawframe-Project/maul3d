@@ -10,16 +10,16 @@ snapshot and journal formats.
 
 ### Changed
 
-- **Breaking: a joint whose bodies have a lever ratio past
-  `M3_JOINT_LEVER_LIMIT` (1e10) is refused.** The ratio is each body's
-  largest turn, the top eigenvalue of [r]ᵀ I⁻¹ [r] in its own frame,
-  over the sum of their inverse masses; static and kinematic bodies
-  add nothing. It applies to the spherical, revolute, prismatic,
-  fixed, wheel and motor joints, whose blocks undo each other well
-  before the 1e15 the guide used to give; the distance, generic,
-  parallel, gear, pulley and filter joints keep no such limit. Joint
-  create returns `m3_errorInvalid` and counts one misuse, and so does
-  a shape create on a jointed body. `m3DestroyShape`,
+- **Breaking: a joint whose bodies have a lever ratio past 1e10, the
+  guide's joint lever limit, is refused.** The ratio is the sum of
+  each body's largest turn, the top eigenvalue of [r]ᵀ I⁻¹ [r] in its
+  own frame, over the sum of their inverse masses; static and
+  kinematic bodies add nothing. It applies to the spherical, revolute,
+  prismatic, fixed, wheel and motor joints, whose blocks undo each
+  other well before the 1e15 the guide used to give; the distance,
+  generic, parallel, gear, pulley and filter joints keep no such
+  limit. Joint create returns `m3_errorInvalid` and counts one misuse,
+  and so does a shape create on a jointed body. `m3DestroyShape`,
   `m3Shape_SetSphere`, `m3Shape_SetCapsule`, `m3Shape_SetDensity` and
   `m3Body_SetType` refuse a change that would carry a joint past the
   limit, change nothing and count one misuse. Journal replay and
@@ -32,9 +32,9 @@ snapshot and journal formats.
   not use is zero, and a plane's normal is unit length.
   `m3CreatePlaneShape` refuses an offset past 1e15 m, and
   `m3CreateSoftBody` and `m3CreateSoftBodyTet` refuse a particle past
-  1e15 m on any axis. `M3_REACH_LIMIT` is removed: the step now holds
-  every body and soft particle within `M3_POSITION_LIMIT` (1e15 m)
-  rather than at 1e18 m, and restore bounds positions there.
+  1e15 m on any axis. The step now holds every body and soft particle
+  within 1e15 m, the position limit every create keeps, rather than at
+  1e18 m, and restore bounds positions there.
   ([#123](https://github.com/Rawframe-Project/maul3d/pull/123))
 - **Breaking: a world's snapshot is bounded by `M3_MAX_SNAPSHOT_BYTES`
   (`INT32_MAX`) and sized in 64 bits.** `m3CreateWorld` refuses a def
@@ -43,17 +43,16 @@ snapshot and journal formats.
   278,000 shape slots or 1,638 mesh slots with nothing else.
   `m3CreateHeightFieldGridShape` refuses a grid that would carry the
   snapshot past the bound with `m3_errorCapacity`, and replay refuses
-  it with `m3_errorInvalid`. Restore refuses a size past the bound.
-  Before, the snapshot size was counted in 32 bits and a world large
-  enough wrapped it. No result changes.
+  it with `m3_errorInvalid`. Before, the snapshot size was counted in
+  32 bits and a world large enough wrapped it. No result changes.
   ([#126](https://github.com/Rawframe-Project/maul3d/pull/126))
 
 ### Fixed
 
-- Soft collision no longer depends on a fixed 32-entry gather array
-  being large enough: `m3MeshBvhGather` takes its output's capacity
-  and stops there. Soft collision keeps the same first 32 hits in the
-  same order, so results are unchanged.
+- A soft particle whose collision query met more than 32 boxes of a
+  voxel chunk or triangles of a mesh wrote past a 32-entry stack
+  array. The gather now stops at 32 and keeps the same first 32 hits
+  in the same order, so results are unchanged otherwise.
   ([#120](https://github.com/Rawframe-Project/maul3d/pull/120))
 
 ## [0.6.0](https://github.com/Rawframe-Project/maul3d/compare/v0.5.0...v0.6.0) (2026-10-27)
