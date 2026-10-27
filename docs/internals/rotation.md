@@ -33,7 +33,7 @@ Everything below is float unless it says double. There is no fused multiply-add 
 - **Vectors.**
   - `dot(a, b) = a.x * b.x + a.y * b.y + a.z * b.z`.
   - `cross(a, b) = (a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)`.
-  - `s v = (s * v.x, s * v.y, s * v.z)`, and `a + b` componentwise.
+  - `s v = (s * v.x, s * v.y, s * v.z)`, and `a + b` and `a - b` componentwise.
   - `length(v) = sqrtf(dot(v, v))`.
 - **Quaternions** are `(x, y, z, w)`.
   - `a * b` is the Hamilton product:
@@ -125,10 +125,9 @@ The constants are `M3_FLOW_PIECE_TURN = 0.25f` and `M3_FLOW_MAX_PIECES = 64`. Fo
 7. **The Casimir turn.** `len = length(L)`. If `len > 0`, `T = T * turn((1 / len) L, h * len * invMid)`. This turn leaves L as it is.
 8. **The pose.** `q' = normalize(q * ((F * T) * conj(F)))`.
 9. **The spin.** With `P = normalize(q' * F)`:
-   - `o = rotate(P, (L.x, L.y / S.y, L.z / S.z))`;
-   - read back: `k = unrotate(P, o)`, then `R = (k.x, S.y * k.y, S.z * k.z)`, then `rr = dot(R, R)`;
-   - `d = 0.5f * (dot(L, L) - rr) / rr`;
-   - if `finite(d)`, `w' = o + d o`, else `w' = o`.
+   - `spin = (L.x, L.y / S.y, L.z / S.z)` and `o = rotate(P, spin)`;
+   - read back: `miss = spin - unrotate(P, o)`;
+   - `w' = o + rotate(P, miss)`.
 
 **`residual(i, inv, tau)`.** Here i is the max axis 0 or the min axis 2, `l = (L.x, L.y, L.z)`, `j = (i + 1) % 3` and `k = (i + 2) % 3`.
 
@@ -147,7 +146,7 @@ The constants are `M3_FLOW_PIECE_TURN = 0.25f` and `M3_FLOW_MAX_PIECES = 64`. Fo
 - **Scaling.** Only the moments' ratios matter, and scaling keeps L near the spin's size for a body of any mass.
 - **The piece count.** The splitting's error per substep grows as `a^2 b` and `a b^2`. Pieces cut it by the square of their count, and a symmetric top never takes more than one. The count compares cubes in float rather than taking a cube root, since a C library's cube root is not correctly rounded.
 - **Composing T.** The turns are composed in the principal frame and given to the pose once. Re-basing the pose into the principal frame and back would round it every substep, and turn the body while its spin does not turn.
-- **The two length corrections.** A body's turn angle repeats every substep, and so would the rounding of its cosine and sine; the residual turns' correction removes that. The spin and pose the next substep reads back round alike from one substep to the next, so their errors add up like a bias; the read-back correction removes that.
+- **The two corrections.** A body's turn angle repeats every substep, and so would the rounding of its cosine and sine; the residual turns' length correction removes that. The spin and pose the next substep reads back round alike from one substep to the next, so their errors add up like a bias; the read-back correction removes that. It corrects each component of the read-back. Correcting only its length would pay the rounding across a thin rod, about the spin times 6e-8 at the rod's large moments, from the rod's far smaller momentum about its own axis, and drain that spin: a rod with moments (1, 1, 1e-4) kept 27% of it after 10 s at 480 substeps a second.
 - **Divisions.** The spin divides by the scaled moments. Multiplying by a rounded inverse would scale a body's spin by the same factor every substep.
 
 Only correctly rounded or exact library functions appear above: `sqrt`, `sqrtf`, `fabs`, `floorf` and `remainderf`. `tools/libm-allowed.txt` holds maul3d's sources to that set.
@@ -169,10 +168,10 @@ The best five-turn order was min/2 mid/2 max mid/2 min/2. Index order, x/2 y/2 z
 The world, in float, measured by `test_rigid_flow` and `test_solver`:
 
 - **A triaxial box.** The 0.5 x 1 x 1.5 m box at 20 rad/s for 10 s, spun near each principal axis, the unstable middle one included:
-  - world L holds within 1.9e-4 and energy within 4.7e-5;
-  - the long axis's share of L ends within 0.0012 of an RK4 reference of Euler's equations.
-- **Rods.** A 2 m rod of radius 0.05 m at 10 rad/s, 45 degrees off its axis, keeps its energy within 4e-5 over 10 s along each body axis. Laid along each diagonal of two axes, where only its principal frame shows it is a symmetric top, it keeps it within 7e-5.
-- **Fast tumblers.** Fifty flat boxes at 30 to 800 rad/s, past a radian per substep, on one substep and on four, hold their energy within 1.9e-3 and their world angular momentum within 4.9e-5 over a second.
+  - world L holds within 1.5e-5 and energy within 3.9e-5;
+  - the long axis's share of L ends within 0.0014 of an RK4 reference of Euler's equations.
+- **Rods.** A 2 m rod of radius 0.05 m at 10 rad/s, 45 degrees off its axis, keeps its energy within 2.8e-5 over 10 s along each body axis. Laid along each diagonal of two axes, where only its principal frame shows it is a symmetric top, it keeps it within 7e-5. Spun at 3 rad/s along its axis or off it, a rod of moments (1, 1, r) keeps its spin about the axis within 2.5e-5 over 10 s for every r from 1e-1 down to 1e-12, and a 2 m rod of radius 1.2 cm in a world within 2e-6.
+- **Fast tumblers.** Fifty flat boxes at 30 to 800 rad/s, past a radian per substep, on one substep and on four, hold their energy within 1.9e-3 and their world angular momentum within 3.6e-5 over a second.
 
 ## Sources
 

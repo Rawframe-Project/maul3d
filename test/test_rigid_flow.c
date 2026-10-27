@@ -335,6 +335,69 @@ static void TestTiltedStickIsSymmetricTop(void)
     }
 }
 
+// A thin rod's momentum about its own axis is its spin times its smallest
+// moment, far below the rounding of its spin across the axis at the large
+// ones. A symmetric top keeps its spin about its axis, so the rod does at
+// every moment ratio from 1e-1 down to 1e-12, spun along its axis or off
+// it, over 10 s at four substeps of 60 Hz.
+static void TestThinRodKeepsAxialSpin(void)
+{
+    const float tilts[2] = {0.0f, 0.5f};
+    for (int32_t t = 0; t < 2; ++t)
+    {
+        double worst = 0.0;
+        double worstRatio = 0.0;
+        for (int32_t e = 0; e <= 220; ++e)
+        {
+            double ratio = pow(10.0, -1.0 - 0.05 * (double)e);
+            const m3Vec3 moments = {1.0f, 1.0f, (float)ratio};
+            // The principal frame lays the rod's axis, the smallest moment's,
+            // along world x.
+            const m3Quat frame = {0.0f, 0.70710678f, 0.0f, 0.70710678f};
+            m3Quat q = m3MakeIdentityQuat();
+            m3Vec3 w = {3.0f, tilts[t], 0.0f};
+            for (int32_t i = 0; i < 2400; ++i)
+            {
+                m3FreeRotation(moments, frame, q, w, 1.0f / 240.0f, &q, &w);
+            }
+            m3Vec3 axis = m3RotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f});
+            double axial = (double)w.x * (double)axis.x + (double)w.y * (double)axis.y +
+                           (double)w.z * (double)axis.z;
+            double error = fabs(axial / 3.0 - 1.0);
+            if (!(error <= worst))
+            {
+                worst = error;
+                worstRatio = ratio;
+            }
+        }
+        printf("thin rod, tilt %g: axial spin %.3g at ratio %.3g\n", (double)tilts[t], worst,
+               worstRatio);
+        CHECK(worst <= 1.0e-4, "a thin rod keeps its spin about its axis");
+    }
+    // A 2 m rod of radius 1.2 cm, moments about 1.5e-4 apart, in a world.
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.angularDamping = 0.0f;
+    bd.enableSleep = false;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Capsule rod = {{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 0.012f};
+    NewCapsuleShape(world, body, &sd, &rod);
+    m3Body_SetAngularVelocity(world, body, (m3Vec3){3.0f, 0.0f, 0.0f});
+    for (int32_t i = 0; i < 600; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    m3Vec3 axis = m3RotateVec3(m3Body_GetRotation(world, body), (m3Vec3){1.0f, 0.0f, 0.0f});
+    double axial = (double)m3Dot3(m3Body_GetAngularVelocity(world, body), axis);
+    printf("thin rod in a world: axial spin %.6f\n", axial);
+    CHECK(fabs(axial / 3.0 - 1.0) <= 1.0e-4, "a thin rod in a world keeps its spin about its axis");
+    m3DestroyWorld(world);
+}
+
 // A body whose rotation is locked about two axes turns at its spin about
 // the third, as a planar body does, rather than precessing as a free one
 // would: a box tilted off its principal axes, locked to turn about world
@@ -401,6 +464,7 @@ int main(void)
     TestPrincipalAxesOfRandomTensors();
     TestTriaxialBoxFollowsEuler();
     TestTiltedStickIsSymmetricTop();
+    TestThinRodKeepsAxialSpin();
     TestLockedBodyTurnsAtItsSpin();
     TestSphereKeepsSpin();
     if (s_failures == 0)

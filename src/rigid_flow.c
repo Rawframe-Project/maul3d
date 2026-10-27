@@ -267,21 +267,18 @@ static int32_t PieceCount(m3Vec3 L, m3real invMax, m3real invMid, m3real invMin,
 // same factor for a body every substep, and would scale its spin by it
 // each time. The next substep reads its momentum back from this spin and
 // pose; their roundings change slowly with a slowly turning body, so they
-// add up like a bias over many substeps, and a first-order correction
-// makes the momentum read back as long as L.
+// add up like a bias over many substeps. The read-back's miss, the
+// principal spin less what the pose turns back, is turned into the world
+// and added, which cancels that bias to first order. The miss is taken per
+// component: correcting only the momentum's length would pay one
+// component's rounding from the others, and drain a thin rod's spin about
+// its own axis, whose momentum is smaller than the rounding across it.
 static m3Vec3 SpinOf(m3Vec3 L, m3Vec3 scaled, m3Quat qp)
 {
     m3Vec3 spin = {L.x, L.y / scaled.y, L.z / scaled.z};
     m3Vec3 out = m3RotateVec3(qp, spin);
-    m3Vec3 back = m3InvRotateVec3(qp, out);
-    m3Vec3 readBack = {back.x, scaled.y * back.y, scaled.z * back.z};
-    m3real read = m3Dot3(readBack, readBack);
-    m3real delta = 0.5f * (m3Dot3(L, L) - read) / read;
-    if (m3FiniteF(delta))
-    {
-        out = m3Add3(out, m3MulSV3(delta, out));
-    }
-    return out;
+    m3Vec3 miss = m3Sub3(spin, m3InvRotateVec3(qp, out));
+    return m3Add3(out, m3RotateVec3(qp, miss));
 }
 
 void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, m3Quat* qOut,
