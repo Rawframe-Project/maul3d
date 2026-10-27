@@ -304,7 +304,7 @@ static void SortAscending(uint16_t* values, int32_t count, uint16_t* tmp)
     memcpy(values, tmp, (size_t)count * sizeof(uint16_t));
 }
 
-int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out)
+int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out, int32_t capacity)
 {
     if (bvh->nodeCount == 0)
     {
@@ -346,7 +346,7 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
         }
         if (node->right < 0)
         {
-            for (int32_t i = 0; i < node->count; ++i)
+            for (int32_t i = 0; i < node->count && count < capacity; ++i)
             {
                 out[count++] = bvh->order[node->start + i];
             }

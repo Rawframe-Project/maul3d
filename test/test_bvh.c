@@ -102,7 +102,7 @@ static void TestRefereeGather(void)
         m3Vec3 qlo = m3Sub3(center, half);
         m3Vec3 qhi = m3Add3(center, half);
 
-        int32_t gatherCount = m3MeshBvhGather(bvh, qlo, qhi, gathered);
+        int32_t gatherCount = m3MeshBvhGather(bvh, qlo, qhi, gathered, M3_COUNT_OF(gathered));
 
         // The referee: full scan with the exact per-triangle test.
         int32_t bruteCount = 0;
@@ -158,12 +158,33 @@ static void TestRefereeGather(void)
     }
 
     // Degenerates: a box that misses everything, a box that covers it.
-    int32_t none = m3MeshBvhGather(bvh, (m3Vec3){100.0f, 100.0f, 100.0f},
-                                   (m3Vec3){101.0f, 101.0f, 101.0f}, gathered);
+    int32_t none =
+        m3MeshBvhGather(bvh, (m3Vec3){100.0f, 100.0f, 100.0f}, (m3Vec3){101.0f, 101.0f, 101.0f},
+                        gathered, M3_COUNT_OF(gathered));
     CHECK(none == 0, "a far box gathers nothing");
-    int32_t all = m3MeshBvhGather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f},
-                                  (m3Vec3){100.0f, 100.0f, 100.0f}, gathered);
+    int32_t all =
+        m3MeshBvhGather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f}, (m3Vec3){100.0f, 100.0f, 100.0f},
+                        gathered, M3_COUNT_OF(gathered));
     CHECK(all == mesh->triangleCount, "a covering box gathers every triangle");
+
+    // A gather fills at most the capacity it is given and leaves the rest
+    // of the array alone.
+    enum
+    {
+        CAPACITY = 8
+    };
+    for (int32_t i = 0; i < 2 * CAPACITY; ++i)
+    {
+        gathered[i] = 0xBEEF;
+    }
+    int32_t few = m3MeshBvhGather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f},
+                                  (m3Vec3){100.0f, 100.0f, 100.0f}, gathered, CAPACITY);
+    bool kept = true;
+    for (int32_t i = CAPACITY; i < 2 * CAPACITY; ++i)
+    {
+        kept = kept && gathered[i] == 0xBEEF;
+    }
+    CHECK(few == CAPACITY && kept, "a gather fills at most its capacity");
     m3DestroyWorld(world);
 }
 

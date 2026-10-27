@@ -413,7 +413,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     {
         m3Vec3 lo = {probe.lo.x - reach, probe.lo.y - reach, probe.lo.z - reach};
         m3Vec3 hi = {probe.hi.x + reach, probe.hi.y + reach, probe.hi.z + reach};
-        gatherCount = m3MeshBvhGather(bvh, lo, hi, gather);
+        gatherCount = m3MeshBvhGather(bvh, lo, hi, gather, M3_COUNT_OF(gather));
     }
     else
     {
@@ -741,9 +741,9 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
     }
 
     uint16_t gather[M3_MESH_MAX_TRIS];
-    int32_t gatherCount = m3MeshBvhGather(
-        &surface->bvh, (m3Vec3){boundLo.x - reach, boundLo.y - reach, boundLo.z - reach},
-        (m3Vec3){boundHi.x + reach, boundHi.y + reach, boundHi.z + reach}, gather);
+    m3Vec3 qlo = {boundLo.x - reach, boundLo.y - reach, boundLo.z - reach};
+    m3Vec3 qhi = {boundHi.x + reach, boundHi.y + reach, boundHi.z + reach};
+    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, qlo, qhi, gather, M3_COUNT_OF(gather));
 
     m3Manifold best;
     memset(&best, 0, sizeof(best));

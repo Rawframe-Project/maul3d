@@ -224,6 +224,82 @@ static void MeshScene(m3World* world, Probe* probe)
     }
 }
 
+// Large particles over a voxel chunk of isolated voxels, each its own
+// box, so a particle's reach covers dozens of boxes at once.
+static void DenseVoxelScene(m3World* world, Probe* probe)
+{
+    m3Pos3 p = {-20.0, 0.0, 20.0};
+    m3Quat q = Turn((m3Vec3){0.0f, 1.0f, 0.0f}, 0.3f);
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    for (int32_t z = 0; z < M3_VOXEL_DIM; ++z)
+    {
+        for (int32_t y = 0; y < M3_VOXEL_DIM; ++y)
+        {
+            for (int32_t x = 0; x < M3_VOXEL_DIM; ++x)
+            {
+                voxels[x + M3_VOXEL_DIM * (y + M3_VOXEL_DIM * z)] =
+                    (uint8_t)(((x + y + z) & 1) == 0);
+            }
+        }
+    }
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewVoxelChunkShape(world, StaticBody(world, p, q), &sd, voxels, NULL, 0.25f);
+    // Above the top face, against the +x face and inside the chunk.
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        float u = 0.5f + 0.75f * (float)i;
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){u, 4.5f, u}), 1.5f);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){4.5f, u, 2.0f}), 1.5f);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){u, 2.0f, 2.0f}), 1.5f);
+    }
+}
+
+// Large particles over a fine mesh grid, 3200 triangles 0.1 m across, so
+// a particle's reach covers hundreds of them at once.
+static void DenseMeshScene(m3World* world, Probe* probe)
+{
+    enum
+    {
+        CELLS = 40
+    };
+    m3Pos3 p = {20.0, -2.0, 20.0};
+    m3Quat q = Turn((m3Vec3){1.0f, 0.0f, 0.2f}, 0.2f);
+    static m3Vec3 vertices[(CELLS + 1) * (CELLS + 1)];
+    static uint16_t tris[CELLS * CELLS * 6];
+    int32_t n = 0;
+    for (int32_t z = 0; z <= CELLS; ++z)
+    {
+        for (int32_t x = 0; x <= CELLS; ++x)
+        {
+            float bump = 0.02f * (float)((x * 7 + z * 3) % 5);
+            vertices[x + (CELLS + 1) * z] = (m3Vec3){0.1f * (float)x, bump, 0.1f * (float)z};
+        }
+    }
+    for (int32_t z = 0; z < CELLS; ++z)
+    {
+        for (int32_t x = 0; x < CELLS; ++x)
+        {
+            uint16_t a = (uint16_t)(x + (CELLS + 1) * z);
+            uint16_t c = (uint16_t)(a + CELLS + 1);
+            const uint16_t quad[6] = {
+                a, c, (uint16_t)(a + 1), (uint16_t)(a + 1), c, (uint16_t)(c + 1)};
+            memcpy(&tris[n], quad, sizeof(quad));
+            n += 6;
+        }
+    }
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewMeshShape(world, StaticBody(world, p, q), &sd, vertices, (CELLS + 1) * (CELLS + 1), tris,
+                 CELLS * CELLS * 2);
+    // Just above and just below the grid, and on its edge.
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        float u = 0.5f + 0.75f * (float)i;
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){u, 1.2f, u}), 1.5f);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){u, -0.4f, 2.0f}), 1.5f);
+        AddProbe(world, probe, WorldPoint(p, q, (m3Vec3){0.0f, 0.5f, u}), 1.5f);
+    }
+}
+
 static void HeightFieldScene(m3World* world, Probe* probe)
 {
     m3Pos3 p = {0.0, -4.0, 12.0};
@@ -533,6 +609,8 @@ int main(void)
     CheckScene("hand-off", HandOffScene, false, false, 1);
     CheckScene("hull hand-off", HullHandOffScene, false, false, 1);
     CheckScene("moving", MovingScene, false, true, 90);
+    CheckScene("dense voxel", DenseVoxelScene, false, true, 8);
+    CheckScene("dense mesh", DenseMeshScene, false, true, 8);
     if (s_failures == 0)
     {
         printf("test_softcull: all green\n");
