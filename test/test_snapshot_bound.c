@@ -8,7 +8,7 @@
 // samples are counted as they arrive: a grid that would carry the
 // snapshot past the bound is refused with the world as it was.
 
-#include "helpers.h"
+#include "snapshot_bound.h"
 #include "test_harness.h"
 #include "world_internal.h"
 
@@ -18,95 +18,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-// The most bytes a mesh slot's and a hull slot's content take in the
-// tail, counted from the format by hand: the vertices, the indices, an
-// edge flag byte, the material count, table and group byte per triangle;
-// the unit mass, center, inertia and hull center, then the vertices and
-// the per-face, index and half-edge arrays.
-static int64_t MeshContentMost(void)
-{
-    int64_t vc = M3_MESH_MAX_VERTS;
-    int64_t tc = M3_MESH_MAX_TRIS;
-    return vc * (int64_t)sizeof(m3Vec3) + 6 * tc + tc + 4 +
-           M3_MESH_MAX_MATERIALS * (int64_t)sizeof(m3MeshSurfaceMaterial) + tc;
-}
-
-static int64_t HullContentMost(void)
-{
-    return 4 + 2 * (int64_t)sizeof(m3Vec3) + (int64_t)sizeof(m3Mat3) +
-           M3_HULL_MAX_VERTS * (int64_t)sizeof(m3Vec3) +
-           M3_HULL_MAX_FACES * ((int64_t)sizeof(m3Vec3) + 4 + 1 + 2) + M3_HULL_MAX_FACE_INDICES +
-           M3_HULL_MAX_HALF_EDGES * (int64_t)sizeof(m3HullHalfEdge);
-}
-
-static m3WorldDef SmallDef(void)
-{
-    m3WorldDef def = m3DefaultWorldDef();
-    def.bodyCapacity = 1;
-    def.shapeCapacity = 1;
-    def.meshCapacity = 1;
-    def.jointCapacity = 1;
-    def.voxelCapacity = 1;
-    def.characterCapacity = 1;
-    def.vehicleCapacity = 1;
-    def.softBodyCapacity = 1;
-    return def;
-}
-
-// The snapshot bytes of an empty world of the small def with one capacity
-// changed.
-static int64_t EmptySnapshot(int32_t* capacity, const m3WorldDef* def, int32_t value)
-{
-    *capacity = value;
-    m3World* world = NewWorld(def);
-    int64_t size = m3World_SnapshotSize(world);
-    m3DestroyWorld(world);
-    return size;
-}
-
-// An allocator that counts every call and refuses each one.
-static int32_t s_asked = 0;
-
-static void* RefuseAlloc(size_t bytes, size_t alignment, void* context)
-{
-    (void)bytes;
-    (void)alignment;
-    (void)context;
-    s_asked += 1;
-    return NULL;
-}
-
-static void RefuseFree(void* memory, size_t bytes, size_t alignment, void* context)
-{
-    (void)memory;
-    (void)bytes;
-    (void)alignment;
-    (void)context;
-}
-
-// One capacity's slots grow an empty world's snapshot by the same bytes
-// each; with its content at the largest a slot takes perSlot + content.
-// Returns the largest count of those slots the bound allows, the other
-// slots of the small def at their largest beside them.
-static int32_t MostSlots(int32_t* capacity, const m3WorldDef* def, int64_t content,
-                         int64_t otherContent)
-{
-    int64_t a = EmptySnapshot(capacity, def, 100);
-    int64_t b = EmptySnapshot(capacity, def, 200);
-    int64_t perSlot = (b - a) / 100;
-    int64_t fixed = a - 100 * perSlot;
-    CHECK(perSlot > 0 && EmptySnapshot(capacity, def, 300) == fixed + 300 * perSlot,
-          "an empty world's snapshot grows by the same bytes per slot");
-    return (int32_t)((M3_MAX_SNAPSHOT_BYTES - fixed - otherContent) / (perSlot + content));
-}
-
 static void TestCreateAtTheBound(void)
 {
     // Mesh slots weigh little in memory but up to 1.3 MB each in the
     // snapshot, so the bound counted on them is a world small enough to
     // create.
     m3WorldDef def = SmallDef();
-    int32_t most = MostSlots(&def.meshCapacity, &def, MeshContentMost(), HullContentMost());
+    int32_t most = MostSlots(&def.meshCapacity, &def, MeshContentMost(), HullContentMost(),
+                             M3_MAX_SNAPSHOT_BYTES);
     def.meshCapacity = most;
     m3World* world = NULL;
     CHECK(m3CreateWorld(&def, &world) == m3_success && world != NULL,
@@ -127,7 +46,8 @@ static void TestShapeSlotsAtTheBound(void)
     // A world of shape slots at the bound takes gigabytes, so an allocator
     // that refuses everything shows how far creation got.
     m3WorldDef def = SmallDef();
-    int32_t most = MostSlots(&def.shapeCapacity, &def, HullContentMost(), MeshContentMost());
+    int32_t most = MostSlots(&def.shapeCapacity, &def, HullContentMost(), MeshContentMost(),
+                             M3_MAX_SNAPSHOT_BYTES);
     def.allocator = (m3Allocator){RefuseAlloc, RefuseFree, NULL};
     def.shapeCapacity = most + 1;
     s_asked = 0;

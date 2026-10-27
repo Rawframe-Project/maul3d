@@ -183,7 +183,7 @@ int64_t m3WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int inclu
 
 bool m3SnapshotWithinBound(int64_t bytes)
 {
-    return bytes <= M3_MAX_SNAPSHOT_BYTES;
+    return bytes <= M3_SNAPSHOT_BOUND;
 }
 
 int64_t m3SnapshotBytes(const m3World* world)
