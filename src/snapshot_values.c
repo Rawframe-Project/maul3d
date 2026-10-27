@@ -261,6 +261,7 @@ typedef struct SoftFields
     const uint8_t* bendStart;
     const uint8_t* tetCount;
     const uint8_t* pressure;
+    const uint8_t* restVolume;
     const uint8_t* dims[3];
     const uint8_t* edgeEnds[2];
     const uint8_t* tetCorners[4];
@@ -283,6 +284,7 @@ static SoftFields SoftFieldsOf(const m3Incoming* inc)
     f.bendStart = m3InField(inc, offsetof(m3World, softBodies.softBendStart));
     f.tetCount = m3InField(inc, offsetof(m3World, softBodies.softTetCount));
     f.pressure = m3InField(inc, offsetof(m3World, softBodies.softPressure));
+    f.restVolume = m3InField(inc, offsetof(m3World, softBodies.softRestVolume));
     f.dims[0] = m3InField(inc, offsetof(m3World, softBodies.softDimX));
     f.dims[1] = m3InField(inc, offsetof(m3World, softBodies.softDimY));
     f.dims[2] = m3InField(inc, offsetof(m3World, softBodies.softDimZ));
@@ -303,9 +305,9 @@ static SoftFields SoftFieldsOf(const m3Incoming* inc)
 }
 
 // The live soft body in slot s: its edges and tets name its own
-// particles, its bend tethers start inside the edges, and a pressured
-// body is a closed lattice whose dimensions multiply to its particle
-// count.
+// particles, its bend tethers start inside the edges, a pressured body is
+// a closed lattice whose dimensions multiply to its particle count, and
+// only a lattice has a closed rest volume.
 static bool SoftShapeValid(const SoftFields* f, int32_t s)
 {
     int32_t count = m3InI32(f->particles, s);
@@ -320,7 +322,8 @@ static bool SoftShapeValid(const SoftFields* f, int32_t s)
     int64_t nz = m3InU16(f->dims[2], s);
     bool lattice = nx != 0 || ny != 0 || nz != 0;
     if ((lattice && nx * ny * nz != count) ||
-        (m3InF32(f->pressure, s) > 0.0f && (nx < 2 || ny < 2 || nz < 2)))
+        (m3InF32(f->pressure, s) > 0.0f && (nx < 2 || ny < 2 || nz < 2)) ||
+        (!lattice && m3InF32(f->restVolume, s) != 0.0f))
     {
         return false;
     }

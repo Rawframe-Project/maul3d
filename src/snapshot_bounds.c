@@ -50,6 +50,8 @@ static bool InRange(float x, float lo, float hi)
 
 // --- The world ---------------------------------------------------------------
 
+// The world's tuning as its setters took it, and the gust phase the step
+// wraps back each time it passes a turn, which lands within a turn of it.
 static bool WorldValid(const m3Incoming* inc)
 {
     m3Vec3 gravity = InV3(M3_IN(gravity), 0);
@@ -63,14 +65,16 @@ static bool WorldValid(const m3Incoming* inc)
            m3SpeedCapValid(m3InF32(M3_IN(maximumAngularSpeed), 0)) &&
            m3InF32(M3_IN(hitEventThreshold), 0) >= 0.0f &&
            m3WindValid(windDir, m3InF32(M3_IN(windSpeed), 0), m3InF32(M3_IN(windGustHertz), 0),
-                       m3InF32(M3_IN(windGustScale), 0));
+                       m3InF32(M3_IN(windGustScale), 0)) &&
+           m3WithinF(m3InF32(M3_IN(windPhase), 0), 4.0f * M3_PI);
 }
 
 // --- Bodies and shapes ---------------------------------------------------------
 
 // A live body's position within reach, its velocities by its type, its
-// scales and damping, the force and torque it holds for the step, and a
-// servo target within reach of a kinematic body.
+// scales and damping, the force and torque it holds for the step, the
+// time it has spent below its sleep threshold, and a servo target within
+// reach of a kinematic body.
 static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(bodies.bodyPool.alive);
@@ -84,6 +88,7 @@ static bool BodiesValid(const m3Incoming* inc)
     const uint8_t* forces = M3_IN(bodies.bodyForce);
     const uint8_t* torques = M3_IN(bodies.bodyTorque);
     const uint8_t* sleepThresholds = M3_IN(bodies.bodySleepThreshold);
+    const uint8_t* sleepTimes = M3_IN(bodies.sleepTimes);
     const uint8_t* hasTarget = M3_IN(bodies.bodyHasTarget);
     const uint8_t* targets = M3_IN(bodies.bodyTarget);
     for (int32_t b = 0; b < inc->world->bodies.bodyPool.capacity; ++b)
@@ -100,7 +105,8 @@ static bool BodiesValid(const m3Incoming* inc)
             !m3BodyParamValid(m3_bodyParamLinearDamping, m3InF32(linearDamping, b)) ||
             !m3BodyParamValid(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) ||
             !m3WithinV3(InV3(forces, b), M3_FORCE_LIMIT) ||
-            !m3WithinV3(InV3(torques, b), M3_FORCE_LIMIT) || m3InF32(sleepThresholds, b) < 0.0f)
+            !m3WithinV3(InV3(torques, b), M3_FORCE_LIMIT) || m3InF32(sleepThresholds, b) < 0.0f ||
+            m3InF32(sleepTimes, b) < 0.0f)
         {
             return false;
         }
@@ -200,13 +206,48 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     return true;
 }
 
-// A live joint's anchors in its bodies' frames, its break thresholds and
-// its drive.
+// A joint's target as its setter took it: an angle within a half turn on
+// a revolute joint, any travel on a prismatic or wheel joint, and none on
+// a type that takes no scalar target.
+static bool TargetScalarFits(uint8_t type, float scalar)
+{
+    if (type == (uint8_t)m3_revoluteJoint)
+    {
+        return scalar >= -M3_PI && scalar <= M3_PI;
+    }
+    return type == (uint8_t)m3_prismaticJoint || type == (uint8_t)m3_wheelJoint || scalar == 0.0f;
+}
+
+// A generic joint's axis ranges as its def took them: on each limited
+// axis of the three whose modes start at bit shift of the packed modes,
+// the lower bound at most the upper. Every other joint packs no mode.
+static bool GenericRangesFit(uint32_t modes, int32_t shift, m3Vec3 lower, m3Vec3 upper)
+{
+    const float lo[3] = {lower.x, lower.y, lower.z};
+    const float hi[3] = {upper.x, upper.y, upper.z};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        if (((modes >> (shift + 2 * k)) & 3u) == (uint32_t)m3_axisLimited && !(lo[k] <= hi[k]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A live joint's anchors in its bodies' frames, its break thresholds, its
+// target, its generic ranges and its drive.
 static bool JointsValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(joints.jointPool.alive);
     const uint8_t* localA = M3_IN(joints.jointLocalA);
     const uint8_t* localB = M3_IN(joints.jointLocalB);
+    const uint8_t* targets = M3_IN(joints.jointTargetScalar);
+    const uint8_t* modes = M3_IN(joints.jointGenericModes);
+    const uint8_t* linLower = M3_IN(joints.jointGenLinLower);
+    const uint8_t* linUpper = M3_IN(joints.jointGenLinUpper);
+    const uint8_t* angLower = M3_IN(joints.jointGenAngLower);
+    const uint8_t* angUpper = M3_IN(joints.jointGenAngUpper);
     JointFields f = {
         M3_IN(joints.jointType),   M3_IN(joints.jointFlags),   M3_IN(joints.jointMotor),
         M3_IN(joints.jointLimits), M3_IN(joints.jointSpring),  M3_IN(joints.jointTargetQ),
@@ -219,7 +260,10 @@ static bool JointsValid(const m3Incoming* inc)
         }
         m3Vec3 thresholds = InV3(f.breaks, j);
         if (!m3LocalV3(InV3(localA, j)) || !m3LocalV3(InV3(localB, j)) || thresholds.x < 0.0f ||
-            thresholds.y < 0.0f || !JointDriveValid(&f, j))
+            thresholds.y < 0.0f || !TargetScalarFits(f.types[j], m3InF32(targets, j)) ||
+            !GenericRangesFit(m3InU16(modes, j), 0, InV3(linLower, j), InV3(linUpper, j)) ||
+            !GenericRangesFit(m3InU16(modes, j), 6, InV3(angLower, j), InV3(angUpper, j)) ||
+            !JointDriveValid(&f, j))
         {
             return false;
         }
@@ -230,7 +274,8 @@ static bool JointsValid(const m3Incoming* inc)
 // --- Characters, vehicles, soft bodies and water -------------------------------
 
 // A live character's capsule and walker within the bounds its create and
-// stance changes keep.
+// stance changes keep: the cosine of a slope limit of at most 1.5 rad,
+// and a ground normal that is none or a contact's unit normal.
 static bool CharactersValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(characters.charPool.alive);
@@ -238,12 +283,17 @@ static bool CharactersValid(const m3Incoming* inc)
     const uint8_t* halfHeight = M3_IN(characters.charHalfHeight);
     const uint8_t* mass = M3_IN(characters.charMass);
     const uint8_t* pushMax = M3_IN(characters.charPushMax);
+    const uint8_t* cosSlope = M3_IN(characters.charCosSlope);
+    const uint8_t* ground = M3_IN(characters.charGroundNormal);
     for (int32_t c = 0; c < inc->world->characters.charPool.capacity; ++c)
     {
-        if (alive[c] != 0 && (!(m3InF32(radius, c) > 0.0f && m3LocalF(m3InF32(radius, c))) ||
-                              !InRange(m3InF32(halfHeight, c), 0.0f, M3_LOCAL_LIMIT) ||
-                              !InRange(m3InF32(mass, c), M3_MASS_FLOOR, M3_MASS_LIMIT) ||
-                              !InRange(m3InF32(pushMax, c), 0.0f, M3_RATIO_LIMIT)))
+        m3Vec3 n = InV3(ground, c);
+        if (alive[c] != 0 &&
+            (!(m3InF32(radius, c) > 0.0f && m3LocalF(m3InF32(radius, c))) ||
+             !InRange(m3InF32(halfHeight, c), 0.0f, M3_LOCAL_LIMIT) ||
+             !InRange(m3InF32(mass, c), M3_MASS_FLOOR, M3_MASS_LIMIT) ||
+             !InRange(m3InF32(pushMax, c), 0.0f, M3_RATIO_LIMIT) ||
+             !InRange(m3InF32(cosSlope, c), 0.0f, 1.0f) || !(m3Dot3(n, n) <= 1.01f)))
         {
             return false;
         }
@@ -263,9 +313,11 @@ typedef struct VehicleFields
     const uint8_t* radius;
     const uint8_t* brakeShare;
     const uint8_t* lon;
+    const uint8_t* compression;
 } VehicleFields;
 
-// Vehicle v's wheels as their def kept them, and the contact speed each
+// Vehicle v's wheels as their def kept them, the compression each held at
+// the last step, within its rest length, and the contact speed each
 // carries to the next step's differential: a point on the chassis against
 // one on a kinematic body, within twice the kinematic limit.
 static bool WheelsValid(const VehicleFields* f, int32_t v)
@@ -284,6 +336,7 @@ static bool WheelsValid(const VehicleFields* f, int32_t v)
         wheel.radius = m3InF32(f->radius, k);
         wheel.brakeShare = m3InF32(f->brakeShare, k);
         if (!m3WheelDefValid(&wheel) ||
+            !InRange(m3InF32(f->compression, k), 0.0f, wheel.restLength) ||
             !m3WithinF(m3InF32(f->lon, k), 2.0f * M3_KINEMATIC_SPEED_LIMIT))
         {
             return false;
@@ -328,11 +381,12 @@ static bool DrivetrainValid(const m3Incoming* inc, int32_t v)
 static bool VehiclesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(vehicles.vehPool.alive);
-    VehicleFields f = {M3_IN(vehicles.vehWheelCount),  M3_IN(vehicles.vehWheelAnchor),
-                       M3_IN(vehicles.vehWheelDir),    M3_IN(vehicles.vehWheelRest),
-                       M3_IN(vehicles.vehWheelTravel), M3_IN(vehicles.vehWheelHertz),
-                       M3_IN(vehicles.vehWheelZeta),   M3_IN(vehicles.vehWheelRadius),
-                       M3_IN(vehicles.vehWheelBrake),  M3_IN(vehicles.vehWheelLon)};
+    VehicleFields f = {M3_IN(vehicles.vehWheelCount),      M3_IN(vehicles.vehWheelAnchor),
+                       M3_IN(vehicles.vehWheelDir),        M3_IN(vehicles.vehWheelRest),
+                       M3_IN(vehicles.vehWheelTravel),     M3_IN(vehicles.vehWheelHertz),
+                       M3_IN(vehicles.vehWheelZeta),       M3_IN(vehicles.vehWheelRadius),
+                       M3_IN(vehicles.vehWheelBrake),      M3_IN(vehicles.vehWheelLon),
+                       M3_IN(vehicles.vehWheelCompression)};
     for (int32_t v = 0; v < inc->world->vehicles.vehPool.capacity; ++v)
     {
         if (alive[v] == 0)
@@ -357,11 +411,39 @@ static bool VehiclesValid(const m3Incoming* inc)
     return true;
 }
 
+// Soft body s's rest values as its create took them: each edge's length
+// and each tet's volume within what its points allow, and the lattice's
+// closed volume.
+static bool SoftRestValid(const m3Incoming* inc, int32_t s)
+{
+    const uint8_t* edgeRest = M3_IN(softBodies.softEdgeRest);
+    const uint8_t* tetRest = M3_IN(softBodies.softTetRestV6);
+    if (!InRange(m3InF32(M3_IN(softBodies.softRestVolume), s), 0.0f, M3_SOFT_SHAPE_LIMIT))
+    {
+        return false;
+    }
+    for (int32_t e = 0; e < m3InI32(M3_IN(softBodies.softEdgeCount), s); ++e)
+    {
+        if (!InRange(m3InF32(edgeRest, s * M3_SOFTBODY_MAX_EDGES + e), 0.0f, M3_SOFT_EDGE_LIMIT))
+        {
+            return false;
+        }
+    }
+    for (int32_t t = 0; t < m3InI32(M3_IN(softBodies.softTetCount), s); ++t)
+    {
+        if (!m3WithinF(m3InF32(tetRest, s * M3_SOFTBODY_MAX_TETS + t), M3_SOFT_TET_LIMIT))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // A live soft body's particle scalars as its create took them: each
 // particle within reach, now, a substep ago and in its bind pose, its
 // inverse mass that of a mass within the floor and ceiling, or zero when
 // pinned, and a pending kick within the speed limit the step held it to;
-// its anchors in their bodies' frames.
+// its rest values; its anchors in their bodies' frames.
 static bool SoftBodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(softBodies.softPool.alive);
@@ -385,7 +467,8 @@ static bool SoftBodiesValid(const m3Incoming* inc)
             m3InF32(M3_IN(softBodies.softCompliance), s) < 0.0f ||
             m3InF32(M3_IN(softBodies.softBendCompliance), s) < 0.0f ||
             m3InF32(M3_IN(softBodies.softMaxDeviation), s) < 0.0f ||
-            m3InF32(M3_IN(softBodies.softPressure), s) > M3_SOFTBODY_MAX_PRESSURE)
+            m3InF32(M3_IN(softBodies.softPressure), s) > M3_SOFTBODY_MAX_PRESSURE ||
+            !SoftRestValid(inc, s))
         {
             return false;
         }

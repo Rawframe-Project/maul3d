@@ -8,6 +8,7 @@
 // it was.
 
 #include "helpers.h"
+#include "snapshot_bounds.h"
 #include "state_prefix.h"
 #include "test_harness.h"
 #include "world_internal.h"
@@ -41,6 +42,8 @@ typedef struct Scene
     int32_t pool;    // a water volume
     int32_t rail;    // a kinematic body with a box
     int32_t dot;     // a soft body of one particle
+    int32_t jelly;   // a soft body of one tet
+    int32_t six;     // a generic joint with a limited axis
 } Scene;
 
 typedef enum Which
@@ -63,6 +66,10 @@ typedef enum Which
     which_anchor,
     which_pool,
     which_rail,
+    which_edge, // the lattice's first edge
+    which_jelly,
+    which_tet, // the tet body's tet
+    which_six,
 } Which;
 
 static int32_t SlotOf(const Scene* s, Which which)
@@ -106,6 +113,14 @@ static int32_t SlotOf(const Scene* s, Which which)
         return s->pool;
     case which_rail:
         return s->rail;
+    case which_edge:
+        return s->soft * M3_SOFTBODY_MAX_EDGES;
+    case which_jelly:
+        return s->jelly;
+    case which_tet:
+        return s->jelly * M3_SOFTBODY_MAX_TETS;
+    case which_six:
+        return s->six;
     }
     return 0;
 }
@@ -178,6 +193,7 @@ static const Case s_cases[] = {
     {"wind speed", SCALAR(windSpeed, which_world), (double)(M3_SPEED_LIMIT), +1},
     {"gust hertz", SCALAR(windGustHertz, which_world), (double)(M3_HERTZ_LIMIT), +1},
     {"gust scale", SCALAR(windGustScale, which_world), (double)(M3_RATIO_LIMIT), +1},
+    {"gust phase", SCALAR(windPhase, which_world), (double)(4.0f * M3_PI), +1},
     // Bodies.
     {"dynamic velocity", COMPONENT(bodies.linearVelocities, m3Vec3, which_ball, 0), (double)(M3_SPEED_LIMIT), +1},
     {"kinematic velocity", COMPONENT(bodies.linearVelocities, m3Vec3, which_heroBody, 0), (double)(M3_KINEMATIC_SPEED_LIMIT), +1},
@@ -188,6 +204,7 @@ static const Case s_cases[] = {
     {"held force", COMPONENT(bodies.bodyForce, m3Vec3, which_ball, 1), (double)(M3_FORCE_LIMIT), +1},
     {"held torque", COMPONENT(bodies.bodyTorque, m3Vec3, which_ball, 0), (double)(-M3_FORCE_LIMIT), -1},
     {"sleep threshold", SCALAR(bodies.bodySleepThreshold, which_ball), (double)(0.0), -1},
+    {"sleep time", SCALAR(bodies.sleepTimes, which_ball), (double)(0.0), -1},
     // Shapes.
     {"density", SCALAR(shapes.shapeDensity, which_ballShape), (double)(M3_DENSITY_LIMIT), +1},
     {"friction", SCALAR(shapes.shapeFriction, which_ballShape), (double)(0.0), -1},
@@ -215,12 +232,18 @@ static const Case s_cases[] = {
     {"steer hertz", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 0), (double)(M3_HERTZ_LIMIT), +1},
     {"steer damping", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 1), (double)(M3_RATIO_LIMIT), +1},
     {"steer effort", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 2), (double)(M3_FORCE_LIMIT), +1},
+    {"revolute target", SCALAR(joints.jointTargetScalar, which_hinge), (double)(M3_PI), +1},
+    {"target on a gear", SCALAR(joints.jointTargetScalar, which_gear), (double)(0.0), +1},
+    {"generic linear range", COMPONENT(joints.jointGenLinUpper, m3Vec3, which_six, 0), (double)(-0.5), -1},
+    {"generic angular range", COMPONENT(joints.jointGenAngUpper, m3Vec3, which_six, 1), (double)(-0.25), -1},
     // Characters.
     {"character radius", SCALAR(characters.charRadius, which_hero), (double)(M3_LOCAL_LIMIT), +1},
     {"character radius positive", SCALAR(characters.charRadius, which_hero), (double)FLT_TRUE_MIN, -1},
     {"character half height", SCALAR(characters.charHalfHeight, which_hero), (double)(M3_LOCAL_LIMIT), +1},
     {"character mass", SCALAR(characters.charMass, which_hero), (double)(M3_MASS_LIMIT), +1},
     {"character push ratio", SCALAR(characters.charPushMax, which_hero), (double)(M3_RATIO_LIMIT), +1},
+    {"slope cosine", SCALAR(characters.charCosSlope, which_hero), (double)(1.0), +1},
+    {"slope cosine floor", SCALAR(characters.charCosSlope, which_hero), (double)(0.0), -1},
     // Vehicles.
     {"steer angle", SCALAR(vehicles.vehMaxSteer, which_vehicle), (double)(0.0), -1},
     {"drive force", SCALAR(vehicles.vehDriveForce, which_vehicle), (double)(M3_FORCE_LIMIT), +1},
@@ -234,6 +257,8 @@ static const Case s_cases[] = {
     {"right track", SCALAR(vehicles.vehTrackRight, which_vehicle), (double)(-1.0), -1},
     {"wheel radius", SCALAR(vehicles.vehWheelRadius, which_firstWheel), (double)(M3_WHEEL_RADIUS_FLOOR), -1},
     {"wheel contact speed", SCALAR(vehicles.vehWheelLon, which_firstWheel), (double)(2.0f * M3_KINEMATIC_SPEED_LIMIT), +1},
+    {"wheel compression", SCALAR(vehicles.vehWheelCompression, which_firstWheel), (double)(0.4f), +1},
+    {"wheel compression floor", SCALAR(vehicles.vehWheelCompression, which_firstWheel), (double)(0.0), -1},
     {"gear ratio", SCALAR(vehicles.vehDtGearRatio, which_firstGear), (double)(M3_RATIO_LIMIT), +1},
     // Soft bodies.
     {"particle radius", SCALAR(softBodies.softRadius, which_soft), (double)(M3_LOCAL_LIMIT), +1},
@@ -247,6 +272,13 @@ static const Case s_cases[] = {
     {"particle mass limit", SCALAR(softBodies.softInvMass, which_particle), (double)(1.0f / M3_MASS_LIMIT), -1},
     {"particle kick", COMPONENT(softBodies.softKick, m3Vec3, which_particle, 0), (double)(M3_SPEED_LIMIT), +1},
     {"particle anchor", COMPONENT(softBodies.softAnchorLocal, m3Vec3, which_anchor, 1), (double)(M3_LOCAL_LIMIT), +1},
+    {"edge rest length", SCALAR(softBodies.softEdgeRest, which_edge), (double)(M3_SOFT_EDGE_LIMIT), +1},
+    {"edge rest length floor", SCALAR(softBodies.softEdgeRest, which_edge), (double)(0.0), -1},
+    {"tet rest volume", SCALAR(softBodies.softTetRestV6, which_tet), (double)(M3_SOFT_TET_LIMIT), +1},
+    {"tet rest volume below", SCALAR(softBodies.softTetRestV6, which_tet), (double)(-M3_SOFT_TET_LIMIT), -1},
+    {"closed rest volume", SCALAR(softBodies.softRestVolume, which_soft), (double)(M3_SOFT_SHAPE_LIMIT), +1},
+    {"closed rest volume floor", SCALAR(softBodies.softRestVolume, which_soft), (double)(0.0), -1},
+    {"rest volume of a tet body", SCALAR(softBodies.softRestVolume, which_jelly), (double)(0.0), +1},
     // Positions, past which the step holds every body and particle.
     {"body position", POSITION(bodies.transforms, m3Transform, which_ball, 0), M3_REACH_LIMIT, +1},
     {"particle position", POSITION(softBodies.softPos, m3Pos3, which_particle, 8), -M3_REACH_LIMIT, -1},
@@ -280,12 +312,14 @@ static void Put(const Scene* s, uint8_t* snap, const Value* v, double x)
     }
 }
 
-// The scene: a ball, a crate on a hinge, a gear, a pulley, a servo and a
-// wheel joint, a kinematic rail, a character, a vehicle with a drivetrain, a closed lattice
-// anchored to the crate, a water volume and a steady wind.
+// The scene: a ball, a crate on a hinge, a gear, a pulley, a servo, a
+// wheel and a generic joint, a kinematic rail, a character, a vehicle
+// with a drivetrain, a closed lattice anchored to the crate, a lone
+// particle, a tet body, a water volume and a steady wind.
 static Scene Build(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
+    def.softBodyCapacity = 3;
     Scene s;
     memset(&s, 0, sizeof(s));
     s.world = NewWorld(&def);
@@ -352,6 +386,23 @@ static Scene Build(void)
     m3JointId wheel = NewJoint(w, &jd);
     s.wheel = wheel.index1 - 1;
     m3Joint_SetSteer(w, wheel, true, 0.1f, 5.0f, 0.7f, 10.0f);
+    jd = m3DefaultJointDef();
+    jd.type = m3_genericJoint;
+    jd.bodyIdA = ground;
+    jd.bodyIdB = tire;
+    jd.localAnchorA = (m3Vec3){0.0f, 0.5f, 1.0f};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        jd.genericLinear[k] = (uint8_t)m3_axisFree;
+        jd.genericAngular[k] = (uint8_t)m3_axisFree;
+    }
+    jd.genericLinear[0] = (uint8_t)m3_axisLimited;
+    jd.genericLinearLower[0] = -0.5f;
+    jd.genericLinearUpper[0] = 0.5f;
+    jd.genericAngular[1] = (uint8_t)m3_axisLimited;
+    jd.genericAngularLower[1] = -0.25f;
+    jd.genericAngularUpper[1] = 0.25f;
+    s.six = NewJoint(w, &jd).index1 - 1;
 
     bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
@@ -403,6 +454,13 @@ static Scene Build(void)
     single.countZ = 1;
     single.radius = 0.06f;
     s.dot = NewSoftBody(w, &single).index1 - 1;
+    m3SoftBodyDef tetDef = m3DefaultSoftBodyDef();
+    tetDef.position = (m3Pos3){-6.0, 2.0, 4.0};
+    tetDef.radius = 0.05f;
+    const m3Vec3 corners[4] = {
+        {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.0f, 0.0f, 0.4f}};
+    const uint16_t tet[4] = {0, 1, 2, 3};
+    s.jelly = NewSoftBodyTet(w, &tetDef, corners, 4, tet, 1).index1 - 1;
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
     pool.lo = (m3Pos3){4.0, 0.0, 4.0};
@@ -421,8 +479,8 @@ static void TestBoundsAtTheirEdges(void)
     Scene s = Build();
     m3World* world = s.world;
     m3Counters counters = m3World_GetCounters(world);
-    CHECK(counters.misuse == 0 && counters.jointCount == 5 && counters.vehicleCount == 1 &&
-              counters.softBodyCount == 2 && counters.characterCount == 1 && s.pool >= 0 &&
+    CHECK(counters.misuse == 0 && counters.jointCount == 6 && counters.vehicleCount == 1 &&
+              counters.softBodyCount == 3 && counters.characterCount == 1 && s.pool >= 0 &&
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
           "the scene builds");
@@ -458,8 +516,40 @@ static void TestBoundsAtTheirEdges(void)
         CHECK(pastRefused, "one just past it is refused");
         CHECK(m3World_Hash(world) == hash, "and the world is left as it was");
     }
+    CHECK(m3World_GetCounters(world).misuse == 0, "no refusal counted as misuse");
     printf("restore bounds: %d values at and past their limits\n",
            (int)(sizeof(s_cases) / sizeof(s_cases[0])));
+    free(edited);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
+// A character's ground normal is none or a contact's unit normal: a unit
+// one restores, one a tenth longer is refused with the world left as it
+// was.
+static void TestGroundNormalLength(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
+          "snapshot taken");
+    if (clean != NULL && edited != NULL)
+    {
+        uint64_t hash = m3World_Hash(world);
+        const Value normal = COMPONENT(characters.charGroundNormal, m3Vec3, which_hero, 1);
+        memcpy(edited, clean, (size_t)size);
+        Put(&s, edited, &normal, 1.0);
+        CHECK(Restore(world, edited, size), "a unit ground normal restores");
+        CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "back to the scene");
+        memcpy(edited, clean, (size_t)size);
+        Put(&s, edited, &normal, 1.1);
+        CHECK(m3World_Restore(world, edited, size) == m3_errorInvalid, "a longer one is refused");
+        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuse == 0,
+              "and the world is left as it was, with no misuse counted");
+    }
     free(edited);
     free(clean);
     m3DestroyWorld(world);
@@ -657,6 +747,7 @@ static void TestTypeChangeMass(void)
 int main(void)
 {
     TestBoundsAtTheirEdges();
+    TestGroundNormalLength();
     TestStepHoldsWithinReach();
     TestHoldRoundsWithin();
     TestTargetReach();
