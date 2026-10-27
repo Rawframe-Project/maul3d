@@ -267,7 +267,7 @@ static void TestRestoreKeepsTheRatio(void)
         uint64_t hash = m3World_Hash(world);
         uint64_t misuse = Misuse(world);
         CHECK(Restore(world, snap, size) && m3World_Hash(world) == hash, "and restores");
-        int32_t at = m3StateFieldAt(world, offsetof(m3World, shapes.shapeDensity));
+        int64_t at = m3StateFieldAt(world, offsetof(m3World, shapes.shapeDensity));
         CHECK(at >= 0, "the density is snapshot state");
         const float light = 1.0f;
         memcpy(snap + M3_SNAPSHOT_HEADER_BYTES + (at < 0 ? 0 : at) +

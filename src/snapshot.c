@@ -19,6 +19,7 @@
 #include "shape.h"
 #include "snapshot_links.h"
 #include "snapshot_mass.h"
+#include "snapshot_walk.h"
 #include "state_prefix.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
@@ -26,12 +27,6 @@
 
 #include <stddef.h>
 #include <string.h>
-
-// Little-endian only until a big-endian CI cell exists to prove the
-// swap path; the walker is the single place a swap would live.
-#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__)
-#error "maul3d snapshots are little-endian only (add the swap in WalkBlocks first)"
-#endif
 
 // The math types are canonical field data only because they are
 // provably padding-free; a change here is a format version bump.
@@ -85,185 +80,6 @@ static uint64_t ConfigHash(void)
     return h;
 }
 
-typedef enum m3WalkMode
-{
-    m3_walkMeasure = 0,
-    m3_walkWrite = 1,
-    m3_walkRead = 2,
-} m3WalkMode;
-
-// A cursor over the snapshot byte stream. Measure only counts; write
-// and read stream against the caller's buffer at the running offset.
-typedef struct m3Walk
-{
-    uint8_t* out;
-    const uint8_t* in;
-    m3WalkMode mode;
-    int32_t cursor;
-} m3Walk;
-
-static void Block(m3Walk* walk, void* ptr, int32_t bytes)
-{
-    if (walk->mode == m3_walkWrite)
-    {
-        memcpy(walk->out + walk->cursor, ptr, (size_t)bytes);
-    }
-    else if (walk->mode == m3_walkRead)
-    {
-        memcpy(ptr, walk->in + walk->cursor, (size_t)bytes);
-    }
-    walk->cursor += bytes;
-}
-
-// Counts land first; the read pass sizes the slot through the alloc gate
-// before its content arrives. The BVH stays derived and rebuilds after
-// restore. A material-free mesh writes zeros for its material table.
-static bool WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh)
-{
-    Block(walk, &mesh->vertexCount, 4);
-    Block(walk, &mesh->triangleCount, 4);
-    if (walk->mode == m3_walkRead && !m3MeshDataAlloc(heap, mesh))
-    {
-        return false; // corrupt counts or no memory
-    }
-    if (mesh->triangleCount == 0)
-    {
-        return true;
-    }
-    Block(walk, mesh->vertices, mesh->vertexCount * (int32_t)sizeof(m3Vec3));
-    Block(walk, mesh->indices, 3 * mesh->triangleCount * (int32_t)sizeof(uint16_t));
-    Block(walk, mesh->edgeFlags, mesh->triangleCount);
-    Block(walk, &mesh->materialCount, 4);
-    if (walk->mode == m3_walkRead &&
-        (mesh->materialCount < 0 || mesh->materialCount > M3_MESH_MAX_MATERIALS))
-    {
-        return false;
-    }
-    Block(walk, mesh->materials, (int32_t)sizeof(mesh->materials));
-    Block(walk, mesh->triMaterials, mesh->triangleCount);
-    return true;
-}
-
-static bool HullCountsValid(const m3HullData* hull)
-{
-    return hull->vertexCount >= 0 && hull->vertexCount <= M3_HULL_MAX_VERTS &&
-           hull->faceCount >= 0 && hull->faceCount <= M3_HULL_MAX_FACES && hull->indexCount >= 0 &&
-           hull->indexCount <= M3_HULL_MAX_FACE_INDICES && hull->edgeCount >= 0 &&
-           hull->edgeCount <= M3_HULL_MAX_HALF_EDGES &&
-           (hull->vertexCount != 0 || (hull->faceCount | hull->indexCount | hull->edgeCount) == 0);
-}
-
-// Only the used prefix of each hull array travels; an empty slot costs
-// 16 bytes. The read pass wipes a lived-in slot so the unused tail is
-// canonical zeros. An empty slot already is (create fills prefixes,
-// release wipes), and wiping every slot made restore five times slower
-// than snapshot.
-static bool WalkHull(m3Walk* walk, m3HullData* hull)
-{
-    int32_t hadContent = hull->vertexCount; // read before the counts land
-    Block(walk, &hull->vertexCount, 4);
-    Block(walk, &hull->faceCount, 4);
-    Block(walk, &hull->indexCount, 4);
-    Block(walk, &hull->edgeCount, 4);
-    if (walk->mode == m3_walkRead)
-    {
-        if (!HullCountsValid(hull))
-        {
-            return false;
-        }
-        if (hadContent > 0)
-        {
-            int32_t vc = hull->vertexCount;
-            int32_t fc = hull->faceCount;
-            int32_t ic = hull->indexCount;
-            int32_t ec = hull->edgeCount;
-            memset(hull, 0, sizeof(*hull));
-            hull->vertexCount = vc;
-            hull->faceCount = fc;
-            hull->indexCount = ic;
-            hull->edgeCount = ec;
-        }
-    }
-    if (hull->vertexCount > 0)
-    {
-        Block(walk, &hull->unitMass, 4);
-        Block(walk, &hull->unitCom, (int32_t)sizeof(m3Vec3));
-        Block(walk, &hull->unitInertiaCom, (int32_t)sizeof(m3Mat3));
-        Block(walk, &hull->center, (int32_t)sizeof(m3Vec3));
-        Block(walk, hull->vertices, hull->vertexCount * (int32_t)sizeof(m3Vec3));
-        Block(walk, hull->faceNormals, hull->faceCount * (int32_t)sizeof(m3Vec3));
-        Block(walk, hull->faceOffsets, hull->faceCount * (int32_t)sizeof(m3real));
-        Block(walk, hull->faceVertCounts, hull->faceCount);
-        Block(walk, hull->faceVertStart, hull->faceCount * (int32_t)sizeof(uint16_t));
-        Block(walk, hull->faceIndices, hull->indexCount);
-        Block(walk, hull->edges, hull->edgeCount * (int32_t)sizeof(m3HullHalfEdge));
-    }
-    return true;
-}
-
-// Counts first, then the baked extremes and the raw samples; the read
-// pass refuses hostile counts and sizes through the alloc gate.
-static bool WalkHeightField(m3Heap* heap, m3Walk* walk, m3HeightFieldData* hf)
-{
-    Block(walk, &hf->nx, 4);
-    Block(walk, &hf->nz, 4);
-    Block(walk, &hf->cellSize, 4);
-    if (walk->mode == m3_walkRead)
-    {
-        bool valid = hf->nx >= 0 && hf->nx <= M3_HEIGHTFIELD_MAX_DIM && hf->nz >= 0 &&
-                     hf->nz <= M3_HEIGHTFIELD_MAX_DIM && (hf->nx == 0) == (hf->nz == 0) &&
-                     (hf->nx == 0 || (hf->nx >= 2 && hf->nz >= 2));
-        if (!valid || !m3HeightFieldDataAlloc(heap, hf))
-        {
-            return false;
-        }
-    }
-    if (hf->nx > 0)
-    {
-        Block(walk, &hf->minHeight, 4);
-        Block(walk, &hf->maxHeight, 4);
-        Block(walk, hf->heights, hf->nx * hf->nz * (int32_t)sizeof(float));
-    }
-    return true;
-}
-
-// The snapshot byte stream: the state table's fixed prefix, then the
-// variable-size per-slot content (meshes, hulls, heightfields) last, so
-// the prefix stays state-independent and restore can pre-validate sizes
-// straight from the buffer. Returns the byte total, or -1 when a read
-// meets corrupt counts or runs out of memory.
-static int32_t WalkBlocks(m3World* world, uint8_t* out, const uint8_t* in, m3WalkMode mode,
-                          int includeMesh)
-{
-    m3Walk walk = {out, in, mode, 0};
-    walk.cursor = m3StateWalk(world, out, in,
-                              mode == m3_walkWrite  ? 0
-                              : mode == m3_walkRead ? 1
-                                                    : 2);
-    bool ok = true;
-    for (int32_t m = 0; includeMesh && ok && m < world->meshes.meshCapacity; ++m)
-    {
-        ok = WalkMesh(&world->heap, &walk, &world->meshes.meshData[m]);
-    }
-    for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
-    {
-        ok = WalkHull(&walk, &world->hulls.hullData[i]);
-    }
-    for (int32_t i = 0; includeMesh && ok && i < world->shapes.shapeCapacity; ++i)
-    {
-        ok = WalkHeightField(&world->heap, &walk, &world->heightFields.hfData[i]);
-    }
-    return ok ? walk.cursor : -1;
-}
-
-// The walk for the readers: measure and write only read the world, which
-// the walk takes writable because a restore reads into it.
-static int32_t WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int includeMesh)
-{
-    M3_ASSERT(mode != m3_walkRead);
-    return WalkBlocks((m3World*)world, out, NULL, mode, includeMesh);
-}
-
 static M3_NOINLINE int32_t WorldSnapshotSizeWorker(const m3World* world)
 {
     if (world == NULL)
@@ -271,7 +87,8 @@ static M3_NOINLINE int32_t WorldSnapshotSizeWorker(const m3World* world)
         m3Refuse(world, m3_errorInvalid);
         return -1;
     }
-    return (int32_t)sizeof(m3SnapshotHeader) + WalkOut(world, NULL, m3_walkMeasure, 1);
+    int64_t size = m3SnapshotBytes(world);
+    return m3SnapshotWithinBound(size) ? (int32_t)size : -1;
 }
 
 int32_t m3World_SnapshotSize(const m3World* world)
@@ -290,8 +107,8 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
         return m3Refuse(world, m3_errorInvalid);
     }
     *bytesOut = 0;
-    int32_t size = (int32_t)sizeof(m3SnapshotHeader) + WalkOut(world, NULL, m3_walkMeasure, 1);
-    if (capacity < size)
+    int64_t size = m3SnapshotBytes(world);
+    if ((int64_t)capacity < size)
     {
         // A buffer sized with m3World_SnapshotSize always fits, so a short
         // one is the caller's bug as well as a capacity refusal.
@@ -308,8 +125,8 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
 
     uint8_t* bytes = (uint8_t*)buffer;
     memcpy(bytes, &header, sizeof(header));
-    WalkOut(world, bytes + sizeof(header), m3_walkWrite, 1);
-    *bytesOut = size;
+    m3WalkOut(world, bytes + sizeof(header), m3_walkWrite, 1);
+    *bytesOut = (int32_t)size; // at most capacity
     return m3_success;
 }
 
@@ -465,7 +282,7 @@ static int32_t HullTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             m3HullData incoming;
             memset(&incoming, 0, sizeof(incoming));
             m3Walk walk = {NULL, raw, m3_walkRead, cursor - 16};
-            if (!WalkHull(&walk, &incoming) || !m3HullDataValid(&incoming))
+            if (!m3WalkHull(&walk, &incoming) || !m3HullDataValid(&incoming))
             {
                 return -1;
             }
@@ -642,16 +459,16 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
     m3Walk walk = {NULL, raw, m3_walkRead, fixed};
     for (int32_t m = 0; m < meshCap; ++m)
     {
-        if (!WalkMesh(heap, &walk, &stage->meshes[m]))
+        if (!m3WalkMesh(heap, &walk, &stage->meshes[m]))
         {
             return false;
         }
     }
-    stage->hullCursor = walk.cursor;
-    walk.cursor = HullTailEnd(world, raw, size, walk.cursor);
+    stage->hullCursor = (int32_t)walk.cursor; // within size
+    walk.cursor = HullTailEnd(world, raw, size, stage->hullCursor);
     for (int32_t h = 0; h < shapeCap; ++h)
     {
-        if (!WalkHeightField(heap, &walk, &stage->heightFields[h]))
+        if (!m3WalkHeightField(heap, &walk, &stage->heightFields[h]))
         {
             return false;
         }
@@ -698,7 +515,7 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
     m3Walk walk = {NULL, raw, m3_walkRead, stage->hullCursor};
     for (int32_t i = 0; i < world->shapes.shapeCapacity; ++i)
     {
-        bool landed = WalkHull(&walk, &world->hulls.hullData[i]);
+        bool landed = m3WalkHull(&walk, &world->hulls.hullData[i]);
         M3_ASSERT(landed); // the counts were checked before the stage
         (void)landed;
     }
@@ -799,11 +616,17 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
     // range, flags that are flags, finite floats), then the variable
-    // tail parsed straight from the buffer.
-    int32_t fixed =
-        (int32_t)sizeof(m3SnapshotHeader) + WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
+    // tail parsed straight from the buffer. The restored state is the
+    // size read, so a snapshot within the bound keeps the world within it.
+    int64_t prefixEnd =
+        (int64_t)sizeof(m3SnapshotHeader) + m3WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
+    if ((int64_t)size < prefixEnd || !m3SnapshotWithinBound(size))
+    {
+        return m3_errorInvalid;
+    }
+    int32_t fixed = (int32_t)prefixEnd; // at most size
     const uint8_t* raw = (const uint8_t*)data;
-    if (size < fixed || !m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
+    if (!m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
         !TailFits(world, raw, size, fixed) || !VoxelSurfacesFit(world, raw))
     {
         return m3_errorInvalid;

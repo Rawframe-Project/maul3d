@@ -130,7 +130,7 @@ static int32_t SlotOf(const Scene* s, Which which)
 static uint8_t* At(const Scene* s, uint8_t* snap, size_t field, size_t width, Which which,
                    size_t at)
 {
-    int32_t offset = m3StateFieldAt(s->world, field);
+    int64_t offset = m3StateFieldAt(s->world, field);
     CHECK(offset >= 0, "the field is snapshot state");
     return snap + HEADER_BYTES + (offset < 0 ? 0 : offset) + width * (size_t)SlotOf(s, which) + at;
 }
@@ -778,7 +778,7 @@ static void TestBodyMassLimit(void)
     }
     CHECK(Restore(world, snap, size), "it restores");
     uint64_t hash = m3World_Hash(world);
-    int32_t at = m3StateFieldAt(world, F(shapes.shapeGeom));
+    int64_t at = m3StateFieldAt(world, F(shapes.shapeGeom));
     float grown = M3_LOCAL_LIMIT;
     memcpy(snap + HEADER_BYTES + at + sizeof(m3ShapeGeom) * (size_t)(ball.index1 - 1) +
                offsetof(m3ShapeGeom, s),

@@ -14,6 +14,7 @@
 #include "fpenv.h"
 #include "journal.h"
 #include "misuse.h"
+#include "snapshot_walk.h"
 #include "world_internal.h"
 #include "world_state.h"
 
@@ -174,6 +175,13 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->contacts.pairCapacity = 8 * def->shapeCapacity;
 }
 
+// The proxy tree's nodes: a leaf per shape slot and the inner nodes
+// above them.
+static int32_t TreeCapacity(int32_t shapeCapacity)
+{
+    return 2 * shapeCapacity;
+}
+
 // Sets every link and back-reference of fresh state to "none".
 static void ClearLinks(m3World* world)
 {
@@ -243,8 +251,8 @@ static bool CreatePools(m3World* world)
             (int64_t)caps[p] * (int64_t)(sizeof(uint32_t) + sizeof(uint8_t) + sizeof(int32_t));
     }
     int32_t shapeCap = world->shapes.shapeCapacity;
-    world->broadphase.tree = m3TreeCreate(&world->heap, 2 * shapeCap);
-    world->memoryBytes += 2LL * shapeCap * (int64_t)sizeof(m3TreeNode);
+    world->broadphase.tree = m3TreeCreate(&world->heap, TreeCapacity(shapeCap));
+    world->memoryBytes += (int64_t)TreeCapacity(shapeCap) * (int64_t)sizeof(m3TreeNode);
     // Step scratch grows between steps on m3_errorCapacity, never mid-step.
     world->scratch = m3StackCreate(&world->heap, 256 * 1024);
     // The voxel slots' trees come with their chunks; the build scratch
@@ -289,6 +297,17 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
     if (!ValidWorldDef(def))
     {
         return m3_errorInvalid;
+    }
+    // The world's snapshot must stay within M3_MAX_SNAPSHOT_BYTES whatever
+    // mesh and hull content it takes: measured on the def's capacities
+    // alone, before anything is allocated.
+    m3World measured;
+    memset(&measured, 0, sizeof(measured));
+    ApplyWorldDef(&measured, def);
+    measured.broadphase.tree.capacity = TreeCapacity(def->shapeCapacity);
+    if (!m3SnapshotFitsCapacities(&measured))
+    {
+        return m3_errorCapacity;
     }
     m3Heap heap = m3HeapMake(&def->allocator);
     m3World* world = (m3World*)m3AllocZeroed(&heap, (int32_t)sizeof(m3World));

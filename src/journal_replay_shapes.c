@@ -10,6 +10,7 @@
 #include "quickhull.h"
 #include "shape.h"
 #include "shape_state.h"
+#include "snapshot_walk.h"
 #include "voxel.h"
 #include "world_internal.h"
 
@@ -369,7 +370,8 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     const uint8_t* sampleBytes = (const uint8_t*)payload + sizeof(head);
     float mn;
     float mx;
-    if (!m3HeightFieldSamplesValid(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx))
+    if (!m3HeightFieldSamplesValid(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx) ||
+        !m3SnapshotTakesHeightField(world, head.nx, head.nz))
     {
         return false;
     }

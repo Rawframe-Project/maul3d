@@ -17,6 +17,7 @@
 #include "query.h"
 #include "shape_state.h"
 #include "snapshot.h"
+#include "snapshot_walk.h"
 #include "solver.h"
 #include "state_prefix.h"
 #include "world.h"
@@ -755,16 +756,18 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
     // restore of it prepared, backs out any partial application on
     // refusal without taking memory, so a damaged tape or an op the
     // allocator turns down can never leave a half-built world behind.
-    int32_t snapBytes = m3World_SnapshotSize(world);
-    uint8_t* snap = (uint8_t*)m3AllocZeroed(&world->heap, snapBytes);
+    int64_t snapBytes = m3SnapshotBytes(world);
+    M3_ASSERT(m3SnapshotWithinBound(snapBytes));
+    int32_t snapSize = (int32_t)snapBytes; // within the bound
+    uint8_t* snap = (uint8_t*)m3AllocZeroed(&world->heap, snapSize);
     if (snap == NULL)
     {
         return m3_errorCapacity; // no memory for the guarantee means no replay
     }
     int32_t written = 0;
     m3RestoreStage backOut;
-    if (m3World_Snapshot(world, snap, snapBytes, &written) != m3_success || written != snapBytes ||
-        m3RestorePrepare(world, snap, snapBytes, &backOut) != m3_success)
+    if (m3World_Snapshot(world, snap, snapSize, &written) != m3_success || written != snapSize ||
+        m3RestorePrepare(world, snap, snapSize, &backOut) != m3_success)
     {
         // The world's own snapshot is always valid: only memory fails here.
         m3Free(&world->heap, snap);

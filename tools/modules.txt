@@ -42,10 +42,10 @@ joint_solver: joint_row solver_math world_internal
 joint_spherical: joint_solver manifold world_internal
 joint_wheel: joint_solver solver_math world_internal
 journal: misuse state_prefix world_internal
-journal_replay: body body_state fpenv journal misuse query shape_state snapshot solver state_prefix world world_internal
+journal_replay: body body_state fpenv journal misuse query shape_state snapshot snapshot_walk solver state_prefix world world_internal
 journal_replay_actors: body_state character journal journal_replay softbody vehicle water world_internal
 journal_replay_joints: body_state joint journal journal_replay world_internal
-journal_replay_shapes: body_state journal journal_replay quickhull shape shape_state voxel world_internal
+journal_replay_shapes: body_state journal journal_replay quickhull shape shape_state snapshot_walk voxel world_internal
 manifold: distance shape_state world_internal
 manifold_mesh: manifold shape_state triangle_contact voxel world_internal
 math_functions: fpenv
@@ -61,17 +61,18 @@ raycast: fpenv misuse shape_state world_internal
 replay: misuse state_prefix
 shape: body_state broad_phase fpenv hull joint_lever journal misuse shape_state voxel_coverage world_internal
 shape_cast: distance fpenv manifold misuse query raycast shape_state world_internal
-shape_create: body_state fpenv journal manifold misuse quickhull shape world_internal
+shape_create: body_state fpenv journal manifold misuse quickhull shape snapshot_walk world_internal
 shape_data: world_internal
 shape_mass: joint_lever shape world_internal
 shape_params: body_state broad_phase fpenv journal misuse shape shape_state world_internal
 shape_state: world_internal
 simd:
-snapshot: fpenv hull misuse shape snapshot_links snapshot_mass state_prefix voxel_coverage world_internal world_state
+snapshot: fpenv hull misuse shape snapshot_links snapshot_mass snapshot_walk state_prefix voxel_coverage world_internal world_state
 snapshot_mass: hull joint_lever shape world_internal world_state
 snapshot_links: allocator snapshot_bounds snapshot_values world_internal world_state
 snapshot_bounds: body joint joint_solver journal shape snapshot_values vehicle world world_internal
 snapshot_values: body_state joint_solver shape world_internal world_state
+snapshot_walk: state_prefix world_internal world_state
 softbody: body_state fpenv journal misuse world_internal
 softbody_cull: world_internal
 softbody_pairs: softbody world_internal
@@ -86,7 +87,7 @@ voxel: body_state character fpenv hull journal misuse shape_state voxel_coverage
 voxel_coverage: world_internal
 voxel_fracture: voxel voxel_coverage world_internal
 water: body_state broad_phase fpenv journal misuse world_internal
-world: body_state cpu fpenv journal misuse world_internal world_state
+world: body_state cpu fpenv journal misuse snapshot_walk world_internal world_state
 world_events: fpenv journal misuse world world_internal
 world_hash: body fpenv joint_solver misuse world world_internal
 world_internal: allocator dynamic_tree

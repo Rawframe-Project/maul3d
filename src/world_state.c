@@ -592,18 +592,49 @@ void m3StateFree(m3World* world)
     }
 }
 
-int32_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int direction)
+// Whether an array is snapshot state.
+static bool InSnapshot(const m3StateArray* entry)
 {
-    int32_t cursor = 0;
+    return (entry->flags & M3_STATE_SNAPSHOT) != 0;
+}
+
+// The bytes one array takes in a snapshot: one element per slot of its
+// extent, an inline field's extent being one. The measure, the walk and
+// the checks size every array here, so a world measures to exactly the
+// bytes its walk copies. No product nears int64_t: an extent is at most
+// an int32_t capacity times a per-slot cap of a few thousand.
+static int64_t SnapshotArrayBytes(const m3World* world, const m3StateArray* entry)
+{
+    return ExtentCount(world, entry->extent) * (int64_t)entry->elementSize;
+}
+
+int64_t m3StateSnapshotBytes(const m3World* world)
+{
+    int64_t total = 0;
     int32_t count = (int32_t)(sizeof(s_state) / sizeof(s_state[0]));
     for (int32_t i = 0; i < count; ++i)
     {
         const m3StateArray* entry = &s_state[i];
-        if ((entry->flags & M3_STATE_SNAPSHOT) == 0)
+        if (InSnapshot(entry))
+        {
+            total += SnapshotArrayBytes(world, entry);
+        }
+    }
+    return total;
+}
+
+int64_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int direction)
+{
+    int64_t cursor = 0;
+    int32_t count = (int32_t)(sizeof(s_state) / sizeof(s_state[0]));
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const m3StateArray* entry = &s_state[i];
+        if (!InSnapshot(entry))
         {
             continue;
         }
-        int32_t bytes = (int32_t)(ExtentCount(world, entry->extent) * (int64_t)entry->elementSize);
+        int64_t bytes = SnapshotArrayBytes(world, entry);
         uint8_t* data = (entry->flags & M3_STATE_POINTER) != 0
                             ? (uint8_t*)*FieldPointer(world, entry)
                             : (uint8_t*)world + entry->offset;
@@ -620,14 +651,14 @@ int32_t m3StateWalk(m3World* world, uint8_t* out, const uint8_t* in, int directi
     return cursor;
 }
 
-int32_t m3StateFieldAt(const m3World* world, size_t fieldOffset)
+int64_t m3StateFieldAt(const m3World* world, size_t fieldOffset)
 {
-    int32_t cursor = 0;
+    int64_t cursor = 0;
     int32_t count = (int32_t)(sizeof(s_state) / sizeof(s_state[0]));
     for (int32_t i = 0; i < count; ++i)
     {
         const m3StateArray* entry = &s_state[i];
-        if ((entry->flags & M3_STATE_SNAPSHOT) == 0)
+        if (!InSnapshot(entry))
         {
             continue;
         }
@@ -635,7 +666,7 @@ int32_t m3StateFieldAt(const m3World* world, size_t fieldOffset)
         {
             return cursor;
         }
-        cursor += (int32_t)(ExtentCount(world, entry->extent) * (int64_t)entry->elementSize);
+        cursor += SnapshotArrayBytes(world, entry);
     }
     return -1;
 }
@@ -839,17 +870,16 @@ bool m3StateValidate(const m3World* world, const uint8_t* in)
     for (int32_t i = 0; i < count; ++i)
     {
         const m3StateArray* entry = &s_state[i];
-        if ((entry->flags & M3_STATE_SNAPSHOT) == 0)
+        if (!InSnapshot(entry))
         {
             continue;
         }
-        bool pointer = (entry->flags & M3_STATE_POINTER) != 0;
-        size_t elements = pointer ? (size_t)ExtentCount(world, entry->extent) : 1;
+        size_t elements = (size_t)ExtentCount(world, entry->extent);
         if (!CheckBlock(world, entry, in + cursor, elements))
         {
             return false;
         }
-        cursor += elements * entry->elementSize;
+        cursor += (size_t)SnapshotArrayBytes(world, entry);
     }
     return true;
 }

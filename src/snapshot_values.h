@@ -27,7 +27,7 @@ typedef struct m3Incoming
 // The incoming block of the world field at offset (an m3World member).
 static inline const uint8_t* m3InField(const m3Incoming* inc, size_t offset)
 {
-    int32_t at = m3StateFieldAt(inc->world, offset);
+    int64_t at = m3StateFieldAt(inc->world, offset);
     M3_ASSERT(at >= 0); // every field read here is snapshot state
     return inc->in + at;
 }
