@@ -6,6 +6,26 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.6.0](https://github.com/Rawframe-Project/maul3d/compare/v0.5.0...v0.6.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **snapshot:** the magics of the snapshot, the journal tape and the replay container are their names in file order, so a hex dump of each starts with M3SN, M3JN or M3RP. Bytes written with the reversed magics are refused with m3_errorInvalid.
+* **snapshot:** the snapshot format is 5, the journal tape format is 1 and the replay container format is 3, with the magic `M3RP` in place of `M3J1`. All three start with the 16-byte state prefix shared with maul2d, and only the release that wrote them reads them: bytes from another release, or a snapshot from another build, are refused with m3_errorVersion instead of m3_errorInvalid. A journal tape now starts with that prefix, so m3World_StartJournal needs a buffer of at least 16 bytes, and m3World_ReplayJournal refuses zero bytes as m3_errorInvalid instead of replaying them as an empty tape.
+
+### Added
+
+* **world:** count the held pushes taken again in double ([#111](https://github.com/Rawframe-Project/maul3d/issues/111)) ([f8543a4](https://github.com/Rawframe-Project/maul3d/commit/f8543a4d16e7b8b5e38b29e70f5b99165d4809c0))
+
+
+### Fixed
+
+* **snapshot:** let only the writing release read state formats ([#109](https://github.com/Rawframe-Project/maul3d/issues/109)) ([07a0c1c](https://github.com/Rawframe-Project/maul3d/commit/07a0c1cd65fbaf173dcb200e7a9ae2b4f80541c6)), closes [#90](https://github.com/Rawframe-Project/maul3d/issues/90)
+* **snapshot:** refuse state values beyond what create and the step make ([#114](https://github.com/Rawframe-Project/maul3d/issues/114)) ([3da432f](https://github.com/Rawframe-Project/maul3d/commit/3da432f7d5946ff15839625aff9793034a3a919a))
+* **snapshot:** write each format's magic in file order ([#110](https://github.com/Rawframe-Project/maul3d/issues/110)) ([5f2d4a5](https://github.com/Rawframe-Project/maul3d/commit/5f2d4a50eff4f534d2b8897fea445e3cfcf92853))
+* **solver:** keep the gyroscopic step from gaining energy ([#107](https://github.com/Rawframe-Project/maul3d/issues/107)) ([7472359](https://github.com/Rawframe-Project/maul3d/commit/7472359dd501b5bb331784ea62932499d0de1cb1)), closes [#77](https://github.com/Rawframe-Project/maul3d/issues/77) [#88](https://github.com/Rawframe-Project/maul3d/issues/88)
+
 ## [0.5.0](https://github.com/Rawframe-Project/maul3d/compare/v0.4.0...v0.5.0) (2026-10-26)
 
 ### Changed
