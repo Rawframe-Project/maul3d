@@ -9,6 +9,7 @@
 #include "broad_phase.h"
 #include "helpers.h"
 #include "integrate.h"
+#include "solver_math.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
@@ -803,6 +804,47 @@ static void TestGyroscopicStepAtUnitScale(void)
     m3DestroyWorld(world);
 }
 
+// A spin the step cannot take at either inertia scale goes on unchanged,
+// for the caps after it to hold. A 2 by 1 by 0.5 m box of 1 kg, given
+// 1e20 N m of torque about two axes for one 10 s step, enters the
+// gyroscopic step at a spin near 1e22 rad/s, whose terms pass float range
+// even at unit inertia scale. The step lands the spin the torque gave it,
+// held at the world's angular cap.
+static void TestGyroscopicFallbackKeepsSpin(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.angularDamping = 0.0f;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, body, &sd, (m3Vec3){1.0f, 0.5f, 0.25f});
+    const m3Vec3 torque = {1.0e20f, 1.0e20f, 0.0f};
+    m3Body_ApplyTorque(world, body, torque);
+
+    int32_t slot = (int32_t)body.index1 - 1;
+    const float h = 10.0f;
+    const m3Mat3* inertia = &world->bodies.inertiaLocal[slot];
+    m3Quat q = world->bodies.transforms[slot].q;
+    m3Vec3 entering = m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, slot), torque));
+    m3real largest = m3MaxF(inertia->cx.x, m3MaxF(inertia->cy.y, inertia->cz.z));
+    m3Vec3 unused;
+    CHECK(!m3GyroscopicStep(inertia, 1.0f, q, entering, h, &unused) &&
+              !m3GyroscopicStep(inertia, largest, q, entering, h, &unused),
+          "the step leaves float range at both inertia scales");
+    m3Vec3 expected = m3CapSpeed(entering, world->maximumAngularSpeed);
+
+    m3World_Step(world, h, 1);
+    m3Vec3 after = m3Body_GetAngularVelocity(world, body);
+    CHECK(m3Length3(m3Sub3(after, expected)) <= 1.0e-6f * m3Length3(expected),
+          "the spin goes on as the torque gave it, held at the world's angular cap");
+    m3DestroyWorld(world);
+}
+
 static void TestHullSnapshotShrink(void)
 {
     // Hull content is count-derived in the snapshot: an EMPTY hull
@@ -1108,6 +1150,7 @@ int main(void)
     TestContactLanesMatchScalar();
     TestGyroscopicScaleMatchesDirect();
     TestGyroscopicStepAtUnitScale();
+    TestGyroscopicFallbackKeepsSpin();
     TestGyroscopicStepTracksEuler();
     TestGyroscopicHoldLandsAtStart();
     TestGyroscopicEnergyLeavesRange();
