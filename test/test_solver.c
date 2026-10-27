@@ -486,7 +486,7 @@ static void TestGyroscopicHoldsEnergy(void)
     printf("gyroscopic energy: worst ratio to the start %.9f\n", worst);
 }
 
-// Issue #132: a symmetric top keeps its energy and precesses at the rate
+// A symmetric top keeps its energy and precesses at the rate
 // Euler's equations give. A 2 m stick of radius 0.05 m spins at 10 rad/s,
 // 45 degrees off its axis, for 10 s at four substeps, once along each body
 // axis: the spin along the axis stays, the energy holds within 1e-4, and
