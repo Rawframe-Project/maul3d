@@ -48,19 +48,20 @@ snapshot and journal formats.
   smaller turns. A large change of spin is now redone in pieces of at
   most half a radian, any remaining gain is scaled away, and a step
   that leaves float range is retaken at unit inertia scale. In the
-  issue's scenes every box now keeps its start energy to within 1e-6.
+  issue's scenes no box now ends above its start energy by more than
+  1e-6; implicit Euler's own damping is unchanged.
   Golden and bench hashes are unchanged; the whole bench costs about
   1.6% more instructions
   ([#107](https://github.com/Rawframe-Project/maul3d/pull/107)).
 
 ### Security
 
-- Restore bounds every state value by the range that create, the
-  setters or the step give it, where a few were checked only for
-  being finite: soft-body rest lengths, tet rest volumes and closed
-  rest volume, a wheel's compression, a character's slope limit and
-  ground normal, joint targets and generic axis limits, a body's sleep
-  time and the gust phase. A value outside its range is refused with
+- Restore now bounds the state values that were checked only for
+  being finite, each by the range that create, the setters or the step
+  give it: soft-body rest lengths, tet rest volumes and closed rest
+  volume, a wheel's compression, a character's slope limit and ground
+  normal, joint targets by joint type and the ranges of limited
+  generic axes, a body's sleep time and the gust phase. A value outside its range is refused with
   `m3_errorInvalid`, no misuse counted and the world left as it was.
   Every world the API builds still restores, and no golden line moves
   ([#114](https://github.com/Rawframe-Project/maul3d/pull/114),
