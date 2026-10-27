@@ -19,7 +19,7 @@
 #define M3_SNAPSHOT_VERSION      5u          // 5: the state prefix
 #define M3_SNAPSHOT_HEADER_BYTES 56
 #define M3_JOURNAL_MAGIC         0x4E4A334Du // "M3JN"
-#define M3_JOURNAL_VERSION       1u          // 1: the state prefix
+#define M3_JOURNAL_VERSION       2u          // 2: the joint def without its reserved byte
 #define M3_JOURNAL_HEADER_BYTES  16
 #define M3_REPLAY_MAGIC          0x5052334Du // "M3RP"
 #define M3_REPLAY_VERSION        3u          // 3: the state prefix

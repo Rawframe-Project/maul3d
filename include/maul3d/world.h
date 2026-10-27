@@ -367,7 +367,6 @@ extern "C"
         m3real mass;         /// at density one (cell volume times count)
         uint8_t boundsLo[3]; /// island voxel bounds, inclusive
         uint8_t boundsHi[3];
-        uint8_t pad[2];
     } m3FragmentEvent;
 
     /// The fragment events of the last step and their recipe buffer.
