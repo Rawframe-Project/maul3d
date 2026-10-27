@@ -375,9 +375,16 @@ jobs:
           # keep every feature either reaches, seeds among them. The merge
           # reruns every input; tools/fuzz_target.sh keeps its log on the
           # runner and fails, reporting without the input, when it met a
-          # finding, so a corpus near one is not saved.
+          # finding, so a corpus near one is not saved. Its report prints
+          # here, as the Fuzz step prints the run's.
+          rm -rf out/fuzz-reports
+          status=0
           tools/fuzz_target.sh --merge "out/fuzz/$TARGET" out/merged "out/seeds/$TARGET" \
-            "out/corpus/$TARGET"
+            "out/corpus/$TARGET" || status=$?
+          cat out/fuzz-reports/*.txt 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
           rm -rf "out/corpus/$TARGET"
           mv out/merged "out/corpus/$TARGET"
           coverage() { "out/fuzz/$TARGET" -runs=0 "$@" 2>&1 | sed -n 's/.*INITED cov: \([0-9]*\).*/\1/p'; }
