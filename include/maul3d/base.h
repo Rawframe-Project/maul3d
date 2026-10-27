@@ -61,7 +61,7 @@ extern "C"
 #define M3_VERSION_MAJOR 0
 // x-release-please-end
 // x-release-please-start-minor
-#define M3_VERSION_MINOR 6
+#define M3_VERSION_MINOR 7
 // x-release-please-end
 // x-release-please-start-patch
 #define M3_VERSION_PATCH 0
