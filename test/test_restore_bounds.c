@@ -555,6 +555,72 @@ static void TestGroundNormalLength(void)
     m3DestroyWorld(world);
 }
 
+// Soft rest values far past any create gives, and a wheel compression far
+// past its rest length: restore refuses each with the world left as it
+// was and no misuse counted, and the world it keeps steps two seconds
+// with every body and particle finite.
+static void TestFarRestValuesAreRefused(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
+          "snapshot taken");
+    if (clean != NULL && edited != NULL)
+    {
+        const struct
+        {
+            const char* name;
+            Value value;
+            double far;
+        } cases[] = {
+            {"a far negative edge rest length", SCALAR(softBodies.softEdgeRest, which_edge),
+             -1.0e29},
+            {"a far edge rest length", SCALAR(softBodies.softEdgeRest, which_edge), 1.0e29},
+            {"a far tet rest volume", SCALAR(softBodies.softTetRestV6, which_tet), 1.0e30},
+            {"a far closed rest volume", SCALAR(softBodies.softRestVolume, which_soft), 1.0e30},
+            {"a far wheel compression", SCALAR(vehicles.vehWheelCompression, which_firstWheel),
+             1.0e30},
+        };
+        uint64_t hash = m3World_Hash(world);
+        for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
+        {
+            memcpy(edited, clean, (size_t)size);
+            Put(&s, edited, &cases[c].value, cases[c].far);
+            if (m3World_Restore(world, edited, size) != m3_errorInvalid)
+            {
+                printf("  %s restores\n", cases[c].name);
+                s_failures += 1;
+            }
+        }
+        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuse == 0,
+              "each is refused, the world left as it was and no misuse counted");
+        bool finite = true;
+        for (int32_t i = 0; i < 120; ++i)
+        {
+            m3World_Step(world, 1.0f / 60.0f, 4);
+            for (int32_t b = 0; b < world->bodies.bodyPool.maxIndex; ++b)
+            {
+                finite = finite && (world->bodies.bodyPool.alive[b] == 0 ||
+                                    (m3FiniteV3(world->bodies.linearVelocities[b]) &&
+                                     m3FiniteV3(world->bodies.angularVelocities[b])));
+            }
+            for (int32_t k = 0; k < world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES;
+                 ++k)
+            {
+                m3Pos3 p = world->softBodies.softPos[k];
+                finite = finite && isfinite(p.x) && isfinite(p.y) && isfinite(p.z);
+            }
+        }
+        CHECK(finite, "and the world it keeps steps with every body and particle finite");
+    }
+    free(edited);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 // A kinematic body at the kinematic limit, a free lattice and a lone
 // particle moving outward, all restored just inside the reach limit,
 // cross it in one step: the step holds them within it, and the world it
@@ -748,6 +814,7 @@ int main(void)
 {
     TestBoundsAtTheirEdges();
     TestGroundNormalLength();
+    TestFarRestValuesAreRefused();
     TestStepHoldsWithinReach();
     TestHoldRoundsWithin();
     TestTargetReach();

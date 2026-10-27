@@ -16,9 +16,12 @@
 #include "fuzz_scene.h"
 #include "journal.h"
 #include "state_prefix.h"
+#include "world_internal.h"
+#include "world_state.h"
 
 #include "maul3d/replay.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +78,40 @@ static void WriteSnapshot(const char* dir, const char* name, const m3World* worl
     uint8_t* snapshot = SnapshotOf(world, &bytes);
     WriteSeed(dir, "fuzz_snapshot", name, snapshot, bytes);
     WriteSeed(dir, "fuzz_restore_step", name, snapshot, bytes);
+    free(snapshot);
+}
+
+// The scene's snapshot with its first soft body's first edge at a rest
+// length far past any create gives, which restore refuses: a seed for the
+// restore-then-step target at the edge of the soft bodies' rest values.
+static void WriteFarRestSeed(const char* dir, const m3World* world)
+{
+    int32_t bytes = 0;
+    uint8_t* snapshot = SnapshotOf(world, &bytes);
+    int32_t slot = 0;
+    while (slot < world->softBodies.softPool.maxIndex &&
+           world->softBodies.softPool.alive[slot] == 0)
+    {
+        slot += 1;
+    }
+    int32_t at = m3StateFieldAt(world, offsetof(m3World, softBodies.softEdgeRest));
+    if (slot >= world->softBodies.softPool.maxIndex || world->softBodies.softEdgeCount[slot] < 1 ||
+        at < 0)
+    {
+        Fail("a soft body with an edge");
+    }
+    const float far = -1.0e29f;
+    memcpy(snapshot + M3_SNAPSHOT_HEADER_BYTES + at +
+               sizeof(float) * (size_t)slot * M3_SOFTBODY_MAX_EDGES,
+           &far, sizeof(far));
+    m3WorldDef def = FuzzWorldDef();
+    m3World* check = NewWorld(&def);
+    if (check == NULL || m3World_Restore(check, snapshot, bytes) != m3_errorInvalid)
+    {
+        Fail("the far rest length's refusal");
+    }
+    m3DestroyWorld(check);
+    WriteSeed(dir, "fuzz_restore_step", "far_rest", snapshot, bytes);
     free(snapshot);
 }
 
@@ -294,6 +331,7 @@ int main(int argc, char** argv)
     SessionOpsHold(buildTape, buildBytes, tape, tapeBytes);
     WriteSeed(dir, "fuzz_journal", "session", tape, tapeBytes);
     WriteSnapshot(dir, "session", world);
+    WriteFarRestSeed(dir, world);
     int32_t replaySize = m3GetEncodedReplaySize(emptyBytes, tapeBytes);
     uint8_t* replay = (uint8_t*)malloc((size_t)replaySize);
     int32_t replayBytes = 0;
