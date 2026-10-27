@@ -48,11 +48,11 @@ typedef struct m3ShapeContent
 // Materials and the compound pose of a def, the geometry a create leaves
 // in a slot of each type, and the geometry of the plain shape kinds. The
 // internal create checks them; public doors check them first to refuse
-// bad input as invalid rather than as capacity, and restore checks every
-// slot's geometry with m3ShapeGeomValid.
-bool m3ShapeDefValid(const m3ShapeDef* def);
-bool m3ShapeGeomValid(uint8_t type, const m3ShapeGeom* geom);
-bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom);
+// bad input as invalid or past a bound rather than as capacity, and restore checks every
+// slot's geometry with m3ShapeGeomCheck.
+m3Result m3ShapeDefCheck(const m3ShapeDef* def);
+m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom);
+m3Result m3PlainGeomCheck(uint8_t type, const m3ShapeGeom* geom);
 
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeGeom* geom, const m3ShapeDef* def,
@@ -90,7 +90,7 @@ m3LeverBody m3DynamicMassOf(m3MassShapeRead read, const void* context, int32_t h
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
 // Whether shape slot's body, if dynamic, would keep every mass-bearing
-// shape at M3_MASS_FLOOR and M3_INERTIA_FLOOR or more and its total mass
+// shape at M3_MIN_MASS and M3_MIN_INERTIA or more and its total mass
 // within M3_MASS_LIMIT, and every joint on it within its lever ratio
 // (src/joint_lever.h), with slot given this type, geometry and density
 // (src/shape_mass.c). Create, reshape and density changes ask it first;
@@ -111,8 +111,8 @@ bool m3ShapeRemovalFits(const m3World* world, int32_t slot);
 bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type);
 
 // Whether one shape of this type, geometry, density and hull content (NULL
-// for a shape with none) bears no mass or weighs at least M3_MASS_FLOOR
-// with every principal moment at least M3_INERTIA_FLOOR; adds its mass to
+// for a shape with none) bears no mass or weighs at least M3_MIN_MASS
+// with every principal moment at least M3_MIN_INERTIA; adds its mass to
 // *total. The checks above and restore's ask it.
 bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull, float density,
                        double* total);
@@ -120,8 +120,8 @@ bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
 // A material scalar a shape setter or replay may write: friction and
 // rolling resistance non-negative, restitution within M3_RATIO_LIMIT
 // (op is the setter's journal op).
-bool m3ShapeScalarValid(int32_t op, float value);
-bool m3SurfaceVelocityValid(m3Vec3 velocity);
+m3Result m3ShapeScalarCheck(int32_t op, float value);
+m3Result m3SurfaceVelocityCheck(m3Vec3 velocity);
 
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
 void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,

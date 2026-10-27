@@ -60,6 +60,8 @@ extern "C"
     /// m3Body_SetType, m3Shape_SetSphere, m3Shape_SetCapsule and a
     /// shape create on that body refuse them with m3_errorInvalid.
     /// Destroy the character instead; m3Character_SetStance resizes it.
+    /// A def value past the bound its field names returns m3_errorLimit,
+    /// any other bad field m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3CreateCharacter(m3World* world, const m3CharacterDef* def,
                                                    m3CharacterId* characterOut);
     M3_NODISCARD M3_API m3Result m3DestroyCharacter(m3World* world, m3CharacterId character);
@@ -93,8 +95,9 @@ extern "C"
     /// move uses, and ANY contact within the skin (a pressing
     /// ceiling, a wall against a wider radius) refuses the whole
     /// change with m3_errorState and counts no misuse; stance is
-    /// untouched. Out-of-range or non-finite dimensions return
-    /// m3_errorInvalid, a stale id m3_errorStale. Journaled
+    /// untouched. A NaN dimension returns m3_errorInvalid, and one
+    /// outside M3_MIN_STANCE to M3_STANCE_LIMIT m3_errorLimit, both
+    /// counting one misuse; a stale id returns m3_errorStale. Journaled
     /// only when applied; the veto's refusal is bit-deterministic
     /// so twins and replays refuse together. Stance is state:
     /// snapshotted, hashed, rolled back like everything else.

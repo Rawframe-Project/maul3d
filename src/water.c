@@ -56,12 +56,20 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
 {
     // The full wall, here because replay hands this function
     // raw journal bytes.
-    if (!m3BoundedPos3(def->lo) || !m3BoundedPos3(def->hi) || !(def->hi.x > def->lo.x) ||
-        !(def->hi.y > def->lo.y) || !(def->hi.z > def->lo.z) || !m3DensityF(def->density) ||
-        !m3FiniteF(def->linearDrag) || def->linearDrag < 0.0f || !m3FiniteF(def->angularDrag) ||
-        def->angularDrag < 0.0f || !m3WithinV3(def->flow, M3_SPEED_LIMIT))
+    m3Result result = m3BothChecks(m3CheckPosition(def->lo), m3CheckPosition(def->hi));
+    result = m3BothChecks(result, m3CheckPositive(def->density, M3_DENSITY_LIMIT));
+    result = m3BothChecks(result, m3CheckWithinV3(def->flow, M3_SPEED_LIMIT));
+    result =
+        m3BothChecks(result, m3CheckValid(m3FiniteF(def->linearDrag) && def->linearDrag >= 0.0f &&
+                                          m3FiniteF(def->angularDrag) && def->angularDrag >= 0.0f));
+    if (result == m3_success &&
+        !(def->hi.x > def->lo.x && def->hi.y > def->lo.y && def->hi.z > def->lo.z))
     {
-        return M3_CREATE_INVALID;
+        result = m3_errorInvalid; // an empty or inverted box
+    }
+    if (result != m3_success)
+    {
+        return (int32_t)result;
     }
     int32_t slot = m3IdPoolAlloc(&world->water.waterPool);
     if (slot < 0)
@@ -100,7 +108,7 @@ static M3_NOINLINE m3Result CreateWaterVolumeWorker(m3World* world, const m3Wate
     *volumeOut = m3_nullWaterVolumeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || def == NULL || def->internalValue != M3_WATER_COOKIE)
     {
@@ -152,7 +160,7 @@ static M3_NOINLINE m3Result DestroyWaterVolumeWorker(m3World* world, m3WaterVolu
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = WaterSlot(world, volume);
     if (slot < 0)

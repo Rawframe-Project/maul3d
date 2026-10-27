@@ -439,7 +439,7 @@ typedef struct m3SetMeshMaterialsOp
     m3ShapeId id;
     int32_t materialCount;
     int32_t triangleCount;
-    m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
+    m3MeshSurfaceMaterial materials[M3_MAX_MESH_MATERIALS];
 } m3SetMeshMaterialsOp;
 
 // Journal payload for tet soft bodies: the fixed head,
@@ -502,7 +502,7 @@ typedef struct m3CreateHullShapeOp
     m3BodyId body;
     m3ShapeId expected;
     int32_t count;
-    m3Vec3 points[M3_HULL_MAX_INPUT];
+    m3Vec3 points[M3_MAX_HULL_POINTS];
 } m3CreateHullShapeOp;
 
 // Recording: appends one op; an overflow latches and fails the recording.

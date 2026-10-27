@@ -3,7 +3,7 @@
 //
 // Shape geometry and positions at their edges. Replay and restore take a
 // shape's geometry only in the form its create leaves it (src/shape.c,
-// m3ShapeGeomValid): a field its type does not use is zero, and a plane's
+// m3ShapeGeomCheck): a field its type does not use is zero, and a plane's
 // normal is unit length. A plane's offset and every soft particle a
 // create places are within M3_POSITION_LIMIT like every position, and
 // the step keeps every particle within it.
@@ -69,7 +69,7 @@ static void TestPlaneOffsetAtTheLimit(void)
         id = m3_nullShapeId;
         CHECK_REFUSES(world, result = m3CreatePlaneShape(world, ground, &sd, &far, &id),
                       "a plane past the limit counts one misuse");
-        CHECK(result == m3_errorInvalid && id.index1 == 0, "and is refused with the null id");
+        CHECK(result == m3_errorLimit && id.index1 == 0, "and is refused with the null id");
     }
     m3DestroyWorld(world);
 }
@@ -201,7 +201,7 @@ static void TestReplayTakesCreatedGeometry(void)
         memcpy(edited + creates[k->shape] + offsetof(m3CreateShapeOp, geom) + k->at, &k->value,
                sizeof(k->value));
         m3World* refused = DefaultWorld();
-        CHECK(m3World_ReplayJournal(refused, edited, bytes) == m3_errorInvalid, k->name);
+        CHECK(m3World_ReplayJournal(refused, edited, bytes) == m3_errorFormat, k->name);
         m3DestroyWorld(refused);
     }
     free(edited);
@@ -250,7 +250,7 @@ static void TestRestoreTakesCreatedGeometry(void)
         memcpy(edited + M3_SNAPSHOT_HEADER_BYTES + (size_t)field + slot * sizeof(m3ShapeGeom) +
                    k->at,
                &k->value, sizeof(k->value));
-        CHECK(m3World_Restore(world, edited, size) == m3_errorInvalid, k->name);
+        CHECK(m3World_Restore(world, edited, size) == m3_errorFormat, k->name);
         CHECK(m3World_Hash(world) == hash, "the refused restore leaves the world as it was");
     }
     free(edited);
@@ -278,7 +278,7 @@ static void TestSoftCreatesWithinTheLimit(void)
     m3Result result = m3_success;
     CHECK_REFUSES(world, result = m3CreateSoftBody(world, &lattice, &id),
                   "a lattice ending past the limit counts one misuse");
-    CHECK(result == m3_errorInvalid && id.index1 == 0, "and is refused with the null id");
+    CHECK(result == m3_errorLimit && id.index1 == 0, "and is refused with the null id");
 
     m3SoftBodyDef jelly = m3DefaultSoftBodyDef();
     m3Vec3 points[4] = {
@@ -291,7 +291,7 @@ static void TestSoftCreatesWithinTheLimit(void)
     jelly.position = (m3Pos3){0.0, M3_POSITION_LIMIT - 0.875, 0.0};
     CHECK_REFUSES(world, result = m3CreateSoftBodyTet(world, &jelly, points, 4, tet, 1, &id),
                   "a tet body with a point past the limit counts one misuse");
-    CHECK(result == m3_errorInvalid && id.index1 == 0, "and is refused with the null id");
+    CHECK(result == m3_errorLimit && id.index1 == 0, "and is refused with the null id");
     m3DestroyWorld(world);
 }
 

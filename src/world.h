@@ -46,12 +46,12 @@ void m3EmitMoveEvents(m3World* world, const int32_t* movers, int32_t moverCount)
 
 // What every door of each world setting accepts: the public setters, the
 // world def, replay and restore all ask these.
-bool m3GravityValid(m3Vec3 gravity);
-bool m3ContactTuningValid(float hertz, float dampingRatio, float pushSpeed);
+m3Result m3GravityCheck(m3Vec3 gravity);
+m3Result m3ContactTuningCheck(float hertz, float dampingRatio, float pushSpeed);
 // A world speed cap: positive and within M3_SPEED_LIMIT.
-bool m3SpeedCapValid(float value);
-bool m3WindValid(m3Vec3 direction, float speed, float gustHertz, float gustScale);
-bool m3StepValid(float dt, int32_t substeps);
+m3Result m3SpeedCapCheck(float value);
+m3Result m3WindCheck(m3Vec3 direction, float speed, float gustHertz, float gustScale);
+m3Result m3StepCheck(float dt, int32_t substeps);
 
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 

@@ -17,8 +17,8 @@ bool m3ForceAtPointFits(const m3World* world, int32_t index, m3Vec3 force, m3Pos
 bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
 bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
 bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
-bool m3BodyVelocityValid(uint8_t type, m3Vec3 velocity);
-bool m3BodySpinValid(m3Vec3 velocity);
+m3Result m3BodyVelocityCheck(uint8_t type, m3Vec3 velocity);
+m3Result m3BodySpinCheck(m3Vec3 velocity);
 
 // The checks the body setters and replay share (src/body.c): a pose
 // within M3_POSITION_LIMIT with a near-unit rotation, a servo target within reach of a kinematic
@@ -29,7 +29,7 @@ bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
 // The same for a body of this type at now, as restore reads it.
 bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose);
 bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type);
-bool m3BodyParamValid(int32_t param, float value);
+m3Result m3BodyParamCheck(int32_t param, float value);
 // A sleep threshold, m/s: finite and not negative.
 bool m3SleepThresholdValid(float threshold);
 

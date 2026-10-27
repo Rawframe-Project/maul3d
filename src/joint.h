@@ -15,8 +15,8 @@
 // positive when enabled, within M3_HERTZ_LIMIT and damping within
 // M3_RATIO_LIMIT, on a joint type that drives; an ordered limit range, or on a motor joint, force
 // and torque budgets within M3_FORCE_LIMIT; a motor joint's aim offset within M3_LOCAL_LIMIT.
-bool m3JointMotorValid(int32_t type, int32_t enable, float speed, float maxEffort);
-bool m3JointLimitsValid(int32_t type, float lower, float upper);
+m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort);
+m3Result m3JointLimitsCheck(int32_t type, float lower, float upper);
 bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta);
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
                        float hertz, float zeta, float maxEffort);

@@ -27,11 +27,12 @@ static m3Result ShapeTarget(const m3World* world, m3BodyId body, const m3ShapeDe
     {
         return m3Refuse(world, m3MissingId(body.index1));
     }
-    if (def == NULL || def->internalValue != M3_SHAPE_COOKIE || !m3ShapeDefValid(def))
+    if (def == NULL || def->internalValue != M3_SHAPE_COOKIE)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    return m3_success;
+    m3Result checked = m3ShapeDefCheck(def);
+    return checked == m3_success ? m3_success : m3Refuse(world, checked);
 }
 
 static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDef* def,
@@ -43,9 +44,10 @@ static m3Result CreateShapeCommon(m3World* world, m3BodyId body, const m3ShapeDe
     {
         return target;
     }
-    if (!m3PlainGeomValid(type, geom))
+    m3Result shape = m3PlainGeomCheck(type, geom);
+    if (shape != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid);
+        return m3Refuse(world, shape);
     }
     int32_t index = m3CreateShapeInternal(world, bodyIndex, type, geom, def,
                                           &(m3ShapeContent){NULL, NULL, NULL, NULL});
@@ -80,21 +82,25 @@ static M3_NOINLINE m3Result CreateSphereShapeWorker(m3World* world, m3BodyId bod
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
-    if (sphere == NULL || !(sphere->radius > 0.0f) || !m3FiniteF(sphere->radius) ||
-        !m3FiniteV3(sphere->center))
+    if (sphere == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    // The 2a off-origin refusal is gone: the full inertia tensor and
+    // center-of-mass bookkeeping make offset spheres exact.
+    m3ShapeGeom geom = {sphere->center, sphere->radius, {0.0f, 0.0f, 0.0f}, 0.0f};
+    m3Result shape = m3PlainGeomCheck((uint8_t)m3_sphereShape, &geom);
+    if (shape != m3_success)
+    {
+        return m3Refuse(world, shape);
     }
     int32_t bodyIndex = m3BodySlot(world, body);
     if (bodyIndex < 0)
     {
         return m3Refuse(world, m3MissingId(body.index1));
     }
-    // The 2a off-origin refusal is gone: the full inertia tensor and
-    // center-of-mass bookkeeping make offset spheres exact.
-    m3ShapeGeom geom = {sphere->center, sphere->radius, {0.0f, 0.0f, 0.0f}, 0.0f};
     return CreateShapeCommon(world, body, def, (uint8_t)m3_sphereShape, &geom, shapeOut);
 }
 
@@ -118,9 +124,9 @@ static M3_NOINLINE m3Result CreatePlaneShapeWorker(m3World* world, m3BodyId body
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
-    if (plane == NULL || !m3FiniteV3(plane->normal) || !m3FiniteF(plane->offset) ||
+    if (plane == NULL || !m3FiniteV3(plane->normal) || m3IsNanF(plane->offset) ||
         !(m3Dot3(plane->normal, plane->normal) > 1.0e-12f))
     {
         return m3Refuse(world, m3_errorInvalid); // a zero or poisoned normal never
@@ -161,12 +167,21 @@ static M3_NOINLINE m3Result CreateCapsuleShapeWorker(m3World* world, m3BodyId bo
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
-    if (capsule == NULL || !(capsule->radius > 0.0f) || !m3FiniteF(capsule->radius) ||
-        !m3FiniteV3(capsule->point1) || !m3FiniteV3(capsule->point2))
+    if (capsule == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    m3ShapeGeom geom;
+    geom.v = capsule->point1;
+    geom.s = capsule->radius;
+    geom.v2 = capsule->point2;
+    geom.s2 = 0.0f;
+    m3Result shape = m3PlainGeomCheck((uint8_t)m3_capsuleShape, &geom);
+    if (shape != m3_success)
+    {
+        return m3Refuse(world, shape);
     }
     m3Vec3 axis = m3Sub3(capsule->point2, capsule->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
@@ -175,11 +190,6 @@ static M3_NOINLINE m3Result CreateCapsuleShapeWorker(m3World* world, m3BodyId bo
         // contract violation, refused loudly (use m3CreateSphereShape).
         return m3Refuse(world, m3_errorInvalid);
     }
-    m3ShapeGeom geom;
-    geom.v = capsule->point1;
-    geom.s = capsule->radius;
-    geom.v2 = capsule->point2;
-    geom.s2 = 0.0f;
     return CreateShapeCommon(world, body, def, (uint8_t)m3_capsuleShape, &geom, shapeOut);
 }
 
@@ -204,16 +214,22 @@ static M3_NOINLINE m3Result CreateCylinderShapeWorker(m3World* world, m3BodyId b
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     // The cylinder is a 2N-vertex prism through the interned hull
     // path. Everything downstream (mass, SAT, casts, CCD, the blast's
     // projected area) treats the prism exactly; the N-gon side is the
     // documented trade.
-    if (cylinder == NULL || !(cylinder->radius > 0.0f) || !m3FiniteF(cylinder->radius) ||
-        !m3FiniteV3(cylinder->point1) || !m3FiniteV3(cylinder->point2))
+    if (cylinder == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    m3Result size = m3BothChecks(
+        m3CheckPositive(cylinder->radius, M3_LOCAL_LIMIT),
+        m3BothChecks(m3CheckLocalV3(cylinder->point1), m3CheckLocalV3(cylinder->point2)));
+    if (size != m3_success)
+    {
+        return m3Refuse(world, size);
     }
     m3Vec3 axis = m3Sub3(cylinder->point2, cylinder->point1);
     if (!(m3Dot3(axis, axis) > 0.0f))
@@ -265,7 +281,7 @@ static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
@@ -273,10 +289,11 @@ static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
     {
         return target;
     }
-    if (!m3HullCloudValid(points, count))
+    m3Result cloud = m3HullCloudCheck(points, count);
+    if (cloud != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid); // a poisoned or far cloud never
-                                                 // reaches QuickHull's arithmetic
+        return m3Refuse(world, cloud); // a poisoned or far cloud never
+                                       // reaches QuickHull's arithmetic
     }
     m3HullData data;
     if (!m3ComputeHull(&world->heap, points, count, &data))
@@ -317,6 +334,38 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     return result;
 }
 
+// A mesh's arrays: counts within the published bounds, every index on a
+// vertex and every vertex finite.
+static m3Result MeshInputCheck(const m3Vec3* vertices, int32_t vertexCount, const uint16_t* indices,
+                               int32_t triangleCount)
+{
+    if (vertices == NULL || indices == NULL || vertexCount < 3 || triangleCount < 1)
+    {
+        return m3_errorInvalid;
+    }
+    m3Result counts = m3BothChecks(m3CheckCount(vertexCount, M3_MAX_MESH_VERTICES),
+                                   m3CheckCount(triangleCount, M3_MAX_MESH_TRIANGLES));
+    if (counts != m3_success)
+    {
+        return counts;
+    }
+    for (int32_t i = 0; i < 3 * triangleCount; ++i)
+    {
+        if (indices[i] >= (uint16_t)vertexCount)
+        {
+            return m3_errorInvalid; // out-of-range index: contract
+        }
+    }
+    for (int32_t i = 0; i < vertexCount; ++i)
+    {
+        if (!m3FiniteV3(vertices[i]))
+        {
+            return m3_errorInvalid; // poisoned vertex: contract
+        }
+    }
+    return m3_success;
+}
+
 static M3_NOINLINE m3Result CreateMeshShapeWorker(m3World* world, m3BodyId body,
                                                   const m3ShapeDef* def, const m3Vec3* vertices,
                                                   int32_t vertexCount, const uint16_t* indices,
@@ -329,7 +378,7 @@ static M3_NOINLINE m3Result CreateMeshShapeWorker(m3World* world, m3BodyId body,
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
@@ -343,24 +392,10 @@ static M3_NOINLINE m3Result CreateMeshShapeWorker(m3World* world, m3BodyId body,
         // refused loudly (no mass model for triangle soup).
         return m3Refuse(world, m3_errorInvalid);
     }
-    if (vertices == NULL || indices == NULL || vertexCount < 3 || vertexCount > M3_MESH_MAX_VERTS ||
-        triangleCount < 1 || triangleCount > M3_MESH_MAX_TRIS)
+    m3Result input = MeshInputCheck(vertices, vertexCount, indices, triangleCount);
+    if (input != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid);
-    }
-    for (int32_t i = 0; i < 3 * triangleCount; ++i)
-    {
-        if (indices[i] >= (uint16_t)vertexCount)
-        {
-            return m3Refuse(world, m3_errorInvalid); // out-of-range index: contract
-        }
-    }
-    for (int32_t i = 0; i < vertexCount; ++i)
-    {
-        if (!m3FiniteV3(vertices[i]))
-        {
-            return m3Refuse(world, m3_errorInvalid); // poisoned vertex: contract
-        }
+        return m3Refuse(world, input);
     }
     m3MeshData mesh;
     memset(&mesh, 0, sizeof(mesh));
@@ -428,12 +463,17 @@ static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyI
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
-    if (heights == NULL || nx < 2 || nx > 32 || nz < 2 || nz > 32 || !(cellSize > 0.0f) ||
-        !m3FiniteF(cellSize))
+    if (heights == NULL || nx < 2 || nz < 2 || !(cellSize > 0.0f) || !m3FiniteF(cellSize))
     {
-        return m3Refuse(world, m3_errorInvalid); // grid contract: chunks tile larger terrain
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    m3Result size = m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_MESH_SIZE),
+                                 m3CheckCount(nz, M3_MAX_HEIGHTFIELD_MESH_SIZE));
+    if (size != m3_success)
+    {
+        return m3Refuse(world, size); // grid contract: chunks tile larger terrain
     }
     for (int32_t i = 0; i < nx * nz; ++i)
     {
@@ -513,7 +553,7 @@ static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3B
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
@@ -529,9 +569,10 @@ static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3B
     // samples, a positive cell.
     float lo;
     float hi;
-    if (!m3HeightFieldSamplesValid(nx, nz, cellSize, heights, &lo, &hi))
+    m3Result samples = m3HeightFieldSamplesCheck(nx, nz, cellSize, heights, &lo, &hi);
+    if (samples != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid);
+        return m3Refuse(world, samples);
     }
     // The samples join the snapshot, which never passes
     // M3_MAX_SNAPSHOT_BYTES.
@@ -604,7 +645,7 @@ static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t bodyIndex;
     m3Result target = ShapeTarget(world, body, def, &bodyIndex);
@@ -694,12 +735,14 @@ static M3_NOINLINE m3Result CreateBoxShapeWorker(m3World* world, m3BodyId body,
     *shapeOut = m3_nullShapeId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
-    if (!(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) || !(halfExtents.z > 0.0f) ||
-        !m3LocalV3(halfExtents))
+    m3Result extents = m3BothChecks(m3BothChecks(m3CheckPositive(halfExtents.x, M3_LOCAL_LIMIT),
+                                                 m3CheckPositive(halfExtents.y, M3_LOCAL_LIMIT)),
+                                    m3CheckPositive(halfExtents.z, M3_LOCAL_LIMIT));
+    if (extents != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid); // contract: bad extents return null
+        return m3Refuse(world, extents); // contract: bad extents return null
     }
     m3ShapeGeom geom = {halfExtents, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
     return CreateShapeCommon(world, body, def, (uint8_t)m3_hullShape, &geom, shapeOut);

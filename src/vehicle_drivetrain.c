@@ -55,8 +55,9 @@ m3DrivetrainDef m3DefaultDrivetrainDef(void)
 // it of every stored drivetrain.
 bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
 {
-    if (def->curveCount < 2 || def->curveCount > M3_DRIVETRAIN_MAX_CURVE || def->gearCount < 1 ||
-        def->gearCount > M3_DRIVETRAIN_MAX_GEARS || def->clutchSteps < 0 || def->clutchSteps > 600)
+    if (def->curveCount < 2 || def->curveCount > M3_MAX_DRIVETRAIN_CURVE || def->gearCount < 1 ||
+        def->gearCount > M3_MAX_DRIVETRAIN_GEARS || def->clutchSteps < 0 ||
+        def->clutchSteps > M3_MAX_CLUTCH_STEPS)
     {
         return false;
     }
@@ -102,18 +103,18 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     }
     world->vehicles.vehDtActive[slot] = 1;
     world->vehicles.vehDtCurveCount[slot] = def->curveCount;
-    for (int32_t c = 0; c < M3_DRIVETRAIN_MAX_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
     {
         int32_t inRange = c < def->curveCount;
-        world->vehicles.vehDtCurveRpm[slot * M3_DRIVETRAIN_MAX_CURVE + c] =
+        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE + c] =
             inRange ? def->curveRpm[c] : 0.0f;
-        world->vehicles.vehDtCurveTorque[slot * M3_DRIVETRAIN_MAX_CURVE + c] =
+        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE + c] =
             inRange ? def->curveTorque[c] : 0.0f;
     }
     world->vehicles.vehDtGearCount[slot] = def->gearCount;
-    for (int32_t g = 0; g < M3_DRIVETRAIN_MAX_GEARS; ++g)
+    for (int32_t g = 0; g < M3_MAX_DRIVETRAIN_GEARS; ++g)
     {
-        world->vehicles.vehDtGearRatio[slot * M3_DRIVETRAIN_MAX_GEARS + g] =
+        world->vehicles.vehDtGearRatio[slot * M3_MAX_DRIVETRAIN_GEARS + g] =
             g < def->gearCount ? def->gearRatio[g] : 0.0f;
     }
     world->vehicles.vehDtReverse[slot] = def->reverseRatio;
@@ -163,7 +164,7 @@ static M3_NOINLINE void VehicleSetDrivetrainWorker(m3World* world, m3VehicleId v
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot = m3VehicleSlot(world, vehicle);
@@ -198,7 +199,7 @@ static M3_NOINLINE void VehicleSelectGearWorker(m3World* world, m3VehicleId vehi
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot = m3VehicleSlot(world, vehicle);

@@ -64,15 +64,21 @@ int32_t m3CreateCharacterInternal(m3World* world, const m3CharacterDef* def)
     // instead of minting a NaN capsule.
     // The capsule is bounded like any capsule shape; the walker's own mass
     // and push ratio are bounded like a body's.
-    if (!m3BoundedPos3(def->position) || !(def->radius > 0.0f && def->radius <= M3_LOCAL_LIMIT) ||
-        !(def->halfHeight >= 0.0f && def->halfHeight <= M3_LOCAL_LIMIT) ||
-        !m3FiniteF(def->maxSlopeAngle) || def->maxSlopeAngle <= 0.0f || def->maxSlopeAngle > 1.5f ||
-        !m3FiniteF(def->snapDistance) || def->snapDistance < 0.0f || !m3FiniteF(def->skin) ||
-        !(def->skin > 0.0f) || !m3FiniteF(def->stepHeight) || def->stepHeight < 0.0f ||
-        !(def->mass >= M3_MASS_FLOOR && def->mass <= M3_MASS_LIMIT) ||
-        !(def->pushMaxMassRatio >= 0.0f && def->pushMaxMassRatio <= M3_RATIO_LIMIT))
+    // A slope past 1.5 rad is no slope a walker can stand on, so it is
+    // invalid rather than past a bound.
+    m3Result result = m3CheckValid(
+        m3FiniteF(def->maxSlopeAngle) && def->maxSlopeAngle > 0.0f && def->maxSlopeAngle <= 1.5f &&
+        m3FiniteF(def->snapDistance) && def->snapDistance >= 0.0f && m3FiniteF(def->skin) &&
+        def->skin > 0.0f && m3FiniteF(def->stepHeight) && def->stepHeight >= 0.0f);
+    result = m3BothChecks(result, m3CheckPosition(def->position));
+    result = m3BothChecks(result, m3CheckPositive(def->radius, M3_LOCAL_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(def->halfHeight, M3_LOCAL_LIMIT));
+    result = m3BothChecks(result, m3CheckPositive(def->mass, M3_MASS_LIMIT));
+    result = m3BothChecks(result, m3CheckAtLeast(def->mass, M3_MIN_MASS));
+    result = m3BothChecks(result, m3CheckNonNegative(def->pushMaxMassRatio, M3_RATIO_LIMIT));
+    if (result != m3_success)
     {
-        return M3_CREATE_INVALID;
+        return (int32_t)result;
     }
     // A character takes a slot, a body and a shape. Room for all three is
     // checked first: a refused create is not journaled, so it must not
@@ -473,7 +479,7 @@ static M3_NOINLINE m3Result CreateCharacterWorker(m3World* world, const m3Charac
     *characterOut = m3_nullCharacterId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || def == NULL || def->internalValue != M3_CHARACTER_COOKIE)
     {
@@ -509,7 +515,7 @@ static M3_NOINLINE m3Result DestroyCharacterWorker(m3World* world, m3CharacterId
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
@@ -542,7 +548,7 @@ static M3_NOINLINE void CharacterMoveWorker(m3World* world, m3CharacterId charac
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot = m3CharacterSlot(world, character);
@@ -651,12 +657,13 @@ m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character
 // veto by law: removing volume cannot create contact.
 m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius)
 {
-    if (!m3FiniteF(halfHeight) || !m3FiniteF(radius) || halfHeight < 0.05f || radius < 0.05f ||
-        halfHeight > 10.0f || radius > 10.0f)
+    m3Result size = m3BothChecks(m3CheckRange(halfHeight, M3_MIN_STANCE, M3_STANCE_LIMIT),
+                                 m3CheckRange(radius, M3_MIN_STANCE, M3_STANCE_LIMIT));
+    if (size != m3_success)
     {
         // Hostile dimensions never touch state. The public call counts
         // them as misuse; a replayed tape is data and counts nothing.
-        return m3_errorInvalid;
+        return size;
     }
     int32_t body = world->characters.charBody[slot];
     int32_t shape = world->bodies.bodyShapeHead[body]; // the capsule is the
@@ -703,7 +710,7 @@ static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3Character
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
@@ -711,7 +718,7 @@ static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3Character
         return m3Refuse(world, m3MissingId(character.index1));
     }
     m3Result result = m3CharacterStanceInternal(world, slot, halfHeight, radius);
-    if (result == m3_errorInvalid)
+    if (result == m3_errorInvalid || result == m3_errorLimit)
     {
         return m3Refuse(world, result); // hostile dimensions
     }

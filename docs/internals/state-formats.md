@@ -11,13 +11,13 @@ Every state format starts with the same 16 bytes, shared with maul2d, each a lit
 | 0 | `magic` | Four ASCII bytes naming the library and the format. |
 | 4 | `abiVersion` | The writer's `M3_ABI_VERSION`. A reader refuses any other value with `m3_errorVersion`. |
 | 8 | `formatVersion` | The format's own number, bumped whenever its bytes change. A reader refuses any other value with `m3_errorVersion`. |
-| 12 | `headerBytes` | The size of the whole header, this prefix and the format's own fields, a multiple of 8. The content starts there. A reader refuses any other value with `m3_errorInvalid`. |
+| 12 | `headerBytes` | The size of the whole header, this prefix and the format's own fields, a multiple of 8. The content starts there. A reader refuses any other value with `m3_errorFormat`. |
 
 A reader checks in this order:
-- Bytes shorter than the prefix, or with another magic, are not this format: `m3_errorInvalid`.
+- Bytes shorter than the prefix, or with another magic, are not this format: `m3_errorFormat`.
 - Another ABI version or format number means another release wrote them: `m3_errorVersion`.
-- Another header size, or bytes too short to hold the header, are corrupt: `m3_errorInvalid`.
-- The format's own fields follow. Another build hash is `m3_errorVersion`; another world shape is `m3_errorInvalid`.
+- Another header size, or bytes too short to hold the header, are corrupt: `m3_errorFormat`.
+- The format's own fields follow. Another build hash is `m3_errorVersion`; another world shape is `m3_errorFormat`.
 
 None of these refusals counts as misuse. A header embedded in another, such as a replay container's snapshot, is checked the same way, and the outer reader returns its refusal.
 

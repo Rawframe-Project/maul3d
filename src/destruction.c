@@ -234,7 +234,7 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
                 continue;
             }
             int32_t count = world->softBodies.softParticleCount[slot];
-            int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+            int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
             m3real pr = world->softBodies.softRadius[slot];
             m3real area = M3_PI * pr * pr;
             for (int32_t i = 0; i < count; ++i)
@@ -290,7 +290,7 @@ static M3_NOINLINE void WorldExplodeWorker(m3World* world, const m3ExplosionDef*
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     if (world == NULL || def == NULL || def->internalValue != M3_EXPLOSION_COOKIE)

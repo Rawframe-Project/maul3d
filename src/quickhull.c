@@ -49,9 +49,9 @@ typedef struct QhFace
 
 typedef struct QhBuilder
 {
-    m3Vec3 p[M3_HULL_MAX_INPUT]; // input shifted to the first point
-    int16_t nextConflict[M3_HULL_MAX_INPUT];
-    uint8_t onHull[M3_HULL_MAX_INPUT];
+    m3Vec3 p[M3_MAX_HULL_POINTS]; // input shifted to the first point
+    int16_t nextConflict[M3_MAX_HULL_POINTS];
+    uint8_t onHull[M3_MAX_HULL_POINTS];
     QhFace faces[M3_QH_MAX_FACES];
     int16_t freeFaces[M3_QH_MAX_FACES];
     int32_t freeCount;
@@ -540,7 +540,7 @@ static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
     bool dropped = true;
     while (dropped)
     {
-        uint8_t degree[M3_HULL_MAX_INPUT];
+        uint8_t degree[M3_MAX_HULL_POINTS];
         memset(degree, 0, sizeof(degree));
         for (int32_t i = 0; i < poly->indexCount; ++i)
         {
@@ -580,7 +580,7 @@ static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
 static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, m3Vec3 origin,
                      m3HullData* out)
 {
-    int16_t index[M3_HULL_MAX_INPUT];
+    int16_t index[M3_MAX_HULL_POINTS];
     memset(out, 0, sizeof(*out));
     int32_t vertexCount = 0;
     for (int32_t i = 0; i < count; ++i)
@@ -639,7 +639,7 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
 // Coordinates past 1e18 or non-finite are refused, never built.
 static bool InputValid(const m3Vec3* points, int32_t count)
 {
-    if (points == NULL || count < 4 || count > M3_HULL_MAX_INPUT)
+    if (points == NULL || count < 4 || count > M3_MAX_HULL_POINTS)
     {
         return false;
     }
@@ -723,20 +723,18 @@ static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t 
     return ok && m3HullBuildHalfEdges(out);
 }
 
-bool m3HullCloudValid(const m3Vec3* points, int32_t count)
+m3Result m3HullCloudCheck(const m3Vec3* points, int32_t count)
 {
-    if (points == NULL || count <= 0 || count > M3_HULL_MAX_INPUT)
+    if (points == NULL || count <= 0)
     {
-        return false;
+        return m3_errorInvalid;
     }
-    for (int32_t i = 0; i < count; ++i)
+    m3Result result = m3CheckCount(count, M3_MAX_HULL_POINTS);
+    for (int32_t i = 0; i < count && result == m3_success; ++i)
     {
-        if (!m3LocalV3(points[i]))
-        {
-            return false;
-        }
+        result = m3CheckLocalV3(points[i]);
     }
-    return true;
+    return result;
 }
 
 bool m3ComputeHull(m3Heap* heap, const m3Vec3* points, int32_t count, m3HullData* out)

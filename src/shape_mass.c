@@ -211,7 +211,7 @@ bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
         return true;
     }
     *total += (double)m;
-    return m >= M3_MASS_FLOOR && InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR);
+    return m >= M3_MIN_MASS && InertiaAtLeast(&ic, (double)M3_MIN_INERTIA);
 }
 
 // A change to one of a body's shapes: slot takes the given type, geometry

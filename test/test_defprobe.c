@@ -4,7 +4,8 @@
 // Def validation gate: creation and restore check the same things. Every
 // numeric field of every def is poisoned in turn (NaN, both infinities,
 // negatives, zero, huge values, unknown enums and counts). A create
-// either refuses with m3_errorInvalid and one misuse, or what it built
+// either refuses with one misuse, with m3_errorInvalid for NaN and
+// m3_errorInvalid or m3_errorLimit for any other value, or what it built
 // survives a snapshot restored into a twin world, before and after two
 // steps. A def that creation takes but restore refuses would make a
 // world that cannot roll back.
@@ -141,6 +142,15 @@ static int32_t ValueCount(char kind)
     return kind == 'f' ? COUNT(s_floats) : (kind == 'd' ? COUNT(s_doubles) : COUNT(s_ints));
 }
 
+// Whether a refusal names its poison: NaN is invalid, and any other
+// value is invalid or past a bound.
+static bool RefusedAs(const Field* field, int32_t value, m3Result result)
+{
+    bool nan = (field->kind == 'f' && s_floats[value] != s_floats[value]) ||
+               (field->kind == 'd' && s_doubles[value] != s_doubles[value]);
+    return result == m3_errorInvalid || (!nan && result == m3_errorLimit);
+}
+
 static void Report(const char* what, const Field* field, int32_t value, const char* problem)
 {
     char message[160];
@@ -181,7 +191,7 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
         m3Result replayed = m3World_ReplayJournal(world, tape, tapeBytes);
         ok = created == m3_success
                  ? replayed == m3_success
-                 : replayed == m3_errorInvalid && m3World_GetCounters(world).misuse == misuse &&
+                 : replayed == m3_errorFormat && m3World_GetCounters(world).misuse == misuse &&
                        m3World_Hash(world) == hash;
     }
     free(snap);
@@ -220,9 +230,11 @@ static void Probe(const Target* target, const Field* fields, int32_t count)
                     Report(what, &fields[f], v, "created, but two steps later it does not restore");
                 }
             }
-            else if (result != m3_errorInvalid || m3World_GetCounters(world).misuse != misuse + 1u)
+            else if (!RefusedAs(&fields[f], v, result) ||
+                     m3World_GetCounters(world).misuse != misuse + 1u)
             {
-                Report(what, &fields[f], v, "refused without m3_errorInvalid and one misuse");
+                Report(what, &fields[f], v,
+                       "refused without m3_errorInvalid or m3_errorLimit and one misuse");
             }
             m3DestroyWorld(world);
             if (target->taped && !ReplayAgrees(target, &fields[f], v, result))
@@ -482,7 +494,7 @@ static void ProbeWater(void)
 }
 
 // The world def has no world to count misuse against: a create refuses
-// with m3_errorInvalid, or with m3_errorCapacity only for a capacity of
+// as RefusedAs says, or with m3_errorCapacity only for a capacity of
 // INT32_MAX, the one poison too big to allocate: either the probe's
 // allocator or the library's own 2 GB block limit refuses it. A world it
 // builds must restore into its twin.
@@ -517,11 +529,11 @@ static void ProbeWorlds(void)
             m3Result result = m3CreateWorld(&def, &world);
             if (result != m3_success)
             {
-                if (result != m3_errorInvalid && !(result == m3_errorCapacity && tooBig))
+                if (!RefusedAs(&fields[f], v, result) && !(result == m3_errorCapacity && tooBig))
                 {
                     Report("m3WorldDef", &fields[f], v,
-                           "refused with neither m3_errorInvalid nor, for INT32_MAX, "
-                           "m3_errorCapacity");
+                           "refused with neither m3_errorInvalid, m3_errorLimit nor, for "
+                           "INT32_MAX, m3_errorCapacity");
                 }
                 continue;
             }

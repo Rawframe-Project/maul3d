@@ -124,7 +124,7 @@ void m3JournalVehicleDef(m3VehicleDef* out, const m3VehicleDef* def)
     memset(out, 0, sizeof(*out));
     out->chassisId = def->chassisId;
     out->wheelCount = def->wheelCount;
-    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    for (int32_t w = 0; w < M3_MAX_VEHICLE_WHEELS; ++w)
     {
         JournalWheelDef(&out->wheels[w], &def->wheels[w]);
     }
@@ -237,7 +237,7 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     // The buffer holds at least the tape's header, which is written now.
     if (world == NULL || buffer == NULL || capacity < M3_JOURNAL_HEADER_BYTES)
@@ -263,7 +263,7 @@ m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || bytesOut == NULL)
     {

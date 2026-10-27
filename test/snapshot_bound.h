@@ -21,10 +21,10 @@
 // arrays.
 static inline int64_t MeshContentMost(void)
 {
-    int64_t vc = M3_MESH_MAX_VERTS;
-    int64_t tc = M3_MESH_MAX_TRIS;
+    int64_t vc = M3_MAX_MESH_VERTICES;
+    int64_t tc = M3_MAX_MESH_TRIANGLES;
     return vc * (int64_t)sizeof(m3Vec3) + 6 * tc + tc + 4 +
-           M3_MESH_MAX_MATERIALS * (int64_t)sizeof(m3MeshSurfaceMaterial) + tc;
+           M3_MAX_MESH_MATERIALS * (int64_t)sizeof(m3MeshSurfaceMaterial) + tc;
 }
 
 static inline int64_t HullContentMost(void)

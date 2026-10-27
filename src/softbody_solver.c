@@ -381,7 +381,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         m3Vec3 qlo = {lp.x - radius, lp.y - radius, lp.z - radius};
         m3Vec3 qhi = {lp.x + radius, lp.y + radius, lp.z + radius};
         // The first SOFT_GATHER_CAP triangles in ascending order.
-        uint16_t tris[M3_MESH_MAX_TRIS];
+        uint16_t tris[M3_MAX_MESH_TRIANGLES];
         int32_t nt = m3MeshBvhGather(bvh, qlo, qhi, tris, M3_COUNT_OF(tris));
         nt = nt > SOFT_GATHER_CAP ? SOFT_GATHER_CAP : nt;
         for (int32_t t = 0; t < nt; ++t)
@@ -414,7 +414,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
 // world-frame; everything else works in body space.
 static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3real invH)
 {
-    int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+    int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
     int32_t count = world->softBodies.softParticleCount[slot];
     m3real radius = world->softBodies.softRadius[slot];
     // The box of every particle the loop moves, grown by each
@@ -476,7 +476,7 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
     int32_t nx = world->softBodies.softDimX[slot];
     int32_t ny = world->softBodies.softDimY[slot];
     int32_t nz = world->softBodies.softDimZ[slot];
-    int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+    int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
     int32_t count = world->softBodies.softParticleCount[slot];
     for (int32_t i = 0; i < count; ++i)
     {
@@ -563,7 +563,7 @@ static void HoldParticles(m3World* world)
         {
             continue;
         }
-        int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+        int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
         for (int32_t i = 0; i < world->softBodies.softParticleCount[slot]; ++i)
         {
             world->softBodies.softPos[base + i] =
@@ -593,14 +593,14 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 continue;
             }
             int32_t count = world->softBodies.softParticleCount[slot];
-            int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+            int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
 
             // Anchored particles are driven, not integrated: mark
             // them for this substep (32 max, a cheap bitmask).
-            uint8_t anchored[M3_SOFTBODY_MAX_PARTICLES / 8];
+            uint8_t anchored[M3_MAX_SOFTBODY_PARTICLES / 8];
             memset(anchored, 0, sizeof(anchored));
             int32_t anchorCount = world->softBodies.softAnchorCount[slot];
-            int32_t abase = slot * M3_SOFTBODY_MAX_ANCHORS;
+            int32_t abase = slot * M3_MAX_SOFTBODY_ANCHORS;
             for (int32_t a = 0; a < anchorCount; ++a)
             {
                 // A dead or recycled body releases its anchor: the
@@ -705,7 +705,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             m3real bendAlpha = world->softBodies.softBendCompliance[slot] * invH * invH;
             int32_t bendStart = world->softBodies.softBendStart[slot];
             int32_t edges = world->softBodies.softEdgeCount[slot];
-            int32_t ebase = slot * M3_SOFTBODY_MAX_EDGES;
+            int32_t ebase = slot * M3_MAX_SOFTBODY_EDGES;
             for (int32_t e = 0; e < edges; ++e)
             {
                 m3real alphaE = e >= bendStart ? bendAlpha : alpha;
@@ -776,7 +776,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             int32_t tetCount2 = world->softBodies.softTetCount[slot];
             for (int32_t t = 0; t < tetCount2; ++t)
             {
-                int32_t tk = slot * M3_SOFTBODY_MAX_TETS + t;
+                int32_t tk = slot * M3_MAX_SOFTBODY_TETS + t;
                 int32_t ia = base + (int32_t)world->softBodies.softTetA[tk];
                 int32_t ib = base + (int32_t)world->softBodies.softTetB[tk];
                 int32_t ic = base + (int32_t)world->softBodies.softTetC[tk];
@@ -852,7 +852,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             // cancel and no epsilon-sensitive division sneaks in.
             if (world->softBodies.softPressure[slot] > 0.0f)
             {
-                m3Vec3 grads[M3_SOFTBODY_MAX_PARTICLES];
+                m3Vec3 grads[M3_MAX_SOFTBODY_PARTICLES];
                 m3Pos3 origin = world->softBodies.softPos[base];
                 m3real vol6 = SoftSurfaceVolume6(world, slot, grads, origin);
                 m3real c6 = vol6 - 6.0f * world->softBodies.softRestVolume[slot] *

@@ -32,7 +32,7 @@ extern "C"
 
     /// Counts from a journal tape: total records, and how many of them
     /// are steps. Returns m3_errorVersion for a tape another release
-    /// wrote and m3_errorInvalid for malformed framing.
+    /// wrote and m3_errorFormat for malformed framing.
     typedef struct m3JournalInfo
     {
         int32_t opCount;
@@ -63,8 +63,10 @@ extern "C"
     /// (m3World_Hash after the session); verifiers compare against
     /// it. Sets *bytesOut to the bytes written. Returns m3_errorVersion
     /// for a snapshot or tape another release wrote, m3_errorInvalid for
-    /// bad sizes, a header that is not a snapshot's or a malformed
-    /// journal, and m3_errorCapacity for a small buffer.
+    /// a null pointer, m3_errorFormat for sizes too short to hold a
+    /// snapshot or a tape, a header that is not a snapshot's or a
+    /// malformed journal, m3_errorLimit for a pair past INT32_MAX bytes,
+    /// and m3_errorCapacity for a small buffer.
     M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes,
                                                 const void* journal, int32_t journalBytes,
                                                 uint64_t finalHash, void* out, int32_t capacity,
@@ -73,7 +75,7 @@ extern "C"
     /// Decode and validate framing (the container's header, the
     /// snapshot's and the tape's prefixes, lengths, journal record
     /// walk). Returns m3_errorVersion when another release wrote the
-    /// container or what it holds, and m3_errorInvalid on any
+    /// container or what it holds, and m3_errorFormat on any
     /// corruption, with the view untouched either way.
     M3_NODISCARD M3_API m3Result m3DecodeReplay(const void* data, int32_t bytes,
                                                 m3ReplayView* viewOut);

@@ -45,7 +45,7 @@ m3Result m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* in
     {
         if (bytes - cursor < 8)
         {
-            return m3_errorInvalid; // truncated record header
+            return m3_errorFormat; // truncated record header
         }
         int32_t op;
         int32_t payload;
@@ -53,7 +53,7 @@ m3Result m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* in
         memcpy(&payload, p + cursor + 4, 4);
         if (op <= 0 || payload < 0 || payload > bytes - cursor - 8)
         {
-            return m3_errorInvalid; // corrupt framing
+            return m3_errorFormat; // corrupt framing
         }
         ops += 1;
         if (op == 1)
@@ -86,10 +86,18 @@ m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void*
         return m3_errorInvalid;
     }
     *bytesOut = 0;
-    int32_t need = m3GetEncodedReplaySize(snapshotBytes, journalBytes);
-    if (need == 0 || snapshot == NULL || journal == NULL || out == NULL)
+    if (snapshot == NULL || journal == NULL || out == NULL)
     {
         return m3_errorInvalid;
+    }
+    if (snapshotBytes < M3_SNAPSHOT_HEADER_BYTES || journalBytes < M3_JOURNAL_HEADER_BYTES)
+    {
+        return m3_errorFormat; // too short to hold their own headers
+    }
+    int32_t need = m3GetEncodedReplaySize(snapshotBytes, journalBytes);
+    if (need == 0)
+    {
+        return m3_errorLimit; // the container would pass M3_MAX_SNAPSHOT_BYTES
     }
     if (capacity < need)
     {
@@ -144,7 +152,7 @@ m3Result m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* viewOut)
         (int64_t)M3_REPLAY_HEADER_BYTES + header.snapshotBytes + header.journalBytes !=
             (int64_t)bytes)
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     // The embedded headers are checked like any other: another release's
     // snapshot or tape inside this container is m3_errorVersion.
@@ -163,7 +171,7 @@ m3Result m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* viewOut)
     }
     if (info.stepCount != header.stepCount || info.opCount != header.opCount)
     {
-        return m3_errorInvalid; // header lies about its own stream
+        return m3_errorFormat; // header lies about its own stream
     }
     viewOut->snapshot = snapshot;
     viewOut->snapshotBytes = header.snapshotBytes;

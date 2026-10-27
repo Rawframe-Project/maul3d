@@ -392,7 +392,7 @@ static void TestHullWallSeesEveryEdge(void)
 
 // The vertex cap. A dense sphere cloud must produce a hull of more
 // than 24 vertices, cap at 64, and hold the half-edge laws; input past
-// M3_HULL_MAX_INPUT refuses.
+// M3_MAX_HULL_POINTS refuses.
 static void TestBigHullCap(void)
 {
     m3Vec3 cloud[256];

@@ -119,7 +119,7 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opJointSetLimits)
     {
-        if (!m3JointLimitsValid(world->joints.jointType[slot], record.a, record.b))
+        if (m3JointLimitsCheck(world->joints.jointType[slot], record.a, record.b) != m3_success)
         {
             return false;
         }
@@ -127,7 +127,8 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     else
     {
-        if (!m3JointMotorValid(world->joints.jointType[slot], record.enable, record.a, record.b))
+        if (m3JointMotorCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
+            m3_success)
         {
             return false;
         }
