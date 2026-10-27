@@ -34,17 +34,56 @@
 // therefore does no arithmetic of its own between entering and leaving:
 // it calls a worker marked M3_NOINLINE, whose body cannot move out of
 // the call.
+//
+// WebAssembly has one environment, the library's, and nothing to switch:
+// there the entries and the host pairs are empty inline functions that
+// keep no depth, and M3_NOINLINE is nothing, so a wrapper and its worker
+// compile to the worker alone.
 
 #ifndef MAUL3D_SRC_FPENV_H
 #define MAUL3D_SRC_FPENV_H
 
 #include <stdint.h>
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(__wasm__)
+#define M3_NOINLINE
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define M3_NOINLINE __declspec(noinline)
 #else
 #define M3_NOINLINE __attribute__((noinline))
 #endif
+
+// The thread's state outside a call into host code: the register the
+// outermost entry saved and the depth.
+typedef struct m3FloatHost
+{
+    uint64_t saved;
+    uint32_t depth;
+} m3FloatHost;
+
+#if defined(__wasm__)
+
+static inline uint64_t m3FloatEnvEnter(void)
+{
+    return 0;
+}
+
+static inline void m3FloatEnvLeave(uint64_t token)
+{
+    (void)token;
+}
+
+static inline m3FloatHost m3FloatHostEnter(void)
+{
+    return (m3FloatHost){0, 0};
+}
+
+static inline void m3FloatHostLeave(m3FloatHost host)
+{
+    (void)host;
+}
+
+#else
 
 // Enters the library's environment: the outermost entry on a thread (or
 // the first inside host code) saves the host's control register and sets
@@ -60,19 +99,6 @@ uint64_t m3FloatEnvEnter(void);
 // host's control register, writing it only when it differs.
 void m3FloatEnvLeave(uint64_t token);
 
-// Runs body(context) inside an entry: a task body the library hands the
-// host's task hooks, which may run it on a thread in any mode. body is a
-// worker that does the arithmetic, so none moves out of the entry.
-void m3FloatEnvRun(void (*body)(void* context), void* context);
-
-// The thread's state outside a call into host code: the register the
-// outermost entry saved and the depth.
-typedef struct m3FloatHost
-{
-    uint64_t saved;
-    uint32_t depth;
-} m3FloatHost;
-
 // Before host code: inside an entry, writes the host's saved register
 // back and leaves no entry open; outside any, does nothing. Returns what
 // m3FloatHostLeave takes. Each call site puts the pair around the one
@@ -84,6 +110,13 @@ m3FloatHost m3FloatHostEnter(void);
 // inside an entry, the library's environment again, from the host's saved
 // register, whatever host code set.
 void m3FloatHostLeave(m3FloatHost host);
+
+#endif
+
+// Runs body(context) inside an entry: a task body the library hands the
+// host's task hooks, which may run it on a thread in any mode. body is a
+// worker that does the arithmetic, so none moves out of the entry.
+void m3FloatEnvRun(void (*body)(void* context), void* context);
 
 // The thread's control register as it is: MXCSR on x86 (with the x87
 // control word in bits 32 to 47 on 32-bit x86), FPCR on AArch64, 0 on
