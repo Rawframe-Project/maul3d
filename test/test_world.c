@@ -751,11 +751,56 @@ static void TestGyroscopicEnergyLeavesRange(void)
     CHECK(fabs(ratio - 1.0) < 1.0e-6, "the step at unit inertia scale keeps its start energy");
 }
 
+// A tensor with two equal moments is no symmetric top while a product of
+// inertia couples them: a stick laid along the diagonal of two body axes
+// has equal moments about them, and its spin takes the implicit step
+// rather than a turn about the third axis. One stick for each pair of
+// axes, so each product of inertia is checked.
+static void TestTiltedStickTakesImplicitStep(void)
+{
+    for (int32_t pair = 0; pair < 3; ++pair)
+    {
+        m3WorldDef def = m3DefaultWorldDef();
+        def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3World* world = NewWorld(&def);
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.angularDamping = 0.0f;
+        m3BodyId body = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        float end[3] = {0.0f, 0.0f, 0.0f};
+        end[pair] = 0.7f;
+        end[(pair + 1) % 3] = 0.7f;
+        m3Capsule capsule = {{-end[0], -end[1], -end[2]}, {end[0], end[1], end[2]}, 0.05f};
+        NewCapsuleShape(world, body, &sd, &capsule);
+        const m3Vec3 spin = {3.0f, -1.0f, 5.0f};
+        m3Body_SetAngularVelocity(world, body, spin);
+
+        int32_t slot = (int32_t)body.index1 - 1;
+        const m3Mat3* inertia = &world->bodies.inertiaLocal[slot];
+        const float moments[3] = {inertia->cx.x, inertia->cy.y, inertia->cz.z};
+        const float products[3] = {inertia->cy.x, inertia->cz.y, inertia->cz.x};
+        CHECK(moments[pair] == moments[(pair + 1) % 3] && products[pair] != 0.0f,
+              "the tilted stick has two equal moments and their product of inertia");
+        const float h = 1.0f / 60.0f;
+        m3Vec3 expected = {0.0f, 0.0f, 0.0f};
+        CHECK(m3GyroscopicStep(inertia, 1.0f, world->bodies.transforms[slot].q, spin, h, &expected),
+              "the implicit step holds for the tilted stick");
+        m3World_Step(world, h, 1);
+        m3Vec3 after = m3Body_GetAngularVelocity(world, body);
+        CHECK(m3Length3(m3Sub3(after, expected)) <= 1.0e-6f * m3Length3(expected),
+              "the tilted stick's spin takes the implicit step");
+        m3DestroyWorld(world);
+    }
+}
+
 // A body heavy and fast enough that the gyroscopic step leaves float range
 // at its own inertia scale takes it at unit scale instead: 96 boxes of
-// half extent 5e3 m at density 1e6, half of them 1e4 m out on each side,
-// give principal moments near 1.6e27 and 1.1e28 kg m^2, and at a spin of
-// 1.4e5 rad/s the step's terms pass 1e38. One 10 s step lands the spin
+// half extents 5e3, 5e3 and 4.5e3 m at density 1e6, half of them 1e4 m
+// out on each side, give principal moments near 1.3e27, 9.9e27 and
+// 1.0e28 kg m^2, and at a spin of 1.4e5 rad/s the step's terms pass 1e38.
+// The moments differ, so the body is no symmetric top, which turns
+// exactly and never reaches the implicit step. One 10 s step lands the spin
 // the step at unit scale gives, held within the speed limit, not the spin
 // it started with.
 static void TestGyroscopicStepAtUnitScale(void)
@@ -775,7 +820,7 @@ static void TestGyroscopicStepAtUnitScale(void)
     for (int32_t k = 0; k < 96; ++k)
     {
         sd.localPosition = (m3Vec3){(k & 1) != 0 ? 1.0e4f : -1.0e4f, 0.0f, 0.0f};
-        NewBoxShape(world, body, &sd, (m3Vec3){5.0e3f, 5.0e3f, 5.0e3f});
+        NewBoxShape(world, body, &sd, (m3Vec3){5.0e3f, 5.0e3f, 4.5e3f});
     }
     m3Body_EnableFastRotation(world, body, true);
     const m3Vec3 spin = {1.0e5f, 2.0e4f, 1.0e5f};
@@ -1150,6 +1195,7 @@ int main(void)
     TestContactLanesMatchScalar();
     TestGyroscopicScaleMatchesDirect();
     TestGyroscopicStepAtUnitScale();
+    TestTiltedStickTakesImplicitStep();
     TestGyroscopicFallbackKeepsSpin();
     TestGyroscopicStepTracksEuler();
     TestGyroscopicHoldLandsAtStart();

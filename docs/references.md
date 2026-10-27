@@ -122,7 +122,14 @@ these descriptions, never copied from other implementations (see
   gyroscopic term of Euler's equations integrated implicitly with a
   Newton step (maul3d). The exact implicit step never gains energy, but
   one Newton iteration of it can, so maul3d redoes a large one in pieces
-  and scales away any energy the step still gains.
+  and scales away any energy the step still gains. The implicit step
+  also damps precession, so a body with two equal principal moments
+  takes the closed form instead, below.
+- H. Goldstein, C. Poole and J. Safko, *Classical Mechanics*, 3rd ed.,
+  Addison-Wesley, 2002. The force-free symmetric top: the spin along
+  the symmetry axis stays, and the spin across it turns about that axis
+  at w_a (I_a - I_t) / I_t. maul3d turns a symmetric top's spin by that
+  angle each substep.
 - D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
   3D", 2013. Point, hinge, slider and fixed constraints written as rows
   with quaternion based angular errors; maul3d's angular rows follow
