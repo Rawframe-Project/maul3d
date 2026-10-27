@@ -8,19 +8,53 @@ snapshot and journal formats.
 
 ## [0.7.0](https://github.com/Rawframe-Project/maul3d/compare/v0.6.0...v0.7.0) (2026-10-27)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **world:** m3CreateWorld refuses with m3_errorCapacity, before it allocates anything, a def whose world could snapshot to more than M3_MAX_SNAPSHOT_BYTES (INT32_MAX) with its mesh and hull content at the largest: near 278,000 shape slots or 1,638 mesh slots. m3CreateHeightFieldGridShape refuses with m3_errorCapacity samples that would carry the world's snapshot past the bound, and m3World_ReplayJournal refuses a recorded grid past it with m3_errorInvalid.
-* **shape:** m3CreatePlaneShape refuses an offset past 1e15 m with m3_errorInvalid. m3CreateSoftBody and m3CreateSoftBodyTet refuse a particle past 1e15 m on any axis. Replay and restore refuse a shape whose unused geometry fields are not what create leaves or whose plane normal is not unit length or whose plane offset is past 1e15 m; a replayed sphere or capsule geometry change refuses a nonzero reserved field instead of clearing it. Restore refuses a body or soft particle position past 1e15 m. The step holds every body and soft particle within M3_POSITION_LIMIT, 1e15 m, instead of 1e18 m.
-* **joint:** m3CreateJoint returns m3_errorInvalid, and a shape create, m3DestroyShape, m3Shape_SetSphere, m3Shape_SetCapsule, m3Shape_SetDensity and m3Body_SetType refuse with one misuse, when a joint that solves blocks would pass a lever ratio of 1e10. Restore and replay refuse such a state with m3_errorInvalid.
+- **Breaking: a joint whose bodies have a lever ratio past
+  `M3_JOINT_LEVER_LIMIT` (1e10) is refused.** The ratio is each body's
+  largest turn, the top eigenvalue of [r]ᵀ I⁻¹ [r] in its own frame,
+  over the sum of their inverse masses; static and kinematic bodies
+  add nothing. It applies to the spherical, revolute, prismatic,
+  fixed, wheel and motor joints, whose blocks undo each other well
+  before the 1e15 the guide used to give; the distance, generic,
+  parallel, gear, pulley and filter joints keep no such limit. Joint
+  create returns `m3_errorInvalid` and counts one misuse, and so does
+  a shape create on a jointed body. `m3DestroyShape`,
+  `m3Shape_SetSphere`, `m3Shape_SetCapsule`, `m3Shape_SetDensity` and
+  `m3Body_SetType` refuse a change that would carry a joint past the
+  limit, change nothing and count one misuse. Journal replay and
+  restore refuse it with `m3_errorInvalid`. No result changes within
+  the limit.
+  ([#118](https://github.com/Rawframe-Project/maul3d/pull/118))
+- **Breaking: shape geometry is taken only in the form create leaves
+  it.** Create, replay, the sphere and capsule setters and restore
+  check every shape slot with one rule: a field the shape type does
+  not use is zero, and a plane's normal is unit length.
+  `m3CreatePlaneShape` refuses an offset past 1e15 m, and
+  `m3CreateSoftBody` and `m3CreateSoftBodyTet` refuse a particle past
+  1e15 m on any axis. `M3_REACH_LIMIT` is removed: the step now holds
+  every body and soft particle within `M3_POSITION_LIMIT` (1e15 m)
+  rather than at 1e18 m, and restore bounds positions there.
+  ([#123](https://github.com/Rawframe-Project/maul3d/pull/123))
+- **Breaking: a world's snapshot is bounded by `M3_MAX_SNAPSHOT_BYTES`
+  (`INT32_MAX`) and sized in 64 bits.** `m3CreateWorld` refuses a def
+  whose capacities could pass the bound with `m3_errorCapacity` before
+  allocating anything; the guide gives the bytes per slot, near
+  278,000 shape slots or 1,638 mesh slots with nothing else.
+  `m3CreateHeightFieldGridShape` refuses a grid that would carry the
+  snapshot past the bound with `m3_errorCapacity`, and replay refuses
+  it with `m3_errorInvalid`. Restore refuses a size past the bound.
+  Before, the snapshot size was counted in 32 bits and a world large
+  enough wrapped it. No result changes.
+  ([#126](https://github.com/Rawframe-Project/maul3d/pull/126))
 
 ### Fixed
 
-* **joint:** refuse a joint past the lever ratio its blocks can hold ([#118](https://github.com/Rawframe-Project/maul3d/issues/118)) ([3bba63e](https://github.com/Rawframe-Project/maul3d/commit/3bba63e2bfcc6c7f935c3c38bb3c79940b5aebe0))
-* **shape:** take shape geometry only in the form create leaves it ([#123](https://github.com/Rawframe-Project/maul3d/issues/123)) ([fafbfd2](https://github.com/Rawframe-Project/maul3d/commit/fafbfd2a43c50e0f552056978819085dcb6d2b39))
-* **softbody:** soft collision gathers take at most their buffer ([#120](https://github.com/Rawframe-Project/maul3d/issues/120)) ([4226d11](https://github.com/Rawframe-Project/maul3d/commit/4226d111dc40a11959f14110478e88a904e1c8f5)), closes [#119](https://github.com/Rawframe-Project/maul3d/issues/119)
-* **world:** bound a world's snapshot and size it in 64 bits ([#126](https://github.com/Rawframe-Project/maul3d/issues/126)) ([27b489e](https://github.com/Rawframe-Project/maul3d/commit/27b489e28b3fc477fb501f44d96a2393e5f59dc0))
+- Soft collision no longer depends on a fixed 32-entry gather array
+  being large enough: `m3MeshBvhGather` takes its output's capacity
+  and stops there. Soft collision keeps the same first 32 hits in the
+  same order, so results are unchanged.
+  ([#120](https://github.com/Rawframe-Project/maul3d/pull/120))
 
 ## [0.6.0](https://github.com/Rawframe-Project/maul3d/compare/v0.5.0...v0.6.0) (2026-10-27)
 
