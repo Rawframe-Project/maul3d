@@ -8,23 +8,63 @@ snapshot and journal formats.
 
 ## [0.6.0](https://github.com/Rawframe-Project/maul3d/compare/v0.5.0...v0.6.0) (2026-10-27)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **snapshot:** the magics of the snapshot, the journal tape and the replay container are their names in file order, so a hex dump of each starts with M3SN, M3JN or M3RP. Bytes written with the reversed magics are refused with m3_errorInvalid.
-* **snapshot:** the snapshot format is 5, the journal tape format is 1 and the replay container format is 3, with the magic `M3RP` in place of `M3J1`. All three start with the 16-byte state prefix shared with maul2d, and only the release that wrote them reads them: bytes from another release, or a snapshot from another build, are refused with m3_errorVersion instead of m3_errorInvalid. A journal tape now starts with that prefix, so m3World_StartJournal needs a buffer of at least 16 bytes, and m3World_ReplayJournal refuses zero bytes as m3_errorInvalid instead of replaying them as an empty tape.
+- **Breaking: only the release that wrote a snapshot, a journal tape
+  or a replay container reads it.** All three formats now start with
+  the 16-byte state prefix shared with maul2d: a magic, the ABI
+  version, the format number and the header size. The snapshot format
+  is 5, the journal tape format is 1 (a tape had no header before) and
+  the replay container format is 3, with the magic `M3RP` in place of
+  `M3J1`. Each magic reads in file order, so a hex dump starts with
+  `M3SN`, `M3JN` or `M3RP`. Bytes from another release, or a snapshot
+  from another build, are refused with `m3_errorVersion` instead of
+  `m3_errorInvalid`, and a container holding another release's
+  snapshot or tape is refused the same way. `m3World_StartJournal`
+  now needs a buffer of at least 16 bytes, and `m3World_ReplayJournal`
+  refuses zero bytes as `m3_errorInvalid` instead of replaying them as
+  an empty tape. `m3GetEncodedReplaySize` returns 0 for sizes that
+  cannot be a snapshot and a tape, and for a container past
+  `INT32_MAX` bytes. A host keeps assets, not state, across an
+  upgrade; `docs/internals/state-formats.md` gives the layouts
+  ([#109](https://github.com/Rawframe-Project/maul3d/pull/109),
+  [#110](https://github.com/Rawframe-Project/maul3d/pull/110)).
 
 ### Added
 
-* **world:** count the held pushes taken again in double ([#111](https://github.com/Rawframe-Project/maul3d/issues/111)) ([f8543a4](https://github.com/Rawframe-Project/maul3d/commit/f8543a4d16e7b8b5e38b29e70f5b99165d4809c0))
-
+- `m3Counters.heldPushRetakes` counts each push a character, a soft
+  particle or a wheel lands that is taken again in double because the
+  float result was not finite. Like `voxelEditsRefused`, it is a
+  counter, not state: it is not hashed, snapshotted or journaled, and
+  a restore leaves it as it is
+  ([#111](https://github.com/Rawframe-Project/maul3d/pull/111)).
 
 ### Fixed
 
-* **snapshot:** let only the writing release read state formats ([#109](https://github.com/Rawframe-Project/maul3d/issues/109)) ([07a0c1c](https://github.com/Rawframe-Project/maul3d/commit/07a0c1cd65fbaf173dcb200e7a9ae2b4f80541c6)), closes [#90](https://github.com/Rawframe-Project/maul3d/issues/90)
-* **snapshot:** refuse state values beyond what create and the step make ([#114](https://github.com/Rawframe-Project/maul3d/issues/114)) ([3da432f](https://github.com/Rawframe-Project/maul3d/commit/3da432f7d5946ff15839625aff9793034a3a919a))
-* **snapshot:** write each format's magic in file order ([#110](https://github.com/Rawframe-Project/maul3d/issues/110)) ([5f2d4a5](https://github.com/Rawframe-Project/maul3d/commit/5f2d4a50eff4f534d2b8897fea445e3cfcf92853))
-* **solver:** keep the gyroscopic step from gaining energy ([#107](https://github.com/Rawframe-Project/maul3d/issues/107)) ([7472359](https://github.com/Rawframe-Project/maul3d/commit/7472359dd501b5bb331784ea62932499d0de1cb1)), closes [#77](https://github.com/Rawframe-Project/maul3d/issues/77) [#88](https://github.com/Rawframe-Project/maul3d/issues/88)
+- The gyroscopic step no longer gains energy. One Newton iteration of
+  the implicit step could overshoot near a singular Jacobian: 50
+  boxes tumbling with the angular cap raised gained up to 1e5 times
+  their rotational energy, and rods and plates gained energy at far
+  smaller turns. A large change of spin is now redone in pieces of at
+  most half a radian, any remaining gain is scaled away, and a step
+  that leaves float range is retaken at unit inertia scale. In the
+  issue's scenes every box now keeps its start energy to within 1e-6.
+  Golden and bench hashes are unchanged; the whole bench costs about
+  1.6% more instructions
+  ([#107](https://github.com/Rawframe-Project/maul3d/pull/107)).
+
+### Security
+
+- Restore bounds every state value by the range that create, the
+  setters or the step give it, where a few were checked only for
+  being finite: soft-body rest lengths, tet rest volumes and closed
+  rest volume, a wheel's compression, a character's slope limit and
+  ground normal, joint targets and generic axis limits, a body's sleep
+  time and the gust phase. A value outside its range is refused with
+  `m3_errorInvalid`, no misuse counted and the world left as it was.
+  Every world the API builds still restores, and no golden line moves
+  ([#114](https://github.com/Rawframe-Project/maul3d/pull/114),
+  [GHSA-mg76-rhjf-fr34](https://github.com/Rawframe-Project/maul3d/security/advisories/GHSA-mg76-rhjf-fr34)).
 
 ## [0.5.0](https://github.com/Rawframe-Project/maul3d/compare/v0.4.0...v0.5.0) (2026-10-26)
 
