@@ -306,6 +306,7 @@ static M3_NOINLINE void WorldExplodeWorker(m3World* world, const m3ExplosionDef*
     if (world->recorder.journalActive != 0)
     {
         m3ExplosionDef record;
+        memset(&record, 0, sizeof(record));
         m3JournalExplosionDef(&record, def);
         m3JournalRecord(world, m3_opWorldExplode, &record, (int32_t)sizeof(record));
     }

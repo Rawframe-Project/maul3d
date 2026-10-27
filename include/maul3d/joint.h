@@ -147,7 +147,6 @@ extern "C"
         uint8_t genericLinear[3];
         uint8_t genericAngular[3];
         uint8_t genericMotorAxis;
-        uint8_t genericReserved;
         m3real genericLinearLower[3];
         m3real genericLinearUpper[3];
         m3real genericAngularLower[3];
