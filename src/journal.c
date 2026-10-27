@@ -89,7 +89,20 @@ void m3JournalCharacterDef(m3CharacterDef* out, const m3CharacterDef* def)
 
 void m3JournalSoftBodyDef(m3SoftBodyDef* out, const m3SoftBodyDef* def)
 {
-    memcpy(out, def, sizeof(*out)); // no padding
+    out->position = def->position;
+    out->countX = def->countX;
+    out->countY = def->countY;
+    out->countZ = def->countZ;
+    out->spacing = def->spacing;
+    out->particleMass = def->particleMass;
+    out->compliance = def->compliance;
+    out->radius = def->radius;
+    out->gravityScale = def->gravityScale;
+    out->userData = def->userData;
+    out->bendCompliance = def->bendCompliance;
+    out->pressure = def->pressure;
+    out->maxDeviation = def->maxDeviation;
+    out->internalValue = def->internalValue;
 }
 
 static void JournalWheelDef(m3WheelDef* out, const m3WheelDef* def)
@@ -178,7 +191,6 @@ void m3JournalJointDef(m3JointDef* out, const m3JointDef* def)
     memcpy(out->genericLinear, def->genericLinear, sizeof(out->genericLinear));
     memcpy(out->genericAngular, def->genericAngular, sizeof(out->genericAngular));
     out->genericMotorAxis = def->genericMotorAxis;
-    out->genericReserved = def->genericReserved;
     memcpy(out->genericLinearLower, def->genericLinearLower, sizeof(out->genericLinearLower));
     memcpy(out->genericLinearUpper, def->genericLinearUpper, sizeof(out->genericLinearUpper));
     memcpy(out->genericAngularLower, def->genericAngularLower, sizeof(out->genericAngularLower));
@@ -210,7 +222,15 @@ void m3JournalDrivetrainDef(m3DrivetrainDef* out, const m3DrivetrainDef* def)
 
 void m3JournalExplosionDef(m3ExplosionDef* out, const m3ExplosionDef* def)
 {
-    memcpy(out, def, sizeof(*out)); // no padding
+    out->position = def->position;
+    out->filter.categoryBits = def->filter.categoryBits;
+    out->filter.maskBits = def->filter.maskBits;
+    out->radius = def->radius;
+    out->falloff = def->falloff;
+    out->impulsePerArea = def->impulsePerArea;
+    out->voxelCarve = def->voxelCarve;
+    out->softPush = def->softPush;
+    out->internalValue = def->internalValue;
 }
 
 m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)

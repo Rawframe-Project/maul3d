@@ -485,6 +485,40 @@ static void TestEditRefusalsAndEmptyEnd(void)
     m3DestroyWorld(world);
 }
 
+// The two bytes after an event's bounds are padding, and a snapshot stores
+// the event array as it is. Fracture writes each event into zeroed
+// storage, so two worlds whose event arrays start painted with different
+// patterns emit byte-identical events.
+static void TestFragmentEventPaddingIsZeroed(void)
+{
+    uint8_t emitted[2][sizeof(m3FragmentEvent)];
+    const uint8_t fills[2] = {0xA5, 0x5A};
+    for (int32_t run = 0; run < 2; ++run)
+    {
+        m3World* world = SmallWorld();
+        m3BodyDef gd = m3DefaultBodyDef();
+        m3BodyId ground = NewBody(world, &gd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        static uint8_t voxels[M3_VOXEL_COUNT];
+        memset(voxels, 0, sizeof(voxels));
+        for (int32_t x = 2; x <= 6; ++x)
+        {
+            voxels[x + M3_VOXEL_DIM * M3_VOXEL_DIM * 8] = 1; // a bar on the base layer
+        }
+        voxels[2 + M3_VOXEL_DIM * (1 + M3_VOXEL_DIM * 8)] = 1; // a stub on top of it
+        m3ShapeId chunk = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+        memset(world->events.fragmentEvents, fills[run],
+               M3_FRAGMENT_EVENT_CAP * sizeof(m3FragmentEvent));
+        CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunk, 2, 0, 8), "the cut lands");
+        m3FragmentEvents events = m3World_GetFragmentEvents(world);
+        CHECK(events.fragmentCount == 1, "the cut strands the stub");
+        memcpy(emitted[run], &events.fragmentEvents[0], sizeof(m3FragmentEvent));
+        m3DestroyWorld(world);
+    }
+    CHECK(memcmp(emitted[0], emitted[1], sizeof(m3FragmentEvent)) == 0,
+          "an event holds the same bytes whatever its storage held");
+}
+
 static void TestFractureBridge(void)
 {
     // Two pillars on the base layer carry a span at y = 8. Cutting
@@ -1525,6 +1559,7 @@ int main(void)
     TestJournalCompositionRefusal();
     TestVoxelPoolSweep();
     TestFractureStorms();
+    TestFragmentEventPaddingIsZeroed();
     TestBoxLimitRefusesEdits();
     TestCheckerboardFillsTheTree();
     if (s_failures == 0)

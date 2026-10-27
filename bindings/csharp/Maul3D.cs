@@ -183,7 +183,6 @@ namespace Maul3D
         public byte GenericLinear0, GenericLinear1, GenericLinear2;
         public byte GenericAngular0, GenericAngular1, GenericAngular2;
         public byte GenericMotorAxis;
-        public byte GenericReserved;
         public float GenericLinearLower0, GenericLinearLower1, GenericLinearLower2;
         public float GenericLinearUpper0, GenericLinearUpper1, GenericLinearUpper2;
         public float GenericAngularLower0, GenericAngularLower1, GenericAngularLower2;
@@ -338,7 +337,7 @@ namespace Maul3D
             Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
-            Check<JointDef>(224);
+            Check<JointDef>(216);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);
             Check<Version>(6);
