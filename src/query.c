@@ -354,7 +354,7 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         uint16_t gather[M3_MESH_MAX_TRIS];
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             m3Vec3 lo;
@@ -412,8 +412,8 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         uint16_t gather[M3_MESH_MAX_TRIS];
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
-        int32_t gatherCount = m3MeshBvhGather(
-            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
+        const m3MeshBvh* bvh = &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]];
+        int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             int32_t t = gather[g];

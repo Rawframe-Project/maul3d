@@ -177,7 +177,7 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
     uint16_t gather[M3_MESH_MAX_TRIS];
-    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather);
+    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
         m3Vec3 lo;
@@ -259,7 +259,7 @@ static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
     uint16_t gather[M3_MESH_MAX_TRIS];
-    int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather);
+    int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
         int32_t t = gather[g];

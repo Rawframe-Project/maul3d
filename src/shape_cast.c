@@ -80,7 +80,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         m3Vec3 bhi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
         int32_t budget = 64;
         for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
         {
@@ -160,8 +160,9 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
         m3Vec3 bhi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(
-            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
+        int32_t gatherCount =
+            m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi,
+                            gather, M3_COUNT_OF(gather));
         int32_t budget = 64;
         for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
         {

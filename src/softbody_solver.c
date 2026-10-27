@@ -18,6 +18,11 @@
 #include <math.h>
 #include <string.h>
 
+// A particle clamps against at most this many voxel boxes or mesh
+// triangles of one shape per substep: the first in ascending order. Each
+// gather's buffer holds every entry its tree can return.
+#define SOFT_GATHER_CAP 32
+
 // Closest point on segment ab to p. The parameter is clamped before the
 // division, so the point is a convex combination of a and b, and a
 // zero-length segment gives a.
@@ -305,13 +310,14 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
             return;
         }
         // Near the surface: clamp against the merged boxes the BVH
-        // hands back around the particle.
+        // hands back around the particle, the first SOFT_GATHER_CAP in
+        // ascending box order.
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[vslot];
         m3Vec3 qlo = {lp.x - radius, lp.y - radius, lp.z - radius};
         m3Vec3 qhi = {lp.x + radius, lp.y + radius, lp.z + radius};
-        uint16_t boxes[32];
-        int32_t nb = m3MeshBvhGather(&surface->bvh, qlo, qhi, boxes);
-        nb = nb > 32 ? 32 : nb;
+        uint16_t boxes[M3_VOXEL_MAX_BOXES];
+        int32_t nb = m3MeshBvhGather(&surface->bvh, qlo, qhi, boxes, M3_COUNT_OF(boxes));
+        nb = nb > SOFT_GATHER_CAP ? SOFT_GATHER_CAP : nb;
         for (int32_t b = 0; b < nb; ++b)
         {
             m3Vec3 blo;
@@ -370,9 +376,10 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         const m3MeshBvh* bvh = &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]];
         m3Vec3 qlo = {lp.x - radius, lp.y - radius, lp.z - radius};
         m3Vec3 qhi = {lp.x + radius, lp.y + radius, lp.z + radius};
-        uint16_t tris[32];
-        int32_t nt = m3MeshBvhGather(bvh, qlo, qhi, tris);
-        nt = nt > 32 ? 32 : nt;
+        // The first SOFT_GATHER_CAP triangles in ascending order.
+        uint16_t tris[M3_MESH_MAX_TRIS];
+        int32_t nt = m3MeshBvhGather(bvh, qlo, qhi, tris, M3_COUNT_OF(tris));
+        nt = nt > SOFT_GATHER_CAP ? SOFT_GATHER_CAP : nt;
         for (int32_t t = 0; t < nt; ++t)
         {
             int32_t tri = (int32_t)tris[t];

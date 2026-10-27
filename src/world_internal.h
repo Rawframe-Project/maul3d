@@ -262,13 +262,20 @@ typedef struct m3MeshBvh
 // refused: an empty BVH gathers nothing, so the caller refuses its work.
 bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 
+// The element count of an array, for a call that takes a buffer's size.
+#define M3_COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof((array)[0])))
+
 // Gather every triangle in a leaf whose box overlaps [lo, hi], in
 // ascending triangle order (each triangle lives in exactly one leaf,
 // so the list is duplicate-free). The result is a SUPERSET of the
 // exact per-triangle overlaps: every consumer keeps its own exact
 // reject test, so behavior stays bit-identical to the full scan this
-// replaces. `out` must hold M3_MESH_MAX_TRIS entries.
-int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out);
+// replaces. It writes at most capacity entries to out. Every caller
+// passes a buffer that holds every entry its tree can return, so none
+// is left out: M3_MESH_MAX_TRIS for a mesh, M3_VOXEL_MAX_BOXES for a
+// voxel surface.
+int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out,
+                        int32_t capacity);
 void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh

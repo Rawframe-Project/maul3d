@@ -103,7 +103,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         blo = (m3Vec3){blo.x - ctx->radius, blo.y - ctx->radius, blo.z - ctx->radius};
         bhi = (m3Vec3){bhi.x + ctx->radius, bhi.y + ctx->radius, bhi.z + ctx->radius};
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             m3Vec3 lo;
@@ -168,9 +168,9 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         }
         blo = (m3Vec3){blo.x - ctx->radius, blo.y - ctx->radius, blo.z - ctx->radius};
         bhi = (m3Vec3){bhi.x + ctx->radius, bhi.y + ctx->radius, bhi.z + ctx->radius};
+        const m3MeshBvh* bvh = &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]];
         uint16_t gather[M3_MESH_MAX_TRIS];
-        int32_t gatherCount = m3MeshBvhGather(
-            &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi, gather);
+        int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
         for (int32_t g = 0; g < gatherCount; ++g)
         {
             int32_t t = gather[g];
