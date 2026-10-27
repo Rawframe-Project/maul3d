@@ -94,7 +94,7 @@ static void WriteFarRestSeed(const char* dir, const m3World* world)
     {
         slot += 1;
     }
-    int32_t at = m3StateFieldAt(world, offsetof(m3World, softBodies.softEdgeRest));
+    int64_t at = m3StateFieldAt(world, offsetof(m3World, softBodies.softEdgeRest));
     if (slot >= world->softBodies.softPool.maxIndex || world->softBodies.softEdgeCount[slot] < 1 ||
         at < 0)
     {

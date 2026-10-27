@@ -11,6 +11,7 @@
 #include "misuse.h"
 #include "quickhull.h"
 #include "shape.h"
+#include "snapshot_walk.h"
 #include "world_internal.h"
 
 #include <string.h>
@@ -531,6 +532,12 @@ static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3B
     if (!m3HeightFieldSamplesValid(nx, nz, cellSize, heights, &lo, &hi))
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    // The samples join the snapshot, which never passes
+    // M3_MAX_SNAPSHOT_BYTES.
+    if (!m3SnapshotTakesHeightField(world, nx, nz))
+    {
+        return m3Refuse(world, m3_errorCapacity);
     }
     m3HeightFieldData hf;
     memset(&hf, 0, sizeof(hf));

@@ -220,7 +220,7 @@ static void TestRestoreTakesCreatedGeometry(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && edited != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
-    int32_t field = m3StateFieldAt(world, offsetof(m3World, shapes.shapeGeom));
+    int64_t field = m3StateFieldAt(world, offsetof(m3World, shapes.shapeGeom));
     CHECK(field >= 0, "shape geometry is snapshot state");
     if (snap == NULL || edited == NULL || field < 0)
     {

@@ -275,7 +275,7 @@ static void CheckPool(const Pool* p, int32_t capacity)
     uint64_t freshHash = m3World_Hash(world);
     m3IdPool* pool = p->pool(world);
     size_t field = (size_t)((uint8_t*)&pool->generations - (uint8_t*)world);
-    int32_t at = m3StateFieldAt(world, field);
+    int64_t at = m3StateFieldAt(world, field);
     CHECK(at >= 0, "the generations are snapshot state");
     uint32_t earlier = M3_LAST_GENERATION - 1u;
     memcpy(snap + HEADER_BYTES + (at < 0 ? 0 : at) + sizeof(uint32_t) * (size_t)(capacity - 1),

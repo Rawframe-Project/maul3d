@@ -31,7 +31,7 @@ enum
 // Where element i of the field at offset sits in a snapshot of world.
 static uint8_t* At(const m3World* world, uint8_t* snap, size_t field, size_t width, int32_t i)
 {
-    int32_t at = m3StateFieldAt(world, field);
+    int64_t at = m3StateFieldAt(world, field);
     CHECK(at >= 0, "the field is snapshot state");
     return snap + HEADER_BYTES + (at < 0 ? 0 : at) + width * (size_t)i;
 }

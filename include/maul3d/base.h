@@ -209,6 +209,16 @@ extern "C"
 // The seed of an m3Hash64 chain.
 #define M3_HASH_INIT 0xCBF29CE484222325ull
 
+// The largest snapshot in bytes, INT32_MAX: snapshot sizes are int32_t
+// byte counts, and maul3d's journal records ops and never embeds a
+// snapshot, so a snapshot may take the whole range. (A replay container,
+// which holds one beside a tape, refuses a pair past INT32_MAX: see
+// m3GetEncodedReplaySize.) A world's snapshot never passes it:
+// m3CreateWorld refuses a def whose world could with its mesh and hull
+// content at the largest, and m3CreateHeightFieldGridShape refuses
+// samples that would carry it past.
+#define M3_MAX_SNAPSHOT_BYTES 2147483647
+
 #ifdef __cplusplus
 }
 #endif
