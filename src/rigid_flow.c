@@ -240,20 +240,26 @@ static m3Quat AxisTurn(m3Vec3 axis, m3real angle)
 // The splitting's error comes from the two residual turns not commuting:
 // per substep it grows as a^2 b and a b^2 for the residual angles a and b,
 // bounded here by |L|, and vanishes when either is zero, as for a
-// symmetric top. A substep whose error measure, the cube root of the
-// larger product, passes M3_FLOW_PIECE_TURN takes the residual turns in
-// equal pieces, each piece cutting the error by the square of their count.
+// symmetric top. A substep whose error measure m, the larger product,
+// passes (M3_FLOW_PIECE_TURN)^3 takes the residual turns in equal pieces:
+// the fewest, n, with m <= (n M3_FLOW_PIECE_TURN)^3, each piece cutting the
+// error by the square of their count. The cubes are compared in float,
+// with no cube root, so every platform picks the same count.
 static int32_t PieceCount(m3Vec3 L, m3real invMax, m3real invMid, m3real invMin, m3real h)
 {
     m3real length = m3Length3(L);
     m3real a = h * length * (invMin - invMid);
     m3real b = h * length * (invMid - invMax);
-    m3real pieces = ceilf(cbrtf(m3MaxF(a * a * b, a * b * b)) * (1.0f / M3_FLOW_PIECE_TURN));
-    if (!(pieces > 1.0f))
+    m3real m = m3MaxF(a * a * b, a * b * b);
+    for (int32_t n = 1; n < M3_FLOW_MAX_PIECES; ++n)
     {
-        return 1;
+        m3real reach = (m3real)n * M3_FLOW_PIECE_TURN;
+        if (!(m > reach * reach * reach))
+        {
+            return n;
+        }
     }
-    return pieces < (m3real)M3_FLOW_MAX_PIECES ? (int32_t)pieces : M3_FLOW_MAX_PIECES;
+    return M3_FLOW_MAX_PIECES;
 }
 
 // The world spin of momentum L at the principal pose qp. The spin is
