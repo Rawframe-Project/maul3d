@@ -261,6 +261,8 @@ int main(void)
     TestTapeIgnoresDefPadding();
 #else
     printf("test_format: skipped, the compiler has no __builtin_clear_padding\n");
+    // hygiene: the padding map needs __builtin_clear_padding, which the GCC cells have
+    return 77;
 #endif
     if (s_failures == 0)
     {

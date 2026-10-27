@@ -50,6 +50,8 @@ int64_t m3WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int inclu
 #ifndef M3_SNAPSHOT_BOUND
 #define M3_SNAPSHOT_BOUND M3_MAX_SNAPSHOT_BYTES
 #endif
+_Static_assert(M3_SNAPSHOT_BOUND <= M3_MAX_SNAPSHOT_BYTES,
+               "a lowered snapshot bound is never above M3_MAX_SNAPSHOT_BYTES");
 
 // The size of the world's snapshot in bytes, its own walk's measure:
 // at most M3_SNAPSHOT_BOUND (the invariant in world_state.h).

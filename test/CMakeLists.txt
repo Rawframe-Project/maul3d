@@ -103,6 +103,12 @@ maul_add_test(bvh WHITEBOX)
 maul_add_test(fpenv WHITEBOX)
 maul_add_test(softcull WHITEBOX)
 maul_add_test(format WHITEBOX)
+# test_format reports a compiler without __builtin_clear_padding as a skip;
+# the shared build registers no white-box suite.
+if(TEST format)
+    # hygiene: test_format skips where the compiler has no padding map builtin
+    set_tests_properties(format PROPERTIES SKIP_RETURN_CODE 77)
+endif()
 maul_add_test(restore_links WHITEBOX)
 maul_add_test(joint_lever WHITEBOX)
 maul_add_test(restore_bounds WHITEBOX)
