@@ -68,6 +68,8 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     world->bodies.invMass[index] = def->type == m3_dynamicBody ? 1.0f : 0.0f;
     world->bodies.invInertiaLocal[index] = m3MakeZeroMat3();
     world->bodies.inertiaLocal[index] = m3MakeZeroMat3();
+    world->bodies.principalMoments[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.principalFrames[index] = m3MakeIdentityQuat();
     world->bodies.bulletFlags[index] = 0;
     world->bodies.awake[index] = 1;
     world->bodies.sleepTimes[index] = 0.0f;

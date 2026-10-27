@@ -118,18 +118,14 @@ these descriptions, never copied from other implementations (see
   soft step schedule compared there against other solvers: per substep
   a warm start, a biased pass with soft constraints, integration, and
   an unbiased relax pass, with restitution after the substeps.
-- E. Catto, "Numerical Methods", Game Developers Conference, 2015. The
-  gyroscopic term of Euler's equations integrated implicitly with a
-  Newton step (maul3d). The exact implicit step never gains energy, but
-  one Newton iteration of it can, so maul3d redoes a large one in pieces
-  and scales away any energy the step still gains. The implicit step
-  also damps precession, so a body with two equal principal moments
-  takes the closed form instead, below.
-- H. Goldstein, C. Poole and J. Safko, *Classical Mechanics*, 3rd ed.,
-  Addison-Wesley, 2002. The force-free symmetric top: the spin along
-  the symmetry axis stays, and the spin across it turns about that axis
-  at w_a (I_a - I_t) / I_t. maul3d turns a symmetric top's spin by that
-  angle each substep.
+- R. I. McLachlan, "Explicit Lie-Poisson integration and the Euler
+  equations", Physical Review Letters 71, 1993, and F. Fassò,
+  "Comparison of splitting algorithms for the rigid body", Journal of
+  Computational Physics 189, 2003. The free rotation of a rigid body as
+  exact turns about its principal axes; maul3d splits off the symmetric
+  part first, as
+  [the free rotation](internals/rotation.md) specifies, so a symmetric
+  top and a sphere turn exactly.
 - D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
   3D", 2013. Point, hinge, slider and fixed constraints written as rows
   with quaternion based angular errors; maul3d's angular rows follow

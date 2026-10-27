@@ -179,6 +179,8 @@ refuses it; a replay file carries its container version the same way.
 - [The state formats](docs/internals/state-formats.md): the
   snapshot, the journal tape and the replay container, and the
   16-byte prefix they share with maul2d.
+- [The free rotation](docs/internals/rotation.md): how a free body
+  turns through a substep, step by step.
 - [The conventions](docs/internals/maul-conventions.md): the rules
   every Maul library follows, from naming to commits.
 - [The changelog](CHANGELOG.md): every release and what changed.
