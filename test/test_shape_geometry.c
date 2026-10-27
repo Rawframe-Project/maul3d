@@ -89,6 +89,11 @@ enum
     shape_sphere,
     shape_plane,
     shape_capsule,
+    // Created through m3_opCreateShape; the kinds below have their own ops.
+    shape_plainCount,
+    shape_mesh = shape_plainCount,
+    shape_heightField,
+    shape_voxel,
     shape_count
 };
 
@@ -104,8 +109,20 @@ static const GeomCase s_geomCases[] = {
     {"a capsule's reserved field", shape_capsule, offsetof(m3ShapeGeom, s2), 1.0f},
 };
 
-// A box and a sphere on a dynamic body, a plane and a capsule on a
-// static one; shapes[i] receives each shape's id.
+// Shapes whose content arrives through their own create: restore only.
+static const GeomCase s_contentCases[] = {
+    {"a mesh's radius", shape_mesh, offsetof(m3ShapeGeom, s), 1.0f},
+    {"a mesh's first point", shape_mesh, offsetof(m3ShapeGeom, v) + offsetof(m3Vec3, x), 1.0f},
+    {"a height field's second point", shape_heightField, offsetof(m3ShapeGeom, v2), 1.0f},
+    {"a height field's reserved field", shape_heightField, offsetof(m3ShapeGeom, s2), 1.0f},
+    {"a voxel chunk's first point", shape_voxel, offsetof(m3ShapeGeom, v) + offsetof(m3Vec3, y),
+     1.0f},
+    {"a voxel chunk's reserved field", shape_voxel, offsetof(m3ShapeGeom, s2), 1.0f},
+};
+
+// A box and a sphere on a dynamic body; a plane, a capsule, a mesh, a
+// height field and a voxel chunk on a static one; shapes[i] receives each
+// shape's id.
 static void Build(m3World* world, m3ShapeId* shapes)
 {
     m3ShapeDef sd = m3DefaultShapeDef();
@@ -121,6 +138,15 @@ static void Build(m3World* world, m3ShapeId* shapes)
     shapes[shape_plane] = NewPlaneShape(world, ground, &sd, &plane);
     m3Capsule capsule = {{4.0f, 1.0f, 0.0f}, {6.0f, 1.0f, 0.0f}, 0.5f};
     shapes[shape_capsule] = NewCapsuleShape(world, ground, &sd, &capsule);
+    static const m3Vec3 quad[4] = {
+        {-2.0f, 0.0f, 8.0f}, {2.0f, 0.0f, 8.0f}, {2.0f, 0.0f, 12.0f}, {-2.0f, 0.0f, 12.0f}};
+    static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    shapes[shape_mesh] = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
+    static const float heights[16] = {0.0f};
+    shapes[shape_heightField] = NewHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f);
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    voxels[0] = 1;
+    shapes[shape_voxel] = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.5f);
 }
 
 // A tape that builds the shapes replays; the same tape with one unused
@@ -151,7 +177,7 @@ static void TestReplayTakesCreatedGeometry(void)
     m3DestroyWorld(again);
 
     // The shape creates on the tape, in create order.
-    int32_t creates[shape_count];
+    int32_t creates[shape_plainCount];
     int32_t found = 0;
     for (int32_t at = M3_JOURNAL_HEADER_BYTES; at + 8 <= bytes;)
     {
@@ -159,16 +185,16 @@ static void TestReplayTakesCreatedGeometry(void)
         int32_t size;
         memcpy(&op, tape + at, sizeof(op));
         memcpy(&size, tape + at + 4, sizeof(size));
-        if (op == (int32_t)m3_opCreateShape && found < shape_count)
+        if (op == (int32_t)m3_opCreateShape && found < shape_plainCount)
         {
             creates[found] = at + 8;
             found += 1;
         }
         at += 8 + size;
     }
-    CHECK(found == shape_count, "every shape's create is on the tape");
-    for (size_t c = 0; found == shape_count && c < sizeof(s_geomCases) / sizeof(s_geomCases[0]);
-         ++c)
+    CHECK(found == shape_plainCount, "every plain shape's create is on the tape");
+    for (size_t c = 0;
+         found == shape_plainCount && c < sizeof(s_geomCases) / sizeof(s_geomCases[0]); ++c)
     {
         const GeomCase* k = &s_geomCases[c];
         memcpy(edited, tape, (size_t)bytes);
@@ -183,7 +209,8 @@ static void TestReplayTakesCreatedGeometry(void)
 }
 
 // A snapshot of the shapes restores; the same snapshot with one geometry
-// field changed as above is refused, and the world is left as it was.
+// field changed as above, or one unused field of a mesh, a height field or
+// a voxel chunk set, is refused, and the world is left as it was.
 static void TestRestoreTakesCreatedGeometry(void)
 {
     m3World* world = DefaultWorld();
@@ -202,11 +229,22 @@ static void TestRestoreTakesCreatedGeometry(void)
         m3DestroyWorld(world);
         return;
     }
+    bool built = true;
+    for (int32_t i = 0; i < shape_count; ++i)
+    {
+        built = built && shapes[i].index1 != 0;
+    }
+    CHECK(built, "every shape is created");
+    CHECK(world->shapes.shapeType[shapes[shape_heightField].index1 - 1] ==
+              (uint8_t)m3_heightFieldShape,
+          "the grid is a height field shape");
     uint64_t hash = m3World_Hash(world);
     CHECK(Restore(world, snap, size) && m3World_Hash(world) == hash, "the snapshot restores");
-    for (size_t c = 0; c < sizeof(s_geomCases) / sizeof(s_geomCases[0]); ++c)
+    const size_t plain = sizeof(s_geomCases) / sizeof(s_geomCases[0]);
+    const size_t content = sizeof(s_contentCases) / sizeof(s_contentCases[0]);
+    for (size_t c = 0; c < plain + content; ++c)
     {
-        const GeomCase* k = &s_geomCases[c];
+        const GeomCase* k = c < plain ? &s_geomCases[c] : &s_contentCases[c - plain];
         size_t slot = (size_t)(shapes[k->shape].index1 - 1);
         memcpy(edited, snap, (size_t)size);
         memcpy(edited + M3_SNAPSHOT_HEADER_BYTES + (size_t)field + slot * sizeof(m3ShapeGeom) +
