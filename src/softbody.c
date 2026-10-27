@@ -91,10 +91,28 @@ static bool ParticleScalarsValid(const m3SoftBodyDef* def)
            m3WithinF(def->gravityScale, M3_RATIO_LIMIT); // false for NaN
 }
 
+// A particle's create position: the def's position plus an offset, as
+// both creates seed it.
+static m3Pos3 ParticleAt(const m3SoftBodyDef* def, m3Vec3 offset)
+{
+    return (m3Pos3){def->position.x + (double)offset.x, def->position.y + (double)offset.y,
+                    def->position.z + (double)offset.z};
+}
+
+// The lattice's far corner, the particle farthest along every axis from
+// the def's position, which every other particle lies between.
+static m3Pos3 LatticeFarCorner(const m3SoftBodyDef* def)
+{
+    return ParticleAt(def, (m3Vec3){(m3real)(def->countX - 1) * def->spacing,
+                                    (m3real)(def->countY - 1) * def->spacing,
+                                    (m3real)(def->countZ - 1) * def->spacing});
+}
+
 // Every field check lives here, where the public door and replay both
 // pass: replay hands raw journal bytes, and a flipped bit could produce
 // NaN positions or an overflowing particle count. The edge count is
-// checked before a slot is taken, so a refusal moves no id.
+// checked before a slot is taken, so a refusal moves no id. Every
+// particle lies within M3_POSITION_LIMIT, where the step holds it.
 static bool LatticeDefValid(const m3SoftBodyDef* def)
 {
     if (def->countX < 1 || def->countY < 1 || def->countZ < 1 ||
@@ -113,7 +131,7 @@ static bool LatticeDefValid(const m3SoftBodyDef* def)
            m3FiniteF(def->pressure) && def->pressure >= 0.0f &&
            def->pressure <= M3_SOFTBODY_MAX_PRESSURE && pressureFits &&
            m3FiniteF(def->maxDeviation) && def->maxDeviation >= 0.0f &&
-           LatticeEdgeCount(def) <= M3_SOFTBODY_MAX_EDGES;
+           m3BoundedPos3(LatticeFarCorner(def)) && LatticeEdgeCount(def) <= M3_SOFTBODY_MAX_EDGES;
 }
 
 // The per-body scalars a create writes, from a def or a tet recipe.
@@ -252,9 +270,9 @@ int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
         {
             for (int32_t x = 0; x < nx; ++x)
             {
-                m3Pos3 p = {def->position.x + (double)((m3real)x * def->spacing),
-                            def->position.y + (double)((m3real)y * def->spacing),
-                            def->position.z + (double)((m3real)z * def->spacing)};
+                m3Pos3 p =
+                    ParticleAt(def, (m3Vec3){(m3real)x * def->spacing, (m3real)y * def->spacing,
+                                             (m3real)z * def->spacing});
                 SeedParticle(world, slot * M3_SOFTBODY_MAX_PARTICLES + x + nx * (y + ny * z), p,
                              invMass);
             }
@@ -363,7 +381,8 @@ static m3real TetVolume6(const m3Vec3* points, const uint16_t* tet)
 }
 
 // Lattice knobs must sit at their defaults: a tet body has no grid to
-// bend or pressurize. Every tet names four distinct points and has a
+// bend or pressurize. Every point lies within M3_POSITION_LIMIT, where
+// the step holds it. Every tet names four distinct points and has a
 // positive rest volume, which is its constraint target.
 static bool TetDefValid(const m3SoftBodyDef* def, const m3Vec3* points, int32_t pointCount,
                         const uint16_t* tets, int32_t tetCount)
@@ -378,7 +397,7 @@ static bool TetDefValid(const m3SoftBodyDef* def, const m3Vec3* points, int32_t 
     }
     for (int32_t i = 0; i < pointCount; ++i)
     {
-        if (!m3LocalV3(points[i]))
+        if (!m3LocalV3(points[i]) || !m3BoundedPos3(ParticleAt(def, points[i])))
         {
             return false;
         }
@@ -453,9 +472,8 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
     m3real invMass = 1.0f / def->particleMass;
     for (int32_t i = 0; i < pointCount; ++i)
     {
-        m3Pos3 p = {def->position.x + (double)points[i].x, def->position.y + (double)points[i].y,
-                    def->position.z + (double)points[i].z};
-        SeedParticle(world, slot * M3_SOFTBODY_MAX_PARTICLES + i, p, invMass);
+        SeedParticle(world, slot * M3_SOFTBODY_MAX_PARTICLES + i, ParticleAt(def, points[i]),
+                     invMass);
     }
     if (!AddTetEdges(world, slot, points, tets, tetCount))
     {

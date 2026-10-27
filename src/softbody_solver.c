@@ -145,6 +145,9 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     world->softBodies.softPos[k].x += (double)(depth * n.x);
     world->softBodies.softPos[k].y += (double)(depth * n.y);
     world->softBodies.softPos[k].z += (double)(depth * n.z);
+    // Within the position limit after every move, so the next substep's
+    // velocity and every particle difference stay finite.
+    world->softBodies.softPos[k] = m3HoldPosition(world->softBodies.softPos[k]);
     // Two-way: a particle pushed out of a dynamic body
     // pushes back, the wheel-reaction pattern: the projection is a
     // velocity change of depth over h on the particle's mass,
@@ -183,6 +186,7 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     world->softBodies.softPos[k].x -= (double)(tang.x * scale);
     world->softBodies.softPos[k].y -= (double)(tang.y * scale);
     world->softBodies.softPos[k].z -= (double)(tang.z * scale);
+    world->softBodies.softPos[k] = m3HoldPosition(world->softBodies.softPos[k]);
 }
 
 // One particle against one shape, in the shape body's local frame. xf is
@@ -549,8 +553,8 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
 }
 
 // The soft pass: XPBD small steps over the full shape set.
-// Every particle within M3_REACH_LIMIT once the substep has placed it, an
-// anchored one included.
+// Every particle within M3_POSITION_LIMIT once the substep has placed it,
+// an anchored one included.
 static void HoldParticles(m3World* world)
 {
     for (int32_t slot = 0; slot < world->softBodies.softPool.maxIndex; ++slot)
@@ -562,9 +566,10 @@ static void HoldParticles(m3World* world)
         int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
         for (int32_t i = 0; i < world->softBodies.softParticleCount[slot]; ++i)
         {
-            world->softBodies.softPos[base + i] = m3HoldReach(world->softBodies.softPos[base + i]);
+            world->softBodies.softPos[base + i] =
+                m3HoldPosition(world->softBodies.softPos[base + i]);
             world->softBodies.softPrev[base + i] =
-                m3HoldReach(world->softBodies.softPrev[base + i]);
+                m3HoldPosition(world->softBodies.softPrev[base + i]);
         }
     }
 }

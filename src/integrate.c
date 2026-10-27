@@ -364,7 +364,7 @@ void m3IntegratePositions(m3World* world, const int32_t* movers, int32_t moverCo
         world->bodies.transforms[i].p.x = cx - (double)rlcNew.x;
         world->bodies.transforms[i].p.y = cy - (double)rlcNew.y;
         world->bodies.transforms[i].p.z = cz - (double)rlcNew.z;
-        world->bodies.transforms[i].p = m3HoldReach(world->bodies.transforms[i].p);
+        world->bodies.transforms[i].p = m3HoldPosition(world->bodies.transforms[i].p);
         deltaPos[i] = m3Add3(deltaPos[i], m3MulSV3(h, v));
         deltaRot[i] = m3IntegrateRotation(deltaRot[i], dw);
     }
