@@ -169,9 +169,11 @@ extern "C"
     M3_API m3JointDef m3DefaultJointDef(void);
 
     /// Create a joint between two distinct bodies of the same world
-    /// (at least one dynamic). Returns m3_errorInvalid for a bad def,
-    /// m3_errorStale for a stale body and m3_errorCapacity for an
-    /// exhausted pool; *jointOut is the null id on any failure.
+    /// (at least one dynamic). Returns m3_errorInvalid for a bad def or
+    /// for a spherical, revolute, prismatic, fixed, wheel or motor joint
+    /// whose bodies' lever ratio would pass 1e10 (the guide's magnitude
+    /// limits), m3_errorStale for a stale body and m3_errorCapacity for
+    /// an exhausted pool; *jointOut is the null id on any failure.
     /// Journaled; replay verifies the minted id. Destroying either body
     /// destroys the joint.
     M3_NODISCARD M3_API m3Result m3CreateJoint(m3World* world, const m3JointDef* def,

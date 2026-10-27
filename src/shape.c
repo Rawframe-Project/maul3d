@@ -698,6 +698,10 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
     {
         return m3Refuse(world, m3_errorInvalid); // the character's capsule
     }
+    if (!m3ShapeRemovalFits(world, index))
+    {
+        return m3Refuse(world, m3_errorInvalid); // a joint would pass its lever ratio
+    }
     if (world->recorder.journalActive != 0)
     {
         m3JournalRecord(world, m3_opDestroyShape, &shape, (int32_t)sizeof(shape));

@@ -18,6 +18,7 @@
 #include "misuse.h"
 #include "shape.h"
 #include "snapshot_links.h"
+#include "snapshot_mass.h"
 #include "state_prefix.h"
 #include "voxel_coverage.h"
 #include "world_internal.h"
@@ -620,92 +621,6 @@ static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
     return true;
 }
 
-// Where each hull slot's content starts in the tail, or -1 for an empty
-// slot; TailFits has checked every count and size.
-static void HullContentStarts(const m3World* world, const uint8_t* raw, int32_t cursor,
-                              int32_t* starts)
-{
-    for (int32_t h = 0; h < world->shapes.shapeCapacity; ++h)
-    {
-        int32_t counts[4];
-        memcpy(counts, raw + cursor, sizeof(counts));
-        cursor += 16;
-        starts[h] = counts[0] > 0 ? cursor : -1;
-        if (counts[0] > 0)
-        {
-            cursor += 4 + 2 * (int32_t)sizeof(m3Vec3) + (int32_t)sizeof(m3Mat3) +
-                      counts[0] * (int32_t)sizeof(m3Vec3) +
-                      counts[1] * ((int32_t)sizeof(m3Vec3) + 4 + 1 + 2) + counts[2] +
-                      counts[3] * (int32_t)sizeof(m3HullHalfEdge);
-        }
-    }
-}
-
-// Whether every incoming dynamic body's shapes keep the mass floors and
-// the body within M3_MASS_LIMIT, the bounds its creates and setters
-// kept, through the check they ask. The links check has made the shape
-// lists and content indices safe to follow.
-static m3Result IncomingMassesFit(m3World* world, const uint8_t* raw, int32_t hullCursor)
-{
-    int32_t* starts = (int32_t*)m3AllocArray(
-        &world->heap, world->shapes.shapeCapacity > 0 ? world->shapes.shapeCapacity : 1,
-        (int64_t)sizeof(int32_t));
-    if (starts == NULL)
-    {
-        return m3_errorCapacity;
-    }
-    HullContentStarts(world, raw, hullCursor, starts);
-    const uint8_t* prefix = raw + sizeof(m3SnapshotHeader);
-#define M3_IN(field) (prefix + m3StateFieldAt(world, offsetof(m3World, field)))
-    const uint8_t* alive = M3_IN(bodies.bodyPool.alive);
-    const uint8_t* types = M3_IN(bodies.types);
-    const uint8_t* heads = M3_IN(bodies.bodyShapeHead);
-    const uint8_t* next = M3_IN(shapes.shapeNext);
-    const uint8_t* shapeTypes = M3_IN(shapes.shapeType);
-    const uint8_t* geoms = M3_IN(shapes.shapeGeom);
-    const uint8_t* densities = M3_IN(shapes.shapeDensity);
-    const uint8_t* hullIndices = M3_IN(shapes.shapeHullIndex);
-#undef M3_IN
-    m3HullData hull; // only the unit mass properties are read
-    memset(&hull, 0, sizeof(hull));
-    bool fits = true;
-    for (int32_t b = 0; fits && b < world->bodies.bodyPool.capacity; ++b)
-    {
-        if (alive[b] == 0 || types[b] != (uint8_t)m3_dynamicBody)
-        {
-            continue;
-        }
-        double total = 0.0;
-        int32_t s;
-        memcpy(&s, heads + 4 * (size_t)b, sizeof(s));
-        while (fits && s != -1)
-        {
-            m3ShapeGeom geom;
-            float density;
-            int32_t h;
-            memcpy(&geom, geoms + (size_t)s * sizeof(m3ShapeGeom), sizeof(geom));
-            memcpy(&density, densities + 4 * (size_t)s, sizeof(density));
-            memcpy(&h, hullIndices + 4 * (size_t)s, sizeof(h));
-            // A hull shape names a live slot (the links check); an empty
-            // one weighs nothing, below the floor.
-            memset(&hull.unitMass, 0, sizeof(hull.unitMass));
-            memset(&hull.unitInertiaCom, 0, sizeof(hull.unitInertiaCom));
-            if (h >= 0 && starts[h] >= 0)
-            {
-                const uint8_t* at = raw + starts[h];
-                memcpy(&hull.unitMass, at, sizeof(hull.unitMass));
-                memcpy(&hull.unitCom, at + 4, sizeof(hull.unitCom));
-                memcpy(&hull.unitInertiaCom, at + 4 + sizeof(m3Vec3), sizeof(hull.unitInertiaCom));
-            }
-            fits = m3ShapeMassFloors(shapeTypes[s], &geom, h >= 0 ? &hull : NULL, density, &total);
-            memcpy(&s, next + 4 * (size_t)s, sizeof(s));
-        }
-        fits = fits && total <= (double)M3_MASS_LIMIT;
-    }
-    m3Free(&world->heap, starts);
-    return fits ? m3_success : m3_errorInvalid;
-}
-
 // Fills the stage from a buffer whose every byte has been checked, so a
 // false return means only that the allocator refused.
 static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int32_t fixed,
@@ -900,7 +815,8 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     {
         return links;
     }
-    m3Result masses = IncomingMassesFit(world, raw, MeshTailEnd(world, raw, size, fixed));
+    m3Result masses = m3SnapshotMassesFit(world, raw, raw + sizeof(m3SnapshotHeader),
+                                          MeshTailEnd(world, raw, size, fixed));
     if (masses != m3_success)
     {
         return masses;

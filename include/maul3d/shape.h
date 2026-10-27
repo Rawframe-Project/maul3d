@@ -90,9 +90,10 @@ extern "C"
     /// Create a sphere on a body and recompute the body's mass from
     /// its shapes (sphere mass = density * 4/3 pi r^3, inertia
     /// 0.4 m r^2). Returns m3_errorInvalid for an invalid def or
-    /// geometry, m3_errorStale for a stale body and m3_errorCapacity for
-    /// an exhausted pool; every shape create leaves *shapeOut the null
-    /// id on any failure.
+    /// geometry, or for a mass that would carry a joint on the body past
+    /// its lever ratio, m3_errorStale for a stale body and
+    /// m3_errorCapacity for an exhausted pool; every shape create leaves
+    /// *shapeOut the null id on any failure.
     M3_NODISCARD M3_API m3Result m3CreateSphereShape(m3World* world, m3BodyId body,
                                                      const m3ShapeDef* def, const m3Sphere* sphere,
                                                      m3ShapeId* shapeOut);
@@ -154,7 +155,8 @@ extern "C"
     /// (interned slabs are immutable by law). Journaled; mass,
     /// extents, and the broadphase follow, and sleepers around both
     /// the old and the new bounds wake. The new geometry takes the
-    /// create's bounds, the mass floors and limit included.
+    /// create's bounds, the mass floors and limit and the joints' lever
+    /// ratio included.
     M3_API void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere);
     M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
 
@@ -327,7 +329,8 @@ extern "C"
     /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
-    /// mass.
+    /// mass. Refused with m3_errorInvalid when a joint on the owner
+    /// would pass its lever ratio at the mass left.
     M3_NODISCARD M3_API m3Result m3DestroyShape(m3World* world, m3ShapeId shape);
 
     /// Runtime material setters, with the def's bounds. Journaled;
@@ -344,7 +347,8 @@ extern "C"
     /// Set the density and rebuild the owning body's mass, center and
     /// inertia from all its shapes: a body's mass is always its shapes'.
     /// Journaled. The density must be positive and at most 1e6, and on
-    /// a dynamic body keep the mass floors and limit, as at creation.
+    /// a dynamic body keep the mass floors and limit and every joint's
+    /// lever ratio, as at creation.
     M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);
 
