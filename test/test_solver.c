@@ -486,6 +486,75 @@ static void TestGyroscopicHoldsEnergy(void)
     printf("gyroscopic energy: worst ratio to the start %.9f\n", worst);
 }
 
+// A symmetric top keeps its energy and precesses at the rate
+// Euler's equations give. A 2 m stick of radius 0.05 m spins at 10 rad/s,
+// 45 degrees off its axis, for 10 s at four substeps, once along each body
+// axis: the spin along the axis stays, the energy holds within 1e-4, and
+// after a second the spin across the axis has turned by
+// w_a (I_a - I_t) / I_t radians per second in the body frame. The implicit
+// step damped that turn, and the stick lost 87% of its energy.
+static void TestSymmetricTopKeepsEnergy(void)
+{
+    for (int32_t axis = 0; axis < 3; ++axis)
+    {
+        m3WorldDef def = m3DefaultWorldDef();
+        def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3World* world = NewWorld(&def);
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.angularDamping = 0.0f;
+        bd.enableSleep = false;
+        m3BodyId body = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        float end[3] = {0.0f, 0.0f, 0.0f};
+        end[axis] = 1.0f;
+        m3Capsule capsule = {{-end[0], -end[1], -end[2]}, {end[0], end[1], end[2]}, 0.05f};
+        NewCapsuleShape(world, body, &sd, &capsule);
+        const int32_t across1 = (axis + 1) % 3;
+        const int32_t across2 = (axis + 2) % 3;
+        float spin[3] = {0.0f, 0.0f, 0.0f};
+        spin[axis] = 7.0710678f;
+        spin[across1] = 7.0710678f;
+        m3Body_SetAngularVelocity(world, body, (m3Vec3){spin[0], spin[1], spin[2]});
+        m3Mat3 inertia = m3Body_GetRotationalInertia(world, body);
+        const double moments[3] = {(double)inertia.cx.x, (double)inertia.cy.y,
+                                   (double)inertia.cz.z};
+        const double rate = 7.0710678 * (moments[axis] - moments[across1]) / moments[across1];
+
+        double startEnergy = 0.0;
+        double worst = 0.0;
+        double axialDrift = 0.0;
+        double phaseError = 0.0;
+        for (int32_t i = 0; i <= 600; ++i)
+        {
+            m3Vec3 local =
+                m3Body_GetLocalVector(world, body, m3Body_GetAngularVelocity(world, body));
+            const double w[3] = {(double)local.x, (double)local.y, (double)local.z};
+            double energy = 0.0;
+            for (int32_t k = 0; k < 3; ++k)
+            {
+                energy += moments[k] * w[k] * w[k];
+            }
+            if (i == 0)
+            {
+                startEnergy = energy;
+            }
+            worst = fmax(worst, fabs(energy / startEnergy - 1.0));
+            axialDrift = fmax(axialDrift, fabs(w[axis] / 7.0710678 - 1.0));
+            if (i == 60)
+            {
+                double phase = atan2(w[across2], w[across1]) - rate;
+                phaseError = fabs(remainder(phase, 2.0 * (double)M3_PI));
+            }
+            m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        CHECK(worst <= 1.0e-4, "a symmetric top keeps its energy");
+        CHECK(axialDrift <= 1.0e-5, "a symmetric top keeps its spin along the axis");
+        CHECK(phaseError <= 1.0e-4, "the spin across the axis turns at Euler's rate");
+        m3DestroyWorld(world);
+    }
+}
+
 static void TestDeepSphereRecovers(void)
 {
     // A sphere spawned INSIDE a static box (the
@@ -1233,6 +1302,7 @@ int main(void)
     TestSphereRestsOnCapsule();
     TestGyroscopicTumble();
     TestGyroscopicHoldsEnergy();
+    TestSymmetricTopKeepsEnergy();
     TestDeepSphereRecovers();
     TestDeepCapsuleRecovers();
     TestCrossedCapsulesSeparate();

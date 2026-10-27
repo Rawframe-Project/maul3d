@@ -151,10 +151,84 @@ bool m3GyroscopicStep(const m3Mat3* inertia, m3real scale, m3Quat q, m3Vec3 w, m
     return true;
 }
 
+// A diagonal tensor with two equal moments is a symmetric top, which
+// Euler's equations turn exactly: the spin along the third axis stays,
+// and the spin across it turns about that axis at
+// Omega = w_a (I_a - I_t) / I_t. The implicit step damps that turn, the
+// precession of a tumbling rod, plate or square-section box, and with it
+// most of the body's energy. The gate compares are exact, and the cosine
+// and sine deterministic, so the branch is too. Returns false for any
+// other tensor, which takes the implicit step.
+static bool SymmetricTopTurn(const m3Mat3* inertia, m3Quat q, m3Vec3 w, m3real h, m3Vec3* out)
+{
+    if (inertia->cy.x != 0.0f || inertia->cz.x != 0.0f || inertia->cz.y != 0.0f)
+    {
+        return false;
+    }
+    m3Vec3 axis;
+    m3real axial;
+    m3real transverse;
+    if (inertia->cy.y == inertia->cz.z)
+    {
+        axis = (m3Vec3){1.0f, 0.0f, 0.0f};
+        axial = inertia->cx.x;
+        transverse = inertia->cy.y;
+    }
+    else if (inertia->cx.x == inertia->cz.z)
+    {
+        axis = (m3Vec3){0.0f, 1.0f, 0.0f};
+        axial = inertia->cy.y;
+        transverse = inertia->cx.x;
+    }
+    else if (inertia->cx.x == inertia->cy.y)
+    {
+        axis = (m3Vec3){0.0f, 0.0f, 1.0f};
+        axial = inertia->cz.z;
+        transverse = inertia->cx.x;
+    }
+    else
+    {
+        return false;
+    }
+    // The turn is a rotation of w about the world axis e (Rodrigues), so
+    // a zero turn leaves w bit for bit and no round trip through the body
+    // frame rescales the spin each substep.
+    const m3Vec3 e = m3RotateVec3(q, axis);
+    const m3real turn = h * m3Dot3(e, w) * ((axial - transverse) / transverse);
+    if (!m3FiniteF(turn))
+    {
+        return false;
+    }
+    // The half angle gives 1 - cos(turn) = 2 sin^2(turn / 2) to full
+    // relative precision; 1 - cos rounds away most of its bits for a small
+    // turn and grows the spin by a fraction of an ulp each substep.
+    const m3CosSin half = m3ComputeCosSin(0.5f * turn);
+    const m3real sine = 2.0f * half.s * half.c;
+    const m3real versine = 2.0f * half.s * half.s;
+    const m3Vec3 ew = m3Cross3(e, w);
+    const m3Vec3 eew = m3Cross3(e, ew);
+    m3Vec3 turned = m3Add3(w, m3Add3(m3MulSV3(sine, ew), m3MulSV3(versine, eew)));
+    // A body's turn is the same every substep, and so is the rounding of
+    // its sine and versine: left alone, it scales the spin the same way
+    // each time. A first-order correction back to the incoming length
+    // leaves only rounding that varies with the spin. It is applied as a
+    // small delta, since a factor this close to 1 rounds finer below 1
+    // than above and would scale the spin down each time instead.
+    const m3real before = m3Dot3(w, w);
+    const m3real after = m3Dot3(turned, turned);
+    const m3real delta = 0.5f * (before - after) / after;
+    if (m3FiniteF(delta))
+    {
+        turned = m3Add3(turned, m3MulSV3(delta, turned));
+    }
+    *out = turned;
+    return true;
+}
+
 // An isotropic tensor skips the step: w x (c w) vanishes in real
 // arithmetic but not bit for bit in float, and spheres keep their exact
-// trajectories. The gate compares are exact, so the branch is
-// deterministic.
+// trajectories. A symmetric top turns exactly. The gate compares are
+// exact, so the branches are deterministic.
 static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
 {
     const m3Mat3* inertia = &world->bodies.inertiaLocal[body];
@@ -168,6 +242,10 @@ static m3Vec3 Gyroscopic(const m3World* world, int32_t body, m3Vec3 w, m3real h)
     }
     m3Quat q = world->bodies.transforms[body].q;
     m3Vec3 turned;
+    if (SymmetricTopTurn(inertia, q, w, h, &turned))
+    {
+        return turned;
+    }
     if (m3GyroscopicStep(inertia, 1.0f, q, w, h, &turned))
     {
         return turned;
