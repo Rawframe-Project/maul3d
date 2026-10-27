@@ -99,7 +99,9 @@ extern "C"
                                                      m3ShapeId* shapeOut);
 
     /// Create a half-space on a STATIC body (a plane on a dynamic body
-    /// returns m3_errorInvalid). The normal is normalized on create.
+    /// returns m3_errorInvalid). The normal is normalized on create, and
+    /// the offset is within 1e15 m like every position: a farther plane
+    /// returns m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3CreatePlaneShape(m3World* world, m3BodyId body,
                                                     const m3ShapeDef* def, const m3Plane* plane,
                                                     m3ShapeId* shapeOut);

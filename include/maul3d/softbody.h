@@ -68,16 +68,17 @@ extern "C"
     /// Creates the lattice with structural edges and face diagonals
     /// in fixed index order. Refuses hostile counts, non-finite or
     /// non-positive geometry, a particle mass outside 1e-6 to 1e20 kg,
-    /// a radius past 1e4 m and a gravity scale past 1e4
-    /// (m3_errorInvalid) and a full pool
+    /// a radius past 1e4 m, a gravity scale past 1e4 and a particle
+    /// past 1e15 m on any axis (m3_errorInvalid) and a full pool
     /// (m3_errorCapacity), leaving *softBodyOut the null id.
     /// Journaled with id verification.
     M3_NODISCARD M3_API m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def,
                                                   m3SoftBodyId* softBodyOut);
 
     /// A tetrahedral soft body: explicit points (world
-    /// positions after adding def->position) and tets (four point
-    /// indices each, positive volume required). Edges come from
+    /// positions after adding def->position, each within 1e15 m on
+    /// every axis) and tets (four point indices each, positive
+    /// volume required). Edges come from
     /// the tet edges, deduplicated in first-touch order, at
     /// def->compliance; every tet holds its create volume rigidly
     /// (the incompressible jelly). def->countX/Y/Z, spacing,

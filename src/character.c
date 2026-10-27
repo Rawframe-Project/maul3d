@@ -378,7 +378,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
 
     // Write the kinematic body's new pose (rotation stays identity:
     // characters translate; facing is the host's render concern).
-    world->bodies.transforms[body].p = m3HoldReach(pos);
+    world->bodies.transforms[body].p = m3HoldPosition(pos);
     world->bodies.sleepTimes[body] = 0.0f;
 }
 
@@ -690,7 +690,7 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
     world->shapes.shapeGeom[shape].v = (m3Vec3){0.0f, halfHeight, 0.0f};
     world->shapes.shapeGeom[shape].v2 = (m3Vec3){0.0f, -halfHeight, 0.0f};
     world->shapes.shapeGeom[shape].s = radius;
-    world->bodies.transforms[body].p = m3HoldReach(newCenter);
+    world->bodies.transforms[body].p = m3HoldPosition(newCenter);
     world->bodies.sleepTimes[body] = 0.0f;
     // The grounded state stays correct through the resize (the same
     // refresh a restore runs).

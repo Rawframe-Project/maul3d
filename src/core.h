@@ -94,41 +94,31 @@ static inline bool m3BoundedPos3(m3Pos3 p)
            p.z <= M3_POSITION_LIMIT; // false for NaN
 }
 
-// How far from the origin any body or soft particle goes, per component,
-// m: restore refuses a position past it and the step holds every mover
-// and particle within it. Creates and teleports keep M3_POSITION_LIMIT,
-// so a body reaches this only by moving at the kinematic limit for about
-// 1e8 s.
-#define M3_REACH_LIMIT 1.0e18
-
-static inline bool m3WithinReach(m3Pos3 p)
-{
-    return p.x >= -M3_REACH_LIMIT && p.x <= M3_REACH_LIMIT && p.y >= -M3_REACH_LIMIT &&
-           p.y <= M3_REACH_LIMIT && p.z >= -M3_REACH_LIMIT &&
-           p.z <= M3_REACH_LIMIT; // false for NaN
-}
-
-// p held within M3_REACH_LIMIT: past it, scaled toward the origin onto
-// the bound, direction kept, and each component then clamped to the bound
-// so rounding cannot leave it a hair outside. A position within the bound
-// comes back unchanged.
-static inline m3Pos3 m3HoldReach(m3Pos3 p)
+// Every body and soft particle stays within M3_POSITION_LIMIT, per
+// component: creates and teleports place it there, the step holds it
+// there and restore refuses one past it, so the float differences of any
+// two positions stay finite. p held within the bound: past it, scaled
+// toward the origin onto the bound, direction kept, and each component
+// then clamped so rounding cannot leave it a hair outside. A position
+// within the bound comes back unchanged.
+static inline m3Pos3 m3HoldPosition(m3Pos3 p)
 {
     double big = p.x < 0.0 ? -p.x : p.x;
     double ay = p.y < 0.0 ? -p.y : p.y;
     double az = p.z < 0.0 ? -p.z : p.z;
     big = ay > big ? ay : big;
     big = az > big ? az : big;
-    if (!(big > M3_REACH_LIMIT))
+    if (!(big > M3_POSITION_LIMIT))
     {
         return p;
     }
-    double scale = M3_REACH_LIMIT / big;
+    double scale = M3_POSITION_LIMIT / big;
     double* c[3] = {&p.x, &p.y, &p.z};
     for (int32_t k = 0; k < 3; ++k)
     {
         double x = *c[k] * scale;
-        *c[k] = x > M3_REACH_LIMIT ? M3_REACH_LIMIT : (x < -M3_REACH_LIMIT ? -M3_REACH_LIMIT : x);
+        *c[k] = x > M3_POSITION_LIMIT ? M3_POSITION_LIMIT
+                                      : (x < -M3_POSITION_LIMIT ? -M3_POSITION_LIMIT : x);
     }
     return p;
 }
