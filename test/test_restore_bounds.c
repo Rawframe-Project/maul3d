@@ -280,10 +280,10 @@ static const Case s_cases[] = {
     {"closed rest volume floor", SCALAR(softBodies.softRestVolume, which_soft), (double)(0.0), -1},
     {"rest volume of a tet body", SCALAR(softBodies.softRestVolume, which_jelly), (double)(0.0), +1},
     // Positions, past which the step holds every body and particle.
-    {"body position", POSITION(bodies.transforms, m3Transform, which_ball, 0), M3_REACH_LIMIT, +1},
-    {"particle position", POSITION(softBodies.softPos, m3Pos3, which_particle, 8), -M3_REACH_LIMIT, -1},
-    {"particle previous position", POSITION(softBodies.softPrev, m3Pos3, which_particle, 16), M3_REACH_LIMIT, +1},
-    {"particle bind position", POSITION(softBodies.softBindPos, m3Pos3, which_particle, 0), M3_REACH_LIMIT, +1},
+    {"body position", POSITION(bodies.transforms, m3Transform, which_ball, 0), M3_POSITION_LIMIT, +1},
+    {"particle position", POSITION(softBodies.softPos, m3Pos3, which_particle, 8), -M3_POSITION_LIMIT, -1},
+    {"particle previous position", POSITION(softBodies.softPrev, m3Pos3, which_particle, 16), M3_POSITION_LIMIT, +1},
+    {"particle bind position", POSITION(softBodies.softBindPos, m3Pos3, which_particle, 0), M3_POSITION_LIMIT, +1},
     // Water.
     {"water low corner", POSITION(water.waterLo, m3Pos3, which_pool, 0), (double)(-M3_POSITION_LIMIT), -1},
     {"water high corner", POSITION(water.waterHi, m3Pos3, which_pool, 16), (double)(M3_POSITION_LIMIT), +1},
@@ -622,10 +622,10 @@ static void TestFarRestValuesAreRefused(void)
 }
 
 // A kinematic body at the kinematic limit, a free lattice and a lone
-// particle moving outward, all restored just inside the reach limit,
+// particle moving outward, all restored just inside the position limit,
 // cross it in one step: the step holds them within it, and the world it
 // made snapshots and restores in a second world, which steps on alike.
-static void TestStepHoldsWithinReach(void)
+static void TestStepHoldsWithinTheLimit(void)
 {
     Scene s = Build();
     m3World* world = s.world;
@@ -637,7 +637,7 @@ static void TestStepHoldsWithinReach(void)
         m3DestroyWorld(world);
         return;
     }
-    double start = M3_REACH_LIMIT - 1.0e9;
+    double start = M3_POSITION_LIMIT - 1.0e9;
     PutF64(At(&s, snap, F(bodies.transforms), sizeof(m3Transform), which_rail, 0), start);
     PutF32(At(&s, snap, F(bodies.linearVelocities), sizeof(m3Vec3), which_rail, 0),
            M3_KINEMATIC_SPEED_LIMIT);
@@ -645,35 +645,34 @@ static void TestStepHoldsWithinReach(void)
     for (int32_t i = 0; i < particles; ++i)
     {
         size_t at = sizeof(m3Pos3) * (size_t)(s.soft * M3_SOFTBODY_MAX_PARTICLES + i);
-        PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, at), M3_REACH_LIMIT - 1024.0);
-        PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, at), M3_REACH_LIMIT - 1.0e4);
+        PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, at), M3_POSITION_LIMIT - 1024.0);
+        PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, at), M3_POSITION_LIMIT - 1.0e4);
     }
     // The wind stills, so nothing slows the particles but the speed cap.
     PutF32(At(&s, snap, F(windSpeed), sizeof(float), which_world, 0), 0.0f);
     // A lone particle, free of any constraint, at the world's speed cap.
-    // The spacing of doubles there is 128 m.
     size_t dot = sizeof(m3Pos3) * (size_t)(s.dot * M3_SOFTBODY_MAX_PARTICLES);
-    PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, dot), M3_REACH_LIMIT - 1024.0);
-    PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, dot), M3_REACH_LIMIT - 1.0e4);
+    PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, dot), M3_POSITION_LIMIT - 1024.0);
+    PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, dot), M3_POSITION_LIMIT - 1.0e4);
     // The lattice lets go of the crate, so it moves as a whole.
     uint8_t* anchors = At(&s, snap, F(softBodies.softAnchorCount), sizeof(int32_t), which_soft, 0);
     int32_t none = 0;
     memcpy(anchors, &none, sizeof(none));
-    CHECK(Restore(world, snap, size), "a world just inside the reach limit restores");
+    CHECK(Restore(world, snap, size), "a world just inside the position limit restores");
     // A 10 s step: the particles at the world's speed cap cross too.
     m3World_Step(world, 10.0f, 2);
     double x = world->bodies.transforms[s.rail].p.x;
-    CHECK(x <= M3_REACH_LIMIT && x > M3_REACH_LIMIT - 1.0e3,
+    CHECK(x <= M3_POSITION_LIMIT && x > M3_POSITION_LIMIT - 1.0e3,
           "the step holds the body on the limit");
     bool within = true;
     for (int32_t i = 0; i < particles; ++i)
     {
         within = within && world->softBodies.softPos[s.soft * M3_SOFTBODY_MAX_PARTICLES + i].x <=
-                               M3_REACH_LIMIT;
+                               M3_POSITION_LIMIT;
     }
     CHECK(within, "every lattice particle stays within it");
     double dotX = world->softBodies.softPos[s.dot * M3_SOFTBODY_MAX_PARTICLES].x;
-    CHECK(dotX <= M3_REACH_LIMIT && dotX > M3_REACH_LIMIT - 1.0e3,
+    CHECK(dotX <= M3_POSITION_LIMIT && dotX > M3_POSITION_LIMIT - 1.0e3,
           "and the lone particle is held on it");
 
     Scene twin = Build();
@@ -691,21 +690,21 @@ static void TestStepHoldsWithinReach(void)
 }
 
 // The hold's scale alone can round a component a hair past the bound for
-// positions a character's repeated moves reach; the clamp after it keeps
-// every one within, the direction kept.
+// some positions past it; the clamp after it keeps every one within, the
+// direction kept.
 static void TestHoldRoundsWithin(void)
 {
-    const double past[] = {1.9560342718892493e+18, 1.8354988781294495e+18, 1.581204017112003e+18};
+    const double past[] = {1847433736937232.5, 1945270695553922.2, 1289781614590485.5};
     bool within = true;
     for (size_t i = 0; i < sizeof(past) / sizeof(past[0]); ++i)
     {
-        m3Pos3 held = m3HoldReach((m3Pos3){past[i], -0.5 * past[i], 0.0});
-        within = within && held.x <= M3_REACH_LIMIT && held.x > M3_REACH_LIMIT - 1.0e3 &&
+        m3Pos3 held = m3HoldPosition((m3Pos3){past[i], -0.5 * past[i], 0.0});
+        within = within && held.x <= M3_POSITION_LIMIT && held.x > M3_POSITION_LIMIT - 1.0e3 &&
                  fabs(held.y + 0.5 * held.x) <= 1.0e3 && held.z == 0.0;
     }
     CHECK(within, "a held position lands within the bound, direction kept");
-    m3Pos3 inside = {M3_REACH_LIMIT, -M3_REACH_LIMIT, 1.0};
-    m3Pos3 kept = m3HoldReach(inside);
+    m3Pos3 inside = {M3_POSITION_LIMIT, -M3_POSITION_LIMIT, 1.0};
+    m3Pos3 kept = m3HoldPosition(inside);
     CHECK(memcmp(&kept, &inside, sizeof(kept)) == 0, "one within it is unchanged");
 }
 
@@ -815,7 +814,7 @@ int main(void)
     TestBoundsAtTheirEdges();
     TestGroundNormalLength();
     TestFarRestValuesAreRefused();
-    TestStepHoldsWithinReach();
+    TestStepHoldsWithinTheLimit();
     TestHoldRoundsWithin();
     TestTargetReach();
     TestBodyMassLimit();

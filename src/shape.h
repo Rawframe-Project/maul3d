@@ -44,10 +44,13 @@ typedef struct m3ShapeContent
     const m3HeightFieldData* heightField;
 } m3ShapeContent;
 
-// Materials and the compound pose of a def, and the geometry of the
-// plain shape kinds. The internal create checks both; public doors check
-// them first to refuse bad input as invalid rather than as capacity.
+// Materials and the compound pose of a def, the geometry a create leaves
+// in a slot of each type, and the geometry of the plain shape kinds. The
+// internal create checks them; public doors check them first to refuse
+// bad input as invalid rather than as capacity, and restore checks every
+// slot's geometry with m3ShapeGeomValid.
 bool m3ShapeDefValid(const m3ShapeDef* def);
+bool m3ShapeGeomValid(uint8_t type, const m3ShapeGeom* geom);
 bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom);
 
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,

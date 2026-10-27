@@ -1161,7 +1161,7 @@ what real scenes use. Vectors are bounded per component.
 
 | Quantity | Limit | Where |
 |---|---|---|
-| Position | 1e15 m | body defs, poses, anchors in the world |
+| Position | 1e15 m | body defs, poses, anchors in the world, a plane's offset, every soft particle a create places |
 | Body-frame offset or extent | 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
 | Servo target | 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
 | Character move | 1e18 m | `m3Character_Move` |
@@ -1203,13 +1203,15 @@ capsule of radius 2.4e-5 m and length 2e4 m at density 1e6 weighs
 arm it reaches about 1e18. Keep a jointed body's ratio below 1e15;
 a joint past it is not refused.
 
-Restore refuses the same values past the same limits, with one
-exception: positions are bounded at 1e18 m rather than 1e15. A
-create or teleport places a body within 1e15 m, but the step may
-carry it further over a long run, and every snapshot the engine
-writes must restore. The step holds every body and soft particle
-within 1e18 m, direction kept; a body reaches it only by moving at
-the kinematic limit for about 1e8 s.
+Restore refuses the same values past the same limits. Creates and
+teleports place every body and soft particle within 1e15 m, and the
+step holds it there, direction kept: a body reaches the bound only by
+moving at the kinematic limit for about 1e5 s, or at the speed limit
+for about 1e10 s.
+
+Replay and restore take a shape's geometry only in the form a
+create leaves it: a field its type does not use is zero, and a
+plane's normal is unit length.
 
 ## Capacities
 

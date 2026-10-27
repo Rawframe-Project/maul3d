@@ -35,9 +35,8 @@ static bool BodiesValid(const m3Incoming* inc)
     return true;
 }
 
-// A live shape's geometry is what its create wrote: spheres, planes and
-// capsules pass the replay path's own check, a voxel chunk's cell is its
-// content's, and every other float is finite.
+// A live shape's geometry is what its create wrote, by the same check
+// create runs, and a voxel chunk's cell is its content's.
 static bool ShapeGeomValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
@@ -54,17 +53,7 @@ static bool ShapeGeomValid(const m3Incoming* inc)
         m3ShapeGeom geom;
         memcpy(&geom, geoms + (size_t)s * sizeof(m3ShapeGeom), sizeof(geom));
         uint8_t type = types[s];
-        if (type == (uint8_t)m3_sphereShape || type == (uint8_t)m3_planeShape ||
-            type == (uint8_t)m3_capsuleShape)
-        {
-            if (!m3PlainGeomValid(type, &geom))
-            {
-                return false;
-            }
-            continue;
-        }
-        if (!m3FiniteV3(geom.v) || !m3FiniteF(geom.s) || !m3FiniteV3(geom.v2) ||
-            !m3FiniteF(geom.s2))
+        if (!m3ShapeGeomValid(type, &geom))
         {
             return false;
         }

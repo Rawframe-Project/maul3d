@@ -76,21 +76,64 @@ static bool LocalRadius(float r)
     return r > 0.0f && r <= M3_LOCAL_LIMIT; // false for NaN
 }
 
+static bool ZeroV3(m3Vec3 v)
+{
+    return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
+}
+
+static bool BoxExtents(m3Vec3 v)
+{
+    return LocalRadius(v.x) && LocalRadius(v.y) && LocalRadius(v.z);
+}
+
+// The geometry a create leaves in a slot of each type; a field the type
+// does not use is zero. A plane's normal is unit length, as create
+// normalizes it, and its offset is within M3_POSITION_LIMIT like every
+// position. A hull keeps a box's half extents, or none when it was built
+// from points. A voxel chunk keeps only its cell size, which restore
+// matches to the chunk's content. A zero-height capsule is legal: it is a
+// documented character stance.
+bool m3ShapeGeomValid(uint8_t type, const m3ShapeGeom* geom)
+{
+    bool restZero = ZeroV3(geom->v2) && geom->s2 == 0.0f;
+    switch (type)
+    {
+    case m3_sphereShape:
+        return m3LocalV3(geom->v) && LocalRadius(geom->s) && restZero;
+    case m3_planeShape:
+    {
+        m3real n2 = m3Dot3(geom->v, geom->v);
+        double offset = (double)geom->s;
+        return n2 >= 1.0f - 1.0e-5f && n2 <= 1.0f + 1.0e-5f && offset >= -M3_POSITION_LIMIT &&
+               offset <= M3_POSITION_LIMIT && restZero; // false for NaN
+    }
+    case m3_capsuleShape:
+        return m3LocalV3(geom->v) && m3LocalV3(geom->v2) && LocalRadius(geom->s) &&
+               geom->s2 == 0.0f;
+    case m3_hullShape:
+        return (ZeroV3(geom->v) || BoxExtents(geom->v)) && geom->s == 0.0f && restZero;
+    case m3_meshShape:
+    case m3_heightFieldShape:
+        return ZeroV3(geom->v) && geom->s == 0.0f && restZero;
+    case m3_voxelShape:
+        return ZeroV3(geom->v) && m3FiniteF(geom->s) && restZero;
+    default:
+        return false;
+    }
+}
+
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
-// and box hulls, whose half extents ride in geom.v. A zero-height
-// capsule is legal: it is a documented character stance.
+// and box hulls, whose half extents ride in geom.v.
 bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom)
 {
     switch (type)
     {
     case m3_sphereShape:
-        return m3LocalV3(geom->v) && LocalRadius(geom->s);
     case m3_planeShape:
-        return m3FiniteV3(geom->v) && m3FiniteF(geom->s) && m3Dot3(geom->v, geom->v) > 1.0e-12f;
     case m3_capsuleShape:
-        return m3LocalV3(geom->v) && m3LocalV3(geom->v2) && LocalRadius(geom->s);
+        return m3ShapeGeomValid(type, geom);
     case m3_hullShape:
-        return LocalRadius(geom->v.x) && LocalRadius(geom->v.y) && LocalRadius(geom->v.z);
+        return BoxExtents(geom->v) && m3ShapeGeomValid(type, geom);
     default:
         return false;
     }
@@ -413,15 +456,16 @@ static void UndoShapeCreate(m3World* world, int32_t index, const ShapeCreateMark
 
 // Input checks live here because replay hands this function raw journal
 // bytes. Content that arrives prebuilt (hull, mesh, voxel, height field)
-// validated in its own decode path. A failure leaves every pool as it
-// was, and staged mesh and height field content is still the caller's.
+// validated in its own decode path, and its geometry is the slot's. A failure leaves every pool as
+// it was, and staged mesh and height field content is still the caller's.
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeGeom* geom, const m3ShapeDef* def,
                               const m3ShapeContent* content)
 {
     bool prebuilt = content->hull != NULL || content->mesh != NULL ||
                     content->heightField != NULL || content->voxels != NULL;
-    if (!m3ShapeDefValid(def) || (!prebuilt && !m3PlainGeomValid(type, geom)) ||
+    bool geomValid = prebuilt ? m3ShapeGeomValid(type, geom) : m3PlainGeomValid(type, geom);
+    if (!m3ShapeDefValid(def) || !geomValid ||
         !ShapeContentValid(world, bodyIndex, type, def, content) ||
         m3CharacterOwnsBody(world, bodyIndex))
     {
@@ -564,9 +608,7 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     double oldHi[3];
     m3ShapeFatAabb(world, slot, oldLo, oldHi);
     world->shapes.shapeType[slot] = type;
-    m3ShapeGeom fresh = *geom;
-    fresh.s2 = 0.0f;
-    world->shapes.shapeGeom[slot] = fresh;
+    world->shapes.shapeGeom[slot] = *geom;
     double newLo[3];
     double newHi[3];
     m3ShapeFatAabb(world, slot, newLo, newHi);
