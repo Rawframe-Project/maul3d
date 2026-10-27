@@ -1178,7 +1178,7 @@ what real scenes use. Vectors are bounded per component.
 | Mass | a shape at least 1e-6 kg with every principal moment at least 1e-12 kg m^2; a body at most 1e20 kg | shapes on dynamic bodies, a body turning dynamic, characters, soft particles |
 | Wheel radius | at least 1e-3 m | vehicle wheels |
 | Blast | 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
-| Joint lever | about 1e15 for mass * arm^2 / moment, not refused: see below | a joint's anchor on a dynamic body |
+| Joint lever | 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, fixed, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 
 The step holds what it produces within the same limits: every
 body leaves a substep within 1e5 m/s and 1e5 rad/s, a bounce asks
@@ -1191,17 +1191,25 @@ or joint impulse is held, direction kept, so its warm start changes a
 body's velocity or spin by at most 1e13 per component at that step's
 own masses and levers.
 
-One limit is not refused. Take a jointed body's mass, the arm
-from its center of mass to the joint's anchor, and its moment about
-the axis that arm turns it. When mass * arm^2 / moment passes about
-1e7, float rounds the mass away in the joint's small systems, and the
-joint solves them in double. Double keeps the mass up to a ratio of
-about 1e15. Past it the joint applies nothing, so the body falls
-freely, or it flings the body. The limits above admit far more. A
-capsule of radius 2.4e-5 m and length 2e4 m at density 1e6 weighs
-36 kg with a moment of 1.04e-8 kg m^2 about its axis; on a 1.7e4 m
-arm it reaches about 1e18. Keep a jointed body's ratio below 1e15;
-a joint past it is not refused.
+One limit spans two bodies. Take a joint's bodies, the arm from each
+one's center of mass to its anchor, and the moment about the axis that
+arm turns it: the joint's lever ratio is their mass times the squared
+arm over that moment, summed as the turn each gives over the inverse
+masses together, so a static or kinematic body adds nothing. A joint
+that solves a point block or a pair of held rows, the spherical,
+revolute, prismatic, fixed, wheel and motor joints, keeps it within
+1e10. Past about 5e11 those blocks, solved one after another, undo
+each other, and the joint lets its body go or flings it, though each
+value is within the limits above: a 1.8e4 m rod 0.5 mm thick at
+density 1e6 on a 1e4 m arm reaches about 2.5e15. A joint create past
+the ratio is refused, and so is any change that would carry a joint
+there: a shape created on, destroyed from, resized on or given a new
+density on one of its bodies, or a body's type change. Each returns
+m3_errorInvalid, or for a void setter changes nothing, and counts one
+misuse; restore and replay refuse it too. The ratio does not depend on
+how the bodies turn, so a joint within it stays within it as they
+move. The distance, generic, parallel, gear, pulley and filter joints
+solve single rows and keep no such limit.
 
 Restore refuses the same values past the same limits, with one
 exception: positions are bounded at 1e18 m rather than 1e15. A

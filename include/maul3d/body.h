@@ -149,8 +149,9 @@ extern "C"
     /// turning static; the neighborhood wakes. Refused when the linear
     /// velocity is past the new type's limit, when the body would
     /// turn dynamic with a shape below the mass floors or a total mass
-    /// past 1e20 kg, and when it holds a plane, mesh, height field or
-    /// voxel chunk and would leave static.
+    /// past 1e20 kg, when it holds a plane, mesh, height field or
+    /// voxel chunk and would leave static, and when a joint on it would
+    /// pass its lever ratio at the new type's mass.
     M3_API void m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
     /// A disabled body vanishes from simulation AND queries without
     /// being destroyed; enabling wakes its neighborhood. Journaled.

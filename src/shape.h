@@ -6,6 +6,7 @@
 #ifndef MAUL3D_SRC_SHAPE_H
 #define MAUL3D_SRC_SHAPE_H
 
+#include "joint_lever.h"
 #include "world_internal.h"
 
 void m3EnableShapeHitEventsInternal(m3World* world, int32_t slot, int32_t on);
@@ -59,11 +60,36 @@ void m3DestroyShapeInternal(m3World* world, int32_t index);
 // Rebuilds the list of live plane shapes (world->shapes.planeShapes).
 void m3RebuildPlaneList(m3World* world);
 
+// A shape as the mass computation reads it, from a world or from bytes a
+// restore checks: its type, geometry, density, hull (NULL for none) and
+// offset, and the next shape on its body (-1 for none).
+typedef struct m3MassShape
+{
+    uint8_t type;
+    uint8_t hasOffset;
+    m3ShapeGeom geom;
+    float density;
+    const m3HullData* hull;
+    m3Vec3 localPos;
+    m3Quat localRot;
+    int32_t next;
+} m3MassShape;
+
+typedef void (*m3MassShapeRead)(const void* context, int32_t shape, m3MassShape* out);
+
+// The mass a dynamic body takes from the shapes listed from head, as the
+// step reads it, its inertia about the center, and whether its shapes bear
+// any (unit mass and no inertia when they bear none). Every mass the world
+// holds comes from it, and restore asks it of the bytes it checks.
+m3LeverBody m3DynamicMassOf(m3MassShapeRead read, const void* context, int32_t head,
+                            m3Mat3* inertiaOut, bool* massiveOut);
+
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
 // Whether shape slot's body, if dynamic, would keep every mass-bearing
 // shape at M3_MASS_FLOOR and M3_INERTIA_FLOOR or more and its total mass
-// within M3_MASS_LIMIT, with slot given this type, geometry and density
+// within M3_MASS_LIMIT, and every joint on it within its lever ratio
+// (src/joint_lever.h), with slot given this type, geometry and density
 // (src/shape_mass.c). Create, reshape and density changes ask it first;
 // only a dynamic body's mass reaches the solver.
 bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
@@ -72,6 +98,14 @@ bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3S
 // The same bounds over body's shapes as they stand, asked when a body
 // turns dynamic.
 bool m3BodyMassFits(const m3World* world, int32_t body);
+
+// Whether every joint on shape slot's body keeps its lever ratio
+// (src/joint_lever.h) once slot leaves the body. Destroy asks it first.
+bool m3ShapeRemovalFits(const m3World* world, int32_t slot);
+
+// Whether every joint on body keeps its lever ratio once the body takes
+// this type and the mass the type gives it. A type change asks it first.
+bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type);
 
 // Whether one shape of this type, geometry, density and hull content (NULL
 // for a shape with none) bears no mass or weighs at least M3_MASS_FLOOR

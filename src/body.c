@@ -194,12 +194,14 @@ bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose)
 
 // A type change keeps the linear velocity within the new type's limit
 // (turning static zeroes it), keeps static-only scenery (a plane, mesh,
-// height field or voxel chunk) static, as its create required, and holds
-// a body turning dynamic to the mass bounds a dynamic body's shapes meet.
+// height field or voxel chunk) static, as its create required, holds a
+// body turning dynamic to the mass bounds a dynamic body's shapes meet, and
+// keeps every joint on the body within its lever ratio at the mass the
+// new type gives it.
 bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type)
 {
     if (type < (int32_t)m3_staticBody || type > (int32_t)m3_dynamicBody ||
-        m3CharacterOwnsBody(world, index))
+        m3CharacterOwnsBody(world, index) || !m3BodyTypeFits(world, index, (uint8_t)type))
     {
         return false;
     }

@@ -91,6 +91,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/joint_fixed.c
     src/joint_gear.c
     src/joint_generic.c
+    src/joint_lever.c
     src/joint_motor.c
     src/joint_parallel.c
     src/joint_params.c
@@ -128,6 +129,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/shape_state.c
     src/snapshot.c
     src/snapshot_links.c
+    src/snapshot_mass.c
     src/snapshot_bounds.c
     src/snapshot_values.c
     src/softbody.c

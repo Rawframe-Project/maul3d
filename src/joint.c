@@ -10,6 +10,7 @@
 
 #include "body_state.h"
 #include "fpenv.h"
+#include "joint_lever.h"
 #include "joint_solver.h"
 #include "journal.h"
 #include "manifold.h"
@@ -431,12 +432,19 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
 {
     // The def contract and the body pair are checked here, not only in
     // m3CreateJoint, because replay hands this function raw journal bytes.
-    // A joint between two immovable bodies is inert and refuses.
+    // A joint between two immovable bodies is inert and refuses, and so
+    // does one whose bodies' masses would pass its lever ratio.
     JointBake bake;
     if (!JointDefIsValid(def) || bodyA == bodyB ||
         (world->bodies.types[bodyA] != (uint8_t)m3_dynamicBody &&
          world->bodies.types[bodyB] != (uint8_t)m3_dynamicBody) ||
         !BakeJointDef(world, def, bodyA, bodyB, &bake))
+    {
+        return M3_CREATE_INVALID;
+    }
+    m3LeverBody leverA = m3LeverBodyOf(world, bodyA);
+    m3LeverBody leverB = m3LeverBodyOf(world, bodyB);
+    if (!m3LeverFits((uint8_t)def->type, &leverA, def->localAnchorA, &leverB, def->localAnchorB))
     {
         return M3_CREATE_INVALID;
     }

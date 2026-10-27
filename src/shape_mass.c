@@ -3,6 +3,7 @@
 //
 // Shape mass properties and the body mass they sum to.
 
+#include "joint_lever.h"
 #include "shape.h"
 #include "world_internal.h"
 
@@ -74,14 +75,14 @@ static m3Mat3 InvertSymmetric(m3Mat3 m)
 //: the raw props live in the SHAPE frame; the body wants
 // them in ITS frame. c' = p + R c, I' = R I R^T. Identity offsets
 // short-circuit: default scenes never enter the rotation.
-static void ComposeMassProps(const m3World* world, int32_t s, m3Vec3* com, m3Mat3* inertia)
+static void ComposeMassProps(const m3MassShape* shape, m3Vec3* com, m3Mat3* inertia)
 {
-    if (world->shapes.shapeHasOffset[s] == 0)
+    if (shape->hasOffset == 0)
     {
         return;
     }
-    m3Quat q = world->shapes.shapeLocalRot[s];
-    *com = m3Add3(world->shapes.shapeLocalPos[s], m3RotateVec3(q, *com));
+    m3Quat q = shape->localRot;
+    *com = m3Add3(shape->localPos, m3RotateVec3(q, *com));
     m3Mat3 r;
     r.cx = m3RotateVec3(q, (m3Vec3){1.0f, 0.0f, 0.0f});
     r.cy = m3RotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f});
@@ -182,13 +183,6 @@ static const m3HullData* ShapeHull(const m3World* world, int32_t s)
     return h >= 0 ? &world->hulls.hullData[h] : NULL;
 }
 
-static int ShapeMassProps(const m3World* world, int32_t s, float* massOut, m3Vec3* comOut,
-                          m3Mat3* inertiaOut)
-{
-    return MassPropsOf(world->shapes.shapeType[s], &world->shapes.shapeGeom[s], ShapeHull(world, s),
-                       world->shapes.shapeDensity[s], massOut, comOut, inertiaOut);
-}
-
 // Whether every principal moment of a symmetric inertia is at least
 // floor: inertia - floor E is positive semidefinite exactly when all
 // seven of its principal minors are non-negative. Doubles, no libm, so
@@ -220,8 +214,23 @@ bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
     return m >= M3_MASS_FLOOR && InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR);
 }
 
+// A change to one of a body's shapes: slot takes the given type, geometry
+// and density, or leaves the body when removed.
+typedef struct ShapeChange
+{
+    int32_t slot;
+    bool removed;
+    uint8_t type;
+    const m3ShapeGeom* geom;
+    float density;
+} ShapeChange;
+
+static m3LeverBody MassWith(const m3World* world, int32_t body, uint8_t type,
+                            const ShapeChange* change, m3Mat3* inertiaOut, bool* massiveOut);
+
 // The mass floors and ceiling over body's shapes, with slot (or -1 for
-// none) taking the given type, geometry and density.
+// none) taking the given type, geometry and density, and every joint on
+// the body within its lever ratio at the mass that gives.
 static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t type,
                      const m3ShapeGeom* geom, float density)
 {
@@ -237,7 +246,16 @@ static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t t
             return false;
         }
     }
-    return total <= (double)M3_MASS_LIMIT;
+    if (!(total <= (double)M3_MASS_LIMIT))
+    {
+        return false;
+    }
+    ShapeChange change = {slot, false, type, geom, density};
+    m3Mat3 inertia;
+    bool massive;
+    m3LeverBody next = MassWith(world, body, (uint8_t)m3_dynamicBody, slot >= 0 ? &change : NULL,
+                                &inertia, &massive);
+    return m3BodyJointsFit(world, body, &next);
 }
 
 bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
@@ -331,39 +349,69 @@ static void BodyExtents(const m3World* world, int32_t bodyIndex, m3Vec3 bodyCent
     *maxOut = maxExtent;
 }
 
-// Static, kinematic and shapeless dynamic bodies: no inertia and no
-// extents. A shapeless dynamic body keeps unit mass.
-static void SetMassless(m3World* world, int32_t bodyIndex, float invMass)
+// Shape s as a world holds it, with the change its context carries.
+typedef struct WorldShapes
 {
-    world->bodies.invMass[bodyIndex] = invMass;
-    world->bodies.invInertiaLocal[bodyIndex] = m3MakeZeroMat3();
-    world->bodies.inertiaLocal[bodyIndex] = m3MakeZeroMat3();
-    world->bodies.localCenters[bodyIndex] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->bodies.minExtents[bodyIndex] = 1.0e30f;
-    world->bodies.maxExtents[bodyIndex] = 0.0f;
+    const m3World* world;
+    const ShapeChange* change;
+} WorldShapes;
+
+static void ReadWorldShape(const void* context, int32_t s, m3MassShape* out)
+{
+    const WorldShapes* shapes = (const WorldShapes*)context;
+    const m3World* world = shapes->world;
+    const ShapeChange* change = shapes->change;
+    out->type = world->shapes.shapeType[s];
+    out->geom = world->shapes.shapeGeom[s];
+    out->density = world->shapes.shapeDensity[s];
+    out->hull = ShapeHull(world, s);
+    out->hasOffset = world->shapes.shapeHasOffset[s];
+    out->localPos = world->shapes.shapeLocalPos[s];
+    out->localRot = world->shapes.shapeLocalRot[s];
+    out->next = world->shapes.shapeNext[s];
+    if (change != NULL && s == change->slot)
+    {
+        out->type = change->removed ? (uint8_t)m3_planeShape : change->type;
+        if (!change->removed)
+        {
+            out->geom = *change->geom;
+            out->density = change->density;
+        }
+    }
+}
+
+// One shape's mass properties in its body's frame; 0 for a shape that
+// bears none.
+static int ComposedProps(const m3MassShape* shape, float* m, m3Vec3* c, m3Mat3* ic)
+{
+    int got = MassPropsOf(shape->type, &shape->geom, shape->hull, shape->density, m, c, ic);
+    if (got)
+    {
+        ComposeMassProps(shape, c, ic);
+    }
+    return got;
 }
 
 // Two passes: total mass and the mass-weighted center first, then the
 // inertia about that center. Every term is non-negative and small, so no
 // big-minus-big cancellation can occur.
-void m3RecomputeMass(m3World* world, int32_t bodyIndex)
+m3LeverBody m3DynamicMassOf(m3MassShapeRead read, const void* context, int32_t head,
+                            m3Mat3* inertiaOut, bool* massiveOut)
 {
-    if (world->bodies.types[bodyIndex] != (uint8_t)m3_dynamicBody)
-    {
-        SetMassless(world, bodyIndex, 0.0f);
-        return;
-    }
+    m3LeverBody none = {1.0f, m3MakeZeroMat3(), {0.0f, 0.0f, 0.0f}};
+    *inertiaOut = m3MakeZeroMat3();
+    *massiveOut = false;
     float mass = 0.0f;
     m3Vec3 center = {0.0f, 0.0f, 0.0f};
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
+    m3MassShape shape;
+    for (int32_t s = head; s != -1; s = shape.next)
     {
         float m;
         m3Vec3 c;
         m3Mat3 ic;
-        if (ShapeMassProps(world, s, &m, &c, &ic))
+        read(context, s, &shape);
+        if (ComposedProps(&shape, &m, &c, &ic))
         {
-            ComposeMassProps(world, s, &c, &ic);
             mass += m;
             center = m3Add3(center, m3MulSV3(m, c));
         }
@@ -372,27 +420,79 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     // such a body is treated like one whose shapes carry no mass.
     if (!(mass >= FLT_MIN))
     {
-        SetMassless(world, bodyIndex, 1.0f);
-        return;
+        return none;
     }
     center = m3MulSV3(1.0f / mass, center);
     m3Mat3 inertia = m3MakeZeroMat3();
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
+    for (int32_t s = head; s != -1; s = shape.next)
     {
         float m;
         m3Vec3 c;
         m3Mat3 ic;
-        if (ShapeMassProps(world, s, &m, &c, &ic))
+        read(context, s, &shape);
+        if (ComposedProps(&shape, &m, &c, &ic))
         {
-            ComposeMassProps(world, s, &c, &ic);
             AddShapeInertia(&inertia, m, c, ic, center);
         }
     }
-    world->bodies.invMass[bodyIndex] = 1.0f / mass;
+    *inertiaOut = inertia;
+    *massiveOut = true;
+    m3LeverBody body = {1.0f / mass, InvertSymmetric(inertia), center};
+    return body;
+}
+
+// The mass a body of this type takes from its shapes with change applied,
+// as the step reads it: none for a body that does not move.
+static m3LeverBody MassWith(const m3World* world, int32_t body, uint8_t type,
+                            const ShapeChange* change, m3Mat3* inertiaOut, bool* massiveOut)
+{
+    if (type != (uint8_t)m3_dynamicBody)
+    {
+        m3LeverBody none = {0.0f, m3MakeZeroMat3(), {0.0f, 0.0f, 0.0f}};
+        *inertiaOut = m3MakeZeroMat3();
+        *massiveOut = false;
+        return none;
+    }
+    WorldShapes shapes = {world, change};
+    return m3DynamicMassOf(ReadWorldShape, &shapes, world->bodies.bodyShapeHead[body], inertiaOut,
+                           massiveOut);
+}
+
+void m3RecomputeMass(m3World* world, int32_t bodyIndex)
+{
+    m3Mat3 inertia;
+    bool massive;
+    m3LeverBody next =
+        MassWith(world, bodyIndex, world->bodies.types[bodyIndex], NULL, &inertia, &massive);
+    world->bodies.invMass[bodyIndex] = next.invMass;
     world->bodies.inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
-    world->bodies.invInertiaLocal[bodyIndex] = InvertSymmetric(inertia);
-    BodyExtents(world, bodyIndex, center, &world->bodies.minExtents[bodyIndex],
+    world->bodies.invInertiaLocal[bodyIndex] = next.invInertia;
+    world->bodies.localCenters[bodyIndex] = next.center;
+    if (!massive)
+    {
+        world->bodies.minExtents[bodyIndex] = 1.0e30f;
+        world->bodies.maxExtents[bodyIndex] = 0.0f;
+        return;
+    }
+    BodyExtents(world, bodyIndex, next.center, &world->bodies.minExtents[bodyIndex],
                 &world->bodies.maxExtents[bodyIndex]);
-    world->bodies.localCenters[bodyIndex] = center;
+}
+
+bool m3ShapeRemovalFits(const m3World* world, int32_t slot)
+{
+    int32_t body = world->shapes.shapeBody[slot];
+    ShapeChange change = {slot, true, 0, NULL, 0.0f};
+    m3Mat3 inertia;
+    bool massive;
+    m3LeverBody next =
+        MassWith(world, body, world->bodies.types[body], &change, &inertia, &massive);
+    return m3BodyJointsFit(world, body, &next);
+}
+
+bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type)
+{
+    m3Mat3 inertia;
+    bool massive;
+    m3LeverBody next = MassWith(world, body, type, NULL, &inertia, &massive);
+    return m3BodyJointsFit(world, body, &next);
 }
