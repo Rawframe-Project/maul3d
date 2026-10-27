@@ -7,9 +7,9 @@
 // zeroed before it is filled, so its own padding never holds what the
 // stack held. Both checks take the padding map from the compiler, GCC's
 // __builtin_clear_padding, so a def member the copy forgets fails here
-// whatever its size; where the builtin is missing, the checks are skipped
-// and the GCC cells run them. The layout itself is pinned at build time
-// in src/format_layout.c.
+// whatever its size. test/CMakeLists.txt builds the suite only where the
+// compiler has the builtin, which the GCC cells do. The layout itself is
+// pinned at build time in src/format_layout.c.
 
 #include "helpers.h"
 #include "journal.h"
@@ -19,14 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#if defined(__has_builtin)
-#if __has_builtin(__builtin_clear_padding)
-#define PADDING_MAP 1
-#endif
-#endif
-
-#ifdef PADDING_MAP
 
 // A def's copy against the compiler's map: from a def whose every byte is
 // 0x01 (true for a bool, a tiny float, a small integer), the copy keeps
@@ -252,16 +244,10 @@ static void TestTapeIgnoresDefPadding(void)
     free(filled);
 }
 
-#endif // PADDING_MAP
-
 int main(void)
 {
-#ifdef PADDING_MAP
     TestDefCopiesMatchThePaddingMap();
     TestTapeIgnoresDefPadding();
-#else
-    printf("test_format: skipped, the compiler has no __builtin_clear_padding\n");
-#endif
     if (s_failures == 0)
     {
         printf("test_format: all green\n");

@@ -102,7 +102,17 @@ maul_add_test(voxel WHITEBOX)
 maul_add_test(bvh WHITEBOX)
 maul_add_test(fpenv WHITEBOX)
 maul_add_test(softcull WHITEBOX)
-maul_add_test(format WHITEBOX)
+# test_format takes the padding map from __builtin_clear_padding, so it is
+# built only where the compiler has it (GCC); elsewhere the suite does not
+# exist, rather than run and skip.
+include(CheckCSourceCompiles)
+check_c_source_compiles("int main(void) { int v = 0; __builtin_clear_padding(&v); return v; }"
+                        ${MAUL_PREFIX}_HAS_CLEAR_PADDING)
+if(${MAUL_PREFIX}_HAS_CLEAR_PADDING)
+    maul_add_test(format WHITEBOX)
+else()
+    message(STATUS "test_format: not built, the compiler has no __builtin_clear_padding")
+endif()
 maul_add_test(restore_links WHITEBOX)
 maul_add_test(joint_lever WHITEBOX)
 maul_add_test(restore_bounds WHITEBOX)
