@@ -23,7 +23,7 @@ format_layout: journal world_internal
 fpenv:
 hash:
 hull: world_internal
-integrate: body_state solver_math water world_internal
+integrate: body_state rigid_flow solver_math water world_internal
 island: broad_phase world_internal
 joint: body_state fpenv joint_lever joint_solver journal manifold misuse world_internal
 joint_distance: joint_solver solver_math world_internal
@@ -59,11 +59,12 @@ query_proxy: distance fpenv manifold misuse query shape_state world_internal
 quickhull: allocator hull world_internal
 raycast: fpenv misuse shape_state world_internal
 replay: misuse state_prefix
+rigid_flow: core
 shape: body_state broad_phase fpenv hull joint_lever journal misuse shape_state voxel_coverage world_internal
 shape_cast: distance fpenv manifold misuse query raycast shape_state world_internal
 shape_create: body_state fpenv journal manifold misuse quickhull shape snapshot_walk world_internal
 shape_data: world_internal
-shape_mass: joint_lever shape world_internal
+shape_mass: joint_lever rigid_flow shape world_internal
 shape_params: body_state broad_phase fpenv journal misuse shape shape_state world_internal
 shape_state: world_internal
 simd:

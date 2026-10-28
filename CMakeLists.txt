@@ -120,6 +120,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/quickhull.c
     src/raycast.c
     src/replay.c
+    src/rigid_flow.c
     src/shape.c
     src/shape_cast.c
     src/shape_create.c

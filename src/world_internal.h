@@ -425,8 +425,12 @@ typedef struct m3Bodies
     m3Vec3* angularVelocities;
     m3real* invMass;
     m3Mat3* invInertiaLocal; // inverse inertia about the COM, body frame
-    m3Mat3* inertiaLocal;    // forward tensor (the gyroscopic solve reads it)
-    m3Vec3* localCenters;    // center of mass in the body frame
+    m3Mat3* inertiaLocal;    // forward tensor about the COM, body frame
+    // The principal moments, largest first, and the rotation from the
+    // principal frame to the body frame; the free rotation reads them.
+    m3Vec3* principalMoments;
+    m3Quat* principalFrames;
+    m3Vec3* localCenters; // center of mass in the body frame
     m3real* gravityScales;
     m3real* linearDamping;
     m3real* angularDamping;

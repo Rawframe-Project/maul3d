@@ -450,6 +450,8 @@ static const m3StateArray s_state[] = {
     M3_STATE_ARRAY(bodies.invMass, m3real, body, 0),
     M3_STATE_ARRAY(bodies.invInertiaLocal, m3Mat3, body, 0),
     M3_STATE_ARRAY(bodies.inertiaLocal, m3Mat3, body, 0),
+    M3_STATE_ARRAY(bodies.principalMoments, m3Vec3, body, 0),
+    M3_STATE_ARRAY(bodies.principalFrames, m3Quat, body, 0),
     M3_STATE_ARRAY(bodies.localCenters, m3Vec3, body, 0),
     M3_STATE_ARRAY(bodies.minExtents, float, body, 0),
     M3_STATE_ARRAY(bodies.maxExtents, float, body, 0),

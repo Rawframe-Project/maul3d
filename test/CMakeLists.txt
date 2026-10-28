@@ -102,6 +102,7 @@ maul_add_test(voxel WHITEBOX)
 maul_add_test(bvh WHITEBOX)
 maul_add_test(fpenv WHITEBOX)
 maul_add_test(softcull WHITEBOX)
+maul_add_test(rigid_flow WHITEBOX)
 # test_format takes the padding map from __builtin_clear_padding, so it is
 # built only where the compiler has it (GCC); elsewhere the suite does not
 # exist, rather than run and skip.
