@@ -5,9 +5,10 @@
 // proven, not promised: two DISTINCT worlds stepped on two host
 // threads land bit-identical to their serially-stepped twins, and
 // read-only queries from a second thread between steps disturb
-// nothing. One writer per world remains the law; create/destroy
-// stay host-serialized. The TSAN CI cell runs this suite to turn
-// any data race into a red build.
+// nothing, and one world whose narrow phase runs on host threads lands
+// on its serial twin's bits. One writer per world remains the law;
+// create/destroy stay host-serialized. The TSAN CI cell runs this suite
+// to turn any data race into a red build.
 #include "helpers.h"
 #include "test_harness.h"
 
@@ -184,11 +185,118 @@ static void TestMisuseFromConcurrentReaders(void)
     m3DestroyWorld(world);
 }
 
+// Task hooks that run the ranges of one task on threads of their own.
+#define POOL_WORKERS 4
+
+typedef struct PoolRange
+{
+    m3TaskFn* task;
+    void* taskContext;
+    int32_t start;
+    int32_t end;
+} PoolRange;
+
+typedef struct Pool
+{
+    PoolRange ranges[POOL_WORKERS];
+    pthread_t threads[POOL_WORKERS];
+    int32_t threadCount;
+} Pool;
+
+static void* PoolMain(void* arg)
+{
+    PoolRange* r = (PoolRange*)arg;
+    r->task(r->start, r->end, r->taskContext);
+    return NULL;
+}
+
+static void* PoolEnqueue(m3TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
+                         void* userContext)
+{
+    Pool* pool = (Pool*)userContext;
+    int32_t grain = (itemCount + POOL_WORKERS - 1) / POOL_WORKERS;
+    grain = grain < minRange ? minRange : grain;
+    int32_t rangeCount = 0;
+    for (int32_t start = 0; start < itemCount && rangeCount < POOL_WORKERS; start += grain)
+    {
+        int32_t end = start + grain < itemCount ? start + grain : itemCount;
+        pool->ranges[rangeCount++] = (PoolRange){task, taskContext, start, end};
+    }
+    pool->ranges[rangeCount - 1].end = itemCount;
+    pool->threadCount = 0;
+    for (int32_t k = 1; k < rangeCount; ++k)
+    {
+        pthread_create(&pool->threads[pool->threadCount++], NULL, PoolMain, &pool->ranges[k]);
+    }
+    task(pool->ranges[0].start, pool->ranges[0].end, taskContext);
+    return pool;
+}
+
+static void PoolFinish(void* userTask, void* userContext)
+{
+    (void)userContext;
+    Pool* pool = (Pool*)userTask;
+    for (int32_t k = 0; k < pool->threadCount; ++k)
+    {
+        pthread_join(pool->threads[k], NULL);
+    }
+}
+
+// Boxes resting on a native height field grid, its narrow phase serial
+// or on the pool's threads.
+static uint64_t SettleOnHeightField(Pool* pool)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 128;
+    def.shapeCapacity = 128;
+    if (pool != NULL)
+    {
+        def.enqueueTask = PoolEnqueue;
+        def.finishTask = PoolFinish;
+        def.userTaskContext = pool;
+    }
+    m3World* world = NewWorld(&def);
+    static float heights[17 * 17];
+    for (int32_t i = 0; i < 17 * 17; ++i)
+    {
+        heights[i] = 0.05f * (float)((i * 7) % 5);
+    }
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    (void)NewHeightFieldGridShape(world, NewBody(world, &gd), &sd, heights, 17, 17, 1.0f);
+    for (int32_t i = 0; i < 100; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){1.0 + 1.5 * (double)(i % 10), 0.6, 1.0 + 1.5 * (double)(i / 10)};
+        NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    }
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    uint64_t hash = m3World_Hash(world);
+    m3DestroyWorld(world);
+    return hash;
+}
+
+// Height field pairs build their cell windows in the narrow phase's task
+// ranges. The windows once came from the shared step scratch, which the
+// ranges' threads bumped at once.
+static void TestHeightFieldPairsOnThreads(void)
+{
+    Pool pool;
+    uint64_t serial = SettleOnHeightField(NULL);
+    uint64_t threaded = SettleOnHeightField(&pool);
+    CHECK(threaded == serial, "a height field world on threads lands on its serial twin");
+}
+
 int main(void)
 {
     TestMisuseFromConcurrentReaders();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersBetweenSteps();
+    TestHeightFieldPairsOnThreads();
     if (s_failures == 0)
     {
         printf("test_concurrency: all green\n");
