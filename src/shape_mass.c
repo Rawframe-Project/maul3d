@@ -133,10 +133,13 @@ static int MassPropsOf(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
     {
         // Closed form: a cylinder of length L plus two hemispheres.
         // About the COM (the segment midpoint), with u the unit axis:
-        //   I = Iperp * Identity + (Iaxial - Iperp) * (u outer u)
+        //   I = Iaxial * (u outer u) + Iperp * (Identity - u outer u)
         // because t1(x)t1 + t2(x)t2 = Identity - u(x)u for any
         // orthonormal basis {t1, u, t2}. No basis matrix needed and
-        // the result is exactly symmetric.
+        // the result is exactly symmetric. Identity - u(x)u's diagonal
+        // is the sum of the other two squares, never 1 - u.x^2: the
+        // perpendicular moment can dwarf the axial one by 1e8, and a
+        // difference of the two would leave the axial only noise.
         m3Vec3 p1 = geom->v;
         m3Vec3 p2 = geom->v2;
         float r = geom->s;
@@ -156,10 +159,13 @@ static int MassPropsOf(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
         *massOut = mCyl + mSph;
         *comOut = m3MulSV3(0.5f, m3Add3(p1, p2));
         m3Mat3 ic2 = m3MakeZeroMat3();
+        float xx = u.x * u.x;
+        float yy = u.y * u.y;
+        float zz = u.z * u.z;
         float d = axial - perp;
-        ic2.cx = (m3Vec3){perp + d * u.x * u.x, d * u.x * u.y, d * u.x * u.z};
-        ic2.cy = (m3Vec3){d * u.x * u.y, perp + d * u.y * u.y, d * u.y * u.z};
-        ic2.cz = (m3Vec3){d * u.x * u.z, d * u.y * u.z, perp + d * u.z * u.z};
+        ic2.cx = (m3Vec3){axial * xx + perp * (yy + zz), d * u.x * u.y, d * u.x * u.z};
+        ic2.cy = (m3Vec3){d * u.x * u.y, axial * yy + perp * (xx + zz), d * u.y * u.z};
+        ic2.cz = (m3Vec3){d * u.x * u.z, d * u.y * u.z, axial * zz + perp * (xx + yy)};
         *inertiaOut = ic2;
         return 1;
     }
