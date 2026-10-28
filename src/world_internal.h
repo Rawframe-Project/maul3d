@@ -223,6 +223,26 @@ static inline void m3HeightFieldCellTris(const m3HeightFieldData* hf, int32_t cx
 int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
                             int32_t cap);
 
+// Whether a triangle's bounds overlap the box lo..hi.
+static inline bool m3TriangleTouchesBox(const m3Vec3 tri[3], m3Vec3 lo, m3Vec3 hi)
+{
+    m3Vec3 tlo = {m3MinF(tri[0].x, m3MinF(tri[1].x, tri[2].x)),
+                  m3MinF(tri[0].y, m3MinF(tri[1].y, tri[2].y)),
+                  m3MinF(tri[0].z, m3MinF(tri[1].z, tri[2].z))};
+    m3Vec3 thi = {m3MaxF(tri[0].x, m3MaxF(tri[1].x, tri[2].x)),
+                  m3MaxF(tri[0].y, m3MaxF(tri[1].y, tri[2].y)),
+                  m3MaxF(tri[0].z, m3MaxF(tri[1].z, tri[2].z))};
+    return !(thi.x < lo.x || tlo.x > hi.x || thi.y < lo.y || tlo.y > hi.y || thi.z < lo.z ||
+             tlo.z > hi.z);
+}
+
+// Hands visit the terrain triangles whose bounds overlap the
+// local-frame box lo..hi, two a cell in ascending cell order, until it
+// returns false.
+typedef bool m3TriangleVisit(const m3Vec3 tri[3], void* context);
+void m3HeightFieldVisit(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3TriangleVisit* visit,
+                        void* context);
+
 // Static per-mesh BVH: median split on the longest centroid
 // axis, ties broken by triangle index, leaves of up to four
 // triangles. Derived acceleration data: NEVER snapshotted, never

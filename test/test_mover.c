@@ -96,8 +96,61 @@ static void TestRigidWalkerRecipe(void)
     m3DestroyWorld(world);
 }
 
+// A mover resting 1 cm above a static surface gets one plane from it,
+// pointing up, whatever the surface is: a mesh, a height field grid, a
+// voxel slab or a box. Each surface's body origin sits off the mover,
+// where a point proxy of the surface once stood for all of it.
+static void TestPlanesFromEverySurface(void)
+{
+    static const m3Vec3 quad[4] = {
+        {0.0f, 0.0f, 0.0f}, {60.0f, 0.0f, 0.0f}, {60.0f, 0.0f, 60.0f}, {0.0f, 0.0f, 60.0f}};
+    static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
+    static float flat[64 * 64];
+    static uint8_t slab[16 * 16 * 16];
+    memset(slab, 0, sizeof(slab));
+    for (int32_t i = 0; i < 16 * 16; ++i)
+    {
+        slab[i % 16 + 16 * 16 * (i / 16)] = 1; // the bottom layer, y 0 to 4
+    }
+    const float tops[4] = {0.0f, 0.0f, 4.0f, 0.5f};
+    for (int32_t kind = 0; kind < 4; ++kind)
+    {
+        m3WorldDef wd = m3DefaultWorldDef();
+        m3World* world = NewWorld(&wd);
+        m3BodyDef gd = m3DefaultBodyDef();
+        gd.position = (m3Pos3){-30.0, 0.0, -30.0};
+        m3BodyId ground = NewBody(world, &gd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        m3ShapeId surface = m3_nullShapeId;
+        if (kind == 0)
+        {
+            surface = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
+        }
+        else if (kind == 1)
+        {
+            surface = NewHeightFieldGridShape(world, ground, &sd, flat, 64, 64, 1.0f);
+        }
+        else if (kind == 2)
+        {
+            surface = NewVoxelChunkShape(world, ground, &sd, slab, NULL, 4.0f);
+        }
+        else
+        {
+            surface = NewBoxShape(world, ground, &sd, (m3Vec3){60.0f, 0.5f, 60.0f});
+        }
+        m3MoverPlane planes[4];
+        int32_t count = m3World_CollideMover(world, (m3Pos3){0.0, (double)tops[kind] + 1.41, 0.0},
+                                             1.0f, 0.4f, 0.05f, planes, 4);
+        CHECK(count == 1 && planes[0].shapeId.index1 == surface.index1 &&
+                  planes[0].normal.y > 0.99f && fabsf(planes[0].separation - 0.01f) < 1.0e-4f,
+              "a mover above a static surface gets its plane");
+        m3DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
+    TestPlanesFromEverySurface();
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;
     wd.shapeCapacity = 8;

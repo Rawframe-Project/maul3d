@@ -143,14 +143,7 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
         m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                         mesh->vertices[mesh->indices[3 * t + 1]],
                         mesh->vertices[mesh->indices[3 * t + 2]]};
-        m3Vec3 tlo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
-                      m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y)),
-                      m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z))};
-        m3Vec3 thi = {m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x)),
-                      m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y)),
-                      m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z))};
-        if (thi.x < lo.x || tlo.x > hi.x || thi.y < lo.y || tlo.y > hi.y || thi.z < lo.z ||
-            tlo.z > hi.z)
+        if (!m3TriangleTouchesBox(tv, lo, hi))
         {
             continue;
         }
@@ -159,6 +152,43 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
         input.maxFraction = sw->fraction;
         TakeImpact(sw, &input);
     }
+}
+
+typedef struct TerrainSweep
+{
+    Sweeper* sw;
+    m3TOIInput input;
+    int32_t budget;
+} TerrainSweep;
+
+static bool SweepTerrainTriangle(const m3Vec3 tri[3], void* context)
+{
+    TerrainSweep* ts = (TerrainSweep*)context;
+    m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
+    ts->input.proxyA = (m3DistanceProxy){tv, 3, 0.0f};
+    ts->input.maxFraction = ts->sw->fraction;
+    TakeImpact(ts->sw, &ts->input);
+    ts->budget -= 1;
+    return ts->budget > 0;
+}
+
+// Sweeps against a height field grid's triangles the swept box overlaps,
+// at most 64, in ascending cell order, as for a mesh.
+static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
+{
+    m3World* world = sw->world;
+    m3Vec3 scratch[2];
+    TerrainSweep ts;
+    ts.sw = sw;
+    ts.input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
+    ts.input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
+    ts.input.sweepB = sw->sweep;
+    ts.budget = 64;
+    m3Vec3 lo;
+    m3Vec3 hi;
+    SweptBoxIn(sw, body, &lo, &hi);
+    m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
+                       SweepTerrainTriangle, &ts);
 }
 
 // Whether the fast shape sweeps against shape at all: never itself or
@@ -175,7 +205,8 @@ static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
     {
         return false;
     }
-    if (type == (uint8_t)m3_voxelShape || type == (uint8_t)m3_meshShape)
+    if (type == (uint8_t)m3_voxelShape || type == (uint8_t)m3_meshShape ||
+        type == (uint8_t)m3_heightFieldShape)
     {
         return true; // static surfaces, filtered by their contacts
     }
@@ -212,6 +243,11 @@ static bool SweepCallback(int32_t shape, void* context)
     if (type == (uint8_t)m3_meshShape)
     {
         SweepMesh(sw, shape, body);
+        return true;
+    }
+    if (type == (uint8_t)m3_heightFieldShape)
+    {
+        SweepHeightField(sw, shape, body);
         return true;
     }
     m3Vec3 scratchA[2];

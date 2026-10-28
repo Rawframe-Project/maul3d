@@ -227,7 +227,9 @@ extern "C"
     /// sample) instead of triangulated into a mesh: the low-memory
     /// terrain path. Grid limits per chunk: 2..255 in each
     /// direction; larger terrain tiles as chunks. Static bodies
-    /// only; the minimum corner sits at the body origin. Samples that
+    /// only; the minimum corner sits at the body origin. Rays,
+    /// contacts, overlaps, shape casts, movers and continuous
+    /// collision all see its triangles. Samples that
     /// would carry the world's snapshot past M3_MAX_SNAPSHOT_BYTES are
     /// refused with m3_errorCapacity, with the world as it was.
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body,

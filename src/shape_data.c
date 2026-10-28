@@ -138,18 +138,53 @@ void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf)
     memset(hf, 0, sizeof(*hf));
 }
 
-int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
-                            int32_t cap)
+// The cells a local-frame box covers in x and z, clamped to the grid:
+// cells[0] to cells[1] in x, cells[2] to cells[3] in z. A NaN corner
+// gives an empty range.
+static void CellRange(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, int32_t cells[4])
 {
     m3real inv = 1.0f / hf->cellSize;
     int32_t cx0 = m3CellFromF(floorf(lo.x * inv), 2.0e9f);
     int32_t cx1 = m3CellFromF(floorf(hi.x * inv), -2.0e9f);
     int32_t cz0 = m3CellFromF(floorf(lo.z * inv), 2.0e9f);
     int32_t cz1 = m3CellFromF(floorf(hi.z * inv), -2.0e9f);
-    cx0 = cx0 < 0 ? 0 : cx0;
-    cz0 = cz0 < 0 ? 0 : cz0;
-    cx1 = cx1 > hf->nx - 2 ? hf->nx - 2 : cx1;
-    cz1 = cz1 > hf->nz - 2 ? hf->nz - 2 : cz1;
+    cells[0] = cx0 < 0 ? 0 : cx0;
+    cells[1] = cx1 > hf->nx - 2 ? hf->nx - 2 : cx1;
+    cells[2] = cz0 < 0 ? 0 : cz0;
+    cells[3] = cz1 > hf->nz - 2 ? hf->nz - 2 : cz1;
+}
+
+void m3HeightFieldVisit(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3TriangleVisit* visit,
+                        void* context)
+{
+    int32_t cells[4];
+    CellRange(hf, lo, hi, cells);
+    for (int32_t cz = cells[2]; cz <= cells[3]; ++cz)
+    {
+        for (int32_t cx = cells[0]; cx <= cells[1]; ++cx)
+        {
+            m3Vec3 cell[2][3];
+            m3HeightFieldCellTris(hf, cx, cz, cell);
+            for (int32_t t = 0; t < 2; ++t)
+            {
+                if (m3TriangleTouchesBox(cell[t], lo, hi) && !visit(cell[t], context))
+                {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
+                            int32_t cap)
+{
+    int32_t cells[4];
+    CellRange(hf, lo, hi, cells);
+    int32_t cx0 = cells[0];
+    int32_t cx1 = cells[1];
+    int32_t cz0 = cells[2];
+    int32_t cz1 = cells[3];
     int32_t count = 0;
     for (int32_t cz = cz0; cz <= cz1; ++cz)
     {

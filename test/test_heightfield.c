@@ -193,11 +193,97 @@ static void TestRayAndOverlap(void)
     m3DestroyWorld(world);
 }
 
+// A flat grid of 1 m cells at height 2, its body's origin 2 m below
+// the surface at the grid's corner. Casts, fast bodies and characters
+// meet the surface everywhere; none meets the origin, which a point
+// proxy of the grid once stood for.
+static m3World* RaisedGrid(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){-32.0, 0.0, -32.0};
+    m3BodyId ground = NewBody(world, &gd);
+    static float heights[64 * 64];
+    for (int32_t i = 0; i < 64 * 64; ++i)
+    {
+        heights[i] = 2.0f;
+    }
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, heights, 64, 64, 1.0f);
+    CHECK(m3Shape_IsValid(world, terrain), "the raised grid lands");
+    return world;
+}
+
+static void TestCastsMeetTheGrid(void)
+{
+    m3World* world = RaisedGrid();
+    m3QueryFilter all = m3DefaultQueryFilter();
+    const m3Pos3 starts[2] = {{0.3, 6.0, 0.2}, {-31.7, 6.0, -31.8}};
+    const m3Vec3 down = {0.0f, -10.0f, 0.0f};
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        m3RayCastResult sphere = m3World_CastSphereClosest(world, starts[i], 0.5f, down, all);
+        CHECK(sphere.hit && fabsf(sphere.fraction - 0.35f) < 1.0e-3f && sphere.normal.y > 0.99f,
+              "a sphere cast meets the surface, in the middle and over the corner");
+        m3RayCastResult capsule =
+            m3World_CastCapsuleClosest(world, starts[i], (m3Vec3){0.0f, 0.25f, 0.0f},
+                                       (m3Vec3){0.0f, -0.25f, 0.0f}, 0.5f, down, all);
+        CHECK(capsule.hit && fabsf(capsule.fraction - 0.325f) < 1.0e-3f,
+              "a capsule cast meets the surface");
+        m3RayCastResult box = m3World_CastBoxClosest(world, starts[i], (m3Vec3){0.5f, 0.5f, 0.5f},
+                                                     m3MakeIdentityQuat(), down, all);
+        CHECK(box.hit && fabsf(box.fraction - 0.35f) < 1.0e-3f, "a box cast meets the surface");
+        m3RayCastResult mover = m3World_CastMover(world, starts[i], 0.5f, 0.25f, down);
+        CHECK(mover.hit && fabsf(mover.fraction - 0.325f) < 1.0e-3f,
+              "a mover cast meets the surface");
+    }
+    m3DestroyWorld(world);
+}
+
+// A body crossing the grid in one step stops on it, a bullet or not, and
+// a character walking down onto it stands on it.
+static void TestFastBodiesAndCharactersStayOnTheGrid(void)
+{
+    m3World* world = RaisedGrid();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyId fast[2];
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.isBullet = i == 1;
+        bd.position = (m3Pos3){-10.0 + 20.0 * i, 6.0, 0.5};
+        bd.linearVelocity = (m3Vec3){0.0f, -2000.0f, 0.0f};
+        fast[i] = NewBody(world, &bd);
+        m3Sphere pellet = {{0.0f, 0.0f, 0.0f}, 0.05f};
+        NewSphereShape(world, fast[i], &sd, &pellet);
+    }
+    m3CharacterDef cd = m3DefaultCharacterDef();
+    cd.position = (m3Pos3){5.0, 5.0, 5.0};
+    m3CharacterId walker = NewCharacter(world, &cd);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m3Character_Move(world, walker, (m3Vec3){0.0f, -0.2f, 0.0f});
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        CHECK(m3Body_GetPosition(world, fast[i]).y > 1.9,
+              "a body crossing the grid in a step stops on it");
+    }
+    CHECK(m3Character_GetPosition(world, walker).y > 2.0,
+          "a character walking down onto the grid stands on it");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCreateAndWalls();
     TestContacts();
     TestRayAndOverlap();
+    TestCastsMeetTheGrid();
+    TestFastBodiesAndCharactersStayOnTheGrid();
     if (s_failures == 0)
     {
         printf("test_heightfield: all passed\n");
