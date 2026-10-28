@@ -777,6 +777,50 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     m3DestroyWorld(world);
 }
 
+// A ray 0.3 m off a unit sphere's center line, or a unit capsule's
+// side, meets it with the right normal from any distance a cast takes.
+// The quadratic b^2 - a c once lost the normal from 10 km and gave a
+// NaN hit from 1e10 m. The hit point moves only by the float
+// fraction's resolution, as it does for a box.
+static void TestFarRaysKeepTheirNormal(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyId ball = NewBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    bd.position = (m3Pos3){0.0, 0.0, 10.0};
+    m3BodyId rod = NewBody(world, &bd);
+    m3Capsule capsule = {{0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 1.0f};
+    NewCapsuleShape(world, rod, &sd, &capsule);
+    const double across = sqrt(1.0 - 0.09);
+    for (int32_t shape = 0; shape < 2; ++shape)
+    {
+        double worstNormal = 0.0;
+        bool hits = true;
+        bool points = true;
+        for (double d = 10.0; d <= 1.0e17; d *= 10.0)
+        {
+            m3Pos3 origin = {d, 0.3, shape == 0 ? 0.0 : 10.0};
+            m3RayCastResult hit = m3World_CastRayClosest(
+                world, origin, (m3Vec3){(float)(-2.0 * d), 0.0f, 0.0f}, m3DefaultQueryFilter());
+            hits = hits && hit.hit && isfinite(hit.point.x) && isfinite(hit.fraction);
+            worstNormal = fmax(worstNormal, fabs((double)hit.normal.x - across) +
+                                                fabs((double)hit.normal.y - 0.3) +
+                                                fabs((double)hit.normal.z));
+            points = points && fabs(hit.point.x - across) <= 1.2e-7 * d + 1.0e-3;
+        }
+        printf("far rays, %s: worst normal error %.3g\n", shape == 0 ? "sphere" : "capsule",
+               worstNormal);
+        CHECK(hits, "a far ray hits with a finite point and fraction");
+        CHECK(worstNormal <= 1.0e-5, "a far ray keeps its normal");
+        CHECK(points, "a far ray's point moves only by the fraction's resolution");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
@@ -793,6 +837,7 @@ int main(void)
     TestGenericCasts();
     TestSensorPassThrough();
     TestSensorSleepAndBullets();
+    TestFarRaysKeepTheirNormal();
     if (s_failures == 0)
     {
         printf("test_queries: all checks passed\n");
