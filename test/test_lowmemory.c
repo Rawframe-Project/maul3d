@@ -252,8 +252,49 @@ static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
     m3DestroyWorld(world);
 }
 
+// A hull create takes QuickHull's working blocks from the allocator. A
+// refusal once read as a degenerate cloud: m3_errorInvalid, counted as
+// the caller's misuse, for a cloud that builds once memory is back.
+static void SweepHullCreate(void)
+{
+    static const m3Vec3 cloud[6] = {{0.3f, 0.0f, 0.0f},  {-0.3f, 0.0f, 0.0f}, {0.0f, 0.3f, 0.0f},
+                                    {0.0f, -0.3f, 0.0f}, {0.0f, 0.0f, 0.3f},  {0.0f, 0.0f, -0.3f}};
+    Budget budget = {-1, 0};
+    m3World* world = BudgetWorld(&budget);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    uint64_t hash = m3World_Hash(world);
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    bool refusedWhole = true;
+    int32_t refusals = 0;
+    m3ShapeId shape = m3_nullShapeId;
+    m3Result result = m3_errorCapacity;
+    for (int32_t n = 0; n < 1000 && result != m3_success; ++n)
+    {
+        budget.left = n;
+        result = m3CreateHullShape(world, body, &sd, cloud, 6, &shape);
+        budget.left = -1;
+        if (result != m3_success)
+        {
+            refusals += 1;
+            refusedWhole = refusedWhole && result == m3_errorCapacity &&
+                           m3World_Hash(world) == hash &&
+                           m3World_GetCounters(world).misuse == misuse;
+        }
+    }
+    CHECK(refusals > 0 && refusedWhole,
+          "a hull create the allocator refuses is m3_errorCapacity, counts no misuse and leaves "
+          "the world as it was");
+    CHECK(result == m3_success && m3Shape_IsValid(world, shape),
+          "with memory back the same cloud builds");
+    m3DestroyWorld(world);
+}
+
 static void TestCreateUnderBudget(void)
 {
+    SweepHullCreate();
     SweepCreate(false, kOverFloor, "a mesh create the allocator refuses leaves the world as it was",
                 "the created mesh's tree answers");
     SweepCreate(true, kOverSlab, "a voxel create the allocator refuses leaves the world as it was",
