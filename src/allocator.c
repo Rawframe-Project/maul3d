@@ -120,6 +120,18 @@ m3Stack m3StackCreate(m3Heap* heap, int32_t capacity)
     return stack;
 }
 
+bool m3StackGrow(m3Heap* heap, m3Stack* stack, int32_t capacity)
+{
+    m3Stack grown = m3StackCreate(heap, capacity);
+    if (grown.capacity == 0)
+    {
+        return false; // the old block stays, so the next step can ask again
+    }
+    m3StackDestroy(heap, stack);
+    *stack = grown;
+    return true;
+}
+
 void m3StackDestroy(m3Heap* heap, m3Stack* stack)
 {
     m3Free(heap, stack->base);

@@ -78,6 +78,10 @@ typedef struct m3Stack
 } m3Stack;
 
 m3Stack m3StackCreate(m3Heap* heap, int32_t capacity);
+/// Swaps the stack for an empty one of the given capacity. The new block
+/// is taken before the old one is freed, so when the allocator refuses
+/// it the stack keeps its block and capacity and this returns false.
+bool m3StackGrow(m3Heap* heap, m3Stack* stack, int32_t capacity);
 void m3StackDestroy(m3Heap* heap, m3Stack* stack);
 void* m3StackAlloc(m3Stack* stack, int32_t size);
 void m3StackReset(m3Stack* stack);

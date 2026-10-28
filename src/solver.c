@@ -56,8 +56,7 @@ static void SizeScratchForStep(m3World* world)
             {
                 grown *= 2;
             }
-            m3StackDestroy(&world->heap, &world->scratch);
-            world->scratch = m3StackCreate(&world->heap, grown);
+            (void)m3StackGrow(&world->heap, &world->scratch, grown);
         }
     }
 }
@@ -187,9 +186,7 @@ static void GrowScratchAfterStall(m3World* world)
 {
     if (world->scratch.overflow != 0 && world->scratch.capacity < (1 << 28))
     {
-        int32_t bigger = world->scratch.capacity * 2;
-        m3StackDestroy(&world->heap, &world->scratch);
-        world->scratch = m3StackCreate(&world->heap, bigger);
+        (void)m3StackGrow(&world->heap, &world->scratch, world->scratch.capacity * 2);
     }
 }
 
