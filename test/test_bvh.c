@@ -4,13 +4,16 @@
 // Mesh BVH gate: the brute-force referee. The tree is a pruning
 // layer, nothing more: for any query box the gathered set, filtered by
 // the exact per-triangle test, must equal the full scan filtered by the
-// same test. Plus the degenerate boxes.
+// same test. Plus the degenerate boxes. The path gathers of the tree and
+// of a height field grid keep every triangle whose box a path comes
+// within reach of, and leave most of a long diagonal's box out.
 
 #include "helpers.h"
 #include "test_harness.h"
 #include "world.h"
 #include "world_internal.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,9 +191,185 @@ static void TestRefereeGather(void)
     m3DestroyWorld(world);
 }
 
+// A random path over the 32 m mesh or grid: up to 40 m long, with a
+// reach from 5 cm to 2 m, counted up to a random fraction or all of it.
+static m3SurfacePath RandomPath(m3real span)
+{
+    m3Vec3 start = {RandRange(-4.0f, span + 4.0f), RandRange(-2.0f, 2.0f),
+                    RandRange(-4.0f, span + 4.0f)};
+    m3Vec3 step = {RandRange(-40.0f, 40.0f), RandRange(-3.0f, 3.0f), RandRange(-40.0f, 40.0f)};
+    m3real until = (NextRand() & 1u) != 0 ? 1.0f : RandRange(0.0f, 1.0f);
+    return (m3SurfacePath){start, m3Add3(start, step), RandRange(0.05f, 2.0f), until};
+}
+
+// The referee for a path: whether it comes within reach of the box lo..hi
+// on every axis at once, up to until. Slabs in double, written out here
+// apart from the library's.
+static bool PathNearBox(const m3SurfacePath* path, m3Vec3 lo, m3Vec3 hi)
+{
+    const double s[3] = {(double)path->start.x, (double)path->start.y, (double)path->start.z};
+    const double e[3] = {(double)path->end.x, (double)path->end.y, (double)path->end.z};
+    const double l[3] = {(double)lo.x, (double)lo.y, (double)lo.z};
+    const double h[3] = {(double)hi.x, (double)hi.y, (double)hi.z};
+    double r = (double)path->reach;
+    double t0 = 0.0;
+    double t1 = (double)path->until;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        double d = e[k] - s[k];
+        double a = l[k] - r;
+        double b = h[k] + r;
+        if (d == 0.0)
+        {
+            if (s[k] < a || s[k] > b)
+            {
+                return false;
+            }
+            continue;
+        }
+        double ta = (a - s[k]) / d;
+        double tb = (b - s[k]) / d;
+        t0 = fmax(t0, fmin(ta, tb));
+        t1 = fmin(t1, fmax(ta, tb));
+    }
+    return t0 <= t1;
+}
+
+static void TestRefereePathGather(void)
+{
+    m3ShapeId meshShape;
+    m3World* world = MakeMeshWorld(&meshShape);
+    const m3MeshData* mesh = MeshOf(world, meshShape);
+    const m3MeshBvh* bvh = BvhOf(world, meshShape);
+    uint16_t gathered[M3_MAX_MESH_TRIANGLES];
+    bool ascending = true;
+    bool complete = true;
+    for (int32_t round = 0; round < 300 && complete; ++round)
+    {
+        m3SurfacePath path = RandomPath(32.0f);
+        int32_t count = m3MeshBvhGatherPath(bvh, &path, gathered, M3_COUNT_OF(gathered));
+        for (int32_t i = 1; i < count; ++i)
+        {
+            ascending = ascending && gathered[i] > gathered[i - 1];
+        }
+        int32_t at = 0;
+        for (int32_t t = 0; t < mesh->triangleCount; ++t)
+        {
+            m3Vec3 tlo;
+            m3Vec3 thi;
+            TriBox(mesh, t, &tlo, &thi);
+            while (at < count && gathered[at] < t)
+            {
+                at += 1;
+            }
+            if (PathNearBox(&path, tlo, thi) && !(at < count && gathered[at] == t))
+            {
+                complete = false;
+            }
+        }
+    }
+    CHECK(ascending, "a path gather is strictly ascending");
+    CHECK(complete, "a path gather holds every triangle the path comes within reach of");
+
+    // A diagonal across the mesh, half a meter thick, against its box.
+    m3SurfacePath diagonal = {{0.0f, 0.5f, 0.0f}, {31.0f, 0.5f, 31.0f}, 0.5f, 1.0f};
+    int32_t band = m3MeshBvhGatherPath(bvh, &diagonal, gathered, M3_COUNT_OF(gathered));
+    int32_t box = m3MeshBvhGather(bvh, (m3Vec3){-0.5f, 0.0f, -0.5f}, (m3Vec3){31.5f, 1.0f, 31.5f},
+                                  gathered, M3_COUNT_OF(gathered));
+    printf("a diagonal path gathers %d triangles, its box %d\n", band, box);
+    CHECK(band > 0 && 4 * band < box, "a diagonal path gathers a band, not its box");
+    m3DestroyWorld(world);
+}
+
+// What a path visit saw: each triangle as 2 * cell + its half, in order.
+typedef struct Seen
+{
+    const m3HeightFieldData* hf;
+    int32_t ids[2 * 64 * 64];
+    int32_t count;
+} Seen;
+
+static bool SeeTriangle(const m3Vec3 tri[3], void* context)
+{
+    Seen* seen = (Seen*)context;
+    int32_t cx = (int32_t)m3MinF(tri[0].x, m3MinF(tri[1].x, tri[2].x));
+    int32_t cz = (int32_t)m3MinF(tri[0].z, m3MinF(tri[1].z, tri[2].z));
+    m3Vec3 cell[2][3];
+    m3HeightFieldCellTris(seen->hf, cx, cz, cell);
+    int32_t half = memcmp(cell[0], tri, sizeof(cell[0])) == 0 ? 0 : 1;
+    seen->ids[seen->count++] = 2 * (cz * (seen->hf->nx - 1) + cx) + half;
+    return true;
+}
+
+static void TestRefereeHeightFieldPath(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static float heights[33 * 33];
+    for (int32_t i = 0; i < 33 * 33; ++i)
+    {
+        heights[i] = 0.25f * (float)((i * 7 + (i / 33) * 13) % 5) - 0.5f;
+    }
+    m3ShapeId grid = NewHeightFieldGridShape(world, ground, &sd, heights, 33, 33, 1.0f);
+    const m3HeightFieldData* hf =
+        &world->heightFields.hfData[world->shapes.shapeHfIndex[grid.index1 - 1]];
+    static Seen seen;
+    seen.hf = hf;
+    bool ascending = true;
+    bool complete = true;
+    for (int32_t round = 0; round < 300 && complete; ++round)
+    {
+        m3SurfacePath path = RandomPath(32.0f);
+        seen.count = 0;
+        m3HeightFieldVisitPath(hf, &path, SeeTriangle, &seen);
+        for (int32_t i = 1; i < seen.count; ++i)
+        {
+            ascending = ascending && seen.ids[i] > seen.ids[i - 1];
+        }
+        int32_t at = 0;
+        for (int32_t id = 0; id < 2 * 32 * 32; ++id)
+        {
+            m3Vec3 cell[2][3];
+            m3HeightFieldCellTris(hf, (id / 2) % 32, (id / 2) / 32, cell);
+            m3Vec3 tlo = {m3MinF(cell[id & 1][0].x, m3MinF(cell[id & 1][1].x, cell[id & 1][2].x)),
+                          m3MinF(cell[id & 1][0].y, m3MinF(cell[id & 1][1].y, cell[id & 1][2].y)),
+                          m3MinF(cell[id & 1][0].z, m3MinF(cell[id & 1][1].z, cell[id & 1][2].z))};
+            m3Vec3 thi = {m3MaxF(cell[id & 1][0].x, m3MaxF(cell[id & 1][1].x, cell[id & 1][2].x)),
+                          m3MaxF(cell[id & 1][0].y, m3MaxF(cell[id & 1][1].y, cell[id & 1][2].y)),
+                          m3MaxF(cell[id & 1][0].z, m3MaxF(cell[id & 1][1].z, cell[id & 1][2].z))};
+            while (at < seen.count && seen.ids[at] < id)
+            {
+                at += 1;
+            }
+            if (PathNearBox(&path, tlo, thi) && !(at < seen.count && seen.ids[at] == id))
+            {
+                complete = false;
+            }
+        }
+    }
+    CHECK(ascending, "a grid path visit goes in ascending cell order");
+    CHECK(complete, "a grid path visit sees every triangle the path comes within reach of");
+
+    m3SurfacePath diagonal = {{0.0f, 0.5f, 0.0f}, {32.0f, 0.5f, 32.0f}, 0.5f, 1.0f};
+    seen.count = 0;
+    m3HeightFieldVisitPath(hf, &diagonal, SeeTriangle, &seen);
+    int32_t band = seen.count;
+    seen.count = 0;
+    m3HeightFieldVisit(hf, (m3Vec3){-0.5f, 0.0f, -0.5f}, (m3Vec3){32.5f, 1.0f, 32.5f}, SeeTriangle,
+                       &seen);
+    printf("a diagonal path visits %d grid triangles, its box %d\n", band, seen.count);
+    CHECK(band > 0 && 4 * band < seen.count, "a diagonal path visits a band, not its box");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRefereeGather();
+    TestRefereePathGather();
+    TestRefereeHeightFieldPath();
     if (s_failures == 0)
     {
         printf("test_bvh: all green\n");

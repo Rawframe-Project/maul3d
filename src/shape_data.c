@@ -183,6 +183,67 @@ void m3HeightFieldVisit(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Tri
     }
 }
 
+// The box of a path's points from fraction t0 to t1, padded by its reach.
+static void PathStretchBox(const m3SurfacePath* path, double t0, double t1, m3Vec3* lo, m3Vec3* hi)
+{
+    const double s[3] = {(double)path->start.x, (double)path->start.y, (double)path->start.z};
+    const double e[3] = {(double)path->end.x, (double)path->end.y, (double)path->end.z};
+    double r = (double)path->reach;
+    m3real l[3];
+    m3real h[3];
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        double a = s[k] + t0 * (e[k] - s[k]);
+        double b = s[k] + t1 * (e[k] - s[k]);
+        l[k] = (m3real)((a < b ? a : b) - r);
+        h[k] = (m3real)((a < b ? b : a) + r);
+    }
+    *lo = (m3Vec3){l[0], l[1], l[2]};
+    *hi = (m3Vec3){h[0], h[1], h[2]};
+}
+
+void m3HeightFieldVisitPath(const m3HeightFieldData* hf, const m3SurfacePath* path,
+                            m3TriangleVisit* visit, void* context)
+{
+    m3Vec3 lo;
+    m3Vec3 hi;
+    PathStretchBox(path, 0.0, (double)path->until, &lo, &hi);
+    int32_t rows[4];
+    CellRange(hf, lo, hi, rows);
+    double s = (double)path->start.z;
+    double d = (double)path->end.z - s;
+    double r = (double)path->reach;
+    double cs = (double)hf->cellSize;
+    for (int32_t cz = rows[2]; cz <= rows[3]; ++cz)
+    {
+        // The stretch of the path within reach of this row of cells: a
+        // triangle in the row is met, if at all, while the path is there.
+        double t0 = 0.0;
+        double t1 = (double)path->until;
+        if (!m3ClipSlab(s, d, (double)cz * cs - r, (double)(cz + 1) * cs + r, &t0, &t1))
+        {
+            continue;
+        }
+        m3Vec3 rowLo;
+        m3Vec3 rowHi;
+        PathStretchBox(path, t0, t1, &rowLo, &rowHi);
+        int32_t cells[4];
+        CellRange(hf, rowLo, rowHi, cells);
+        for (int32_t cx = cells[0]; cx <= cells[1]; ++cx)
+        {
+            m3Vec3 cell[2][3];
+            m3HeightFieldCellTris(hf, cx, cz, cell);
+            for (int32_t t = 0; t < 2; ++t)
+            {
+                if (m3TriangleTouchesBox(cell[t], rowLo, rowHi) && !visit(cell[t], context))
+                {
+                    return;
+                }
+            }
+        }
+    }
+}
+
 int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3Vec3 (*tris)[3],
                             int32_t cap)
 {

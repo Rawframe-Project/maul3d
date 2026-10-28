@@ -237,6 +237,44 @@ typedef bool m3TriangleVisit(const m3Vec3 tri[3], void* context);
 void m3HeightFieldVisit(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m3TriangleVisit* visit,
                         void* context);
 
+// A path through a surface's frame: a point moving from start to end,
+// carrying everything within reach of it, as a cast or a sweep does.
+// Only the part up to fraction until counts.
+typedef struct m3SurfacePath
+{
+    m3Vec3 start;
+    m3Vec3 end;
+    m3real reach;
+    m3real until;
+} m3SurfacePath;
+
+// Narrows t0..t1 to where the coordinate s + t d lies within lo..hi.
+// False when no part of t0..t1 does.
+static inline bool m3ClipSlab(double s, double d, double lo, double hi, double* t0, double* t1)
+{
+    if (d == 0.0)
+    {
+        return s >= lo && s <= hi;
+    }
+    double a = (lo - s) / d;
+    double b = (hi - s) / d;
+    double enter = a < b ? a : b;
+    double leave = a < b ? b : a;
+    *t0 = enter > *t0 ? enter : *t0;
+    *t1 = leave < *t1 ? leave : *t1;
+    return *t0 <= *t1;
+}
+
+// The terrain triangles a path may touch, handed to visit as
+// m3HeightFieldVisit does, in ascending cell order, but only from the
+// cells within reach of the path: each row of cells gets the stretch of
+// the path that comes within reach of it, and the cells across that
+// stretch's box. A path's cost follows its length, not its box: a
+// diagonal across a grid tries a band of cells, not every cell. visit
+// may lower path->until; each later row reads it.
+void m3HeightFieldVisitPath(const m3HeightFieldData* hf, const m3SurfacePath* path,
+                            m3TriangleVisit* visit, void* context);
+
 // Static per-mesh BVH: median split on the longest centroid
 // axis, ties broken by triangle index, leaves of up to four
 // triangles. Derived acceleration data: NEVER snapshotted, never
@@ -290,6 +328,12 @@ bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 // voxel surface.
 int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out,
                         int32_t capacity);
+// The same for a path: every item in a leaf whose box comes within the
+// path's reach of it up to path->until, in ascending order. A leaf off
+// the path is left out even when the path's box holds it, so a long
+// diagonal gathers a band of the tree, not all of it.
+int32_t m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, uint16_t* out,
+                            int32_t capacity);
 void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh

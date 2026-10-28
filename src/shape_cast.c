@@ -34,17 +34,19 @@ typedef struct m3ShapeCastContext
 // A cast against a static surface's pieces: its triangles, or a voxel
 // chunk's boxes. The sweeps of the surface and of the cast are relative
 // to the cast's start, and the cast's path is kept in the surface's frame
-// with the cast shape's reach, so a piece is tried only while it lies
-// within the path up to the earliest hit found so far.
+// with the cast shape's reach, so only pieces near the path are gathered
+// and a piece is tried only while it lies within the path up to the
+// earliest hit found so far.
 typedef struct SurfaceCast
 {
     m3ShapeCastContext* ctx;
     int32_t shape;
     m3Sweep surface;
     m3Sweep cast;
-    m3Vec3 start; // the cast's base at fraction 0 and 1, surface frame
-    m3Vec3 end;
-    m3real reach; // the cast shape's farthest point from its base, with skin
+    // The cast's base from fraction 0 to 1 in the surface's frame, its
+    // reach the cast shape's farthest point from the base with skin, and
+    // until the earliest hit so far.
+    m3SurfacePath path;
 } SurfaceCast;
 
 static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast* sc)
@@ -63,25 +65,27 @@ static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast
     sc->cast.c2 = ctx->translation;
     sc->cast.q1 = m3MakeIdentityQuat();
     sc->cast.q2 = m3MakeIdentityQuat();
-    sc->start = m3InvRotateVec3(xf.q, m3Neg3(sc->surface.c1));
-    sc->end = m3InvRotateVec3(xf.q, m3Sub3(ctx->translation, sc->surface.c1));
+    sc->path.start = m3InvRotateVec3(xf.q, m3Neg3(sc->surface.c1));
+    sc->path.end = m3InvRotateVec3(xf.q, m3Sub3(ctx->translation, sc->surface.c1));
     m3real farthest = 0.0f;
     for (int32_t k = 0; k < ctx->castPointCount; ++k)
     {
         farthest = m3MaxF(farthest, m3Length3(ctx->castPoints[k]));
     }
-    sc->reach = farthest + ctx->castRadius + M3_AABB_MARGIN;
+    sc->path.reach = farthest + ctx->castRadius + M3_AABB_MARGIN;
+    sc->path.until = ctx->best.hit ? ctx->best.fraction : 1.0f;
 }
 
 // The box the cast covers in the surface's frame up to fraction.
 static void SurfaceCastBox(const SurfaceCast* sc, m3real fraction, m3Vec3* lo, m3Vec3* hi)
 {
-    m3Vec3 end = m3Add3(sc->start, m3MulSV3(fraction, m3Sub3(sc->end, sc->start)));
-    m3real r = sc->reach;
-    *lo = (m3Vec3){m3MinF(sc->start.x, end.x) - r, m3MinF(sc->start.y, end.y) - r,
-                   m3MinF(sc->start.z, end.z) - r};
-    *hi = (m3Vec3){m3MaxF(sc->start.x, end.x) + r, m3MaxF(sc->start.y, end.y) + r,
-                   m3MaxF(sc->start.z, end.z) + r};
+    m3Vec3 start = sc->path.start;
+    m3Vec3 end = m3Add3(start, m3MulSV3(fraction, m3Sub3(sc->path.end, start)));
+    m3real r = sc->path.reach;
+    *lo = (m3Vec3){m3MinF(start.x, end.x) - r, m3MinF(start.y, end.y) - r,
+                   m3MinF(start.z, end.z) - r};
+    *hi = (m3Vec3){m3MaxF(start.x, end.x) + r, m3MaxF(start.y, end.y) + r,
+                   m3MaxF(start.z, end.z) + r};
 }
 
 // One piece's time of impact, kept when it is the earliest hit, ties to
@@ -131,6 +135,7 @@ static void CastPiece(SurfaceCast* sc, const m3Vec3* points, int32_t count, m3Ve
         ctx->best.shapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
         ctx->bestShape = shape;
     }
+    sc->path.until = ctx->best.hit ? ctx->best.fraction : 1.0f;
 }
 
 static bool CastTriangle(const m3Vec3 tri[3], void* context)
@@ -154,13 +159,10 @@ static void CastMesh(m3ShapeCastContext* ctx, int32_t shape)
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
-    m3Vec3 lo;
-    m3Vec3 hi;
-    SurfaceCastBox(&sc, 1.0f, &lo, &hi);
     uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount =
-        m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo, hi, gather,
-                        M3_COUNT_OF(gather));
+        m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], &sc.path,
+                            gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
         int32_t t = gather[g];
@@ -171,17 +173,15 @@ static void CastMesh(m3ShapeCastContext* ctx, int32_t shape)
     }
 }
 
-// Height field grid targets: the same recipe over the grid's triangles.
+// Height field grid targets: the same recipe over the triangles of the
+// cells near the cast's path.
 static void CastHeightField(m3ShapeCastContext* ctx, int32_t shape)
 {
     const m3World* world = ctx->world;
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
-    m3Vec3 lo;
-    m3Vec3 hi;
-    SurfaceCastBox(&sc, 1.0f, &lo, &hi);
-    m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
-                       CastTriangle, &sc);
+    m3HeightFieldVisitPath(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], &sc.path,
+                           CastTriangle, &sc);
 }
 
 // Voxel targets: per-box TOI against the merged surface, unextended
@@ -195,11 +195,8 @@ static void CastVoxels(m3ShapeCastContext* ctx, int32_t shape)
     m3real cell = world->voxels.voxelData[slot].cellSize;
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
-    m3Vec3 blo;
-    m3Vec3 bhi;
-    SurfaceCastBox(&sc, 1.0f, &blo, &bhi);
     uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
+    int32_t gatherCount = m3MeshBvhGatherPath(&surface->bvh, &sc.path, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
         m3Vec3 lo;

@@ -304,32 +304,13 @@ static void SortAscending(uint16_t* values, int32_t count, uint16_t* tmp)
     memcpy(values, tmp, (size_t)count * sizeof(uint16_t));
 }
 
-int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out, int32_t capacity)
+// Whether a gather enters a node: its quantized box, or its path.
+typedef bool NodeTest(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query);
+
+// Every item in a leaf the test enters, in ascending order.
+static int32_t CollectLeaves(const m3MeshBvh* bvh, NodeTest* test, const void* query, uint16_t* out,
+                             int32_t capacity)
 {
-    if (bvh->nodeCount == 0)
-    {
-        return 0;
-    }
-    // Float early-out first: a query outside the whole tree
-    // is free; clamping it onto the grid edge would over-visit.
-    if (hi.x < bvh->rootLo.x || lo.x > bvh->rootHi.x || hi.y < bvh->rootLo.y ||
-        lo.y > bvh->rootHi.y || hi.z < bvh->rootLo.z || lo.z > bvh->rootHi.z)
-    {
-        return 0;
-    }
-    // Quantize the query outward too: the doubly-rounded
-    // pair can only ADD candidates, never drop one.
-    uint16_t qlo[3];
-    uint16_t qhi[3];
-    for (int32_t k = 0; k < 3; ++k)
-    {
-        m3real l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
-        m3real h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
-        m3real rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
-        m3real sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
-        qlo[k] = QuantClamp(floorf((l - rl) * sc));
-        qhi[k] = QuantClamp(ceilf((h - rl) * sc));
-    }
     int32_t stack[64]; // median split depth is ~log2(2048/4) + 1; 64
                        // is unreachable headroom
     int32_t top = 0;
@@ -339,8 +320,7 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
     {
         int32_t index = stack[--top];
         const m3MeshBvhNode* node = &bvh->nodes[index];
-        if (qhi[0] < node->qlo[0] || qlo[0] > node->qhi[0] || qhi[1] < node->qlo[1] ||
-            qlo[1] > node->qhi[1] || qhi[2] < node->qlo[2] || qlo[2] > node->qhi[2])
+        if (!test(bvh, node, query))
         {
             continue;
         }
@@ -361,4 +341,84 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
     uint16_t tmp[M3_MAX_MESH_TRIANGLES];
     SortAscending(out, count, tmp);
     return count;
+}
+
+typedef struct BoxQuery
+{
+    uint16_t qlo[3];
+    uint16_t qhi[3];
+} BoxQuery;
+
+static bool NodeOverlapsBox(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query)
+{
+    (void)bvh;
+    const BoxQuery* q = (const BoxQuery*)query;
+    return !(q->qhi[0] < node->qlo[0] || q->qlo[0] > node->qhi[0] || q->qhi[1] < node->qlo[1] ||
+             q->qlo[1] > node->qhi[1] || q->qhi[2] < node->qlo[2] || q->qlo[2] > node->qhi[2]);
+}
+
+int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out, int32_t capacity)
+{
+    if (bvh->nodeCount == 0)
+    {
+        return 0;
+    }
+    // Float early-out first: a query outside the whole tree
+    // is free; clamping it onto the grid edge would over-visit.
+    if (hi.x < bvh->rootLo.x || lo.x > bvh->rootHi.x || hi.y < bvh->rootLo.y ||
+        lo.y > bvh->rootHi.y || hi.z < bvh->rootLo.z || lo.z > bvh->rootHi.z)
+    {
+        return 0;
+    }
+    // Quantize the query outward too: the doubly-rounded
+    // pair can only ADD candidates, never drop one.
+    BoxQuery query;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        m3real l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
+        m3real h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
+        m3real rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
+        m3real sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
+        query.qlo[k] = QuantClamp(floorf((l - rl) * sc));
+        query.qhi[k] = QuantClamp(ceilf((h - rl) * sc));
+    }
+    return CollectLeaves(bvh, NodeOverlapsBox, &query, out, capacity);
+}
+
+// Whether a path comes within its reach of a node before path->until.
+// The node's box is taken one grid step wider on each side than its
+// quantized bounds, so it holds every box built into it however the
+// build rounded; a flat axis spans the root.
+static bool NodeNearPath(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query)
+{
+    const m3SurfacePath* path = (const m3SurfacePath*)query;
+    const double rl[3] = {(double)bvh->rootLo.x, (double)bvh->rootLo.y, (double)bvh->rootLo.z};
+    const double rh[3] = {(double)bvh->rootHi.x, (double)bvh->rootHi.y, (double)bvh->rootHi.z};
+    const double sc[3] = {(double)bvh->quantScale.x, (double)bvh->quantScale.y,
+                          (double)bvh->quantScale.z};
+    const double s[3] = {(double)path->start.x, (double)path->start.y, (double)path->start.z};
+    const double e[3] = {(double)path->end.x, (double)path->end.y, (double)path->end.z};
+    double r = (double)path->reach;
+    double t0 = 0.0;
+    double t1 = (double)path->until;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        double lo = sc[k] > 0.0 ? rl[k] + ((double)node->qlo[k] - 1.0) / sc[k] : rl[k];
+        double hi = sc[k] > 0.0 ? rl[k] + ((double)node->qhi[k] + 1.0) / sc[k] : rh[k];
+        if (!m3ClipSlab(s[k], e[k] - s[k], lo - r, hi + r, &t0, &t1))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+int32_t m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, uint16_t* out,
+                            int32_t capacity)
+{
+    if (bvh->nodeCount == 0)
+    {
+        return 0;
+    }
+    return CollectLeaves(bvh, NodeNearPath, path, out, capacity);
 }

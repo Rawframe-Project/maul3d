@@ -61,11 +61,11 @@ static void TakeImpact(Sweeper* sw, const m3TOIInput* input)
     }
 }
 
-// The box the fast body's center of mass sweeps up to fraction, padded
-// by its reach, in the frame of a target body (static meshes, grids and
-// voxel chunks keep their pieces in their own frame). The center moves
-// on a line through the step, so the box holds the body up to fraction.
-static void SweptBoxIn(const Sweeper* sw, int32_t target, m3real fraction, m3Vec3* lo, m3Vec3* hi)
+// The fast body's path in the frame of a target body (static meshes,
+// grids and voxel chunks keep their pieces in their own frame): its
+// center of mass moves on a line through the step, carrying the body
+// within its reach, up to the earliest impact so far.
+static m3SurfacePath SweptPathIn(const Sweeper* sw, int32_t target)
 {
     const m3World* world = sw->world;
     const m3Transform* xfT = &world->bodies.transforms[target];
@@ -78,20 +78,28 @@ static void SweptBoxIn(const Sweeper* sw, int32_t target, m3real fraction, m3Vec
     m3Vec3 c2 = m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(xfF->p.x + (double)rlc.x - xfT->p.x),
                                                  (m3real)(xfF->p.y + (double)rlc.y - xfT->p.y),
                                                  (m3real)(xfF->p.z + (double)rlc.z - xfT->p.z)});
-    c2 = m3Add3(c1, m3MulSV3(fraction, m3Sub3(c2, c1)));
-    m3real pad = world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN;
+    return (m3SurfacePath){c1, c2, world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN,
+                           sw->fraction};
+}
+
+// The box a path covers up to its until.
+static void PathBox(const m3SurfacePath* path, m3Vec3* lo, m3Vec3* hi)
+{
+    m3Vec3 c1 = path->start;
+    m3Vec3 c2 = m3Add3(c1, m3MulSV3(path->until, m3Sub3(path->end, c1)));
+    m3real pad = path->reach;
     *lo = (m3Vec3){m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
     *hi = (m3Vec3){m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 }
 
 // A sweep against a static surface's pieces: its triangles, or a voxel
-// chunk's boxes. A piece is tried only while it lies in the fast body's
-// path up to the earliest impact found so far; one past it cannot come
-// earlier.
+// chunk's boxes. Only pieces near the fast body's path are gathered, and
+// a piece is tried only while it lies in the path up to the earliest
+// impact found so far; one past it cannot come earlier.
 typedef struct SurfaceSweep
 {
     Sweeper* sw;
-    int32_t body;
+    m3SurfacePath path;
     m3Vec3 scratch[2];
     m3TOIInput input;
 } SurfaceSweep;
@@ -99,7 +107,7 @@ typedef struct SurfaceSweep
 static void SurfaceSweepBegin(Sweeper* sw, int32_t body, SurfaceSweep* ss)
 {
     ss->sw = sw;
-    ss->body = body;
+    ss->path = SweptPathIn(sw, body);
     ss->input.proxyB = m3MakeShapeProxy(sw->world, sw->shape, ss->scratch);
     ss->input.sweepA = RelativeSweep(sw->world, body, sw->com0, sw->rot0, sw->base);
     ss->input.sweepB = sw->sweep;
@@ -109,7 +117,7 @@ static void SweepPiece(SurfaceSweep* ss, const m3Vec3* points, int32_t count, m3
 {
     m3Vec3 pathLo;
     m3Vec3 pathHi;
-    SweptBoxIn(ss->sw, ss->body, ss->sw->fraction, &pathLo, &pathHi);
+    PathBox(&ss->path, &pathLo, &pathHi);
     if (hi.x < pathLo.x || lo.x > pathHi.x || hi.y < pathLo.y || lo.y > pathHi.y ||
         hi.z < pathLo.z || lo.z > pathHi.z)
     {
@@ -118,6 +126,7 @@ static void SweepPiece(SurfaceSweep* ss, const m3Vec3* points, int32_t count, m3
     ss->input.proxyA = (m3DistanceProxy){points, count, 0.0f};
     ss->input.maxFraction = ss->sw->fraction;
     TakeImpact(ss->sw, &ss->input);
+    ss->path.until = ss->sw->fraction;
 }
 
 static bool SweepTriangle(const m3Vec3 tri[3], void* context)
@@ -145,11 +154,8 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     m3real cell = world->voxels.voxelData[slot].cellSize;
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
-    m3Vec3 lo;
-    m3Vec3 hi;
-    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
     uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
+    int32_t count = m3MeshBvhGatherPath(&surface->bvh, &ss.path, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < count; ++g)
     {
         m3Vec3 blo;
@@ -165,20 +171,17 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     }
 }
 
-// Sweeps against the mesh triangles the swept box overlaps, in ascending
-// triangle order.
+// Sweeps against the mesh triangles near the path, in ascending triangle
+// order.
 static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
 {
     m3World* world = sw->world;
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
-    m3Vec3 lo;
-    m3Vec3 hi;
-    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
     uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t count = m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo,
-                                    hi, gather, M3_COUNT_OF(gather));
+    int32_t count = m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]],
+                                        &ss.path, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < count; ++g)
     {
         int32_t t = gather[g];
@@ -189,18 +192,15 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
     }
 }
 
-// Sweeps against a height field grid's triangles the swept box overlaps,
-// in ascending cell order, as for a mesh.
+// Sweeps against a height field grid's triangles near the path, in
+// ascending cell order, as for a mesh.
 static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
 {
     m3World* world = sw->world;
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
-    m3Vec3 lo;
-    m3Vec3 hi;
-    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
-    m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
-                       SweepTriangle, &ss);
+    m3HeightFieldVisitPath(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], &ss.path,
+                           SweepTriangle, &ss);
 }
 
 // Whether the fast shape sweeps against shape at all: never itself or
