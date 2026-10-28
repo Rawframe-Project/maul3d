@@ -161,16 +161,14 @@ static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3V
                            OfferTriangle, near);
         return;
     }
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
+    m3MeshBvhHits gather;
     if (type == (uint8_t)m3_meshShape)
     {
         int32_t index = world->shapes.shapeMeshIndex[shape];
         const m3MeshData* mesh = &world->meshes.meshData[index];
-        int32_t count =
-            m3MeshBvhGather(&world->meshes.meshBvh[index], lo, hi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < count; ++g)
+        m3MeshBvhGather(&world->meshes.meshBvh[index], lo, hi, &gather);
+        for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
         {
-            int32_t t = gather[g];
             m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                             mesh->vertices[mesh->indices[3 * t + 1]],
                             mesh->vertices[mesh->indices[3 * t + 2]]};
@@ -184,12 +182,12 @@ static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3V
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     m3real cell = world->voxels.voxelData[slot].cellSize;
-    int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < count; ++g)
+    m3MeshBvhGather(&surface->bvh, lo, hi, &gather);
+    for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
     {
         m3Vec3 blo;
         m3Vec3 bhi;
-        m3VoxelBoxBounds(surface, cell, gather[g], &blo, &bhi);
+        m3VoxelBoxBounds(surface, cell, g, &blo, &bhi);
         m3Vec3 corners[8];
         for (int32_t k = 0; k < 8; ++k)
         {

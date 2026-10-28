@@ -102,13 +102,13 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         }
         blo = (m3Vec3){blo.x - ctx->radius, blo.y - ctx->radius, blo.z - ctx->radius};
         bhi = (m3Vec3){bhi.x + ctx->radius, bhi.y + ctx->radius, bhi.z + ctx->radius};
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < gatherCount; ++g)
+        m3MeshBvhHits gather;
+        m3MeshBvhGather(&surface->bvh, blo, bhi, &gather);
+        for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
         {
             m3Vec3 lo;
             m3Vec3 hi;
-            m3VoxelBoxBounds(surface, cell, gather[g], &lo, &hi);
+            m3VoxelBoxBounds(surface, cell, g, &lo, &hi);
             m3Vec3 corners[8];
             for (int32_t c = 0; c < 8; ++c)
             {
@@ -169,11 +169,10 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         blo = (m3Vec3){blo.x - ctx->radius, blo.y - ctx->radius, blo.z - ctx->radius};
         bhi = (m3Vec3){bhi.x + ctx->radius, bhi.y + ctx->radius, bhi.z + ctx->radius};
         const m3MeshBvh* bvh = &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]];
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
-        int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < gatherCount; ++g)
+        m3MeshBvhHits gather;
+        m3MeshBvhGather(bvh, blo, bhi, &gather);
+        for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
         {
-            int32_t t = gather[g];
             m3Vec3 tri[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                              mesh->vertices[mesh->indices[3 * t + 1]],
                              mesh->vertices[mesh->indices[3 * t + 2]]};

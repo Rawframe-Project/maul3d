@@ -210,13 +210,13 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
     m3Vec3 end = m3Add3(o, d);
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < gatherCount; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGather(&surface->bvh, blo, bhi, &gather);
+    for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
     {
         m3Vec3 lo;
         m3Vec3 hi;
-        m3VoxelBoxBounds(surface, cellSize, gather[g], &lo, &hi);
+        m3VoxelBoxBounds(surface, cellSize, g, &lo, &hi);
         m3real tEnter = 0.0f;
         m3real tExit = 1.0f;
         int32_t enterAxis = -1;
@@ -292,11 +292,10 @@ static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m
     m3Vec3 end = m3Add3(o, d);
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < gatherCount; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGather(bvh, blo, bhi, &gather);
+    for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
     {
-        int32_t t = gather[g];
         m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
         m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
         m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];

@@ -87,6 +87,32 @@ static bool BoxesOverlap(m3Vec3 alo, m3Vec3 ahi, m3Vec3 blo, m3Vec3 bhi)
              alo.z > bhi.z);
 }
 
+// A gather's hits read out in ascending order, as the callers walk them.
+static int32_t ReadHits(const m3MeshBvhHits* hits, uint16_t* out)
+{
+    int32_t count = 0;
+    for (int32_t t = m3MeshBvhFirstHit(hits); t >= 0; t = m3MeshBvhNextHit(hits, t))
+    {
+        out[count++] = (uint16_t)t;
+    }
+    CHECK(count == hits->count, "the hits read out as many items as were found");
+    return count;
+}
+
+static int32_t Gather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out)
+{
+    m3MeshBvhHits hits;
+    m3MeshBvhGather(bvh, lo, hi, &hits);
+    return ReadHits(&hits, out);
+}
+
+static int32_t GatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, uint16_t* out)
+{
+    m3MeshBvhHits hits;
+    m3MeshBvhGatherPath(bvh, path, &hits);
+    return ReadHits(&hits, out);
+}
+
 static void TestRefereeGather(void)
 {
     m3ShapeId meshShape;
@@ -105,7 +131,7 @@ static void TestRefereeGather(void)
         m3Vec3 qlo = m3Sub3(center, half);
         m3Vec3 qhi = m3Add3(center, half);
 
-        int32_t gatherCount = m3MeshBvhGather(bvh, qlo, qhi, gathered, M3_COUNT_OF(gathered));
+        int32_t gatherCount = Gather(bvh, qlo, qhi, gathered);
 
         // The referee: full scan with the exact per-triangle test.
         int32_t bruteCount = 0;
@@ -162,32 +188,28 @@ static void TestRefereeGather(void)
 
     // Degenerates: a box that misses everything, a box that covers it.
     int32_t none =
-        m3MeshBvhGather(bvh, (m3Vec3){100.0f, 100.0f, 100.0f}, (m3Vec3){101.0f, 101.0f, 101.0f},
-                        gathered, M3_COUNT_OF(gathered));
+        Gather(bvh, (m3Vec3){100.0f, 100.0f, 100.0f}, (m3Vec3){101.0f, 101.0f, 101.0f}, gathered);
     CHECK(none == 0, "a far box gathers nothing");
-    int32_t all =
-        m3MeshBvhGather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f}, (m3Vec3){100.0f, 100.0f, 100.0f},
-                        gathered, M3_COUNT_OF(gathered));
+    int32_t all = Gather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f}, (m3Vec3){100.0f, 100.0f, 100.0f},
+                         gathered);
     CHECK(all == mesh->triangleCount, "a covering box gathers every triangle");
 
-    // A gather fills at most the capacity it is given and leaves the rest
-    // of the array alone.
-    enum
+    // The hit words at the edges: every item below a count reads out once,
+    // in order, across word boundaries and up to the largest item id.
+    static const int32_t counts[] = {0, 1, 63, 64, 65, 129, M3_MAX_MESH_TRIANGLES};
+    bool whole = true;
+    for (int32_t c = 0; c < (int32_t)(sizeof(counts) / sizeof(counts[0])); ++c)
     {
-        CAPACITY = 8
-    };
-    for (int32_t i = 0; i < 2 * CAPACITY; ++i)
-    {
-        gathered[i] = 0xBEEF;
+        static m3MeshBvhHits hits;
+        m3MeshBvhHitAll(&hits, counts[c]);
+        int32_t read = ReadHits(&hits, gathered);
+        for (int32_t i = 0; i < read; ++i)
+        {
+            whole = whole && gathered[i] == (uint16_t)i;
+        }
+        whole = whole && read == counts[c];
     }
-    int32_t few = m3MeshBvhGather(bvh, (m3Vec3){-100.0f, -100.0f, -100.0f},
-                                  (m3Vec3){100.0f, 100.0f, 100.0f}, gathered, CAPACITY);
-    bool kept = true;
-    for (int32_t i = CAPACITY; i < 2 * CAPACITY; ++i)
-    {
-        kept = kept && gathered[i] == 0xBEEF;
-    }
-    CHECK(few == CAPACITY && kept, "a gather fills at most its capacity");
+    CHECK(whole, "every item below a count reads out once, in order");
     m3DestroyWorld(world);
 }
 
@@ -247,7 +269,7 @@ static void TestRefereePathGather(void)
     for (int32_t round = 0; round < 300 && complete; ++round)
     {
         m3SurfacePath path = RandomPath(32.0f);
-        int32_t count = m3MeshBvhGatherPath(bvh, &path, gathered, M3_COUNT_OF(gathered));
+        int32_t count = GatherPath(bvh, &path, gathered);
         for (int32_t i = 1; i < count; ++i)
         {
             ascending = ascending && gathered[i] > gathered[i - 1];
@@ -273,9 +295,8 @@ static void TestRefereePathGather(void)
 
     // A diagonal across the mesh, half a meter thick, against its box.
     m3SurfacePath diagonal = {{0.0f, 0.5f, 0.0f}, {31.0f, 0.5f, 31.0f}, 0.5f, 1.0f};
-    int32_t band = m3MeshBvhGatherPath(bvh, &diagonal, gathered, M3_COUNT_OF(gathered));
-    int32_t box = m3MeshBvhGather(bvh, (m3Vec3){-0.5f, 0.0f, -0.5f}, (m3Vec3){31.5f, 1.0f, 31.5f},
-                                  gathered, M3_COUNT_OF(gathered));
+    int32_t band = GatherPath(bvh, &diagonal, gathered);
+    int32_t box = Gather(bvh, (m3Vec3){-0.5f, 0.0f, -0.5f}, (m3Vec3){31.5f, 1.0f, 31.5f}, gathered);
     printf("a diagonal path gathers %d triangles, its box %d\n", band, box);
     CHECK(band > 0 && 4 * band < box, "a diagonal path gathers a band, not its box");
     m3DestroyWorld(world);

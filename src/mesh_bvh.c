@@ -274,48 +274,59 @@ bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh)
     return built;
 }
 
-// Ascending insertion of gathered leaves would cost per-element
-// shifting; gather instead collects leaf runs and merge sorts once at
-// the end (the caller contract is ascending order).
-static void SortAscending(uint16_t* values, int32_t count, uint16_t* tmp)
+static void HitsClear(m3MeshBvhHits* hits)
 {
-    if (count < 2)
+    hits->count = 0;
+    hits->loWord = 1;
+    hits->hiWord = 0;
+}
+
+// Marks one item, clearing the words the span grows over.
+static void HitsAdd(m3MeshBvhHits* hits, int32_t item)
+{
+    int32_t w = item >> 6;
+    if (hits->hiWord < hits->loWord)
     {
-        return;
+        hits->loWord = w;
+        hits->hiWord = w;
+        hits->words[w] = 0;
     }
-    int32_t mid = count / 2;
-    SortAscending(values, mid, tmp);
-    SortAscending(values + mid, count - mid, tmp);
-    int32_t a = 0;
-    int32_t b = mid;
-    int32_t w = 0;
-    while (a < mid && b < count)
+    while (w < hits->loWord)
     {
-        tmp[w++] = values[a] < values[b] ? values[a++] : values[b++];
+        hits->words[--hits->loWord] = 0;
     }
-    while (a < mid)
+    while (w > hits->hiWord)
     {
-        tmp[w++] = values[a++];
+        hits->words[++hits->hiWord] = 0;
     }
-    while (b < count)
+    hits->words[w] |= (uint64_t)1 << (item & 63);
+    hits->count += 1;
+}
+
+_Static_assert(M3_COUNT_OF(((m3MeshBvhHits*)0)->words) * 64 >= M3_MAX_MESH_TRIANGLES,
+               "a hit bit for every item id a tree can hold");
+
+void m3MeshBvhHitAll(m3MeshBvhHits* hits, int32_t count)
+{
+    HitsClear(hits);
+    for (int32_t item = 0; item < count; ++item)
     {
-        tmp[w++] = values[b++];
+        HitsAdd(hits, item);
     }
-    memcpy(values, tmp, (size_t)count * sizeof(uint16_t));
 }
 
 // Whether a gather enters a node: its quantized box, or its path.
 typedef bool NodeTest(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query);
 
-// Every item in a leaf the test enters, in ascending order.
-static int32_t CollectLeaves(const m3MeshBvh* bvh, NodeTest* test, const void* query, uint16_t* out,
-                             int32_t capacity)
+// Every item in a leaf the test enters. The hits read in ascending order,
+// so the walk's order does not matter.
+static void CollectLeaves(const m3MeshBvh* bvh, NodeTest* test, const void* query,
+                          m3MeshBvhHits* hits)
 {
     int32_t stack[64]; // median split depth is ~log2(2048/4) + 1; 64
                        // is unreachable headroom
     int32_t top = 0;
     stack[top++] = 0;
-    int32_t count = 0;
     while (top > 0)
     {
         int32_t index = stack[--top];
@@ -326,21 +337,15 @@ static int32_t CollectLeaves(const m3MeshBvh* bvh, NodeTest* test, const void* q
         }
         if (node->right < 0)
         {
-            for (int32_t i = 0; i < node->count && count < capacity; ++i)
+            for (int32_t i = 0; i < node->count; ++i)
             {
-                out[count++] = bvh->order[node->start + i];
+                HitsAdd(hits, bvh->order[node->start + i]);
             }
             continue;
         }
         stack[top++] = node->right;
         stack[top++] = index + 1;
     }
-    // Stack scratch on purpose: gathers run inside steady-state
-    // steps, and stepping never allocates. 128 KiB at
-    // the 65k cap, one live instance per gather frame.
-    uint16_t tmp[M3_MAX_MESH_TRIANGLES];
-    SortAscending(out, count, tmp);
-    return count;
 }
 
 typedef struct BoxQuery
@@ -357,18 +362,19 @@ static bool NodeOverlapsBox(const m3MeshBvh* bvh, const m3MeshBvhNode* node, con
              q->qlo[1] > node->qhi[1] || q->qhi[2] < node->qlo[2] || q->qlo[2] > node->qhi[2]);
 }
 
-int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out, int32_t capacity)
+void m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, m3MeshBvhHits* hits)
 {
+    HitsClear(hits);
     if (bvh->nodeCount == 0)
     {
-        return 0;
+        return;
     }
     // Float early-out first: a query outside the whole tree
     // is free; clamping it onto the grid edge would over-visit.
     if (hi.x < bvh->rootLo.x || lo.x > bvh->rootHi.x || hi.y < bvh->rootLo.y ||
         lo.y > bvh->rootHi.y || hi.z < bvh->rootLo.z || lo.z > bvh->rootHi.z)
     {
-        return 0;
+        return;
     }
     // Quantize the query outward too: the doubly-rounded
     // pair can only ADD candidates, never drop one.
@@ -382,7 +388,7 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
         query.qlo[k] = QuantClamp(floorf((l - rl) * sc));
         query.qhi[k] = QuantClamp(ceilf((h - rl) * sc));
     }
-    return CollectLeaves(bvh, NodeOverlapsBox, &query, out, capacity);
+    CollectLeaves(bvh, NodeOverlapsBox, &query, hits);
 }
 
 // Whether a path comes within its reach of a node before path->until.
@@ -413,12 +419,11 @@ static bool NodeNearPath(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const 
     return true;
 }
 
-int32_t m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, uint16_t* out,
-                            int32_t capacity)
+void m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, m3MeshBvhHits* hits)
 {
-    if (bvh->nodeCount == 0)
+    HitsClear(hits);
+    if (bvh->nodeCount != 0)
     {
-        return 0;
+        CollectLeaves(bvh, NodeNearPath, path, hits);
     }
-    return CollectLeaves(bvh, NodeNearPath, path, out, capacity);
 }
