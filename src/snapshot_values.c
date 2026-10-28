@@ -407,8 +407,8 @@ static bool SoftBodiesValid(const m3Incoming* inc)
 // A live joint's flags are the limit, motor, steer and spring bits. A
 // generic joint's packed modes name no axis mode past limited and a
 // motor on a real axis or none; every other joint packs none. A gear
-// joint's reference spins are the wrapped angles its create took, which
-// the step's wrap walks down to the seam.
+// joint's reference spins are bounded in snapshot_bounds.c, within the
+// half turn its create keeps them.
 static bool JointModesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, joints.jointPool.alive));

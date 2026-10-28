@@ -8,6 +8,7 @@
 // it was.
 
 #include "helpers.h"
+#include "joint.h"
 #include "snapshot_bounds.h"
 #include "state_prefix.h"
 #include "test_harness.h"
@@ -229,6 +230,8 @@ static const Case s_cases[] = {
     {"spring hertz", COMPONENT(joints.jointSpring, m3Vec3, which_hinge, 0), (double)(M3_HERTZ_LIMIT), +1},
     {"gear ratio", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)(M3_RATIO_LIMIT), +1},
     {"gear ratio not zero", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)FLT_TRUE_MIN, -1},
+    {"gear spin A", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 0), (double)(M3_PI), +1},
+    {"gear spin B", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 1), (double)(-M3_PI), -1},
     {"pulley ratio", COMPONENT(joints.jointMotor, m3Vec3, which_pulley, 2), (double)(M3_RATIO_LIMIT), +1},
     {"pulley ratio positive", COMPONENT(joints.jointMotor, m3Vec3, which_pulley, 2), (double)FLT_TRUE_MIN, -1},
     {"pulley ground A", POSITION(joints.jointGroundA, m3Pos3, which_pulley, 0), (double)(M3_POSITION_LIMIT), +1},
@@ -495,6 +498,30 @@ static Scene Build(void)
         (void)m3World_Step(w, 1.0f / 60.0f, 2);
     }
     return s;
+}
+
+// The gear's drift wraps an angle into (-pi, pi] in constant time. It
+// once stepped 2 pi at a time, which never ends once 2 pi is below the
+// angle's spacing, and restore let in any finite gear spin: a snapshot
+// with a spin of 1e30 hung the step.
+static void TestGearDriftWrapsAnyAngle(void)
+{
+    const m3real seam = 2.0f * M3_PI;
+    CHECK(m3WrapPi(0.5f) == 0.5f && m3WrapPi(M3_PI) == M3_PI, "an angle in range keeps its bits");
+    CHECK(m3WrapPi(M3_PI + 0.5f) == (M3_PI + 0.5f) - seam &&
+              m3WrapPi(-M3_PI - 0.5f) == (-M3_PI - 0.5f) + seam,
+          "one past the seam takes one turn, as the step always did");
+    CHECK(fabsf(m3WrapPi(7.0f * M3_PI + 0.25f) - (-M3_PI + 0.25f)) < 1.0e-5f &&
+              fabsf(m3WrapPi(-100.0f) - (-100.0f + 32.0f * M3_PI)) < 1.0e-4f,
+          "several turns come off at once");
+    const m3real huge[4] = {1.0e8f, -1.0e8f, 1.0e30f, -3.0e38f};
+    bool inRange = true;
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m3real a = m3WrapPi(huge[i]);
+        inRange = inRange && a >= -M3_PI && a <= M3_PI;
+    }
+    CHECK(inRange, "an angle too large to carry a phase still wraps into range");
 }
 
 // The snapshot with the case's value at its limit restores, the one with
@@ -855,6 +882,7 @@ int main(void)
     TestTargetReach();
     TestBodyMassLimit();
     TestTypeChangeMass();
+    TestGearDriftWrapsAnyAngle();
     if (s_failures == 0)
     {
         printf("test_restore_bounds: all checks passed\n");
