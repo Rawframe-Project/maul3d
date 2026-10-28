@@ -149,12 +149,20 @@ bindings() {
     python3 tools/check_bindings.py clang-20
 }
 
+# As CI's checks job: on the Release build, where the assertions compile
+# out, and on the Debug build, where they are live. Each hides findings
+# the other shows.
 tidy() { # files
-    step "clang-tidy on $# files"
-    cmake -S "$root" -B "$out/check-tidy" -G Ninja -DCMAKE_C_COMPILER=clang-20 \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL3D_BUILD_TESTS=OFF >"$out/check-tidy.log"
-    printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "$out/check-tidy" --quiet \
-        --warnings-as-errors='*' --checks=-readability-function-cognitive-complexity 2>/dev/null
+    for build in Release Debug; do
+        step "clang-tidy on $# files, $build"
+        cmake --preset linux-clang-20 -S "$root" -B "$out/check-tidy-$build" \
+            -DCMAKE_BUILD_TYPE=$build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL3D_BUILD_TESTS=OFF \
+            -DMAUL3D_BUILD_SAMPLES=OFF -DMAUL3D_BUILD_BENCH=OFF -DMAUL3D_BUILD_TOOLS=OFF \
+            >"$out/check-tidy-$build.log"
+        printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "$out/check-tidy-$build" \
+            --quiet --warnings-as-errors='*' --checks=-readability-function-cognitive-complexity \
+            2>/dev/null
+    done
 }
 
 # The files CI formats, untracked ones included, since they are about to
