@@ -41,7 +41,7 @@ void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float ta
 
 void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Quat rotation);
 
-void m3JointSetCollideInternal(m3World* world, int32_t j, int32_t on);
+void m3JointEnableConnectedCollisionInternal(m3World* world, int32_t j, int32_t on);
 
 void m3JointSetBreakInternal(m3World* world, int32_t j, float maxForce, float maxTorque);
 

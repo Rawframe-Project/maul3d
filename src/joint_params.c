@@ -90,9 +90,9 @@ void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Qua
     JointWakeBodies(world, j);
 }
 
-void m3JointSetCollideInternal(m3World* world, int32_t j, int32_t on)
+void m3JointEnableConnectedCollisionInternal(m3World* world, int32_t j, int32_t on)
 {
-    world->joints.jointCollide[j] = on != 0 ? 1 : 0;
+    world->joints.jointConnectedCollision[j] = on != 0 ? 1 : 0;
     JointWakeBodies(world, j);
 }
 
@@ -388,8 +388,8 @@ void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
     m3FloatEnvLeave(env);
 }
 
-static M3_NOINLINE void JointSetCollideConnectedWorker(m3World* world, m3JointId joint,
-                                                       bool collide)
+static M3_NOINLINE void JointEnableConnectedCollisionWorker(m3World* world, m3JointId joint,
+                                                            bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -403,26 +403,27 @@ static M3_NOINLINE void JointSetCollideConnectedWorker(m3World* world, m3JointId
     }
     if (world->recorder.journalActive != 0)
     {
-        m3OpJointSetCollide record;
+        m3OpJointEnableConnectedCollision record;
         memset(&record, 0, sizeof(record));
         record.id = joint;
-        record.on = collide ? 1 : 0;
-        m3JournalRecord(world, m3_opJointSetCollide, &record, (int32_t)sizeof(record));
+        record.on = flag ? 1 : 0;
+        m3JournalRecord(world, m3_opJointEnableConnectedCollision, &record,
+                        (int32_t)sizeof(record));
     }
-    m3JointSetCollideInternal(world, slot, collide ? 1 : 0);
+    m3JointEnableConnectedCollisionInternal(world, slot, flag ? 1 : 0);
 }
 
-void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide)
+void m3Joint_EnableConnectedCollision(m3World* world, m3JointId joint, bool flag)
 {
     uint64_t env = m3FloatEnvEnter();
-    JointSetCollideConnectedWorker(world, joint, collide);
+    JointEnableConnectedCollisionWorker(world, joint, flag);
     m3FloatEnvLeave(env);
 }
 
-bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint)
+bool m3Joint_IsConnectedCollisionEnabled(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    return ResolveJoint(world, joint, &slot) && world->joints.jointCollide[slot] != 0;
+    return ResolveJoint(world, joint, &slot) && world->joints.jointConnectedCollision[slot] != 0;
 }
 
 static M3_NOINLINE void JointSetBreakThresholdsWorker(m3World* world, m3JointId joint,

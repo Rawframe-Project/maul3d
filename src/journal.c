@@ -187,7 +187,7 @@ void m3JournalJointDef(m3JointDef* out, const m3JointDef* def)
     out->maxMotorEffort = def->maxMotorEffort;
     out->enableCone = def->enableCone;
     out->coneAngle = def->coneAngle;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     memcpy(out->genericLinear, def->genericLinear, sizeof(out->genericLinear));
     memcpy(out->genericAngular, def->genericAngular, sizeof(out->genericAngular));
     out->genericMotorAxis = def->genericMotorAxis;

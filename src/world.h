@@ -66,7 +66,7 @@ void m3SetMaximumLinearSpeedInternal(m3World* world, float value);
 
 void m3SetMaximumAngularSpeedInternal(m3World* world, float value);
 
-void m3EnableSleepingInternal(m3World* world, int32_t on);
+void m3EnableSleepInternal(m3World* world, int32_t on);
 
 void m3EnableContinuousInternal(m3World* world, int32_t on);
 

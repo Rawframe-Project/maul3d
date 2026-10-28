@@ -110,7 +110,7 @@ namespace Maul3D
         public float RestitutionThreshold;
         public float MaximumLinearSpeed;
         public float MaximumAngularSpeed;
-        public byte EnableSleeping;   // C _Bool
+        public byte EnableSleep;   // C _Bool
         public byte EnableContinuous; // C _Bool
         public float HitEventThreshold;
         public Allocator Allocator;
@@ -181,7 +181,7 @@ namespace Maul3D
         public float MaxMotorEffort;
         public byte EnableCone;
         public float ConeAngle;
-        public byte CollideConnected;
+        public byte EnableConnectedCollision;
         public byte GenericLinear0, GenericLinear1, GenericLinear2;
         public byte GenericAngular0, GenericAngular1, GenericAngular2;
         public byte GenericMotorAxis;

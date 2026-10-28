@@ -475,7 +475,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     j->jointBodyB[index] = bodyB;
     j->jointLocalA[index] = def->localAnchorA;
     j->jointLocalB[index] = def->localAnchorB;
-    j->jointCollide[index] = def->collideConnected ? 1 : 0;
+    j->jointConnectedCollision[index] = def->enableConnectedCollision ? 1 : 0;
     j->jointImpulse[index] = zero;
     j->jointPerpImpulse[index] = zero;
     j->jointLimitImpulse[index] = zero;
@@ -552,7 +552,7 @@ void m3DestroyJointInternal(m3World* world, int32_t index)
     world->joints.jointBodyB[index] = -1;
     world->joints.jointLocalA[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     world->joints.jointLocalB[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
-    world->joints.jointCollide[index] = 0;
+    world->joints.jointConnectedCollision[index] = 0;
     world->joints.jointImpulse[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     world->joints.jointPerpImpulse[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     world->joints.jointLimitImpulse[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
