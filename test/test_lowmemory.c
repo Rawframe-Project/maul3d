@@ -534,31 +534,44 @@ static void TestStepsNeverAllocate(void)
     m3DestroyWorld(reference);
     m3DestroyWorld(world);
 
-    // A crowd at the pair table's edge, 190 of its 192 pairs, takes
-    // nearly all the scratch the world was sized for, and still steps.
-    Budget crowdBudget = {-1, 0};
+    // A lattice that fills nearly every pair the table holds, each with a
+    // touching manifold, colored into all 16 contact colors and packed
+    // into lane blocks: 256 small dynamic spheres on a grid, each inside
+    // 16 of 289 large static spheres on the grid offset by half a cell.
+    // It takes nearly all the scratch the world was sized for, and still
+    // steps.
+    Budget latticeBudget = {-1, 0};
     m3WorldDef wd = m3DefaultWorldDef();
-    wd.bodyCapacity = 24;
-    wd.shapeCapacity = 24;
-    wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, &crowdBudget};
-    m3World* crowd = NewWorld(&wd);
+    wd.bodyCapacity = 257;
+    wd.shapeCapacity = 545; // 4360 pairs
+    wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, &latticeBudget};
+    m3World* lattice = NewWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(lattice, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    for (int32_t i = 0; i < 20; ++i)
+    for (int32_t k = 0; k < 17 * 17; ++k)
+    {
+        m3Sphere big = {{(m3real)(k % 17) - 0.5f, 0.0f, (m3real)(k / 17) - 0.5f}, 2.3f};
+        NewSphereShape(lattice, ground, &sd, &big);
+    }
+    m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    for (int32_t k = 0; k < 16 * 16; ++k)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.01 * (double)i, 0.0, 0.0};
-        NewSphereShape(crowd, NewBody(crowd, &bd), &sd, &ball);
+        bd.gravityScale = 0.0f;
+        bd.position = (m3Pos3){(double)(k % 16), 0.0, (double)(k / 16)};
+        NewSphereShape(lattice, NewBody(lattice, &bd), &sd, &small);
     }
-    crowdBudget.left = 0;
-    m3Result crowded = m3World_Step(crowd, 1.0f / 60.0f, 4);
-    crowdBudget.left = -1;
-    m3Counters counters = m3World_GetCounters(crowd);
-    CHECK(crowded == m3_success && counters.contactCount == 190,
-          "a step at the pair table's edge runs on the world's scratch");
-    CHECK(counters.scratchPeak > counters.scratchCapacity / 2, "and takes a good part of it");
-    m3DestroyWorld(crowd);
+    latticeBudget.left = 0;
+    m3Result packed = m3World_Step(lattice, 1.0f / 60.0f, 4);
+    latticeBudget.left = -1;
+    m3Counters counters = m3World_GetCounters(lattice);
+    CHECK(packed == m3_success && counters.contactCount == 62 * 62 && counters.colorCount == 16,
+          "a step of 3844 touching pairs in 16 colors runs on the world's scratch");
+    CHECK(counters.scratchPeak > counters.scratchCapacity / 4 * 3,
+          "and takes most of it, with the table 88 percent full");
+    m3DestroyWorld(lattice);
 }
 
 int main(void)
