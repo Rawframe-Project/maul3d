@@ -405,7 +405,7 @@ static void TestStaleRuntimeSetters(void)
             m3Shape_EnablePreSolve(world, staleS, true);
             m3Joint_SetLimits(world, staleJ, true, -1.0f, 1.0f);
             m3Joint_SetMotor(world, staleJ, true, 1.0f, 1.0f);
-            m3Joint_SetCollideConnected(world, staleJ, true);
+            m3Joint_EnableConnectedCollision(world, staleJ, true);
             m3Joint_SetBreakThresholds(world, staleJ, 1.0f, 1.0f);
             m3Joint_SetSpring(world, staleJ, true, 5.0f, 1.0f);
             m3Joint_SetTargetAngle(world, staleJ, 0.5f);

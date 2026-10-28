@@ -892,7 +892,7 @@ static void TourWorldKnobs(const Tour* t)
     m3World_SetMaximumAngularSpeed(t->world, 80.0f);
     m3World_SetHitEventThreshold(t->world, 0.5f);
     m3World_EnableContinuous(t->world, false);
-    m3World_EnableSleeping(t->world, false);
+    m3World_EnableSleep(t->world, false);
     m3World_SetWind(t->world, (m3Vec3){0.0f, 0.0f, 1.0f}, 3.0f, 0.4f, 0.3f);
 }
 
@@ -919,7 +919,7 @@ static void TourJointsAndSoft(const Tour* t)
 {
     m3Joint_SetLimits(t->world, t->spare, true, 0.5f, 2.5f);
     m3Joint_SetMotor(t->world, t->spare, true, 0.5f, 2.0f);
-    m3Joint_SetCollideConnected(t->world, t->spare, true);
+    m3Joint_EnableConnectedCollision(t->world, t->spare, true);
     m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);
     m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate);
@@ -992,7 +992,7 @@ static void TourCalls(Tour* t, int32_t frame)
         m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 3, 9, 9, 2);
         break;
     case 160:
-        m3World_EnableSleeping(t->world, true);
+        m3World_EnableSleep(t->world, true);
         m3World_SetGravity(t->world, (m3Vec3){0.0f, -9.81f, 0.0f});
         break;
     default:

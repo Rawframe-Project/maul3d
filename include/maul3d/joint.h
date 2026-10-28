@@ -25,7 +25,7 @@ extern "C"
         m3_wheelJoint = 6,
         /// FILTER: no constraint rows at all; the joint's
         /// whole effect is the connected-pair collision filter
-        /// (create with collideConnected false). Ragdoll sibling
+        /// (create with enableConnectedCollision false). Ragdoll sibling
         /// limbs stop grinding without buying a single solver row.
         m3_filterJoint = 7,
         /// PARALLEL: keeps localAxisA on body A parallel to
@@ -115,7 +115,7 @@ extern "C"
         /// and limits entirely: they weld the create-time pose.
         /// Jointed bodies do not collide with each other unless this
         /// is set (the classic chain-fight guard).
-        bool collideConnected;
+        bool enableConnectedCollision;
         /// The generic joint. Modes are m3AxisMode per joint
         /// frame axis; limits are meters (linear) and radians
         /// (angular), used only where the mode is limited. One
@@ -163,7 +163,7 @@ extern "C"
     } m3JointDef;
 
     /// The pinned joint defaults: spherical type, zero anchors, unit
-    /// z axes, everything disabled, collideConnected off, and the
+    /// z axes, everything disabled, enableConnectedCollision off, and the
     /// def cookie every create demands.
     M3_API m3JointDef m3DefaultJointDef(void);
 
@@ -222,8 +222,8 @@ extern "C"
 
     /// Let (or forbid) the two jointed bodies collide with each
     /// other. Journaled; binds at the next step's pair scan.
-    M3_API void m3Joint_SetCollideConnected(m3World* world, m3JointId joint, bool collide);
-    M3_API bool m3Joint_GetCollideConnected(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_EnableConnectedCollision(m3World* world, m3JointId joint, bool flag);
+    M3_API bool m3Joint_IsConnectedCollisionEnabled(const m3World* world, m3JointId joint);
 
     /// Breakage: rollback games need breakage as a deterministic in-step
     /// state transition, not a host poll racing the journal. When

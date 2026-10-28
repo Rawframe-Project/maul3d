@@ -777,7 +777,7 @@ static void CheckHashSees(int which, const char* what)
         m3Joint_SetMotor(w, changed.hinge, false, 3.0f, 10.0f);
         break;
     default:
-        m3Joint_SetCollideConnected(w, changed.hinge, true);
+        m3Joint_EnableConnectedCollision(w, changed.hinge, true);
         break;
     }
     CHECK(m3World_GetCounters(w).misuse == 0, "the change is taken");

@@ -208,12 +208,12 @@ static void TestSleepAndContinuousToggles(void)
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 0.5, 0.0}, NULL);
     StepN(world, 240);
     CHECK(!m3Body_IsAwake(world, crate), "the crate sleeps under defaults");
-    m3World_EnableSleeping(world, false);
-    CHECK(!m3World_IsSleepingEnabled(world), "toggle reads back");
+    m3World_EnableSleep(world, false);
+    CHECK(!m3World_IsSleepEnabled(world), "toggle reads back");
     CHECK(m3Body_IsAwake(world, crate), "sleeping off wakes the sleeper");
     StepN(world, 240);
     CHECK(m3Body_IsAwake(world, crate), "nobody sleeps while sleeping is off");
-    m3World_EnableSleeping(world, true);
+    m3World_EnableSleep(world, true);
     StepN(world, 240);
     CHECK(!m3Body_IsAwake(world, crate), "sleeping on lets it drop off again");
     m3DestroyWorld(world);
