@@ -756,7 +756,7 @@ typedef struct m3Joints
     int32_t* jointBodyB;
     m3Vec3* jointLocalA;
     m3Vec3* jointLocalB;
-    uint8_t* jointCollide;
+    uint8_t* jointConnectedCollision;
     m3Vec3* jointImpulse;        // warm-start linear impulse
     m3Vec3* jointPerpImpulse;    // x, y = collinearity rows; z = motor
     m3Vec3* jointLimitImpulse;   // x = lower, y = upper, z unused

@@ -635,7 +635,7 @@ knobs: `m3World_SetGravity` (sleepers stay asleep until
 disturbed), `SetContactTuning` (hertz, damping ratio, max
 depenetration speed; static contacts run twice the hertz),
 `SetRestitutionThreshold`, `SetMaximumLinearSpeed` (a hard
-per-substep clamp), `EnableSleeping` (off wakes everyone), and
+per-substep clamp), `EnableSleep` (off wakes everyone), and
 `EnableContinuous`. Knobs are STATE, not config: they journal,
 they snapshot, and they hash only off-default. The config hash
 stays version + solver revision + precision + FP policy, because
@@ -780,7 +780,7 @@ step or a restore clears them.
 
 `m3Joint_SetLimits` and `m3Joint_SetMotor` rebind mid-run
 (toggling zeroes the row's stored impulse).
-`m3Joint_SetCollideConnected` lets the two jointed bodies collide.
+`m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
 `m3Joint_SetSpring(enable, hertz, dampingRatio)` arms the position
 drive on revolute (target angle), prismatic (target translation),
 and spherical (target rotation) joints;

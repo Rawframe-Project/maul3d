@@ -25,7 +25,7 @@ bool m3ReplayCreateJoint(m3World* world, const m3ReplayRecord* r)
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableLimit));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableMotor));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableCone));
-    m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, collideConnected));
+    m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableConnectedCollision));
     int32_t bodyA = m3BodySlot(world, record.def.bodyIdA);
     int32_t bodyB = m3BodySlot(world, record.def.bodyIdB);
     if (bodyA < 0 || bodyB < 0)
@@ -137,11 +137,11 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-bool m3ReplayJointSetCollide(m3World* world, const m3ReplayRecord* r)
+bool m3ReplayJointEnableConnectedCollision(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    m3OpJointSetCollide record;
+    m3OpJointEnableConnectedCollision record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
@@ -152,7 +152,7 @@ bool m3ReplayJointSetCollide(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    m3JointSetCollideInternal(world, slot, record.on);
+    m3JointEnableConnectedCollisionInternal(world, slot, record.on);
     return true;
 }
 

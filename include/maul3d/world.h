@@ -98,7 +98,7 @@ extern "C"
         float restitutionThreshold; // impact speed under it: no bounce (1)
         float maximumLinearSpeed;   // hard velocity cap (400), up to 1e5
         float maximumAngularSpeed;  // spin cap, rad/s, unless a body opts out; up to 1e5
-        bool enableSleeping;        // islands may sleep (default true)
+        bool enableSleep;           // islands may sleep (default true)
         bool enableContinuous;      // the continuous phase runs (default true)
         float hitEventThreshold;    // hit events need approach speed
                                     // above this (default 1)
@@ -227,10 +227,10 @@ extern "C"
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
     /// sleeping body. Journaled.
-    M3_API void m3World_EnableSleeping(m3World* world, bool flag);
+    M3_API void m3World_EnableSleep(m3World* world, bool flag);
 
     /// Whether island sleeping is enabled.
-    M3_API bool m3World_IsSleepingEnabled(const m3World* world);
+    M3_API bool m3World_IsSleepEnabled(const m3World* world);
 
     /// Turn the continuous phase (CCD) on or off. Journaled.
     M3_API void m3World_EnableContinuous(m3World* world, bool flag);

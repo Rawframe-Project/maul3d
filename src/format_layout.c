@@ -98,9 +98,9 @@ M3_PIN_AT(m3OpJointSetBreak, id, 0);
 M3_PIN_AT(m3OpJointSetBreak, maxForce, 8);
 M3_PIN_AT(m3OpJointSetBreak, maxTorque, 12);
 
-M3_PIN_SIZE(m3OpJointSetCollide, 12);
-M3_PIN_AT(m3OpJointSetCollide, id, 0);
-M3_PIN_AT(m3OpJointSetCollide, on, 8);
+M3_PIN_SIZE(m3OpJointEnableConnectedCollision, 12);
+M3_PIN_AT(m3OpJointEnableConnectedCollision, id, 0);
+M3_PIN_AT(m3OpJointEnableConnectedCollision, on, 8);
 
 M3_PIN_SIZE(m3OpJointSetMotorPose, 36);
 M3_PIN_AT(m3OpJointSetMotorPose, id, 0);
@@ -422,7 +422,7 @@ M3_PIN_AT(m3JointDef, motorSpeed, 84);
 M3_PIN_AT(m3JointDef, maxMotorEffort, 88);
 M3_PIN_AT(m3JointDef, enableCone, 92);
 M3_PIN_AT(m3JointDef, coneAngle, 96);
-M3_PIN_AT(m3JointDef, collideConnected, 100);
+M3_PIN_AT(m3JointDef, enableConnectedCollision, 100);
 M3_PIN_AT(m3JointDef, genericLinear, 101);
 M3_PIN_AT(m3JointDef, genericAngular, 104);
 M3_PIN_AT(m3JointDef, genericMotorAxis, 107);

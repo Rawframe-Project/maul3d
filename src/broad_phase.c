@@ -273,7 +273,7 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
     {
         int32_t other = world->joints.jointBodyA[jt] == bodyI ? world->joints.jointBodyB[jt]
                                                               : world->joints.jointBodyA[jt];
-        if (other == bodyJ && world->joints.jointCollide[jt] == 0)
+        if (other == bodyJ && world->joints.jointConnectedCollision[jt] == 0)
         {
             return 0;
         }

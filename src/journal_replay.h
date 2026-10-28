@@ -77,7 +77,7 @@ m3ReplayApplyFn m3ReplayDestroyJoint;
 m3ReplayApplyFn m3ReplayJointSetMotorPose;
 m3ReplayApplyFn m3ReplayJointSetSteer;
 m3ReplayApplyFn m3ReplayJointVector;
-m3ReplayApplyFn m3ReplayJointSetCollide;
+m3ReplayApplyFn m3ReplayJointEnableConnectedCollision;
 m3ReplayApplyFn m3ReplayJointSetBreak;
 m3ReplayApplyFn m3ReplayJointSetSpring;
 m3ReplayApplyFn m3ReplayJointSetTarget;

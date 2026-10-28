@@ -41,7 +41,7 @@ m3WorldDef m3DefaultWorldDefValues(void)
     def.restitutionThreshold = M3_RESTITUTION_THRESHOLD_DEFAULT;
     def.maximumLinearSpeed = M3_MAX_LINEAR_SPEED_DEFAULT;
     def.maximumAngularSpeed = M3_MAX_ANGULAR_SPEED_DEFAULT;
-    def.enableSleeping = true;
+    def.enableSleep = true;
     def.enableContinuous = true;
     def.hitEventThreshold = M3_HIT_EVENT_THRESHOLD_DEFAULT;
     def.internalValue = M3_WORLD_COOKIE;
@@ -170,7 +170,7 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->restitutionThreshold = def->restitutionThreshold;
     world->maximumLinearSpeed = def->maximumLinearSpeed;
     world->maximumAngularSpeed = def->maximumAngularSpeed;
-    world->sleepEnabled = def->enableSleeping ? 1 : 0;
+    world->sleepEnabled = def->enableSleep ? 1 : 0;
     world->continuousEnabled = def->enableContinuous ? 1 : 0;
     world->hitEventThreshold = def->hitEventThreshold;
     world->bodies.bodyCapacity = def->bodyCapacity;
@@ -452,7 +452,7 @@ void m3SetMaximumAngularSpeedInternal(m3World* world, float value)
     world->maximumAngularSpeed = value;
 }
 
-void m3EnableSleepingInternal(m3World* world, int32_t on)
+void m3EnableSleepInternal(m3World* world, int32_t on)
 {
     world->sleepEnabled = on != 0 ? 1 : 0;
     if (on == 0)
@@ -747,7 +747,7 @@ m3Profile m3World_GetProfile(const m3World* world)
     return result;
 }
 
-static M3_NOINLINE void WorldEnableSleepingWorker(m3World* world, bool flag)
+static M3_NOINLINE void WorldEnableSleepWorker(m3World* world, bool flag)
 {
     if (m3WorldBusy(world))
     {
@@ -762,19 +762,19 @@ static M3_NOINLINE void WorldEnableSleepingWorker(m3World* world, bool flag)
     if (world->recorder.journalActive != 0)
     {
         int32_t on = flag ? 1 : 0;
-        m3JournalRecord(world, m3_opEnableSleeping, &on, (int32_t)sizeof(on));
+        m3JournalRecord(world, m3_opEnableSleep, &on, (int32_t)sizeof(on));
     }
-    m3EnableSleepingInternal(world, flag ? 1 : 0);
+    m3EnableSleepInternal(world, flag ? 1 : 0);
 }
 
-void m3World_EnableSleeping(m3World* world, bool flag)
+void m3World_EnableSleep(m3World* world, bool flag)
 {
     uint64_t env = m3FloatEnvEnter();
-    WorldEnableSleepingWorker(world, flag);
+    WorldEnableSleepWorker(world, flag);
     m3FloatEnvLeave(env);
 }
 
-bool m3World_IsSleepingEnabled(const m3World* world)
+bool m3World_IsSleepEnabled(const m3World* world)
 {
     return world != NULL && world->sleepEnabled != 0;
 }

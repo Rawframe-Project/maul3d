@@ -547,7 +547,7 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
         const m3Vec3* limits = &world->joints.jointLimits[i];
         const m3Vec3* motor = &world->joints.jointMotor[i];
         if (limits->x != 0.0f || limits->y != 0.0f || limits->z != 0.0f || motor->x != 0.0f ||
-            motor->y != 0.0f || motor->z != 0.0f || world->joints.jointCollide[i] != 0)
+            motor->y != 0.0f || motor->z != 0.0f || world->joints.jointConnectedCollision[i] != 0)
         {
             // The limit and motor values (with the steer target, the
             // servo's pose offset and budgets) and the connected-pair
@@ -556,7 +556,7 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
             h = HashKey(h, i, M3_HASH_KEY_JOINT_ROWS);
             h = m3Hash64(h, limits, (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, motor, (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->joints.jointCollide[i], 1);
+            h = m3Hash64(h, &world->joints.jointConnectedCollision[i], 1);
         }
         if (world->joints.jointType[i] == (uint8_t)m3_genericJoint)
         {
