@@ -720,7 +720,11 @@ over a 16-cell contact window with a halo (bodies wider than the
 window contact within it; window warm-starts reset when it shifts
 a cell; both deterministic and documented). Rays scan the
 segment's cell span; the overlap family and soft particles see
-terrain through the same cell gather. A ray exactly along a
+terrain through the same cell gather. Shape casts and continuous
+collision try only the cells within reach of their path, row by
+row, so a long diagonal costs its length rather than its box;
+meshes and voxel chunks gather the BVH leaves near the path the
+same way. A ray exactly along a
 shared triangle corner can miss by one float ulp, the same
 contract as the mesh path. Static bodies only; journaled (op 76),
 snapshotted count-derived (v49), never world-hashed (content is
