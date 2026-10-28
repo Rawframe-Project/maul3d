@@ -43,7 +43,7 @@ Two lines pin the warm start hold, in [`test/test_warmhold.c`](../../test/test_w
 
 ## Benchmark scenes
 
-The seven `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../bench/scenes.c), which the benchmark and [`test/test_bench.c`](../../test/test_bench.c) share:
+The eleven `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../bench/scenes.c), which the benchmark and [`test/test_bench.c`](../../test/test_bench.c) share:
 
 | Name | Scene |
 |---|---|
@@ -51,9 +51,13 @@ The seven `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../b
 | `BENCH_HULLJAM` | Boxes and hull rocks jammed in a pit. |
 | `BENCH_MESHFIELD` | Mixed shapes on a height field. |
 | `BENCH_MESHGRAND` | Boxes raining on a triangle mesh of about sixty thousand triangles. |
+| `BENCH_JOINTRIG` | Hinge chains, balls on sliders whose anchors sit 2 m off their centers, and box pairs welded at their far corners. |
+| `BENCH_VEHICLERIG` | Thirty-two cars on sprung, driven wheel joints, the front pair steering, crossing a floor. |
+| `BENCH_RAGDOLLS` | Forty-eight ragdolls of socket and hinge joints falling in a heap. |
 | `BENCH_VOXFORT` | A hollow voxel fort shelled by charges and raked by bullets; the host turns its fragments into bodies. |
 | `BENCH_CITYBLOCK` | Five thousand bodies on welded voxel towers that a fracture wave carves. A twin run must match. |
 | `BENCH_SMOKE10K` | Ten thousand mixed bodies raining onto a plane. |
+| `BENCH_SOFTFIELD` | Cloths and pressured jellies settling on a slab among two thousand static shapes none of them can reach. |
 
 `test_bench` also rolls a five-thousand-body world back and requires the restore and the re-fought tail to be exact. These scenes reach what the small ones cannot: broadphase rebuilds, island splits and the solver at full load.
 

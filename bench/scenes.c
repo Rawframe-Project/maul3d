@@ -10,6 +10,7 @@
 
 #include "helpers.h"
 
+#include "maul3d/joint.h"
 #include "maul3d/shape.h"
 
 #include <stdlib.h>
@@ -449,10 +450,226 @@ static m3World* SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
     return world;
 }
 
+// Scene 5: the joint rig. Hinge chains hang from the ceiling, balls hang
+// on sliders whose anchors sit 2 m off their centers, and box pairs welded
+// at their far corners rest on the floor: every joint kind that solves a
+// coupled block, on levers that couple its rows.
+static m3World* SceneJointRig(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 1024;
+    def.shapeCapacity = 1024;
+    def.jointCapacity = 1024;
+    m3World* world = NewWorld(&def);
+    AddPlane(world);
+    m3BodyDef sd0 = m3DefaultBodyDef();
+    m3BodyId ceiling = NewBody(world, &sd0);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    for (int32_t c = 0; c < 32; ++c)
+    {
+        double x = -16.0 + (double)c;
+        m3BodyId previous = ceiling;
+        m3Vec3 previousAnchor = {(float)x, 20.0f, 0.0f};
+        for (int32_t k = 0; k < 12; ++k)
+        {
+            bd.position = (m3Pos3){x + 0.5 * (double)k + 0.25, 20.0, 0.0};
+            m3BodyId link = NewBody(world, &bd);
+            m3Capsule pill = {{-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, 0.05f};
+            NewCapsuleShape(world, link, &sd, &pill);
+            m3JointDef jd = m3DefaultJointDef();
+            jd.type = m3_revoluteJoint;
+            jd.bodyIdA = previous;
+            jd.bodyIdB = link;
+            jd.localAnchorA = previousAnchor;
+            jd.localAnchorB = (m3Vec3){-0.25f, 0.0f, 0.0f};
+            jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
+            jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+            NewJoint(world, &jd);
+            previous = link;
+            previousAnchor = (m3Vec3){0.25f, 0.0f, 0.0f};
+        }
+    }
+    for (int32_t i = 0; i < 32; ++i)
+    {
+        double z = 6.0 + (double)i;
+        bd.position = (m3Pos3){2.0, 10.0, z};
+        m3BodyId ball = NewBody(world, &bd);
+        m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
+        NewSphereShape(world, ball, &sd, &sphere);
+        m3JointDef jd = m3DefaultJointDef();
+        jd.type = m3_prismaticJoint;
+        jd.bodyIdA = ceiling;
+        jd.bodyIdB = ball;
+        jd.localAnchorA = (m3Vec3){0.0f, 10.0f, (float)z};
+        jd.localAnchorB = (m3Vec3){-2.0f, 0.0f, 0.0f};
+        jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
+        jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+        jd.enableLimit = true;
+        jd.lowerLimit = -1.0f;
+        jd.upperLimit = 1.0f;
+        NewJoint(world, &jd);
+    }
+    for (int32_t i = 0; i < 32; ++i)
+    {
+        double x = -16.0 + (double)i;
+        bd.position = (m3Pos3){x, 0.5, -6.0};
+        m3BodyId a = NewBody(world, &bd);
+        NewBoxShape(world, a, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+        bd.position = (m3Pos3){x, 1.3, -6.0};
+        m3BodyId b = NewBody(world, &bd);
+        NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+        m3JointDef jd = m3DefaultJointDef();
+        jd.type = m3_fixedJoint;
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = (m3Vec3){0.4f, 0.4f, 0.4f};
+        jd.localAnchorB = (m3Vec3){0.4f, -0.4f, 0.4f};
+        NewJoint(world, &jd);
+    }
+    return world;
+}
+
+// Scene 6: the vehicle rig. Cars of a box chassis and four sphere wheels
+// on wheel joints, each sprung, limited and driven, the front pair
+// steering, drive across the floor in four lanes.
+static m3World* SceneVehicleRig(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 256;
+    def.shapeCapacity = 256;
+    def.jointCapacity = 256;
+    m3World* world = NewWorld(&def);
+    AddPlane(world);
+    for (int32_t car = 0; car < 32; ++car)
+    {
+        m3Pos3 at = {-24.0 + 6.0 * (double)(car % 8), 0.7, -12.0 + 8.0 * (double)(car / 8)};
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = at;
+        m3BodyId chassis = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        sd.density = 300.0f;
+        NewBoxShape(world, chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+        for (int32_t w = 0; w < 4; ++w)
+        {
+            m3Vec3 local = {(w & 1) != 0 ? 0.8f : -0.8f, -0.35f, (w & 2) != 0 ? 0.45f : -0.45f};
+            bd.position =
+                (m3Pos3){at.x + (double)local.x, at.y + (double)local.y, at.z + (double)local.z};
+            m3BodyId wheel = NewBody(world, &bd);
+            m3ShapeDef ws = m3DefaultShapeDef();
+            ws.density = 120.0f;
+            ws.friction = 1.0f;
+            m3Sphere tire = {{0.0f, 0.0f, 0.0f}, 0.3f};
+            NewSphereShape(world, wheel, &ws, &tire);
+            m3JointDef jd = m3DefaultJointDef();
+            jd.type = m3_wheelJoint;
+            jd.bodyIdA = chassis;
+            jd.bodyIdB = wheel;
+            jd.localAnchorA = local;
+            jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+            jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+            jd.enableLimit = true;
+            jd.lowerLimit = -0.1f;
+            jd.upperLimit = 0.1f;
+            jd.enableMotor = true;
+            jd.motorSpeed = -10.0f;
+            jd.maxMotorEffort = 200.0f;
+            m3JointId joint = NewJoint(world, &jd);
+            m3Joint_SetSpring(world, joint, true, 4.0f, 0.7f);
+            m3Joint_SetTargetTranslation(world, joint, 0.0f);
+            if ((w & 1) != 0)
+            {
+                m3Joint_SetSteer(world, joint, true, car % 2 != 0 ? 0.2f : -0.2f, 5.0f, 0.7f, 0.0f);
+            }
+        }
+    }
+    return world;
+}
+
+// One ragdoll at its pelvis: a torso, a head on a neck socket, arms on
+// shoulder sockets with hinged elbows, and legs on hip sockets with
+// hinged knees, ten bodies on nine joints.
+static void AddRagdoll(m3World* world, m3Pos3 at)
+{
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    bd.position = (m3Pos3){at.x, at.y + 0.3, at.z};
+    m3BodyId torso = NewBody(world, &bd);
+    NewBoxShape(world, torso, &sd, (m3Vec3){0.2f, 0.3f, 0.12f});
+    bd.position = (m3Pos3){at.x, at.y + 0.8, at.z};
+    m3BodyId head = NewBody(world, &bd);
+    m3Sphere skull = {{0.0f, 0.0f, 0.0f}, 0.12f};
+    NewSphereShape(world, head, &sd, &skull);
+    m3JointDef socket = m3DefaultJointDef();
+    socket.type = m3_sphericalJoint;
+    socket.bodyIdA = torso;
+    socket.bodyIdB = head;
+    socket.localAnchorA = (m3Vec3){0.0f, 0.35f, 0.0f};
+    socket.localAnchorB = (m3Vec3){0.0f, -0.15f, 0.0f};
+    socket.enableCone = true;
+    socket.coneAngle = 0.5f;
+    NewJoint(world, &socket);
+    m3Capsule limb = {{0.0f, -0.15f, 0.0f}, {0.0f, 0.15f, 0.0f}, 0.05f};
+    for (int32_t side = 0; side < 2; ++side)
+    {
+        float s = side == 0 ? -1.0f : 1.0f;
+        for (int32_t leg = 0; leg < 2; ++leg)
+        {
+            float rootX = leg == 0 ? 0.28f * s : 0.1f * s;
+            float rootY = leg == 0 ? 0.25f : -0.3f;
+            bd.position = (m3Pos3){at.x + (double)rootX, at.y + 0.3 + (double)rootY - 0.2, at.z};
+            m3BodyId upper = NewBody(world, &bd);
+            NewCapsuleShape(world, upper, &sd, &limb);
+            bd.position = (m3Pos3){at.x + (double)rootX, at.y + 0.3 + (double)rootY - 0.55, at.z};
+            m3BodyId lower = NewBody(world, &bd);
+            NewCapsuleShape(world, lower, &sd, &limb);
+            socket.bodyIdA = torso;
+            socket.bodyIdB = upper;
+            socket.localAnchorA = (m3Vec3){rootX, rootY, 0.0f};
+            socket.localAnchorB = (m3Vec3){0.0f, 0.2f, 0.0f};
+            socket.coneAngle = 1.2f;
+            NewJoint(world, &socket);
+            m3JointDef hinge = m3DefaultJointDef();
+            hinge.type = m3_revoluteJoint;
+            hinge.bodyIdA = upper;
+            hinge.bodyIdB = lower;
+            hinge.localAnchorA = (m3Vec3){0.0f, -0.175f, 0.0f};
+            hinge.localAnchorB = (m3Vec3){0.0f, 0.175f, 0.0f};
+            hinge.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
+            hinge.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
+            hinge.enableLimit = true;
+            hinge.lowerLimit = leg == 0 ? 0.0f : -2.0f;
+            hinge.upperLimit = leg == 0 ? 2.0f : 0.0f;
+            NewJoint(world, &hinge);
+        }
+    }
+}
+
+// Scene 7: the ragdolls. Forty-eight of them fall in a staggered heap.
+static m3World* SceneRagdolls(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 1024;
+    def.shapeCapacity = 1024;
+    def.jointCapacity = 1024;
+    m3World* world = NewWorld(&def);
+    AddPlane(world);
+    for (int32_t i = 0; i < 48; ++i)
+    {
+        AddRagdoll(world, (m3Pos3){-3.0 + 1.5 * (double)(i % 4), 2.0 + 1.2 * (double)(i / 4),
+                                   -1.0 + 0.7 * (double)((i / 4) % 3) + 0.1 * (double)(i % 4)});
+    }
+    return world;
+}
+
 uint64_t BenchStepScene(BenchScene scene, int32_t steps, BenchClock* clock, double* ms)
 {
-    static m3World* (*const builders[BENCH_SCENE_COUNT])(void) = {ScenePyramid, SceneHullJam,
-                                                                  SceneMeshField, SceneMeshGrand};
+    static m3World* (*const builders[BENCH_SCENE_COUNT])(void) = {
+        ScenePyramid,  SceneHullJam,    SceneMeshField, SceneMeshGrand,
+        SceneJointRig, SceneVehicleRig, SceneRagdolls};
     m3World* world = builders[scene]();
     double t0 = Now(clock);
     for (int32_t i = 0; i < steps; ++i)

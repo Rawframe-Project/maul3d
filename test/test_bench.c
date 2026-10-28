@@ -26,6 +26,15 @@
 #ifndef M3_GOLDEN_BENCH_MESHGRAND
 #define M3_GOLDEN_BENCH_MESHGRAND 0
 #endif
+#ifndef M3_GOLDEN_BENCH_JOINTRIG
+#define M3_GOLDEN_BENCH_JOINTRIG 0
+#endif
+#ifndef M3_GOLDEN_BENCH_VEHICLERIG
+#define M3_GOLDEN_BENCH_VEHICLERIG 0
+#endif
+#ifndef M3_GOLDEN_BENCH_RAGDOLLS
+#define M3_GOLDEN_BENCH_RAGDOLLS 0
+#endif
 #ifndef M3_GOLDEN_BENCH_VOXFORT
 #define M3_GOLDEN_BENCH_VOXFORT 0
 #endif
@@ -54,11 +63,12 @@ static void Expect(const char* name, uint64_t hash, uint64_t committed)
 
 int main(void)
 {
-    static const char* const names[BENCH_SCENE_COUNT] = {"PYRAMID", "HULLJAM", "MESHFIELD",
-                                                         "MESHGRAND"};
+    static const char* const names[BENCH_SCENE_COUNT] = {
+        "PYRAMID", "HULLJAM", "MESHFIELD", "MESHGRAND", "JOINTRIG", "VEHICLERIG", "RAGDOLLS"};
     static const uint64_t committed[BENCH_SCENE_COUNT] = {
-        M3_GOLDEN_BENCH_PYRAMID, M3_GOLDEN_BENCH_HULLJAM, M3_GOLDEN_BENCH_MESHFIELD,
-        M3_GOLDEN_BENCH_MESHGRAND};
+        M3_GOLDEN_BENCH_PYRAMID,   M3_GOLDEN_BENCH_HULLJAM,  M3_GOLDEN_BENCH_MESHFIELD,
+        M3_GOLDEN_BENCH_MESHGRAND, M3_GOLDEN_BENCH_JOINTRIG, M3_GOLDEN_BENCH_VEHICLERIG,
+        M3_GOLDEN_BENCH_RAGDOLLS};
     double unused = 0.0;
     for (int32_t scene = 0; scene < BENCH_SCENE_COUNT; ++scene)
     {
