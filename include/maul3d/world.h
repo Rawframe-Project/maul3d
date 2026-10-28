@@ -39,9 +39,9 @@ extern "C"
     /// ANY schedule because parallel phases only ever write disjoint
     /// slots; the worker-twin gate proves it on every commit. Leave
     /// both hooks null for serial execution. A range can run the
-    /// narrow phase, whose deepest call keeps about 170 KiB on the
-    /// stack in an optimized build: give the threads that run ranges
-    /// at least 256 KiB of stack.
+    /// narrow phase, whose deepest call, a mesh pair's, keeps about
+    /// 280 KiB on the stack in an optimized build: give the threads
+    /// that run ranges at least 320 KiB of stack.
     typedef void m3TaskFn(int32_t startIndex, int32_t endIndex, void* taskContext);
     typedef void* m3EnqueueTaskFn(m3TaskFn* task, int32_t itemCount, int32_t minRange,
                                   void* taskContext, void* userContext);
