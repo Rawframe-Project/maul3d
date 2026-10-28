@@ -83,7 +83,7 @@ static void TestCountsMatchTheScene(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     c = m3World_GetCounters(world);
     CHECK(c.contactCount > 0, "the settled stack has contacts");
@@ -120,7 +120,7 @@ static void TestReadingIsPure(void)
                 (void)c;
                 (void)p;
             }
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -169,7 +169,7 @@ static void TestContactReadback(void)
     m3World* world = BuildYard();
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // The stack settled: the middle crate touches above and below.
     m3Counters c = m3World_GetCounters(world);
@@ -189,7 +189,7 @@ static void TestContactReadback(void)
     NewBoxShape(world, b, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     total = m3Body_GetContactData(world, a, data, 8);
     CHECK(total >= 1, "the crate reports its touches");
@@ -297,8 +297,8 @@ static void TestReadback(void)
     m3BodyId all[4];
     CHECK(m3World_GetBodies(world, all, 4) == 2, "the world's bodies");
     CHECK(m3World_GetJoints(world, NULL, 0) == 1, "the world's joints, counted");
-    m3World_Step(world, 1.0f / 60.0f, 4);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_GetStepCount(world) == 2u, "two steps taken");
     m3DestroyWorld(world);
 }

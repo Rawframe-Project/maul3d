@@ -84,7 +84,7 @@ static void TestRigidWalkerRecipe(void)
             fx = fx > 2000.0f ? 2000.0f : (fx < -2000.0f ? -2000.0f : fx);
             m3Body_ApplyForce(world, hero, (m3Vec3){fx, 0.0f, 0.0f});
         }
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, hero);
     m3Vec3 v = m3Body_GetLinearVelocity(world, hero);

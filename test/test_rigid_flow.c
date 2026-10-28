@@ -253,7 +253,7 @@ static void TestTriaxialBoxFollowsEuler(void)
         double worstEnergy = 0.0;
         for (int32_t i = 0; i < 600; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             for (int32_t r = 0; r < 256; ++r)
             {
                 EulerRk4(moments, reference, 1.0 / 60.0 / 256.0);
@@ -323,7 +323,7 @@ static void TestTiltedStickIsSymmetricTop(void)
         double worst = 0.0;
         for (int32_t i = 0; i < 600; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Vec3 b = m3InvRotateVec3(m3Body_GetRotation(world, body),
                                        m3Body_GetAngularVelocity(world, body));
             double energy = (double)m3Dot3(b, m3MulMV3(tensor, b));
@@ -389,7 +389,7 @@ static void TestThinRodKeepsAxialSpin(void)
     m3Body_SetAngularVelocity(world, body, (m3Vec3){3.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 600; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 axis = m3RotateVec3(m3Body_GetRotation(world, body), (m3Vec3){1.0f, 0.0f, 0.0f});
     double axial = (double)m3Dot3(m3Body_GetAngularVelocity(world, body), axis);
@@ -421,7 +421,7 @@ static void TestLockedBodyTurnsAtItsSpin(void)
     m3Body_SetAngularVelocity(world, body, w);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 after = m3Body_GetAngularVelocity(world, body);
     CHECK(memcmp(&after, &w, sizeof(w)) == 0, "a locked body keeps its spin bit for bit");
@@ -448,7 +448,7 @@ static void TestSphereKeepsSpin(void)
     m3Quat start = m3Body_GetRotation(world, body);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 after = m3Body_GetAngularVelocity(world, body);
     CHECK(memcmp(&after, &w, sizeof(w)) == 0, "a sphere keeps its spin bit for bit");

@@ -56,7 +56,7 @@ static void TestFilterIsRowlessAndFilters(void)
     CHECK(m3Joint_IsValid(world, filter), "the filter creates");
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // Rowless proof: both crates rest ON THE FLOOR (y about 0.4),
     // still overlapping horizontally; a phantom weld would hold b
@@ -68,7 +68,7 @@ static void TestFilterIsRowlessAndFilters(void)
     DestroyJoint(world, filter);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double dx = fabs(m3Body_GetPosition(world, a).x - m3Body_GetPosition(world, b).x);
     CHECK(dx > 0.6, "without the filter the overlap resolves apart");
@@ -106,14 +106,14 @@ static void TestParallelKeepsAxesParallel(void)
     m3Body_ApplyLinearImpulse(world, b, (m3Vec3){2.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, b).x > 2.5, "translation is free");
     // The lock: torque body a about x, body b tilts WITH it.
     m3Body_ApplyAngularImpulse(world, a, (m3Vec3){0.6f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 wa = m3Body_GetAngularVelocity(world, a);
     m3Vec3 wb = m3Body_GetAngularVelocity(world, b);
@@ -123,7 +123,7 @@ static void TestParallelKeepsAxesParallel(void)
     m3Body_ApplyAngularImpulse(world, b, (m3Vec3){0.0f, 1.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     wa = m3Body_GetAngularVelocity(world, a);
     wb = m3Body_GetAngularVelocity(world, b);
@@ -168,7 +168,7 @@ static double ArmDroop(bool spring, bool motor, float budget)
     }
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double droop = 3.0 - m3Body_GetPosition(world, arm).y;
     m3DestroyWorld(world);
@@ -235,14 +235,14 @@ static void TestWheelSteering(void)
         m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         float angle = m3Joint_GetSteerAngle(world, wheel);
         CHECK(fabsf(angle - 0.5f) < 0.05f, "the rim yaws to the steer target");
         m3Joint_SetSteer(world, wheel, true, -0.5f, 8.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) + 0.5f) < 0.05f, "the steer reverses");
         // The hostile wall runs in BOTH runs so the twins stay
@@ -320,7 +320,7 @@ static double ServoDroop(float maxForce)
     }
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double droop = 2.0 - m3Body_GetPosition(world, cube).y;
     m3DestroyWorld(world);
@@ -357,7 +357,7 @@ static void TestMotorJointServo(void)
         CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the servo creates");
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         CHECK(m3Body_GetPosition(world, cube).y < 0.0, "a springless servo idles free");
         m3DestroyWorld(world);
@@ -390,7 +390,7 @@ static void TestMotorJointServo(void)
         m3Joint_SetMotorPose(world, servo, (m3Vec3){0.6f, -1.0f, 0.0f}, aim);
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 p = m3Body_GetPosition(world, cube);
         CHECK(fabs(p.x - 0.6) < 0.05 && fabs(p.y - 1.0) < 0.05 && fabs(p.z) < 0.05,
@@ -438,13 +438,13 @@ static void TestMotorJointServo(void)
                              (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Joint_SetMotorPose(world, servo, (m3Vec3){-0.3f, -1.0f, 0.0f},
                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         // Hostile aims run in BOTH runs so the twins stay symmetric:
         // a refused pose never touches state or the journal.

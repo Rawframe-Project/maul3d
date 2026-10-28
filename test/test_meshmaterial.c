@@ -55,7 +55,7 @@ static double SlideDistance(bool slippery)
     NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double travelled = m3Body_GetPosition(world, box).x + 2.0;
     m3DestroyWorld(world);
@@ -99,7 +99,7 @@ static void TestConveyorTriangle(void)
         NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
         for (int32_t i = 0; i < 150; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         double x = m3Body_GetPosition(world, box).x;
         if (pass == 0)

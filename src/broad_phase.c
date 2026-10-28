@@ -30,6 +30,11 @@ typedef struct m3Aabb3d
     double hi[3];
 } m3Aabb3d;
 
+int64_t m3PairUpdateScratchBytes(int32_t shapeCapacity)
+{
+    return m3StackBytes(shapeCapacity, (int64_t)sizeof(m3Aabb3d)) + m3StackBytes(shapeCapacity, 1);
+}
+
 static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
 {
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
@@ -203,7 +208,7 @@ static int Overlap(const m3Aabb3d* a, const m3Aabb3d* b)
 
 // Fresh bounds of one shape for this step, memoized: a sleeping shape
 // skipped the prefill and fills on first touch. Same function, same
-// inputs, same bits as the prefill would have written; a scratch stall
+// inputs, same bits as the prefill would have written; a short scratch
 // (no cache) computes directly.
 static m3Aabb3d FreshBounds(const m3World* world, m3Aabb3d* cache, uint8_t* cacheValid,
                             int32_t shape)
@@ -635,8 +640,8 @@ m3Result m3UpdatePairs(m3World* world)
     // Fresh bounds, once per shape per step: the refresh,
     // the self query, and every hit re-test read this cache. Pure
     // memoization: the values are what computing each bound per
-    // call gives, so the pair set cannot move by a bit. A scratch
-    // stall falls back to the direct computes, same values.
+    // call gives, so the pair set cannot move by a bit. A short
+    // scratch falls back to the direct computes, same values.
     m3Aabb3d* cache =
         (m3Aabb3d*)m3StackAlloc(&world->scratch, maxShape > 0 ? maxShape * (int32_t)sizeof(m3Aabb3d)
                                                               : (int32_t)sizeof(m3Aabb3d));

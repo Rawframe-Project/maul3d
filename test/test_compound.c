@@ -55,7 +55,7 @@ static void TestOffsetEquivalence(void)
         NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3RayCastResult hit = m3World_CastRayClosest(
             world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
@@ -127,7 +127,7 @@ static void TestRotatedOffsetRests(void)
     NewCapsuleShape(world, body, &sd, &cap);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double y = m3Body_GetPosition(world, body).y;
     CHECK(fabs(y - 0.3) < 0.02, "the offset-rotated capsule lies at radius height");
@@ -187,7 +187,7 @@ static void TestBigHullUnderTheGates(void)
         CHECK(m3Shape_IsValid(world, shape), "the 96-point cloud builds a hull shape");
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         double y = m3Body_GetPosition(world, rock).y;
         CHECK(y > 0.5 && y < 0.9, "the big rock rests near its radius");
@@ -252,7 +252,7 @@ static void TestGrandMesh(void)
     NewBoxShape(world, crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double y = m3Body_GetPosition(world, crate).y;
     CHECK(y > -1.0 && y < 1.5, "the crate lands on the far side of the terrain");
@@ -266,14 +266,14 @@ static void TestGrandMesh(void)
     uint64_t mid = m3World_Hash(world);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t end = m3World_Hash(world);
     CHECK(Restore(world, snap, snapBytes), "the grand restore lands");
     CHECK(m3World_Hash(world) == mid, "the restore is bit-identical");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(world) == end, "the re-run is bit-identical");
     free(snap);

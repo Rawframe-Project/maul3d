@@ -43,7 +43,7 @@ int main(void)
 
     for (int i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
     m3Pos3 rest = m3Body_GetPosition(world, ball);
     if (rest.y < 0.45 || rest.y > 0.55)
@@ -59,7 +59,7 @@ int main(void)
     uint64_t before = m3World_Hash(world);
     for (int i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
     Require(m3World_Restore(world, snap, bytes), "restore");
     if (m3World_Hash(world) != before)
@@ -115,7 +115,7 @@ int main(void)
             "fragment shape");
     for (int i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
     if (!m3Body_IsValid(world, fragment))
     {

@@ -64,7 +64,7 @@ static void TestMaskGate(void)
     m3BodyId ghost = DropBall(world, 2.0, CAT_GHOST, CAT_DEBRIS); // sees debris only
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, solid).y > 0.4, "the full-mask ball lands on the plane");
     CHECK(m3Body_GetPosition(world, ghost).y < -3.0, "the masked ghost falls through the world");
@@ -93,7 +93,7 @@ static void TestGroupOverride(void)
     NewSphereShape(world, b, &sa, &ball);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // The positive group forced the pair: b rests on or beside a,
     // not inside it.
@@ -117,7 +117,7 @@ static void TestGroupOverride(void)
     NewSphereShape(world, d, &sc, &ball);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 pd = m3Body_GetPosition(world, d);
     CHECK(pd.y < 1.1 && pd.y > 0.4, "a negative group never collides: d sinks into c's space");
@@ -192,7 +192,7 @@ static void TestRuntimeFilterChange(void)
     m3ShapeId shape = NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m3Body_IsAwake(world, ball), "the ball rests and sleeps");
     m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0);
@@ -204,7 +204,7 @@ static void TestRuntimeFilterChange(void)
     CHECK(m3Body_IsAwake(world, ball), "the change wakes the sleeper");
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, ball).y < -3.0, "the ghost falls through the ground");
     int32_t bytes = StopJournal(world);

@@ -325,7 +325,7 @@ static void TestSoftPushAndKickWindow(void)
     CHECK(snapBytes > 0, "the kick-window snapshot fits");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t after = m3World_Hash(world);
     CHECK(m3SoftBody_GetParticlePosition(world, jelly, 0).x > beforeX + 0.1,
@@ -333,7 +333,7 @@ static void TestSoftPushAndKickWindow(void)
     CHECK(Restore(world, snap, snapBytes), "the kick-window restore lands");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(world) == after, "the re-run kick lands on the same bits");
     m3DestroyWorld(world);
@@ -345,7 +345,7 @@ static void TestSoftPushAndKickWindow(void)
     m3World_Explode(still, &def);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(still, 1.0f / 60.0f, 4);
+        (void)m3World_Step(still, 1.0f / 60.0f, 4);
     }
     double calmX = m3SoftBody_GetParticlePosition(still, calm, 0).x;
     CHECK(calmX > 2.9 && calmX < 3.1, "softPush zero leaves the lattice in place");

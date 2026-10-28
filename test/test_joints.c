@@ -37,7 +37,7 @@ static void StepN(m3World* world, int32_t steps)
 {
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 }
 
@@ -74,7 +74,7 @@ static void TestPendulum(void)
     double maxStretch = 0.0;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 p = m3Body_GetPosition(world, bob);
         m3Vec3 v = m3Body_GetLinearVelocity(world, bob);
         double speed = (double)m3Dot3(v, v);
@@ -117,7 +117,7 @@ static void TestFarErrorClosesAtSpeedLimit(void)
     jd.bodyIdB = bob;
     NewJoint(world, &jd);
     m3Body_SetTransform(world, bob, (m3Pos3){1.0e4, 0.0, 0.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-    m3World_Step(world, 1.0f / 60.0f, 1);
+    (void)m3World_Step(world, 1.0f / 60.0f, 1);
     double x = m3Body_GetPosition(world, bob).x;
     CHECK(x < 1.0e4 && x >= 1.0e4 - 1.0e5 / 60.0 * 1.0001,
           "the error closes no faster than the speed limit");
@@ -219,7 +219,7 @@ static void TestJointContracts(void)
     // Destroying a body cascades its joints.
     DestroyBody(world, b);
     CHECK(!m3Joint_IsValid(world, first), "destroying a body destroys its joints");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
 
@@ -276,7 +276,7 @@ static void TestDoorSwings(void)
     double maxOffAxis = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 p = m3Body_GetPosition(world, door);
         m3Quat q = m3Body_GetRotation(world, door);
         m3Vec3 hinge = m3RotateVec3(q, (m3Vec3){-0.5f, 0.0f, 0.0f});
@@ -313,7 +313,7 @@ static void TestDoorLimits(void)
     double maxAngle = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         if (i == 120)
         {
             m3Body_SetAngularVelocity(world, door, (m3Vec3){0.0f, -12.0f, 0.0f});
@@ -347,7 +347,7 @@ static void TestDoorMotor(void)
 
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Vec3 w = m3Body_GetAngularVelocity(world, door);
         if (variant == 0)
@@ -718,7 +718,7 @@ static void TestTwistClamp(void)
     double maxTwist = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         if (i == 120)
         {
             m3Body_SetAngularVelocity(world, spinner, (m3Vec3){0.0f, 0.0f, -6.0f});
@@ -772,7 +772,7 @@ static void TestFrameBuilderBranches(void)
         }
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -821,7 +821,7 @@ static void TestWeldActsAsOneBody(void)
         m3Body_SetLinearVelocity(world, a, (m3Vec3){2.0f, 3.0f, 1.0f});
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 pa = m3Body_GetPosition(world, a);
         m3Pos3 pb = m3Body_GetPosition(world, b);
@@ -875,13 +875,13 @@ static void TestRopeAndRod(void)
     // (the rope must not touch a slack body).
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     CHECK(v.y < -1.55f && v.y > -1.72f, "a slack rope leaves free fall alone");
     for (int32_t i = 0; i < 290; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, ball);
     double hang = 10.0 - p.y;
@@ -909,7 +909,7 @@ static void TestRopeAndRod(void)
     m3Body_SetLinearVelocity(world, bob, (m3Vec3){0.0f, 6.0f, 0.0f}); // push UP
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     p = m3Body_GetPosition(world, bob);
     double dx = p.x - 4.0;
@@ -958,7 +958,7 @@ static void TestDistanceSpring(void)
     double previous = 3.5 - 2.0;
     for (int32_t i = 0; i < 600; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 p = m3Body_GetPosition(world, ball);
         double excess = (p.x - 0.0) - 2.0; // distance minus rest
         if ((excess > 0.0) != (previous > 0.0))
@@ -1055,7 +1055,7 @@ static void TestGenericAsSpherical(void)
     double maxPinDrift2 = 0.0;
     for (int32_t i = 0; i < 480; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Vec3 v = m3Body_GetLinearVelocity(world, bob);
         double s2 = (double)(v.x * v.x + v.y * v.y + v.z * v.z);
         if (s2 > maxSpeed2)
@@ -1114,7 +1114,7 @@ static void TestGenericAsHingeWithMotorAndLimits(void)
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic hinge creates");
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Quat q = m3Body_GetRotation(world, door);
     float angle = 2.0f * atan2f(q.z, q.w);
@@ -1157,7 +1157,7 @@ static void TestGenericAsSlider(void)
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic slider creates");
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, cart);
     CHECK(p.y > 2.9 && p.y < 3.1, "gravity rests the cart on the lower stop");
@@ -1169,13 +1169,13 @@ static void TestGenericAsSlider(void)
     CHECK(Snapshot(world, snap, bytes) == bytes, "the generic snapshot writes");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t ahead = m3World_Hash(world);
     CHECK(Restore(world, snap, bytes), "the generic restore lands");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(world) == ahead, "the generic joint rolls back bit-exact");
     free(snap);
@@ -1250,7 +1250,7 @@ static void TestHeavyBodyHangs(void)
         CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the socket builds");
         for (int32_t k = 0; k < 60; ++k)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         char what[96];
         snprintf(what, sizeof(what), "a %.0e kg cube stays on its socket",
@@ -1289,7 +1289,7 @@ static void TestHeavyBodyWelds(void)
         CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the weld builds");
         for (int32_t k = 0; k < 60; ++k)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         char what[96];
         snprintf(what, sizeof(what), "a %.0e kg cube stays on its weld",
@@ -1329,7 +1329,7 @@ static double PivotDrift(int32_t type, float degrees, float arm)
     double worst = 0.0;
     for (int32_t k = 0; k < 60; ++k)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 at = m3Body_GetWorldPoint(world, ball, jd.localAnchorB);
         double z = type == m3_prismaticJoint ? 0.0 : (double)at.z;
         worst = fmax(worst, sqrt((double)at.x * at.x + (double)at.y * at.y + z * z));

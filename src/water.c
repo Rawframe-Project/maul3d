@@ -282,7 +282,7 @@ void m3PrepareBuoyancy(m3World* world, const int32_t* movers, int32_t moverCount
     if (b->force == NULL || b->torque == NULL || b->flow == NULL || b->lin == NULL ||
         b->ang == NULL)
     {
-        b->active = 0; // a scratch stall: a dry step
+        b->active = 0; // a short scratch, which the world's sizing rules out
         return;
     }
     for (int32_t m = 0; m < moverCount; ++m)

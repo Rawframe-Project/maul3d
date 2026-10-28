@@ -12,6 +12,9 @@
 // ascending key order from fat AABBs; the dynamic tree replaces the
 // scan in 2b behind this same contract.
 m3Result m3UpdatePairs(m3World* world);
+// The step scratch the pair update takes for a world of shapeCapacity
+// shapes.
+int64_t m3PairUpdateScratchBytes(int32_t shapeCapacity);
 
 void m3FreezeDiscoverPairs(m3World* world, int32_t body);
 

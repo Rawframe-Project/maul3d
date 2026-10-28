@@ -15,6 +15,7 @@
 #include "journal.h"
 #include "misuse.h"
 #include "snapshot_walk.h"
+#include "step_scratch.h"
 #include "world_internal.h"
 #include "world_state.h"
 
@@ -261,8 +262,10 @@ static bool CreatePools(m3World* world)
     int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(&world->heap, TreeCapacity(shapeCap));
     world->memoryBytes += (int64_t)TreeCapacity(shapeCap) * (int64_t)sizeof(m3TreeNode);
-    // Step scratch grows between steps on m3_errorCapacity, never mid-step.
-    world->scratch = m3StackCreate(&world->heap, 256 * 1024);
+    // The step scratch, whole: a step never asks the allocator. The size
+    // was checked against the 32-bit byte count before anything was
+    // allocated.
+    world->scratch = m3StackCreate(&world->heap, (int32_t)m3StepScratchBytes(world));
     // The voxel slots' trees come with their chunks; the build scratch
     // and the edit staging copy serve them all.
     int32_t voxelCap = world->voxels.voxelCapacity;
@@ -314,7 +317,7 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
     memset(&measured, 0, sizeof(measured));
     ApplyWorldDef(&measured, def);
     measured.broadphase.tree.capacity = TreeCapacity(def->shapeCapacity);
-    if (!m3SnapshotFitsCapacities(&measured))
+    if (!m3SnapshotFitsCapacities(&measured) || m3StepScratchBytes(&measured) > INT32_MAX)
     {
         return m3_errorCapacity;
     }

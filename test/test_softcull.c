@@ -551,7 +551,7 @@ static Outcome RunScene(BuildScene* build, bool cullOff, bool gravity, int32_t s
     build(world, &probe);
     for (int32_t s = 0; s < steps; ++s)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     Outcome out = {NULL, m3World_SnapshotSize(world), 0, 0};
     out.bytes = (uint8_t*)malloc((size_t)out.size);

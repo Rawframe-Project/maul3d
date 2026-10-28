@@ -80,7 +80,7 @@ static void TestStaleIdsEverywhere(void)
     m3BodyId recycled = NewBody(world, &bd);
     CHECK(recycled.index1 == body.index1, "the slot recycles");
     CHECK(!m3Body_IsValid(world, body), "the old generation stays stale after recycling");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the world shrugs it all off");
 
     // The journal calls answer a wrong recording state with its status.
@@ -108,7 +108,7 @@ static void TestSnapshotRefusals(void)
     NewSphereShape(world, body, &sd, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
     int32_t bytes = m3World_SnapshotSize(world);
@@ -213,7 +213,7 @@ static void TestJournalCorruptionIsAtomic(void)
         CHECK(refused, "a damaged journal refuses");
         CHECK(m3World_Hash(target) == before, "the refused replay left no fingerprints");
         CHECK(m3Body_IsValid(target, resident), "the resident body survived the attack");
-        m3World_Step(target, 1.0f / 60.0f, 4);
+        (void)m3World_Step(target, 1.0f / 60.0f, 4);
         m3DestroyWorld(target);
     }
 }
@@ -257,7 +257,7 @@ static void TestCascadeRaces(void)
         DestroyBody(world, spokes[2]);
         for (int32_t i = 0; i < 30; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -298,7 +298,7 @@ static void TestGenerationChurn(void)
     CHECK(fresh, "each object takes the slot under the next generation");
     CHECK(!m3Body_IsValid(world, early), "the very first id is still stale after the churn");
     CHECK(m3Body_IsValid(world, NewBody(world, &bd)), "the churned pool still creates");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the churned world still steps");
     m3DestroyWorld(world);
 }
@@ -412,7 +412,7 @@ static void TestStaleRuntimeSetters(void)
         }
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);

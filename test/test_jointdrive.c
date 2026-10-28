@@ -41,7 +41,7 @@ static void StepN(m3World* world, int32_t n)
 {
     for (int32_t i = 0; i < n; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 }
 
@@ -166,7 +166,7 @@ static void TestBreakage(void)
         bool idMatches = true;
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             const m3JointBreakEvent* ev = m3World_GetJointEvents(world).breakEvents;
             int32_t n = m3World_GetJointEvents(world).breakCount;
             for (int32_t k = 0; k < n; ++k)
@@ -247,7 +247,7 @@ static void TestSpringDampingContrast(void)
         double peak = 0.0;
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             double t = (double)m3Joint_GetTranslation(world, slide);
             if (t > peak)
             {

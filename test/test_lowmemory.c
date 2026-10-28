@@ -6,7 +6,8 @@
 // and leaves the world as it was, or does all of its work. Each test
 // sweeps the budget from zero until the call succeeds, so every
 // allocation the call makes is refused once. A replay refused memory
-// says so with m3_errorCapacity and backs out whole.
+// says so with m3_errorCapacity and backs out whole, a world create
+// leaves no block behind, and a step asks the allocator for nothing.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -25,6 +26,7 @@
 typedef struct Budget
 {
     int32_t left;
+    int32_t live; // blocks handed out and not yet given back
 } Budget;
 
 static void* BudgetAlloc(size_t bytes, size_t alignment, void* context)
@@ -39,14 +41,17 @@ static void* BudgetAlloc(size_t bytes, size_t alignment, void* context)
     {
         budget->left -= 1;
     }
-    return malloc(bytes);
+    void* memory = malloc(bytes);
+    budget->live += memory != NULL ? 1 : 0;
+    return memory;
 }
 
 static void BudgetFree(void* memory, size_t bytes, size_t alignment, void* context)
 {
     (void)bytes;
     (void)alignment;
-    (void)context;
+    Budget* budget = (Budget*)context;
+    budget->live -= memory != NULL ? 1 : 0;
     free(memory);
 }
 
@@ -128,7 +133,7 @@ static void TestRestoreUnderBudget(void)
 {
     // A floor, a slab and a box falling onto the floor: restoring the
     // first frame over the thirtieth rebuilds both trees.
-    Budget budget = {-1};
+    Budget budget = {-1, 0};
     m3World* world = BudgetWorld(&budget);
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = NewBody(world, &gd);
@@ -150,7 +155,7 @@ static void TestRestoreUnderBudget(void)
     uint8_t* first = TakeSnapshot(world, &size);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t laterSize = 0;
     uint8_t* later = TakeSnapshot(world, &laterSize);
@@ -211,10 +216,10 @@ static m3World* CreateWorld(Budget* budget, bool slabNotFloor, bool create, m3Bo
 static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
                         const char* createdMsg)
 {
-    Budget budget = {-1};
+    Budget budget = {-1, 0};
     m3BodyId body;
     m3World* world = CreateWorld(&budget, slabNotFloor, false, &body);
-    Budget plenty = {-1};
+    Budget plenty = {-1, 0};
     m3BodyId referenceBody;
     m3World* reference = CreateWorld(&plenty, slabNotFloor, true, &referenceBody);
     uint64_t hash = m3World_Hash(world);
@@ -303,7 +308,7 @@ static void TestVoxelEditsUnderBudget(void)
         int32_t landed = 0;
         for (int32_t n = 0; n < 8; ++n)
         {
-            Budget budget = {-1};
+            Budget budget = {-1, 0};
             m3BodyId body;
             m3World* world = CreateWorld(&budget, true, false, &body);
             m3ShapeId slab = m3_nullShapeId;
@@ -338,7 +343,7 @@ static void TestReplayUnderBudget(void)
     // starting world. A replay the allocator turns down is
     // m3_errorCapacity, never m3_errorInvalid (the tape is good), and
     // backs out to the starting world, whatever op it was refused in.
-    Budget budget = {-1};
+    Budget budget = {-1, 0};
     m3World* world = BudgetWorld(&budget);
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = NewBody(world, &gd);
@@ -363,7 +368,7 @@ static void TestReplayUnderBudget(void)
     CHECK(m3World_RebuildBroadphase(world) == m3_success, "the tree rebuilds on the tape");
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t tapeBytes = StopJournal(world);
     int32_t endSize = 0;
@@ -404,12 +409,166 @@ static void TestReplayUnderBudget(void)
     m3DestroyWorld(world);
 }
 
+// A world create takes every block it will hold, the step scratch
+// included, and a refusal at any of them gives back the ones it took.
+static void TestWorldCreateUnderBudget(void)
+{
+    bool refusedWhole = true;
+    int32_t refusals = 0;
+    m3Result result = m3_errorCapacity;
+    for (int32_t n = 0; n < 10000 && result != m3_success; ++n)
+    {
+        Budget budget = {n, 0};
+        m3WorldDef wd = m3DefaultWorldDef();
+        wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, &budget};
+        m3World* world = NULL;
+        result = m3CreateWorld(&wd, &world);
+        if (result != m3_success)
+        {
+            refusals += 1;
+            refusedWhole =
+                refusedWhole && result == m3_errorCapacity && world == NULL && budget.live == 0;
+        }
+        else
+        {
+            m3DestroyWorld(world);
+            CHECK(budget.live == 0, "a destroyed world gives back every block");
+        }
+    }
+    CHECK(refusals > 0 && refusedWhole,
+          "a world create the allocator refuses is m3_errorCapacity and leaves no block behind");
+    CHECK(result == m3_success, "with memory enough the world is created");
+}
+
+// A busy world of every kind of step work: a pile on a height field grid
+// and a mesh, joints, a vehicle, a character and a water volume.
+static m3World* BusyWorld(Budget* budget)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 256;
+    wd.shapeCapacity = 256;
+    wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, budget};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static float heights[17 * 17];
+    for (int32_t i = 0; i < 17 * 17; ++i)
+    {
+        heights[i] = 0.05f * (float)((i * 7) % 5);
+    }
+    (void)NewHeightFieldGridShape(world, ground, &sd, heights, 17, 17, 1.0f);
+    gd.position = (m3Pos3){-10.0, 0.0, 0.0};
+    m3ShapeId floor = m3_nullShapeId;
+    (void)CreateFloor(world, NewBody(world, &gd), &floor);
+    m3BodyId previous = ground;
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){1.0 + 1.2 * (double)(i % 6), 0.6 + 0.6 * (double)(i / 36),
+                               1.0 + 1.2 * (double)((i / 6) % 6)};
+        m3BodyId box = NewBody(world, &bd);
+        NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+        if (i < 4)
+        {
+            m3JointDef jd = m3DefaultJointDef();
+            jd.type = m3_sphericalJoint;
+            jd.bodyIdA = previous;
+            jd.bodyIdB = box;
+            (void)NewJoint(world, &jd);
+            previous = box;
+        }
+    }
+    m3BodyDef cd = m3DefaultBodyDef();
+    cd.type = m3_dynamicBody;
+    cd.position = (m3Pos3){-10.0, 1.0, 0.0};
+    m3BodyId chassis = NewBody(world, &cd);
+    NewBoxShape(world, chassis, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
+    m3VehicleDef vd = m3DefaultVehicleDef();
+    vd.chassisId = chassis;
+    vd.wheelCount = 4;
+    for (int32_t w = 0; w < 4; ++w)
+    {
+        vd.wheels[w].anchor =
+            (m3Vec3){(w & 1) != 0 ? 0.8f : -0.8f, -0.25f, (w & 2) != 0 ? 0.45f : -0.45f};
+        vd.wheels[w].driven = true;
+    }
+    (void)NewVehicle(world, &vd);
+    m3CharacterDef chd = m3DefaultCharacterDef();
+    chd.position = (m3Pos3){-12.0, 1.0, 0.0};
+    (void)NewCharacter(world, &chd);
+    m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
+    water.lo = (m3Pos3){0.0, -1.0, 0.0};
+    water.hi = (m3Pos3){4.0, 0.5, 4.0};
+    (void)NewWaterVolume(world, &water);
+    return world;
+}
+
+// Once a world is created, no step asks its allocator: steps under an
+// allocator that refuses every block all run, and land where steps with
+// memory to spare land. A step that needed more scratch once grew it
+// between steps, and a refused growth stalled the world.
+static void TestStepsNeverAllocate(void)
+{
+    Budget plenty = {-1, 0};
+    m3World* reference = BusyWorld(&plenty);
+    Budget none = {-1, 0};
+    m3World* world = BusyWorld(&none);
+    int32_t scratch = m3World_GetCounters(world).scratchCapacity;
+    none.left = 0;
+    bool stepped = true;
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        stepped = stepped && m3World_Step(world, 1.0f / 60.0f, 4) == m3_success;
+        (void)m3World_Step(reference, 1.0f / 60.0f, 4);
+    }
+    none.left = -1;
+    CHECK(stepped, "every step runs under an allocator that refuses everything");
+    CHECK(m3World_Hash(world) == m3World_Hash(reference),
+          "and lands where steps with memory to spare land");
+    CHECK(m3World_GetCounters(world).scratchCapacity == scratch &&
+              m3World_GetCounters(world).scratchPeak > 0 &&
+              m3World_GetCounters(world).scratchPeak <= scratch,
+          "on the scratch the world was created with");
+    m3DestroyWorld(reference);
+    m3DestroyWorld(world);
+
+    // A crowd at the pair table's edge, 190 of its 192 pairs, takes
+    // nearly all the scratch the world was sized for, and still steps.
+    Budget crowdBudget = {-1, 0};
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 24;
+    wd.shapeCapacity = 24;
+    wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, &crowdBudget};
+    m3World* crowd = NewWorld(&wd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 20; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.01 * (double)i, 0.0, 0.0};
+        NewSphereShape(crowd, NewBody(crowd, &bd), &sd, &ball);
+    }
+    crowdBudget.left = 0;
+    m3Result crowded = m3World_Step(crowd, 1.0f / 60.0f, 4);
+    crowdBudget.left = -1;
+    m3Counters counters = m3World_GetCounters(crowd);
+    CHECK(crowded == m3_success && counters.contactCount == 190,
+          "a step at the pair table's edge runs on the world's scratch");
+    CHECK(counters.scratchPeak > counters.scratchCapacity / 2, "and takes a good part of it");
+    m3DestroyWorld(crowd);
+}
+
 int main(void)
 {
     TestRestoreUnderBudget();
     TestCreateUnderBudget();
     TestVoxelEditsUnderBudget();
     TestReplayUnderBudget();
+    TestWorldCreateUnderBudget();
+    TestStepsNeverAllocate();
     if (s_failures == 0)
     {
         printf("test_lowmemory: all passed\n");

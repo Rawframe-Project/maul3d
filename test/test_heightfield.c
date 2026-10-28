@@ -101,7 +101,7 @@ static void TestContacts(void)
     double maxSliderY = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         if (i > 60)
         {
             double y = m3Body_GetPosition(world, slider).y;
@@ -139,7 +139,7 @@ static void TestContacts(void)
     NewSphereShape(hill, roller, &sd, &s);
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(hill, 1.0f / 60.0f, 4);
+        (void)m3World_Step(hill, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(hill, roller).x < -1.0, "the ball rolls downhill");
     m3DestroyWorld(hill);
@@ -265,7 +265,7 @@ static void TestFastBodiesAndCharactersStayOnTheGrid(void)
     for (int32_t i = 0; i < 60; ++i)
     {
         m3Character_Move(world, walker, (m3Vec3){0.0f, -0.2f, 0.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     for (int32_t i = 0; i < 2; ++i)
     {

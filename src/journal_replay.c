@@ -138,7 +138,7 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
         // in proportion to their crime.
         return false;
     }
-    m3StepInternal(world, record.dt, record.substeps);
+    (void)m3StepInternal(world, record.dt, record.substeps); // a stall replays as one
     return true;
 }
 

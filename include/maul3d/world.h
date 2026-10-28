@@ -124,8 +124,12 @@ extern "C"
     /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
     /// maul3d/base.h, a shape or voxel capacity included). A def whose world could snapshot to more
     /// than M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at its largest, is
-    /// refused with m3_errorCapacity before anything is allocated; the allocator may refuse too
-    /// (m3_errorCapacity). *worldOut is null on any failure.
+    /// refused with m3_errorCapacity before anything is allocated, and so is one whose step
+    /// scratch, sized at its capacities, would pass 2 GiB; the allocator may refuse too
+    /// (m3_errorCapacity), and then nothing is left allocated. The world takes the scratch
+    /// a step needs here, about 7344 bytes per shape, 126 per body and 416 per joint on a
+    /// 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the allocator.
+    /// *worldOut is null on any failure.
     M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
     /// Destroys a world and everything it owns; ids it issued mean nothing
     /// after. Null is a no-op.
@@ -254,7 +258,14 @@ extern "C"
     /// The library keeps no process-wide state, so worlds may be
     /// created and destroyed on any threads at once. Reading a world
     /// WHILE it steps is undefined.
-    M3_API void m3World_Step(m3World* world, float dt, int32_t substeps);
+    ///
+    /// A step never asks the allocator: the world took the scratch a
+    /// step needs at its capacities when it was created. Returns
+    /// m3_errorInvalid for a NULL world or a dt or substep count out of
+    /// range, m3_errorBusy when called from host code the world is
+    /// running, and m3_errorCapacity when the broadphase pair table, 8
+    /// pairs per shape of shapeCapacity, is full and the step stalled.
+    M3_NODISCARD M3_API m3Result m3World_Step(m3World* world, float dt, int32_t substeps);
 
     /// Snapshot and rollback, first-class from day one. The format is
     /// portable and versioned: field blocks in little-endian order, laid
@@ -725,8 +736,8 @@ extern "C"
     /// Wall-clock milliseconds per phase of the last completed step,
     /// measured with a monotonic clock for observation only. Never
     /// deterministic, never hashed, never serialized; zero before
-    /// the first step, and a step that stalls on scratch growth
-    /// keeps the previous profile.
+    /// the first step, and a step that stalls keeps the previous
+    /// profile.
     typedef struct m3Profile
     {
         float step;        // the whole of m3World_Step

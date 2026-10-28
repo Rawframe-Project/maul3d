@@ -181,7 +181,7 @@ static void StepN(m3World* world, int32_t steps)
 {
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(world, DT, 4);
+        (void)m3World_Step(world, DT, 4);
     }
 }
 
@@ -696,7 +696,7 @@ static uint64_t SceneVehicles(void)
     for (int32_t i = 0; i < 240; ++i)
     {
         m3Character_Move(world, cast.hero, (m3Vec3){0.03f, -0.03f, 0.0f});
-        m3World_Step(world, DT, 4);
+        (void)m3World_Step(world, DT, 4);
     }
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);
@@ -1018,7 +1018,7 @@ static void TourCalls(Tour* t, int32_t frame)
 static void TourFrame(Tour* t, int32_t frame)
 {
     TourCalls(t, frame);
-    m3World_Step(t->world, DT, 4);
+    (void)m3World_Step(t->world, DT, 4);
 }
 
 // Every frame of the tour snapshotted between its calls and its step, and
@@ -1043,7 +1043,7 @@ static void CheckRestoreBetweenCallsAndStep(uint64_t expected)
             refused = refused < 0 ? frame : refused;
         }
         free(bytes);
-        m3World_Step(t.world, DT, 4);
+        (void)m3World_Step(t.world, DT, 4);
     }
     if (refused >= 0)
     {
@@ -1292,7 +1292,7 @@ static uint64_t RunWalk(Walk* w, m3World* world, uint64_t seed)
         {
             WalkOp(w);
         }
-        m3World_Step(world, DT, 4);
+        (void)m3World_Step(world, DT, 4);
     }
     return m3World_Hash(world);
 }

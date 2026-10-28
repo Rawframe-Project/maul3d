@@ -67,8 +67,8 @@ void m3Free(m3Heap* heap, void* memory);
 
 /// Per-step scratch: a bump allocator with 16-byte alignment. Reset
 /// once per step. Exhaustion returns NULL and latches the overflow
-/// flag; the step propagates m3_errorCapacity and the world grows the
-/// stack between steps. Never aborts.
+/// flag, never aborts; a world takes its step scratch whole at
+/// creation, so a step never runs short.
 typedef struct m3Stack
 {
     uint8_t* base;
@@ -80,6 +80,12 @@ typedef struct m3Stack
 m3Stack m3StackCreate(m3Heap* heap, int32_t capacity);
 void m3StackDestroy(m3Heap* heap, m3Stack* stack);
 void* m3StackAlloc(m3Stack* stack, int32_t size);
+/// The bytes m3StackAlloc takes for an array of count elements, or of
+/// one element when count is not positive, as the step's callers ask.
+static inline int64_t m3StackBytes(int64_t count, int64_t elementBytes)
+{
+    return ((count > 0 ? count : 1) * elementBytes + 15) & ~(int64_t)15;
+}
 void m3StackReset(m3Stack* stack);
 
 /// A slot names objects under generations 0 to M3_LAST_GENERATION, then

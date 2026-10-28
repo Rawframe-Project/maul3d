@@ -223,7 +223,7 @@ static void WindDirection(Scene* s, float v)
 
 static void Step(Scene* s, float v)
 {
-    m3World_Step(s->world, v, 1);
+    (void)m3World_Step(s->world, v, 1);
 }
 
 // ---- Bodies ----

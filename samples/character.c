@@ -57,7 +57,7 @@ int main(void)
     for (int i = 0; i < 240; ++i)
     {
         m3Character_Move(world, hero, (m3Vec3){0.04f, -0.04f, 0.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
     m3Pos3 p = m3Character_GetPosition(world, hero);
     printf("character at x = %.3f, y = %.3f, grounded: %s\n", p.x, p.y,

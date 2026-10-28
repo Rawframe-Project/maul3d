@@ -44,7 +44,7 @@ static void TestContactEvents(void)
     memset(&firstBegin, 0, sizeof(firstBegin));
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         const m3ContactBeginEvent* ev = m3World_GetContactEvents(world).beginEvents;
         int32_t n = m3World_GetContactEvents(world).beginCount;
         if (n > 0 && begins == 0)
@@ -67,7 +67,7 @@ static void TestContactEvents(void)
     m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, 8.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         int32_t n = m3World_GetContactEvents(world).endCount;
         ends += n;
     }
@@ -392,7 +392,7 @@ static void TestSensorPassThrough(void)
     int32_t contactBegins = 0;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         int32_t n = m3World_GetSensorEvents(world).beginCount;
         sensorBegins += n;
         n = m3World_GetSensorEvents(world).endCount;
@@ -443,7 +443,7 @@ static void TestSensorSleepAndBullets(void)
     int32_t ends = 0;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         int32_t n = m3World_GetSensorEvents(world).beginCount;
         begins += n;
         n = m3World_GetSensorEvents(world).endCount;
@@ -472,7 +472,7 @@ static void TestSensorSleepAndBullets(void)
 
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 bp = m3Body_GetPosition(world, bullet);
     CHECK(bp.x > 20.0, "the bullet crosses the sensor wall unimpeded");
@@ -871,7 +871,7 @@ static void TestLongPathsMeetFarPieces(void)
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
         NewSphereShape(world, pellet, &sd, &ball);
-        m3World_Step(world, 1.0f / 60.0f, 1);
+        (void)m3World_Step(world, 1.0f / 60.0f, 1);
         m3Pos3 at = m3Body_GetPosition(world, pellet);
         printf("fast body over the %s: x %g y %g\n", names[kind], at.x, at.y);
         CHECK(at.y > (double)top + 0.4, "a fast body at a shallow angle stops on the floor");

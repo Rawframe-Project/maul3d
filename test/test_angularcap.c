@@ -73,7 +73,7 @@ static void TestCapAndEscape(void)
     CHECK(Bits(m3Body_GetMotionLocks(world, wheel)) == 0u, "the flag is not a motion lock");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(SpinOf(world, legal) > 49.9f, "a legal tumbler keeps its spin");
     CHECK(SpinOf(world, wild) < 800.5f, "the wild spinner is capped");
@@ -92,7 +92,7 @@ static void TestSpeedLimitHoldsFlaggedSpin(void)
     m3BodyId wheel = Spinner(world, 0.0, 0.0f);
     m3Body_EnableFastRotation(world, wheel, true);
     m3Body_ApplyTorque(world, wheel, (m3Vec3){0.0f, 1.0e7f, 0.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(SpinOf(world, wheel) <= 1.0e5f * 1.0001f, "the speed limit holds a flagged body");
     CHECK(SpinOf(world, wheel) > 0.999e5f, "the limit clamps, it does not kill");
     m3DestroyWorld(world);
@@ -113,7 +113,7 @@ static void TestRuntimeCapAndLockInterplay(void)
     m3World_SetMaximumAngularSpeed(world, 0.0f);
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(SpinOf(world, top) < 10.5f && SpinOf(world, top) > 9.5f, "the runtime cap applies");
     // The flag and the locks share a byte but never each other's

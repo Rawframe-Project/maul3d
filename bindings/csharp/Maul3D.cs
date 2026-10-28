@@ -258,7 +258,7 @@ namespace Maul3D
         [DllImport(Lib, EntryPoint = "m3DestroyWorld")]
         public static extern void DestroyWorld(IntPtr world);
         [DllImport(Lib, EntryPoint = "m3World_Step")]
-        public static extern void Step(IntPtr world, float dt, int substeps);
+        public static extern Result Step(IntPtr world, float dt, int substeps);
         [DllImport(Lib, EntryPoint = "m3World_Hash")]
         public static extern ulong Hash(IntPtr world);
 
