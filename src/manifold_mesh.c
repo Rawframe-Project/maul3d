@@ -440,32 +440,39 @@ void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, i
 
 // Native heightfield versus convex: clip the convex's reach
 // to a cell window (a one-cell halo keeps the interior edge flags
-// correct at the window rim), lay the window out as a scratch mesh
+// correct at the window rim), lay the window out as a small mesh
 // in the heightfield frame, bake its edge flags, and run the SAME
 // welded pipeline. Window ids are window-local, so the warm carry
 // resets when the window shifts a cell: deterministic, documented.
-#define M3_HF_WINDOW 16 // cells per axis, halo included
+#define M3_HF_WINDOW           16 // cells per axis, halo included
+#define M3_HF_WINDOW_CORNERS   ((M3_HF_WINDOW + 1) * (M3_HF_WINDOW + 1))
+#define M3_HF_WINDOW_TRIANGLES (2 * M3_HF_WINDOW * M3_HF_WINDOW)
 
-// The height field cells [cx0, cx1] x [cz0, cz1] as a small mesh on the
-// step scratch, split by the diagonal parity rule, its edge flags baked.
-// False on a scratch stall.
-static bool HeightFieldWindow(m3World* world, const m3HeightFieldData* hf, int32_t cx0, int32_t cz0,
-                              int32_t cx1, int32_t cz1, m3MeshData* window)
+// The arrays of the largest window, about 16 KB. Each call keeps its own
+// on its stack: height field pairs run in the narrow phase's parallel
+// task ranges, so a buffer they shared, the step scratch included, would
+// be written from several threads at once.
+typedef struct m3HfWindowBuffer
+{
+    m3Vec3 verts[M3_HF_WINDOW_CORNERS];
+    uint16_t tris[3 * M3_HF_WINDOW_TRIANGLES];
+    uint8_t flags[M3_HF_WINDOW_TRIANGLES];
+    int32_t bake[2 * (M3_HF_WINDOW_CORNERS + 1) + 3 * M3_HF_WINDOW_TRIANGLES];
+} m3HfWindowBuffer;
+
+// The height field cells [cx0, cx1] x [cz0, cz1], at most M3_HF_WINDOW a
+// side, as a small mesh in the buffer, split by the diagonal parity rule,
+// its edge flags baked.
+static void HeightFieldWindow(const m3HeightFieldData* hf, int32_t cx0, int32_t cz0, int32_t cx1,
+                              int32_t cz1, m3HfWindowBuffer* buffer, m3MeshData* window)
 {
     int32_t wx = cx1 - cx0 + 2; // window corners per axis
     int32_t wz = cz1 - cz0 + 2;
     int32_t vertCount = wx * wz;
     int32_t triCount = 2 * (wx - 1) * (wz - 1);
 
-    m3Vec3* verts = (m3Vec3*)m3StackAlloc(&world->scratch, vertCount * (int32_t)sizeof(m3Vec3));
-    uint16_t* tris =
-        (uint16_t*)m3StackAlloc(&world->scratch, 3 * triCount * (int32_t)sizeof(uint16_t));
-    uint8_t* flags = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
-    uint8_t* mats = (uint8_t*)m3StackAlloc(&world->scratch, triCount);
-    if (verts == NULL || tris == NULL || flags == NULL || mats == NULL)
-    {
-        return false;
-    }
+    m3Vec3* verts = buffer->verts;
+    uint16_t* tris = buffer->tris;
     for (int32_t z = 0; z < wz; ++z)
     {
         for (int32_t x = 0; x < wx; ++x)
@@ -510,16 +517,9 @@ static bool HeightFieldWindow(m3World* world, const m3HeightFieldData* hf, int32
     window->triangleCount = triCount;
     window->vertices = verts;
     window->indices = tris;
-    window->edgeFlags = flags;
-    window->triMaterials = mats; // zeros: no painted terrain (yet)
-    int32_t* bake = (int32_t*)m3StackAlloc(&world->scratch, m3MeshEdgeScratchCount(window) *
-                                                                (int32_t)sizeof(int32_t));
-    if (bake == NULL)
-    {
-        return false;
-    }
-    m3BakeMeshEdgeFlags(window, bake);
-    return true;
+    window->edgeFlags = buffer->flags;
+    window->triMaterials = NULL; // no painted terrain (yet): materialCount is 0
+    m3BakeMeshEdgeFlags(window, buffer->bake);
 }
 
 void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfShape,
@@ -597,11 +597,9 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
     {
         cz1 = cz0 + M3_HF_WINDOW - 1;
     }
+    m3HfWindowBuffer buffer;
     m3MeshData window;
-    if (!HeightFieldWindow(world, hf, cx0, cz0, cx1, cz1, &window))
-    {
-        return; // transient scratch stall, grown next step
-    }
+    HeightFieldWindow(hf, cx0, cz0, cx1, cz1, &buffer, &window);
     CollideMeshCore(world, fresh, &window, NULL, hfShape, otherShape, hfIsA);
 }
 
