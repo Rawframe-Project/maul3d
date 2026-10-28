@@ -404,12 +404,60 @@ static void TestReplayUnderBudget(void)
     m3DestroyWorld(world);
 }
 
+// A step whose world outgrew its scratch takes a larger block before it
+// frees the old one. A growth the allocator refused once dropped the old
+// block first and left a scratch with no room, and the next step's
+// growth doubled 0 forever: that step never returned.
+static void TestScratchGrowthUnderBudget(void)
+{
+    Budget budget = {-1};
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 1200;
+    wd.shapeCapacity = 8;
+    wd.allocator = (m3Allocator){BudgetAlloc, BudgetFree, &budget};
+    m3World* world = NewWorld(&wd);
+    // 1100 bodies ask a step for more than the scratch a world starts
+    // with, and a box falls onto a floor.
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    for (int32_t i = 0; i < 1100; ++i)
+    {
+        (void)NewBody(world, &gd);
+    }
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, ground, &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 3.0, 0.0};
+    m3BodyId box = NewBody(world, &bd);
+    NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
+    int32_t start = m3World_GetCounters(world).scratchCapacity;
+
+    budget.left = 0;
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    budget.left = -1;
+    CHECK(m3World_GetCounters(world).scratchCapacity == start,
+          "steps whose growth the allocator refuses return and keep the scratch they had");
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3World_GetCounters(world).scratchCapacity > start,
+          "with memory back the next step grows the scratch");
+    CHECK(m3Body_GetPosition(world, box).y < 2.5, "and the world simulates");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRestoreUnderBudget();
     TestCreateUnderBudget();
     TestVoxelEditsUnderBudget();
     TestReplayUnderBudget();
+    TestScratchGrowthUnderBudget();
     if (s_failures == 0)
     {
         printf("test_lowmemory: all passed\n");
