@@ -70,9 +70,10 @@ static bool WorldValid(const m3Incoming* inc)
 // --- Bodies and shapes ---------------------------------------------------------
 
 // A live body's position within reach, its velocities by its type, its
-// scales and damping, the force and torque it holds for the step, the
-// time it has spent below its sleep threshold, and a servo target within
-// reach of a kinematic body.
+// scales and damping, the force and torque it holds for the step, its
+// sleep threshold, positive since create and the setter store the
+// default for zero, the time it has spent below it, and a servo target
+// within reach of a kinematic body.
 static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(bodies.bodyPool.alive);
@@ -105,8 +106,8 @@ static bool BodiesValid(const m3Incoming* inc)
             m3BodyParamCheck(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) !=
                 m3_success ||
             !m3WithinV3(InV3(forces, b), M3_FORCE_LIMIT) ||
-            !m3WithinV3(InV3(torques, b), M3_FORCE_LIMIT) || m3InF32(sleepThresholds, b) < 0.0f ||
-            m3InF32(sleepTimes, b) < 0.0f)
+            !m3WithinV3(InV3(torques, b), M3_FORCE_LIMIT) ||
+            !(m3InF32(sleepThresholds, b) > 0.0f) || m3InF32(sleepTimes, b) < 0.0f)
         {
             return false;
         }
@@ -240,8 +241,24 @@ static bool GenericRangesFit(uint32_t modes, int32_t shift, m3Vec3 lower, m3Vec3
     return true;
 }
 
+// A joint's limits as its create and SetLimits keep them: ordered while
+// the limit is on, a spherical cone angle not negative while the cone is
+// on, and a pulley's rope constant, a sum of lengths, not negative. A
+// motor joint's limit slots hold its budgets, checked with its drive.
+static bool JointLimitsFit(uint8_t type, uint8_t flags, m3Vec3 limits)
+{
+    if (type == (uint8_t)m3_motorJoint)
+    {
+        return true;
+    }
+    return !((flags & M3_JOINT_LIMIT) != 0 && !(limits.x <= limits.y)) &&
+           !(type == (uint8_t)m3_sphericalJoint && (flags & M3_JOINT_CONE) != 0 &&
+             limits.z < 0.0f) &&
+           !(type == (uint8_t)m3_pulleyJoint && limits.z < 0.0f);
+}
+
 // A live joint's anchors in its bodies' frames, its break thresholds, its
-// target, its generic ranges and its drive.
+// target, its generic ranges, its limits and its drive.
 static bool JointsValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(joints.jointPool.alive);
@@ -268,7 +285,7 @@ static bool JointsValid(const m3Incoming* inc)
             thresholds.y < 0.0f || !TargetScalarFits(f.types[j], m3InF32(targets, j)) ||
             !GenericRangesFit(m3InU16(modes, j), 0, InV3(linLower, j), InV3(linUpper, j)) ||
             !GenericRangesFit(m3InU16(modes, j), 6, InV3(angLower, j), InV3(angUpper, j)) ||
-            !JointDriveValid(&f, j))
+            !JointLimitsFit(f.types[j], f.flags[j], InV3(f.limits, j)) || !JointDriveValid(&f, j))
         {
             return false;
         }
@@ -293,12 +310,12 @@ static bool CharactersValid(const m3Incoming* inc)
     for (int32_t c = 0; c < inc->world->characters.charPool.capacity; ++c)
     {
         m3Vec3 n = InV3(ground, c);
-        if (alive[c] != 0 &&
-            (!(m3InF32(radius, c) > 0.0f && m3LocalF(m3InF32(radius, c))) ||
-             !InRange(m3InF32(halfHeight, c), 0.0f, M3_LOCAL_LIMIT) ||
-             !InRange(m3InF32(mass, c), M3_MIN_MASS, M3_MASS_LIMIT) ||
-             !InRange(m3InF32(pushMax, c), 0.0f, M3_RATIO_LIMIT) ||
-             !InRange(m3InF32(cosSlope, c), 0.0f, 1.0f) || !(m3Dot3(n, n) <= 1.01f)))
+        if (alive[c] != 0 && (!(m3InF32(radius, c) > 0.0f && m3LocalF(m3InF32(radius, c))) ||
+                              !InRange(m3InF32(halfHeight, c), 0.0f, M3_LOCAL_LIMIT) ||
+                              !InRange(m3InF32(mass, c), M3_MIN_MASS, M3_MASS_LIMIT) ||
+                              !InRange(m3InF32(pushMax, c), 0.0f, M3_RATIO_LIMIT) ||
+                              !InRange(m3InF32(cosSlope, c), m3ComputeCosSin(1.5f).c, 1.0f) ||
+                              !(m3Dot3(n, n) <= 1.01f)))
         {
             return false;
         }

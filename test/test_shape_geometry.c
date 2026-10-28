@@ -471,6 +471,43 @@ static void TestStaticGeometryAtTheLimit(void)
     m3DestroyWorld(world);
 }
 
+// A capsule's moment about its own axis is the closed form whatever its
+// length. It was perp + (axial - perp) in float, which cancels once the
+// perpendicular moment dwarfs the axial one: a capsule of radius 0.5
+// with a half length of 5000 was refused as below the inertia floor.
+static void TestLongCapsuleKeepsItsAxialMoment(void)
+{
+    const float halves[3] = {1000.0f, 5000.0f, 9999.0f};
+    const float r = 0.5f;
+    for (int32_t axis = 0; axis < 3; ++axis)
+    {
+        for (int32_t k = 0; k < 3; ++k)
+        {
+            m3World* world = DefaultWorld();
+            m3BodyDef bd = m3DefaultBodyDef();
+            bd.type = m3_dynamicBody;
+            m3BodyId body = NewBody(world, &bd);
+            m3ShapeDef sd = m3DefaultShapeDef();
+            sd.density = 1000.0f;
+            float end[3] = {0.0f, 0.0f, 0.0f};
+            end[axis] = halves[k];
+            m3Capsule capsule = {{-end[0], -end[1], -end[2]}, {end[0], end[1], end[2]}, r};
+            m3ShapeId id = m3_nullShapeId;
+            m3Result result = m3CreateCapsuleShape(world, body, &sd, &capsule, &id);
+            const double pi = (double)M3_PI;
+            const double rr = (double)r * (double)r;
+            const double mCyl = 1000.0 * pi * rr * 2.0 * (double)halves[k];
+            const double mSph = 1000.0 * (4.0 / 3.0) * pi * rr * (double)r;
+            const double axial = 0.5 * mCyl * rr + 0.4 * mSph * rr;
+            m3Mat3 inertia = m3Body_GetRotationalInertia(world, body);
+            const float moments[3] = {inertia.cx.x, inertia.cy.y, inertia.cz.z};
+            CHECK(result == m3_success && fabs((double)moments[axis] / axial - 1.0) < 1.0e-5,
+                  "a long capsule creates with its axial moment in closed form");
+            m3DestroyWorld(world);
+        }
+    }
+}
+
 int main(void)
 {
     TestPlaneOffsetAtTheLimit();
@@ -479,6 +516,7 @@ int main(void)
     TestSoftCreatesWithinTheLimit();
     TestParticlesStayWithinTheLimit();
     TestStaticGeometryAtTheLimit();
+    TestLongCapsuleKeepsItsAxialMoment();
     if (s_failures == 0)
     {
         printf("test_shape_geometry: all checks passed\n");

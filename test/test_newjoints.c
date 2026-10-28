@@ -16,6 +16,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static m3World* Yard(void)
@@ -289,6 +290,52 @@ static void TestWheelSteering(void)
     m3DestroyWorld(world);
 }
 
+// A wheel joint keeps its steering in the slots a spherical joint uses
+// for its target rotation. A translation target once wrote the identity
+// rotation there: the steering lost its frequency, damping and budget, the
+// rim stopped yawing, and restore refused the world's own snapshot.
+static void TestWheelTargetKeepsSteering(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef hd = m3DefaultBodyDef();
+    hd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId hub = NewBody(world, &hd);
+    m3BodyDef rd = m3DefaultBodyDef();
+    rd.type = m3_dynamicBody;
+    rd.position = (m3Pos3){0.0, 1.4, 0.0};
+    m3BodyId rim = NewBody(world, &rd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
+    NewSphereShape(world, rim, &sd, &ball);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_wheelJoint;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    m3JointId wheel = NewJoint(world, &jd);
+    m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
+    m3Joint_SetTargetTranslation(world, wheel, 0.0f);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) - 0.5f) < 0.05f,
+          "a wheel given a translation target still steers");
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
+    int32_t bytes = Snapshot(world, snapshot, size);
+    m3World* restored = NewWorld(&wd);
+    CHECK(bytes > 0 && Restore(restored, snapshot, bytes) &&
+              m3World_Hash(restored) == m3World_Hash(world),
+          "and its snapshot restores");
+    m3DestroyWorld(restored);
+    free(snapshot);
+    m3DestroyWorld(world);
+}
+
 static double ServoDroop(float maxForce)
 {
     // A cube hung on a servo weld under gravity, told to hold the
@@ -521,6 +568,7 @@ int main(void)
     TestParallelKeepsAxesParallel();
     TestFourStateDrive();
     TestWheelSteering();
+    TestWheelTargetKeepsSteering();
     TestMotorJointServo();
     TestJointWalls();
     if (s_failures == 0)
