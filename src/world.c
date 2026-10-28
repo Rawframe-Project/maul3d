@@ -149,6 +149,7 @@ static m3Result CheckWorldDef(const m3WorldDef* def)
                      m3FiniteF(def->restitutionThreshold) && def->restitutionThreshold >= 0.0f &&
                      m3FiniteF(def->hitEventThreshold) && def->hitEventThreshold >= 0.0f);
     result = m3BothChecks(result, m3CheckCount(def->shapeCapacity, M3_MAX_SHAPE_CAPACITY));
+    result = m3BothChecks(result, m3CheckCount(def->pairCapacity, M3_MAX_PAIR_CAPACITY));
     result = m3BothChecks(result, m3CheckCount(def->voxelCapacity, M3_MAX_VOXEL_CAPACITY));
     result = m3BothChecks(result, m3GravityCheck(def->gravity));
     result = m3BothChecks(result, m3ContactTuningCheck(def->contactHertz, def->contactDampingRatio,
@@ -181,7 +182,8 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
-    world->contacts.pairCapacity = 8 * def->shapeCapacity;
+    world->contacts.pairCapacity =
+        def->pairCapacity > 0 ? def->pairCapacity : 8 * def->shapeCapacity;
 }
 
 // The proxy tree's nodes: a leaf per shape slot and the inner nodes
@@ -262,9 +264,8 @@ static bool CreatePools(m3World* world)
     int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(&world->heap, TreeCapacity(shapeCap));
     world->memoryBytes += (int64_t)TreeCapacity(shapeCap) * (int64_t)sizeof(m3TreeNode);
-    // The step scratch, whole: a step never asks the allocator. The size
-    // was checked against the 32-bit byte count before anything was
-    // allocated.
+    // The step scratch, whole, so a step never asks the allocator; its
+    // size was checked against the 32-bit byte count before any block.
     world->scratch = m3StackCreate(&world->heap, (int32_t)m3StepScratchBytes(world));
     // The voxel slots' trees come with their chunks; the build scratch
     // and the edit staging copy serve them all.
@@ -717,6 +718,7 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
+    counters.pairsDropped = world->contacts.pairsDropped;
     counters.heldPushRetakes = world->heldPushRetakes;
     counters.snapshotBytes = m3World_SnapshotSize(world);
     counters.allocCalls = world->heap.allocCalls;

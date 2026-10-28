@@ -501,21 +501,14 @@ static void ProbeWater(void)
 static void ProbeWorlds(void)
 {
     static const Field fields[] = {
-        FIELD(m3WorldDef, gravity.y, 'f'),
-        FIELD(m3WorldDef, bodyCapacity, 'i'),
-        FIELD(m3WorldDef, shapeCapacity, 'i'),
-        FIELD(m3WorldDef, meshCapacity, 'i'),
-        FIELD(m3WorldDef, jointCapacity, 'i'),
-        FIELD(m3WorldDef, voxelCapacity, 'i'),
-        FIELD(m3WorldDef, characterCapacity, 'i'),
-        FIELD(m3WorldDef, vehicleCapacity, 'i'),
-        FIELD(m3WorldDef, softBodyCapacity, 'i'),
-        FIELD(m3WorldDef, contactHertz, 'f'),
-        FIELD(m3WorldDef, contactDampingRatio, 'f'),
-        FIELD(m3WorldDef, contactPushMaxSpeed, 'f'),
-        FIELD(m3WorldDef, restitutionThreshold, 'f'),
-        FIELD(m3WorldDef, maximumLinearSpeed, 'f'),
-        FIELD(m3WorldDef, maximumAngularSpeed, 'f'),
+        FIELD(m3WorldDef, gravity.y, 'f'),           FIELD(m3WorldDef, bodyCapacity, 'i'),
+        FIELD(m3WorldDef, shapeCapacity, 'i'),       FIELD(m3WorldDef, meshCapacity, 'i'),
+        FIELD(m3WorldDef, jointCapacity, 'i'),       FIELD(m3WorldDef, voxelCapacity, 'i'),
+        FIELD(m3WorldDef, characterCapacity, 'i'),   FIELD(m3WorldDef, vehicleCapacity, 'i'),
+        FIELD(m3WorldDef, softBodyCapacity, 'i'),    FIELD(m3WorldDef, pairCapacity, 'i'),
+        FIELD(m3WorldDef, contactHertz, 'f'),        FIELD(m3WorldDef, contactDampingRatio, 'f'),
+        FIELD(m3WorldDef, contactPushMaxSpeed, 'f'), FIELD(m3WorldDef, restitutionThreshold, 'f'),
+        FIELD(m3WorldDef, maximumLinearSpeed, 'f'),  FIELD(m3WorldDef, maximumAngularSpeed, 'f'),
         FIELD(m3WorldDef, hitEventThreshold, 'f'),
     };
     for (int32_t f = 0; f < COUNT(fields); ++f)

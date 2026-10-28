@@ -106,11 +106,11 @@ since its answer decides contacts.
 
 `m3World_Step(world, dt, substeps)` advances the world by dt seconds
 in `substeps` solver substeps (4 is the tested default) and returns
-`m3_success`. It returns `m3_errorCapacity` when the broadphase pair
-table (8 pairs per shape of `shapeCapacity`) is full and the step
-stalled. A step never asks the allocator, so it never fails for
+`m3_success`. A step never asks the allocator, so it never fails for
 memory: the world takes the scratch a step needs when it is created
-(see Capacities). Commands
+(see Capacities). A step that finds more broadphase pairs than the
+world holds still runs whole and drops the pairs of the highest shape
+indexes for that step; see Capacities. Commands
 (create, destroy, set velocity) may be issued between steps in any
 deterministic order; issuing them from inside task callbacks is not
 supported.
@@ -1259,19 +1259,38 @@ Every pool is fixed at world creation (`bodyCapacity`,
 `shapeCapacity`, `jointCapacity`, `meshCapacity`) and never grows.
 Exhaustion refuses with a null id and the world keeps stepping.
 
+The broadphase pair table is fixed too: `pairCapacity` pairs, 8 per
+shape of `shapeCapacity` when it is left 0. A dense pile can find
+more pairs than that. The step then keeps the pairs of the lowest
+shape indexes, so twins, replays and threaded runs keep the same
+ones, and drops the rest for that step: the two shapes of a dropped
+pair get no contact and pass through each other. The step still
+runs whole for every other body. `m3Counters.pairsDropped` counts
+the drops, so check it while a game is in development and raise
+`pairCapacity` until it stays at zero:
+
+    uint64_t dropped = m3World_GetCounters(world).pairsDropped;
+    (void)m3World_Step(world, dt, 4);
+    if (m3World_GetCounters(world).pairsDropped != dropped)
+    {
+        // Bodies passed through each other this step: give the world
+        // a larger m3WorldDef.pairCapacity.
+    }
+
 The world also takes its step scratch at creation, sized for a
 step at those capacities, so stepping never allocates. On a 64-bit
 target it holds about
 
-    7344 * shapeCapacity + 126 * bodyCapacity + 416 * jointCapacity
+    918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity
     + 57 KiB
 
-bytes; the shape term is its 8 broadphase pairs. The default world
-(1024 bodies, 2048 shapes, 64 joints) takes 14.5 MiB of scratch
-beside 21.4 MiB of pools and arrays. `m3World_GetMemoryUsage` gives
-both exactly (`scratchCapacity`, `persistentBytes`), and a world
-whose scratch would pass 2 GiB, or that the allocator refuses, is
-not created (`m3_errorCapacity`).
+bytes, and each pair also keeps 544 bytes of persistent tables, so
+the default 8 pairs cost about 11.4 KiB per shape. The default world
+(1024 bodies, 2048 shapes and 16,384 pairs, 64 joints) takes 14.5 MiB
+of scratch beside 21.4 MiB of pools and arrays.
+`m3World_GetMemoryUsage` gives both exactly (`scratchCapacity`,
+`persistentBytes`), and a world whose scratch would pass 2 GiB, or
+that the allocator refuses, is not created (`m3_errorCapacity`).
 Per-shape geometry ceilings live in one place: the "Compound
 shapes and the geometry ceilings" chapter above (hulls 64
 vertices from up to 256 input points, meshes 65,535 vertices and

@@ -283,9 +283,11 @@ extern "C"
 #define M3_CELL_LIMIT     1.0e5f
 //
 // Counts:
-// - a world's shape and voxel capacities, which size int32_t tables of
-//   eight contact pairs a shape and six neighbors a voxel chunk;
+// - a world's shape, pair and voxel capacities, which size tables of
+//   eight contact pairs a shape, an eight-byte key a pair and six
+//   neighbors a voxel chunk within an int32_t;
 #define M3_MAX_SHAPE_CAPACITY (INT32_MAX / 8)
+#define M3_MAX_PAIR_CAPACITY  (INT32_MAX / 8)
 #define M3_MAX_VOXEL_CAPACITY (INT32_MAX / 6)
 // - substeps per step;
 #define M3_MAX_SUBSTEPS 256

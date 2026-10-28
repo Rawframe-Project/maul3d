@@ -326,11 +326,7 @@ m3Result m3StepInternal(m3World* world, float dt, int32_t substeps)
     prof.vehicles = (float)(m3NowMs() - t0);
 
     t0 = m3NowMs();
-    if (m3UpdatePairs(world) != m3_success)
-    {
-        return m3_errorCapacity; // a full pair table: the world stalls,
-                                 // never corrupts
-    }
+    m3UpdatePairs(world); // a full table keeps the lowest keys
     prof.broadphase = (float)(m3NowMs() - t0);
     t0 = m3NowMs();
     (void)m3UpdateContacts(world, oldKeys, oldManifolds, oldCount);

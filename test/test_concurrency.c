@@ -291,12 +291,57 @@ static void TestHeightFieldPairsOnThreads(void)
     CHECK(threaded == serial, "a height field world on threads lands on its serial twin");
 }
 
+// A heap whose pairs overflow the table, its narrow phase serial or on
+// the pool's threads.
+static uint64_t SettleOverflowingHeap(Pool* pool)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 64;
+    def.shapeCapacity = 64;
+    def.pairCapacity = 200;
+    if (pool != NULL)
+    {
+        def.enqueueTask = PoolEnqueue;
+        def.finishTask = PoolFinish;
+        def.userTaskContext = pool;
+    }
+    m3World* world = NewWorld(&def);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 40; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.05 * (double)(i % 8), 0.05 * (double)(i / 8), 0.0};
+        NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    }
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3World_GetCounters(world).pairsDropped > 0, "the heap overflows its pair table");
+    uint64_t hash = m3World_Hash(world);
+    m3DestroyWorld(world);
+    return hash;
+}
+
+// The pairs a full table keeps depend on the pair set alone, so a split
+// across threads keeps the same ones.
+static void TestOverflowingPairsOnThreads(void)
+{
+    Pool pool;
+    uint64_t serial = SettleOverflowingHeap(NULL);
+    uint64_t threaded = SettleOverflowingHeap(&pool);
+    CHECK(threaded == serial, "an overflowing pair table on threads lands on its serial twin");
+}
+
 int main(void)
 {
     TestMisuseFromConcurrentReaders();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersBetweenSteps();
     TestHeightFieldPairsOnThreads();
+    TestOverflowingPairsOnThreads();
     if (s_failures == 0)
     {
         printf("test_concurrency: all green\n");

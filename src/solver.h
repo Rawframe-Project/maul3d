@@ -8,8 +8,8 @@
 
 #include "world_internal.h"
 
-// One step. m3_errorCapacity when the pair table is full and the step
-// stalled.
+// One step. m3_errorCapacity only when its scratch ran short, which the
+// world's sizing at creation rules out.
 m3Result m3StepInternal(m3World* world, float dt, int32_t substeps);
 
 #endif // MAUL3D_SRC_SOLVER_H

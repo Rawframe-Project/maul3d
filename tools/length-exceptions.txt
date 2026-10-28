@@ -21,4 +21,3 @@ voxel.c MergeBoxes 96 numeric kernel: one pass in a fixed operation order
 voxel.c VoxelWakeRegion 96 numeric kernel: one pass in a fixed operation order
 voxel_fracture.c m3VoxelEscape 91 numeric kernel: one pass in a fixed operation order
 raycast.c RayTestShape 89 numeric kernel: one pass in a fixed operation order
-solver.c m3StepInternal 83 numeric kernel: solver rows in one fixed operation order

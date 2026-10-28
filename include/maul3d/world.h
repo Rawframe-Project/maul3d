@@ -75,10 +75,17 @@ extern "C"
         int32_t shapeCapacity;
         int32_t meshCapacity; // static triangle-mesh slots (24 KB each)
         int32_t jointCapacity;
-        int32_t voxelCapacity;        // voxel chunk slots
-        int32_t characterCapacity;    // character controllers
-        int32_t vehicleCapacity;      // raycast vehicles
-        int32_t softBodyCapacity;     // XPBD lattices
+        int32_t voxelCapacity;     // voxel chunk slots
+        int32_t characterCapacity; // character controllers
+        int32_t vehicleCapacity;   // raycast vehicles
+        int32_t softBodyCapacity;  // XPBD lattices
+        // Broadphase pairs a step can hold, up to M3_MAX_PAIR_CAPACITY; 0
+        // means 8 per shape of shapeCapacity, the default. A step that
+        // finds more keeps the pairs of the lowest shape indexes and
+        // drops the rest for that step: the shapes of a dropped pair get
+        // no contact and pass through each other. m3Counters.pairsDropped
+        // counts them; raise this when it grows.
+        int32_t pairCapacity;
         m3EnqueueTaskFn* enqueueTask; // both null = serial (the default)
         m3FinishTaskFn* finishTask;
         void* userTaskContext;
@@ -122,13 +129,14 @@ extern "C"
     /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
     /// (m3_errorVersion), and the rest of the def must hold
     /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
-    /// maul3d/base.h, a shape or voxel capacity included). A def whose world could snapshot to more
-    /// than M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at its largest, is
-    /// refused with m3_errorCapacity before anything is allocated, and so is one whose step
+    /// maul3d/base.h, a shape, pair or voxel capacity included). A def whose world could snapshot
+    /// to more than M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at its largest,
+    /// is refused with m3_errorCapacity before anything is allocated, and so is one whose step
     /// scratch, sized at its capacities, would pass 2 GiB; the allocator may refuse too
     /// (m3_errorCapacity), and then nothing is left allocated. The world takes the scratch
-    /// a step needs here, about 7344 bytes per shape, 126 per body and 416 per joint on a
-    /// 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the allocator.
+    /// a step needs here, about 918 bytes per pair of pairCapacity, 126 per body and 416 per
+    /// joint on a 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
+    /// allocator.
     /// *worldOut is null on any failure.
     M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
     /// Destroys a world and everything it owns; ids it issued mean nothing
@@ -262,9 +270,13 @@ extern "C"
     /// A step never asks the allocator: the world took the scratch a
     /// step needs at its capacities when it was created. Returns
     /// m3_errorInvalid for a NULL world or a dt or substep count out of
-    /// range, m3_errorBusy when called from host code the world is
-    /// running, and m3_errorCapacity when the broadphase pair table, 8
-    /// pairs per shape of shapeCapacity, is full and the step stalled.
+    /// range, and m3_errorBusy when called from host code the world is
+    /// running; either changes nothing. A step that finds more
+    /// broadphase pairs than m3WorldDef.pairCapacity holds still runs
+    /// whole and returns m3_success: it keeps the pairs of the lowest
+    /// shape indexes, and the shapes of each pair it drops get no
+    /// contact that step and pass through each other.
+    /// m3Counters.pairsDropped counts the drops.
     M3_NODISCARD M3_API m3Result m3World_Step(m3World* world, float dt, int32_t substeps);
 
     /// Snapshot and rollback, first-class from day one. The format is
@@ -704,6 +716,11 @@ extern "C"
         // restore or a replay's back-out leaves it as it is, so a replay
         // refused after an edit was refused leaves it higher.
         uint64_t voxelEditsRefused;
+        // Broadphase pairs a step found and had no room for, cumulative
+        // (m3WorldDef.pairCapacity): the shapes of each got no contact
+        // that step and passed through each other. A counter, not
+        // state, like voxelEditsRefused.
+        uint64_t pairsDropped;
         // Pushes the step lands on a body, a character's, a soft
         // particle's or a wheel's, whose float velocity or spin was not
         // finite and that were taken again in double, cumulative; each
