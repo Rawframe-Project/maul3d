@@ -31,6 +31,190 @@ typedef struct m3ShapeCastContext
     m3QueryFilter filter;
 } m3ShapeCastContext;
 
+// A cast against a static surface's pieces: its triangles, or a voxel
+// chunk's boxes. The sweeps of the surface and of the cast are relative
+// to the cast's start, and the cast's path is kept in the surface's frame
+// with the cast shape's reach, so a piece is tried only while it lies
+// within the path up to the earliest hit found so far.
+typedef struct SurfaceCast
+{
+    m3ShapeCastContext* ctx;
+    int32_t shape;
+    m3Sweep surface;
+    m3Sweep cast;
+    m3Vec3 start; // the cast's base at fraction 0 and 1, surface frame
+    m3Vec3 end;
+    m3real reach; // the cast shape's farthest point from its base, with skin
+} SurfaceCast;
+
+static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast* sc)
+{
+    m3Transform xf = m3ShapeWorldTransform(ctx->world, shape);
+    sc->ctx = ctx;
+    sc->shape = shape;
+    sc->surface.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sc->surface.c1 = (m3Vec3){(m3real)(xf.p.x - ctx->base.x), (m3real)(xf.p.y - ctx->base.y),
+                              (m3real)(xf.p.z - ctx->base.z)};
+    sc->surface.c2 = sc->surface.c1;
+    sc->surface.q1 = xf.q;
+    sc->surface.q2 = xf.q;
+    sc->cast.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sc->cast.c1 = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sc->cast.c2 = ctx->translation;
+    sc->cast.q1 = m3MakeIdentityQuat();
+    sc->cast.q2 = m3MakeIdentityQuat();
+    sc->start = m3InvRotateVec3(xf.q, m3Neg3(sc->surface.c1));
+    sc->end = m3InvRotateVec3(xf.q, m3Sub3(ctx->translation, sc->surface.c1));
+    m3real farthest = 0.0f;
+    for (int32_t k = 0; k < ctx->castPointCount; ++k)
+    {
+        farthest = m3MaxF(farthest, m3Length3(ctx->castPoints[k]));
+    }
+    sc->reach = farthest + ctx->castRadius + M3_AABB_MARGIN;
+}
+
+// The box the cast covers in the surface's frame up to fraction.
+static void SurfaceCastBox(const SurfaceCast* sc, m3real fraction, m3Vec3* lo, m3Vec3* hi)
+{
+    m3Vec3 end = m3Add3(sc->start, m3MulSV3(fraction, m3Sub3(sc->end, sc->start)));
+    m3real r = sc->reach;
+    *lo = (m3Vec3){m3MinF(sc->start.x, end.x) - r, m3MinF(sc->start.y, end.y) - r,
+                   m3MinF(sc->start.z, end.z) - r};
+    *hi = (m3Vec3){m3MaxF(sc->start.x, end.x) + r, m3MaxF(sc->start.y, end.y) + r,
+                   m3MaxF(sc->start.z, end.z) + r};
+}
+
+// One piece's time of impact, kept when it is the earliest hit, ties to
+// the lower shape index. A piece outside the cast's path up to the
+// earliest hit so far cannot come earlier and is not tried.
+static void CastPiece(SurfaceCast* sc, const m3Vec3* points, int32_t count, m3Vec3 lo, m3Vec3 hi)
+{
+    m3ShapeCastContext* ctx = sc->ctx;
+    const m3World* world = ctx->world;
+    int32_t shape = sc->shape;
+    m3Vec3 pathLo;
+    m3Vec3 pathHi;
+    SurfaceCastBox(sc, ctx->best.hit ? ctx->best.fraction : 1.0f, &pathLo, &pathHi);
+    if (hi.x < pathLo.x || lo.x > pathHi.x || hi.y < pathLo.y || lo.y > pathHi.y ||
+        hi.z < pathLo.z || lo.z > pathHi.z)
+    {
+        return;
+    }
+    m3TOIInput input;
+    input.proxyA.points = points;
+    input.proxyA.count = count;
+    input.proxyA.radius = 0.0f;
+    input.proxyB.points = ctx->castPoints;
+    input.proxyB.count = ctx->castPointCount;
+    input.proxyB.radius = ctx->castRadius;
+    input.sweepA = sc->surface;
+    input.sweepB = sc->cast;
+    input.maxFraction = ctx->best.hit ? ctx->best.fraction : 1.0f;
+    m3TOIOutput out = m3TimeOfImpact(&input);
+    if (out.state == m3_toiStateHit &&
+        (!ctx->best.hit || out.fraction < ctx->best.fraction ||
+         (out.fraction == ctx->best.fraction && shape < ctx->bestShape)))
+    {
+        ctx->best.hit = true;
+        ctx->best.fraction = out.fraction;
+        ctx->best.normal = out.normal;
+        ctx->best.shapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
+        ctx->bestShape = shape;
+    }
+    else if (out.state == m3_toiStateOverlapped &&
+             (!ctx->best.hit || 0.0f < ctx->best.fraction ||
+              (0.0f == ctx->best.fraction && shape < ctx->bestShape)))
+    {
+        ctx->best.hit = true;
+        ctx->best.fraction = 0.0f;
+        ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
+        ctx->best.shapeId = (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
+        ctx->bestShape = shape;
+    }
+}
+
+static bool CastTriangle(const m3Vec3 tri[3], void* context)
+{
+    m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
+    m3Vec3 lo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
+                 m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y)),
+                 m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z))};
+    m3Vec3 hi = {m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x)),
+                 m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y)),
+                 m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z))};
+    CastPiece((SurfaceCast*)context, tv, 3, lo, hi);
+    return true;
+}
+
+// Mesh targets: per-triangle TOI over the triangles in the cast's path
+// (the same recipe as continuous collision).
+static void CastMesh(m3ShapeCastContext* ctx, int32_t shape)
+{
+    const m3World* world = ctx->world;
+    const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
+    SurfaceCast sc;
+    SurfaceCastBegin(ctx, shape, &sc);
+    m3Vec3 lo;
+    m3Vec3 hi;
+    SurfaceCastBox(&sc, 1.0f, &lo, &hi);
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
+    int32_t gatherCount =
+        m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo, hi, gather,
+                        M3_COUNT_OF(gather));
+    for (int32_t g = 0; g < gatherCount; ++g)
+    {
+        int32_t t = gather[g];
+        m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
+                        mesh->vertices[mesh->indices[3 * t + 1]],
+                        mesh->vertices[mesh->indices[3 * t + 2]]};
+        (void)CastTriangle(tv, &sc);
+    }
+}
+
+// Height field grid targets: the same recipe over the grid's triangles.
+static void CastHeightField(m3ShapeCastContext* ctx, int32_t shape)
+{
+    const m3World* world = ctx->world;
+    SurfaceCast sc;
+    SurfaceCastBegin(ctx, shape, &sc);
+    m3Vec3 lo;
+    m3Vec3 hi;
+    SurfaceCastBox(&sc, 1.0f, &lo, &hi);
+    m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
+                       CastTriangle, &sc);
+}
+
+// Voxel targets: per-box TOI against the merged surface, unextended
+// (queries report true geometry; the seam extension is a contact-only
+// device).
+static void CastVoxels(m3ShapeCastContext* ctx, int32_t shape)
+{
+    const m3World* world = ctx->world;
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+    m3real cell = world->voxels.voxelData[slot].cellSize;
+    SurfaceCast sc;
+    SurfaceCastBegin(ctx, shape, &sc);
+    m3Vec3 blo;
+    m3Vec3 bhi;
+    SurfaceCastBox(&sc, 1.0f, &blo, &bhi);
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
+    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
+    for (int32_t g = 0; g < gatherCount; ++g)
+    {
+        m3Vec3 lo;
+        m3Vec3 hi;
+        m3VoxelBoxBounds(surface, cell, gather[g], &lo, &hi);
+        m3Vec3 corners[8];
+        for (int32_t k = 0; k < 8; ++k)
+        {
+            corners[k] = (m3Vec3){(k & 1) != 0 ? hi.x : lo.x, (k & 2) != 0 ? hi.y : lo.y,
+                                  (k & 4) != 0 ? hi.z : lo.z};
+        }
+        CastPiece(&sc, corners, 8, lo, hi);
+    }
+}
+
 static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
 {
     const m3World* world = ctx->world;
@@ -50,172 +234,17 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     }
     if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
     {
-        // Voxel targets: per-box TOI against the merged
-        // surface, unextended (queries report true geometry; the
-        // seam extension is a contact-only device).
-        int32_t slot = world->shapes.shapeVoxelIndex[shape];
-        const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-        m3real cell = world->voxels.voxelData[slot].cellSize;
-        m3Transform xfVv = m3ShapeWorldTransform(world, shape);
-        const m3Transform* xfV = &xfVv;
-        m3Sweep chunkSweep;
-        chunkSweep.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
-        chunkSweep.c1 = (m3Vec3){(m3real)(xfV->p.x - ctx->base.x), (m3real)(xfV->p.y - ctx->base.y),
-                                 (m3real)(xfV->p.z - ctx->base.z)};
-        chunkSweep.c2 = chunkSweep.c1;
-        chunkSweep.q1 = xfV->q;
-        chunkSweep.q2 = xfV->q;
-
-        m3Sweep castSweep;
-        castSweep.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
-        castSweep.c1 = (m3Vec3){0.0f, 0.0f, 0.0f};
-        castSweep.c2 = ctx->translation;
-        castSweep.q1 = m3MakeIdentityQuat();
-        castSweep.q2 = m3MakeIdentityQuat();
-
-        m3Vec3 c1 = m3InvRotateVec3(xfV->q, m3Neg3(chunkSweep.c1));
-        m3Vec3 c2 = m3InvRotateVec3(xfV->q, m3Sub3(ctx->translation, chunkSweep.c1));
-        m3real pad = ctx->castRadius + 0.6f + M3_AABB_MARGIN;
-        m3Vec3 blo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
-        m3Vec3 bhi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
-
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-        int32_t budget = 64;
-        for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
-        {
-            budget -= 1;
-            m3Vec3 lo;
-            m3Vec3 hi;
-            m3VoxelBoxBounds(surface, cell, gather[g], &lo, &hi);
-            m3Vec3 corners[8];
-            for (int32_t k = 0; k < 8; ++k)
-            {
-                corners[k] = (m3Vec3){(k & 1) != 0 ? hi.x : lo.x, (k & 2) != 0 ? hi.y : lo.y,
-                                      (k & 4) != 0 ? hi.z : lo.z};
-            }
-            m3TOIInput input;
-            input.proxyA.points = corners;
-            input.proxyA.count = 8;
-            input.proxyA.radius = 0.0f;
-            input.proxyB.points = ctx->castPoints;
-            input.proxyB.count = ctx->castPointCount;
-            input.proxyB.radius = ctx->castRadius;
-            input.sweepA = chunkSweep;
-            input.sweepB = castSweep;
-            input.maxFraction = ctx->best.hit ? ctx->best.fraction : 1.0f;
-            m3TOIOutput out = m3TimeOfImpact(&input);
-            if (out.state == m3_toiStateHit &&
-                (!ctx->best.hit || out.fraction < ctx->best.fraction ||
-                 (out.fraction == ctx->best.fraction && shape < ctx->bestShape)))
-            {
-                ctx->best.hit = true;
-                ctx->best.fraction = out.fraction;
-                ctx->best.normal = out.normal;
-                ctx->best.shapeId =
-                    (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
-                ctx->bestShape = shape;
-            }
-            else if (out.state == m3_toiStateOverlapped &&
-                     (!ctx->best.hit || 0.0f < ctx->best.fraction ||
-                      (0.0f == ctx->best.fraction && shape < ctx->bestShape)))
-            {
-                ctx->best.hit = true;
-                ctx->best.fraction = 0.0f; // the start-overlapped contract
-                ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shapeId =
-                    (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
-                ctx->bestShape = shape;
-            }
-        }
+        CastVoxels(ctx, shape);
         return;
     }
     if (world->shapes.shapeType[shape] == (uint8_t)m3_meshShape)
     {
-        // Mesh targets: per-triangle TOI, ascending, bounded (the
-        // same recipe as continuous collision).
-        const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
-        m3Transform xfMv = m3ShapeWorldTransform(world, shape);
-        const m3Transform* xfM = &xfMv;
-        m3Sweep meshSweep;
-        meshSweep.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
-        meshSweep.c1 = (m3Vec3){(m3real)(xfM->p.x - ctx->base.x), (m3real)(xfM->p.y - ctx->base.y),
-                                (m3real)(xfM->p.z - ctx->base.z)};
-        meshSweep.c2 = meshSweep.c1;
-        meshSweep.q1 = xfM->q;
-        meshSweep.q2 = xfM->q;
-
-        m3Sweep castSweep;
-        castSweep.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
-        castSweep.c1 = (m3Vec3){0.0f, 0.0f, 0.0f};
-        castSweep.c2 = ctx->translation;
-        castSweep.q1 = m3MakeIdentityQuat();
-        castSweep.q2 = m3MakeIdentityQuat();
-
-        // Candidate box in mesh-local space.
-        m3Vec3 c1 = m3InvRotateVec3(xfM->q, m3Neg3(meshSweep.c1));
-        m3Vec3 c2 = m3InvRotateVec3(xfM->q, m3Sub3(ctx->translation, meshSweep.c1));
-        m3real pad = ctx->castRadius + 0.6f + M3_AABB_MARGIN; // capsule half-reach bound
-        m3Vec3 blo = {m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
-        m3Vec3 bhi = {m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
-
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
-        int32_t gatherCount =
-            m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], blo, bhi,
-                            gather, M3_COUNT_OF(gather));
-        int32_t budget = 64;
-        for (int32_t g = 0; g < gatherCount && budget > 0; ++g)
-        {
-            int32_t t = gather[g];
-            m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
-                            mesh->vertices[mesh->indices[3 * t + 1]],
-                            mesh->vertices[mesh->indices[3 * t + 2]]};
-            m3real tlx = m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x));
-            m3real thx = m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x));
-            m3real tly = m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y));
-            m3real thy = m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y));
-            m3real tlz = m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z));
-            m3real thz = m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z));
-            if (thx < blo.x || tlx > bhi.x || thy < blo.y || tly > bhi.y || thz < blo.z ||
-                tlz > bhi.z)
-            {
-                continue;
-            }
-            budget -= 1;
-            m3TOIInput input;
-            input.proxyA.points = tv;
-            input.proxyA.count = 3;
-            input.proxyA.radius = 0.0f;
-            input.proxyB.points = ctx->castPoints;
-            input.proxyB.count = ctx->castPointCount;
-            input.proxyB.radius = ctx->castRadius;
-            input.sweepA = meshSweep;
-            input.sweepB = castSweep;
-            input.maxFraction = ctx->best.hit ? ctx->best.fraction : 1.0f;
-            m3TOIOutput out = m3TimeOfImpact(&input);
-            if (out.state == m3_toiStateHit &&
-                (!ctx->best.hit || out.fraction < ctx->best.fraction ||
-                 (out.fraction == ctx->best.fraction && shape < ctx->bestShape)))
-            {
-                ctx->best.hit = true;
-                ctx->best.fraction = out.fraction;
-                ctx->best.normal = out.normal;
-                ctx->best.shapeId =
-                    (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
-                ctx->bestShape = shape;
-            }
-            else if (out.state == m3_toiStateOverlapped &&
-                     (!ctx->best.hit || 0.0f < ctx->best.fraction ||
-                      (0.0f == ctx->best.fraction && shape < ctx->bestShape)))
-            {
-                ctx->best.hit = true;
-                ctx->best.fraction = 0.0f;
-                ctx->best.normal = (m3Vec3){0.0f, 0.0f, 0.0f};
-                ctx->best.shapeId =
-                    (m3ShapeId){shape + 1, world->shapes.shapePool.generations[shape]};
-                ctx->bestShape = shape;
-            }
-        }
+        CastMesh(ctx, shape);
+        return;
+    }
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_heightFieldShape)
+    {
+        CastHeightField(ctx, shape);
         return;
     }
 

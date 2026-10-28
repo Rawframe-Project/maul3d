@@ -107,6 +107,131 @@ static void MoverOfferPlane(m3MoverCollideCtx* ctx, m3MoverPlane plane)
     }
 }
 
+// The distance from the mover's segment, caps in the shape's frame, to
+// one convex piece of a shape.
+static m3DistanceOutput PieceDistance(m3DistanceProxy piece, const m3Vec3 caps[2])
+{
+    m3DistanceInput input;
+    memset(&input, 0, sizeof(input));
+    input.proxyA = piece;
+    input.proxyB.points = caps;
+    input.proxyB.count = 2;
+    input.proxyB.radius = 0.0f;
+    input.q = m3MakeIdentityQuat();
+    input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
+    input.useRadii = false;
+    return m3ShapeDistance(&input);
+}
+
+// The nearest of a static surface's pieces within reach of the segment:
+// its triangles or a voxel chunk's boxes, tried in the surface's own
+// order, the first nearest kept.
+typedef struct NearestCtx
+{
+    const m3Vec3* caps;
+    m3DistanceOutput best;
+    bool found;
+} NearestCtx;
+
+static void OfferPiece(NearestCtx* near, m3DistanceProxy piece)
+{
+    m3DistanceOutput out = PieceDistance(piece, near->caps);
+    if (!near->found || out.distance < near->best.distance)
+    {
+        near->best = out;
+        near->found = true;
+    }
+}
+
+static bool OfferTriangle(const m3Vec3 tri[3], void* context)
+{
+    NearestCtx* near = (NearestCtx*)context;
+    m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
+    OfferPiece(near, (m3DistanceProxy){tv, 3, 0.0f});
+    return true;
+}
+
+static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3Vec3 hi,
+                             NearestCtx* near)
+{
+    uint8_t type = world->shapes.shapeType[shape];
+    if (type == (uint8_t)m3_heightFieldShape)
+    {
+        m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
+                           OfferTriangle, near);
+        return;
+    }
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
+    if (type == (uint8_t)m3_meshShape)
+    {
+        int32_t index = world->shapes.shapeMeshIndex[shape];
+        const m3MeshData* mesh = &world->meshes.meshData[index];
+        int32_t count =
+            m3MeshBvhGather(&world->meshes.meshBvh[index], lo, hi, gather, M3_COUNT_OF(gather));
+        for (int32_t g = 0; g < count; ++g)
+        {
+            int32_t t = gather[g];
+            m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
+                            mesh->vertices[mesh->indices[3 * t + 1]],
+                            mesh->vertices[mesh->indices[3 * t + 2]]};
+            if (m3TriangleTouchesBox(tv, lo, hi))
+            {
+                (void)OfferTriangle(tv, near);
+            }
+        }
+        return;
+    }
+    int32_t slot = world->shapes.shapeVoxelIndex[shape];
+    const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
+    m3real cell = world->voxels.voxelData[slot].cellSize;
+    int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
+    for (int32_t g = 0; g < count; ++g)
+    {
+        m3Vec3 blo;
+        m3Vec3 bhi;
+        m3VoxelBoxBounds(surface, cell, gather[g], &blo, &bhi);
+        m3Vec3 corners[8];
+        for (int32_t k = 0; k < 8; ++k)
+        {
+            corners[k] = (m3Vec3){(k & 1) != 0 ? bhi.x : blo.x, (k & 2) != 0 ? bhi.y : blo.y,
+                                  (k & 4) != 0 ? bhi.z : blo.z};
+        }
+        OfferPiece(near, (m3DistanceProxy){corners, 8, 0.0f});
+    }
+}
+
+// The distance from the mover's segment to a shape, and the radius of
+// the shape's core it was measured to. A mesh, a grid or a voxel chunk
+// is measured to its nearest piece within reach; one with none in reach
+// reads as out of reach.
+static m3DistanceOutput NearestPiece(const m3World* world, int32_t shape, const m3Vec3 caps[2],
+                                     m3real reach, m3real* coreRadiusOut)
+{
+    uint8_t type = world->shapes.shapeType[shape];
+    *coreRadiusOut = 0.0f;
+    if (type != (uint8_t)m3_meshShape && type != (uint8_t)m3_heightFieldShape &&
+        type != (uint8_t)m3_voxelShape)
+    {
+        m3Vec3 scratch[2];
+        m3DistanceProxy proxy = m3MakeShapeProxy(world, shape, scratch);
+        *coreRadiusOut = proxy.radius;
+        return PieceDistance(proxy, caps);
+    }
+    m3Vec3 lo = {m3MinF(caps[0].x, caps[1].x) - reach, m3MinF(caps[0].y, caps[1].y) - reach,
+                 m3MinF(caps[0].z, caps[1].z) - reach};
+    m3Vec3 hi = {m3MaxF(caps[0].x, caps[1].x) + reach, m3MaxF(caps[0].y, caps[1].y) + reach,
+                 m3MaxF(caps[0].z, caps[1].z) + reach};
+    NearestCtx near;
+    memset(&near, 0, sizeof(near));
+    near.caps = caps;
+    NearestOfSurface(world, shape, lo, hi, &near);
+    if (!near.found)
+    {
+        near.best.distance = FLT_MAX;
+    }
+    return near.best;
+}
+
 static bool MoverGatherCallback(int32_t shape, void* userContext)
 {
     m3MoverCollideCtx* ctx = (m3MoverCollideCtx*)userContext;
@@ -124,18 +249,9 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
     m3Vec3 axis = m3InvRotateVec3(xfS.q, (m3Vec3){0.0f, 1.0f, 0.0f});
     m3Vec3 caps[2] = {m3Add3(local, m3MulSV3(ctx->halfHeight, axis)),
                       m3Sub3(local, m3MulSV3(ctx->halfHeight, axis))};
-    m3Vec3 scratch[2];
-    m3DistanceInput input;
-    memset(&input, 0, sizeof(input));
-    input.proxyA = m3MakeShapeProxy(world, shape, scratch);
-    input.proxyB.points = caps;
-    input.proxyB.count = 2;
-    input.proxyB.radius = 0.0f;
-    input.q = m3MakeIdentityQuat();
-    input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
-    input.useRadii = false;
-    m3DistanceOutput out = m3ShapeDistance(&input);
-    m3real gap = out.distance - input.proxyA.radius - ctx->radius;
+    m3real coreRadius = 0.0f;
+    m3DistanceOutput out = NearestPiece(world, shape, caps, ctx->radius + ctx->skin, &coreRadius);
+    m3real gap = out.distance - coreRadius - ctx->radius;
     if (gap > ctx->skin)
     {
         return true;

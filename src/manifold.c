@@ -547,7 +547,10 @@ m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scr
         proxy.radius = world->shapes.shapeGeom[shape].s;
         return proxy;
     }
-    // Sphere (planes never reach the GJK path).
+    // Sphere. Planes never reach the GJK path, and meshes, height fields
+    // and voxel chunks take their own per-piece paths: a proxy of one of
+    // those would be a point at its body's origin.
+    M3_ASSERT(type == (uint8_t)m3_sphereShape);
     scratch[0] = world->shapes.shapeGeom[shape].v;
     proxy.points = scratch;
     proxy.count = 1;
