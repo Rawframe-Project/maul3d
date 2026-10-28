@@ -149,7 +149,7 @@ The constants are `M3_FLOW_PIECE_TURN = 0.25f` and `M3_FLOW_MAX_PIECES = 64`. Fo
 - **The two corrections.** A body's turn angle repeats every substep, and so would the rounding of its cosine and sine; the residual turns' length correction removes that. The spin and pose the next substep reads back round alike from one substep to the next, so their errors add up like a bias; the read-back correction removes that. It corrects each component of the read-back. Correcting only its length would pay the rounding across a thin rod, about the spin times 6e-8 at the rod's large moments, from the rod's far smaller momentum about its own axis, and drain that spin: a rod with moments (1, 1, 1e-4) kept 27% of it after 10 s at 480 substeps a second.
 - **Divisions.** The spin divides by the scaled moments. Multiplying by a rounded inverse would scale a body's spin by the same factor every substep.
 
-Only correctly rounded or exact library functions appear above: `sqrt`, `sqrtf`, `fabs`, `floorf` and `remainderf`. `tools/libm-allowed.txt` holds maul3d's sources to that set.
+Only correctly rounded or exact library functions appear above. `sqrt`, `sqrtf`, `fabs` and `floorf` are correctly rounded, and `tools/libm-allowed.txt` lists them for maul3d's sources. `remainderf` is exact, and only the public header `maul3d/core_math.h` calls it, outside the sources that list covers.
 
 ## Accuracy
 
