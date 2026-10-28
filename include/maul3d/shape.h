@@ -172,8 +172,10 @@ extern "C"
     /// hull may lose detail up to about 1e-3 of the summed extents.
     /// Degenerate clouds (coplanar, collinear, or fewer than four
     /// points once merged) return m3_errorInvalid, and a cloud of more
-    /// than M3_MAX_HULL_POINTS points m3_errorLimit. A hull keeps at
-    /// most 64 vertices; the builder stops adding points there.
+    /// than M3_MAX_HULL_POINTS points m3_errorLimit. An allocator that
+    /// refuses the builder's working memory returns m3_errorCapacity,
+    /// with the world as it was. A hull keeps at most 64 vertices; the
+    /// builder stops adding points there.
     M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
                                                    const m3ShapeDef* def, const m3Vec3* points,
                                                    int32_t count, m3ShapeId* shapeOut);

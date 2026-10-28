@@ -87,7 +87,10 @@ static void FreeWorldStorage(m3World* world)
     m3IdPoolDestroy(&world->heap, &world->voxels.voxelPool);
     m3TreeDestroy(&world->heap, &world->broadphase.tree);
     m3StackDestroy(&world->heap, &world->scratch);
-    // The world's own block goes last, through a copy of the heap it lives in.
+    // The world's own block goes last, through a copy of the heap it lives
+    // in. Its pools are gone, so the world stays busy while the host's
+    // free runs for it, and a writer that free calls is refused.
+    world->heap.hostCalls += 1;
     m3Heap heap = world->heap;
     m3Free(&heap, world);
 }
@@ -262,9 +265,8 @@ static bool CreatePools(m3World* world)
     int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(&world->heap, TreeCapacity(shapeCap));
     world->memoryBytes += (int64_t)TreeCapacity(shapeCap) * (int64_t)sizeof(m3TreeNode);
-    // The step scratch, whole: a step never asks the allocator. The size
-    // was checked against the 32-bit byte count before anything was
-    // allocated.
+    // The step scratch, whole: a step never asks the allocator. Its size
+    // passed the 32-bit byte count check before anything was allocated.
     world->scratch = m3StackCreate(&world->heap, (int32_t)m3StepScratchBytes(world));
     // The voxel slots' trees come with their chunks; the build scratch
     // and the edit staging copy serve them all.
