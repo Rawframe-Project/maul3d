@@ -590,7 +590,12 @@ void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float h
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q)
 {
     world->joints.jointTargetScalar[j] = scalar;
-    world->joints.jointTargetQ[j] = q;
+    // Only a spherical joint's target is a rotation. A wheel keeps its
+    // steering in these slots, and every other type holds the identity.
+    if (world->joints.jointType[j] == (uint8_t)m3_sphericalJoint)
+    {
+        world->joints.jointTargetQ[j] = q;
+    }
     JointWakeBodies(world, j);
 }
 
