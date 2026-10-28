@@ -10,6 +10,7 @@
 
 #include "maul3d/shape.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -922,6 +923,64 @@ static void TestFarRaysKeepTheirNormal(void)
     m3DestroyWorld(world);
 }
 
+// A diagonal ray 0.3 m off a unit sphere's center, or a unit capsule's
+// axis, keeps its normal within 2 |m| FLT_EPSILON, two float ulps of the
+// origin's distance |m| at most, per meter of radius. The origin's offset
+// from the shape is a float, so its components are already rounded that
+// far, and the closest approach q takes that error. An axis ray rounds q
+// only at q's own size, as above; a diagonal one is off by about 1e-3
+// at 1e4 m.
+static void TestDiagonalFarRaysKeepTheirNormal(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyId ball = NewBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    bd.position = (m3Pos3){0.0, 0.0, 10.0};
+    m3BodyId rod = NewBody(world, &bd);
+    m3Capsule capsule = {{0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f}, 1.0f};
+    NewCapsuleShape(world, rod, &sd, &capsule);
+    const double across = sqrt(1.0 - 0.09);
+    for (int32_t shape = 0; shape < 2; ++shape)
+    {
+        // The sphere's ray runs along (1, 2, 2) / 3; the capsule's across
+        // its axis along (3, 4, 0) / 5. Each passes 0.3 m off the center
+        // along a unit vector w across the ray.
+        const double u[3] = {shape == 0 ? 1.0 / 3.0 : 0.6, shape == 0 ? 2.0 / 3.0 : 0.8,
+                             shape == 0 ? 2.0 / 3.0 : 0.0};
+        const double w[3] = {shape == 0 ? 2.0 / 3.0 : 0.8, shape == 0 ? -2.0 / 3.0 : -0.6,
+                             shape == 0 ? 1.0 / 3.0 : 0.0};
+        const double z = shape == 0 ? 0.0 : 10.0;
+        double worstRatio = 0.0;
+        bool hits = true;
+        for (double d = 10.0; d <= 1.0e6; d *= 10.0)
+        {
+            m3Pos3 origin = {-d * u[0] + 0.3 * w[0], -d * u[1] + 0.3 * w[1],
+                             z - d * u[2] + 0.3 * w[2]};
+            m3Vec3 path = {(float)(2.0 * d * u[0]), (float)(2.0 * d * u[1]),
+                           (float)(2.0 * d * u[2])};
+            m3RayCastResult hit =
+                m3World_CastRayClosest(world, origin, path, m3DefaultQueryFilter());
+            hits = hits && hit.hit && isfinite(hit.fraction);
+            const float n[3] = {hit.normal.x, hit.normal.y, hit.normal.z};
+            double error = 0.0;
+            for (int32_t k = 0; k < 3; ++k)
+            {
+                error = fmax(error, fabs((double)n[k] - (0.3 * w[k] - across * u[k])));
+            }
+            worstRatio = fmax(worstRatio, error / (d * (double)FLT_EPSILON));
+        }
+        printf("diagonal far rays, %s: worst normal error %.3g |m| FLT_EPSILON\n",
+               shape == 0 ? "sphere" : "capsule", worstRatio);
+        CHECK(hits, "a diagonal far ray hits with a finite fraction");
+        CHECK(worstRatio <= 2.0, "a diagonal far ray keeps its normal within 2 |m| FLT_EPSILON");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
@@ -940,6 +999,7 @@ int main(void)
     TestSensorPassThrough();
     TestSensorSleepAndBullets();
     TestFarRaysKeepTheirNormal();
+    TestDiagonalFarRaysKeepTheirNormal();
     if (s_failures == 0)
     {
         printf("test_queries: all checks passed\n");

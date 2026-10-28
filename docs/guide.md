@@ -1183,6 +1183,8 @@ past what real scenes use. Vectors are bounded per component.
 | Position | `M3_POSITION_LIMIT`, 1e15 m | body defs, poses, anchors in the world, a plane's offset, water boxes, every soft particle a create places |
 | Body-frame offset or extent | `M3_LOCAL_LIMIT`, 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
 | Servo target | `M3_SERVO_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
+| Static geometry | `M3_GEOMETRY_LIMIT`, 1e8 m in its body's frame | mesh vertices, height samples |
+| Cell size | `M3_CELL_LIMIT`, 1e5 m, positive | height field grids and mesh height fields, voxel chunks |
 | Cast or character move | `M3_CAST_LIMIT`, 1e18 m | shape casts, `m3Character_Move` |
 | Speed | `M3_SPEED_LIMIT`, 1e5 m/s and rad/s | dynamic body velocities, every body's spin, the world's speed caps, contact push speed, wind speed, water flow, surface velocity, joint motor speed |
 | Kinematic speed | `M3_KINEMATIC_SPEED_LIMIT`, 1e10 m/s | kinematic body linear velocities |

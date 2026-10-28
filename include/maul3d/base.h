@@ -273,8 +273,14 @@ extern "C"
 #define M3_MIN_WHEEL_RADIUS 1.0e-3f
 // - an explosion's impulse per square meter, N s/m^2;
 #define M3_BLAST_LIMIT 1.0e10f
-// - a cast's translation, m, per component.
+// - a cast's translation, m, per component;
 #define M3_CAST_LIMIT 1.0e18f
+// - a mesh vertex or height sample in its body's frame, m, per
+//   component, and a height field or voxel cell's size, m, positive: a
+//   grid of M3_MAX_HEIGHTFIELD_SIZE samples, or a voxel chunk, then stays
+//   within M3_GEOMETRY_LIMIT;
+#define M3_GEOMETRY_LIMIT 1.0e8f
+#define M3_CELL_LIMIT     1.0e5f
 //
 // Counts:
 // - a world's shape and voxel capacities, which size int32_t tables of

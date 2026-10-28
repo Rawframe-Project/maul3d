@@ -308,6 +308,13 @@ static void TestRestoreRefusesBadMeshContent(void)
           "a vertex that is not finite is refused as invalid");
     CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
           "and the world is untouched again");
+    memcpy(poisoned, clean, (size_t)size);
+    float far = 2.0f * M3_GEOMETRY_LIMIT;
+    memcpy(poisoned + vertexAt, &far, sizeof(far));
+    CHECK(m3World_Restore(world, poisoned, size) == m3_errorFormat,
+          "a vertex past M3_GEOMETRY_LIMIT is refused");
+    CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+          "and the world is untouched once more");
 
     struct
     {
@@ -754,12 +761,14 @@ static void TestRestoreRefusesBadHeightFieldContent(void)
     CHECK(samplesAt >= 12, "the samples are found");
     if (samplesAt >= 12)
     {
-        Poison poisons[4] = {
+        Poison poisons[5] = {
             PoisonF32(samplesAt + 4, NAN, "a sample that is not finite is refused as invalid"),
             PoisonF32(samplesAt - 8, 0.0f, "a minimum the samples do not give is refused"),
             PoisonF32(samplesAt - 4, 9.0f, "a maximum the samples do not give is refused"),
-            PoisonF32(samplesAt - 12, NAN, "a cell size that is not finite is refused")};
-        CheckPoisonsRefused(world, clean, size, poisons, 4);
+            PoisonF32(samplesAt - 12, NAN, "a cell size that is not finite is refused"),
+            PoisonF32(samplesAt - 12, 2.0f * M3_CELL_LIMIT,
+                      "a cell size past M3_CELL_LIMIT is refused")};
+        CheckPoisonsRefused(world, clean, size, poisons, 5);
     }
     free(clean);
     m3DestroyWorld(world);

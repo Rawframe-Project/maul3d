@@ -97,7 +97,12 @@ static inline bool m3FiniteQuat(m3Quat q)
 //   suites set to 0.3 m;
 // - over the largest facing area (4e8 m^2) and the lightest body, the
 //   blast limit stays finite before the speed limit holds the result;
-//   the suites use at most 50 N s/m^2.
+//   the suites use at most 50 N s/m^2;
+// - a triangle's normal takes the squared length of a cross product of
+//   two edges, the fourth power of their length, which leaves float
+//   range near 4e9 m; static geometry within the geometry limit keeps
+//   edges below 3.5e8 m, and the cell limit keeps a whole grid or voxel
+//   chunk within it.
 #define M3_UNIT_MASS_LIMIT 8.0e12f
 
 static inline bool m3LocalF(m3real x)

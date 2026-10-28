@@ -90,12 +90,13 @@ void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
 m3Result m3HeightFieldSamplesCheck(int32_t nx, int32_t nz, float cellSize, const void* samples,
                                    float* minOut, float* maxOut)
 {
-    if (nx < 2 || nz < 2 || !m3FiniteF(cellSize) || !(cellSize > 0.0f))
+    if (nx < 2 || nz < 2)
     {
         return m3_errorInvalid;
     }
-    m3Result size = m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_SIZE),
-                                 m3CheckCount(nz, M3_MAX_HEIGHTFIELD_SIZE));
+    m3Result size = m3BothChecks(m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_SIZE),
+                                              m3CheckCount(nz, M3_MAX_HEIGHTFIELD_SIZE)),
+                                 m3CheckPositive(cellSize, M3_CELL_LIMIT));
     if (size != m3_success)
     {
         return size;
@@ -108,9 +109,10 @@ m3Result m3HeightFieldSamplesCheck(int32_t nx, int32_t nz, float cellSize, const
     {
         float v;
         memcpy(&v, bytes + (size_t)i * sizeof(float), sizeof(v));
-        if (!m3FiniteF(v))
+        m3Result sample = m3CheckWithin(v, M3_GEOMETRY_LIMIT);
+        if (sample != m3_success)
         {
-            return m3_errorInvalid;
+            return sample;
         }
         lo = i == 0 ? v : (v < lo ? v : lo);
         hi = i == 0 ? v : (v > hi ? v : hi);

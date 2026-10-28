@@ -151,7 +151,7 @@ static bool BytesZero(const uint8_t* bytes, size_t count)
 }
 
 // The rules a mesh create and its paint enforce, read from one slot's
-// content in the buffer: finite vertices, indices into them, and paint
+// content in the buffer: vertices within M3_GEOMETRY_LIMIT, indices into them, and paint
 // that passes the material wall. The BVH build and every contact index
 // the vertices through these, and contacts mix the paint into friction.
 static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
@@ -160,7 +160,7 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
     {
         m3Vec3 vertex;
         memcpy(&vertex, content + (size_t)i * sizeof(m3Vec3), sizeof(vertex));
-        if (!m3FiniteV3(vertex))
+        if (!m3WithinV3(vertex, M3_GEOMETRY_LIMIT))
         {
             return false;
         }
