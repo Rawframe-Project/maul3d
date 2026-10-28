@@ -87,9 +87,8 @@ static void FreeWorldStorage(m3World* world)
     m3IdPoolDestroy(&world->heap, &world->voxels.voxelPool);
     m3TreeDestroy(&world->heap, &world->broadphase.tree);
     m3StackDestroy(&world->heap, &world->scratch);
-    // The world's own block goes last, through a copy of the heap it lives
-    // in. Its pools are gone, so the world stays busy while the host's
-    // free runs for it, and a writer that free calls is refused.
+    // The world's own block goes last, through a copy of its heap; while
+    // the host frees it the world stays busy, refusing any writer it calls.
     world->heap.hostCalls += 1;
     m3Heap heap = world->heap;
     m3Free(&heap, world);
@@ -152,6 +151,7 @@ static m3Result CheckWorldDef(const m3WorldDef* def)
                      m3FiniteF(def->restitutionThreshold) && def->restitutionThreshold >= 0.0f &&
                      m3FiniteF(def->hitEventThreshold) && def->hitEventThreshold >= 0.0f);
     result = m3BothChecks(result, m3CheckCount(def->shapeCapacity, M3_MAX_SHAPE_CAPACITY));
+    result = m3BothChecks(result, m3CheckCount(def->pairCapacity, M3_MAX_PAIR_CAPACITY));
     result = m3BothChecks(result, m3CheckCount(def->voxelCapacity, M3_MAX_VOXEL_CAPACITY));
     result = m3BothChecks(result, m3GravityCheck(def->gravity));
     result = m3BothChecks(result, m3ContactTuningCheck(def->contactHertz, def->contactDampingRatio,
@@ -184,7 +184,8 @@ static void ApplyWorldDef(m3World* world, const m3WorldDef* def)
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
-    world->contacts.pairCapacity = 8 * def->shapeCapacity;
+    world->contacts.pairCapacity =
+        def->pairCapacity > 0 ? def->pairCapacity : 8 * def->shapeCapacity;
 }
 
 // The proxy tree's nodes: a leaf per shape slot and the inner nodes
@@ -265,8 +266,8 @@ static bool CreatePools(m3World* world)
     int32_t shapeCap = world->shapes.shapeCapacity;
     world->broadphase.tree = m3TreeCreate(&world->heap, TreeCapacity(shapeCap));
     world->memoryBytes += (int64_t)TreeCapacity(shapeCap) * (int64_t)sizeof(m3TreeNode);
-    // The step scratch, whole: a step never asks the allocator. Its size
-    // passed the 32-bit byte count check before anything was allocated.
+    // The step scratch, whole, so a step never asks the allocator; its
+    // size was checked against the 32-bit byte count before any block.
     world->scratch = m3StackCreate(&world->heap, (int32_t)m3StepScratchBytes(world));
     // The voxel slots' trees come with their chunks; the build scratch
     // and the edit staging copy serve them all.
@@ -292,9 +293,8 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
         return m3_errorInvalid;
     }
     *worldOut = NULL;
-    // Before any solver kernel runs, make sure this CPU can execute the
-    // backend the binary was built for: a typed refusal beats a bare
-    // illegal-instruction trap on pre-Haswell hardware.
+    // Before any solver kernel runs, refuse a CPU that cannot run the
+    // binary's backend: a typed refusal beats an illegal-instruction trap.
     if (m3CheckCpu(NULL) == 0)
     {
         return m3_errorUnsupported;
@@ -719,6 +719,7 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
+    counters.pairsDropped = world->contacts.pairsDropped;
     counters.heldPushRetakes = world->heldPushRetakes;
     counters.snapshotBytes = m3World_SnapshotSize(world);
     counters.allocCalls = world->heap.allocCalls;
@@ -919,10 +920,9 @@ static void RebuildWithScratch(m3World* world, RebuildScratch* scratch)
     {
         return;
     }
-    // Collect the live proxies in shape-slot order (the canonical
-    // list), carrying their CURRENT fat bounds: fatness is state,
-    // and preserving it keeps every downstream pair decision
-    // exactly where it was.
+    // Collect the live proxies in shape-slot order (the canonical list)
+    // with their CURRENT fat bounds: fatness is state, and keeping it
+    // keeps every downstream pair decision exactly where it was.
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     int32_t n = 0;
     for (int32_t s = 0; s < maxShape; ++s)

@@ -100,6 +100,7 @@ namespace Maul3D
         public int CharacterCapacity;
         public int VehicleCapacity;
         public int SoftBodyCapacity;
+        public int PairCapacity;     // 0 = 8 per shape (the default)
         public IntPtr EnqueueTask;   // both null = serial (the default)
         public IntPtr FinishTask;
         public IntPtr UserTaskContext;

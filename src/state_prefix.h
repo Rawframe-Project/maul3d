@@ -16,8 +16,8 @@
 // is its name's four letters in file order, so a hex dump reads the name:
 // the little-endian uint32_t of "M3SN" is 0x4E53334D.
 #define M3_SNAPSHOT_MAGIC        0x4E53334Du // "M3SN"
-#define M3_SNAPSHOT_VERSION      5u          // 5: the state prefix
-#define M3_SNAPSHOT_HEADER_BYTES 56
+#define M3_SNAPSHOT_VERSION      6u          // 6: the pair capacity in the header
+#define M3_SNAPSHOT_HEADER_BYTES 60
 #define M3_JOURNAL_MAGIC         0x4E4A334Du // "M3JN"
 #define M3_JOURNAL_VERSION       2u          // 2: the joint def without its reserved byte
 #define M3_JOURNAL_HEADER_BYTES  16

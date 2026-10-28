@@ -38,17 +38,38 @@ _Static_assert(sizeof(m3Mat3) == 36, "m3Mat3 must be padding-free");
 
 // The header says which release, which build and which world shape wrote
 // the bytes; everything else, pool cursors included, is the state table's.
+// It is the prefix, the configuration hash at 16 and the capacities at
+// 24, written field by field: as a struct its fields would need padding.
+#define M3_SNAPSHOT_CAPACITIES 9
+
 typedef struct m3SnapshotHeader
 {
     m3StatePrefix prefix;
     uint64_t configHash;
-    int32_t capacities[8];
+    int32_t capacities[M3_SNAPSHOT_CAPACITIES];
 } m3SnapshotHeader;
 
-_Static_assert(sizeof(m3SnapshotHeader) == M3_SNAPSHOT_HEADER_BYTES,
-               "snapshot header must be padding-free");
+_Static_assert(sizeof(m3StatePrefix) + sizeof(uint64_t) +
+                       M3_SNAPSHOT_CAPACITIES * sizeof(int32_t) ==
+                   M3_SNAPSHOT_HEADER_BYTES,
+               "the snapshot header is its fields, with nothing between them");
 
-static void WorldCapacities(const m3World* world, int32_t capacities[8])
+static void WriteHeader(uint8_t* out, const m3SnapshotHeader* header)
+{
+    memcpy(out, &header->prefix, sizeof(header->prefix));
+    memcpy(out + 16, &header->configHash, sizeof(header->configHash));
+    memcpy(out + 24, header->capacities, sizeof(header->capacities));
+}
+
+static void ReadHeader(const uint8_t* in, m3SnapshotHeader* header)
+{
+    memcpy(&header->prefix, in, sizeof(header->prefix));
+    memcpy(&header->configHash, in + 16, sizeof(header->configHash));
+    memcpy(header->capacities, in + 24, sizeof(header->capacities));
+}
+
+// Every capacity that sizes a block: the eight pools and the pair table.
+static void WorldCapacities(const m3World* world, int32_t capacities[M3_SNAPSHOT_CAPACITIES])
 {
     capacities[0] = world->bodies.bodyCapacity;
     capacities[1] = world->shapes.shapeCapacity;
@@ -58,6 +79,7 @@ static void WorldCapacities(const m3World* world, int32_t capacities[8])
     capacities[5] = world->characters.characterCapacity;
     capacities[6] = world->vehicles.vehicleCapacity;
     capacities[7] = world->softBodies.softBodyCapacity;
+    capacities[8] = world->contacts.pairCapacity;
 }
 
 static uint64_t ConfigHash(void)
@@ -124,8 +146,8 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
     WorldCapacities(world, header.capacities);
 
     uint8_t* bytes = (uint8_t*)buffer;
-    memcpy(bytes, &header, sizeof(header));
-    m3WalkOut(world, bytes + sizeof(header), m3_walkWrite, 1);
+    WriteHeader(bytes, &header);
+    m3WalkOut(world, bytes + M3_SNAPSHOT_HEADER_BYTES, m3_walkWrite, 1);
     *bytesOut = (int32_t)size; // at most capacity
     return m3_success;
 }
@@ -418,7 +440,7 @@ static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementS
 // since the buffer need not be aligned for a chunk.
 static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
 {
-    const uint8_t* prefix = raw + sizeof(m3SnapshotHeader);
+    const uint8_t* prefix = raw + M3_SNAPSHOT_HEADER_BYTES;
     const uint8_t* alive =
         prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelPool.alive));
     const uint8_t* chunks = prefix + m3StateFieldAt(world, offsetof(m3World, voxels.voxelData));
@@ -474,7 +496,7 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
         }
     }
     // The derived trees follow the incoming pools, read from the prefix.
-    const uint8_t* prefix = raw + sizeof(m3SnapshotHeader);
+    const uint8_t* prefix = raw + M3_SNAPSHOT_HEADER_BYTES;
     const uint8_t* meshAlive =
         prefix + m3StateFieldAt(world, offsetof(m3World, meshes.meshPool.alive));
     for (int32_t m = 0; m < meshCap; ++m)
@@ -511,7 +533,7 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
     const uint8_t* raw = stage->data;
     m3Heap* heap = &world->heap;
     ClearEvents(world);
-    m3StateWalk(world, NULL, raw + sizeof(m3SnapshotHeader), 1);
+    m3StateWalk(world, NULL, raw + M3_SNAPSHOT_HEADER_BYTES, 1);
     m3Walk walk = {NULL, raw, m3_walkRead, stage->hullCursor};
     for (int32_t i = 0; i < world->shapes.shapeCapacity; ++i)
     {
@@ -602,12 +624,12 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
         return prefix;
     }
     m3SnapshotHeader header;
-    memcpy(&header, data, sizeof(header));
+    ReadHeader((const uint8_t*)data, &header);
     if (header.configHash != ConfigHash())
     {
         return m3_errorVersion; // another build of this release
     }
-    int32_t capacities[8];
+    int32_t capacities[M3_SNAPSHOT_CAPACITIES];
     WorldCapacities(world, capacities);
     if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
@@ -619,26 +641,26 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     // tail parsed straight from the buffer. The restored state is the
     // size read, so a snapshot within the bound keeps the world within it.
     int64_t prefixEnd =
-        (int64_t)sizeof(m3SnapshotHeader) + m3WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
+        (int64_t)M3_SNAPSHOT_HEADER_BYTES + m3WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
     if ((int64_t)size < prefixEnd || !m3SnapshotWithinBound(size))
     {
         return m3_errorFormat;
     }
     int32_t fixed = (int32_t)prefixEnd; // at most size
     const uint8_t* raw = (const uint8_t*)data;
-    if (!m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
+    if (!m3StateValidate(world, raw + M3_SNAPSHOT_HEADER_BYTES) ||
         !TailFits(world, raw, size, fixed) || !VoxelSurfacesFit(world, raw))
     {
         return m3_errorFormat;
     }
     // Then the structures as wholes, which the block checks make safe to
     // walk: what a step follows must be what the engine could have written.
-    m3Result links = m3SnapshotLinksCheck(world, raw + sizeof(m3SnapshotHeader));
+    m3Result links = m3SnapshotLinksCheck(world, raw + M3_SNAPSHOT_HEADER_BYTES);
     if (links != m3_success)
     {
         return links;
     }
-    m3Result masses = m3SnapshotMassesFit(world, raw, raw + sizeof(m3SnapshotHeader),
+    m3Result masses = m3SnapshotMassesFit(world, raw, raw + M3_SNAPSHOT_HEADER_BYTES,
                                           MeshTailEnd(world, raw, size, fixed));
     if (masses != m3_success)
     {

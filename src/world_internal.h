@@ -722,6 +722,13 @@ typedef struct m3Contacts
     m3Manifold* manifolds;
     int32_t pairCount;
     int32_t pairCapacity;
+    // The pair table is a max-heap while this step's pair update has
+    // more pairs than it holds: each further pair either replaces the
+    // highest key or is dropped.
+    uint8_t pairsHeaped;
+    // Pairs a step found and had no room for, cumulative. A counter,
+    // not state: never hashed or snapshotted.
+    uint64_t pairsDropped;
 } m3Contacts;
 
 // Joints: SoA arenas, all persistent snapshot state, and the per-body

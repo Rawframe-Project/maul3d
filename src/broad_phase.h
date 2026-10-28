@@ -10,8 +10,9 @@
 
 // Broadphase v1 (the swappable seam): fills pairKeys in canonical
 // ascending key order from fat AABBs; the dynamic tree replaces the
-// scan in 2b behind this same contract.
-m3Result m3UpdatePairs(m3World* world);
+// scan in 2b behind this same contract. A table too small for every
+// pair keeps the lowest keys and counts the rest in pairsDropped.
+void m3UpdatePairs(m3World* world);
 // The step scratch the pair update takes for a world of shapeCapacity
 // shapes.
 int64_t m3PairUpdateScratchBytes(int32_t shapeCapacity);
@@ -20,7 +21,7 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body);
 
 // The 2a brute-force scan, kept as the referee: on any scene the tree
 // path must produce the identical pair list (a test gate).
-m3Result m3UpdatePairsBruteForce(m3World* world);
+void m3UpdatePairsBruteForce(m3World* world);
 
 // Fat world bounds of a sphere shape (double, margin included).
 // A proxy's kind bits in the tree: its body's type, and whether it is a

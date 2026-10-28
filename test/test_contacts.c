@@ -104,7 +104,7 @@ static void TestWarmStartCarry(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, ball, &sd, &sphere);
 
-    CHECK(m3UpdatePairs(w) == m3_success, "pairs");
+    m3UpdatePairs(w);
     CHECK(m3UpdateContacts(w, NULL, NULL, 0) == m3_success, "first contact build");
     CHECK(w->contacts.pairCount == 1 && w->contacts.manifolds[0].pointCount == 1,
           "one plane contact");
@@ -118,7 +118,7 @@ static void TestWarmStartCarry(void)
     int32_t stashCount = w->contacts.pairCount;
     memcpy(stashKeys, w->contacts.pairKeys, (size_t)stashCount * sizeof(uint64_t));
     memcpy(stashManifolds, w->contacts.manifolds, (size_t)stashCount * sizeof(m3Manifold));
-    CHECK(m3UpdatePairs(w) == m3_success, "rescan");
+    m3UpdatePairs(w);
     CHECK(m3UpdateContacts(w, stashKeys, stashManifolds, stashCount) == m3_success, "rebuild");
     CHECK(NearF(w->contacts.manifolds[0].points[0].normalImpulse, 3.5f, 1.0e-6f),
           "the warm-start impulse carries by feature id");
@@ -131,7 +131,7 @@ static void TestWarmStartCarry(void)
     stashCount = w->contacts.pairCount;
     memcpy(stashKeys, w->contacts.pairKeys, (size_t)stashCount * sizeof(uint64_t));
     memcpy(stashManifolds, w->contacts.manifolds, (size_t)stashCount * sizeof(m3Manifold));
-    CHECK(m3UpdatePairs(w) == m3_success, "rescan after separation");
+    m3UpdatePairs(w);
     CHECK(m3UpdateContacts(w, stashKeys, stashManifolds, stashCount) == m3_success,
           "rebuild after separation");
     int32_t contacts = 0;

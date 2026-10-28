@@ -300,17 +300,61 @@ static int PairHot(const m3World* world, int32_t i, int32_t j)
     return world->bodies.types[bodyJ] != (uint8_t)m3_staticBody && world->bodies.awake[bodyJ] != 0;
 }
 
-static int EmitPair(m3World* world, int32_t i, int32_t j)
+// Moves the key at slot down a max-heap of count keys until no child is
+// higher.
+static void SiftDown(uint64_t* keys, int32_t count, int32_t slot)
 {
-    if (world->contacts.pairCount == world->contacts.pairCapacity)
+    for (;;)
     {
-        return 0; // loud at the caller
+        int32_t high = slot;
+        int32_t left = 2 * slot + 1;
+        int32_t right = left + 1;
+        high = left < count && keys[left] > keys[high] ? left : high;
+        high = right < count && keys[right] > keys[high] ? right : high;
+        if (high == slot)
+        {
+            return;
+        }
+        uint64_t swap = keys[slot];
+        keys[slot] = keys[high];
+        keys[high] = swap;
+        slot = high;
     }
-    uint64_t key =
-        i < j ? (((uint64_t)i << 32) | (uint64_t)j) : (((uint64_t)j << 32) | (uint64_t)i);
-    world->contacts.pairKeys[world->contacts.pairCount] = key;
-    world->contacts.pairCount += 1;
-    return 1;
+}
+
+// Adds a pair to the table. A full table keeps the lowest keys: it turns
+// into a max-heap once, and from then on a lower key takes the highest
+// one's place and the higher of the two is dropped. Which pairs are kept
+// depends on the pair set alone, not on the order they are found in, so
+// every walk and every task split keeps the same ones.
+static void PushPair(m3World* world, uint64_t key)
+{
+    m3Contacts* contacts = &world->contacts;
+    if (contacts->pairCount < contacts->pairCapacity)
+    {
+        contacts->pairKeys[contacts->pairCount++] = key;
+        return;
+    }
+    if (contacts->pairsHeaped == 0)
+    {
+        for (int32_t slot = contacts->pairCount / 2 - 1; slot >= 0; --slot)
+        {
+            SiftDown(contacts->pairKeys, contacts->pairCount, slot);
+        }
+        contacts->pairsHeaped = 1;
+    }
+    contacts->pairsDropped += 1;
+    if (contacts->pairCount > 0 && key < contacts->pairKeys[0])
+    {
+        contacts->pairKeys[0] = key;
+        SiftDown(contacts->pairKeys, contacts->pairCount, 0);
+    }
+}
+
+static void EmitPair(m3World* world, int32_t i, int32_t j)
+{
+    PushPair(world,
+             i < j ? (((uint64_t)i << 32) | (uint64_t)j) : (((uint64_t)j << 32) | (uint64_t)i));
 }
 
 static int CompareKeys(const void* a, const void* b)
@@ -327,7 +371,6 @@ typedef struct m3QueryCtx
     uint8_t* cacheValid; // sleepers fill lazily on first hit
     m3Aabb3d selfBounds;
     int32_t self;
-    int32_t overflow;
 } m3QueryCtx;
 
 static bool QueryHit(int32_t other, void* context)
@@ -370,18 +413,14 @@ static bool QueryHit(int32_t other, void* context)
     {
         return true;
     }
-    if (!EmitPair(ctx->world, ctx->self, other))
-    {
-        ctx->overflow = 1;
-        return false;
-    }
+    EmitPair(ctx->world, ctx->self, other);
     return true;
 }
 
 // The direct tree pass: each awake shape queries the tree; the j > i
 // rule emits every overlap exactly once. A static shape only ever
 // pairs hot with an awake one, which finds it from its side.
-static m3Result QueryAwakeShapes(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
+static void QueryAwakeShapes(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
 {
     for (int32_t i = 0; i < world->shapes.shapePool.maxIndex; ++i)
     {
@@ -400,14 +439,8 @@ static m3Result QueryAwakeShapes(m3World* world, m3Aabb3d* cache, uint8_t* cache
         ctx.cacheValid = cacheValid;
         ctx.selfBounds = FreshBounds(world, cache, cacheValid, i);
         ctx.self = i;
-        ctx.overflow = 0;
         m3TreeQuery(&world->broadphase.tree, ctx.selfBounds.lo, ctx.selfBounds.hi, QueryHit, &ctx);
-        if (ctx.overflow != 0)
-        {
-            return m3_errorCapacity;
-        }
     }
-    return m3_success;
 }
 
 typedef struct m3CandidateCtx
@@ -490,7 +523,7 @@ static int UpdateCandidates(m3World* world)
 
 // Emits the hot candidates whose fresh bounds overlap: the same pairs
 // the direct pass finds.
-static int EmitCandidates(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
+static void EmitCandidates(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
 {
     const m3Broadphase* bp = &world->broadphase;
     for (int32_t k = 0; k < bp->candidateCount; ++k)
@@ -505,12 +538,11 @@ static int EmitCandidates(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
         }
         m3Aabb3d a = FreshBounds(world, cache, cacheValid, i);
         m3Aabb3d b = FreshBounds(world, cache, cacheValid, j);
-        if (Overlap(&a, &b) && !EmitPair(world, i, j))
+        if (Overlap(&a, &b))
         {
-            return 0;
+            EmitPair(world, i, j);
         }
     }
-    return 1;
 }
 
 typedef struct m3FreezeCtx
@@ -518,7 +550,6 @@ typedef struct m3FreezeCtx
     m3World* world;
     m3Aabb3d selfBounds;
     int32_t self;
-    int32_t overflow;
 } m3FreezeCtx;
 
 static bool FreezeHit(int32_t other, void* context)
@@ -536,8 +567,8 @@ static bool FreezeHit(int32_t other, void* context)
     m3World* world = ctx->world;
     if (world->contacts.sleepingPairCount == world->contacts.pairCapacity)
     {
-        ctx->overflow = 1;
-        return false;
+        world->contacts.pairsDropped += 1; // not carried while frozen
+        return true;
     }
     int32_t i = ctx->self;
     uint64_t key = i < other ? (((uint64_t)i << 32) | (uint64_t)other)
@@ -567,7 +598,6 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
             ctx.world = world;
             ctx.self = sh;
             ctx.selfBounds = SphereAabb(world, sh);
-            ctx.overflow = 0;
             m3TreeQuery(&world->broadphase.tree, ctx.selfBounds.lo, ctx.selfBounds.hi, FreezeHit,
                         &ctx);
         }
@@ -582,7 +612,8 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
             }
             if (world->contacts.sleepingPairCount == world->contacts.pairCapacity)
             {
-                return;
+                world->contacts.pairsDropped += 1;
+                continue;
             }
             uint64_t key = p2 < sh ? (((uint64_t)p2 << 32) | (uint64_t)sh)
                                    : (((uint64_t)sh << 32) | (uint64_t)p2);
@@ -592,7 +623,7 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
     world->contacts.frozenDirty = 1;
 }
 
-m3Result m3UpdatePairs(m3World* world)
+void m3UpdatePairs(m3World* world)
 {
     // Once a step, not after every move: a full walk per insert would
     // make large debug scenes quadratic.
@@ -635,6 +666,7 @@ m3Result m3UpdatePairs(m3World* world)
         world->contacts.frozenDirty = 0;
     }
     world->contacts.pairCount = 0;
+    world->contacts.pairsHeaped = 0;
     int32_t maxShape = world->shapes.shapePool.maxIndex;
 
     // Fresh bounds, once per shape per step: the refresh,
@@ -719,10 +751,7 @@ m3Result m3UpdatePairs(m3World* world)
             {
                 continue; // cold: rides the frozen buffer
             }
-            if (!EmitPair(world, p, s))
-            {
-                return m3_errorCapacity;
-            }
+            EmitPair(world, p, s);
         }
     }
 
@@ -730,14 +759,11 @@ m3Result m3UpdatePairs(m3World* world)
     // shape queries the tree directly. Both yield the same pairs.
     if (UpdateCandidates(world))
     {
-        if (!EmitCandidates(world, cache, cacheValid))
-        {
-            return m3_errorCapacity;
-        }
+        EmitCandidates(world, cache, cacheValid);
     }
-    else if (QueryAwakeShapes(world, cache, cacheValid) != m3_success)
+    else
     {
-        return m3_errorCapacity;
+        QueryAwakeShapes(world, cache, cacheValid);
     }
 
     // Merge the frozen buffer: only pairs that are STILL
@@ -758,11 +784,7 @@ m3Result m3UpdatePairs(m3World* world)
                 continue;
             }
             world->contacts.sleepingPairKeys[w++] = key;
-            if (world->contacts.pairCount == world->contacts.pairCapacity)
-            {
-                return m3_errorCapacity;
-            }
-            world->contacts.pairKeys[world->contacts.pairCount++] = key;
+            PushPair(world, key);
         }
         world->contacts.sleepingPairCount = w;
     }
@@ -771,13 +793,13 @@ m3Result m3UpdatePairs(m3World* world)
     // unique, so the result is independent of the sort implementation.
     qsort(world->contacts.pairKeys, (size_t)world->contacts.pairCount, sizeof(uint64_t),
           CompareKeys);
-    return m3_success;
 }
 
 // The brute-force scan: the result the tree must match.
-m3Result m3UpdatePairsBruteForce(m3World* world)
+void m3UpdatePairsBruteForce(m3World* world)
 {
     world->contacts.pairCount = 0;
+    world->contacts.pairsHeaped = 0;
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t i = 0; i < maxShape; ++i)
     {
@@ -804,15 +826,12 @@ m3Result m3UpdatePairsBruteForce(m3World* world)
                 m3Aabb3d b = SphereAabb(world, j);
                 candidate = Overlap(&a, &b);
             }
-            if (!candidate)
+            if (candidate)
             {
-                continue;
-            }
-            if (!EmitPair(world, i, j))
-            {
-                return m3_errorCapacity;
+                EmitPair(world, i, j);
             }
         }
     }
-    return m3_success;
+    qsort(world->contacts.pairKeys, (size_t)world->contacts.pairCount, sizeof(uint64_t),
+          CompareKeys); // a full table leaves its heap's order
 }

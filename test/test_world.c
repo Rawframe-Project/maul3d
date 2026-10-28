@@ -319,7 +319,7 @@ static void TestPairs(void)
     bd.position = (m3Pos3){100.0, 1.0, 0.0};
     NewSphereShape(world, NewBody(world, &bd), &sd, &ball); // shape 3 (C), far
 
-    CHECK(m3UpdatePairs(w) == m3_success, "the pair scan succeeds");
+    m3UpdatePairs(w);
     CHECK(w->contacts.pairCount == 4, "plane pairs with every sphere, plus the A-B overlap");
     uint64_t expected[4] = {
         ((uint64_t)0 << 32) | 1u,
@@ -362,10 +362,10 @@ static double RefRange(double lo, double hi)
 static void CheckReferee(m3World* w)
 {
     uint64_t refKeys[512];
-    CHECK(m3UpdatePairsBruteForce(w) == m3_success, "referee scan");
+    m3UpdatePairsBruteForce(w);
     int32_t refCount = w->contacts.pairCount;
     memcpy(refKeys, w->contacts.pairKeys, (size_t)refCount * sizeof(uint64_t));
-    CHECK(m3UpdatePairs(w) == m3_success, "tree scan");
+    m3UpdatePairs(w);
     CHECK(w->contacts.pairCount == refCount, "tree and referee agree on the count");
     CHECK(memcmp(w->contacts.pairKeys, refKeys, (size_t)refCount * sizeof(uint64_t)) == 0,
           "tree and referee agree on every key");
@@ -845,33 +845,130 @@ static void TestHashSeesSetterState(void)
     CheckHashSeesFreeOrder();
 }
 
-// The pair table holds 8 pairs per shape of shapeCapacity. A step that
-// finds more stalls, and says so with m3_errorCapacity.
-static void TestFullPairTableStalls(void)
+// 20 spheres heaped at one spot, 190 overlapping pairs, one more falling
+// alone 10 m away, and a ground plane made last, which pairs with all 21
+// before the tree pass finds the heap's pairs: each plane pair is the
+// highest key of its sphere's row, found first. A world of the given
+// pair capacity.
+static m3World* Crowd(int32_t pairCapacity, m3BodyId* loneOut)
 {
     m3WorldDef wd = m3DefaultWorldDef();
-    wd.bodyCapacity = 20;
-    wd.shapeCapacity = 20; // 160 pairs
+    wd.bodyCapacity = 22;
+    wd.shapeCapacity = 22;
+    wd.pairCapacity = pairCapacity;
     m3World* world = NewWorld(&wd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    for (int32_t i = 0; i < 20; ++i)
+    for (int32_t i = 0; i < 21; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
-        bd.position = (m3Pos3){0.01 * (double)i, 0.0, 0.0}; // 190 overlapping pairs
+        bd.position = i < 20 ? (m3Pos3){0.01 * (double)i, 0.0, 0.0} : (m3Pos3){10.0, 5.0, 0.0};
+        m3BodyId body = NewBody(world, &bd);
+        NewSphereShape(world, body, &sd, &ball);
+        *loneOut = body;
+    }
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){0.0, -0.4, 0.0};
+    m3Plane ground = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    NewPlaneShape(world, NewBody(world, &gd), &sd, &ground);
+    return world;
+}
+
+// A step that finds more pairs than the table holds keeps the lowest
+// keys, counts the rest, and runs whole. One once stalled whole: no
+// body moved, the lone one included, and nothing said why.
+static void TestFullPairTableKeepsLowestKeys(void)
+{
+    m3BodyId lone;
+    m3World* roomy = Crowd(400, &lone);
+    m3World* full = Crowd(100, &lone);
+    m3UpdatePairs(roomy);
+    m3UpdatePairs(full);
+    CHECK(roomy->contacts.pairCount == 211 && roomy->contacts.pairsDropped == 0,
+          "a table with room holds all 211 pairs");
+    CHECK(full->contacts.pairCount == 100 &&
+              memcmp(full->contacts.pairKeys, roomy->contacts.pairKeys, 100 * sizeof(uint64_t)) ==
+                  0,
+          "a full table holds the 100 lowest keys, in order");
+    CHECK(m3World_GetCounters(full).pairsDropped == 111, "and counts the 111 it dropped");
+    m3DestroyWorld(roomy);
+    m3DestroyWorld(full);
+
+    full = Crowd(100, &lone);
+    bool stepped = true;
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        stepped = stepped && m3World_Step(full, 1.0f / 60.0f, 4) == m3_success;
+    }
+    CHECK(stepped && m3World_GetStepCount(full) == 30, "every step over a full table runs");
+    CHECK(m3Body_GetPosition(full, lone).y < 4.0, "and the lone sphere falls");
+    CHECK(m3World_GetCounters(full).pairsDropped > 111, "while the drops are counted");
+    m3DestroyWorld(full);
+}
+
+// A world of 16 shapes with the given pair table, a few bodies settled
+// in it.
+static m3World* PairTableWorld(int32_t pairCapacity)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 16;
+    wd.shapeCapacity = 16;
+    wd.pairCapacity = pairCapacity;
+    m3World* world = NewWorld(&wd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.6 * (double)i, 0.0, 0.0};
         NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
     }
-    uint64_t steps = m3World_GetStepCount(world);
-    CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_errorCapacity,
-          "a step that finds more pairs than the table holds is m3_errorCapacity");
-    CHECK(m3World_GetStepCount(world) == steps, "and does not count as a step");
-    m3DestroyWorld(world);
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    return world;
+}
+
+// The pair table sizes snapshot blocks, so the snapshot header carries it
+// beside the pool capacities. It once did not: a snapshot of a world with
+// a large table passed the header check of the same def with the default
+// table, and its blocks were read at the wrong offsets.
+static void TestPairCapacityInSnapshot(void)
+{
+    m3World* large = PairTableWorld(50000);
+    int32_t size = m3World_SnapshotSize(large);
+    uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+    CHECK(bytes != NULL && Snapshot(large, bytes, size) == size, "the large table snapshots");
+    int32_t stored = 0;
+    memcpy(&stored, bytes + 56, sizeof(stored));
+    CHECK(stored == 50000, "its header holds the pair capacity after the eight pool capacities");
+
+    m3World* other = PairTableWorld(0);
+    uint64_t hash = m3World_Hash(other);
+    CHECK(m3World_Restore(other, bytes, size) == m3_errorFormat,
+          "a snapshot of another pair capacity is m3_errorFormat");
+    CHECK(m3World_Hash(other) == hash, "and leaves the world as it was");
+
+    m3World* same = PairTableWorld(50000);
+    CHECK(m3World_Restore(same, bytes, size) == m3_success, "the same pair capacity restores");
+    uint8_t* again = (uint8_t*)malloc((size_t)size);
+    CHECK(again != NULL && m3World_SnapshotSize(same) == size &&
+              Snapshot(same, again, size) == size && memcmp(again, bytes, (size_t)size) == 0,
+          "exactly");
+    free(again);
+    free(bytes);
+    m3DestroyWorld(same);
+    m3DestroyWorld(other);
+    m3DestroyWorld(large);
 }
 
 int main(void)
 {
-    TestFullPairTableStalls();
+    TestFullPairTableKeepsLowestKeys();
+    TestPairCapacityInSnapshot();
     TestAllocatorHook();
     TestMemoryUsage();
     TestWorldLifecycle();
