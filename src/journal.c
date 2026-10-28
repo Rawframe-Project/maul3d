@@ -198,6 +198,8 @@ void m3JournalJointDef(m3JointDef* out, const m3JointDef* def)
     out->ratio = def->ratio;
     out->groundAnchorA = def->groundAnchorA;
     out->groundAnchorB = def->groundAnchorB;
+    out->maxForce = def->maxForce;
+    out->maxTorque = def->maxTorque;
     out->internalValue = def->internalValue;
 }
 

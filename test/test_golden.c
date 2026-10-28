@@ -453,10 +453,10 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3Joint_SetSpringHertz(world, joint, 3.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
     m3Joint_EnableSpring(world, joint, true);
-    m3Joint_SetMotorPose(world, joint, (m3Vec3){0.0f, -1.2f, 0.3f},
-                         m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.0f, 0.4f, 0.0f}));
-    m3Joint_SetLimits(world, joint, 50.0f, 20.0f);
-    m3Joint_EnableLimit(world, joint, true);
+    m3MotorJoint_SetOffsets(world, joint, (m3Vec3){0.0f, -1.2f, 0.3f},
+                            m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.0f, 0.4f, 0.0f}));
+    m3MotorJoint_SetMaxForce(world, joint, 50.0f);
+    m3MotorJoint_SetMaxTorque(world, joint, 20.0f);
 
     m3JointDef wheel = HangDef(world, ground, 36.0, 2.4, 0.0, m3_wheelJoint, NULL);
     wheel.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};

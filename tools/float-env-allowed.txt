@@ -86,3 +86,7 @@ stored floats read back as they are, with no arithmetic:
     m3Joint_GetMotorSpeed
     m3Joint_GetSpringDampingRatio
     m3Joint_GetSpringHertz
+    m3MotorJoint_GetAngularOffset
+    m3MotorJoint_GetLinearOffset
+    m3MotorJoint_GetMaxForce
+    m3MotorJoint_GetMaxTorque

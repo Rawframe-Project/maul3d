@@ -52,6 +52,7 @@ manifold_mesh: manifold shape_state triangle_contact voxel world_internal
 math_functions: fpenv
 mesh_bvh: world_internal
 misuse: world_internal
+motor_joint_params: fpenv joint joint_solver journal misuse world_internal
 mover: distance fpenv manifold misuse query shape_state world_internal
 narrowphase: distance manifold parallel shape_state world_internal
 parallel: fpenv world_internal

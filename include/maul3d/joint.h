@@ -37,9 +37,8 @@ extern "C"
         /// pose relative to body A's create-time joint frame: a soft
         /// 3-DOF rotation drive plus a soft 3-DOF translation drive,
         /// each budget-capped. Tune with the joint spring (the
-        /// shared stiffness), aim with m3Joint_SetMotorPose, budget
-        /// with m3Joint_SetLimits (lower = max force, upper = max
-        /// torque, 0 = uncapped; the documented motor slot map).
+        /// shared stiffness), aim with m3MotorJoint_SetOffsets and
+        /// budget with maxForce and maxTorque (0 = uncapped).
         /// Without a spring the servo idles completely free. A
         /// fresh servo aims at its own create pose.
         m3_motorJoint = 9,
@@ -159,6 +158,10 @@ extern "C"
         m3real ratio;
         m3Pos3 groundAnchorA;
         m3Pos3 groundAnchorB;
+        /// The motor joint's force and torque budgets, each in
+        /// [0, 1e20], 0 for no cap. Other types ignore them.
+        m3real maxForce;
+        m3real maxTorque;
         int32_t internalValue;
     } m3JointDef;
 
@@ -193,9 +196,8 @@ extern "C"
     ///
     /// Limits: angles for revolute joints and the spherical twist, meters
     /// for prismatic, wheel and distance joints. The range is ordered
-    /// when it is set and whenever the limit is on. A motor joint's limits
-    /// are its force and torque budgets, each in [0, 1e20]. Other joint
-    /// types take no limits.
+    /// when it is set and whenever the limit is on. Other joint types take
+    /// no limits.
     M3_API void m3Joint_EnableLimit(m3World* world, m3JointId joint, bool enable);
     M3_API bool m3Joint_IsLimitEnabled(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, float lower, float upper);
@@ -215,12 +217,23 @@ extern "C"
     M3_API void m3Joint_SetMaxMotorEffort(m3World* world, m3JointId joint, float maxEffort);
     M3_API float m3Joint_GetMaxMotorEffort(const m3World* world, m3JointId joint);
 
-    /// Aim the MOTOR joint: offset in body A's joint frame,
-    /// rotation as the target relative orientation. The offset lies
-    /// within 1e4 m on every axis. Journaled; refused loudly on other
-    /// types and hostile values.
-    M3_API void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset,
-                                     m3Quat rotation);
+    /// The motor joint's aim: linearOffset is body B's target position
+    /// in body A's joint frame, within 1e4 m on every axis, and
+    /// angularOffset its target rotation relative to that frame, a unit
+    /// quaternion within 10% that is stored normalized. A fresh servo aims
+    /// at its create pose.
+    M3_API void m3MotorJoint_SetOffsets(m3World* world, m3JointId joint, m3Vec3 linearOffset,
+                                        m3Quat angularOffset);
+    M3_API m3Vec3 m3MotorJoint_GetLinearOffset(const m3World* world, m3JointId joint);
+    M3_API m3Quat m3MotorJoint_GetAngularOffset(const m3World* world, m3JointId joint);
+
+    /// The motor joint's budgets: the force its translation drive and the
+    /// torque its rotation drive may spend, each in [0, 1e20], 0 for no
+    /// cap.
+    M3_API void m3MotorJoint_SetMaxForce(m3World* world, m3JointId joint, float maxForce);
+    M3_API float m3MotorJoint_GetMaxForce(const m3World* world, m3JointId joint);
+    M3_API void m3MotorJoint_SetMaxTorque(m3World* world, m3JointId joint, float maxTorque);
+    M3_API float m3MotorJoint_GetMaxTorque(const m3World* world, m3JointId joint);
 
     /// Wheel steering: a soft target-angle drive about the
     /// strut axis. While enabled, the wheel's frame-x lock becomes

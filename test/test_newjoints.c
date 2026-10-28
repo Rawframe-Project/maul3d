@@ -367,8 +367,7 @@ static double ServoDroop(float maxForce)
     m3Joint_EnableSpring(world, servo, true);
     if (maxForce > 0.0f)
     {
-        m3Joint_SetLimits(world, servo, maxForce, 0.0f);
-        m3Joint_EnableLimit(world, servo, true);
+        m3MotorJoint_SetMaxForce(world, servo, maxForce);
     }
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -441,7 +440,7 @@ static void TestMotorJointServo(void)
         m3Joint_SetSpringDampingRatio(world, servo, 1.0f);
         m3Joint_EnableSpring(world, servo, true);
         m3Quat aim = {0.0f, 0.0f, 0.70710678f, 0.70710678f}; // 90 deg about z
-        m3Joint_SetMotorPose(world, servo, (m3Vec3){0.6f, -1.0f, 0.0f}, aim);
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){0.6f, -1.0f, 0.0f}, aim);
         for (int32_t i = 0; i < 240; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -490,24 +489,24 @@ static void TestMotorJointServo(void)
         m3Joint_SetSpringHertz(world, servo, 6.0f);
         m3Joint_SetSpringDampingRatio(world, servo, 1.0f);
         m3Joint_EnableSpring(world, servo, true);
-        m3Joint_SetMotorPose(world, servo, (m3Vec3){0.3f, -1.0f, 0.0f},
-                             (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){0.3f, -1.0f, 0.0f},
+                                (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
         for (int32_t i = 0; i < 60; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Joint_SetMotorPose(world, servo, (m3Vec3){-0.3f, -1.0f, 0.0f},
-                             (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){-0.3f, -1.0f, 0.0f},
+                                (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         for (int32_t i = 0; i < 60; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         // Hostile aims run in BOTH runs so the twins stay symmetric:
         // a refused pose never touches state or the journal.
-        m3Joint_SetMotorPose(world, servo, (m3Vec3){0.0f, 0.0f, 0.0f},
-                             (m3Quat){0.0f, 0.0f, 0.0f, 2.0f}); // far from unit
-        m3Joint_SetMotorPose(world, servo, (m3Vec3){NAN, 0.0f, 0.0f},
-                             (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){0.0f, 0.0f, 0.0f},
+                                (m3Quat){0.0f, 0.0f, 0.0f, 2.0f}); // far from unit
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){NAN, 0.0f, 0.0f},
+                                (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         // The servo keeps its aim in the motor slot, so a motor call
         // must not reach it.
         uint64_t aimed = m3World_Hash(world);
@@ -548,9 +547,39 @@ static void TestMotorJointServo(void)
         jd.bodyIdB = b;
         m3JointId ball = NewJoint(world, &jd);
         uint64_t before = m3World_Hash(world);
-        m3Joint_SetMotorPose(world, ball, (m3Vec3){0.1f, 0.0f, 0.0f},
-                             (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+        m3MotorJoint_SetOffsets(world, ball, (m3Vec3){0.1f, 0.0f, 0.0f},
+                                (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
         CHECK(m3World_Hash(world) == before, "the refused aim moved no bits");
+        CHECK_REFUSES(world, m3MotorJoint_SetMaxForce(world, ball, 1.0f),
+                      "a spherical takes no servo budget");
+        CHECK(m3MotorJoint_GetMaxForce(world, ball) == 0.0f &&
+                  m3MotorJoint_GetLinearOffset(world, ball).x == 0.0f,
+              "a spherical's servo getters read zeros");
+
+        // The def's budgets, the aim and the budgets read back, and the
+        // servo takes no limits.
+        jd.type = m3_motorJoint;
+        jd.maxForce = 5.0f;
+        jd.maxTorque = 7.0f;
+        m3JointId servo = NewJoint(world, &jd);
+        CHECK(m3MotorJoint_GetMaxForce(world, servo) == 5.0f &&
+                  m3MotorJoint_GetMaxTorque(world, servo) == 7.0f,
+              "the def's budgets read back");
+        m3MotorJoint_SetMaxTorque(world, servo, 9.0f);
+        CHECK(m3MotorJoint_GetMaxForce(world, servo) == 5.0f &&
+                  m3MotorJoint_GetMaxTorque(world, servo) == 9.0f,
+              "setting the torque budget keeps the force budget");
+        CHECK_REFUSES(world, m3MotorJoint_SetMaxForce(world, servo, -1.0f),
+                      "a negative budget refuses");
+        m3Quat half = {0.0f, 0.38268343f, 0.0f, 0.92387953f};
+        m3MotorJoint_SetOffsets(world, servo, (m3Vec3){0.25f, -1.0f, 0.5f}, half);
+        m3Vec3 linear = m3MotorJoint_GetLinearOffset(world, servo);
+        m3Quat angular = m3MotorJoint_GetAngularOffset(world, servo);
+        CHECK(linear.x == 0.25f && linear.y == -1.0f && linear.z == 0.5f &&
+                  fabsf(angular.y - half.y) < 1e-6f && fabsf(angular.w - half.w) < 1e-6f,
+              "the aim reads back");
+        CHECK_REFUSES(world, m3Joint_EnableLimit(world, servo, true), "a servo takes no limit");
+        CHECK_REFUSES(world, m3Joint_SetLimits(world, servo, 0.0f, 1.0f), "nor a limit range");
         m3DestroyWorld(world);
     }
 }

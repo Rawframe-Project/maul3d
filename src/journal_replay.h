@@ -74,7 +74,7 @@ m3ReplayApplyFn m3ReplayShapeFlag;
 // journal_replay_joints.c: joints.
 m3ReplayApplyFn m3ReplayCreateJoint;
 m3ReplayApplyFn m3ReplayDestroyJoint;
-m3ReplayApplyFn m3ReplayJointSetMotorPose;
+m3ReplayApplyFn m3ReplayMotorJointSetOffsets;
 m3ReplayApplyFn m3ReplayJointSetSteer;
 m3ReplayApplyFn m3ReplayJointVector;
 m3ReplayApplyFn m3ReplayJointEnableConnectedCollision;

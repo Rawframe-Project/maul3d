@@ -22,15 +22,17 @@ m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxE
 // The types whose motor slot is a motor: the gear and the motor joint keep
 // their own values there.
 bool m3JointHasMotor(uint8_t type);
-// The types that take limits; the motor joint keeps its force and torque
-// budgets in the limit slot.
+// The types that take limits. The motor joint keeps its force and torque
+// budgets in the limit slot and on the limit record, through its own
+// calls.
 bool m3JointHasLimits(uint8_t type);
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
 bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
                         float zeta);
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
                        float hertz, float zeta, float maxEffort);
-bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation);
+bool m3MotorJointOffsetsValid(const m3World* world, int32_t slot, m3Vec3 linearOffset,
+                              m3Quat angularOffset);
 // The spring and steering checks for a joint of this type, as restore
 // reads it.
 bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta);
@@ -44,7 +46,8 @@ void m3JointSetMotorInternal(m3World* world, int32_t j, int32_t enable, float sp
 void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float target, float hertz,
                              float zeta, float maxEffort);
 
-void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Quat rotation);
+void m3MotorJointSetOffsetsInternal(m3World* world, int32_t j, m3Vec3 linearOffset,
+                                    m3Quat angularOffset);
 
 void m3JointEnableConnectedCollisionInternal(m3World* world, int32_t j, int32_t on);
 
