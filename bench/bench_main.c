@@ -49,8 +49,8 @@ int main(int argc, char** argv)
     {
         steps = atoi(argv[1]);
     }
-    static const char* const names[BENCH_SCENE_COUNT] = {"pyramid", "hulljam", "meshfield",
-                                                         "meshgrand"};
+    static const char* const names[BENCH_SCENE_COUNT] = {
+        "pyramid", "hulljam", "meshfield", "meshgrand", "jointrig", "vehiclerig", "ragdolls"};
     double ms = 0.0;
     for (int32_t scene = 0; scene < BENCH_SCENE_COUNT; ++scene)
     {
