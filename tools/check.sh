@@ -11,9 +11,9 @@
 #                            and the linux-clang-20-asan preset
 #                            (assertions on) for the tests the changes
 #                            reach, and five seconds of each fuzz target
-#                            when a change reaches what they hold to a
-#                            contract. Under two minutes on a warm build;
-#                            run it before every push.
+#                            when the library code, a build file or a
+#                            fuzz target changed. Under two minutes on a
+#                            warm build; run it before every push.
 #   tools/check.sh pr        what the pull request check runs on this
 #                            machine: every rule, formatting of every file,
 #                            the bindings, the documentation site,
@@ -94,13 +94,13 @@ labels_for() {
     esac
 }
 
-# Whether a changed path reaches what the fuzz targets hold to a
-# contract: the targets themselves, the byte readers they feed (snapshot,
-# journal, replay and state prefix), or the statuses those return.
+# Whether a changed path reaches the fuzz targets: the targets
+# themselves, or any library code or build file. fuzz_restore_step steps
+# the worlds it restores and fuzz_journal steps after replaying ops
+# through the public API, so the targets run nearly every source.
 reaches_fuzz() {
     case "$1" in
-    test/fuzz_* | src/snapshot* | src/journal* | src/replay* | src/state_prefix* | \
-        src/world_state* | include/maul3d/base.h) return 0 ;;
+    src/* | include/* | test/fuzz_* | CMakeLists.txt | cmake/*) return 0 ;;
     *) return 1 ;;
     esac
 }
