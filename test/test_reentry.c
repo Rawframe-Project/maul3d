@@ -6,7 +6,9 @@
 // allocator calls is refused with m3_errorBusy, counts one misuse and
 // changes nothing, and the call goes on to the world it would have made
 // without it. A create once went on to attach its shape to a body the
-// allocator had destroyed, reading before the start of the body arrays.
+// allocator had destroyed, reading before the start of the body arrays,
+// and a writer called from the free of a world's own block worked on
+// pools already freed.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -92,14 +94,15 @@ enum
     OpReplay,
     OpDestroyMesh,
     OpDestroyBody,
+    OpDestroyWorld,
     OpCount
 };
 
 static const char* const kOpNames[OpCount] = {
-    "a hull create",     "a mesh create",  "a height field create",
-    "a grid create",     "a voxel create", "a broadphase rebuild",
-    "a restore",         "a replay",       "a mesh's destroy",
-    "its body's destroy"};
+    "a hull create",      "a mesh create",      "a height field create",
+    "a grid create",      "a voxel create",     "a broadphase rebuild",
+    "a restore",          "a replay",           "a mesh's destroy",
+    "its body's destroy", "the world's destroy"};
 
 // A scene of a static body with a mesh floor and a dynamic box, and a
 // snapshot and a tape (a mesh create) of it.
@@ -144,7 +147,7 @@ static void BuildScene(Scene* scene, Reentry* r)
 
 static void FreeScene(Scene* scene)
 {
-    m3DestroyWorld(scene->world);
+    m3DestroyWorld(scene->world); // NULL once the op destroyed it
     free(scene->snapshot);
 }
 
@@ -182,8 +185,12 @@ static m3Result RunOp(Scene* scene, int32_t op)
         return m3World_ReplayJournal(world, scene->tape, scene->tapeBytes);
     case OpDestroyMesh:
         return m3DestroyShape(world, scene->floor);
-    default:
+    case OpDestroyBody:
         return m3DestroyBody(world, scene->ground);
+    default:
+        m3DestroyWorld(world);
+        scene->world = NULL;
+        return m3_success;
     }
 }
 
@@ -220,6 +227,16 @@ static void SweepOp(int32_t op)
             break; // the call made fewer allocator calls than at
         }
         probed += 1;
+        if (op == OpDestroyWorld)
+        {
+            // Nothing is left to read: the probe's writers saw a world
+            // whose pools were gone, and ASan holds them to not touching
+            // them.
+            whole = whole && r.refused == PROBE_WRITERS - 2;
+            FreeScene(&scene);
+            FreeScene(&twin);
+            continue;
+        }
         uint64_t counted = m3World_GetCounters(scene.world).misuse - misuse;
         bool ok = r.refused == PROBE_WRITERS - 2 && counted == PROBE_WRITERS &&
                   result == expected && m3World_GetStepCount(scene.world) == steps &&

@@ -86,7 +86,10 @@ static void FreeWorldStorage(m3World* world)
     m3IdPoolDestroy(&world->heap, &world->voxels.voxelPool);
     m3TreeDestroy(&world->heap, &world->broadphase.tree);
     m3StackDestroy(&world->heap, &world->scratch);
-    // The world's own block goes last, through a copy of the heap it lives in.
+    // The world's own block goes last, through a copy of the heap it lives
+    // in. Its pools are gone, so the world stays busy while the host's
+    // free runs for it, and a writer that free calls is refused.
+    world->heap.hostCalls += 1;
     m3Heap heap = world->heap;
     m3Free(&heap, world);
 }
