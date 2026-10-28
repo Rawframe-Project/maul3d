@@ -87,7 +87,9 @@ static void FreeWorldStorage(m3World* world)
     m3IdPoolDestroy(&world->heap, &world->voxels.voxelPool);
     m3TreeDestroy(&world->heap, &world->broadphase.tree);
     m3StackDestroy(&world->heap, &world->scratch);
-    // The world's own block goes last, through a copy of the heap it lives in.
+    // The world's own block goes last, through a copy of its heap; while
+    // the host frees it the world stays busy, refusing any writer it calls.
+    world->heap.hostCalls += 1;
     m3Heap heap = world->heap;
     m3Free(&heap, world);
 }
@@ -291,9 +293,8 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
         return m3_errorInvalid;
     }
     *worldOut = NULL;
-    // Before any solver kernel runs, make sure this CPU can execute the
-    // backend the binary was built for: a typed refusal beats a bare
-    // illegal-instruction trap on pre-Haswell hardware.
+    // Before any solver kernel runs, refuse a CPU that cannot run the
+    // binary's backend: a typed refusal beats an illegal-instruction trap.
     if (m3CheckCpu(NULL) == 0)
     {
         return m3_errorUnsupported;
@@ -919,10 +920,9 @@ static void RebuildWithScratch(m3World* world, RebuildScratch* scratch)
     {
         return;
     }
-    // Collect the live proxies in shape-slot order (the canonical
-    // list), carrying their CURRENT fat bounds: fatness is state,
-    // and preserving it keeps every downstream pair decision
-    // exactly where it was.
+    // Collect the live proxies in shape-slot order (the canonical list)
+    // with their CURRENT fat bounds: fatness is state, and keeping it
+    // keeps every downstream pair decision exactly where it was.
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     int32_t n = 0;
     for (int32_t s = 0; s < maxShape; ++s)

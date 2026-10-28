@@ -47,19 +47,24 @@ m3Heap m3HeapMake(const m3Allocator* requested)
 }
 
 // The allocator is host code: it runs in the host's floating-point
-// environment, through a helper whose body is only that call.
-static M3_NOINLINE void* HostAlloc(const m3Allocator* allocator, size_t bytes)
+// environment, through a helper whose body is only that call, and the
+// world counts as busy while it runs, so a writer it calls is refused.
+static M3_NOINLINE void* HostAlloc(m3Heap* heap, size_t bytes)
 {
     m3FloatHost host = m3FloatHostEnter();
-    void* memory = allocator->alloc(bytes, M3_ALLOC_ALIGNMENT, allocator->context);
+    heap->hostCalls += 1;
+    void* memory = heap->allocator.alloc(bytes, M3_ALLOC_ALIGNMENT, heap->allocator.context);
+    heap->hostCalls -= 1;
     m3FloatHostLeave(host);
     return memory;
 }
 
-static M3_NOINLINE void HostFree(const m3Allocator* allocator, void* memory, size_t bytes)
+static M3_NOINLINE void HostFree(m3Heap* heap, void* memory, size_t bytes)
 {
     m3FloatHost host = m3FloatHostEnter();
-    allocator->free(memory, bytes, M3_ALLOC_ALIGNMENT, allocator->context);
+    heap->hostCalls += 1;
+    heap->allocator.free(memory, bytes, M3_ALLOC_ALIGNMENT, heap->allocator.context);
+    heap->hostCalls -= 1;
     m3FloatHostLeave(host);
 }
 
@@ -74,7 +79,7 @@ void* m3AllocZeroed(m3Heap* heap, int32_t bytes)
         return NULL;
     }
     size_t total = (size_t)bytes + M3_ALLOC_ALIGNMENT;
-    uint8_t* block = (uint8_t*)HostAlloc(&heap->allocator, total);
+    uint8_t* block = (uint8_t*)HostAlloc(heap, total);
     if (block == NULL)
     {
         heap->refusedCalls += 1;
@@ -105,7 +110,7 @@ void m3Free(m3Heap* heap, void* memory)
     size_t total;
     memcpy(&total, block, sizeof(total));
     heap->freeCalls += 1;
-    HostFree(&heap->allocator, block, total);
+    HostFree(heap, block, total);
 }
 
 m3Stack m3StackCreate(m3Heap* heap, int32_t capacity)
@@ -138,8 +143,7 @@ void* m3StackAlloc(m3Stack* stack, int32_t size)
     if (stack->top + aligned > stack->capacity)
     {
         // Loud failure: latch the flag, return NULL, keep running. The
-        // caller propagates m3_errorCapacity and the world can grow the
-        // stack between steps.
+        // caller propagates m3_errorCapacity.
         stack->overflow = 1;
         return NULL;
     }
