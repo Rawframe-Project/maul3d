@@ -8,53 +8,145 @@ snapshot and journal formats.
 
 ## [0.8.0](https://github.com/Rawframe-Project/maul3d/compare/v0.7.0...v0.8.0) (2026-10-28)
 
-
-### ⚠ BREAKING CHANGES
-
-* **shape:** a capsule's moment about its own axis is now the closed form, so capsule trajectories change by rounding and four golden values move.
-* **world:** `m3WorldDef` gains `pairCapacity`, `m3Counters` gains `pairsDropped`, and the snapshot format moves to 6, with the pair capacity in its 60-byte header. A full pair table no longer stalls the step: it drops the pairs of the highest keys for that step, and `m3World_Step` returns `m3_success`.
-* **softbody:** soft bodies in water move slightly differently for every drag, so four golden values move.
-* **world:** `m3World_Step` returns `m3Result` and must not be discarded. A world takes its step scratch at creation, so `m3CreateWorld` needs about 7.2 KiB more per shape than before, 14.5 MiB more for the default world.
-* **shape:** bound static mesh, height field and voxel geometry ([#152](https://github.com/Rawframe-Project/maul3d/issues/152))
-* **world:** the refusals above return their new statuses, and the public counts are renamed: `M3_SOFTBODY_MAX_PARTICLES`, `_EDGES`, `_ANCHORS` and `_TETS` become `M3_MAX_SOFTBODY_PARTICLES`, `_EDGES`, `_ANCHORS` and `_TETS`, `M3_SOFTBODY_MAX_PRESSURE` becomes `M3_SOFTBODY_PRESSURE_LIMIT`, `M3_VEHICLE_MAX_WHEELS` becomes `M3_MAX_VEHICLE_WHEELS`, and `M3_DRIVETRAIN_MAX_CURVE` and `_GEARS` become `M3_MAX_DRIVETRAIN_CURVE` and `_GEARS`.
-* **world:** every tumbling body's trajectory changes, so fourteen golden values move.
-* **family:** `m3JointDef` drops `genericReserved` and shrinks to 216 bytes, `m3FragmentEvent` drops `pad`, and journal tapes use format 2, so tapes from earlier releases are refused.
-* **world:** capsules, square-section boxes and other symmetric tops that tumble now keep their precession and energy, so their trajectories and seven golden values change.
-
 ### Added
 
-* **world:** return the family's format, limit and busy statuses ([#141](https://github.com/Rawframe-Project/maul3d/issues/141)) ([1b444e6](https://github.com/Rawframe-Project/maul3d/commit/1b444e6a20fdb23bd5a742663fea85306afeddf9))
-
-
-### Fixed
-
-* **collision:** give each height field window its own buffer ([#164](https://github.com/Rawframe-Project/maul3d/issues/164)) ([c82fb4d](https://github.com/Rawframe-Project/maul3d/commit/c82fb4db6aa0ae29209fc414398948b1d708fadd)), closes [#162](https://github.com/Rawframe-Project/maul3d/issues/162)
-* **joint:** keep a wheel's steering when its translation target is set ([#175](https://github.com/Rawframe-Project/maul3d/issues/175)) ([17c675d](https://github.com/Rawframe-Project/maul3d/commit/17c675d3ec72a40580718b00f08bb829e51a3fd6)), closes [#173](https://github.com/Rawframe-Project/maul3d/issues/173)
-* **query:** cast rays at spheres and capsules about the closest approach ([#147](https://github.com/Rawframe-Project/maul3d/issues/147)) ([93a9b28](https://github.com/Rawframe-Project/maul3d/commit/93a9b28e4de46b8278efa66e663cd9e20a1b0a06)), closes [#145](https://github.com/Rawframe-Project/maul3d/issues/145)
-* **query:** gather BVH hits into a bitmap instead of stack arrays ([#166](https://github.com/Rawframe-Project/maul3d/issues/166)) ([b14eb1b](https://github.com/Rawframe-Project/maul3d/commit/b14eb1b78bc336828d041488c300e4ba994981f8)), closes [#163](https://github.com/Rawframe-Project/maul3d/issues/163)
-* **query:** see height field grids in casts, sweeps and movers ([#146](https://github.com/Rawframe-Project/maul3d/issues/146)) ([55f6a9e](https://github.com/Rawframe-Project/maul3d/commit/55f6a9e5a8a16878ae63c7048e78b339d490bb8a)), closes [#143](https://github.com/Rawframe-Project/maul3d/issues/143)
-* **shape:** bound static mesh, height field and voxel geometry ([#152](https://github.com/Rawframe-Project/maul3d/issues/152)) ([cabf8ba](https://github.com/Rawframe-Project/maul3d/commit/cabf8ba20261f30578149fa94e3d78154242921d)), closes [#142](https://github.com/Rawframe-Project/maul3d/issues/142)
-* **shape:** keep a long capsule's axial moment in closed form ([#172](https://github.com/Rawframe-Project/maul3d/issues/172)) ([fb90b1e](https://github.com/Rawframe-Project/maul3d/commit/fb90b1e6e6693e492fdcc6387d0e81b62db7c3f0)), closes [#115](https://github.com/Rawframe-Project/maul3d/issues/115)
-* **shape:** return m3_errorCapacity when a hull create is refused memory ([#161](https://github.com/Rawframe-Project/maul3d/issues/161)) ([052932c](https://github.com/Rawframe-Project/maul3d/commit/052932ce672b4f6fa02b1c4b153caee61fac5b10)), closes [#156](https://github.com/Rawframe-Project/maul3d/issues/156)
-* **snapshot:** bound gear spins on restore and wrap in constant time ([#177](https://github.com/Rawframe-Project/maul3d/issues/177)) ([167ae9e](https://github.com/Rawframe-Project/maul3d/commit/167ae9ebb1209b77155c005b318cf04da7b8783b)), closes [#176](https://github.com/Rawframe-Project/maul3d/issues/176)
-* **snapshot:** refuse restored values that create never stores ([#179](https://github.com/Rawframe-Project/maul3d/issues/179)) ([fa6e871](https://github.com/Rawframe-Project/maul3d/commit/fa6e87194eedc5f407aca36620d5547b9e22fd4c)), closes [#178](https://github.com/Rawframe-Project/maul3d/issues/178)
-* **softbody:** apply water drag to particles implicitly ([#171](https://github.com/Rawframe-Project/maul3d/issues/171)) ([c8f198f](https://github.com/Rawframe-Project/maul3d/commit/c8f198f3548ec44e624447a7ce986e3b22e28a70)), closes [#170](https://github.com/Rawframe-Project/maul3d/issues/170)
-* **world:** keep the lowest pair keys when the pair table is full ([#167](https://github.com/Rawframe-Project/maul3d/issues/167)) ([fd1f025](https://github.com/Rawframe-Project/maul3d/commit/fd1f025d505e1472f65349600833d20b2cb5f81f)), closes [#157](https://github.com/Rawframe-Project/maul3d/issues/157)
-* **world:** keep the step scratch when the allocator refuses its growth ([#158](https://github.com/Rawframe-Project/maul3d/issues/158)) ([a6bb7b3](https://github.com/Rawframe-Project/maul3d/commit/a6bb7b3650eedc4b1570c79c321e908bbf3da613)), closes [#155](https://github.com/Rawframe-Project/maul3d/issues/155)
-* **world:** refuse a writer the allocator calls from any call ([#160](https://github.com/Rawframe-Project/maul3d/issues/160)) ([c88b6c8](https://github.com/Rawframe-Project/maul3d/commit/c88b6c8a8b6d04b3117378840339dabcecb3f5b3)), closes [#154](https://github.com/Rawframe-Project/maul3d/issues/154)
-* **world:** size the step scratch at world create and return a status ([#165](https://github.com/Rawframe-Project/maul3d/issues/165)) ([df260d0](https://github.com/Rawframe-Project/maul3d/commit/df260d00c02fc3580a0561ad9271d3cdf5b49d97)), closes [#159](https://github.com/Rawframe-Project/maul3d/issues/159)
-* **world:** turn a symmetric top's spin exactly instead of damping it ([#135](https://github.com/Rawframe-Project/maul3d/issues/135)) ([a2d5b84](https://github.com/Rawframe-Project/maul3d/commit/a2d5b8435fbc0a0d1cc7b8d2822b20ccf84c3602))
-* **world:** turn free bodies by a splitting of Euler's equations ([#140](https://github.com/Rawframe-Project/maul3d/issues/140)) ([36b7408](https://github.com/Rawframe-Project/maul3d/commit/36b740865881268232ebf6217c859acd23dabffa))
-
+- **`m3WorldDef.pairCapacity` and the dropped pair count.** The pair
+  table's size is now set by the def: 0 takes 8 pairs per shape, the
+  old fixed size, and the bound is `M3_MAX_PAIR_CAPACITY`. When a step
+  finds more overlapping pairs than the table holds, it keeps the pairs
+  of the lowest keys, drops the rest for that step, and counts them in
+  `m3Counters.pairsDropped`. A program that sees the count grow should
+  raise `pairCapacity`.
+  ([#167](https://github.com/Rawframe-Project/maul3d/pull/167))
 
 ### Changed
 
-* **query:** try only the pieces near a cast's or sweep's path ([#153](https://github.com/Rawframe-Project/maul3d/issues/153)) ([520225c](https://github.com/Rawframe-Project/maul3d/commit/520225c3550531f0a654d621a887bece6f66810e)), closes [#148](https://github.com/Rawframe-Project/maul3d/issues/148)
+- **Breaking: `m3World_Step` returns `m3Result` and must not be
+  discarded.** It returns `m3_errorInvalid` for a null world or a time
+  step or substep count out of range, and `m3_errorBusy` from host code
+  the world is running. A world now takes its whole step scratch at
+  create, sized at its capacities, so a step never asks the allocator
+  and can no longer stall for memory. `m3CreateWorld` needs about
+  7.2 KiB more per shape slot than before, 14.5 MiB more for the default
+  world, and refuses with `m3_errorCapacity` a world whose scratch would
+  pass 2 GiB. `m3World_GetMemoryUsage` gives the exact figure. The C#
+  binding's `Step` returns `Result`.
+  ([#165](https://github.com/Rawframe-Project/maul3d/pull/165))
+- **Breaking: a full pair table no longer stalls the step.** It drops
+  the pairs of the highest keys for that step, as above, and the step
+  returns `m3_success`. The snapshot format moves to 6: its header is
+  60 bytes and carries the pair capacity, so snapshots from earlier
+  releases are refused with `m3_errorVersion`.
+  ([#167](https://github.com/Rawframe-Project/maul3d/pull/167))
+- **Breaking: refusals return the family's format, limit and busy
+  statuses.** `m3_errorFormat` (-8) is returned for malformed snapshot, journal tape and replay
+  container bytes, and counts no misuse. `m3_errorLimit` (-9) is
+  returned by a create, `m3CreateWorld`, `m3Character_SetStance` and
+  `m3DestroyShape` for an argument past a published bound, and counts
+  one misuse; a NaN stays `m3_errorInvalid`. `m3_errorBusy` (-10) is
+  returned by every writer refused because a step, a query, a draw or
+  a library callback is running on the world, and counts one misuse.
+  Every fixed bound a call refuses is now a constant in
+  `maul3d/base.h` or in the soft body and vehicle headers. Code that
+  compared against `m3_errorState` or `m3_errorInvalid` for these
+  cases must compare against the new statuses.
+  ([#141](https://github.com/Rawframe-Project/maul3d/pull/141))
+- **Breaking: the public counts are renamed.**
+  `M3_SOFTBODY_MAX_PARTICLES`, `_EDGES`, `_ANCHORS` and `_TETS` become
+  `M3_MAX_SOFTBODY_PARTICLES`, `_EDGES`, `_ANCHORS` and `_TETS`;
+  `M3_SOFTBODY_MAX_PRESSURE` becomes `M3_SOFTBODY_PRESSURE_LIMIT`;
+  `M3_VEHICLE_MAX_WHEELS` becomes `M3_MAX_VEHICLE_WHEELS`; and
+  `M3_DRIVETRAIN_MAX_CURVE` and `_GEARS` become
+  `M3_MAX_DRIVETRAIN_CURVE` and `_GEARS`.
+  ([#141](https://github.com/Rawframe-Project/maul3d/pull/141))
+- **Breaking: `m3JointDef` drops `genericReserved`** and shrinks from
+  224 to 216 bytes, and `m3FragmentEvent` drops `pad`. Journal tapes
+  use format 2, so tapes from earlier releases are refused.
+  ([#139](https://github.com/Rawframe-Project/maul3d/pull/139))
+- **Breaking: free bodies turn by a splitting of Euler's equations.**
+  The implicit spin step damped tumbling bodies: a 0.5 by 1 by 1.5 m
+  box lost up to 14% of its energy in a second at 20 rad/s. A free
+  dynamic body now keeps its world angular momentum to rounding and its
+  energy within a bounded error, and symmetric tops and spheres turn
+  exactly. Every tumbling body's trajectory changes.
+  ([#135](https://github.com/Rawframe-Project/maul3d/pull/135),
+  [#140](https://github.com/Rawframe-Project/maul3d/pull/140))
+- **Breaking: static mesh, height field and voxel geometry is
+  bounded.** Mesh vertices and height samples must lie within
+  `M3_GEOMETRY_LIMIT`, 1e8 m, of their body, and height field and
+  voxel cells within `M3_CELL_LIMIT`, 1e5 m. Create and replay return
+  `m3_errorLimit` past either bound, and restore refuses such content
+  with `m3_errorFormat`. `M3_MAX_WATER_VOLUMES` moves to
+  `maul3d/world.h`.
+  ([#152](https://github.com/Rawframe-Project/maul3d/pull/152))
+- **Breaking: a capsule's moment about its own axis is the closed
+  form.** It was a difference of two large terms in float: a capsule of
+  radius 0.5 m with a half length of 5000 m was refused below the
+  inertia floor, and a 1000 m one spun about its axis with only float
+  noise for a moment. Capsule trajectories change by rounding.
+  ([#172](https://github.com/Rawframe-Project/maul3d/pull/172))
+- **Breaking: soft particles in water take the drag implicitly.** A
+  particle's water drag was an explicit step after its speed cap, so a
+  large drag flipped and multiplied its velocity every substep until the
+  lattice went NaN. It now takes the rigid body's implicit form and
+  never passes the flow; soft bodies in water move slightly differently
+  for every drag.
+  ([#171](https://github.com/Rawframe-Project/maul3d/pull/171))
+- Shape casts and continuous collision over a height field grid, a mesh
+  or a voxel chunk try only the pieces within reach of their path, so a
+  long diagonal path no longer pays for the whole surface: a cast
+  skimming a 255 by 255 grid along its diagonal took 37.6 ms and now
+  takes under 2 ms. No result changes.
+  ([#153](https://github.com/Rawframe-Project/maul3d/pull/153))
+- A BVH gather fills an 8 KiB bitmap instead of 128 KiB stack arrays,
+  so the narrow phase keeps under 48 KiB on the stack and a thread that
+  runs task ranges needs 64 KiB of stack. Long ray casts over meshes run
+  about four times faster. No result changes.
+  ([#166](https://github.com/Rawframe-Project/maul3d/pull/166))
 
+### Fixed
 
-### Build
-
-* **family:** take .github v0.0.30 and drop reserved fields ([#139](https://github.com/Rawframe-Project/maul3d/issues/139)) ([853d4c7](https://github.com/Rawframe-Project/maul3d/commit/853d4c7677453b708c5cdabe5b7cb68ef1b95699))
+- Shape casts, continuous collision and character moves took a height
+  field grid for a point at its body's origin: casts over the grid
+  missed it, a fast body passed through it and a character walking onto
+  it fell through. They now see the grid's triangles, and a mover on a
+  mesh, grid or voxel chunk gets the plane of its nearest piece. Casts
+  also no longer stop after 64 pieces of a mesh or voxel chunk.
+  ([#146](https://github.com/Rawframe-Project/maul3d/pull/146))
+- A ray from far away at a sphere or a capsule lost its normal to
+  cancellation: from 10 km it got a normal of (0, 1, 0), and from 1e10 m
+  a NaN hit. Rays are now solved about their closest approach.
+  ([#147](https://github.com/Rawframe-Project/maul3d/pull/147))
+- A writer that the host's allocator called from inside a content
+  create, a broadphase rebuild, a restore, a replay or a destroy ran
+  and changed the world under the call, which read freed or moved
+  memory. It now returns `m3_errorBusy`, changes nothing and counts one
+  misuse.
+  ([#160](https://github.com/Rawframe-Project/maul3d/pull/160))
+- A hull create the allocator refused returned `m3_errorInvalid` and
+  counted a misuse, as for a degenerate cloud. It now returns
+  `m3_errorCapacity` and counts nothing.
+  ([#161](https://github.com/Rawframe-Project/maul3d/pull/161))
+- With task hooks, height field pairs on different threads shared one
+  scratch allocator without synchronization, which raced and could
+  crash. Each pair now builds its cell window in a buffer of its own.
+  ([#164](https://github.com/Rawframe-Project/maul3d/pull/164))
+- `m3Joint_SetTargetTranslation` on a wheel joint zeroed its steering's
+  frequency, damping and budget, so the wheel stopped steering and its
+  world's snapshot was refused by restore. The steering now keeps its
+  values.
+  ([#175](https://github.com/Rawframe-Project/maul3d/pull/175))
+- A crafted snapshot with a gear spin near 1e30 restored, and the next
+  step never returned: the gear's angle wrap stepped 2π at a time.
+  Restore now refuses a gear spin outside a half turn, and the wrap runs
+  in constant time.
+  ([#177](https://github.com/Rawframe-Project/maul3d/pull/177))
+- Restore took values no create or setter stores: a body sleep
+  threshold of 0, a target rotation other than the identity on a joint
+  that keeps it, an enabled limit with lower above upper, a negative
+  cone angle or pulley rope constant, and a character slope cosine
+  below that of 1.5 rad. It now refuses each with `m3_errorFormat`.
+  ([#179](https://github.com/Rawframe-Project/maul3d/pull/179))
 
 ## [0.7.0](https://github.com/Rawframe-Project/maul3d/compare/v0.6.0...v0.7.0) (2026-10-27)
 
