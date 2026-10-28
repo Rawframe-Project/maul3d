@@ -20,8 +20,9 @@ uint64_t m3MisuseCount(const m3World* world);
 
 // Step and Draw hold the world busy while they run, host code they call
 // included (task hooks, the pre-solve callback, debug draw callbacks, the
-// allocator). A writer called while it is busy changes nothing and is
-// refused with m3_errorBusy. A NULL world is never busy.
+// allocator), and every call holds it busy while the host's allocator
+// runs. A writer called while it is busy changes nothing and is refused
+// with m3_errorBusy. A NULL world is never busy.
 void m3WorldEnter(const m3World* world);
 void m3WorldLeave(const m3World* world);
 bool m3WorldBusy(const m3World* world);

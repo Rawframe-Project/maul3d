@@ -65,8 +65,9 @@ bool m3WorldBusy(const m3World* world)
         return false;
     }
 #if defined(_MSC_VER)
-    return _InterlockedCompareExchange64((volatile long long*)&world->busyCount, 0, 0) != 0;
+    return world->heap.hostCalls != 0 ||
+           _InterlockedCompareExchange64((volatile long long*)&world->busyCount, 0, 0) != 0;
 #else
-    return __atomic_load_n(&world->busyCount, __ATOMIC_ACQUIRE) != 0;
+    return world->heap.hostCalls != 0 || __atomic_load_n(&world->busyCount, __ATOMIC_ACQUIRE) != 0;
 #endif
 }
