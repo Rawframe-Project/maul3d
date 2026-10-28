@@ -227,7 +227,7 @@ namespace Maul3D
         public const uint VersionMajor = 0;
         // x-release-please-end
         // x-release-please-start-minor
-        public const uint VersionMinor = 7;
+        public const uint VersionMinor = 8;
         // x-release-please-end
         // x-release-please-start-patch
         public const uint VersionPatch = 0;
