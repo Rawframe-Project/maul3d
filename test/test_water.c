@@ -226,6 +226,45 @@ static void TestSoftBuoyancy(void)
     CHECK(wetX > 1.0, "the current drags the wet cloth downstream");
 }
 
+// Any finite drag is a valid volume. A particle's drag pulls it toward
+// the flow without passing it, as a rigid body's does: an explicit step
+// with h times the drag past 1 once flipped and multiplied the velocity
+// every substep, past the speed cap, until the lattice went NaN.
+static void TestSoftDragNeverOvershoots(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
+    wdf.lo = (m3Pos3){-8.0, -8.0, -8.0};
+    wdf.hi = (m3Pos3){8.0, 8.0, 8.0};
+    wdf.flow = (m3Vec3){0.5f, 0.0f, 0.0f};
+    wdf.linearDrag = 2.5e30f;
+    NewWaterVolume(world, &wdf);
+    m3SoftBodyDef sb = m3DefaultSoftBodyDef();
+    sb.countX = 2;
+    sb.countY = 2;
+    sb.countZ = 1;
+    m3SoftBodyId cloth = NewSoftBody(world, &sb);
+    m3Pos3 start[4];
+    for (int32_t p = 0; p < 4; ++p)
+    {
+        start[p] = m3SoftBody_GetParticlePosition(world, cloth, p);
+    }
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    bool carried = true;
+    for (int32_t p = 0; p < 4; ++p)
+    {
+        m3Pos3 c = m3SoftBody_GetParticlePosition(world, cloth, p);
+        carried = carried && fabs(c.x - start[p].x - 0.5) < 0.01 && fabs(c.y - start[p].y) < 0.01 &&
+                  fabs(c.z - start[p].z) < 0.01;
+    }
+    CHECK(carried, "a drag past any step's reach carries the cloth with the flow, no faster");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFloatAndSink();
@@ -233,6 +272,7 @@ int main(void)
     TestTideWakesSleepers();
     TestWaterWalls();
     TestSoftBuoyancy();
+    TestSoftDragNeverOvershoots();
     if (s_failures == 0)
     {
         printf("test_water: all passed\n");
