@@ -192,7 +192,7 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh)
 void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratchBlock, const m3Vec3* los, const m3Vec3* his,
                       int32_t count)
 {
-    M3_ASSERT(count > 0 && count <= M3_MESH_MAX_TRIS);
+    M3_ASSERT(count > 0 && count <= M3_MAX_MESH_TRIANGLES);
     BvhScratch scratch;
     scratch.triLo = (m3Vec3*)scratchBlock;
     scratch.triHi = scratch.triLo + count;
@@ -221,7 +221,7 @@ bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const
     // Derived data, exact-size: free the old build, size the
     // new one from the count (2 * count nodes bounds the tree).
     m3MeshBvhFree(heap, bvh);
-    if (count <= 0 || count > M3_MESH_MAX_TRIS)
+    if (count <= 0 || count > M3_MAX_MESH_TRIANGLES)
     {
         return count <= 0; // nothing to bound is an empty tree
     }
@@ -243,7 +243,7 @@ bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const
 bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh)
 {
     int32_t triCount = mesh->triangleCount;
-    if (triCount <= 0 || triCount > M3_MESH_MAX_TRIS)
+    if (triCount <= 0 || triCount > M3_MAX_MESH_TRIANGLES)
     {
         m3MeshBvhFree(heap, bvh);
         return triCount <= 0;
@@ -358,7 +358,7 @@ int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* ou
     // Stack scratch on purpose: gathers run inside steady-state
     // steps, and stepping never allocates. 128 KiB at
     // the 65k cap, one live instance per gather frame.
-    uint16_t tmp[M3_MESH_MAX_TRIS];
+    uint16_t tmp[M3_MAX_MESH_TRIANGLES];
     SortAscending(out, count, tmp);
     return count;
 }

@@ -182,7 +182,7 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
     int32_t materialCount;
     memcpy(&materialCount, paint, sizeof(materialCount));
     const uint8_t* table = paint + sizeof(materialCount);
-    m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
+    m3MeshSurfaceMaterial materials[M3_MAX_MESH_MATERIALS];
     memcpy(materials, table, sizeof(materials));
     const uint8_t* groups = table + sizeof(materials);
     if (materialCount != 0 && !m3MeshMaterialsValid(materials, materialCount, groups, tc))
@@ -216,7 +216,7 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
         memcpy(&vc, raw + cursor, 4);
         memcpy(&tc, raw + cursor + 4, 4);
         cursor += 8;
-        if (vc < 0 || vc > M3_MESH_MAX_VERTS || tc < 0 || tc > M3_MESH_MAX_TRIS ||
+        if (vc < 0 || vc > M3_MAX_MESH_VERTICES || tc < 0 || tc > M3_MAX_MESH_TRIANGLES ||
             (vc == 0) != (tc == 0))
         {
             return -1; // corrupt counts refuse before any write
@@ -227,7 +227,7 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             // count word, the fixed eight-entry table, and a group
             // byte per triangle.
             int64_t content = (int64_t)vc * (int64_t)sizeof(m3Vec3) + 6LL * tc + (int64_t)tc + 4 +
-                              (int64_t)(M3_MESH_MAX_MATERIALS * sizeof(m3MeshSurfaceMaterial)) +
+                              (int64_t)(M3_MAX_MESH_MATERIALS * sizeof(m3MeshSurfaceMaterial)) +
                               (int64_t)tc;
             if ((int64_t)size - cursor < content)
             {
@@ -310,7 +310,7 @@ static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int3
         memcpy(&hnz, raw + cursor + 4, 4);
         memcpy(&hcell, raw + cursor + 8, 4);
         cursor += 12;
-        if (hnx < 0 || hnx > M3_HEIGHTFIELD_MAX_DIM || hnz < 0 || hnz > M3_HEIGHTFIELD_MAX_DIM ||
+        if (hnx < 0 || hnx > M3_MAX_HEIGHTFIELD_SIZE || hnz < 0 || hnz > M3_MAX_HEIGHTFIELD_SIZE ||
             (hnx == 0) != (hnz == 0) || (hnx > 0 && (hnx < 2 || hnz < 2)))
         {
             return -1;
@@ -336,7 +336,7 @@ static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int3
         memcpy(&storedMax, raw + cursor + 4, 4);
         float lo;
         float hi;
-        if (!m3HeightFieldSamplesValid(hnx, hnz, hcell, raw + cursor + 8, &lo, &hi) ||
+        if (m3HeightFieldSamplesCheck(hnx, hnz, hcell, raw + cursor + 8, &lo, &hi) != m3_success ||
             storedMin != lo || storedMax != hi)
         {
             return -1;
@@ -593,7 +593,7 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     memset(stage, 0, sizeof(*stage));
     if (data == NULL)
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     m3Result prefix = m3CheckStatePrefix(data, size, M3_SNAPSHOT_MAGIC, M3_SNAPSHOT_VERSION,
                                          M3_SNAPSHOT_HEADER_BYTES);
@@ -611,7 +611,7 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     WorldCapacities(world, capacities);
     if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        return m3_errorInvalid; // another world shape
+        return m3_errorFormat; // another world shape
     }
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
@@ -622,14 +622,14 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
         (int64_t)sizeof(m3SnapshotHeader) + m3WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
     if ((int64_t)size < prefixEnd || !m3SnapshotWithinBound(size))
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     int32_t fixed = (int32_t)prefixEnd; // at most size
     const uint8_t* raw = (const uint8_t*)data;
     if (!m3StateValidate(world, raw + sizeof(m3SnapshotHeader)) ||
         !TailFits(world, raw, size, fixed) || !VoxelSurfacesFit(world, raw))
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     // Then the structures as wholes, which the block checks make safe to
     // walk: what a step follows must be what the engine could have written.
@@ -657,10 +657,10 @@ static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data,
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     // A snapshot is untrusted data: bytes that fail a check, a short or
-    // truncated buffer included, are refused with m3_errorInvalid, bytes
+    // truncated buffer included, are refused with m3_errorFormat, bytes
     // another release or build wrote with m3_errorVersion, and neither
     // counts misuse. Only arguments a correct program never passes do.
     if (world == NULL || size < 0 || (data == NULL && size > 0))

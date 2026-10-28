@@ -34,11 +34,13 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
     return (int32_t)f;
 }
 
-// What a create internal returns instead of a slot: the def failed its
-// checks (the caller's bug, or a damaged tape on replay), or a pool had no
-// room.
-#define M3_CREATE_INVALID (-1)
-#define M3_CREATE_FULL    (-2)
+// What a create internal returns instead of a slot, the negative status
+// of the refusal: the def failed its checks (the caller's bug, or a
+// damaged tape on replay), held a value past a published bound, or a pool
+// had no room.
+#define M3_CREATE_INVALID ((int32_t)m3_errorInvalid)
+#define M3_CREATE_LIMIT   ((int32_t)m3_errorLimit)
+#define M3_CREATE_FULL    ((int32_t)m3_errorCapacity)
 
 // Bumped on any change that alters simulation behavior (solver math,
 // integration order, constants). It is part of the snapshot config hash,
@@ -60,7 +62,6 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 // Hard ceiling on substeps per step, enforced at the public wall
 // and the replay wall alike: far above any legitimate use,
 // low enough that a flipped tape bit cannot buy a billion substeps.
-#define M3_MAX_SUBSTEPS 256
 
 // Debug names: journaled and snapshot like userData, NEVER
 // hashed (a name moves no matter).
@@ -84,7 +85,7 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 #define M3_HULL_MAX_FACES        124
 #define M3_HULL_MAX_FACE_INDICES 372
 #define M3_HULL_MAX_HALF_EDGES   372
-#define M3_HULL_MAX_INPUT        256 // QuickHull input point cap
+_Static_assert(M3_MAX_CAST_POINTS == M3_HULL_MAX_VERTS, "a cast sweeps at most a hull's vertices");
 
 // Half-edge adjacency (the Gauss-map edge query reads the two faces
 // flanking every edge). Twins sit at 2k and 2k+1 by construction.
@@ -120,14 +121,11 @@ _Static_assert(sizeof(m3HullData) == 5808, "hull data must be padding-free");
 // Static triangle mesh content: immutable, heap-allocated per slot and
 // sized by its counts (a fixed block at 65k triangles would cost
 // megabytes per empty slot), with 16-bit vertex indices.
-#define M3_MESH_MAX_VERTS 65535
-#define M3_MESH_MAX_TRIS  65535
 
 // Per-triangle surface material: a mesh carries up to eight
 // entries (the public m3MeshSurfaceMaterial) and a byte per
 // triangle naming one; count 0 means "use the shape material"
 // everywhere.
-#define M3_MESH_MAX_MATERIALS 8
 
 typedef struct m3MeshData
 {
@@ -144,7 +142,7 @@ typedef struct m3MeshData
     // its shape's material everywhere (canonical zeros throughout).
     int32_t materialCount;
     uint8_t* triMaterials; // one group index per triangle
-    m3MeshSurfaceMaterial materials[M3_MESH_MAX_MATERIALS];
+    m3MeshSurfaceMaterial materials[M3_MAX_MESH_MATERIALS];
 } m3MeshData;
 
 // Count-derived ownership: Alloc frees any old arrays and
@@ -163,7 +161,6 @@ void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch);
 // (ix, iz) spans x in [ix, ix+1] * cellSize, z likewise, and
 // splits into two CCW-from-above triangles along the ix+iz
 // diagonal parity (a fixed, deterministic split).
-#define M3_HEIGHTFIELD_MAX_DIM 255
 
 typedef struct m3HeightFieldData
 {
@@ -178,10 +175,10 @@ typedef struct m3HeightFieldData
 // Count-derived ownership: Alloc sizes from the counts already in the
 // struct, Free releases and zeroes.
 // The grid rules every door holds a height field to (create, replay,
-// restore): 2..M3_HEIGHTFIELD_MAX_DIM samples a side, a finite positive
+// restore): 2..M3_MAX_HEIGHTFIELD_SIZE samples a side, a finite positive
 // cell size and finite samples, read as packed bytes. Sets the extremes.
-bool m3HeightFieldSamplesValid(int32_t nx, int32_t nz, float cellSize, const void* samples,
-                               float* minOut, float* maxOut);
+m3Result m3HeightFieldSamplesCheck(int32_t nx, int32_t nz, float cellSize, const void* samples,
+                                   float* minOut, float* maxOut);
 bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf);
 void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf);
 
@@ -272,7 +269,7 @@ bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 // reject test, so behavior stays bit-identical to the full scan this
 // replaces. It writes at most capacity entries to out. Every caller
 // passes a buffer that holds every entry its tree can return, so none
-// is left out: M3_MESH_MAX_TRIS for a mesh, M3_VOXEL_MAX_BOXES for a
+// is left out: M3_MAX_MESH_TRIANGLES for a mesh, M3_VOXEL_MAX_BOXES for a
 // voxel surface.
 int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out,
                         int32_t capacity);
@@ -280,7 +277,7 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh
 // build wraps this with triangle boxes; the voxel surface feeds
-// merged-box bounds). Count is capped at M3_MESH_MAX_TRIS. False, with
+// merged-box bounds). Count is capped at M3_MAX_MESH_TRIANGLES. False, with
 // the BVH empty, when an allocation is refused.
 bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
                           int32_t count);
@@ -288,7 +285,7 @@ bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const
 // The bytes of scratch a build over count bounds takes.
 int32_t m3MeshBvhScratchBytes(int32_t count);
 
-// Builds over count bounds (1 to M3_MESH_MAX_TRIS) into storage the
+// Builds over count bounds (1 to M3_MAX_MESH_TRIANGLES) into storage the
 // caller owns, allocating nothing: bvh->nodes holds 2 * count nodes,
 // bvh->order count entries, and scratch m3MeshBvhScratchBytes(count)
 // bytes.
@@ -698,11 +695,11 @@ typedef struct m3Characters
 } m3Characters;
 
 // Vehicles: pooled raycast vehicles; per-slot config, per-wheel arrays at
-// slot * M3_VEHICLE_MAX_WHEELS + wheel, tank mode and the drivetrain.
+// slot * M3_MAX_VEHICLE_WHEELS + wheel, tank mode and the drivetrain.
 typedef struct m3Vehicles
 {
     // Vehicles: pooled raycast vehicles. Per-slot config plus
-    // per-wheel arrays at slot * M3_VEHICLE_MAX_WHEELS + wheel. All
+    // per-wheel arrays at slot * M3_MAX_VEHICLE_WHEELS + wheel. All
     // persistent simulation state: snapshotted, hashed for live
     // slots.
     int32_t vehicleCapacity;
@@ -742,16 +739,16 @@ typedef struct m3Vehicles
     // hashed only when a drivetrain is attached).
     uint8_t* vehDtActive;
     int32_t* vehDtCurveCount;
-    m3real* vehDtCurveRpm;    // capacity * M3_DRIVETRAIN_MAX_CURVE
-    m3real* vehDtCurveTorque; // capacity * M3_DRIVETRAIN_MAX_CURVE
+    m3real* vehDtCurveRpm;    // capacity * M3_MAX_DRIVETRAIN_CURVE
+    m3real* vehDtCurveTorque; // capacity * M3_MAX_DRIVETRAIN_CURVE
     int32_t* vehDtGearCount;
-    m3real* vehDtGearRatio; // capacity * M3_DRIVETRAIN_MAX_GEARS
+    m3real* vehDtGearRatio; // capacity * M3_MAX_DRIVETRAIN_GEARS
     m3real* vehDtReverse;
     m3real* vehDtFinal;
     int32_t* vehDtDiffMode;  // 0 open, 1 limited, 2 locked
     m3real* vehDtDiffCouple; // newtons per m/s of wheel disparity
     m3real* vehWheelLon;     // per wheel: last step's contact speed
-                             // (cap * M3_VEHICLE_MAX_WHEELS); feeds
+                             // (cap * M3_MAX_VEHICLE_WHEELS); feeds
                              // the diff coupling, hashed only when a
                              // nonzero diff mode is attached
     m3real* vehDtShiftUp;
@@ -778,9 +775,9 @@ typedef struct m3SoftBodies
     m3real* softRadius;
     m3real* softGravityScale;
     uint64_t* softUserData;
-    m3Pos3* softPos;     // cap * M3_SOFTBODY_MAX_PARTICLES
-    m3Pos3* softPrev;    // cap * M3_SOFTBODY_MAX_PARTICLES
-    m3real* softInvMass; // cap * M3_SOFTBODY_MAX_PARTICLES
+    m3Pos3* softPos;     // cap * M3_MAX_SOFTBODY_PARTICLES
+    m3Pos3* softPrev;    // cap * M3_MAX_SOFTBODY_PARTICLES
+    m3real* softInvMass; // cap * M3_MAX_SOFTBODY_PARTICLES
     // Bend tethers: edges from softBendStart[slot] onward
     // solve with softBendCompliance[slot] instead of the stretch
     // compliance.
@@ -809,11 +806,11 @@ typedef struct m3SoftBodies
     m3Vec3* softKick;    // pending explosion velocity kicks:
                          // integrated once next step, then zeroed,
                          // hashed only when nonzero (additive rule)
-    uint16_t* softEdgeA; // cap * M3_SOFTBODY_MAX_EDGES
+    uint16_t* softEdgeA; // cap * M3_MAX_SOFTBODY_EDGES
     uint16_t* softEdgeB;
     m3real* softEdgeRest;
     int32_t* softAnchorCount;    // per slot
-    int32_t* softAnchorParticle; // cap * M3_SOFTBODY_MAX_ANCHORS
+    int32_t* softAnchorParticle; // cap * M3_MAX_SOFTBODY_ANCHORS
     int32_t* softAnchorBody;
     uint32_t* softAnchorGen;
     m3Vec3* softAnchorLocal;
@@ -821,7 +818,7 @@ typedef struct m3SoftBodies
     // lattice B's particle, released silently when EITHER side
     // dies.
     int32_t* softSoftCount;     // per slot (owner = LOWER slot)
-    int32_t* softSoftParticleA; // cap * M3_SOFTBODY_MAX_ANCHORS
+    int32_t* softSoftParticleA; // cap * M3_MAX_SOFTBODY_ANCHORS
     int32_t* softSoftSlotB;
     uint32_t* softSoftGenB;
     int32_t* softSoftParticleB;

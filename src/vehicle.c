@@ -33,14 +33,14 @@ static void ResetDrivetrain(m3World* world, int32_t slot)
     world->vehicles.vehDtActive[slot] = 0;
     world->vehicles.vehDtCurveCount[slot] = 0;
     world->vehicles.vehDtGearCount[slot] = 0;
-    for (int32_t c = 0; c < M3_DRIVETRAIN_MAX_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
     {
-        world->vehicles.vehDtCurveRpm[slot * M3_DRIVETRAIN_MAX_CURVE + c] = 0.0f;
-        world->vehicles.vehDtCurveTorque[slot * M3_DRIVETRAIN_MAX_CURVE + c] = 0.0f;
+        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE + c] = 0.0f;
+        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE + c] = 0.0f;
     }
-    for (int32_t g = 0; g < M3_DRIVETRAIN_MAX_GEARS; ++g)
+    for (int32_t g = 0; g < M3_MAX_DRIVETRAIN_GEARS; ++g)
     {
-        world->vehicles.vehDtGearRatio[slot * M3_DRIVETRAIN_MAX_GEARS + g] = 0.0f;
+        world->vehicles.vehDtGearRatio[slot * M3_MAX_DRIVETRAIN_GEARS + g] = 0.0f;
     }
     world->vehicles.vehDtReverse[slot] = 0.0f;
     world->vehicles.vehDtFinal[slot] = 0.0f;
@@ -59,7 +59,7 @@ m3VehicleDef m3DefaultVehicleDef(void)
 {
     m3VehicleDef def;
     memset(&def, 0, sizeof(def));
-    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    for (int32_t w = 0; w < M3_MAX_VEHICLE_WHEELS; ++w)
     {
         def.wheels[w].direction = (m3Vec3){0.0f, -1.0f, 0.0f};
         def.wheels[w].restLength = 0.4f;
@@ -89,47 +89,48 @@ int32_t m3VehicleSlot(const m3World* world, m3VehicleId vehicleId)
 }
 
 // A wheel lies in its chassis frame: anchor, rest length and radius
-// within M3_LOCAL_LIMIT, the radius at least M3_WHEEL_RADIUS_FLOOR.
-bool m3WheelDefValid(const m3WheelDef* wd)
+// within M3_LOCAL_LIMIT, the radius at least M3_MIN_WHEEL_RADIUS.
+m3Result m3WheelDefCheck(const m3WheelDef* wd)
 {
     m3real d2 = m3Dot3(wd->direction, wd->direction);
-    return m3LocalV3(wd->anchor) && m3FiniteV3(wd->direction) && d2 > 0.81f && d2 < 1.21f &&
-           wd->restLength > 0.0f && wd->restLength <= M3_LOCAL_LIMIT && wd->travel > 0.0f &&
-           wd->travel <= wd->restLength && wd->hertz > 0.0f && wd->hertz <= M3_HERTZ_LIMIT &&
-           wd->zeta >= 0.0f && wd->zeta <= M3_RATIO_LIMIT && wd->radius >= M3_WHEEL_RADIUS_FLOOR &&
-           wd->radius <= M3_LOCAL_LIMIT && wd->brakeShare >= 0.0f &&
-           wd->brakeShare <= M3_RATIO_LIMIT; // false for NaN
-}
-
-static bool Within(float x, float limit)
-{
-    return x >= 0.0f && x <= limit; // false for NaN
+    m3Result result = m3CheckValid(m3FiniteV3(wd->direction) && d2 > 0.81f && d2 < 1.21f &&
+                                   wd->travel > 0.0f && wd->travel <= wd->restLength);
+    result = m3BothChecks(result, m3CheckLocalV3(wd->anchor));
+    result = m3BothChecks(result, m3CheckPositive(wd->restLength, M3_LOCAL_LIMIT));
+    result = m3BothChecks(result, m3CheckPositive(wd->hertz, M3_HERTZ_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(wd->zeta, M3_RATIO_LIMIT));
+    result = m3BothChecks(result, m3CheckPositive(wd->radius, M3_LOCAL_LIMIT));
+    result = m3BothChecks(result, m3CheckAtLeast(wd->radius, M3_MIN_WHEEL_RADIUS));
+    return m3BothChecks(result, m3CheckNonNegative(wd->brakeShare, M3_RATIO_LIMIT));
 }
 
 // Every field check lives here, where the public door and replay both
 // pass: replay hands raw journal bytes, and a flipped wheel count would
 // overrun every per-wheel array. The chassis must be a live dynamic body.
-static bool VehicleDefValid(const m3World* world, const m3VehicleDef* def)
+static m3Result VehicleDefCheck(const m3World* world, const m3VehicleDef* def)
 {
-    if (def->wheelCount < 1 || def->wheelCount > M3_VEHICLE_MAX_WHEELS ||
-        !m3FiniteF(def->maxSteerAngle) || def->maxSteerAngle < 0.0f ||
-        !Within(def->driveForce, M3_FORCE_LIMIT) || !Within(def->brakeForce, M3_FORCE_LIMIT) ||
-        !Within(def->tireGrip, M3_RATIO_LIMIT) || !Within(def->leanStabilization, M3_RATIO_LIMIT))
+    if (def->wheelCount < 1)
     {
-        return false;
-    }
-    for (int32_t w = 0; w < def->wheelCount; ++w)
-    {
-        if (!m3WheelDefValid(&def->wheels[w]))
-        {
-            return false;
-        }
+        return m3_errorInvalid;
     }
     int32_t chassis = def->chassisId.index1 - 1;
-    return chassis >= 0 && chassis < world->bodies.bodyCapacity &&
-           world->bodies.bodyPool.alive[chassis] != 0 &&
-           world->bodies.bodyPool.generations[chassis] == def->chassisId.generation &&
-           world->bodies.types[chassis] == (uint8_t)m3_dynamicBody;
+    m3Result result = m3CheckValid(
+        m3FiniteF(def->maxSteerAngle) && def->maxSteerAngle >= 0.0f && chassis >= 0 &&
+        chassis < world->bodies.bodyCapacity && world->bodies.bodyPool.alive[chassis] != 0 &&
+        world->bodies.bodyPool.generations[chassis] == def->chassisId.generation &&
+        world->bodies.types[chassis] == (uint8_t)m3_dynamicBody);
+    result = m3BothChecks(result, m3CheckCount(def->wheelCount, M3_MAX_VEHICLE_WHEELS));
+    result = m3BothChecks(result, m3CheckNonNegative(def->driveForce, M3_FORCE_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(def->brakeForce, M3_FORCE_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(def->tireGrip, M3_RATIO_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(def->leanStabilization, M3_RATIO_LIMIT));
+    int32_t wheels =
+        def->wheelCount < M3_MAX_VEHICLE_WHEELS ? def->wheelCount : M3_MAX_VEHICLE_WHEELS;
+    for (int32_t w = 0; w < wheels; ++w)
+    {
+        result = m3BothChecks(result, m3WheelDefCheck(&def->wheels[w]));
+    }
+    return result;
 }
 
 // One wheel slot: the def's wheel with a unit direction, or a cleared
@@ -162,9 +163,10 @@ static void InitWheel(m3World* world, int32_t k, const m3WheelDef* wd)
 
 int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def)
 {
-    if (!VehicleDefValid(world, def))
+    m3Result checked = VehicleDefCheck(world, def);
+    if (checked != m3_success)
     {
-        return M3_CREATE_INVALID;
+        return (int32_t)checked;
     }
     int32_t slot = m3IdPoolAlloc(&world->vehicles.vehPool);
     if (slot < 0)
@@ -188,9 +190,9 @@ int32_t m3CreateVehicleInternal(m3World* world, const m3VehicleDef* def)
     v->vehSteer[slot] = 0.0f;
     v->vehBrake[slot] = 0.0f;
     v->vehUserData[slot] = def->userData;
-    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    for (int32_t w = 0; w < M3_MAX_VEHICLE_WHEELS; ++w)
     {
-        InitWheel(world, slot * M3_VEHICLE_MAX_WHEELS + w,
+        InitWheel(world, slot * M3_MAX_VEHICLE_WHEELS + w,
                   w < def->wheelCount ? &def->wheels[w] : NULL);
     }
     ResetDrivetrain(world, slot);
@@ -214,9 +216,9 @@ void m3DestroyVehicleInternal(m3World* world, int32_t slot)
     world->vehicles.vehSteer[slot] = 0.0f;
     world->vehicles.vehBrake[slot] = 0.0f;
     world->vehicles.vehUserData[slot] = 0;
-    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    for (int32_t w = 0; w < M3_MAX_VEHICLE_WHEELS; ++w)
     {
-        int32_t k = slot * M3_VEHICLE_MAX_WHEELS + w;
+        int32_t k = slot * M3_MAX_VEHICLE_WHEELS + w;
         world->vehicles.vehWheelAnchor[k] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->vehicles.vehWheelDir[k] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->vehicles.vehWheelRest[k] = 0.0f;
@@ -298,8 +300,8 @@ void m3VehicleApplySuspension(m3World* world, float dt)
         // (the first probe measured a centimeter of it).
         m3Vec3 v0 = world->bodies.linearVelocities[chassis];
         m3Vec3 w0 = world->bodies.angularVelocities[chassis];
-        m3Vec3 impulses[M3_VEHICLE_MAX_WHEELS];
-        m3Vec3 arms[M3_VEHICLE_MAX_WHEELS];
+        m3Vec3 impulses[M3_MAX_VEHICLE_WHEELS];
+        m3Vec3 arms[M3_MAX_VEHICLE_WHEELS];
         int32_t applied = 0;
 
         // The drivetrain: one engine per vehicle, computed
@@ -318,7 +320,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             m3real radiusSum = 0.0f;
             for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
             {
-                int32_t k = slot * M3_VEHICLE_MAX_WHEELS + w;
+                int32_t k = slot * M3_MAX_VEHICLE_WHEELS + w;
                 if ((world->vehicles.vehWheelFlags[k] & 2u) != 0)
                 {
                     drivenCount += 1;
@@ -326,13 +328,13 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 }
             }
             m3real radius = drivenCount > 0 ? radiusSum / (m3real)drivenCount : 0.0f;
-            int32_t base = slot * M3_DRIVETRAIN_MAX_CURVE;
+            int32_t base = slot * M3_MAX_DRIVETRAIN_CURVE;
             int32_t count = world->vehicles.vehDtCurveCount[slot];
             int8_t gear = world->vehicles.vehDtGear[slot];
             m3real ratio = 0.0f;
             if (gear > 0)
             {
-                ratio = world->vehicles.vehDtGearRatio[slot * M3_DRIVETRAIN_MAX_GEARS + (gear - 1)];
+                ratio = world->vehicles.vehDtGearRatio[slot * M3_MAX_DRIVETRAIN_GEARS + (gear - 1)];
             }
             else if (gear < 0)
             {
@@ -369,7 +371,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                     world->vehicles.vehDtGear[slot] = gear;
                     world->vehicles.vehDtClutch[slot] = world->vehicles.vehDtClutchSteps[slot];
                     ratio =
-                        world->vehicles.vehDtGearRatio[slot * M3_DRIVETRAIN_MAX_GEARS + (gear - 1)];
+                        world->vehicles.vehDtGearRatio[slot * M3_MAX_DRIVETRAIN_GEARS + (gear - 1)];
                 }
                 else if (rawRpm < world->vehicles.vehDtShiftDown[slot] && gear > 1)
                 {
@@ -377,7 +379,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                     world->vehicles.vehDtGear[slot] = gear;
                     world->vehicles.vehDtClutch[slot] = world->vehicles.vehDtClutchSteps[slot];
                     ratio =
-                        world->vehicles.vehDtGearRatio[slot * M3_DRIVETRAIN_MAX_GEARS + (gear - 1)];
+                        world->vehicles.vehDtGearRatio[slot * M3_MAX_DRIVETRAIN_GEARS + (gear - 1)];
                 }
             }
 
@@ -436,7 +438,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             int32_t drivenSeen = 0;
             for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
             {
-                int32_t k = slot * M3_VEHICLE_MAX_WHEELS + w;
+                int32_t k = slot * M3_MAX_VEHICLE_WHEELS + w;
                 if ((world->vehicles.vehWheelFlags[k] & 2u) != 0)
                 {
                     dtMeanLon += world->vehicles.vehWheelLon[k];
@@ -451,7 +453,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
 
         for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
         {
-            int32_t k = slot * M3_VEHICLE_MAX_WHEELS + w;
+            int32_t k = slot * M3_MAX_VEHICLE_WHEELS + w;
             m3Vec3 anchorR = m3RotateVec3(xf->q, world->vehicles.vehWheelAnchor[k]);
             m3Pos3 anchor = {xf->p.x + (double)anchorR.x, xf->p.y + (double)anchorR.y,
                              xf->p.z + (double)anchorR.z};
@@ -681,7 +683,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             m3real xMax = 0.0f;
             for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
             {
-                m3real ax = world->vehicles.vehWheelAnchor[slot * M3_VEHICLE_MAX_WHEELS + w].x;
+                m3real ax = world->vehicles.vehWheelAnchor[slot * M3_MAX_VEHICLE_WHEELS + w].x;
                 xMin = ax < xMin ? ax : xMin;
                 xMax = ax > xMax ? ax : xMax;
             }
@@ -705,7 +707,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
             m3real hubDrop = 0.0f;
             for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
             {
-                int32_t k = slot * M3_VEHICLE_MAX_WHEELS + w;
+                int32_t k = slot * M3_MAX_VEHICLE_WHEELS + w;
                 m3Vec3 hub = m3Add3(
                     world->vehicles.vehWheelAnchor[k],
                     m3MulSV3(world->vehicles.vehWheelRest[k], world->vehicles.vehWheelDir[k]));
@@ -764,7 +766,7 @@ static M3_NOINLINE m3Result CreateVehicleWorker(m3World* world, const m3VehicleD
     *vehicleOut = m3_nullVehicleId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || def == NULL || def->internalValue != M3_VEHICLE_COOKIE)
     {
@@ -800,7 +802,7 @@ static M3_NOINLINE m3Result DestroyVehicleWorker(m3World* world, m3VehicleId veh
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
@@ -837,7 +839,7 @@ static M3_NOINLINE m3real VehicleGetCompressionWorker(const m3World* world, m3Ve
         m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
-    return world->vehicles.vehWheelCompression[slot * M3_VEHICLE_MAX_WHEELS + wheel];
+    return world->vehicles.vehWheelCompression[slot * M3_MAX_VEHICLE_WHEELS + wheel];
 }
 
 m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
@@ -853,7 +855,7 @@ static M3_NOINLINE void VehicleSetCommandsWorker(m3World* world, m3VehicleId veh
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot = m3VehicleSlot(world, vehicle);
@@ -896,7 +898,7 @@ static M3_NOINLINE void VehicleSetTankCommandsWorker(m3World* world, m3VehicleId
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot = m3VehicleSlot(world, vehicle);
@@ -935,7 +937,7 @@ static M3_NOINLINE m3real VehicleGetWheelSpinWorker(const m3World* world, m3Vehi
         m3Refuse(world, m3_errorInvalid);
         return 0.0f;
     }
-    return world->vehicles.vehWheelSpin[slot * M3_VEHICLE_MAX_WHEELS + wheel];
+    return world->vehicles.vehWheelSpin[slot * M3_MAX_VEHICLE_WHEELS + wheel];
 }
 
 m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel)
@@ -954,5 +956,5 @@ bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_
         m3Refuse(world, m3_errorInvalid);
         return false;
     }
-    return world->vehicles.vehWheelContact[slot * M3_VEHICLE_MAX_WHEELS + wheel] != 0;
+    return world->vehicles.vehWheelContact[slot * M3_MAX_VEHICLE_WHEELS + wheel] != 0;
 }

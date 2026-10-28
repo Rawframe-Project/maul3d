@@ -87,13 +87,18 @@ void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
     }
 }
 
-bool m3HeightFieldSamplesValid(int32_t nx, int32_t nz, float cellSize, const void* samples,
-                               float* minOut, float* maxOut)
+m3Result m3HeightFieldSamplesCheck(int32_t nx, int32_t nz, float cellSize, const void* samples,
+                                   float* minOut, float* maxOut)
 {
-    if (nx < 2 || nx > M3_HEIGHTFIELD_MAX_DIM || nz < 2 || nz > M3_HEIGHTFIELD_MAX_DIM ||
-        !m3FiniteF(cellSize) || !(cellSize > 0.0f))
+    if (nx < 2 || nz < 2 || !m3FiniteF(cellSize) || !(cellSize > 0.0f))
     {
-        return false;
+        return m3_errorInvalid;
+    }
+    m3Result size = m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_SIZE),
+                                 m3CheckCount(nz, M3_MAX_HEIGHTFIELD_SIZE));
+    if (size != m3_success)
+    {
+        return size;
     }
     // Read by memcpy: journal and snapshot bytes are packed.
     const uint8_t* bytes = (const uint8_t*)samples;
@@ -105,14 +110,14 @@ bool m3HeightFieldSamplesValid(int32_t nx, int32_t nz, float cellSize, const voi
         memcpy(&v, bytes + (size_t)i * sizeof(float), sizeof(v));
         if (!m3FiniteF(v))
         {
-            return false;
+            return m3_errorInvalid;
         }
         lo = i == 0 ? v : (v < lo ? v : lo);
         hi = i == 0 ? v : (v > hi ? v : hi);
     }
     *minOut = lo;
     *maxOut = hi;
-    return true;
+    return m3_success;
 }
 
 bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf)

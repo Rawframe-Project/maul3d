@@ -20,7 +20,7 @@ static uint8_t s_journal[1 << 16];
 static const int32_t s_wide[][3] = {
     {1 << 21, 1 << 21, 1 << 22},
     {1 << 30, 1 << 30, 1 << 30},
-    {M3_SOFTBODY_MAX_PARTICLES + 1, 1, 1},
+    {M3_MAX_SOFTBODY_PARTICLES + 1, 1, 1},
     {1, 1, 0x7FFFFFFF},
 };
 

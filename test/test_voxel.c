@@ -1452,7 +1452,7 @@ static void TestBoxLimitRefusesEdits(void)
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "the two-box world snapshots");
-    CHECK(m3World_Restore(twin, snap, size) == m3_errorInvalid,
+    CHECK(m3World_Restore(twin, snap, size) == m3_errorFormat,
           "a snapshot chunk past the limit is refused");
     CHECK(m3World_Hash(twin) == hash, "the refused restore leaves the world as it was");
 

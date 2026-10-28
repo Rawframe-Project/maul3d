@@ -329,7 +329,7 @@ static void TestReplayHoldsTheOwnership(void)
         CHECK(found == 1, "the tape names the ordinary object once");
 
         CHECK(Restore(world, start, size), "the start is restored");
-        CHECK(m3World_ReplayJournal(world, tape, bytes) == m3_errorInvalid,
+        CHECK(m3World_ReplayJournal(world, tape, bytes) == m3_errorFormat,
               "a tape aimed at the character's own body or capsule is refused");
         CHECK(m3Shape_IsValid(world, capsule) && m3Body_IsValid(world, body) &&
                   m3Body_GetType(world, body) == m3_kinematicBody,

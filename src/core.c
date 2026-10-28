@@ -60,6 +60,12 @@ const char* m3ResultName(m3Result result)
         return "m3_errorState";
     case m3_errorVersion:
         return "m3_errorVersion";
+    case m3_errorFormat:
+        return "m3_errorFormat";
+    case m3_errorLimit:
+        return "m3_errorLimit";
+    case m3_errorBusy:
+        return "m3_errorBusy";
     default:
         return "unknown m3Result";
     }

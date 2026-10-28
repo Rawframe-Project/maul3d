@@ -26,7 +26,7 @@ static m3Vec3 PosDelta(const m3Pos3* a, const m3Pos3* b)
 // The bounds of a lattice's predicted positions.
 static void LatticeBounds(const m3World* world, int32_t slot, double lo[3], double hi[3])
 {
-    int32_t base = slot * M3_SOFTBODY_MAX_PARTICLES;
+    int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
     lo[0] = lo[1] = lo[2] = 1.0e30;
     hi[0] = hi[1] = hi[2] = -1.0e30;
     for (int32_t i = 0; i < world->softBodies.softParticleCount[slot]; ++i)
@@ -113,8 +113,8 @@ void m3SoftSoftContacts(m3World* world)
             {
                 for (int32_t j = 0; j < sb->softParticleCount[b]; ++j)
                 {
-                    ProjectParticlePair(world, a * M3_SOFTBODY_MAX_PARTICLES + i,
-                                        b * M3_SOFTBODY_MAX_PARTICLES + j, target);
+                    ProjectParticlePair(world, a * M3_MAX_SOFTBODY_PARTICLES + i,
+                                        b * M3_MAX_SOFTBODY_PARTICLES + j, target);
                 }
             }
         }
@@ -130,15 +130,15 @@ void m3SoftSoftAnchors(m3World* world)
     {
         for (int32_t a = 0; sb->softPool.alive[sa] != 0 && a < sb->softSoftCount[sa]; ++a)
         {
-            int32_t ak = sa * M3_SOFTBODY_MAX_ANCHORS + a;
+            int32_t ak = sa * M3_MAX_SOFTBODY_ANCHORS + a;
             int32_t other = sb->softSoftSlotB[ak];
             if (other < 0 || sb->softPool.alive[other] == 0 ||
                 sb->softPool.generations[other] != sb->softSoftGenB[ak])
             {
                 continue;
             }
-            int32_t ka = sa * M3_SOFTBODY_MAX_PARTICLES + sb->softSoftParticleA[ak];
-            int32_t kb = other * M3_SOFTBODY_MAX_PARTICLES + sb->softSoftParticleB[ak];
+            int32_t ka = sa * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleA[ak];
+            int32_t kb = other * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleB[ak];
             m3real wa = sb->softInvMass[ka];
             m3real wb = sb->softInvMass[kb];
             m3real wSum = wa + wb;

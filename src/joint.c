@@ -109,24 +109,28 @@ typedef struct JointBake
 } JointBake;
 
 // A gear needs real axes and a real ratio.
-static bool GearDefValid(const m3JointDef* def)
+static m3Result GearDefCheck(const m3JointDef* def)
 {
-    return m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
-           m3Dot3(def->localAxisA, def->localAxisA) > 1.0e-8f &&
-           m3Dot3(def->localAxisB, def->localAxisB) > 1.0e-8f &&
-           m3WithinF(def->ratio, M3_RATIO_LIMIT) && def->ratio != 0.0f;
+    return m3BothChecks(m3CheckValid(m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
+                                     m3Dot3(def->localAxisA, def->localAxisA) > 1.0e-8f &&
+                                     m3Dot3(def->localAxisB, def->localAxisB) > 1.0e-8f &&
+                                     def->ratio != 0.0f),
+                        m3CheckWithin(def->ratio, M3_RATIO_LIMIT));
 }
 
 // The rope lengths from each anchor to its ground pulley at create. A
 // rope end on its pulley has no direction and refuses.
-static bool BakePulley(const m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB,
-                       JointBake* bake)
+static m3Result BakePulley(const m3World* world, const m3JointDef* def, int32_t bodyA,
+                           int32_t bodyB, JointBake* bake)
 {
-    if (!m3BoundedPos3(def->groundAnchorA) || !m3BoundedPos3(def->groundAnchorB) ||
-        !(def->ratio > 0.0f && def->ratio <= M3_RATIO_LIMIT) || !m3LocalV3(def->localAnchorA) ||
-        !m3LocalV3(def->localAnchorB))
+    m3Result result =
+        m3BothChecks(m3CheckPosition(def->groundAnchorA), m3CheckPosition(def->groundAnchorB));
+    result = m3BothChecks(result, m3CheckPositive(def->ratio, M3_RATIO_LIMIT));
+    result = m3BothChecks(
+        result, m3BothChecks(m3CheckLocalV3(def->localAnchorA), m3CheckLocalV3(def->localAnchorB)));
+    if (result != m3_success)
     {
-        return false;
+        return result;
     }
     const m3Transform* xfA = &world->bodies.transforms[bodyA];
     const m3Transform* xfB = &world->bodies.transforms[bodyB];
@@ -140,8 +144,8 @@ static bool BakePulley(const m3World* world, const m3JointDef* def, int32_t body
                  (m3real)(xfB->p.z + (double)aB.z - def->groundAnchorB.z)};
     bake->pulleyLen1 = m3Length3(u1);
     bake->pulleyLen2 = m3Length3(u2);
-    return m3FiniteF(bake->pulleyLen1) && m3FiniteF(bake->pulleyLen2) &&
-           bake->pulleyLen1 > 1.0e-3f && bake->pulleyLen2 > 1.0e-3f;
+    return m3CheckValid(m3FiniteF(bake->pulleyLen1) && m3FiniteF(bake->pulleyLen2) &&
+                        bake->pulleyLen1 > 1.0e-3f && bake->pulleyLen2 > 1.0e-3f);
 }
 
 // The wheel frame: x is the suspension axis (from A), z the axle
@@ -255,12 +259,12 @@ static bool DistanceDefValid(const m3JointDef* def)
 // type needs them, the generic and distance rules, and finite, ordered
 // fields. m3CreateJoint runs it before resolving the bodies, and
 // m3CreateJointInternal runs it again for replay.
-static bool JointDefIsValid(const m3JointDef* def)
+static m3Result JointDefCheck(const m3JointDef* def)
 {
     if (def->internalValue != M3_JOINT_COOKIE || def->type < 0 ||
         def->type > (int32_t)m3_pulleyJoint)
     {
-        return false;
+        return m3_errorInvalid;
     }
     bool typeValid = true;
     switch (def->type)
@@ -280,24 +284,30 @@ static bool JointDefIsValid(const m3JointDef* def)
     default:
         break;
     }
-    return typeValid && m3LocalV3(def->localAnchorA) && m3LocalV3(def->localAnchorB) &&
-           m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
-           m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
-           m3JointMotorValid(def->type, def->enableMotor ? 1 : 0, def->motorSpeed,
-                             def->maxMotorEffort) &&
-           m3FiniteF(def->coneAngle) &&
-           (def->type == (int32_t)m3_motorJoint
-                ? m3JointLimitsValid(def->type, def->lowerLimit, def->upperLimit)
-                : !(def->enableLimit && def->lowerLimit > def->upperLimit)) &&
-           !(def->enableCone && def->coneAngle < 0.0f);
+    bool motorJoint = def->type == (int32_t)m3_motorJoint;
+    m3Result result =
+        m3CheckValid(typeValid && m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
+                     m3FiniteF(def->coneAngle) && !(def->enableCone && def->coneAngle < 0.0f) &&
+                     (motorJoint || (m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
+                                     !(def->enableLimit && def->lowerLimit > def->upperLimit))));
+    result = m3BothChecks(
+        result, m3BothChecks(m3CheckLocalV3(def->localAnchorA), m3CheckLocalV3(def->localAnchorB)));
+    result = m3BothChecks(result, m3JointMotorCheck(def->type, def->enableMotor ? 1 : 0,
+                                                    def->motorSpeed, def->maxMotorEffort));
+    if (motorJoint)
+    {
+        result =
+            m3BothChecks(result, m3JointLimitsCheck(def->type, def->lowerLimit, def->upperLimit));
+    }
+    return result;
 }
 
 // The type whitelist and the geometry walls live here, not only in the
 // public wall, because replay hands m3CreateJointInternal raw journal
 // bytes: a flipped type byte must refuse instead of minting a joint no
 // solver branch owns.
-static bool BakeJointDef(const m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB,
-                         JointBake* bake)
+static m3Result BakeJointDef(const m3World* world, const m3JointDef* def, int32_t bodyA,
+                             int32_t bodyB, JointBake* bake)
 {
     bake->pulleyLen1 = 0.0f;
     bake->pulleyLen2 = 0.0f;
@@ -306,13 +316,13 @@ static bool BakeJointDef(const m3World* world, const m3JointDef* def, int32_t bo
     switch (def->type)
     {
     case m3_gearJoint:
-        return GearDefValid(def);
+        return GearDefCheck(def);
     case m3_pulleyJoint:
         return BakePulley(world, def, bodyA, bodyB, bake);
     case m3_wheelJoint:
-        return BakeWheel(world, def, bodyA, bodyB, bake);
+        return m3CheckValid(BakeWheel(world, def, bodyA, bodyB, bake));
     default:
-        return def->type >= 0 && def->type <= (int32_t)m3_pulleyJoint;
+        return m3CheckValid(def->type >= 0 && def->type <= (int32_t)m3_pulleyJoint);
     }
 }
 
@@ -435,18 +445,23 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     // A joint between two immovable bodies is inert and refuses, and so
     // does one whose bodies' masses would pass its lever ratio.
     JointBake bake;
-    if (!JointDefIsValid(def) || bodyA == bodyB ||
-        (world->bodies.types[bodyA] != (uint8_t)m3_dynamicBody &&
-         world->bodies.types[bodyB] != (uint8_t)m3_dynamicBody) ||
-        !BakeJointDef(world, def, bodyA, bodyB, &bake))
+    m3Result result = m3BothChecks(
+        JointDefCheck(def),
+        m3CheckValid(bodyA != bodyB && (world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody ||
+                                        world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody)));
+    if (result == m3_success)
     {
-        return M3_CREATE_INVALID;
+        result = BakeJointDef(world, def, bodyA, bodyB, &bake);
+    }
+    if (result != m3_success)
+    {
+        return (int32_t)result;
     }
     m3LeverBody leverA = m3LeverBodyOf(world, bodyA);
     m3LeverBody leverB = m3LeverBodyOf(world, bodyB);
     if (!m3LeverFits((uint8_t)def->type, &leverA, def->localAnchorA, &leverB, def->localAnchorB))
     {
-        return M3_CREATE_INVALID;
+        return M3_CREATE_LIMIT;
     }
     int32_t index = m3IdPoolAlloc(&world->joints.jointPool);
     if (index < 0)
@@ -574,15 +589,16 @@ static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* 
     *jointOut = m3_nullJointId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || def == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    if (!JointDefIsValid(def))
+    m3Result checked = JointDefCheck(def);
+    if (checked != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid);
+        return m3Refuse(world, checked);
     }
     int32_t bodyA = m3BodySlot(world, def->bodyIdA);
     int32_t bodyB = m3BodySlot(world, def->bodyIdB);
@@ -620,7 +636,7 @@ static M3_NOINLINE m3Result DestroyJointWorker(m3World* world, m3JointId joint)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t index = m3JointSlot(world, joint);
     if (index < 0)

@@ -369,7 +369,7 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
         const m3Transform* cxf = &world->bodies.transforms[chassis];
         for (int32_t w = 0; w < world->vehicles.vehWheelCount[v]; ++w)
         {
-            int32_t k = v * M3_VEHICLE_MAX_WHEELS + w;
+            int32_t k = v * M3_MAX_VEHICLE_WHEELS + w;
             m3Vec3 anchorR = m3RotateVec3(cxf->q, world->vehicles.vehWheelAnchor[k]);
             double ax = cxf->p.x + (double)anchorR.x;
             double ay = cxf->p.y + (double)anchorR.y;
@@ -611,7 +611,7 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -654,7 +654,7 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -695,7 +695,7 @@ static M3_NOINLINE void VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape,
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -741,7 +741,7 @@ static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId sh
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return -1;
     }
     int32_t index;

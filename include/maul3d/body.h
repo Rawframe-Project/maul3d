@@ -69,8 +69,10 @@ extern "C"
     /// scale one, sleep and simulation enabled) and a valid cookie.
     M3_API m3BodyDef m3DefaultBodyDef(void);
 
-    /// Create a body. Returns m3_errorInvalid for an invalid def and
-    /// m3_errorCapacity for an exhausted body pool; *bodyOut is the null
+    /// Create a body. Returns m3_errorInvalid for an invalid def,
+    /// m3_errorLimit for a position, velocity, spin or gravity scale
+    /// past its bound in maul3d/base.h, and m3_errorCapacity for an
+    /// exhausted body pool; *bodyOut is the null
     /// id on any failure. A shapeless dynamic body has unit mass and zero
     /// inertia until a shape provides the real values.
     M3_NODISCARD M3_API m3Result m3CreateBody(m3World* world, const m3BodyDef* def,

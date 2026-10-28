@@ -100,25 +100,25 @@ static int32_t SlotOf(const Scene* s, Which which)
     case which_vehicle:
         return s->vehicle;
     case which_firstWheel:
-        return s->vehicle * M3_VEHICLE_MAX_WHEELS;
+        return s->vehicle * M3_MAX_VEHICLE_WHEELS;
     case which_firstGear:
-        return s->vehicle * M3_DRIVETRAIN_MAX_GEARS;
+        return s->vehicle * M3_MAX_DRIVETRAIN_GEARS;
     case which_soft:
         return s->soft;
     case which_particle:
-        return s->soft * M3_SOFTBODY_MAX_PARTICLES + 1;
+        return s->soft * M3_MAX_SOFTBODY_PARTICLES + 1;
     case which_anchor:
-        return s->soft * M3_SOFTBODY_MAX_ANCHORS;
+        return s->soft * M3_MAX_SOFTBODY_ANCHORS;
     case which_pool:
         return s->pool;
     case which_rail:
         return s->rail;
     case which_edge:
-        return s->soft * M3_SOFTBODY_MAX_EDGES;
+        return s->soft * M3_MAX_SOFTBODY_EDGES;
     case which_jelly:
         return s->jelly;
     case which_tet:
-        return s->jelly * M3_SOFTBODY_MAX_TETS;
+        return s->jelly * M3_MAX_SOFTBODY_TETS;
     case which_six:
         return s->six;
     }
@@ -255,7 +255,7 @@ static const Case s_cases[] = {
     {"brake", SCALAR(vehicles.vehBrake, which_vehicle), (double)(1.0), +1},
     {"left track", SCALAR(vehicles.vehTrackLeft, which_vehicle), (double)(1.0), +1},
     {"right track", SCALAR(vehicles.vehTrackRight, which_vehicle), (double)(-1.0), -1},
-    {"wheel radius", SCALAR(vehicles.vehWheelRadius, which_firstWheel), (double)(M3_WHEEL_RADIUS_FLOOR), -1},
+    {"wheel radius", SCALAR(vehicles.vehWheelRadius, which_firstWheel), (double)(M3_MIN_WHEEL_RADIUS), -1},
     {"wheel contact speed", SCALAR(vehicles.vehWheelLon, which_firstWheel), (double)(2.0f * M3_KINEMATIC_SPEED_LIMIT), +1},
     {"wheel compression", SCALAR(vehicles.vehWheelCompression, which_firstWheel), (double)(0.4f), +1},
     {"wheel compression floor", SCALAR(vehicles.vehWheelCompression, which_firstWheel), (double)(0.0), -1},
@@ -267,8 +267,8 @@ static const Case s_cases[] = {
     {"compliance", SCALAR(softBodies.softCompliance, which_soft), (double)(0.0), -1},
     {"bend compliance", SCALAR(softBodies.softBendCompliance, which_soft), (double)(0.0), -1},
     {"shape deviation", SCALAR(softBodies.softMaxDeviation, which_soft), (double)(0.0), -1},
-    {"pressure", SCALAR(softBodies.softPressure, which_soft), (double)(M3_SOFTBODY_MAX_PRESSURE), +1},
-    {"particle mass floor", SCALAR(softBodies.softInvMass, which_particle), (double)(1.0f / M3_MASS_FLOOR), +1},
+    {"pressure", SCALAR(softBodies.softPressure, which_soft), (double)(M3_SOFTBODY_PRESSURE_LIMIT), +1},
+    {"particle mass floor", SCALAR(softBodies.softInvMass, which_particle), (double)(1.0f / M3_MIN_MASS), +1},
     {"particle mass limit", SCALAR(softBodies.softInvMass, which_particle), (double)(1.0f / M3_MASS_LIMIT), -1},
     {"particle kick", COMPONENT(softBodies.softKick, m3Vec3, which_particle, 0), (double)(M3_SPEED_LIMIT), +1},
     {"particle anchor", COMPONENT(softBodies.softAnchorLocal, m3Vec3, which_anchor, 1), (double)(M3_LOCAL_LIMIT), +1},
@@ -506,7 +506,7 @@ static void TestBoundsAtTheirEdges(void)
         CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "back to the scene");
         memcpy(edited, clean, (size_t)size);
         Put(&s, edited, &k->value, Past(k));
-        bool pastRefused = m3World_Restore(world, edited, size) == m3_errorInvalid;
+        bool pastRefused = m3World_Restore(world, edited, size) == m3_errorFormat;
         if (!atLimit || !pastRefused)
         {
             printf("  %s: at the limit %s, past it %s\n", k->name,
@@ -546,7 +546,7 @@ static void TestGroundNormalLength(void)
         CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "back to the scene");
         memcpy(edited, clean, (size_t)size);
         Put(&s, edited, &normal, 1.1);
-        CHECK(m3World_Restore(world, edited, size) == m3_errorInvalid, "a longer one is refused");
+        CHECK(m3World_Restore(world, edited, size) == m3_errorFormat, "a longer one is refused");
         CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuse == 0,
               "and the world is left as it was, with no misuse counted");
     }
@@ -589,7 +589,7 @@ static void TestFarRestValuesAreRefused(void)
         {
             memcpy(edited, clean, (size_t)size);
             Put(&s, edited, &cases[c].value, cases[c].far);
-            if (m3World_Restore(world, edited, size) != m3_errorInvalid)
+            if (m3World_Restore(world, edited, size) != m3_errorFormat)
             {
                 printf("  %s restores\n", cases[c].name);
                 s_failures += 1;
@@ -607,7 +607,7 @@ static void TestFarRestValuesAreRefused(void)
                                     (m3FiniteV3(world->bodies.linearVelocities[b]) &&
                                      m3FiniteV3(world->bodies.angularVelocities[b])));
             }
-            for (int32_t k = 0; k < world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES;
+            for (int32_t k = 0; k < world->softBodies.softBodyCapacity * M3_MAX_SOFTBODY_PARTICLES;
                  ++k)
             {
                 m3Pos3 p = world->softBodies.softPos[k];
@@ -644,14 +644,14 @@ static void TestStepHoldsWithinTheLimit(void)
     int32_t particles = world->softBodies.softParticleCount[s.soft];
     for (int32_t i = 0; i < particles; ++i)
     {
-        size_t at = sizeof(m3Pos3) * (size_t)(s.soft * M3_SOFTBODY_MAX_PARTICLES + i);
+        size_t at = sizeof(m3Pos3) * (size_t)(s.soft * M3_MAX_SOFTBODY_PARTICLES + i);
         PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, at), M3_POSITION_LIMIT - 1024.0);
         PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, at), M3_POSITION_LIMIT - 1.0e4);
     }
     // The wind stills, so nothing slows the particles but the speed cap.
     PutF32(At(&s, snap, F(windSpeed), sizeof(float), which_world, 0), 0.0f);
     // A lone particle, free of any constraint, at the world's speed cap.
-    size_t dot = sizeof(m3Pos3) * (size_t)(s.dot * M3_SOFTBODY_MAX_PARTICLES);
+    size_t dot = sizeof(m3Pos3) * (size_t)(s.dot * M3_MAX_SOFTBODY_PARTICLES);
     PutF64(At(&s, snap, F(softBodies.softPos), 1, which_world, dot), M3_POSITION_LIMIT - 1024.0);
     PutF64(At(&s, snap, F(softBodies.softPrev), 1, which_world, dot), M3_POSITION_LIMIT - 1.0e4);
     // The lattice lets go of the crate, so it moves as a whole.
@@ -667,11 +667,11 @@ static void TestStepHoldsWithinTheLimit(void)
     bool within = true;
     for (int32_t i = 0; i < particles; ++i)
     {
-        within = within && world->softBodies.softPos[s.soft * M3_SOFTBODY_MAX_PARTICLES + i].x <=
+        within = within && world->softBodies.softPos[s.soft * M3_MAX_SOFTBODY_PARTICLES + i].x <=
                                M3_POSITION_LIMIT;
     }
     CHECK(within, "every lattice particle stays within it");
-    double dotX = world->softBodies.softPos[s.dot * M3_SOFTBODY_MAX_PARTICLES].x;
+    double dotX = world->softBodies.softPos[s.dot * M3_MAX_SOFTBODY_PARTICLES].x;
     CHECK(dotX <= M3_POSITION_LIMIT && dotX > M3_POSITION_LIMIT - 1.0e3,
           "and the lone particle is held on it");
 
@@ -727,7 +727,8 @@ static void TestTargetReach(void)
         return;
     }
     uint64_t hash = m3World_Hash(world);
-    const double reach[2] = {M3_SERVO_REACH, nextafter(M3_SERVO_REACH, 2.0 * M3_SERVO_REACH)};
+    const double reach[2] = {M3_SERVO_REACH_LIMIT,
+                             nextafter(M3_SERVO_REACH_LIMIT, 2.0 * M3_SERVO_REACH_LIMIT)};
     bool restored[2];
     for (int32_t k = 0; k < 2; ++k)
     {
@@ -782,7 +783,7 @@ static void TestBodyMassLimit(void)
     memcpy(snap + HEADER_BYTES + at + sizeof(m3ShapeGeom) * (size_t)(ball.index1 - 1) +
                offsetof(m3ShapeGeom, s),
            &grown, sizeof(grown));
-    CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid,
+    CHECK(m3World_Restore(world, snap, size) == m3_errorFormat,
           "the sphere grown past the mass limit is refused");
     CHECK(m3World_Hash(world) == hash, "and the world is left as it was");
     free(snap);

@@ -53,8 +53,8 @@ bool m3ReplayCreateMeshShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (record.vertexCount < 3 || record.vertexCount > M3_MESH_MAX_VERTS ||
-        record.triangleCount < 1 || record.triangleCount > M3_MESH_MAX_TRIS)
+    if (record.vertexCount < 3 || record.vertexCount > M3_MAX_MESH_VERTICES ||
+        record.triangleCount < 1 || record.triangleCount > M3_MAX_MESH_TRIANGLES)
     {
         return false;
     }
@@ -112,7 +112,7 @@ bool m3ReplayCreateHullShape(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t bodyIndex = m3BodySlot(world, record.body);
-    if (bodyIndex < 0 || !m3HullCloudValid(record.points, record.count))
+    if (bodyIndex < 0 || m3HullCloudCheck(record.points, record.count) != m3_success)
     {
         return false;
     }
@@ -307,7 +307,7 @@ bool m3ReplayShapeScalar(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3ShapeScalarValid(op, record.value))
+    if (slot < 0 || m3ShapeScalarCheck(op, record.value) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -360,7 +360,7 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     m3NormalizeShapeDefBools(&head.def);
     int32_t bodyIndex = m3BodySlot(world, head.body);
     if (bodyIndex < 0 || world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || head.nx < 2 ||
-        head.nx > M3_HEIGHTFIELD_MAX_DIM || head.nz < 2 || head.nz > M3_HEIGHTFIELD_MAX_DIM ||
+        head.nx > M3_MAX_HEIGHTFIELD_SIZE || head.nz < 2 || head.nz > M3_MAX_HEIGHTFIELD_SIZE ||
         bytes != (int32_t)sizeof(head) + head.nx * head.nz * (int32_t)sizeof(float))
     {
         return false; // hostile grid bytes fail loudly
@@ -370,7 +370,8 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     const uint8_t* sampleBytes = (const uint8_t*)payload + sizeof(head);
     float mn;
     float mx;
-    if (!m3HeightFieldSamplesValid(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx) ||
+    if (m3HeightFieldSamplesCheck(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx) !=
+            m3_success ||
         !m3SnapshotTakesHeightField(world, head.nx, head.nz))
     {
         return false;
@@ -472,7 +473,7 @@ bool m3ReplaySetSurfaceVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0 || !m3SurfaceVelocityValid(record.v))
+    if (slot < 0 || m3SurfaceVelocityCheck(record.v) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }

@@ -50,7 +50,8 @@ namespace Maul3D
     public enum Result : int
     {
         Success = 0, ErrorInvalid = -1, ErrorCapacity = -2, ErrorStale = -3,
-        ErrorUnsupported = -4, ErrorState = -6, ErrorVersion = -7
+        ErrorUnsupported = -4, ErrorState = -6, ErrorVersion = -7,
+        ErrorFormat = -8, ErrorLimit = -9, ErrorBusy = -10
     }
 
     [StructLayout(LayoutKind.Sequential)]

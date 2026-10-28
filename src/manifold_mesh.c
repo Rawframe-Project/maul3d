@@ -407,7 +407,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     m3Transform xfM = m3ShapeWorldTransform(world, meshShape);
     MeshProbe probe = MakeMeshProbe(world, &xfM, otherShape);
     m3real reach = probe.radius + M3_SPECULATIVE_DISTANCE;
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount = mesh->triangleCount;
     if (bvh != NULL)
     {
@@ -740,7 +740,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
         }
     }
 
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     m3Vec3 qlo = {boundLo.x - reach, boundLo.y - reach, boundLo.z - reach};
     m3Vec3 qhi = {boundHi.x + reach, boundHi.y + reach, boundHi.z + reach};
     int32_t gatherCount = m3MeshBvhGather(&surface->bvh, qlo, qhi, gather, M3_COUNT_OF(gather));

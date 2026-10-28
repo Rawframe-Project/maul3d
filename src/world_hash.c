@@ -264,7 +264,7 @@ static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
     int32_t ec = world->softBodies.softEdgeCount[i];
     for (int32_t e = 0; e < ec; ++e)
     {
-        int32_t k = i * M3_SOFTBODY_MAX_EDGES + e;
+        int32_t k = i * M3_MAX_SOFTBODY_EDGES + e;
         h = m3Hash64(h, &world->softBodies.softEdgeA[k], 2);
         h = m3Hash64(h, &world->softBodies.softEdgeB[k], 2);
         h = m3Hash64(h, &world->softBodies.softEdgeRest[k], 4);
@@ -272,7 +272,7 @@ static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
     int32_t ac = world->softBodies.softAnchorCount[i];
     for (int32_t a = 0; a < ac; ++a)
     {
-        int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
+        int32_t k = i * M3_MAX_SOFTBODY_ANCHORS + a;
         h = m3Hash64(h, &world->softBodies.softAnchorParticle[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorBody[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 4);
@@ -282,7 +282,7 @@ static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
     int32_t sc = world->softBodies.softSoftCount[i];
     for (int32_t a = 0; a < sc; ++a)
     {
-        int32_t k = i * M3_SOFTBODY_MAX_ANCHORS + a;
+        int32_t k = i * M3_MAX_SOFTBODY_ANCHORS + a;
         h = m3Hash64(h, &world->softBodies.softSoftParticleA[k], 4);
         h = m3Hash64(h, &world->softBodies.softSoftSlotB[k], 4);
         h = m3Hash64(h, &world->softBodies.softSoftGenB[k], 2);
@@ -321,14 +321,14 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
             // The tether folds off-default, its own block;
             // bind positions join only then (dead weight otherwise).
             h = m3Hash64(h, &world->softBodies.softMaxDeviation[i], 4);
-            h = m3Hash64(h, &world->softBodies.softBindPos[i * M3_SOFTBODY_MAX_PARTICLES],
+            h = m3Hash64(h, &world->softBodies.softBindPos[i * M3_MAX_SOFTBODY_PARTICLES],
                          world->softBodies.softParticleCount[i] * (int32_t)sizeof(m3Pos3));
         }
         if (world->softBodies.softTetCount[i] > 0)
         {
             // Tets fold off-default, their own block.
             h = m3Hash64(h, &world->softBodies.softTetCount[i], 4);
-            int32_t tbase = i * M3_SOFTBODY_MAX_TETS;
+            int32_t tbase = i * M3_MAX_SOFTBODY_TETS;
             h = m3Hash64(h, &world->softBodies.softTetA[tbase],
                          2 * world->softBodies.softTetCount[i]);
             h = m3Hash64(h, &world->softBodies.softTetB[tbase],
@@ -345,7 +345,7 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
         int32_t pc = world->softBodies.softParticleCount[i];
         for (int32_t p = 0; p < pc; ++p)
         {
-            int32_t k = i * M3_SOFTBODY_MAX_PARTICLES + p;
+            int32_t k = i * M3_MAX_SOFTBODY_PARTICLES + p;
             h = m3Hash64(h, &world->softBodies.softPos[k], (int32_t)sizeof(m3Pos3));
             h = m3Hash64(h, &world->softBodies.softPrev[k], (int32_t)sizeof(m3Pos3));
             h = m3Hash64(h, &world->softBodies.softInvMass[k], 4);
@@ -368,13 +368,13 @@ static uint64_t HashDrivetrain(const m3World* world, uint64_t h, int32_t i)
     h = m3Hash64(h, &world->vehicles.vehDtCurveCount[i], 4);
     for (int32_t c = 0; c < world->vehicles.vehDtCurveCount[i]; ++c)
     {
-        h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_DRIVETRAIN_MAX_CURVE + c], 4);
-        h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_DRIVETRAIN_MAX_CURVE + c], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_MAX_DRIVETRAIN_CURVE + c], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_MAX_DRIVETRAIN_CURVE + c], 4);
     }
     h = m3Hash64(h, &world->vehicles.vehDtGearCount[i], 4);
     for (int32_t g = 0; g < world->vehicles.vehDtGearCount[i]; ++g)
     {
-        h = m3Hash64(h, &world->vehicles.vehDtGearRatio[i * M3_DRIVETRAIN_MAX_GEARS + g], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtGearRatio[i * M3_MAX_DRIVETRAIN_GEARS + g], 4);
     }
     h = m3Hash64(h, &world->vehicles.vehDtReverse[i], 4);
     h = m3Hash64(h, &world->vehicles.vehDtFinal[i], 4);
@@ -386,7 +386,7 @@ static uint64_t HashDrivetrain(const m3World* world, uint64_t h, int32_t i)
         h = m3Hash64(h, &world->vehicles.vehDtDiffCouple[i], 4);
         for (int32_t wq = 0; wq < world->vehicles.vehWheelCount[i]; ++wq)
         {
-            h = m3Hash64(h, &world->vehicles.vehWheelLon[i * M3_VEHICLE_MAX_WHEELS + wq], 4);
+            h = m3Hash64(h, &world->vehicles.vehWheelLon[i * M3_MAX_VEHICLE_WHEELS + wq], 4);
         }
     }
     h = m3Hash64(h, &world->vehicles.vehDtShiftUp[i], 4);
@@ -431,7 +431,7 @@ static uint64_t HashVehicles(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->vehicles.vehBrake[i], 4);
         for (int32_t w = 0; w < world->vehicles.vehWheelCount[i]; ++w)
         {
-            int32_t k = i * M3_VEHICLE_MAX_WHEELS + w;
+            int32_t k = i * M3_MAX_VEHICLE_WHEELS + w;
             h = m3Hash64(h, &world->vehicles.vehWheelAnchor[k], (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->vehicles.vehWheelDir[k], (int32_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->vehicles.vehWheelRest[k], 4);

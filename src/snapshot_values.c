@@ -53,7 +53,7 @@ static bool ShapeGeomValid(const m3Incoming* inc)
         m3ShapeGeom geom;
         memcpy(&geom, geoms + (size_t)s * sizeof(m3ShapeGeom), sizeof(geom));
         uint8_t type = types[s];
-        if (!m3ShapeGeomValid(type, &geom))
+        if (m3ShapeGeomCheck(type, &geom) != m3_success)
         {
             return false;
         }
@@ -213,7 +213,7 @@ static bool VehiclesValid(const m3Incoming* inc)
         }
         for (int32_t w = 0; w < wheels; ++w)
         {
-            if ((wheelFlags[v * M3_VEHICLE_MAX_WHEELS + w] & ~3u) != 0)
+            if ((wheelFlags[v * M3_MAX_VEHICLE_WHEELS + w] & ~3u) != 0)
             {
                 return false;
             }
@@ -318,7 +318,7 @@ static bool SoftShapeValid(const SoftFields* f, int32_t s)
     }
     for (int32_t e = 0; e < edges; ++e)
     {
-        int32_t k = s * M3_SOFTBODY_MAX_EDGES + e;
+        int32_t k = s * M3_MAX_SOFTBODY_EDGES + e;
         if (m3InU16(f->edgeEnds[0], k) >= count || m3InU16(f->edgeEnds[1], k) >= count)
         {
             return false;
@@ -328,7 +328,7 @@ static bool SoftShapeValid(const SoftFields* f, int32_t s)
     {
         for (int32_t c = 0; c < 4; ++c)
         {
-            if (m3InU16(f->tetCorners[c], s * M3_SOFTBODY_MAX_TETS + t) >= count)
+            if (m3InU16(f->tetCorners[c], s * M3_MAX_SOFTBODY_TETS + t) >= count)
             {
                 return false;
             }
@@ -345,7 +345,7 @@ static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
     int32_t count = m3InI32(f->particles, s);
     for (int32_t a = 0; a < m3InI32(f->anchorCount, s); ++a)
     {
-        int32_t particle = m3InI32(f->anchorParticle, s * M3_SOFTBODY_MAX_ANCHORS + a);
+        int32_t particle = m3InI32(f->anchorParticle, s * M3_MAX_SOFTBODY_ANCHORS + a);
         if (particle < 0 || particle >= count)
         {
             return false;
@@ -353,7 +353,7 @@ static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
     }
     for (int32_t a = 0; a < m3InI32(f->softCount, s); ++a)
     {
-        int32_t k = s * M3_SOFTBODY_MAX_ANCHORS + a;
+        int32_t k = s * M3_MAX_SOFTBODY_ANCHORS + a;
         int32_t other = m3InI32(f->slotB, k);
         int32_t pa = m3InI32(f->particleA, k);
         int32_t pb = m3InI32(f->particleB, k);

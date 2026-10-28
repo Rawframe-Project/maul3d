@@ -36,23 +36,24 @@ m3BodyDef m3DefaultBodyDef(void)
 
 int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
 {
-    // Input checks live here because replay hands this function raw
-    // journal bytes: nothing non-finite reaches state, a
-    // rotation far from unit is a corrupted def, and a type byte
-    // outside the enum must never mint a body.
+    // Input checks live here because replay hands this function raw journal
+    // bytes: nothing non-finite reaches state, a rotation far from unit is
+    // a corrupted def, and a type byte outside the enum never mints a body.
     m3real qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
                 def->rotation.z * def->rotation.z + def->rotation.w * def->rotation.w;
-    if ((def->type != m3_staticBody && def->type != m3_kinematicBody &&
-         def->type != m3_dynamicBody) ||
-        !m3BoundedPos3(def->position) || !m3FiniteQuat(def->rotation) ||
-        !m3BodyVelocityValid((uint8_t)def->type, def->linearVelocity) ||
-        !m3BodySpinValid(def->angularVelocity) ||
-        !m3BodyParamValid(m3_bodyParamGravityScale, def->gravityScale) ||
-        !m3FiniteF(def->linearDamping) || !m3FiniteF(def->angularDamping) ||
-        def->linearDamping < 0.0f || def->angularDamping < 0.0f || !(qq > 0.98f) || !(qq < 1.02f) ||
-        !m3FiniteF(def->sleepThreshold) || def->sleepThreshold < 0.0f)
+    m3Result result = m3CheckValid((def->type == m3_staticBody || def->type == m3_kinematicBody ||
+                                    def->type == m3_dynamicBody) &&
+                                   m3FiniteQuat(def->rotation) && m3FiniteF(def->linearDamping) &&
+                                   m3FiniteF(def->angularDamping) && def->linearDamping >= 0.0f &&
+                                   def->angularDamping >= 0.0f && qq > 0.98f && qq < 1.02f &&
+                                   m3SleepThresholdValid(def->sleepThreshold));
+    result = m3BothChecks(result, m3CheckPosition(def->position));
+    result = m3BothChecks(result, m3BodyVelocityCheck((uint8_t)def->type, def->linearVelocity));
+    result = m3BothChecks(result, m3BodySpinCheck(def->angularVelocity));
+    result = m3BothChecks(result, m3BodyParamCheck(m3_bodyParamGravityScale, def->gravityScale));
+    if (result != m3_success)
     {
-        return M3_CREATE_INVALID;
+        return (int32_t)result;
     }
     int32_t index = m3IdPoolAlloc(&world->bodies.bodyPool);
     if (index < 0)
@@ -173,7 +174,7 @@ bool m3PoseValid(m3Transform pose)
 }
 
 // A servo target lands in one step at the distance over dt, so it must lie
-// within M3_SERVO_REACH of where the kinematic body is now: over the
+// within M3_SERVO_REACH_LIMIT of where the kinematic body is now: over the
 // shortest step that is M3_KINEMATIC_SPEED_LIMIT. Its turn, at most 2 / dt,
 // stays within M3_SPEED_LIMIT.
 bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose)
@@ -190,7 +191,7 @@ bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose)
     double dx = pose.p.x - now.x;
     double dy = pose.p.y - now.y;
     double dz = pose.p.z - now.z;
-    double limit = (double)M3_SERVO_REACH;
+    double limit = (double)M3_SERVO_REACH_LIMIT;
     return dx * dx + dy * dy + dz * dz <= limit * limit;
 }
 
@@ -225,7 +226,8 @@ bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type)
     {
         return false;
     }
-    return m3BodyVelocityValid((uint8_t)type, world->bodies.linearVelocities[index]);
+    return (m3BodyVelocityCheck((uint8_t)type, world->bodies.linearVelocities[index]) ==
+            m3_success);
 }
 
 bool m3SleepThresholdValid(float threshold)
@@ -233,13 +235,13 @@ bool m3SleepThresholdValid(float threshold)
     return m3FiniteF(threshold) && threshold >= 0.0f;
 }
 
-bool m3BodyParamValid(int32_t param, float value)
+m3Result m3BodyParamCheck(int32_t param, float value)
 {
     if (param == m3_bodyParamGravityScale)
     {
-        return m3WithinF(value, M3_RATIO_LIMIT);
+        return m3CheckWithin(value, M3_RATIO_LIMIT);
     }
-    return value >= 0.0f && m3FiniteF(value); // damping
+    return m3CheckValid(value >= 0.0f && m3FiniteF(value)); // damping
 }
 
 // Runtime control internals: replay and the wrappers share
@@ -387,7 +389,7 @@ static M3_NOINLINE m3Result CreateBodyWorker(m3World* world, const m3BodyDef* de
     *bodyOut = m3_nullBodyId;
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || def == NULL || def->internalValue != M3_BODY_COOKIE)
     {
@@ -426,7 +428,7 @@ static M3_NOINLINE m3Result DestroyBodyWorker(m3World* world, m3BodyId body)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t index = m3BodySlot(world, body);
     if (index < 0)
@@ -539,7 +541,7 @@ static M3_NOINLINE void BodySetTransformWorker(m3World* world, m3BodyId body, m3
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -576,7 +578,7 @@ static M3_NOINLINE void BodySetTargetTransformWorker(m3World* world, m3BodyId bo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -612,7 +614,7 @@ static M3_NOINLINE void BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyT
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -665,7 +667,7 @@ static M3_NOINLINE void BodyEnableWorker(m3World* world, m3BodyId body)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     SetEnabled(world, body, true);
@@ -682,7 +684,7 @@ static M3_NOINLINE void BodyDisableWorker(m3World* world, m3BodyId body)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     SetEnabled(world, body, false);
@@ -712,7 +714,7 @@ static M3_NOINLINE void BodySetMotionLocksWorker(m3World* world, m3BodyId body, 
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -765,7 +767,7 @@ static M3_NOINLINE void BodyEnableFastRotationWorker(m3World* world, m3BodyId bo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -817,7 +819,7 @@ void m3Body_SetName(m3World* world, m3BodyId body, const char* name)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -870,7 +872,7 @@ static M3_NOINLINE void BodyEnableSleepWorker(m3World* world, m3BodyId body, boo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -898,7 +900,7 @@ static M3_NOINLINE void BodySetSleepThresholdWorker(m3World* world, m3BodyId bod
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -945,7 +947,7 @@ static M3_NOINLINE void BodySetAwakeWorker(m3World* world, m3BodyId body, bool a
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;
@@ -980,7 +982,7 @@ void m3Body_SetUserData(m3World* world, m3BodyId body, uint64_t userData)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t index;

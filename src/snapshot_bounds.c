@@ -54,16 +54,16 @@ static bool WorldValid(const m3Incoming* inc)
 {
     m3Vec3 gravity = InV3(M3_IN(gravity), 0);
     m3Vec3 windDir = InV3(M3_IN(windDir), 0);
-    return m3GravityValid(gravity) &&
-           m3ContactTuningValid(m3InF32(M3_IN(contactHertz), 0),
-                                m3InF32(M3_IN(contactDampingRatio), 0),
-                                m3InF32(M3_IN(contactPushMaxSpeed), 0)) &&
+    return (m3GravityCheck(gravity) == m3_success) &&
+           (m3ContactTuningCheck(m3InF32(M3_IN(contactHertz), 0),
+                                 m3InF32(M3_IN(contactDampingRatio), 0),
+                                 m3InF32(M3_IN(contactPushMaxSpeed), 0)) == m3_success) &&
            m3InF32(M3_IN(restitutionThreshold), 0) >= 0.0f &&
-           m3SpeedCapValid(m3InF32(M3_IN(maximumLinearSpeed), 0)) &&
-           m3SpeedCapValid(m3InF32(M3_IN(maximumAngularSpeed), 0)) &&
+           (m3SpeedCapCheck(m3InF32(M3_IN(maximumLinearSpeed), 0)) == m3_success) &&
+           (m3SpeedCapCheck(m3InF32(M3_IN(maximumAngularSpeed), 0)) == m3_success) &&
            m3InF32(M3_IN(hitEventThreshold), 0) >= 0.0f &&
-           m3WindValid(windDir, m3InF32(M3_IN(windSpeed), 0), m3InF32(M3_IN(windGustHertz), 0),
-                       m3InF32(M3_IN(windGustScale), 0)) &&
+           (m3WindCheck(windDir, m3InF32(M3_IN(windSpeed), 0), m3InF32(M3_IN(windGustHertz), 0),
+                        m3InF32(M3_IN(windGustScale), 0)) == m3_success) &&
            m3WithinF(m3InF32(M3_IN(windPhase), 0), 4.0f * M3_PI);
 }
 
@@ -97,11 +97,13 @@ static bool BodiesValid(const m3Incoming* inc)
         }
         m3Transform pose;
         memcpy(&pose, poses + sizeof(m3Transform) * (size_t)b, sizeof(pose));
-        if (!m3BoundedPos3(pose.p) || !m3BodyVelocityValid(types[b], InV3(linear, b)) ||
-            !m3BodySpinValid(InV3(angular, b)) ||
-            !m3BodyParamValid(m3_bodyParamGravityScale, m3InF32(gravityScales, b)) ||
-            !m3BodyParamValid(m3_bodyParamLinearDamping, m3InF32(linearDamping, b)) ||
-            !m3BodyParamValid(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) ||
+        if (!m3BoundedPos3(pose.p) ||
+            m3BodyVelocityCheck(types[b], InV3(linear, b)) != m3_success ||
+            m3BodySpinCheck(InV3(angular, b)) != m3_success ||
+            m3BodyParamCheck(m3_bodyParamGravityScale, m3InF32(gravityScales, b)) != m3_success ||
+            m3BodyParamCheck(m3_bodyParamLinearDamping, m3InF32(linearDamping, b)) != m3_success ||
+            m3BodyParamCheck(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) !=
+                m3_success ||
             !m3WithinV3(InV3(forces, b), M3_FORCE_LIMIT) ||
             !m3WithinV3(InV3(torques, b), M3_FORCE_LIMIT) || m3InF32(sleepThresholds, b) < 0.0f ||
             m3InF32(sleepTimes, b) < 0.0f)
@@ -135,10 +137,11 @@ static bool ShapesValid(const m3Incoming* inc)
     {
         if (alive[s] != 0 &&
             (!m3DensityF(m3InF32(density, s)) ||
-             !m3ShapeScalarValid(m3_opSetShapeFriction, m3InF32(friction, s)) ||
-             !m3ShapeScalarValid(m3_opSetShapeRestitution, m3InF32(restitution, s)) ||
-             !m3ShapeScalarValid(m3_opSetShapeRolling, m3InF32(rolling, s)) ||
-             !m3SurfaceVelocityValid(InV3(surface, s)) || !m3LocalV3(InV3(offsets, s))))
+             m3ShapeScalarCheck(m3_opSetShapeFriction, m3InF32(friction, s)) != m3_success ||
+             m3ShapeScalarCheck(m3_opSetShapeRestitution, m3InF32(restitution, s)) != m3_success ||
+             m3ShapeScalarCheck(m3_opSetShapeRolling, m3InF32(rolling, s)) != m3_success ||
+             m3SurfaceVelocityCheck(InV3(surface, s)) != m3_success ||
+             !m3LocalV3(InV3(offsets, s))))
         {
             return false;
         }
@@ -183,9 +186,10 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     }
     if (type == (uint8_t)m3_motorJoint)
     {
-        return m3JointLimitsValid(type, limits.x, limits.y); // the motor slot holds the aim
+        return (m3JointLimitsCheck(type, limits.x, limits.y) ==
+                m3_success); // the motor slot holds the aim
     }
-    if (!m3JointMotorValid(type, (flags & M3_JOINT_MOTOR) != 0, motor.x, motor.y))
+    if (m3JointMotorCheck(type, (flags & M3_JOINT_MOTOR) != 0, motor.x, motor.y) != m3_success)
     {
         return false;
     }
@@ -289,7 +293,7 @@ static bool CharactersValid(const m3Incoming* inc)
         if (alive[c] != 0 &&
             (!(m3InF32(radius, c) > 0.0f && m3LocalF(m3InF32(radius, c))) ||
              !InRange(m3InF32(halfHeight, c), 0.0f, M3_LOCAL_LIMIT) ||
-             !InRange(m3InF32(mass, c), M3_MASS_FLOOR, M3_MASS_LIMIT) ||
+             !InRange(m3InF32(mass, c), M3_MIN_MASS, M3_MASS_LIMIT) ||
              !InRange(m3InF32(pushMax, c), 0.0f, M3_RATIO_LIMIT) ||
              !InRange(m3InF32(cosSlope, c), 0.0f, 1.0f) || !(m3Dot3(n, n) <= 1.01f)))
         {
@@ -322,7 +326,7 @@ static bool WheelsValid(const VehicleFields* f, int32_t v)
 {
     for (int32_t w = 0; w < m3InI32(f->wheelCount, v); ++w)
     {
-        int32_t k = v * M3_VEHICLE_MAX_WHEELS + w;
+        int32_t k = v * M3_MAX_VEHICLE_WHEELS + w;
         m3WheelDef wheel;
         memset(&wheel, 0, sizeof(wheel));
         wheel.anchor = InV3(f->anchor, k);
@@ -333,7 +337,7 @@ static bool WheelsValid(const VehicleFields* f, int32_t v)
         wheel.zeta = m3InF32(f->zeta, k);
         wheel.radius = m3InF32(f->radius, k);
         wheel.brakeShare = m3InF32(f->brakeShare, k);
-        if (!m3WheelDefValid(&wheel) ||
+        if (m3WheelDefCheck(&wheel) != m3_success ||
             !InRange(m3InF32(f->compression, k), 0.0f, wheel.restLength) ||
             !m3WithinF(m3InF32(f->lon, k), 2.0f * M3_KINEMATIC_SPEED_LIMIT))
         {
@@ -353,16 +357,16 @@ static bool DrivetrainValid(const m3Incoming* inc, int32_t v)
     m3DrivetrainDef def;
     memset(&def, 0, sizeof(def));
     def.curveCount = m3InI32(M3_IN(vehicles.vehDtCurveCount), v);
-    for (int32_t c = 0; c < M3_DRIVETRAIN_MAX_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
     {
-        def.curveRpm[c] = m3InF32(M3_IN(vehicles.vehDtCurveRpm), v * M3_DRIVETRAIN_MAX_CURVE + c);
+        def.curveRpm[c] = m3InF32(M3_IN(vehicles.vehDtCurveRpm), v * M3_MAX_DRIVETRAIN_CURVE + c);
         def.curveTorque[c] =
-            m3InF32(M3_IN(vehicles.vehDtCurveTorque), v * M3_DRIVETRAIN_MAX_CURVE + c);
+            m3InF32(M3_IN(vehicles.vehDtCurveTorque), v * M3_MAX_DRIVETRAIN_CURVE + c);
     }
     def.gearCount = m3InI32(M3_IN(vehicles.vehDtGearCount), v);
-    for (int32_t g = 0; g < M3_DRIVETRAIN_MAX_GEARS; ++g)
+    for (int32_t g = 0; g < M3_MAX_DRIVETRAIN_GEARS; ++g)
     {
-        def.gearRatio[g] = m3InF32(M3_IN(vehicles.vehDtGearRatio), v * M3_DRIVETRAIN_MAX_GEARS + g);
+        def.gearRatio[g] = m3InF32(M3_IN(vehicles.vehDtGearRatio), v * M3_MAX_DRIVETRAIN_GEARS + g);
     }
     def.reverseRatio = m3InF32(M3_IN(vehicles.vehDtReverse), v);
     def.finalDrive = m3InF32(M3_IN(vehicles.vehDtFinal), v);
@@ -422,14 +426,14 @@ static bool SoftRestValid(const m3Incoming* inc, int32_t s)
     }
     for (int32_t e = 0; e < m3InI32(M3_IN(softBodies.softEdgeCount), s); ++e)
     {
-        if (!InRange(m3InF32(edgeRest, s * M3_SOFTBODY_MAX_EDGES + e), 0.0f, M3_SOFT_EDGE_LIMIT))
+        if (!InRange(m3InF32(edgeRest, s * M3_MAX_SOFTBODY_EDGES + e), 0.0f, M3_SOFT_EDGE_LIMIT))
         {
             return false;
         }
     }
     for (int32_t t = 0; t < m3InI32(M3_IN(softBodies.softTetCount), s); ++t)
     {
-        if (!m3WithinF(m3InF32(tetRest, s * M3_SOFTBODY_MAX_TETS + t), M3_SOFT_TET_LIMIT))
+        if (!m3WithinF(m3InF32(tetRest, s * M3_MAX_SOFTBODY_TETS + t), M3_SOFT_TET_LIMIT))
         {
             return false;
         }
@@ -466,18 +470,18 @@ static bool SoftBodiesValid(const m3Incoming* inc)
             m3InF32(M3_IN(softBodies.softCompliance), s) < 0.0f ||
             m3InF32(M3_IN(softBodies.softBendCompliance), s) < 0.0f ||
             m3InF32(M3_IN(softBodies.softMaxDeviation), s) < 0.0f ||
-            m3InF32(M3_IN(softBodies.softPressure), s) > M3_SOFTBODY_MAX_PRESSURE ||
+            m3InF32(M3_IN(softBodies.softPressure), s) > M3_SOFTBODY_PRESSURE_LIMIT ||
             !SoftRestValid(inc, s))
         {
             return false;
         }
         for (int32_t i = 0; i < m3InI32(counts, s); ++i)
         {
-            int32_t k = s * M3_SOFTBODY_MAX_PARTICLES + i;
+            int32_t k = s * M3_MAX_SOFTBODY_PARTICLES + i;
             float w = m3InF32(invMass, k);
             if (!m3BoundedPos3(InPos(positions, k)) || !m3BoundedPos3(InPos(previous, k)) ||
                 !m3BoundedPos3(InPos(binds, k)) ||
-                (w != 0.0f && !InRange(w, 1.0f / M3_MASS_LIMIT, 1.0f / M3_MASS_FLOOR)) ||
+                (w != 0.0f && !InRange(w, 1.0f / M3_MASS_LIMIT, 1.0f / M3_MIN_MASS)) ||
                 !m3WithinV3(InV3(kicks, k), M3_SPEED_LIMIT))
             {
                 return false;
@@ -485,7 +489,7 @@ static bool SoftBodiesValid(const m3Incoming* inc)
         }
         for (int32_t a = 0; a < m3InI32(anchorCount, s); ++a)
         {
-            if (!m3LocalV3(InV3(anchorLocal, s * M3_SOFTBODY_MAX_ANCHORS + a)))
+            if (!m3LocalV3(InV3(anchorLocal, s * M3_MAX_SOFTBODY_ANCHORS + a)))
             {
                 return false;
             }

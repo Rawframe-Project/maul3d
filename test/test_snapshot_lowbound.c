@@ -25,7 +25,7 @@ _Static_assert(M3_SNAPSHOT_BOUND < M3_MAX_SNAPSHOT_BYTES,
 
 enum
 {
-    SIDE = M3_HEIGHTFIELD_MAX_DIM,
+    SIDE = M3_MAX_HEIGHTFIELD_SIZE,
     TAPE_BYTES = 1 << 20
 };
 
@@ -217,7 +217,7 @@ static void TestRestorePastTheBound(void)
     grown = ResizeGrid(world, snap, size, 3, 129, 1.0f / 64.0f, &grownSize);
     CHECK(grownSize > M3_SNAPSHOT_BOUND, "the grown snapshot passes the bound");
     uint64_t hash = m3World_Hash(world);
-    CHECK(grown != NULL && m3World_Restore(world, grown, grownSize) == m3_errorInvalid,
+    CHECK(grown != NULL && m3World_Restore(world, grown, grownSize) == m3_errorFormat,
           "a snapshot past the bound is refused");
     CHECK(m3World_Hash(world) == hash && m3World_SnapshotSize(world) == size,
           "with the world as it was");
@@ -255,7 +255,7 @@ static void TestReplayPastTheBound(void)
           "the tape replays on another twin");
 
     uint64_t hash = m3World_Hash(full);
-    CHECK(m3World_ReplayJournal(full, tape, tapeBytes) == m3_errorInvalid,
+    CHECK(m3World_ReplayJournal(full, tape, tapeBytes) == m3_errorFormat,
           "a replayed grid that would carry the snapshot past the bound is refused");
     CHECK(m3World_Hash(full) == hash && m3World_SnapshotSize(full) == size,
           "and the world backs out to the state it had");

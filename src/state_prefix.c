@@ -26,13 +26,13 @@ m3Result m3CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uin
 {
     if (bytes == NULL || size < (int32_t)sizeof(m3StatePrefix))
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     m3StatePrefix prefix;
     memcpy(&prefix, bytes, sizeof(prefix));
     if (prefix.magic != magic)
     {
-        return m3_errorInvalid; // not this format
+        return m3_errorFormat; // not this format
     }
     if (prefix.abiVersion != M3_ABI_VERSION || prefix.formatVersion != formatVersion)
     {
@@ -40,7 +40,7 @@ m3Result m3CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uin
     }
     if (prefix.headerBytes != (uint32_t)headerBytes || size < headerBytes)
     {
-        return m3_errorInvalid;
+        return m3_errorFormat;
     }
     return m3_success;
 }

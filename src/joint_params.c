@@ -203,7 +203,7 @@ static M3_NOINLINE void JointSetLimitsWorker(m3World* world, m3JointId joint, bo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -211,7 +211,7 @@ static M3_NOINLINE void JointSetLimitsWorker(m3World* world, m3JointId joint, bo
     {
         return;
     }
-    if (!m3JointLimitsValid(world->joints.jointType[slot], lower, upper))
+    if (m3JointLimitsCheck(world->joints.jointType[slot], lower, upper) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -242,7 +242,7 @@ static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, boo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -316,7 +316,7 @@ static M3_NOINLINE void JointSetMotorPoseWorker(m3World* world, m3JointId joint,
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -353,7 +353,7 @@ static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, boo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -361,7 +361,8 @@ static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, boo
     {
         return;
     }
-    if (!m3JointMotorValid(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort))
+    if (m3JointMotorCheck(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort) !=
+        m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -391,7 +392,7 @@ static M3_NOINLINE void JointSetCollideConnectedWorker(m3World* world, m3JointId
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -428,7 +429,7 @@ static M3_NOINLINE void JointSetBreakThresholdsWorker(m3World* world, m3JointId 
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -600,27 +601,28 @@ static int JointTypeDrives(uint8_t type)
            type == (uint8_t)m3_motorJoint;
 }
 
-bool m3JointMotorValid(int32_t type, int32_t enable, float speed, float maxEffort)
+m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort)
 {
     if (type == m3_distanceJoint) // the spring's hertz and damping ratio
     {
-        return speed >= 0.0f && speed <= M3_HERTZ_LIMIT && (enable == 0 || speed > 0.0f) &&
-               maxEffort >= 0.0f && maxEffort <= M3_RATIO_LIMIT; // false for NaN
+        return m3BothChecks(m3BothChecks(m3CheckNonNegative(speed, M3_HERTZ_LIMIT),
+                                         m3CheckValid(enable == 0 || speed != 0.0f)),
+                            m3CheckNonNegative(maxEffort, M3_RATIO_LIMIT));
     }
-    return m3WithinF(speed, M3_SPEED_LIMIT) && maxEffort >= 0.0f &&
-           maxEffort <= M3_FORCE_LIMIT; // false for NaN
+    return m3BothChecks(m3CheckWithin(speed, M3_SPEED_LIMIT),
+                        m3CheckNonNegative(maxEffort, M3_FORCE_LIMIT));
 }
 
-bool m3JointLimitsValid(int32_t type, float lower, float upper)
+m3Result m3JointLimitsCheck(int32_t type, float lower, float upper)
 {
     if (type == m3_motorJoint)
     {
         // The servo budgets: lower = maxForce, upper = maxTorque,
         // independent allowances rather than a range.
-        return lower >= 0.0f && lower <= M3_FORCE_LIMIT && upper >= 0.0f &&
-               upper <= M3_FORCE_LIMIT; // false for NaN
+        return m3BothChecks(m3CheckNonNegative(lower, M3_FORCE_LIMIT),
+                            m3CheckNonNegative(upper, M3_FORCE_LIMIT));
     }
-    return m3FiniteF(lower) && m3FiniteF(upper) && lower <= upper;
+    return m3CheckValid(m3FiniteF(lower) && m3FiniteF(upper) && lower <= upper);
 }
 
 bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta)
@@ -663,7 +665,7 @@ static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bo
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -734,7 +736,7 @@ static M3_NOINLINE void JointSetTargetAngleWorker(m3World* world, m3JointId join
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -764,7 +766,7 @@ static M3_NOINLINE void JointSetTargetTranslationWorker(m3World* world, m3JointI
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -794,7 +796,7 @@ static M3_NOINLINE void JointSetTargetRotationWorker(m3World* world, m3JointId j
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
