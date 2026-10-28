@@ -4,6 +4,7 @@ allocator: core fpenv
 body: body_state broad_phase fpenv joint journal misuse shape vehicle world_internal
 body_motion: body body_state fpenv journal misuse solver_math world_internal
 body_read: body_state broad_phase fpenv world_internal
+body_sleep: body body_state fpenv journal misuse world_internal
 body_state: broad_phase misuse world_internal
 broad_phase: shape_state world_internal
 character: body fpenv journal misuse query raycast shape solver_math world_internal
