@@ -243,20 +243,19 @@ static void SortWaiting(m3MeshCandidate* waiting, int32_t count)
 // Runs every candidate triangle and welds the result: trusted contacts
 // first, then the waiting ones that survive the claims. Returns how many
 // contacts were accepted.
-static int32_t WeldTriangles(const m3MeshData* mesh, const uint16_t* gather, int32_t gatherCount,
+static int32_t WeldTriangles(const m3MeshData* mesh, const m3MeshBvhHits* gather,
                              const MeshProbe* probe, m3MeshCandidate* accepted)
 {
     m3real reach = probe->radius + M3_SPECULATIVE_DISTANCE;
     m3MeshCandidate waiting[M3_MESH_CANDIDATE_CAP];
     int32_t acceptedCount = 0;
     int32_t waitingCount = 0;
-    for (int32_t g = 0; g < gatherCount; ++g)
+    for (int32_t t = m3MeshBvhFirstHit(gather); t >= 0; t = m3MeshBvhNextHit(gather, t))
     {
         if (acceptedCount >= M3_MESH_CANDIDATE_CAP || waitingCount >= M3_MESH_CANDIDATE_CAP)
         {
             break;
         }
-        int32_t t = gather[g];
         m3Vec3 tri[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                          mesh->vertices[mesh->indices[3 * t + 1]],
                          mesh->vertices[mesh->indices[3 * t + 2]]};
@@ -407,23 +406,19 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
     m3Transform xfM = m3ShapeWorldTransform(world, meshShape);
     MeshProbe probe = MakeMeshProbe(world, &xfM, otherShape);
     m3real reach = probe.radius + M3_SPECULATIVE_DISTANCE;
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount = mesh->triangleCount;
+    m3MeshBvhHits gather;
     if (bvh != NULL)
     {
         m3Vec3 lo = {probe.lo.x - reach, probe.lo.y - reach, probe.lo.z - reach};
         m3Vec3 hi = {probe.hi.x + reach, probe.hi.y + reach, probe.hi.z + reach};
-        gatherCount = m3MeshBvhGather(bvh, lo, hi, gather, M3_COUNT_OF(gather));
+        m3MeshBvhGather(bvh, lo, hi, &gather);
     }
     else
     {
-        for (int32_t t = 0; t < gatherCount; ++t)
-        {
-            gather[t] = (uint16_t)t;
-        }
+        m3MeshBvhHitAll(&gather, mesh->triangleCount);
     }
     m3MeshCandidate accepted[M3_MESH_CANDIDATE_CAP];
-    int32_t count = WeldTriangles(mesh, gather, gatherCount, &probe, accepted);
+    int32_t count = WeldTriangles(mesh, &gather, &probe, accepted);
     if (count > 0)
     {
         EmitMeshManifold(world, fresh, mesh, accepted, count, &xfM, meshShape, otherShape, meshIsA);
@@ -738,17 +733,16 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
         }
     }
 
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
+    m3MeshBvhHits gather;
     m3Vec3 qlo = {boundLo.x - reach, boundLo.y - reach, boundLo.z - reach};
     m3Vec3 qhi = {boundHi.x + reach, boundHi.y + reach, boundHi.z + reach};
-    int32_t gatherCount = m3MeshBvhGather(&surface->bvh, qlo, qhi, gather, M3_COUNT_OF(gather));
+    m3MeshBvhGather(&surface->bvh, qlo, qhi, &gather);
 
     m3Manifold best;
     memset(&best, 0, sizeof(best));
     m3real bestScore = 3.4e38f;
-    for (int32_t g = 0; g < gatherCount; ++g)
+    for (int32_t box = m3MeshBvhFirstHit(&gather); box >= 0; box = m3MeshBvhNextHit(&gather, box))
     {
-        int32_t box = gather[g];
         m3Manifold local;
         memset(&local, 0, sizeof(local));
         // Seam welding: a covered face is interior geometry.

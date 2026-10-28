@@ -319,14 +319,15 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[vslot];
         m3Vec3 qlo = {lp.x - radius, lp.y - radius, lp.z - radius};
         m3Vec3 qhi = {lp.x + radius, lp.y + radius, lp.z + radius};
-        uint16_t boxes[M3_VOXEL_MAX_BOXES];
-        int32_t nb = m3MeshBvhGather(&surface->bvh, qlo, qhi, boxes, M3_COUNT_OF(boxes));
-        nb = nb > SOFT_GATHER_CAP ? SOFT_GATHER_CAP : nb;
-        for (int32_t b = 0; b < nb; ++b)
+        m3MeshBvhHits boxes;
+        m3MeshBvhGather(&surface->bvh, qlo, qhi, &boxes);
+        int32_t taken = 0;
+        for (int32_t box = m3MeshBvhFirstHit(&boxes); box >= 0 && taken < SOFT_GATHER_CAP;
+             box = m3MeshBvhNextHit(&boxes, box), ++taken)
         {
             m3Vec3 blo;
             m3Vec3 bhi;
-            m3VoxelBoxBounds(surface, cell, (int32_t)boxes[b], &blo, &bhi);
+            m3VoxelBoxBounds(surface, cell, box, &blo, &bhi);
             m3Vec3 c = {lp.x < blo.x ? blo.x : (lp.x > bhi.x ? bhi.x : lp.x),
                         lp.y < blo.y ? blo.y : (lp.y > bhi.y ? bhi.y : lp.y),
                         lp.z < blo.z ? blo.z : (lp.z > bhi.z ? bhi.z : lp.z)};
@@ -381,12 +382,12 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         m3Vec3 qlo = {lp.x - radius, lp.y - radius, lp.z - radius};
         m3Vec3 qhi = {lp.x + radius, lp.y + radius, lp.z + radius};
         // The first SOFT_GATHER_CAP triangles in ascending order.
-        uint16_t tris[M3_MAX_MESH_TRIANGLES];
-        int32_t nt = m3MeshBvhGather(bvh, qlo, qhi, tris, M3_COUNT_OF(tris));
-        nt = nt > SOFT_GATHER_CAP ? SOFT_GATHER_CAP : nt;
-        for (int32_t t = 0; t < nt; ++t)
+        m3MeshBvhHits tris;
+        m3MeshBvhGather(bvh, qlo, qhi, &tris);
+        int32_t taken = 0;
+        for (int32_t tri = m3MeshBvhFirstHit(&tris); tri >= 0 && taken < SOFT_GATHER_CAP;
+             tri = m3MeshBvhNextHit(&tris, tri), ++taken)
         {
-            int32_t tri = (int32_t)tris[t];
             m3Vec3 a = mesh->vertices[mesh->indices[3 * tri + 0]];
             m3Vec3 bb2 = mesh->vertices[mesh->indices[3 * tri + 1]];
             m3Vec3 cc = mesh->vertices[mesh->indices[3 * tri + 2]];

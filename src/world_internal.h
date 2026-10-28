@@ -317,23 +317,70 @@ bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 // The element count of an array, for a call that takes a buffer's size.
 #define M3_COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof((array)[0])))
 
-// Gather every triangle in a leaf whose box overlaps [lo, hi], in
-// ascending triangle order (each triangle lives in exactly one leaf,
-// so the list is duplicate-free). The result is a SUPERSET of the
-// exact per-triangle overlaps: every consumer keeps its own exact
-// reject test, so behavior stays bit-identical to the full scan this
-// replaces. It writes at most capacity entries to out. Every caller
-// passes a buffer that holds every entry its tree can return, so none
-// is left out: M3_MAX_MESH_TRIANGLES for a mesh, M3_VOXEL_MAX_BOXES for a
-// voxel surface.
-int32_t m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, uint16_t* out,
-                        int32_t capacity);
+// The items a gather found, one bit per item id below
+// M3_MAX_MESH_TRIANGLES, which every tree's ids are (m3MeshBvhBuildIn
+// asserts it): the bits read in ascending order without a sort. 8 KiB,
+// so a caller keeps one on its stack. Only the words from loWord to
+// hiWord are written; the rest are never read.
+typedef struct m3MeshBvhHits
+{
+    int32_t count;
+    int32_t loWord;
+    int32_t hiWord; // below loWord when nothing was found
+    uint64_t words[(M3_MAX_MESH_TRIANGLES + 63) / 64];
+} m3MeshBvhHits;
+
+// Gather every triangle in a leaf whose box overlaps [lo, hi] (each
+// triangle lives in exactly one leaf, so none is found twice). The
+// result is a SUPERSET of the exact per-triangle overlaps: every
+// consumer keeps its own exact reject test, so behavior stays
+// bit-identical to the full scan this replaces. Read it in ascending
+// order with m3MeshBvhFirstHit and m3MeshBvhNextHit.
+void m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, m3MeshBvhHits* hits);
 // The same for a path: every item in a leaf whose box comes within the
-// path's reach of it up to path->until, in ascending order. A leaf off
-// the path is left out even when the path's box holds it, so a long
-// diagonal gathers a band of the tree, not all of it.
-int32_t m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, uint16_t* out,
-                            int32_t capacity);
+// path's reach of it up to path->until. A leaf off the path is left out
+// even when the path's box holds it, so a long diagonal gathers a band
+// of the tree, not all of it.
+void m3MeshBvhGatherPath(const m3MeshBvh* bvh, const m3SurfacePath* path, m3MeshBvhHits* hits);
+// Every item below count, as a tree-less mesh offers all its triangles.
+void m3MeshBvhHitAll(m3MeshBvhHits* hits, int32_t count);
+
+// The lowest item found at or above item, or -1 when none is.
+static inline int32_t m3MeshBvhHitFrom(const m3MeshBvhHits* hits, int32_t item)
+{
+    int32_t w = item >> 6;
+    uint64_t bits = 0;
+    if (w < hits->loWord)
+    {
+        w = hits->loWord;
+        bits = w <= hits->hiWord ? hits->words[w] : 0;
+    }
+    else if (w <= hits->hiWord)
+    {
+        bits = hits->words[w] & (~(uint64_t)0 << (item & 63));
+    }
+    while (bits == 0)
+    {
+        if (++w > hits->hiWord)
+        {
+            return -1;
+        }
+        bits = hits->words[w];
+    }
+    return (w << 6) + __builtin_ctzll(bits);
+}
+
+// The lowest item found, or -1.
+static inline int32_t m3MeshBvhFirstHit(const m3MeshBvhHits* hits)
+{
+    return m3MeshBvhHitFrom(hits, 0);
+}
+
+// The next item found after item, or -1.
+static inline int32_t m3MeshBvhNextHit(const m3MeshBvhHits* hits, int32_t item)
+{
+    return m3MeshBvhHitFrom(hits, item + 1);
+}
 void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 
 // Generalized build: a BVH over caller-supplied bounds (the mesh

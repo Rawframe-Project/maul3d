@@ -154,13 +154,13 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     m3real cell = world->voxels.voxelData[slot].cellSize;
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t count = m3MeshBvhGatherPath(&surface->bvh, &ss.path, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < count; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGatherPath(&surface->bvh, &ss.path, &gather);
+    for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
     {
         m3Vec3 blo;
         m3Vec3 bhi;
-        m3VoxelBoxBounds(surface, cell, gather[g], &blo, &bhi);
+        m3VoxelBoxBounds(surface, cell, g, &blo, &bhi);
         m3Vec3 corners[8];
         for (int32_t k = 0; k < 8; ++k)
         {
@@ -179,12 +179,11 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t count = m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]],
-                                        &ss.path, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < count; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], &ss.path,
+                        &gather);
+    for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
     {
-        int32_t t = gather[g];
         m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                         mesh->vertices[mesh->indices[3 * t + 1]],
                         mesh->vertices[mesh->indices[3 * t + 2]]};

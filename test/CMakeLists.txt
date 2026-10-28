@@ -128,6 +128,13 @@ if(TARGET test_warmhold)
 endif()
 maul_add_test(generations WHITEBOX)
 maul_add_test(concurrency POSIX)
+# The narrow phase on threads with the 64 KiB of stack the task hook docs
+# ask for. Sanitizers grow every frame, and the web build lays its stack
+# out apart from the native one and gives its threads 8 MiB, so those
+# builds leave it out.
+if(NOT ${MAUL_PREFIX}_SANITIZE AND NOT ${MAUL_PREFIX}_TSAN AND NOT EMSCRIPTEN)
+    maul_add_test(smallstack POSIX)
+endif()
 maul_add_header_tests()
 maul_add_exports_test()
 

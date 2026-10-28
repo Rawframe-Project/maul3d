@@ -351,15 +351,15 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         int32_t slot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
         m3real cell = world->voxels.voxelData[slot].cellSize;
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
+        m3MeshBvhHits gather;
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
-        int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < gatherCount; ++g)
+        m3MeshBvhGather(&surface->bvh, blo, bhi, &gather);
+        for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
         {
             m3Vec3 lo;
             m3Vec3 hi;
-            m3VoxelBoxBounds(surface, cell, gather[g], &lo, &hi);
+            m3VoxelBoxBounds(surface, cell, g, &lo, &hi);
             m3Vec3 closest = {m3ClampF(local.x, lo.x, hi.x), m3ClampF(local.y, lo.y, hi.y),
                               m3ClampF(local.z, lo.z, hi.z)};
             m3Vec3 d = m3Sub3(local, closest);
@@ -409,14 +409,13 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
                                                        (m3real)(center.y - xf->p.y),
                                                        (m3real)(center.z - xf->p.z)});
         const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
-        uint16_t gather[M3_MAX_MESH_TRIANGLES];
+        m3MeshBvhHits gather;
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
         const m3MeshBvh* bvh = &world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]];
-        int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < gatherCount; ++g)
+        m3MeshBvhGather(bvh, blo, bhi, &gather);
+        for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
         {
-            int32_t t = gather[g];
             m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
             m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
             m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];

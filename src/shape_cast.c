@@ -159,13 +159,11 @@ static void CastMesh(m3ShapeCastContext* ctx, int32_t shape)
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount =
-        m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], &sc.path,
-                            gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < gatherCount; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], &sc.path,
+                        &gather);
+    for (int32_t t = m3MeshBvhFirstHit(&gather); t >= 0; t = m3MeshBvhNextHit(&gather, t))
     {
-        int32_t t = gather[g];
         m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                         mesh->vertices[mesh->indices[3 * t + 1]],
                         mesh->vertices[mesh->indices[3 * t + 2]]};
@@ -195,13 +193,13 @@ static void CastVoxels(m3ShapeCastContext* ctx, int32_t shape)
     m3real cell = world->voxels.voxelData[slot].cellSize;
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
-    uint16_t gather[M3_MAX_MESH_TRIANGLES];
-    int32_t gatherCount = m3MeshBvhGatherPath(&surface->bvh, &sc.path, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < gatherCount; ++g)
+    m3MeshBvhHits gather;
+    m3MeshBvhGatherPath(&surface->bvh, &sc.path, &gather);
+    for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
     {
         m3Vec3 lo;
         m3Vec3 hi;
-        m3VoxelBoxBounds(surface, cell, gather[g], &lo, &hi);
+        m3VoxelBoxBounds(surface, cell, g, &lo, &hi);
         m3Vec3 corners[8];
         for (int32_t k = 0; k < 8; ++k)
         {
