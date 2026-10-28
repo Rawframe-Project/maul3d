@@ -65,14 +65,14 @@ static void TestTeleportWakes(void)
     m3BodyId traveler = Crate(world, (m3Pos3){10.0, 0.5, 0.0});
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m3Body_IsAwake(world, sleeper), "the crate sleeps before the teleport");
     m3Body_SetTransform(world, traveler, (m3Pos3){0.0, 2.0, 0.0}, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
     CHECK(m3Body_IsAwake(world, sleeper), "the arrival neighborhood wakes");
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 t = m3Body_GetPosition(world, traveler);
     CHECK(t.y > 1.3 && t.y < 1.7, "the traveler lands on the sleeper");
@@ -93,7 +93,7 @@ static void TestKinematicServo(void)
 
     m3Body_SetTargetTransform(world, slab, (m3Pos3){1.5, 2.5, -0.5},
                               (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Pos3 p = m3Body_GetPosition(world, slab);
     CHECK(fabs(p.x - 1.5) < 1.0e-4 && fabs(p.y - 2.5) < 1.0e-4 && fabs(p.z + 0.5) < 1.0e-4,
           "the servo lands on the target in one step");
@@ -102,7 +102,7 @@ static void TestKinematicServo(void)
     // the next target. Zero it here and prove no further pull.
     m3Body_SetLinearVelocity(world, slab, (m3Vec3){0.0f, 0.0f, 0.0f});
     m3Body_SetAngularVelocity(world, slab, (m3Vec3){0.0f, 0.0f, 0.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Pos3 q = m3Body_GetPosition(world, slab);
     CHECK(fabs(q.x - p.x) < 1.0e-6 && fabs(q.y - p.y) < 1.0e-6,
           "the order cleared: no further servo pull");
@@ -111,7 +111,7 @@ static void TestKinematicServo(void)
     // lands it.
     m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0, 2.5, -0.5},
                               (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Pos3 far = m3Body_GetPosition(world, slab);
     CHECK(fabs(far.x - 3000.0) < 1.0e-2 && fabs(far.y - 2.5) < 1.0e-4,
           "the servo lands a far target in one step");
@@ -133,14 +133,14 @@ static void TestTypeFlipAndDisable(void)
     m3BodyId crate = Crate(world, (m3Pos3){0.0, 3.8, 0.0});
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double restY = m3Body_GetPosition(world, crate).y;
     CHECK(restY > 3.5, "the crate rests on the hovering static shelf");
     m3Body_SetType(world, shelf, m3_dynamicBody);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, crate).y < 1.8, "the freed shelf drops its rider");
 
@@ -148,7 +148,7 @@ static void TestTypeFlipAndDisable(void)
     m3BodyId lid = Crate(world, (m3Pos3){10.0, 0.5, 0.0});
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3RayCastResult before = m3World_CastRayClosest(
         world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
@@ -178,7 +178,7 @@ static void TestMotionLocks(void)
     m3Body_ApplyAngularImpulse(world, crate, (m3Vec3){0.0f, 0.4f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, crate);
     m3Quat q = m3Body_GetRotation(world, crate);
@@ -231,7 +231,7 @@ static void TestSleepKnobsAndControlReplay(void)
             {
                 m3Body_SetAwake(world, normal, false); // force-sleep
             }
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             if (i == 120 && run == 0)
             {
                 snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
@@ -256,7 +256,7 @@ static void TestSleepKnobsAndControlReplay(void)
                 {
                     m3Body_SetAwake(world, normal, false);
                 }
-                m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
             }
             CHECK(m3World_Hash(world) == final, "the re-run is bit-identical");
         }
@@ -310,7 +310,7 @@ static void TestDefsCarrySettings(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetLinearVelocity(world, crate).x > 1.0f,
           "the belt from the shape def carries the crate");

@@ -62,7 +62,7 @@ static void TestGearCouplesSpin(void)
     m3Body_ApplyAngularImpulse(world, gearA, (m3Vec3){0.0f, 0.0f, 0.05f});
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 wA = m3Body_GetAngularVelocity(world, gearA);
     m3Vec3 wB = m3Body_GetAngularVelocity(world, gearB);
@@ -117,7 +117,7 @@ static void TestPulleyTradesRope(void)
         double constant = 2.0 + (double)ratio * 2.0;
         for (int32_t i = 0; i < 150; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         double len1;
         double len2;

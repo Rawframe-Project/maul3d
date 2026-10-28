@@ -125,18 +125,6 @@ m3Stack m3StackCreate(m3Heap* heap, int32_t capacity)
     return stack;
 }
 
-bool m3StackGrow(m3Heap* heap, m3Stack* stack, int32_t capacity)
-{
-    m3Stack grown = m3StackCreate(heap, capacity);
-    if (grown.capacity == 0)
-    {
-        return false; // the old block stays, so the next step can ask again
-    }
-    m3StackDestroy(heap, stack);
-    *stack = grown;
-    return true;
-}
-
 void m3StackDestroy(m3Heap* heap, m3Stack* stack)
 {
     m3Free(heap, stack->base);
@@ -155,8 +143,7 @@ void* m3StackAlloc(m3Stack* stack, int32_t size)
     if (stack->top + aligned > stack->capacity)
     {
         // Loud failure: latch the flag, return NULL, keep running. The
-        // caller propagates m3_errorCapacity and the world can grow the
-        // stack between steps.
+        // caller propagates m3_errorCapacity.
         stack->overflow = 1;
         return NULL;
     }

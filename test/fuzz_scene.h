@@ -225,7 +225,7 @@ static inline void FuzzStep(m3World* world, int32_t steps)
 {
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(world, FUZZ_DT, 2);
+        (void)m3World_Step(world, FUZZ_DT, 2);
     }
 }
 

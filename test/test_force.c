@@ -51,7 +51,7 @@ static void TestForceAndTorqueBooks(void)
     for (int32_t i = 0; i < 60; ++i)
     {
         m3Body_ApplyForce(world, cube, (m3Vec3){2.0f, 0.0f, 0.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 v = m3Body_GetLinearVelocity(world, cube);
     CHECK(fabsf(v.x - 2.0f) < 0.01f, "F equals m a over one second");
@@ -60,7 +60,7 @@ static void TestForceAndTorqueBooks(void)
     // add nothing.
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 v2 = m3Body_GetLinearVelocity(world, cube);
     CHECK(fabsf(v2.x - v.x) < 1.0e-6f, "a force lives for exactly one step");
@@ -73,7 +73,7 @@ static void TestForceAndTorqueBooks(void)
     for (int32_t i = 0; i < 60; ++i)
     {
         m3Body_ApplyTorque(world, top, (m3Vec3){0.0f, 0.5f, 0.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 w = m3Body_GetAngularVelocity(world, top);
     CHECK(fabsf(w.y - 3.0f) < 0.02f, "T equals I alpha over one second");
@@ -139,13 +139,13 @@ static void TestForceContracts(void)
     memcpy(&bad, &nanBits, sizeof(bad));
     m3Body_ApplyForce(world, cube, (m3Vec3){bad, 0.0f, 0.0f});          // hostile: no-op
     m3Body_ApplyLinearImpulse(world, rock, (m3Vec3){5.0f, 0.0f, 0.0f}); // static: no-op
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(fabsf(m3Body_GetLinearVelocity(world, cube).x) < 1.0e-6f, "a NaN force never lands");
     CHECK(m3Body_GetPosition(world, rock).x == 3.0, "a static target never moves");
 
     DestroyBody(world, cube);
     m3Body_ApplyForce(world, cube, (m3Vec3){1.0f, 0.0f, 0.0f}); // stale: no-op
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
 

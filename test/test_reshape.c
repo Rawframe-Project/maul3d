@@ -80,7 +80,7 @@ static void TestShrinkDropsTheStackAndWakesIt(void)
     NewBoxShape(world, crate, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double restingY = m3Body_GetPosition(world, crate).y;
     CHECK(restingY > 2.0, "the crate rests on the pedestal");
@@ -92,7 +92,7 @@ static void TestShrinkDropsTheStackAndWakesIt(void)
     CHECK(m3Body_IsAwake(world, crate), "the sleeper above the shrink wakes");
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, crate).y < restingY - 0.8,
           "the crate fell off the deflated orb");

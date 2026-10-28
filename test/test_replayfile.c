@@ -56,7 +56,7 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
         {
             m3Body_ApplyLinearImpulse(world, crate, (m3Vec3){1.5f, 0.0f, 0.0f});
         }
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t journalBytes = StopJournal(world);
     uint64_t final = m3World_Hash(world);
@@ -208,7 +208,7 @@ static void TestPreSolveReplay(void)
     m3World_SetPreSolveCallback(world, VetoAll, &calls);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t journalBytes = StopJournal(world);
     uint64_t recorded = m3World_Hash(world);

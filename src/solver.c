@@ -33,34 +33,6 @@
 
 #include <string.h>
 
-static void SizeScratchForStep(m3World* world)
-{
-    // Pre-flight sizing: a starved step is deterministic, size-driven
-    // state evolution, and struct sizes are not part of the
-    // cross-platform contract. The estimate uses pinned per-item byte
-    // budgets chosen to dominate every platform's real sizes, and it
-    // runs after the pair scan so the pair count is this step's (a
-    // one-step lag let consumption race capacity on pileup spikes, and
-    // the winner depended on sizeof). Counts are pure state, so every
-    // platform grows on the same tick; the NULL checks that follow are
-    // backstops a correct run never reaches.
-    {
-        int64_t need = 64 * 1024 + 128 * (int64_t)world->bodies.bodyPool.maxIndex +
-                       64 * (int64_t)world->shapes.shapePool.maxIndex +
-                       1536 * (int64_t)world->contacts.pairCount + 64 * 1024 +
-                       1024 * (int64_t)world->joints.jointPool.maxIndex;
-        if (need > (int64_t)world->scratch.capacity && world->scratch.capacity < (1 << 28))
-        {
-            int32_t grown = world->scratch.capacity;
-            while ((int64_t)grown < need && grown < (1 << 28))
-            {
-                grown *= 2;
-            }
-            (void)m3StackGrow(&world->heap, &world->scratch, grown);
-        }
-    }
-}
-
 // Begin-of-step centers of mass and rotations: the sweeps the continuous
 // pass needs.
 static void CaptureSweepStarts(const m3World* world, m3Pos3* com0, m3Quat* rot0)
@@ -159,8 +131,7 @@ static int32_t LabelIslands(m3World* world, const int32_t* islandParent)
 }
 
 // Everything one step takes from the scratch stack, in the order it takes
-// it. The order is part of the stall behavior: a starved step fails at
-// the same allocation on every platform.
+// it. m3StepScratchBytes counts the same arrays at the world's capacities.
 typedef struct m3StepScratch
 {
     m3Pos3* com0; // begin-of-step centers of mass (continuous, sleep, riders)
@@ -178,17 +149,6 @@ typedef struct m3StepScratch
     m3real h;
     m3real invH;
 } m3StepScratch;
-
-// A step that starved the scratch stalled harmlessly; the next one
-// arrives with double the room. Growth is driven by sizes alone, so twins
-// and replays stall and grow on the same ticks.
-static void GrowScratchAfterStall(m3World* world)
-{
-    if (world->scratch.overflow != 0 && world->scratch.capacity < (1 << 28))
-    {
-        (void)m3StackGrow(&world->heap, &world->scratch, world->scratch.capacity * 2);
-    }
-}
 
 // Copies the previous pairs and manifolds aside before the pair scan
 // overwrites them; the warm-start carry and the event walk read the copy.
@@ -221,7 +181,7 @@ static void* ScratchArray(m3World* world, int32_t count, int32_t elementSize)
 
 // The sweep starts, the island wake pass (a sleeping body touched by an
 // awake one joins this step) and the per-body drift accumulators. Returns
-// false on a scratch stall.
+// false on a short scratch, which the world's sizing rules out.
 static bool BeginStep(m3World* world, m3StepScratch* s)
 {
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
@@ -229,7 +189,7 @@ static bool BeginStep(m3World* world, m3StepScratch* s)
     s->rot0 = (m3Quat*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Quat));
     if (s->com0 == NULL || s->rot0 == NULL)
     {
-        return false; // unreachable after SizeScratchForStep; a backstop
+        return false; // unreachable at m3StepScratchBytes; a backstop
     }
     CaptureSweepStarts(world, s->com0, s->rot0);
     s->islandParent = m3IslandWakePass(world);
@@ -254,7 +214,8 @@ static bool BeginStep(m3World* world, m3StepScratch* s)
 }
 
 // Contact and joint constraints, the graph coloring, the mover list and
-// the water field for the substep loop. Returns false on a scratch stall.
+// the water field for the substep loop. Returns false on a short scratch,
+// which the world's sizing rules out.
 static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t substeps)
 {
     s->h = dt / (m3real)substeps;
@@ -337,7 +298,15 @@ static void FinishSolve(m3World* world, const m3StepScratch* s, float dt)
     BreakJoints(world, s->invH);
 }
 
-void m3StepInternal(m3World* world, float dt, int32_t substeps)
+// A step whose scratch ran short, which cannot happen: the world was
+// created with m3StepScratchBytes.
+static m3Result ScratchRanShort(void)
+{
+    M3_ASSERT(false);
+    return m3_errorCapacity;
+}
+
+m3Result m3StepInternal(m3World* world, float dt, int32_t substeps)
 {
     // The profile is written to the world only when the step completes,
     // so a stalled step keeps the previous one. Observer data only.
@@ -345,7 +314,7 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     memset(&prof, 0, sizeof(prof));
     double tStep = m3NowMs();
 
-    GrowScratchAfterStall(world);
+    m3StackReset(&world->scratch);
     int32_t oldCount = StashPairs(world);
     const uint64_t* oldKeys = world->contacts.stashPairKeys;
     const m3Manifold* oldManifolds = world->contacts.stashManifolds;
@@ -357,38 +326,34 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     prof.vehicles = (float)(m3NowMs() - t0);
 
     t0 = m3NowMs();
-    m3Result pairsResult = m3UpdatePairs(world);
+    if (m3UpdatePairs(world) != m3_success)
+    {
+        return m3_errorCapacity; // a full pair table: the world stalls,
+                                 // never corrupts
+    }
     prof.broadphase = (float)(m3NowMs() - t0);
     t0 = m3NowMs();
-    m3Result contactsResult = pairsResult == m3_success
-                                  ? m3UpdateContacts(world, oldKeys, oldManifolds, oldCount)
-                                  : pairsResult;
+    (void)m3UpdateContacts(world, oldKeys, oldManifolds, oldCount);
     prof.narrowphase = (float)(m3NowMs() - t0);
-    if (pairsResult != m3_success || contactsResult != m3_success)
-    {
-        return; // a scratch stall (grown next step) or a full pair table:
-                // the world stalls, never corrupts
-    }
 
     t0 = m3NowMs();
     StartEvents(world, oldKeys, oldManifolds, oldCount);
     prof.events = (float)(m3NowMs() - t0);
 
     t0 = m3NowMs();
-    SizeScratchForStep(world);
-    m3StackReset(&world->scratch);
+    m3StackReset(&world->scratch); // the pair update's cache is spent
     m3StepScratch s;
     memset(&s, 0, sizeof(s));
     if (!BeginStep(world, &s))
     {
-        return; // scratch stall, grown next step
+        return ScratchRanShort();
     }
     prof.prepare = (float)(m3NowMs() - t0);
 
     t0 = m3NowMs();
     if (!PrepareSolve(world, &s, dt, substeps))
     {
-        return; // scratch stall, grown next step
+        return ScratchRanShort();
     }
     SolveSubsteps(world, &s, substeps);
     FinishSolve(world, &s, dt);
@@ -422,23 +387,25 @@ void m3StepInternal(m3World* world, float dt, int32_t substeps)
     world->lastIslandCount = islands;
     world->lastColorCount = s.usedColors;
     world->lastScratchPeak = world->scratch.top;
+    // No take ran short, those with a fallback included: the scratch the
+    // world was created with covers a step.
+    M3_ASSERT(world->scratch.overflow == 0);
+    return m3_success;
 }
 
-static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t substeps)
+static M3_NOINLINE m3Result WorldStepWorker(m3World* world, float dt, int32_t substeps)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     if (world == NULL || m3StepCheck(dt, substeps) != m3_success)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     world->contacts.stepVetoCount = 0;
     m3WorldEnter(world);
-    m3StepInternal(world, dt, substeps);
+    m3Result result = m3StepInternal(world, dt, substeps);
     m3WorldLeave(world);
     if (world->recorder.journalActive != 0)
     {
@@ -458,11 +425,13 @@ static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t subste
         record.substeps = substeps;
         m3JournalRecord(world, m3_opStep, &record, (int32_t)sizeof(record));
     }
+    return result;
 }
 
-void m3World_Step(m3World* world, float dt, int32_t substeps)
+m3Result m3World_Step(m3World* world, float dt, int32_t substeps)
 {
     uint64_t env = m3FloatEnvEnter();
-    WorldStepWorker(world, dt, substeps);
+    m3Result result = WorldStepWorker(world, dt, substeps);
     m3FloatEnvLeave(env);
+    return result;
 }

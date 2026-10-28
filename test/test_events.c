@@ -67,7 +67,7 @@ static void TestHitEvents(void)
         double pointY = 1.0e9;
         for (int32_t i = 0; i < 90; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             const m3ContactHitEvent* ev = m3World_GetContactEvents(world).hitEvents;
             int32_t n = m3World_GetContactEvents(world).hitCount;
             if (n > 0)
@@ -115,7 +115,7 @@ static void TestBodyMoveEvents(void)
     bool transformsMatch = true;
     for (int32_t i = 0; i < 400; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         const m3BodyMoveEvent* ev = m3World_GetBodyEvents(world).moveEvents;
         int32_t n = m3World_GetBodyEvents(world).moveCount;
         bool found = false;
@@ -194,7 +194,7 @@ static void TestPreSolveOneWay(void)
     double peak = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         double y = m3Body_GetPosition(world, ball).y;
         if (y > peak)
         {
@@ -208,7 +208,7 @@ static void TestPreSolveOneWay(void)
 
     // Clearing the callback restores plain solid contact.
     m3World_SetPreSolveCallback(world, NULL, NULL);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
 
@@ -236,7 +236,7 @@ static void TestEventTwinsAndJointStream(void)
         uint64_t digest = 1469598103934665603ull;
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             const m3ContactHitEvent* ev = m3World_GetContactEvents(world).hitEvents;
             int32_t n = m3World_GetContactEvents(world).hitCount;
             for (int32_t k = 0; k < n; ++k)

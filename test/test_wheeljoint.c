@@ -104,7 +104,7 @@ static void TestCartRollsOnFlat(void)
     JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
@@ -115,7 +115,7 @@ static void TestCartRollsOnFlat(void)
     DriveCart(world, &cart, -20.0f, 60.0f); // negative spin about +z rolls +x
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double gain = m3Body_GetPosition(world, cart.chassis).x - startX;
     CHECK(gain > 2.0, "the motored cart drives forward on contact friction");
@@ -138,7 +138,7 @@ static void TestBrokenAxleDeterministic(void)
         JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Joint_SetBreakThresholds(world, cart.joints[1], 0.0f, 25.0f);
         DriveCart(world, &cart, -30.0f, 90.0f);
@@ -151,7 +151,7 @@ static void TestBrokenAxleDeterministic(void)
                 snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
                 CHECK(snapBytes > 0, "the pre-break snapshot fits");
             }
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             if (breakStep < 0 && !m3Joint_IsValid(world, cart.joints[1]))
             {
                 breakStep = i;
@@ -172,7 +172,7 @@ static void TestBrokenAxleDeterministic(void)
             CHECK(Restore(world, snap, snapBytes), "the pre-break restore lands");
             for (int32_t i = 10; i < 480; ++i)
             {
-                m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
             }
             CHECK(m3World_Hash(world) == hashes[0], "the re-run breaks on the same bits");
         }
@@ -222,7 +222,7 @@ static void TestHostileWall(void)
     m3Joint_SetTargetTranslation(world, wheel, 0.05f);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Joint_IsValid(world, wheel), "the wheel survives its first minute");
 
@@ -266,13 +266,13 @@ static void TestRubbleFieldTwins(void)
         JointCart cart = MakeJointCart(world, (m3Pos3){0.0, 0.66, 0.0});
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         DriveCart(world, &cart, -25.0f, 90.0f);
         bool sank = false;
         for (int32_t i = 0; i < 600; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             for (int32_t w = 0; w < CART_WHEELS; ++w)
             {
                 if (m3Body_GetPosition(world, cart.wheels[w]).y < 0.24)

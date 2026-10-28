@@ -223,8 +223,8 @@ static void Probe(const Target* target, const Field* fields, int32_t count)
                 {
                     Report(what, &fields[f], v, "created, but the snapshot does not restore");
                 }
-                m3World_Step(world, 1.0f / 60.0f, 4);
-                m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
                 if (!Restores(world))
                 {
                     Report(what, &fields[f], v, "created, but two steps later it does not restore");

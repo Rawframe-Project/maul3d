@@ -181,7 +181,7 @@ static Held AnchorPush(float mass)
     m3SoftBodyId soft = NewSoftBody(world, &sd);
     m3SoftBody_AnchorParticle(world, soft, 0, box);
     m3Body_SetTransform(world, box, (m3Pos3){1.0e14, 3.0e13, 0.0}, s_identity);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     Held held = HeldOf(world, box);
     m3DestroyWorld(world);
     return held;
@@ -205,7 +205,7 @@ static Held ParticleContactPush(float mass)
     sd.radius = 1.0e4f;
     sd.gravityScale = 0.0f;
     (void)NewSoftBody(world, &sd);
-    m3World_Step(world, 1.0e-4f, 256);
+    (void)m3World_Step(world, 1.0e-4f, 256);
     Held held = HeldOf(world, box);
     m3DestroyWorld(world);
     return held;
@@ -295,7 +295,7 @@ static void TestBounceHold(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
     NewSphereShape(world, ball, &sd, &sphere);
     m3Body_SetLinearVelocity(world, ball, (m3Vec3){1.0e3f, -1.0e4f, 0.0f});
-    m3World_Step(world, 1.0e-4f, 1);
+    (void)m3World_Step(world, 1.0e-4f, 1);
     m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     CHECK(AtLimit(v) && v.y > 0.0f, "the bounce leaves the ball held at the limit");
     CHECK(v.x > 900.0f, "and keeps its speed across");
@@ -334,7 +334,7 @@ static void TestSuspensionHold(void)
     vd.tireGrip = 0.01f;
     m3VehicleId vehicle = NewVehicle(world, &vd);
     m3Body_SetLinearVelocity(world, chassis, (m3Vec3){0.0f, -9.9e4f, 1.4e4f});
-    m3World_Step(world, 1.0e-4f, 1);
+    (void)m3World_Step(world, 1.0e-4f, 1);
     CHECK(m3Vehicle_IsWheelGrounded(world, vehicle, 0), "the wheel lands");
     m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
     CHECK(AtLimit(v) && v.y > 0.0f, "the suspension leaves the chassis held at the limit");
@@ -403,7 +403,7 @@ static void TestWheelPush(void)
     int32_t written = 0;
     CHECK(before != NULL && m3World_Snapshot(world, before, size, &written) == m3_success,
           "the world before the step snapshots");
-    m3World_Step(world, 10.0f, 1);
+    (void)m3World_Step(world, 10.0f, 1);
     CHECK(m3Vehicle_IsWheelGrounded(world, vehicle, 0), "the wheel stands on the chip");
     m3Vec3 v = m3Body_GetLinearVelocity(world, chip);
     m3Vec3 w = m3Body_GetAngularVelocity(world, chip);
@@ -471,7 +471,7 @@ static void TestOrdinarySceneRetakesNothing(void)
     for (int32_t i = 0; i < 120; ++i)
     {
         m3Character_Move(world, walker, (m3Vec3){2.0f / 60.0f, -0.1f, 0.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         grounded = grounded || m3Vehicle_IsWheelGrounded(world, car, 0);
     }
     CHECK(m3Body_GetPosition(world, crate).x > crateStart.x + 0.1, "the walker moves the crate");

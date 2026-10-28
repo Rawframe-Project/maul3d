@@ -167,7 +167,7 @@ static void TestRestingOnVoxelFloor(void)
 
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 pBall = m3Body_GetPosition(world, ball);
         m3Pos3 pCrate = m3Body_GetPosition(world, crate);
@@ -208,7 +208,7 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
     NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the voxel session records");
@@ -237,7 +237,7 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
            sizeof(m3VoxelSurface));
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(Restore(world, snap, snapBytes), "the voxel snapshot restores");
     CHECK(m3World_Hash(world) == hashBefore, "the restore is bit-identical");
@@ -330,7 +330,7 @@ static void TestVoxelRefusals(void)
           "chunk two fills");
     CHECK(!m3Shape_IsValid(world, NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f)),
           "the voxel pool refuses past capacity");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the refused world still steps");
     m3DestroyWorld(world);
 }
@@ -387,7 +387,7 @@ static void TestEditsCarveAndWake(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, crate);
     CHECK(p.y > 4.45 && p.y < 4.55, "the crate rests on the intact floor");
@@ -404,7 +404,7 @@ static void TestEditsCarveAndWake(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     p = m3Body_GetPosition(world, crate);
     CHECK(p.y > 3.45 && p.y < 3.55, "the crate settles one voxel lower in the pocket");
@@ -478,7 +478,7 @@ static void TestEditRefusalsAndEmptyEnd(void)
     CHECK(SurfaceOf(world, chunkShape)->boxCount == 0, "the empty surface has no boxes");
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y < -5.0, "the ball falls through the vanished floor");
@@ -605,7 +605,7 @@ static void TestFractureBridge(void)
         if (run == 0)
         {
             // A step clears the transient streams.
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             count = m3World_GetFragmentEvents(world).fragmentCount;
             CHECK(count == 0, "the next step clears fragment events");
             // Roll back to before the second cut and do it again.
@@ -769,7 +769,7 @@ static void TestRollingAcrossSeams(void)
         float maxVerticalSpeed = 0.0f;
         for (int32_t i = 0; i < 420; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Pos3 p = m3Body_GetPosition(world, ball);
             double dev = p.y - 4.5;
             if (dev < 0.0)
@@ -839,7 +839,7 @@ static void TestVoxelMeetsHeightfield(void)
 
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 p = m3Body_GetPosition(world, ball);
         CHECK(p.y > 0.35 && p.y < 0.45, "the ball rests on the field at the wall base");
@@ -907,7 +907,7 @@ static void TestBulletVsVoxelWall(void)
 
             for (int32_t i = 0; i < 30; ++i)
             {
-                m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
             }
             m3Pos3 p = m3Body_GetPosition(world, bullet);
             if (withHole != 0)
@@ -1075,7 +1075,7 @@ static void TestEmbeddedRecovery(void)
         float maxSpeed = 0.0f;
         for (int32_t i = 0; i < 600; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
             float speed2 = v.x * v.x + v.y * v.y + v.z * v.z;
             if (speed2 > maxSpeed)
@@ -1145,7 +1145,7 @@ static void TestNegativeAndEdgeCoordinates(void)
     NewSphereShape(world, ball, &sd, &sphere);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, ball);
     CHECK(p.y > -14.65 && p.y < -14.55, "the ball rests at the negative analytic height");
@@ -1233,7 +1233,7 @@ static void TestJournalCompositionRefusal(void)
     CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
     CHECK_ACCEPTS(world, m3VoxelChunk_ClearVoxel(world, chunkShape, 0, 0, 0),
                   "the journaled edit lands");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the edits-only session records");
     uint64_t liveHash = m3World_Hash(world);
@@ -1280,7 +1280,7 @@ static void TestVoxelPoolSweep(void)
     CHECK(!m3Shape_IsValid(world, two), "the destroyed chunk id is stale");
     CHECK_REFUSES(world, m3VoxelChunk_ClearVoxel(world, two, 0, 0, 0),
                   "a stale chunk refuses edits");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the sweep leaves a healthy world");
     m3DestroyWorld(world);
 }

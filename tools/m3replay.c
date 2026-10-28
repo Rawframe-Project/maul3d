@@ -194,7 +194,7 @@ static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep)
             // partner, journaled like everything else.
             m3Body_ApplyLinearImpulse(world, injectTarget, (m3Vec3){0.8f, 0.0f, 0.3f});
         }
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 }
 

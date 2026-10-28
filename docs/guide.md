@@ -105,7 +105,12 @@ since its answer decides contacts.
 ## The step
 
 `m3World_Step(world, dt, substeps)` advances the world by dt seconds
-in `substeps` solver substeps (4 is the tested default). Commands
+in `substeps` solver substeps (4 is the tested default) and returns
+`m3_success`. It returns `m3_errorCapacity` when the broadphase pair
+table (8 pairs per shape of `shapeCapacity`) is full and the step
+stalled. A step never asks the allocator, so it never fails for
+memory: the world takes the scratch a step needs when it is created
+(see Capacities). Commands
 (create, destroy, set velocity) may be issued between steps in any
 deterministic order; issuing them from inside task callbacks is not
 supported.
@@ -537,10 +542,8 @@ contracts at CI size with a real four-thread host pool.
   a full snapshot runs tens of milliseconds and tens of megabytes,
   restore the same, both bit-exact (the gauntlet prints the
   numbers on your machine).
-- The step scratch pre-flights its size from pinned per-item
-  budgets (bytes per body, shape, pair, joint), so growth happens
-  BEFORE a step on every platform at the same tick; a scene can
-  never stall differently on different compilers.
+- The step scratch is taken whole when the world is created, at
+  its capacities, so no step allocates or stalls for memory.
 - Sleep is the sandbox's economy. Give ground-contact debris a
   small rollingResistance (0.01 to 0.1): a frictionless-rolling
   sphere never stops on its own, and one eternal roller keeps its
@@ -1255,6 +1258,20 @@ plane's normal is unit length.
 Every pool is fixed at world creation (`bodyCapacity`,
 `shapeCapacity`, `jointCapacity`, `meshCapacity`) and never grows.
 Exhaustion refuses with a null id and the world keeps stepping.
+
+The world also takes its step scratch at creation, sized for a
+step at those capacities, so stepping never allocates. On a 64-bit
+target it holds about
+
+    7344 * shapeCapacity + 126 * bodyCapacity + 416 * jointCapacity
+    + 57 KiB
+
+bytes; the shape term is its 8 broadphase pairs. The default world
+(1024 bodies, 2048 shapes, 64 joints) takes 14.5 MiB of scratch
+beside 21.4 MiB of pools and arrays. `m3World_GetMemoryUsage` gives
+both exactly (`scratchCapacity`, `persistentBytes`), and a world
+whose scratch would pass 2 GiB, or that the allocator refuses, is
+not created (`m3_errorCapacity`).
 Per-shape geometry ceilings live in one place: the "Compound
 shapes and the geometry ceilings" chapter above (hulls 64
 vertices from up to 256 input points, meshes 65,535 vertices and

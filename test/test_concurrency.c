@@ -66,7 +66,7 @@ static void* StepMain(void* arg)
     StepJob* job = (StepJob*)arg;
     for (int32_t i = 0; i < job->steps; ++i)
     {
-        m3World_Step(job->world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(job->world, 1.0f / 60.0f, 4);
     }
     return NULL;
 }
@@ -78,8 +78,8 @@ static void TestParallelWorldsMatchSerial(void)
     m3World* serialB = BuildWorld(2);
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(serialA, 1.0f / 60.0f, 4);
-        m3World_Step(serialB, 1.0f / 60.0f, 4);
+        (void)m3World_Step(serialA, 1.0f / 60.0f, 4);
+        (void)m3World_Step(serialB, 1.0f / 60.0f, 4);
     }
     uint64_t wantA = m3World_Hash(serialA);
     uint64_t wantB = m3World_Hash(serialB);
@@ -130,7 +130,7 @@ static void TestConcurrentReadersBetweenSteps(void)
     m3World* world = BuildWorld(3);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     ReaderJob r1 = {world, 4000, 0};
     ReaderJob r2 = {world, 4000, 0};
@@ -143,7 +143,7 @@ static void TestConcurrentReadersBetweenSteps(void)
     CHECK(r1.hits == r1.rounds, "reader one hit the pile every time");
     CHECK(r2.hits == r2.rounds, "reader two hit the pile every time");
     uint64_t before = m3World_Hash(world);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     (void)before;
     m3DestroyWorld(world);
 }
@@ -273,7 +273,7 @@ static uint64_t SettleOnHeightField(Pool* pool)
     }
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);

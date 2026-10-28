@@ -116,7 +116,7 @@ static void TestRollsWhereACubeSkids(void)
     NewBoxShape(world, cube, &sd, (m3Vec3){0.45f, 0.45f, 0.45f});
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double rolled = m3Body_GetPosition(world, roller).x;
     double skidded = m3Body_GetPosition(world, cube).x;

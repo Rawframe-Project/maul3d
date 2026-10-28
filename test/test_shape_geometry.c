@@ -335,7 +335,7 @@ static void TestParticlesStayWithinTheLimit(void)
     bool lifted = true;
     for (int32_t step = 0; step < 8; ++step)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         within = within && ParticlesWithin(world, lattice) && ParticlesWithin(world, jelly);
     }
     for (int32_t i = 0; i < m3SoftBody_GetParticleCount(world, jelly); ++i)
@@ -350,8 +350,8 @@ static void TestParticlesStayWithinTheLimit(void)
     m3World* twin = DefaultWorld();
     CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(twin, snap, size),
           "the world the step made restores in a second world");
-    m3World_Step(world, 1.0f / 60.0f, 4);
-    m3World_Step(twin, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(twin, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(twin) == m3World_Hash(world), "and both step on alike");
     free(snap);
     m3DestroyWorld(twin);

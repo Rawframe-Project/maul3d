@@ -469,7 +469,7 @@ static Scene Build(void)
     s.pool = m3WaterVolume_IsValid(w, volume) ? (int32_t)volume.index1 - 1 : -1;
     for (int32_t i = 0; i < 4; ++i)
     {
-        m3World_Step(w, 1.0f / 60.0f, 2);
+        (void)m3World_Step(w, 1.0f / 60.0f, 2);
     }
     return s;
 }
@@ -600,7 +600,7 @@ static void TestFarRestValuesAreRefused(void)
         bool finite = true;
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             for (int32_t b = 0; b < world->bodies.bodyPool.maxIndex; ++b)
             {
                 finite = finite && (world->bodies.bodyPool.alive[b] == 0 ||
@@ -660,7 +660,7 @@ static void TestStepHoldsWithinTheLimit(void)
     memcpy(anchors, &none, sizeof(none));
     CHECK(Restore(world, snap, size), "a world just inside the position limit restores");
     // A 10 s step: the particles at the world's speed cap cross too.
-    m3World_Step(world, 10.0f, 2);
+    (void)m3World_Step(world, 10.0f, 2);
     double x = world->bodies.transforms[s.rail].p.x;
     CHECK(x <= M3_POSITION_LIMIT && x > M3_POSITION_LIMIT - 1.0e3,
           "the step holds the body on the limit");
@@ -679,8 +679,8 @@ static void TestStepHoldsWithinTheLimit(void)
     CHECK(Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
           "the world the step made restores in a second world");
     CHECK(m3World_Hash(twin.world) == m3World_Hash(world), "to the same state");
-    m3World_Step(world, 1.0f, 2);
-    m3World_Step(twin.world, 1.0f, 2);
+    (void)m3World_Step(world, 1.0f, 2);
+    (void)m3World_Step(twin.world, 1.0f, 2);
     CHECK(m3World_Hash(twin.world) == m3World_Hash(world), "and both step on alike");
     CHECK(Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
           "held on the limit, it restores again");

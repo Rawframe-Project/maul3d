@@ -1877,7 +1877,7 @@ int main(void)
         else if ((!paused && !rewinding) || IsKeyPressed(KEY_F))
         {
             double t0 = GetTime();
-            m3World_Step(scene.world, 1.0f / 60.0f, substeps);
+            (void)m3World_Step(scene.world, 1.0f / 60.0f, substeps);
             stepMs = 0.9f * stepMs + 0.1f * (float)((GetTime() - t0) * 1000.0);
             stepCounter += 1;
             if (stepCounter % 4 == 0 && !s_recording)
@@ -2043,7 +2043,7 @@ int main(void)
         }
         if (UiButton(&ui, "Single step"))
         {
-            m3World_Step(scene.world, 1.0f / 60.0f, substeps);
+            (void)m3World_Step(scene.world, 1.0f / 60.0f, substeps);
             stepCounter += 1;
         }
         if (UiButton(&ui, "Restart"))

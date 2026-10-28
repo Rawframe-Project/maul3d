@@ -265,7 +265,7 @@ static void TestWorkerTwinsAtScale(void)
                 int32_t hi[3] = {cx, 2, 10};
                 m3VoxelChunk_ClearBox(world, chunk, lo, hi);
             }
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);
@@ -319,7 +319,7 @@ static void TestColoredPileTwins(void)
         }
         for (int32_t i = 0; i < 150; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hashes[variant] = m3World_Hash(world);
         m3DestroyWorld(world);

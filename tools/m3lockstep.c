@@ -98,7 +98,7 @@ static void StepFrame(Peer* p, int32_t frame, const uint8_t* haveRemote)
             m3Body_ApplyLinearImpulse(p->world, p->crates[k], in);
         }
     }
-    m3World_Step(p->world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(p->world, 1.0f / 60.0f, 4);
 }
 
 int main(void)

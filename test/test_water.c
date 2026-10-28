@@ -62,7 +62,7 @@ static void TestFloatAndSink(void)
     m3BodyId anvil = DropCrate(world, 2.0, 6.0, 3000.0f); // heavier than water
     for (int32_t i = 0; i < 420; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double corkY = m3Body_GetPosition(world, cork).y;
     double anvilY = m3Body_GetPosition(world, anvil).y;
@@ -79,8 +79,8 @@ static void TestFlowCarries(void)
     m3BodyId b = DropCrate(river, 0.0, 3.5, 400.0f);
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(still, 1.0f / 60.0f, 4);
-        m3World_Step(river, 1.0f / 60.0f, 4);
+        (void)m3World_Step(still, 1.0f / 60.0f, 4);
+        (void)m3World_Step(river, 1.0f / 60.0f, 4);
     }
     double ax = m3Body_GetPosition(still, a).x;
     double bx = m3Body_GetPosition(river, b).x;
@@ -107,7 +107,7 @@ static void TestTideWakesSleepers(void)
     m3BodyId crate = DropCrate(world, 0.0, 0.6, 300.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m3Body_IsAwake(world, crate), "the crate sleeps on the dry floor");
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
@@ -117,13 +117,13 @@ static void TestTideWakesSleepers(void)
     CHECK(m3Body_IsAwake(world, crate), "the incoming tide wakes the sleeper");
     for (int32_t i = 0; i < 420; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, crate).y > 1.5, "the woken crate floats up");
     DestroyWaterVolume(world, tide);
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, crate).y < 0.8, "the ebb drops the floater back");
     m3DestroyWorld(world);
@@ -207,7 +207,7 @@ static void TestSoftBuoyancy(void)
         CHECK(m3SoftBody_IsValid(world, cloth), "the cloth creates");
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 c = m3SoftBody_GetParticlePosition(world, cloth, 5);
         if (pass == 0)

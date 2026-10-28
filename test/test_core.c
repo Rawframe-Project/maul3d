@@ -91,7 +91,7 @@ static void TestCreateWorld(void)
     m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Counters counters = m3World_GetCounters(world);
     CHECK(ledger.blocks > 0 && counters.allocCalls - counters.freeCalls == ledger.blocks,
           "the counters see every block the allocator handed out");
@@ -163,8 +163,10 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m3World_OverlapSphere(world, (m3Pos3){0.0, (double)NAN, 0.0}, 1.0f, found, 4,
                                 m3DefaultQueryFilter()) == 0,
           "a NaN sphere center overlaps nothing");
-    m3World_Step(world, INFINITY, 4);
-    CHECK(m3World_GetCounters(world).misuse == misuse + 8, "each refuses once");
+    CHECK(m3World_Step(world, INFINITY, 4) == m3_errorInvalid, "an infinite step is refused");
+    CHECK(m3World_Step(world, 1.0f / 60.0f, 0) == m3_errorInvalid, "so is one of no substep");
+    CHECK(m3World_Step(NULL, 1.0f / 60.0f, 4) == m3_errorInvalid, "and a step of no world");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 9, "each refuses once");
 
     m3DestroyWorld(world);
 }

@@ -52,7 +52,7 @@ static void StepN(m3World* world, int32_t n)
 {
     for (int32_t i = 0; i < n; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 }
 
@@ -109,7 +109,7 @@ static void TestRestitutionAndThreshold(void)
         bool falling = true;
         for (int32_t i = 0; i < 180; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             double y = m3Body_GetPosition(world, ball).y;
             double vy = (double)m3Body_GetLinearVelocity(world, ball).y;
             if (falling && vy > 0.01)
@@ -191,7 +191,7 @@ static void TestGravityAndSpeedCap(void)
 
     m3World_SetMaximumLinearSpeed(world, 5.0f);
     m3Body_ApplyLinearImpulse(world, crate, (m3Vec3){1000.0f, 0.0f, 0.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Vec3 v = m3Body_GetLinearVelocity(world, crate);
     double speed =
         sqrt((double)v.x * (double)v.x + (double)v.y * (double)v.y + (double)v.z * (double)v.z);

@@ -380,7 +380,7 @@ static void TestVoxelEditsKeepJointedMass(void)
     blast.impulsePerArea = 10.0f;
     blast.voxelCarve = 1.5f;
     m3World_Explode(world, &blast);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     MassBits holderAfter = MassOf(world, holder);
     MassBits boxAfter = MassOf(world, box);
     CHECK(SameMass(&holderBefore, &holderAfter) && SameMass(&boxBefore, &boxAfter),

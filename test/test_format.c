@@ -219,7 +219,7 @@ static int32_t RecordSession(uint8_t fill, uint8_t* tape, int32_t capacity)
     m3World_Explode(world, &blast);
 
     s_paint(fill);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_GetCounters(world).misuse == 0, "every call of the session lands");
     int32_t bytes = StopJournal(world);
     m3DestroyWorld(world);

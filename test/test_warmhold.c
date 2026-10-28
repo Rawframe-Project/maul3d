@@ -108,7 +108,7 @@ static Heavy HeavyScene(bool hung)
     }
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(scene.world, s_dt, 4);
+        (void)m3World_Step(scene.world, s_dt, 4);
     }
     return scene;
 }
@@ -139,7 +139,7 @@ static void StepsOnFinite(Heavy* scene, const char* name, uint64_t committed)
 {
     for (int32_t i = 0; i < 4; ++i)
     {
-        m3World_Step(scene->world, s_dt, 4);
+        (void)m3World_Step(scene->world, s_dt, 4);
     }
     m3Vec3 v = m3Body_GetLinearVelocity(scene->world, scene->body);
     m3Vec3 w = m3Body_GetAngularVelocity(scene->world, scene->body);
@@ -261,7 +261,7 @@ static void TestHeaviestAgainstKinematicRoundTrip(void)
     CHECK(mass > 9.0e19f && mass <= M3_MASS_LIMIT, "the body is near the heaviest allowed");
     for (int32_t i = 0; i < 20; ++i)
     {
-        m3World_Step(world, s_dt, 4);
+        (void)m3World_Step(world, s_dt, 4);
     }
     CHECK(world->contacts.pairCount > 0, "the bodies touch");
 
@@ -279,8 +279,8 @@ static void TestHeaviestAgainstKinematicRoundTrip(void)
     CHECK(m3World_Hash(copy) == m3World_Hash(world), "to the same state");
     for (int32_t i = 0; i < 20; ++i)
     {
-        m3World_Step(world, s_dt, 4);
-        m3World_Step(copy, s_dt, 4);
+        (void)m3World_Step(world, s_dt, 4);
+        (void)m3World_Step(copy, s_dt, 4);
     }
     CHECK(m3World_Hash(copy) == m3World_Hash(world), "both step on alike");
     m3Vec3 v = m3Body_GetLinearVelocity(copy, heavy);

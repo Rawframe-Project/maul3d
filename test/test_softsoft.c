@@ -77,7 +77,7 @@ static void TestJelliesRefuseToMerge(void)
           "both jellies create");
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double gap = MinPairDistance(world, lower, upper);
     CHECK(gap > 0.24 - 0.06, "no particle pair interpenetrates past the law");
@@ -127,7 +127,7 @@ static void TestRopeDrapesOverCloth(void)
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double ropeLow = 1.0e30;
     for (int32_t i = 0; i < m3SoftBody_GetParticleCount(world, rope); ++i)
@@ -188,7 +188,7 @@ static void TestRopeBridge(void)
 
     for (int32_t i = 0; i < 360; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double bally = m3Body_GetPosition(world, ball).y;
     CHECK(bally > 0.6, "the bridge carries the ball above the floor");

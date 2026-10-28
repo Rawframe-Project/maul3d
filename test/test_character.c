@@ -207,7 +207,7 @@ static void TestCharacterContracts(void)
     m3Character_Move(world, two, (m3Vec3){bad, 0.0f, 0.0f}); // NaN: no-op
     p = m3Character_GetPosition(world, two);
     CHECK(p.x == 3.0, "a hostile move never lands");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the world shrugs it off");
     m3DestroyWorld(world);
 }
@@ -261,7 +261,7 @@ static void TestCharacterOwnsItsBodyAndCapsule(void)
           "the character is whole");
     CHECK(SetStance(world, hero, 0.25f, 0.2f), "its stance changes");
     m3Character_Move(world, hero, (m3Vec3){0.2f, -0.5f, 0.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3Character_GetPosition(world, hero).x > 0.1, "and it walks");
 
     DestroyCharacter(world, hero);
@@ -476,7 +476,7 @@ static void TestPlatformRideAndElevator(void)
         m3Body_SetLinearVelocity(world, platform, (m3Vec3){0.5f, 0.0f, 0.0f});
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Pos3 p = m3Character_GetPosition(world, hero);
         CHECK(p.x > 0.48 && p.x < 0.52, "the ride carries the full half meter");
@@ -486,7 +486,7 @@ static void TestPlatformRideAndElevator(void)
         m3Body_SetLinearVelocity(world, platform, (m3Vec3){0.0f, -0.3f, 0.0f});
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         p = m3Character_GetPosition(world, hero);
         CHECK(p.y > y0 - 0.32 && p.y < y0 - 0.28, "the elevator lowers its rider");
@@ -529,7 +529,7 @@ static void TestCarouselAndFragmentSurf(void)
     m3Body_SetAngularVelocity(world, carousel, (m3Vec3){0.0f, 0.4f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     // Expected: the start offset swept by the platform's own
     // accumulated rotation (read back, not assumed).
@@ -566,7 +566,7 @@ static void TestCarouselAndFragmentSurf(void)
     m3Body_SetLinearVelocity(sea, fragment, (m3Vec3){0.8f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(sea, 1.0f / 60.0f, 4);
+        (void)m3World_Step(sea, 1.0f / 60.0f, 4);
     }
     m3Pos3 sp = m3Character_GetPosition(sea, surfer);
     CHECK(sp.x > 0.38 && sp.x < 0.42, "the fragment ferries its surfer");
@@ -846,7 +846,7 @@ static void TestHostileMoves(void)
     m3Character_Move(world, hero, (m3Vec3){-1.0e6f, 0.0f, 0.0f});
     p = m3Character_GetPosition(world, hero);
     CHECK(isfinite(p.x), "the return trip stays finite");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the abused world still hashes");
     m3DestroyWorld(world);
 }

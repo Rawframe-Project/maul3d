@@ -129,7 +129,7 @@ static void TestHostileBodyDefs(void)
     NewSphereShape(world, faraway, &sd, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Pos3 p = m3Body_GetPosition(world, faraway);
     CHECK(p.x == 1.0e6 && p.z == -1.0e6, "the far body falls straight, no precision drama");
@@ -258,7 +258,7 @@ static void TestHostileShapeDefs(void)
     // The world took all this abuse standing up.
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(world) != 0, "the abused world still steps and hashes");
     m3DestroyWorld(world);
@@ -368,12 +368,12 @@ static uint64_t RunGauntlet(void)
         }
         if (round % 40 == 0)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
     }
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);

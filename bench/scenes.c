@@ -457,7 +457,7 @@ uint64_t BenchStepScene(BenchScene scene, int32_t steps, BenchClock* clock, doub
     double t0 = Now(clock);
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     *ms = Now(clock) - t0;
     uint64_t hash = m3World_Hash(world);
@@ -506,7 +506,7 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             m3Sphere slug = {{0.0f, 0.0f, 0.0f}, 0.15f};
             NewSphereShape(world, bullet, &sd, &slug);
         }
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     *ms = Now(clock) - t0;
     uint64_t hash = m3World_Hash(world);
@@ -541,7 +541,7 @@ uint64_t BenchCityblock(int32_t totalSteps, BenchClock* clock, double phaseMs[3]
                 SpawnFragment(world, &fragments.fragmentEvents[e], fragments.recipe);
             }
         }
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         if (i + 1 == phase)
         {
             marks[1] = Now(clock);
@@ -570,7 +570,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     m3World* world = SceneCityblock(towerIds, &towerCount);
     for (int32_t i = 0; i < settleSteps; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
@@ -580,7 +580,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     uint64_t before = m3World_Hash(world);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t after = m3World_Hash(world);
     double t2 = Now(clock);
@@ -589,7 +589,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     result.restoreExact = m3World_Hash(world) == before;
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     result.refightExact = m3World_Hash(world) == after;
     result.snapshotMs = t1 - t0;
@@ -637,7 +637,7 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
     double t0 = Now(clock);
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(sea, 1.0f / 60.0f, 4);
+        (void)m3World_Step(sea, 1.0f / 60.0f, 4);
     }
     *ms = Now(clock) - t0;
     uint64_t hash = m3World_Hash(sea);
@@ -710,7 +710,7 @@ uint64_t BenchSoftfield(int32_t steps, BenchClock* clock, double* ms)
     double t0 = Now(clock);
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(field, 1.0f / 60.0f, 4);
+        (void)m3World_Step(field, 1.0f / 60.0f, 4);
     }
     *ms = Now(clock) - t0;
     uint64_t hash = m3World_Hash(field);

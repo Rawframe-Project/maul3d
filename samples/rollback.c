@@ -56,7 +56,7 @@ int main(void)
     m3Body_SetLinearVelocity(world, ball, (m3Vec3){5.0f, 0.0f, 0.0f});
     for (int i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
 
     // The corrected input arrives: rewind and simulate again.
@@ -64,7 +64,7 @@ int main(void)
     int same = m3World_Hash(world) == then;
     for (int i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
     printf("restored bit-exact: %s, world hash %016llx\n", same ? "yes" : "no",
            (unsigned long long)m3World_Hash(world));

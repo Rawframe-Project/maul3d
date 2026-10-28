@@ -54,7 +54,7 @@ static void StepN(m3World* world, int32_t steps)
 {
     for (int32_t i = 0; i < steps; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 }
 
@@ -117,7 +117,7 @@ static void TestRestitution(void)
     int bounced = 0;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
         m3Pos3 p = m3Body_GetPosition(world, ball);
         if (!bounced && v.y > 0.5f)
@@ -150,7 +150,7 @@ static void TestBounceHeldWithinSpeedLimit(void)
     AddGroundPlane(world, 0.0f);
     m3BodyId ball = AddBall(world, 0.0, 0.52, 0.0, 0.5f, 0.0f, 500.0f);
     m3Body_SetLinearVelocity(world, ball, (m3Vec3){0.0f, -400.0f, 0.0f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
     float speed = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
     CHECK(v.y > 400.0f, "the ball bounces harder than it arrived");
@@ -206,7 +206,7 @@ static void TestSlideDistanceLaw(void)
         double minVx = 0.0;
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Vec3 v = m3Body_GetLinearVelocity(world, crate);
             if ((double)v.y > maxVy)
             {
@@ -395,7 +395,7 @@ static void TestGyroscopicTumble(void)
     float wMax = 0.0f;
     for (int32_t i = 0; i < 600; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Vec3 w = m3Body_GetAngularVelocity(world, body);
         float mag2 = w.x * w.x + w.y * w.y + w.z * w.z;
         if (mag2 > wMax)
@@ -488,7 +488,7 @@ static void TestGyroscopicHoldsEnergy(void)
             }
             for (int32_t i = 0; i < 60; ++i)
             {
-                m3World_Step(world, 1.0f / 60.0f, substeps);
+                (void)m3World_Step(world, 1.0f / 60.0f, substeps);
                 for (int32_t t = 0; t < 50; ++t)
                 {
                     m3Vec3 w = m3Body_GetAngularVelocity(world, bodies[t]);
@@ -574,7 +574,7 @@ static void TestSymmetricTopKeepsEnergy(void)
                 double phase = atan2(w[across2], w[across1]) - rate;
                 phaseError = fabs(remainder(phase, 2.0 * (double)M3_PI));
             }
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         CHECK(worst <= 1.0e-4, "a symmetric top keeps its energy");
         CHECK(axialDrift <= 3.0e-5, "a symmetric top keeps its spin along the axis");
@@ -769,7 +769,7 @@ static void TestBulletStopsAtWall(void)
         int stayed = 1;
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Pos3 p = m3Body_GetPosition(world, ball);
             if (p.x > 4.9)
             {
@@ -813,7 +813,7 @@ static void TestBulletVsDynamicTarget(void)
         int stayedBehind = 1;
         for (int32_t i = 0; i < 40; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             m3Pos3 pb = m3Body_GetPosition(world, ball);
             m3Pos3 pt = m3Body_GetPosition(world, target);
             if (pb.x > pt.x)
@@ -909,7 +909,7 @@ static void TestSphereSlidesAcrossMeshFloor(void)
     double zMax = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 p = m3Body_GetPosition(world, ball);
         yMin = p.y < yMin ? p.y : yMin;
         yMax = p.y > yMax ? p.y : yMax;
@@ -993,7 +993,7 @@ static void TestBoxSlidesAcrossMeshFloor(void)
     double zMax = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         m3Pos3 p = m3Body_GetPosition(world, box);
         yMin = p.y < yMin ? p.y : yMin;
         yMax = p.y > yMax ? p.y : yMax;
@@ -1119,7 +1119,7 @@ static void TestBulletStopsAtMeshWall(void)
     int stayed = 1;
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         if (m3Body_GetPosition(world, ball).x > 5.0)
         {
             stayed = 0;
@@ -1247,7 +1247,7 @@ static void TestRollingResistance(void)
 
         for (int32_t i = 0; i < 420; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Vec3 vGrip = m3Body_GetLinearVelocity(world, gripper);
         m3Vec3 vFree = m3Body_GetLinearVelocity(world, roller);
@@ -1298,7 +1298,7 @@ static void TestHeavyBallRollsAlike(void)
         NewSphereShape(world, ball, &sd, &sphere);
         for (int32_t k = 0; k < 120; ++k)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         speed[i] = m3Body_GetLinearVelocity(world, ball);
         spin[i] = m3Body_GetAngularVelocity(world, ball);

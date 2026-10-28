@@ -4,7 +4,6 @@
 #include "m3_world_3d.h"
 
 #include <cstring>
-
 #include <godot_cpp/core/class_db.hpp>
 
 namespace maul3d_godot
@@ -43,7 +42,7 @@ void M3World3D::_physics_process(double delta)
 {
     if (world_ != nullptr)
     {
-        m3World_Step(world_, (float)delta, substeps_);
+        (void)m3World_Step(world_, (float)delta, substeps_);
     }
 }
 
@@ -58,8 +57,7 @@ int64_t M3World3D::create_dynamic_box(godot::Vector3 position, godot::Vector3 ha
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = density;
     if (m3CreateBody(world_, &bd, &body) != m3_success ||
-        m3CreateBoxShape(world_, body, &sd,
-                         m3Vec3{half_extents.x, half_extents.y, half_extents.z},
+        m3CreateBoxShape(world_, body, &sd, m3Vec3{half_extents.x, half_extents.y, half_extents.z},
                          &shape) != m3_success)
     {
         return 0;
@@ -94,8 +92,7 @@ godot::Transform3D M3World3D::body_transform(int64_t body) const
 
 void M3World3D::set_body_velocity(int64_t body, godot::Vector3 velocity)
 {
-    m3Body_SetLinearVelocity(world_, UnpackBody(body),
-                             m3Vec3{velocity.x, velocity.y, velocity.z});
+    m3Body_SetLinearVelocity(world_, UnpackBody(body), m3Vec3{velocity.x, velocity.y, velocity.z});
 }
 
 godot::PackedByteArray M3World3D::snapshot() const
@@ -133,9 +130,9 @@ int M3World3D::get_substeps() const
 
 void M3World3D::_bind_methods()
 {
-    godot::ClassDB::bind_method(godot::D_METHOD("create_dynamic_box", "position", "half_extents",
-                                                "density"),
-                                &M3World3D::create_dynamic_box);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("create_dynamic_box", "position", "half_extents", "density"),
+        &M3World3D::create_dynamic_box);
     godot::ClassDB::bind_method(godot::D_METHOD("create_static_floor"),
                                 &M3World3D::create_static_floor);
     godot::ClassDB::bind_method(godot::D_METHOD("body_transform", "body"),

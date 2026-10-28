@@ -82,6 +82,7 @@ softbody_solver: shape_state softbody softbody_cull solver_math voxel world_inte
 solver: broad_phase character contact_solver continuous fpenv integrate island joint joint_solver journal misuse narrowphase softbody vehicle water world world_internal
 solver_math: world_internal
 state_prefix:
+step_scratch: broad_phase contact_constraint contact_kernel joint_solver world_internal
 triangle_contact: distance manifold world_internal
 vehicle: body_state fpenv journal misuse raycast solver_math world_internal
 vehicle_drivetrain: fpenv journal misuse vehicle world_internal
@@ -89,7 +90,7 @@ voxel: body_state character fpenv hull journal misuse shape_state voxel_coverage
 voxel_coverage: world_internal
 voxel_fracture: voxel voxel_coverage world_internal
 water: body_state broad_phase fpenv journal misuse world_internal
-world: body_state cpu fpenv journal misuse snapshot_walk world_internal world_state
+world: body_state cpu fpenv journal misuse snapshot_walk step_scratch world_internal world_state
 world_events: fpenv journal misuse world world_internal
 world_hash: body fpenv joint_solver misuse world world_internal
 world_internal: allocator dynamic_tree

@@ -200,7 +200,7 @@ static void TestDrawCoverage(void)
     m3World* world = MakeZoo();
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
     DrawSink sink = MakeSink();
@@ -244,7 +244,7 @@ static void TestDrawIsPureObserver(void)
     m3World* world = MakeZoo();
     for (int32_t i = 0; i < 90; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t bytes = m3World_SnapshotSize(world);
     uint8_t* before = (uint8_t*)malloc((size_t)bytes);
@@ -288,9 +288,9 @@ static void TestDrawIsPureObserver(void)
     m3DebugDraw stepDraw = AllOn(&stepSink);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m3World_Step(drawn, 1.0f / 60.0f, 4);
+        (void)m3World_Step(drawn, 1.0f / 60.0f, 4);
         m3World_Draw(drawn, &stepDraw);
-        m3World_Step(silent, 1.0f / 60.0f, 4);
+        (void)m3World_Step(silent, 1.0f / 60.0f, 4);
     }
     int32_t bytesA = m3World_SnapshotSize(drawn);
     int32_t bytesB = m3World_SnapshotSize(silent);
@@ -318,7 +318,7 @@ static void TestDrawStreamDeterminism(void)
         m3World* world = MakeZoo();
         for (int32_t i = 0; i < 150; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         DrawSink sink = MakeSink();
         m3DebugDraw draw = AllOn(&sink);
@@ -447,7 +447,7 @@ static void TestExtrasEmit(void)
         m3World* world = MakeZoo();
         for (int32_t i = 0; i < 60; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         sinks[run] = MakeSink();
         m3DebugDraw extras;

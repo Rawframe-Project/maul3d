@@ -97,7 +97,7 @@ static void TestCapacityExhaustion(void)
           "the single mesh slot fills");
     CHECK(!m3Shape_IsValid(mworld, NewMeshShape(mworld, ground, &msd, verts, 3, tris, 1)),
           "the mesh pool refuses past capacity");
-    m3World_Step(mworld, 1.0f / 60.0f, 4);
+    (void)m3World_Step(mworld, 1.0f / 60.0f, 4);
     uint64_t hashAfterRefusal = m3World_Hash(mworld);
 
     // A refused create legitimately advances pool identity (the slot
@@ -110,7 +110,7 @@ static void TestCapacityExhaustion(void)
           "the twin's mesh slot fills");
     CHECK(!m3Shape_IsValid(twin, NewMeshShape(twin, tground, &msd, verts, 3, tris, 1)),
           "the twin's refusal repeats");
-    m3World_Step(twin, 1.0f / 60.0f, 4);
+    (void)m3World_Step(twin, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(twin) == hashAfterRefusal, "the failure path is bit-deterministic");
     m3DestroyWorld(twin);
     m3DestroyWorld(mworld);
@@ -134,7 +134,7 @@ static void TestJournalOverflowIsLoud(void)
         NewBody(world, &bd); // each op needs more than 64 bytes
     }
     CHECK(StopJournal(world) == -1, "journal overflow reports -1, loudly");
-    m3World_Step(world, 1.0f / 60.0f, 4); // the world itself is fine
+    (void)m3World_Step(world, 1.0f / 60.0f, 4); // the world itself is fine
     m3DestroyWorld(world);
 }
 
@@ -371,7 +371,7 @@ static void CheckPoisonsRefused(m3World* world, const uint8_t* clean, int32_t si
         CHECK(m3World_Restore(world, poisoned, size) == m3_errorFormat, poisons[i].msg);
         CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
               "and the world is untouched");
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         CHECK(Restore(world, clean, size), "the clean snapshot restores");
     }
     free(after);
@@ -409,7 +409,7 @@ static void TestRestoreRefusesBadHullContent(void)
     bd.position = (m3Pos3){0.0, 0.91, 0.0}; // resting on the floor, face to face
     const m3Vec3 half = {0.37f, 0.41f, 0.53f};
     NewBoxShape(world, NewBody(world, &bd), &sd, half);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the hull world is snapshotted");
@@ -606,7 +606,7 @@ static void TestRestoreRefusesBadHullDerived(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.85, 0.0};
     NewHullShape(world, NewBody(world, &bd), &sd, rock, 8);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the rock world is snapshotted");
@@ -787,7 +787,7 @@ static void TestRestoreRefusesBadCursors(void)
     uint8_t* other = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
     CHECK(Snapshot(twin, other, size) == size, "twin snapshot taken");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m3World_Hash(world);
 
     int32_t poisoned = 0;
@@ -841,7 +841,7 @@ static void TestRestoreRefusesPoisonedWords(void)
     bd.position = (m3Pos3){0.0, 1.2, 0.0};
     m3BodyId box = NewBody(world, &bd);
     NewBoxShape(world, box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
 
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
@@ -923,13 +923,13 @@ static void TestShapeDefsRefuseAsInvalid(void)
 static void TestUntrustedDataCountsNoMisuse(void)
 {
     m3World* world = CursorWorld(3);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t size = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     static uint8_t tape[4096];
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 16 + 8, "the journal holds a step after its prefix");
     CHECK(Restore(world, snap, size), "the clean snapshot restores");
@@ -981,7 +981,7 @@ static void TestUntrustedDataCountsNoMisuse(void)
 static void TestOtherReleasesAreRefused(void)
 {
     m3World* world = CursorWorld(3);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t snapBytes = m3World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     uint8_t* bad = (uint8_t*)malloc((size_t)snapBytes + 8192);
@@ -989,7 +989,7 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(snap != NULL && bad != NULL && Snapshot(world, snap, snapBytes) == snapBytes,
           "the snapshot is taken");
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t tapeBytes = StopJournal(world);
     int32_t boxBytes = m3GetEncodedReplaySize(snapBytes, tapeBytes);
     uint8_t* box = (uint8_t*)malloc((size_t)boxBytes);
@@ -1220,7 +1220,7 @@ static void TryWriters(BusyProbe* probe)
     probe->refused += m3CreateBody(probe->world, &bd, &created) == m3_errorBusy ? 1 : 0;
     probe->refused += m3DestroyBody(probe->world, probe->body) == m3_errorBusy ? 1 : 0;
     m3Body_SetLinearVelocity(probe->world, probe->body, (m3Vec3){0.0f, 50.0f, 0.0f});
-    m3World_Step(probe->world, 1.0f / 60.0f, 4);
+    probe->refused += m3World_Step(probe->world, 1.0f / 60.0f, 4) == m3_errorBusy ? 1 : 0;
 }
 
 static bool BusyPreSolve(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
@@ -1265,9 +1265,9 @@ static void TestWritersRefuseWhileBusy(void)
     m3World_SetPreSolveCallback(world, BusyPreSolve, &probe);
 
     uint64_t misuse = m3World_GetCounters(world).misuse;
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(probe.calls > 0, "the pre-solve callback ran");
-    CHECK(probe.refused == 2 * probe.calls, "every status writer it called was refused");
+    CHECK(probe.refused == 3 * probe.calls, "every status writer it called was refused");
     CHECK(m3World_GetCounters(world).misuse == misuse + 4u * (uint64_t)probe.calls,
           "and every writer it called counted once");
     CHECK(m3Body_IsValid(world, probe.body) && m3World_GetCounters(world).bodyCount == 2,
@@ -1284,7 +1284,7 @@ static void TestWritersRefuseWhileBusy(void)
     draw.context = &probe;
     draw.drawShapes = true;
     m3World_Draw(world, &draw);
-    CHECK(probe.calls > 0 && probe.refused == 2 * probe.calls,
+    CHECK(probe.calls > 0 && probe.refused == 3 * probe.calls,
           "a writer called from a draw callback is refused too");
     CHECK(m3World_GetStepCount(world) == 1, "and steps nothing");
 

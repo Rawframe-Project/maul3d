@@ -27,7 +27,7 @@ static void Drive(m3World* world, int steps)
 {
     for (int i = 0; i < steps; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        Require(m3World_Step(world, 1.0f / 60.0f, 4), "step");
     }
 }
 

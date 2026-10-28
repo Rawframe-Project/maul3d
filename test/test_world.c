@@ -448,8 +448,8 @@ static void TestTreeReferee(void)
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
             NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
         }
-        CheckReferee(w);                      // the change alone, before any motion hides it
-        m3World_Step(world, 1.0f / 60.0f, 4); // real motion between rounds
+        CheckReferee(w);                            // the change alone, before any motion hides it
+        (void)m3World_Step(world, 1.0f / 60.0f, 4); // real motion between rounds
     }
 
     m3DestroyWorld(world);
@@ -543,8 +543,8 @@ static void TestContactLanesMatchScalar(void)
     int32_t firstMismatch = -1;
     for (int32_t step = 0; step < 240 && firstMismatch < 0; ++step)
     {
-        m3World_Step(lanes, 1.0f / 60.0f, 4);
-        m3World_Step(rows, 1.0f / 60.0f, 4);
+        (void)m3World_Step(lanes, 1.0f / 60.0f, 4);
+        (void)m3World_Step(rows, 1.0f / 60.0f, 4);
         if (m3World_Hash(lanes) != m3World_Hash(rows))
         {
             firstMismatch = step;
@@ -583,13 +583,13 @@ static void TestHullSnapshotShrink(void)
     CHECK(bytes == boxedBytes, "the measured size is the written size");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(boxed, 1.0f / 60.0f, 4);
+        (void)m3World_Step(boxed, 1.0f / 60.0f, 4);
     }
     uint64_t after = m3World_Hash(boxed);
     CHECK(Restore(boxed, snap, bytes), "the hull snapshot restores");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(boxed, 1.0f / 60.0f, 4);
+        (void)m3World_Step(boxed, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(boxed) == after, "the refought hull world lands on the same bits");
     m3DestroyWorld(bare);
@@ -641,7 +641,7 @@ static void TestAllocatorHook(void)
     NewSphereShape(world, b, &sd, &ball);
     for (int32_t i = 0; i < 10; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3DestroyWorld(world);
     CHECK(s_hookLive == 0, "every hooked allocation was freed through the hook");
@@ -678,7 +678,7 @@ static void TestMemoryUsage(void)
     NewSphereShape(world, b, &sd, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3MemoryUsage stepped = m3World_GetMemoryUsage(world);
     CHECK(stepped.scratchPeak > 0, "the step scratch reports its high water");
@@ -845,8 +845,33 @@ static void TestHashSeesSetterState(void)
     CheckHashSeesFreeOrder();
 }
 
+// The pair table holds 8 pairs per shape of shapeCapacity. A step that
+// finds more stalls, and says so with m3_errorCapacity.
+static void TestFullPairTableStalls(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 20;
+    wd.shapeCapacity = 20; // 160 pairs
+    m3World* world = NewWorld(&wd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 20; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.01 * (double)i, 0.0, 0.0}; // 190 overlapping pairs
+        NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    }
+    uint64_t steps = m3World_GetStepCount(world);
+    CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_errorCapacity,
+          "a step that finds more pairs than the table holds is m3_errorCapacity");
+    CHECK(m3World_GetStepCount(world) == steps, "and does not count as a step");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestFullPairTableStalls();
     TestAllocatorHook();
     TestMemoryUsage();
     TestWorldLifecycle();

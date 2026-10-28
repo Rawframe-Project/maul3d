@@ -97,13 +97,13 @@ static void TestUphillBogAndClimb(void)
         m3Vehicle_SelectGear(world, car, variant == 0 ? 5 : 1);
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4); // settle on the slope
+            (void)m3World_Step(world, 1.0f / 60.0f, 4); // settle on the slope
         }
         double startX = m3Body_GetPosition(world, chassis).x;
         m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         progress[variant] = m3Body_GetPosition(world, chassis).x - startX;
         CHECK(m3Vehicle_GetGear(world, car) == (variant == 0 ? 5 : 1), "the manual gear holds");
@@ -128,7 +128,7 @@ static void TestAutoShiftSprintTwins(void)
         m3Vehicle_SetDrivetrain(world, car, &dt);
         for (int32_t i = 0; i < 120; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
         int32_t lastGear = m3Vehicle_GetGear(world, car);
@@ -137,7 +137,7 @@ static void TestAutoShiftSprintTwins(void)
         for (int32_t i = 0; i < 1500; ++i)
         {
             m3real rpmPrev = m3Vehicle_GetEngineRpm(world, car);
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             int32_t gear = m3Vehicle_GetGear(world, car);
             if (run == 0)
             {
@@ -181,19 +181,19 @@ static void TestNeutralAndReverse(void)
     m3Vehicle_SelectGear(world, car, 0);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double startX = m3Body_GetPosition(world, chassis).x;
     m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(fabs(m3Body_GetPosition(world, chassis).x - startX) < 0.1, "neutral drives nothing");
     m3Vehicle_SelectGear(world, car, -1);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, chassis).x < startX - 1.0, "reverse drives backward");
     m3DestroyWorld(world);
@@ -217,7 +217,7 @@ static double DiffYaw(int32_t mode, m3real couple, uint64_t* outHash)
     for (int32_t i = 0; i < 300; ++i)
     {
         m3Vehicle_SetCommands(world, car, 1.0f, 0.6f, 0.0f);
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
         yaw += (double)m3Body_GetAngularVelocity(world, chassis).y;
     }
     if (outHash != NULL)
@@ -262,7 +262,7 @@ static void TestDifferentials(void)
     // Neither hostile def attached: gear selection still refuses
     // like a drivetrain-less car accepts nothing but neutral.
     m3Vehicle_SelectGear(world, car, 1);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
 
@@ -292,7 +292,7 @@ static void TestTankSteer(void)
         m3Vehicle_SetTankCommands(world, tank, 1.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 90; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         if (run == 0)
         {
@@ -305,12 +305,12 @@ static void TestTankSteer(void)
         m3Vehicle_SetTankCommands(world, tank, 0.0f, 0.0f, 1.0f);
         for (int32_t i = 0; i < 300; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Vehicle_SetTankCommands(world, tank, 1.0f, -1.0f, 0.0f);
         for (int32_t i = 0; i < 180; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         if (run == 0)
         {
@@ -378,12 +378,12 @@ static void TestMotorcycleLean(void)
         m3Vehicle_SetCommands(world, bike, 1.0f, 0.0f, 0.0f);
         for (int32_t i = 0; i < 45; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Vehicle_SetCommands(world, bike, 0.0f, 0.15f, 0.0f);
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         m3Quat q = m3Body_GetRotation(world, frame);
         m3Vec3 up = m3RotateVec3(q, (m3Vec3){0.0f, 1.0f, 0.0f});
@@ -458,7 +458,7 @@ static void TestHostileWall(void)
     m3Vehicle_SelectGear(world, m3_nullVehicleId, 1);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Vehicle_GetGear(world, car) == 1, "the world steps on through all of it");
     m3DestroyWorld(world);

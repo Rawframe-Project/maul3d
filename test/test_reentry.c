@@ -37,7 +37,7 @@ static const m3Vec3 kQuadVerts[4] = {
     {-3.0f, 0.0f, -3.0f}, {3.0f, 0.0f, -3.0f}, {3.0f, 0.0f, 3.0f}, {-3.0f, 0.0f, 3.0f}};
 static const uint16_t kQuadTris[6] = {0, 2, 1, 0, 3, 2};
 
-// The seven writers a probe tries, five with a status and two without.
+// The seven writers a probe tries, six with a status and one without.
 #define PROBE_WRITERS 7
 
 static void Probe(Reentry* r)
@@ -54,7 +54,7 @@ static void Probe(Reentry* r)
             ? 1
             : 0;
     r->refused += m3World_RebuildBroadphase(world) == m3_errorBusy ? 1 : 0;
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    r->refused += m3World_Step(world, 1.0f / 60.0f, 4) == m3_errorBusy ? 1 : 0;
     m3DestroyWorld(world);
 }
 
@@ -133,7 +133,7 @@ static void BuildScene(Scene* scene, Reentry* r)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     NewBoxShape(scene->world, NewBody(scene->world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
-    m3World_Step(scene->world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(scene->world, 1.0f / 60.0f, 4);
     scene->snapshotSize = m3World_SnapshotSize(scene->world);
     scene->snapshot = (uint8_t*)malloc((size_t)scene->snapshotSize);
     (void)Snapshot(scene->world, scene->snapshot, scene->snapshotSize);
@@ -232,19 +232,19 @@ static void SweepOp(int32_t op)
             // Nothing is left to read: the probe's writers saw a world
             // whose pools were gone, and ASan holds them to not touching
             // them.
-            whole = whole && r.refused == PROBE_WRITERS - 2;
+            whole = whole && r.refused == PROBE_WRITERS - 1;
             FreeScene(&scene);
             FreeScene(&twin);
             continue;
         }
         uint64_t counted = m3World_GetCounters(scene.world).misuse - misuse;
-        bool ok = r.refused == PROBE_WRITERS - 2 && counted == PROBE_WRITERS &&
+        bool ok = r.refused == PROBE_WRITERS - 1 && counted == PROBE_WRITERS &&
                   result == expected && m3World_GetStepCount(scene.world) == steps &&
                   m3World_Hash(scene.world) == m3World_Hash(twin.world);
         if (!ok)
         {
             printf("  %s, allocator call %d: %d of %d refused, %llu counted, result %d of %d\n",
-                   kOpNames[op], at, r.refused, PROBE_WRITERS - 2, (unsigned long long)counted,
+                   kOpNames[op], at, r.refused, PROBE_WRITERS - 1, (unsigned long long)counted,
                    (int)result, (int)expected);
         }
         whole = whole && ok;

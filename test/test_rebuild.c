@@ -102,8 +102,8 @@ static void TestRebuildChangesNoAnswer(void)
 
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(plain, 1.0f / 60.0f, 4);
-        m3World_Step(rebuilt, 1.0f / 60.0f, 4);
+        (void)m3World_Step(plain, 1.0f / 60.0f, 4);
+        (void)m3World_Step(rebuilt, 1.0f / 60.0f, 4);
     }
     CHECK(m3World_Hash(plain) == m3World_Hash(rebuilt),
           "physics is bit-identical across the rebuild");
@@ -192,7 +192,7 @@ static void TestPlatformCarry(void)
         double t = (double)(i + 1) / 60.0;
         m3Body_SetTargetTransform(world, platform, (m3Pos3){0.8 * t, 1.0, 0.0},
                                   (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double px = m3Body_GetPosition(world, platform).x;
     double cx = m3Body_GetPosition(world, crate).x;

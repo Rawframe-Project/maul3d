@@ -103,7 +103,7 @@ static void TestRefusedCreatesMoveNoIds(void)
           "a character refuses without a body");
     DestroyBody(world, filler[fillers - 1]);
     CHECK(m3Character_IsValid(world, NewCharacter(world, &cd)), "and fits once one frees up");
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the tape closes");
 
@@ -145,7 +145,7 @@ static uint64_t ReplayAndStep(const uint8_t* tape, int32_t bytes)
     {
         for (int i = 0; i < 30; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
         hash = m3World_Hash(world);
     }

@@ -60,7 +60,7 @@ static void TestWindStreamsTheFlag(void)
         int32_t snapBytes = 0;
         for (int32_t i = 0; i < 240; ++i)
         {
-            m3World_Step(world, 1.0f / 60.0f, 4);
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
             if (i == 120 && run == 0)
             {
                 snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
@@ -82,7 +82,7 @@ static void TestWindStreamsTheFlag(void)
             CHECK(Restore(world, snap, snapBytes), "the mid-gust restore lands");
             for (int32_t i = 121; i < 240; ++i)
             {
-                m3World_Step(world, 1.0f / 60.0f, 4);
+                (void)m3World_Step(world, 1.0f / 60.0f, 4);
             }
             CHECK(m3World_Hash(world) == final,
                   "the gust wave continues across rollback bit-exactly");
@@ -107,7 +107,7 @@ static void TestConveyorCarries(void)
     m3Shape_SetSurfaceVelocity(world, floor, (m3Vec3){1.5f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 v = m3Body_GetLinearVelocity(world, crate);
     CHECK(fabsf(v.x - 1.5f) < 0.1f, "the crate rides the belt at belt speed");
@@ -115,7 +115,7 @@ static void TestConveyorCarries(void)
     m3Shape_SetSurfaceVelocity(world, floor, (m3Vec3){-1.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 180; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     v = m3Body_GetLinearVelocity(world, crate);
     CHECK(fabsf(v.x + 1.0f) < 0.1f, "the reversed belt carries it back");
@@ -142,12 +142,12 @@ static void TestConveyorOnDynamicDeck(void)
     NewBoxShape(world, crate, &cs, (m3Vec3){0.25f, 0.25f, 0.25f});
     for (int32_t i = 0; i < 60; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Shape_SetSurfaceVelocity(world, deckTop, (m3Vec3){1.0f, 0.0f, 0.0f});
     for (int32_t i = 0; i < 120; ++i)
     {
-        m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     m3Vec3 vCrate = m3Body_GetLinearVelocity(world, crate);
     m3Vec3 vDeck = m3Body_GetLinearVelocity(world, deck);
@@ -168,8 +168,8 @@ static void TestHostileFields(void)
     stale.index1 += 500;
     m3Shape_SetSurfaceVelocity(world, stale, (m3Vec3){1.0f, 0.0f, 0.0f});
     uint64_t before = m3World_Hash(world);
-    m3World_Step(world, 1.0f / 60.0f, 4);
-    m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
     (void)before;
     CHECK(m3World_GetCounters(world).bodyCount > 0, "hostile fields left the world whole");
     m3DestroyWorld(world);
