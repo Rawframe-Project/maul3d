@@ -10,8 +10,10 @@
 #                            changed, clang-tidy on the changed sources,
 #                            and the linux-clang-20-asan preset
 #                            (assertions on) for the tests the changes
-#                            reach. Under two minutes on a warm build;
-#                            run it before every push.
+#                            reach, and five seconds of each fuzz target
+#                            when the library code, a build file or a
+#                            fuzz target changed. Under two minutes on a
+#                            warm build; run it before every push.
 #   tools/check.sh pr        what the pull request check runs on this
 #                            machine: every rule, formatting of every file,
 #                            the bindings, the documentation site,
@@ -84,11 +86,22 @@ preset() {
 labels_for() {
     case "$1" in
     *.md | LICENSE | .github/* | docs/* | bindings/* | tools/*.py | tools/*.txt | tools/check.sh) ;;
-    test/fuzz_*) ;; # the fuzz targets run in tools/check.sh pr and full
+    test/fuzz_*) ;; # the fuzz targets run beside the tests: see reaches_fuzz
     bench/* | test/test_bench.c) ;; # the bench scenes run in Release only: tools/check.sh full
     test/test_golden.c) echo "golden golden_hostile" ;;
     test/test_*.c) [ ! -f "$1" ] || basename "$1" .c | sed 's/^test_//' ;;
     *) echo all ;;
+    esac
+}
+
+# Whether a changed path reaches the fuzz targets: the targets
+# themselves, or any library code or build file. fuzz_restore_step steps
+# the worlds it restores and fuzz_journal steps after replaying ops
+# through the public API, so the targets run nearly every source.
+reaches_fuzz() {
+    case "$1" in
+    src/* | include/* | test/fuzz_* | CMakeLists.txt | cmake/*) return 0 ;;
+    *) return 1 ;;
     esac
 }
 
@@ -207,15 +220,19 @@ if [ "$tier" = changed ]; then
     for f in "${changed[@]}"; do labels="$labels $(labels_for "$f")"; done
     if [ -z "${labels// /}" ]; then
         echo "no test reached by the changes"
-        exit 0
-    fi
-    if [[ " $labels " == *" all "* ]]; then
+    elif [[ " $labels " == *" all "* ]]; then
         preset linux-clang-20-asan
     else
         regex=$(tr ' ' '\n' <<<"$labels" | grep -v '^$' | sort -u | paste -sd '|')
         echo "tests labeled $regex"
         preset linux-clang-20-asan -L "^($regex)\$"
     fi
+    for f in "${changed[@]}"; do
+        if reaches_fuzz "$f"; then
+            fuzz 5
+            break
+        fi
+    done
     exit 0
 fi
 
