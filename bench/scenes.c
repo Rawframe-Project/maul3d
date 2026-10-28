@@ -590,7 +590,7 @@ static m3World* SceneVehicleRig(void)
 
 // One ragdoll at its pelvis: a torso, a head on a neck socket, arms on
 // shoulder sockets with hinged elbows, and legs on hip sockets with
-// hinged knees, eleven bodies on ten joints.
+// hinged knees, ten bodies on nine joints.
 static void AddRagdoll(m3World* world, m3Pos3 at)
 {
     m3BodyDef bd = m3DefaultBodyDef();
