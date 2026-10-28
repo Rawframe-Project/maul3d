@@ -101,14 +101,19 @@ jobs:
       - name: The documentation site builds
         run: python3 tools/build_docs.py
       - name: clang-tidy
-        # Cognitive complexity is checked once the functions above its
-        # limit are split or listed.
+        # On the Release build, where the assertions compile out, and on
+        # the Debug build, where they are live: each hides findings the
+        # other shows. Cognitive complexity is checked once the functions
+        # above its limit are split or listed.
         run: |
-          cmake -B out/tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -D${PREFIX}_BUILD_TESTS=OFF
-          for f in src/*.c; do
-            clang-tidy-20 -p out/tidy --quiet --warnings-as-errors='*' \
-              --checks=-readability-function-cognitive-complexity "$f"
+          for build in Release Debug; do
+            cmake --preset linux-clang-20 -B "out/tidy-$build" -DCMAKE_BUILD_TYPE=$build \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -D${PREFIX}_BUILD_TESTS=OFF \
+              -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF -D${PREFIX}_BUILD_TOOLS=OFF
+            for f in src/*.c; do
+              clang-tidy-20 -p "out/tidy-$build" --quiet --warnings-as-errors='*' \
+                --checks=-readability-function-cognitive-complexity "$f"
+            done
           done
 
   # Every cell builds with warnings as errors and runs the whole suite, the
