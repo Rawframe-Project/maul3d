@@ -87,9 +87,28 @@ static bool UnitQuat(const uint8_t* block, size_t stride, size_t at, int32_t i)
     return qq > 0.98f && qq < 1.02f;
 }
 
+// A joint's target rotation as its create and setters keep it: a unit
+// rotation on a spherical joint's target and a motor joint's aim, the
+// identity on every other type that has one. A wheel joint's slots hold
+// its steering drive's hertz, damping and effort, bounded in
+// snapshot_bounds.c.
+static bool TargetRotationValid(uint8_t type, const uint8_t* block, int32_t j)
+{
+    if (type == (uint8_t)m3_wheelJoint)
+    {
+        return true;
+    }
+    if (type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_motorJoint)
+    {
+        return UnitQuat(block, sizeof(m3Quat), 0, j);
+    }
+    m3Quat q;
+    memcpy(&q, block + sizeof(m3Quat) * (size_t)j, sizeof(q));
+    return q.x == 0.0f && q.y == 0.0f && q.z == 0.0f && q.w == 1.0f;
+}
+
 // Every live body's pose and, when it has one, its target; every live
-// shape's offset; every live joint's frames and drive target, but a wheel
-// joint's, which holds its steering drive's hertz, damping and effort.
+// shape's offset; every live joint's frames and target rotation.
 static bool RotationsValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
@@ -125,7 +144,7 @@ static bool RotationsValid(const m3Incoming* inc)
     {
         if (jointAlive[j] != 0 &&
             (!UnitQuat(frameA, sizeof(m3Quat), 0, j) || !UnitQuat(frameB, sizeof(m3Quat), 0, j) ||
-             (types[j] != (uint8_t)m3_wheelJoint && !UnitQuat(target, sizeof(m3Quat), 0, j))))
+             !TargetRotationValid(types[j], target, j)))
         {
             return false;
         }
