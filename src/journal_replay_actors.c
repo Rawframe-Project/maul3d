@@ -105,7 +105,7 @@ bool m3ReplayCreateVehicle(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    for (int32_t w = 0; w < M3_VEHICLE_MAX_WHEELS; ++w)
+    for (int32_t w = 0; w < M3_MAX_VEHICLE_WHEELS; ++w)
     {
         size_t wheelBase = offsetof(m3VehicleDef, wheels) + (size_t)w * sizeof(m3WheelDef);
         m3NormalizeBoolByte(&record.def, wheelBase + offsetof(m3WheelDef, steerable));
@@ -288,7 +288,7 @@ bool m3ReplaySoftBodyAnchor(m3World* world, const m3ReplayRecord* r)
     int32_t body = m3BodySlot(world, record.body);
     if (slot < 0 || body < 0 || record.particle < 0 ||
         record.particle >= world->softBodies.softParticleCount[slot] ||
-        world->softBodies.softAnchorCount[slot] >= M3_SOFTBODY_MAX_ANCHORS)
+        world->softBodies.softAnchorCount[slot] >= M3_MAX_SOFTBODY_ANCHORS)
     {
         return false;
     }
@@ -311,7 +311,7 @@ bool m3ReplaySoftBodyAnchorSoft(m3World* world, const m3ReplayRecord* r)
     if (slotA < 0 || slotB < 0 || slotA == slotB || record.particleA < 0 || record.particleB < 0 ||
         record.particleA >= world->softBodies.softParticleCount[slotA] ||
         record.particleB >= world->softBodies.softParticleCount[slotB] ||
-        world->softBodies.softSoftCount[slotA < slotB ? slotA : slotB] >= M3_SOFTBODY_MAX_ANCHORS)
+        world->softBodies.softSoftCount[slotA < slotB ? slotA : slotB] >= M3_MAX_SOFTBODY_ANCHORS)
     {
         // A flipped particle index would become an out of
         // bounds solver read: the full public wall.
@@ -331,8 +331,8 @@ bool m3ReplayCreateSoftBodyTet(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&head, payload, sizeof(head));
-    if (head.pointCount < 4 || head.pointCount > M3_SOFTBODY_MAX_PARTICLES || head.tetCount < 1 ||
-        head.tetCount > M3_SOFTBODY_MAX_TETS ||
+    if (head.pointCount < 4 || head.pointCount > M3_MAX_SOFTBODY_PARTICLES || head.tetCount < 1 ||
+        head.tetCount > M3_MAX_SOFTBODY_TETS ||
         bytes != (int32_t)sizeof(head) + head.pointCount * (int32_t)sizeof(m3Vec3) +
                      4 * head.tetCount * (int32_t)sizeof(uint16_t))
     {
@@ -342,8 +342,8 @@ bool m3ReplayCreateSoftBodyTet(m3World* world, const m3ReplayRecord* r)
     // stream are misaligned UB, here and in the heightfield record's
     // twin of this line. Aligned stack copies, bounded by the walls
     // just checked.
-    m3Vec3 pts[M3_SOFTBODY_MAX_PARTICLES];
-    uint16_t tets[4 * M3_SOFTBODY_MAX_TETS];
+    m3Vec3 pts[M3_MAX_SOFTBODY_PARTICLES];
+    uint16_t tets[4 * M3_MAX_SOFTBODY_TETS];
     memcpy(pts, (const uint8_t*)payload + sizeof(head), (size_t)head.pointCount * sizeof(m3Vec3));
     memcpy(tets, (const uint8_t*)payload + sizeof(head) + (size_t)head.pointCount * sizeof(m3Vec3),
            (size_t)(4 * head.tetCount) * sizeof(uint16_t));

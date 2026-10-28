@@ -52,7 +52,7 @@ bool m3WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh)
     Block(walk, mesh->edgeFlags, mesh->triangleCount);
     Block(walk, &mesh->materialCount, 4);
     if (walk->mode == m3_walkRead &&
-        (mesh->materialCount < 0 || mesh->materialCount > M3_MESH_MAX_MATERIALS))
+        (mesh->materialCount < 0 || mesh->materialCount > M3_MAX_MESH_MATERIALS))
     {
         return false;
     }
@@ -127,8 +127,8 @@ bool m3WalkHeightField(m3Heap* heap, m3Walk* walk, m3HeightFieldData* hf)
     Block(walk, &hf->cellSize, 4);
     if (walk->mode == m3_walkRead)
     {
-        bool valid = hf->nx >= 0 && hf->nx <= M3_HEIGHTFIELD_MAX_DIM && hf->nz >= 0 &&
-                     hf->nz <= M3_HEIGHTFIELD_MAX_DIM && (hf->nx == 0) == (hf->nz == 0) &&
+        bool valid = hf->nx >= 0 && hf->nx <= M3_MAX_HEIGHTFIELD_SIZE && hf->nz >= 0 &&
+                     hf->nz <= M3_MAX_HEIGHTFIELD_SIZE && (hf->nx == 0) == (hf->nz == 0) &&
                      (hf->nx == 0 || (hf->nx >= 2 && hf->nz >= 2));
         if (!valid || !m3HeightFieldDataAlloc(heap, hf))
         {
@@ -201,8 +201,8 @@ static int64_t MeshSlotMostBytes(void)
 {
     m3MeshData mesh;
     memset(&mesh, 0, sizeof(mesh));
-    mesh.vertexCount = M3_MESH_MAX_VERTS;
-    mesh.triangleCount = M3_MESH_MAX_TRIS;
+    mesh.vertexCount = M3_MAX_MESH_VERTICES;
+    mesh.triangleCount = M3_MAX_MESH_TRIANGLES;
     m3Walk walk = {NULL, NULL, m3_walkMeasure, 0};
     m3WalkMesh(NULL, &walk, &mesh);
     return walk.cursor;

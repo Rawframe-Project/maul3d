@@ -157,7 +157,7 @@ static void CastMesh(m3ShapeCastContext* ctx, int32_t shape)
     m3Vec3 lo;
     m3Vec3 hi;
     SurfaceCastBox(&sc, 1.0f, &lo, &hi);
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount =
         m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo, hi, gather,
                         M3_COUNT_OF(gather));
@@ -198,7 +198,7 @@ static void CastVoxels(m3ShapeCastContext* ctx, int32_t shape)
     m3Vec3 blo;
     m3Vec3 bhi;
     SurfaceCastBox(&sc, 1.0f, &blo, &bhi);
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
@@ -404,7 +404,7 @@ static m3RayCastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base,
     // boxes and hulls cast their corners; spheres and capsules keep
     // their mandatory skin.
     bool valid = world != NULL && points != NULL && pointCount >= 1 &&
-                 pointCount <= M3_HULL_MAX_VERTS && m3FiniteF(radius) && radius >= 0.0f &&
+                 pointCount <= M3_MAX_CAST_POINTS && m3FiniteF(radius) && radius >= 0.0f &&
                  (radius > 0.0f || pointCount >= 2) && m3FinitePos3(base) &&
                  translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT &&
                  translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT &&
@@ -512,7 +512,7 @@ static M3_NOINLINE m3RayCastResult WorldCastHullClosestWorker(const m3World* wor
 {
     m3RayCastResult miss;
     memset(&miss, 0, sizeof(miss));
-    if (points == NULL || count < 2 || count > M3_HULL_MAX_VERTS || !m3FinitePos3(base) ||
+    if (points == NULL || count < 2 || count > M3_MAX_CAST_POINTS || !m3FinitePos3(base) ||
         !m3FiniteV3(translation))
     {
         m3Refuse(world, m3_errorInvalid);

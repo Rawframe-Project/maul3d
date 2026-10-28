@@ -118,11 +118,11 @@ extern "C"
     /// library's SIMD backend (m3_errorUnsupported), the def's cookie must
     /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
     /// (m3_errorVersion), and the rest of the def must hold
-    /// (m3_errorInvalid). A def whose world could snapshot to more than
-    /// M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at
-    /// its largest, is refused with m3_errorCapacity before anything is
-    /// allocated; the allocator may refuse too (m3_errorCapacity).
-    /// *worldOut is null on any failure.
+    /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
+    /// maul3d/base.h, a shape or voxel capacity included). A def whose world could snapshot to more
+    /// than M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at its largest, is
+    /// refused with m3_errorCapacity before anything is allocated; the allocator may refuse too
+    /// (m3_errorCapacity). *worldOut is null on any failure.
     M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
     /// Destroys a world and everything it owns; ids it issued mean nothing
     /// after. Null is a no-op.
@@ -167,6 +167,9 @@ extern "C"
     static const m3WaterVolumeId m3_nullWaterVolumeId = {0, 0};
 
     M3_API m3WaterVolumeDef m3DefaultWaterVolumeDef(void);
+    /// A box past M3_POSITION_LIMIT, a density past M3_DENSITY_LIMIT or
+    /// a flow past M3_SPEED_LIMIT returns m3_errorLimit, any other bad
+    /// field m3_errorInvalid.
     /// Up to 8 volumes per world; journaled, snapshotted, hashed
     /// off-default. Creating or destroying a volume wakes every
     /// body whose bounds touch it (the tide moves things).
@@ -253,10 +256,10 @@ extern "C"
     /// and the world's capacities. Only the release that wrote a
     /// snapshot reads it: restore refuses another release, format or
     /// config with m3_errorVersion and another world shape with
-    /// m3_errorInvalid, restores in place, and the restored world
+    /// m3_errorFormat, restores in place, and the restored world
     /// resimulates bit-exactly. Before any byte lands, every block is
     /// checked: out-of-range indices and counts, flags that are not
-    /// flags, and non-finite state refuse with m3_errorInvalid and leave
+    /// flags, and non-finite state refuse with m3_errorFormat and leave
     /// the world as it was. Then the structures are checked as wholes:
     /// restore refuses, the same way, any snapshot whose links, lists,
     /// pools, trees or per-record values this engine could not have
@@ -752,7 +755,7 @@ extern "C"
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal the world is restored to its pre-call state; a
     /// half-applied session is impossible. Returns m3_errorVersion for a
-    /// tape another release wrote, m3_errorInvalid for a damaged tape
+    /// tape another release wrote, m3_errorFormat for a damaged tape
     /// (truncation, corruption, an op that cannot re-mint its recorded
     /// id) and m3_errorCapacity when the world's
     /// allocator refuses what the replay or one of its ops needs.

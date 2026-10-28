@@ -67,6 +67,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/body.c
     src/body_motion.c
     src/body_read.c
+    src/body_sleep.c
     src/body_state.c
     src/broad_phase.c
     src/character.c
@@ -120,6 +121,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/quickhull.c
     src/raycast.c
     src/replay.c
+    src/rigid_flow.c
     src/shape.c
     src/shape_cast.c
     src/shape_create.c

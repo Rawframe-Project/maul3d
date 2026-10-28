@@ -93,8 +93,8 @@ static void TestRefereeGather(void)
     CHECK(mesh->triangleCount == 2 * 31 * 31, "heightfield triangulates fully");
     CHECK(bvh->nodeCount > 100, "the tree actually built");
 
-    uint16_t gathered[M3_MESH_MAX_TRIS];
-    uint16_t brute[M3_MESH_MAX_TRIS];
+    uint16_t gathered[M3_MAX_MESH_TRIANGLES];
+    uint16_t brute[M3_MAX_MESH_TRIANGLES];
     for (int32_t round = 0; round < 300; ++round)
     {
         m3Vec3 center = {RandRange(-4.0f, 36.0f), RandRange(-2.0f, 2.0f), RandRange(-4.0f, 36.0f)};

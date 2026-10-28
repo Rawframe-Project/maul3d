@@ -84,10 +84,10 @@ static M3_NOINLINE void ShapeSetFrictionWorker(m3World* world, m3ShapeId shape, 
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
-    if (!m3ShapeScalarValid(m3_opSetShapeFriction, friction))
+    if (m3ShapeScalarCheck(m3_opSetShapeFriction, friction) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -121,10 +121,10 @@ static M3_NOINLINE void ShapeSetRestitutionWorker(m3World* world, m3ShapeId shap
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
-    if (!m3ShapeScalarValid(m3_opSetShapeRestitution, restitution))
+    if (m3ShapeScalarCheck(m3_opSetShapeRestitution, restitution) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -158,10 +158,10 @@ static M3_NOINLINE void ShapeSetRollingResistanceWorker(m3World* world, m3ShapeI
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
-    if (!m3ShapeScalarValid(m3_opSetShapeRolling, value))
+    if (m3ShapeScalarCheck(m3_opSetShapeRolling, value) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -194,7 +194,7 @@ static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, f
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -279,7 +279,7 @@ static M3_NOINLINE void ShapeEnableHitEventsWorker(m3World* world, m3ShapeId sha
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     ShapeFlagOp(world, shape, m3_opEnableShapeHitEvents, flag);
@@ -302,7 +302,7 @@ static M3_NOINLINE void ShapeEnablePreSolveWorker(m3World* world, m3ShapeId shap
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     ShapeFlagOp(world, shape, m3_opEnableShapePreSolve, flag);
@@ -324,7 +324,7 @@ bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape)
 bool m3MeshMaterialsValid(const m3MeshSurfaceMaterial* materials, int32_t materialCount,
                           const uint8_t* triangleMaterials, int32_t triangleCount)
 {
-    if (materialCount < 1 || materialCount > M3_MESH_MAX_MATERIALS || triangleCount <= 0)
+    if (materialCount < 1 || materialCount > M3_MAX_MESH_MATERIALS || triangleCount <= 0)
     {
         return false;
     }
@@ -378,7 +378,7 @@ static M3_NOINLINE void ShapeSetMeshMaterialsWorker(m3World* world, m3ShapeId sh
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -438,7 +438,7 @@ static M3_NOINLINE void ShapeSetSurfaceVelocityWorker(m3World* world, m3ShapeId 
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -446,7 +446,7 @@ static M3_NOINLINE void ShapeSetSurfaceVelocityWorker(m3World* world, m3ShapeId 
     {
         return;
     }
-    if (!m3SurfaceVelocityValid(velocity))
+    if (m3SurfaceVelocityCheck(velocity) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -502,7 +502,7 @@ static M3_NOINLINE void ShapeSetFilterWorker(m3World* world, m3ShapeId shape, ui
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;
@@ -596,7 +596,7 @@ void m3Shape_SetUserData(m3World* world, m3ShapeId shape, uint64_t userData)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     int32_t slot;

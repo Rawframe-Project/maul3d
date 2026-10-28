@@ -431,10 +431,10 @@ static M3_NOINLINE void WorldStepWorker(m3World* world, float dt, int32_t subste
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
-    if (world == NULL || !m3StepValid(dt, substeps))
+    if (world == NULL || m3StepCheck(dt, substeps) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;

@@ -148,7 +148,7 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     m3Vec3 lo;
     m3Vec3 hi;
     SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < count; ++g)
     {
@@ -176,7 +176,7 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
     m3Vec3 lo;
     m3Vec3 hi;
     SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t count = m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo,
                                     hi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < count; ++g)

@@ -450,6 +450,8 @@ static const m3StateArray s_state[] = {
     M3_STATE_ARRAY(bodies.invMass, m3real, body, 0),
     M3_STATE_ARRAY(bodies.invInertiaLocal, m3Mat3, body, 0),
     M3_STATE_ARRAY(bodies.inertiaLocal, m3Mat3, body, 0),
+    M3_STATE_ARRAY(bodies.principalMoments, m3Vec3, body, 0),
+    M3_STATE_ARRAY(bodies.principalFrames, m3Quat, body, 0),
     M3_STATE_ARRAY(bodies.localCenters, m3Vec3, body, 0),
     M3_STATE_ARRAY(bodies.minExtents, float, body, 0),
     M3_STATE_ARRAY(bodies.maxExtents, float, body, 0),
@@ -508,21 +510,21 @@ static int64_t ExtentCount(const m3World* world, uint8_t extent)
     case m3_extent_vehicle:
         return world->vehicles.vehicleCapacity;
     case m3_extent_vehicleWheel:
-        return (int64_t)world->vehicles.vehicleCapacity * M3_VEHICLE_MAX_WHEELS;
+        return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_VEHICLE_WHEELS;
     case m3_extent_vehicleCurve:
-        return (int64_t)world->vehicles.vehicleCapacity * M3_DRIVETRAIN_MAX_CURVE;
+        return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_DRIVETRAIN_CURVE;
     case m3_extent_vehicleGear:
-        return (int64_t)world->vehicles.vehicleCapacity * M3_DRIVETRAIN_MAX_GEARS;
+        return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_DRIVETRAIN_GEARS;
     case m3_extent_soft:
         return world->softBodies.softBodyCapacity;
     case m3_extent_softAnchor:
-        return (int64_t)world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_ANCHORS;
+        return (int64_t)world->softBodies.softBodyCapacity * M3_MAX_SOFTBODY_ANCHORS;
     case m3_extent_softTet:
-        return (int64_t)world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_TETS;
+        return (int64_t)world->softBodies.softBodyCapacity * M3_MAX_SOFTBODY_TETS;
     case m3_extent_softParticle:
-        return (int64_t)world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_PARTICLES;
+        return (int64_t)world->softBodies.softBodyCapacity * M3_MAX_SOFTBODY_PARTICLES;
     case m3_extent_softEdge:
-        return (int64_t)world->softBodies.softBodyCapacity * M3_SOFTBODY_MAX_EDGES;
+        return (int64_t)world->softBodies.softBodyCapacity * M3_MAX_SOFTBODY_EDGES;
     case m3_extent_water:
         return M3_MAX_WATER_VOLUMES;
     case m3_extent_fragmentEvent:
@@ -530,19 +532,19 @@ static int64_t ExtentCount(const m3World* world, uint8_t extent)
     case m3_extent_fragmentRecipe:
         return M3_FRAGMENT_RECIPE_CAP;
     case m3_extent_wheelsPerVehicle:
-        return M3_VEHICLE_MAX_WHEELS;
+        return M3_MAX_VEHICLE_WHEELS;
     case m3_extent_curvePerVehicle:
-        return M3_DRIVETRAIN_MAX_CURVE;
+        return M3_MAX_DRIVETRAIN_CURVE;
     case m3_extent_gearsPerVehicle:
-        return M3_DRIVETRAIN_MAX_GEARS;
+        return M3_MAX_DRIVETRAIN_GEARS;
     case m3_extent_particlesPerSoft:
-        return M3_SOFTBODY_MAX_PARTICLES;
+        return M3_MAX_SOFTBODY_PARTICLES;
     case m3_extent_edgesPerSoft:
-        return M3_SOFTBODY_MAX_EDGES;
+        return M3_MAX_SOFTBODY_EDGES;
     case m3_extent_tetsPerSoft:
-        return M3_SOFTBODY_MAX_TETS;
+        return M3_MAX_SOFTBODY_TETS;
     case m3_extent_anchorsPerSoft:
-        return M3_SOFTBODY_MAX_ANCHORS;
+        return M3_MAX_SOFTBODY_ANCHORS;
     default:
         M3_ASSERT(false);
         return 0;

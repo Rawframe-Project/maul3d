@@ -27,37 +27,76 @@ typedef struct m3RayLocalHit
     int hit;
 } m3RayLocalHit;
 
-// Sphere: |o + t*d - c|^2 = r^2, smallest root in [0, 1].
+// A circle about a center, in a plane that holds the ray, met in the
+// ray's own terms: the ray's unit direction u, the distance along it to
+// the point of closest approach, and that point's offset q from the
+// center. The hit lies sqrt(r^2 - q.q) before it. The quadratic
+// b^2 - a c would subtract two products of the ray's length and its
+// distance, which cancel from about 1e4 m and overflow from about 1e19
+// m; here a far or long ray loses no more than the float position of its
+// origin does, and the normal comes from q, which is small near a hit.
+// m is the origin's offset from the center and d the translation, both
+// in that plane; the hit's offset from the center is written to offset.
+// maul2d casts at circles in the same form.
+static m3RayLocalHit RayCircle(m3Vec3 m, m3Vec3 d, m3real radius, m3Vec3* offsetOut)
+{
+    m3RayLocalHit out = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
+    // The direction scaled by its largest component first, so no square
+    // of the translation overflows.
+    m3real scale = m3MaxF(m3AbsF(d.x), m3MaxF(m3AbsF(d.y), m3AbsF(d.z)));
+    if (!(scale > 0.0f))
+    {
+        return out; // no motion
+    }
+    m3Vec3 e = m3MulSV3(1.0f / scale, d);
+    m3real length = sqrtf(m3Dot3(e, e));
+    m3Vec3 u = m3MulSV3(1.0f / length, e);
+    m3real along = m3Dot3(m, u);
+    if (!(along < 0.0f))
+    {
+        return out; // moving away
+    }
+    m3Vec3 q = m3Sub3(m, m3MulSV3(along, u));
+    m3real h2 = radius * radius - m3Dot3(q, q);
+    if (!(h2 >= 0.0f))
+    {
+        return out; // passing by
+    }
+    m3real h = sqrtf(h2);
+    // The origin lies outside, so the root is not negative but for
+    // rounding.
+    m3real root = m3MaxF(-along - h, 0.0f);
+    m3real t = root / scale / length;
+    if (!(t <= 1.0f))
+    {
+        return out;
+    }
+    m3Vec3 offset = m3Sub3(q, m3MulSV3(h, u));
+    m3real n = m3Length3(offset);
+    out.fraction = t;
+    out.normal = n > 0.0f ? m3MulSV3(1.0f / n, offset) : (m3Vec3){0.0f, 0.0f, 0.0f};
+    out.hit = 1;
+    *offsetOut = offset;
+    return out;
+}
+
+// Sphere: the ray's circle in the plane through the center and the ray.
+// A ray that starts inside or on the surface has no front-face hit.
 static m3RayLocalHit RaySphere(m3Vec3 o, m3Vec3 d, m3Vec3 center, m3real radius)
 {
     m3RayLocalHit out = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 m = m3Sub3(o, center);
-    m3real a = m3Dot3(d, d);
-    m3real b = m3Dot3(m, d);
-    m3real c = m3Dot3(m, m) - radius * radius;
-    if (c <= 0.0f)
+    if (m3Dot3(m, m) <= radius * radius)
     {
         return out; // inside OR on the surface: no front-face hit
     }
-    m3real disc = b * b - a * c;
-    if (!(a > 0.0f) || disc < 0.0f)
-    {
-        return out;
-    }
-    m3real t = (-b - sqrtf(disc)) / a;
-    if (t < 0.0f || t > 1.0f)
-    {
-        return out;
-    }
-    m3Vec3 p = m3Add3(o, m3MulSV3(t, d));
-    out.fraction = t;
-    out.normal = m3Normalize3(m3Sub3(p, center));
-    out.hit = 1;
-    return out;
+    m3Vec3 offset;
+    return RayCircle(m, d, radius, &offset);
 }
 
 // Capsule: the infinite cylinder about the segment plus both cap
-// spheres; smallest valid root wins.
+// spheres; smallest valid root wins. The cylinder is the ray's circle in
+// the plane across the axis, kept between the cap planes.
 static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, m3real radius)
 {
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
@@ -72,28 +111,15 @@ static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, m3real
         m3real dd = m3Dot3(d, axis);
         m3Vec3 mPerp = m3Sub3(m, m3MulSV3(md / axisLen2, axis));
         m3Vec3 dPerp = m3Sub3(d, m3MulSV3(dd / axisLen2, axis));
-        m3real a = m3Dot3(dPerp, dPerp);
-        m3real b = m3Dot3(mPerp, dPerp);
-        m3real c = m3Dot3(mPerp, mPerp) - radius * radius;
-        if (c > 0.0f && a > 0.0f)
+        if (m3Dot3(mPerp, mPerp) > radius * radius)
         {
-            m3real disc = b * b - a * c;
-            if (disc >= 0.0f)
+            m3Vec3 offset;
+            m3RayLocalHit side = RayCircle(mPerp, dPerp, radius, &offset);
+            // Accept only between the cap planes.
+            m3real s = md + side.fraction * dd;
+            if (side.hit && s >= 0.0f && s <= axisLen2)
             {
-                m3real t = (-b - sqrtf(disc)) / a;
-                if (t >= 0.0f && t <= 1.0f)
-                {
-                    // Accept only between the cap planes.
-                    m3real s = md + t * dd;
-                    if (s >= 0.0f && s <= axisLen2)
-                    {
-                        m3Vec3 p = m3Add3(o, m3MulSV3(t, d));
-                        m3Vec3 onAxis = m3Add3(p1, m3MulSV3(s / axisLen2, axis));
-                        best.fraction = t;
-                        best.normal = m3Normalize3(m3Sub3(p, onAxis));
-                        best.hit = 1;
-                    }
-                }
+                best = side;
             }
         }
     }
@@ -176,7 +202,7 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
     m3Vec3 end = m3Add3(o, d);
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount = m3MeshBvhGather(&surface->bvh, blo, bhi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {
@@ -258,7 +284,7 @@ static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m
     m3Vec3 end = m3Add3(o, d);
     m3Vec3 blo = {m3MinF(o.x, end.x), m3MinF(o.y, end.y), m3MinF(o.z, end.z)};
     m3Vec3 bhi = {m3MaxF(o.x, end.x), m3MaxF(o.y, end.y), m3MaxF(o.z, end.z)};
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     int32_t gatherCount = m3MeshBvhGather(bvh, blo, bhi, gather, M3_COUNT_OF(gather));
     for (int32_t g = 0; g < gatherCount; ++g)
     {

@@ -576,7 +576,7 @@ static void TestVehicleContracts(void)
     vd.chassisId = chassis;
     vd.wheelCount = 0;
     CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "zero wheels refuse");
-    vd.wheelCount = M3_VEHICLE_MAX_WHEELS + 1;
+    vd.wheelCount = M3_MAX_VEHICLE_WHEELS + 1;
     CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "nine wheels refuse");
     vd.wheelCount = 4;
     vd.wheels[2].radius = 0.0f;

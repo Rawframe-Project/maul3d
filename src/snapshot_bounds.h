@@ -15,11 +15,11 @@
 // twice the spacing, a tet edge joins two points within M3_LOCAL_LIMIT on
 // each axis, so at most 2 sqrt(3) M3_LOCAL_LIMIT apart (rounded up). Six
 // times a tet's rest volume is at most the cube of it, and a lattice's
-// closed volume is at most M3_SOFTBODY_MAX_PARTICLES spacing cubes.
+// closed volume is at most M3_MAX_SOFTBODY_PARTICLES spacing cubes.
 #define M3_SOFT_EDGE_LIMIT (3.4641020f * M3_LOCAL_LIMIT)
 #define M3_SOFT_TET_LIMIT  (M3_SOFT_EDGE_LIMIT * M3_SOFT_EDGE_LIMIT * M3_SOFT_EDGE_LIMIT)
 #define M3_SOFT_SHAPE_LIMIT                                                                        \
-    ((float)M3_SOFTBODY_MAX_PARTICLES * M3_LOCAL_LIMIT * M3_LOCAL_LIMIT * M3_LOCAL_LIMIT)
+    ((float)M3_MAX_SOFTBODY_PARTICLES * M3_LOCAL_LIMIT * M3_LOCAL_LIMIT * M3_LOCAL_LIMIT)
 
 // Whether every value a live record holds is within the bound its create,
 // setter and replay op keep (src/core.h). The structure and per-record

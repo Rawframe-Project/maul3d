@@ -217,5 +217,5 @@ m3Result m3SnapshotMassesFit(m3World* world, const uint8_t* raw, const uint8_t* 
     {
         return m3_errorCapacity;
     }
-    return fits ? m3_success : m3_errorInvalid;
+    return fits ? m3_success : m3_errorFormat;
 }

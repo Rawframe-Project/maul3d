@@ -17,7 +17,7 @@ extern "C"
 {
 #endif
 
-#define M3_VEHICLE_MAX_WHEELS 8
+#define M3_MAX_VEHICLE_WHEELS 8
 
     typedef struct m3VehicleId
     {
@@ -47,7 +47,7 @@ extern "C"
         m3BodyId chassisId; // a dynamic body; destroying it destroys
                             // the vehicle (the cascade rule)
         int32_t wheelCount;
-        m3WheelDef wheels[M3_VEHICLE_MAX_WHEELS];
+        m3WheelDef wheels[M3_MAX_VEHICLE_WHEELS];
         m3real maxSteerAngle;     // radians; full steer command turns
                                   // every steerable wheel this far
         m3real driveForce;        // newtons per driven wheel at full
@@ -73,12 +73,14 @@ extern "C"
 
     /// Creates the vehicle bound to its chassis body. Refuses (null
     /// id) a non-dynamic or stale chassis, a wheel count outside
-    /// [1, M3_VEHICLE_MAX_WHEELS], or any non-finite or non-positive
+    /// [1, M3_MAX_VEHICLE_WHEELS], or any non-finite or non-positive
     /// geometry. Each wheel's anchor, rest length and radius lie within
     /// 1e4 m, its radius at least 1e-3 m, its hertz within 1e5 and its
     /// damping ratio and brake share within 1e4; drive and brake force
     /// within 1e20 N, tire grip and lean stabilization within 1e4.
-    /// Journaled with id verification.
+    /// A value past one of these bounds, or a wheel count past
+    /// M3_MAX_VEHICLE_WHEELS, returns m3_errorLimit; any other bad
+    /// field m3_errorInvalid. Journaled with id verification.
     M3_NODISCARD M3_API m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def,
                                                  m3VehicleId* vehicleOut);
     M3_NODISCARD M3_API m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle);
@@ -117,8 +119,9 @@ extern "C"
     /// state: hosts spin their wheel meshes with it).
     M3_API m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
-#define M3_DRIVETRAIN_MAX_CURVE 8
-#define M3_DRIVETRAIN_MAX_GEARS 6
+#define M3_MAX_DRIVETRAIN_CURVE 8
+#define M3_MAX_DRIVETRAIN_GEARS 6
+#define M3_MAX_CLUTCH_STEPS     600
 
     /// The drivetrain: the flat force model grows an engine.
     /// Torque comes from a pinned curve (control points, linear
@@ -138,18 +141,18 @@ extern "C"
     typedef struct m3DrivetrainDef
     {
         int32_t curveCount;                          // 2..8 control points
-        m3real curveRpm[M3_DRIVETRAIN_MAX_CURVE];    // strictly ascending,
+        m3real curveRpm[M3_MAX_DRIVETRAIN_CURVE];    // strictly ascending,
                                                      // nonnegative
-        m3real curveTorque[M3_DRIVETRAIN_MAX_CURVE]; // newton meters at
+        m3real curveTorque[M3_MAX_DRIVETRAIN_CURVE]; // newton meters at
                                                      // the crank
         int32_t gearCount;                           // 1..6 forward gears
-        m3real gearRatio[M3_DRIVETRAIN_MAX_GEARS];   // crank turns per
+        m3real gearRatio[M3_MAX_DRIVETRAIN_GEARS];   // crank turns per
                                                      // wheel turn
         m3real reverseRatio;                         // positive magnitude; 0 forbids reverse
         m3real finalDrive;                           // multiplies every gear
         m3real shiftUpRpm;                           // auto shift climbs above this
         m3real shiftDownRpm;                         // auto shift drops below this
-        int32_t clutchSteps;                         // steps of torque cut per shift
+        int32_t clutchSteps; // steps of torque cut per shift, 0..M3_MAX_CLUTCH_STEPS
         bool autoShift;
         /// Differential: 0 open (the equal split), 1 limited
         /// slip, 2 locked. Nonzero modes couple each driven wheel

@@ -90,9 +90,11 @@ extern "C"
     /// Create a sphere on a body and recompute the body's mass from
     /// its shapes (sphere mass = density * 4/3 pi r^3, inertia
     /// 0.4 m r^2). Returns m3_errorInvalid for an invalid def or
-    /// geometry, or for a mass that would carry a joint on the body past
-    /// its lever ratio, m3_errorStale for a stale body and
-    /// m3_errorCapacity for an exhausted pool; every shape create leaves
+    /// geometry, m3_errorLimit for a value past a bound in
+    /// maul3d/base.h, a mass outside the mass floors and limit, or one
+    /// that would carry a joint on the body past its lever ratio,
+    /// m3_errorStale for a stale body and m3_errorCapacity for an
+    /// exhausted pool; every shape create leaves
     /// *shapeOut the null id on any failure.
     M3_NODISCARD M3_API m3Result m3CreateSphereShape(m3World* world, m3BodyId body,
                                                      const m3ShapeDef* def, const m3Sphere* sphere,
@@ -100,8 +102,8 @@ extern "C"
 
     /// Create a half-space on a STATIC body (a plane on a dynamic body
     /// returns m3_errorInvalid). The normal is normalized on create, and
-    /// the offset is within 1e15 m like every position: a farther plane
-    /// returns m3_errorInvalid.
+    /// the offset is within M3_POSITION_LIMIT like every position: a
+    /// farther plane returns m3_errorLimit.
     M3_NODISCARD M3_API m3Result m3CreatePlaneShape(m3World* world, m3BodyId body,
                                                     const m3ShapeDef* def, const m3Plane* plane,
                                                     m3ShapeId* shapeOut);
@@ -169,8 +171,9 @@ extern "C"
     /// summed extents) of an earlier point is merged into it, so the
     /// hull may lose detail up to about 1e-3 of the summed extents.
     /// Degenerate clouds (coplanar, collinear, or fewer than four
-    /// points once merged) and hulls that exceed the 64-vertex budget
-    /// (input clouds up to 256 points) return m3_errorInvalid.
+    /// points once merged) return m3_errorInvalid, and a cloud of more
+    /// than M3_MAX_HULL_POINTS points m3_errorLimit. A hull keeps at
+    /// most 64 vertices; the builder stops adding points there.
     M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
                                                    const m3ShapeDef* def, const m3Vec3* points,
                                                    int32_t count, m3ShapeId* shapeOut);
@@ -335,7 +338,7 @@ extern "C"
     /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
-    /// mass. Refused with m3_errorInvalid when a joint on the owner
+    /// mass. Refused with m3_errorLimit when a joint on the owner
     /// would pass its lever ratio at the mass left.
     M3_NODISCARD M3_API m3Result m3DestroyShape(m3World* world, m3ShapeId shape);
 

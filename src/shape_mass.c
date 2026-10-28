@@ -4,6 +4,7 @@
 // Shape mass properties and the body mass they sum to.
 
 #include "joint_lever.h"
+#include "rigid_flow.h"
 #include "shape.h"
 #include "world_internal.h"
 
@@ -211,7 +212,7 @@ bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
         return true;
     }
     *total += (double)m;
-    return m >= M3_MASS_FLOOR && InertiaAtLeast(&ic, (double)M3_INERTIA_FLOOR);
+    return m >= M3_MIN_MASS && InertiaAtLeast(&ic, (double)M3_MIN_INERTIA);
 }
 
 // A change to one of a body's shapes: slot takes the given type, geometry
@@ -465,7 +466,9 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
     m3LeverBody next =
         MassWith(world, bodyIndex, world->bodies.types[bodyIndex], NULL, &inertia, &massive);
     world->bodies.invMass[bodyIndex] = next.invMass;
-    world->bodies.inertiaLocal[bodyIndex] = inertia; // the gyroscopic solve reads it
+    world->bodies.inertiaLocal[bodyIndex] = inertia;
+    m3PrincipalAxes(&inertia, &world->bodies.principalMoments[bodyIndex],
+                    &world->bodies.principalFrames[bodyIndex]);
     world->bodies.invInertiaLocal[bodyIndex] = next.invInertia;
     world->bodies.localCenters[bodyIndex] = next.center;
     if (!massive)

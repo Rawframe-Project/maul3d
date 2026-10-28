@@ -69,7 +69,7 @@ static void TestHeightFieldAtTheBound(void)
     m3BodyId ground = NewBody(world, &bd);
     enum
     {
-        side = M3_HEIGHTFIELD_MAX_DIM
+        side = M3_MAX_HEIGHTFIELD_SIZE
     };
     float* heights = (float*)calloc((size_t)side * side, sizeof(float));
     int64_t growth = 8 + (int64_t)side * side * (int64_t)sizeof(float); // extremes and samples

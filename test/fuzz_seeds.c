@@ -102,11 +102,11 @@ static void WriteFarRestSeed(const char* dir, const m3World* world)
     }
     const float far = -1.0e29f;
     memcpy(snapshot + M3_SNAPSHOT_HEADER_BYTES + at +
-               sizeof(float) * (size_t)slot * M3_SOFTBODY_MAX_EDGES,
+               sizeof(float) * (size_t)slot * M3_MAX_SOFTBODY_EDGES,
            &far, sizeof(far));
     m3WorldDef def = FuzzWorldDef();
     m3World* check = NewWorld(&def);
-    if (check == NULL || m3World_Restore(check, snapshot, bytes) != m3_errorInvalid)
+    if (check == NULL || m3World_Restore(check, snapshot, bytes) != m3_errorFormat)
     {
         Fail("the far rest length's refusal");
     }

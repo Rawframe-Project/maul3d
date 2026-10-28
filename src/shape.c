@@ -42,38 +42,39 @@ m3ShapeDef m3DefaultShapeDef(void)
     return def;
 }
 
-bool m3ShapeScalarValid(int32_t op, float value)
+m3Result m3ShapeScalarCheck(int32_t op, float value)
 {
     if (op == m3_opSetShapeRestitution)
     {
-        return value >= 0.0f && value <= M3_RATIO_LIMIT; // false for NaN
+        return m3CheckNonNegative(value, M3_RATIO_LIMIT);
     }
-    return value >= 0.0f && m3FiniteF(value);
+    return m3CheckValid(value >= 0.0f && m3FiniteF(value));
 }
 
-bool m3SurfaceVelocityValid(m3Vec3 velocity)
+m3Result m3SurfaceVelocityCheck(m3Vec3 velocity)
 {
-    return m3WithinV3(velocity, M3_SPEED_LIMIT);
+    return m3CheckWithinV3(velocity, M3_SPEED_LIMIT);
 }
 
 // Materials and the compound pose, checked on every create door.
-bool m3ShapeDefValid(const m3ShapeDef* def)
+m3Result m3ShapeDefCheck(const m3ShapeDef* def)
 {
     m3Quat q = def->localRotation;
     float rotLen2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-    return m3LocalV3(def->localPosition) && m3FiniteQuat(q) && rotLen2 >= 0.99f &&
-           rotLen2 <= 1.01f && m3DensityF(def->density) &&
-           m3ShapeScalarValid(m3_opSetShapeFriction, def->friction) &&
-           m3ShapeScalarValid(m3_opSetShapeRestitution, def->restitution) &&
-           m3ShapeScalarValid(m3_opSetShapeRolling, def->rollingResistance) &&
-           m3SurfaceVelocityValid(def->surfaceVelocity);
+    m3Result result = m3CheckValid(m3FiniteQuat(q) && rotLen2 >= 0.99f && rotLen2 <= 1.01f);
+    result = m3BothChecks(result, m3CheckLocalV3(def->localPosition));
+    result = m3BothChecks(result, m3CheckPositive(def->density, M3_DENSITY_LIMIT));
+    result = m3BothChecks(result, m3ShapeScalarCheck(m3_opSetShapeFriction, def->friction));
+    result = m3BothChecks(result, m3ShapeScalarCheck(m3_opSetShapeRestitution, def->restitution));
+    result = m3BothChecks(result, m3ShapeScalarCheck(m3_opSetShapeRolling, def->rollingResistance));
+    return m3BothChecks(result, m3SurfaceVelocityCheck(def->surfaceVelocity));
 }
 
 // A sphere or capsule lies in its body's frame like any other offset: its
 // points and radius within M3_LOCAL_LIMIT.
-static bool LocalRadius(float r)
+static m3Result LocalRadius(float r)
 {
-    return r > 0.0f && r <= M3_LOCAL_LIMIT; // false for NaN
+    return m3CheckPositive(r, M3_LOCAL_LIMIT);
 }
 
 static bool ZeroV3(m3Vec3 v)
@@ -81,9 +82,9 @@ static bool ZeroV3(m3Vec3 v)
     return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
 }
 
-static bool BoxExtents(m3Vec3 v)
+static m3Result BoxExtents(m3Vec3 v)
 {
-    return LocalRadius(v.x) && LocalRadius(v.y) && LocalRadius(v.z);
+    return m3BothChecks(m3BothChecks(LocalRadius(v.x), LocalRadius(v.y)), LocalRadius(v.z));
 }
 
 // The geometry a create leaves in a slot of each type; a field the type
@@ -93,74 +94,81 @@ static bool BoxExtents(m3Vec3 v)
 // from points. A voxel chunk keeps only its cell size, which restore
 // matches to the chunk's content. A zero-height capsule is legal: it is a
 // documented character stance.
-bool m3ShapeGeomValid(uint8_t type, const m3ShapeGeom* geom)
+m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom)
 {
     bool restZero = ZeroV3(geom->v2) && geom->s2 == 0.0f;
     switch (type)
     {
     case m3_sphereShape:
-        return m3LocalV3(geom->v) && LocalRadius(geom->s) && restZero;
+        return m3BothChecks(m3BothChecks(m3CheckLocalV3(geom->v), LocalRadius(geom->s)),
+                            m3CheckValid(restZero));
     case m3_planeShape:
     {
         m3real n2 = m3Dot3(geom->v, geom->v);
-        double offset = (double)geom->s;
-        return n2 >= 1.0f - 1.0e-5f && n2 <= 1.0f + 1.0e-5f && offset >= -M3_POSITION_LIMIT &&
-               offset <= M3_POSITION_LIMIT && restZero; // false for NaN
+        m3Pos3 offset = {(double)geom->s, 0.0, 0.0};
+        return m3BothChecks(m3CheckValid(n2 >= 1.0f - 1.0e-5f && n2 <= 1.0f + 1.0e-5f && restZero),
+                            m3CheckPosition(offset));
     }
     case m3_capsuleShape:
-        return m3LocalV3(geom->v) && m3LocalV3(geom->v2) && LocalRadius(geom->s) &&
-               geom->s2 == 0.0f;
+        return m3BothChecks(m3BothChecks(m3CheckLocalV3(geom->v), m3CheckLocalV3(geom->v2)),
+                            m3BothChecks(LocalRadius(geom->s), m3CheckValid(geom->s2 == 0.0f)));
     case m3_hullShape:
-        return (ZeroV3(geom->v) || BoxExtents(geom->v)) && geom->s == 0.0f && restZero;
+        return m3BothChecks(ZeroV3(geom->v) ? m3_success : BoxExtents(geom->v),
+                            m3CheckValid(geom->s == 0.0f && restZero));
     case m3_meshShape:
     case m3_heightFieldShape:
-        return ZeroV3(geom->v) && geom->s == 0.0f && restZero;
+        return m3CheckValid(ZeroV3(geom->v) && geom->s == 0.0f && restZero);
     case m3_voxelShape:
-        return ZeroV3(geom->v) && m3FiniteF(geom->s) && restZero;
+        return m3CheckValid(ZeroV3(geom->v) && m3FiniteF(geom->s) && restZero);
     default:
-        return false;
+        return m3_errorInvalid;
     }
 }
 
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
 // and box hulls, whose half extents ride in geom.v.
-bool m3PlainGeomValid(uint8_t type, const m3ShapeGeom* geom)
+m3Result m3PlainGeomCheck(uint8_t type, const m3ShapeGeom* geom)
 {
     switch (type)
     {
     case m3_sphereShape:
     case m3_planeShape:
     case m3_capsuleShape:
-        return m3ShapeGeomValid(type, geom);
+        return m3ShapeGeomCheck(type, geom);
     case m3_hullShape:
-        return BoxExtents(geom->v) && m3ShapeGeomValid(type, geom);
+        return m3BothChecks(BoxExtents(geom->v), m3ShapeGeomCheck(type, geom));
     default:
-        return false;
+        return m3_errorInvalid;
     }
 }
 
-static bool MeshContentValid(const m3MeshData* mesh)
+static m3Result MeshContentCheck(const m3MeshData* mesh)
 {
-    if (mesh->vertexCount < 3 || mesh->vertexCount > M3_MESH_MAX_VERTS || mesh->triangleCount < 1 ||
-        mesh->triangleCount > M3_MESH_MAX_TRIS)
+    if (mesh->vertexCount < 3 || mesh->triangleCount < 1)
     {
-        return false;
+        return m3_errorInvalid;
+    }
+    m3Result counts = m3BothChecks(m3CheckCount(mesh->vertexCount, M3_MAX_MESH_VERTICES),
+                                   m3CheckCount(mesh->triangleCount, M3_MAX_MESH_TRIANGLES));
+    if (counts != m3_success)
+    {
+        return counts;
     }
     for (int32_t i = 0; i < 3 * mesh->triangleCount; ++i)
     {
         if (mesh->indices[i] >= (uint16_t)mesh->vertexCount)
         {
-            return false;
+            return m3_errorInvalid;
         }
     }
     for (int32_t i = 0; i < mesh->vertexCount; ++i)
     {
         if (!m3FiniteV3(mesh->vertices[i]))
         {
-            return false;
+            return m3_errorInvalid;
         }
     }
-    return true;
+    return m3_success;
 }
 
 // The body and content rules every create door shares, here because
@@ -168,30 +176,34 @@ static bool MeshContentValid(const m3MeshData* mesh)
 // terrain and voxel chunks are static geometry, a voxel chunk is never
 // a sensor and never empty, a mesh indexes only its own vertices, and a
 // hull is what the builders make.
-static bool ShapeContentValid(const m3World* world, int32_t bodyIndex, uint8_t type,
-                              const m3ShapeDef* def, const m3ShapeContent* content)
+static m3Result ShapeContentCheck(const m3World* world, int32_t bodyIndex, uint8_t type,
+                                  const m3ShapeDef* def, const m3ShapeContent* content)
 {
     bool staticOnly = type == (uint8_t)m3_planeShape || type == (uint8_t)m3_meshShape ||
                       type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelShape;
     if (staticOnly && world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
-        return false;
+        return m3_errorInvalid;
     }
-    if (content->mesh != NULL && !MeshContentValid(content->mesh))
+    if (content->mesh != NULL)
     {
-        return false;
+        m3Result mesh = MeshContentCheck(content->mesh);
+        if (mesh != m3_success)
+        {
+            return mesh;
+        }
     }
     if (content->hull != NULL && !m3HullDataValid(content->hull))
     {
-        return false;
+        return m3_errorInvalid;
     }
     if (content->voxels != NULL)
     {
         const m3VoxelChunkData* chunk = content->voxels;
-        return !def->isSensor && m3FiniteF(chunk->cellSize) && chunk->cellSize > 0.0f &&
-               chunk->filledCount > 0;
+        return m3CheckValid(!def->isSensor && m3FiniteF(chunk->cellSize) &&
+                            chunk->cellSize > 0.0f && chunk->filledCount > 0);
     }
-    return true;
+    return m3_success;
 }
 
 static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uint8_t type,
@@ -464,12 +476,13 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
 {
     bool prebuilt = content->hull != NULL || content->mesh != NULL ||
                     content->heightField != NULL || content->voxels != NULL;
-    bool geomValid = prebuilt ? m3ShapeGeomValid(type, geom) : m3PlainGeomValid(type, geom);
-    if (!m3ShapeDefValid(def) || !geomValid ||
-        !ShapeContentValid(world, bodyIndex, type, def, content) ||
-        m3CharacterOwnsBody(world, bodyIndex))
+    m3Result result = prebuilt ? m3ShapeGeomCheck(type, geom) : m3PlainGeomCheck(type, geom);
+    result = m3BothChecks(result, m3ShapeDefCheck(def));
+    result = m3BothChecks(result, ShapeContentCheck(world, bodyIndex, type, def, content));
+    result = m3BothChecks(result, m3CheckValid(!m3CharacterOwnsBody(world, bodyIndex)));
+    if (result != m3_success)
     {
-        return M3_CREATE_INVALID;
+        return (int32_t)result;
     }
     ShapeCreateMarks marks = {
         m3IdPoolMarkNow(&world->shapes.shapePool), m3IdPoolMarkNow(&world->hulls.hullPool),
@@ -486,7 +499,7 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                                &world->shapes.shapeGeom[index], world->shapes.shapeDensity[index]))
     {
         UndoShapeCreate(world, index, &marks);
-        return M3_CREATE_INVALID; // too light, too thin or too heavy a body
+        return M3_CREATE_LIMIT; // too light, too thin or too heavy a body
     }
     // Infinite planes stay out of the tree and take the dedicated pair pass.
     world->broadphase.proxyIds[index] = M3_TREE_NULL;
@@ -577,14 +590,14 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     }
     if (type == (uint8_t)m3_sphereShape)
     {
-        if (!m3PlainGeomValid(type, geom))
+        if (m3PlainGeomCheck(type, geom) != m3_success)
         {
             return false;
         }
     }
     else if (type == (uint8_t)m3_capsuleShape)
     {
-        if (!m3PlainGeomValid(type, geom))
+        if (m3PlainGeomCheck(type, geom) != m3_success)
         {
             return false;
         }
@@ -657,7 +670,7 @@ static M3_NOINLINE void ShapeSetSphereWorker(m3World* world, m3ShapeId shape,
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     if (sphere == NULL)
@@ -684,7 +697,7 @@ static M3_NOINLINE void ShapeSetCapsuleWorker(m3World* world, m3ShapeId shape,
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     if (capsule == NULL)
@@ -729,7 +742,7 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t index = m3ShapeSlot(world, shape);
     if (index < 0)
@@ -742,7 +755,7 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
     }
     if (!m3ShapeRemovalFits(world, index))
     {
-        return m3Refuse(world, m3_errorInvalid); // a joint would pass its lever ratio
+        return m3Refuse(world, m3_errorLimit); // a joint would pass its lever ratio
     }
     if (world->recorder.journalActive != 0)
     {

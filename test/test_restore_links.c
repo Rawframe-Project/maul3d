@@ -261,7 +261,7 @@ static void EdgePastParticles(const Scene* scene, uint8_t* snap)
     int32_t slot = LiveSlot(world->softBodies.softPool.alive, world->softBodies.softPool.capacity);
     uint16_t past = (uint16_t)world->softBodies.softParticleCount[slot];
     memcpy(At(world, snap, FIELD(softBodies.softEdgeA), sizeof(uint16_t),
-              slot * M3_SOFTBODY_MAX_EDGES),
+              slot * M3_MAX_SOFTBODY_EDGES),
            &past, sizeof(past));
 }
 
@@ -359,11 +359,11 @@ static void TestRestoreRefusesBrokenStructures(void)
         s_cases[c].apply(&scene, broken);
         CHECK(memcmp(broken, clean, (size_t)size) != 0, s_cases[c].name);
         m3Result result = m3World_Restore(scene.world, broken, size);
-        if (result != m3_errorInvalid)
+        if (result != m3_errorFormat)
         {
             printf("  not refused: %s\n", s_cases[c].name);
         }
-        CHECK(result == m3_errorInvalid, "a broken structure is refused as invalid input");
+        CHECK(result == m3_errorFormat, "a broken structure is refused as malformed bytes");
         CHECK(m3World_Hash(scene.world) == hash, "and the world is left as it was");
     }
 

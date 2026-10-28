@@ -92,9 +92,9 @@ extern "C"
     {
         // The call did what was asked.
         m3_success = 0,
-        // An argument or def is invalid, or a snapshot or journal tape
-        // fails its checks (another build, another world shape, damaged
-        // bytes).
+        // An argument a correct program never passes: a null pointer, an
+        // id of the wrong kind, a NaN, a value outside its parameter's
+        // documented domain, a combination the call does not take.
         m3_errorInvalid = -1,
         // A fixed pool of the world, a caller buffer or the allocator is
         // too small for the result.
@@ -103,14 +103,28 @@ extern "C"
         m3_errorStale = -3,
         // The CPU cannot run the SIMD backend the library was built for.
         m3_errorUnsupported = -4,
-        // The call is not allowed now: a writer called from host code the
-        // world is running (a task hook, the pre-solve callback, a debug
-        // draw callback, the allocator), a journal call in the wrong
-        // recording state, or a stand-up the overlap check blocks.
+        // The call is not allowed in the world's current state, which only
+        // another call changes: a journal call in the wrong recording
+        // state, or a stand-up the overlap check blocks.
         m3_errorState = -6,
-        // A world def was built from headers of another binary interface
-        // than the library's (M3_ABI_VERSION).
+        // A world def, a snapshot, a journal tape or a replay container
+        // comes from another binary interface or release than the
+        // library's (M3_ABI_VERSION).
         m3_errorVersion = -7,
+        // Snapshot, journal tape or replay container bytes are malformed:
+        // every check a reader makes on them fails with this status, a
+        // bound included, unless the bytes come from another version.
+        m3_errorFormat = -8,
+        // An argument, or its content, passes a fixed bound the library
+        // publishes as a named constant, an infinity included. More room
+        // would not help. When a check finds both, an invalid value
+        // outranks one past a bound.
+        m3_errorLimit = -9,
+        // The world is in use by work under way: a writer called from host
+        // code the world is running (a task hook, the pre-solve callback,
+        // a debug draw callback, the allocator). The same call succeeds
+        // once that work ends.
+        m3_errorBusy = -10,
     };
 
     // The allocator a world takes in its def and keeps for its lifetime.
@@ -208,6 +222,79 @@ extern "C"
 
 // The seed of an m3Hash64 chain.
 #define M3_HASH_INIT 0xCBF29CE484222325ull
+
+// Fixed bounds. A call refuses an argument, or its content, past one of
+// these with m3_errorLimit; a snapshot, tape or replay container past one
+// is refused with m3_errorFormat. Each lies far past any real scene, and
+// together they keep every product the step forms finite.
+//
+// Magnitudes:
+// - an offset in a body's frame (a shape's local position, a joint anchor,
+//   a hull vertex, a lattice spacing, a wheel's anchor or rest length), m;
+#define M3_LOCAL_LIMIT 1.0e4f
+// - a shape's density, kg/m^3, which must also be positive;
+#define M3_DENSITY_LIMIT 1.0e6f
+// - a world position, m, per component: creates and teleports place every
+//   body and soft particle within it, and the step holds it there;
+#define M3_POSITION_LIMIT 1.0e15
+// - a body's velocity (m/s) or spin (rad/s), a surface velocity and a
+//   motor's speed; the step also holds every velocity within it;
+#define M3_SPEED_LIMIT 1.0e5f
+// - a kinematic body's linear speed, m/s, set or servoed, and how far a
+//   kinematic target may lie from where the body is now, m;
+#define M3_KINEMATIC_SPEED_LIMIT 1.0e10f
+#define M3_SERVO_REACH_LIMIT     1.0e6
+// - gravity, m/s^2;
+#define M3_ACCEL_LIMIT 1.0e4f
+// - a spring, contact, steering or suspension frequency, or the wind's
+//   gust frequency, Hz;
+#define M3_HERTZ_LIMIT 1.0e5f
+// - a dimensionless factor: a damping ratio, restitution, a gear or pulley
+//   ratio, a gravity scale, a gust or push scale;
+#define M3_RATIO_LIMIT 1.0e4f
+// - a step length, s;
+#define M3_MIN_STEP   1.0e-4f
+#define M3_STEP_LIMIT 10.0f
+// - a force (N) or torque (N m), held or applied, and a joint or vehicle
+//   effort;
+#define M3_FORCE_LIMIT 1.0e20f
+// - a mass-bearing shape's mass and smallest principal inertia, and a
+//   body's total mass (a character's and a soft particle's too), kg and
+//   kg m^2;
+#define M3_MIN_MASS    1.0e-6f
+#define M3_MIN_INERTIA 1.0e-12f
+#define M3_MASS_LIMIT  1.0e20f
+// - the ratio of the effective masses a joint couples;
+#define M3_JOINT_LEVER_LIMIT 1.0e10
+// - a character stance's half height and radius, m;
+#define M3_MIN_STANCE   0.05f
+#define M3_STANCE_LIMIT 10.0f
+// - a vehicle wheel's radius, m;
+#define M3_MIN_WHEEL_RADIUS 1.0e-3f
+// - an explosion's impulse per square meter, N s/m^2;
+#define M3_BLAST_LIMIT 1.0e10f
+// - a cast's translation, m, per component.
+#define M3_CAST_LIMIT 1.0e18f
+//
+// Counts:
+// - a world's shape and voxel capacities, which size int32_t tables of
+//   eight contact pairs a shape and six neighbors a voxel chunk;
+#define M3_MAX_SHAPE_CAPACITY (INT32_MAX / 8)
+#define M3_MAX_VOXEL_CAPACITY (INT32_MAX / 6)
+// - substeps per step;
+#define M3_MAX_SUBSTEPS 256
+// - the points a hull is built from, and the points a cast sweeps;
+#define M3_MAX_HULL_POINTS 256
+#define M3_MAX_CAST_POINTS 64
+// - a triangle mesh's vertices, triangles and surface materials;
+#define M3_MAX_MESH_VERTICES  65535
+#define M3_MAX_MESH_TRIANGLES 65535
+#define M3_MAX_MESH_MATERIALS 8
+// - a height field grid's samples along each axis, and those of a height
+//   field built as a mesh.
+#define M3_MAX_HEIGHTFIELD_SIZE      255
+#define M3_MAX_HEIGHTFIELD_MESH_SIZE 32
+// The soft body, vehicle and drivetrain counts are in their headers.
 
 // The largest snapshot in bytes, INT32_MAX: snapshot sizes are int32_t
 // byte counts, and maul3d's journal records ops and never embeds a

@@ -13,7 +13,6 @@
 // the arm turns them. Past about 5e11 the joint's blocks, solved one after
 // another, undo each other and the joint loses its bodies; the limit keeps
 // about fifty times below the first such loss measured.
-#define M3_JOINT_LEVER_LIMIT 1.0e10
 
 // A body's mass as a lever check reads it: what the step solves with, so
 // zero inverse mass and inertia for a body that does not move.

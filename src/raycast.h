@@ -19,7 +19,6 @@ m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 trans
 // component beyond this squares past FLT_MAX inside the kernels
 // and mints NaN. Every cast path refuses longer translations with
 // a documented miss; the character treats them as hostile no-ops.
-#define M3_CAST_LIMIT 1.0e18f
 
 // The closest hit that skips one body (the caster's own), unfiltered.
 m3RayCastResult m3RayClosestExcept(m3World* world, m3Pos3 origin, m3Vec3 translation,

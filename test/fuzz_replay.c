@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // libFuzzer target for m3DecodeReplay, the replay container. Any bytes are
-// refused with m3_errorInvalid or m3_errorVersion, or decode to a view that encodes back to
+// refused with m3_errorFormat or m3_errorVersion, or decode to a view that encodes back to
 // the same bytes and whose journal m3DescribeJournal counts as the view
 // does. The view's snapshot then restores into a fresh world or is
 // refused, and its journal replays into another fresh world or is
@@ -44,7 +44,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3ReplayView view;
     memset(&view, 0, sizeof(view));
     m3Result result = m3DecodeReplay(data, (int32_t)size, &view);
-    Require(result == m3_success || result == m3_errorInvalid || result == m3_errorVersion);
+    Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     if (result != m3_success)
     {
         return 0;
@@ -66,12 +66,12 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3World* restored = FreshWorld();
     m3Result restore = m3World_Restore(restored, view.snapshot, view.snapshotBytes);
     // The decode checked the snapshot's prefix, not its build hash.
-    Require(restore == m3_success || restore == m3_errorInvalid || restore == m3_errorVersion);
+    Require(restore == m3_success || restore == m3_errorFormat || restore == m3_errorVersion);
     m3DestroyWorld(restored);
 
     m3World* replayed = FreshWorld();
     m3Result replay = m3World_ReplayJournal(replayed, view.journal, view.journalBytes);
-    Require(replay == m3_success || replay == m3_errorInvalid);
+    Require(replay == m3_success || replay == m3_errorFormat);
     m3DestroyWorld(replayed);
     return 0;
 }

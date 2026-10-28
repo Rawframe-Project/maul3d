@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // libFuzzer target for m3World_ReplayJournal. Any bytes, replayed as a
-// tape into a fresh world, are refused with m3_errorInvalid or
+// tape into a fresh world, are refused with m3_errorFormat or
 // m3_errorVersion and leave the world byte for byte as it was, or are
 // accepted; an accepted tape replays into a second fresh world on the
 // same hash, and that world steps on. Every op of the tape goes through the calls a program makes,
@@ -54,7 +54,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     int32_t beforeBytes = 0;
     uint8_t* before = SnapshotOf(world, &beforeBytes);
     m3Result result = m3World_ReplayJournal(world, data, (int32_t)size);
-    Require(result == m3_success || result == m3_errorInvalid || result == m3_errorVersion);
+    Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     if (result != m3_success)
     {
         int32_t afterBytes = 0;

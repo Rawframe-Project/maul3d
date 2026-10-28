@@ -161,7 +161,7 @@ static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3V
                            OfferTriangle, near);
         return;
     }
-    uint16_t gather[M3_MESH_MAX_TRIS];
+    uint16_t gather[M3_MAX_MESH_TRIANGLES];
     if (type == (uint8_t)m3_meshShape)
     {
         int32_t index = world->shapes.shapeMeshIndex[shape];

@@ -80,7 +80,7 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3BodyVelocityValid(world->bodies.types[index], record.v))
+    if (index < 0 || m3BodyVelocityCheck(world->bodies.types[index], record.v) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -99,7 +99,7 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || !m3BodySpinValid(record.v))
+    if (index < 0 || m3BodySpinCheck(record.v) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -130,7 +130,7 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!m3StepValid(record.dt, record.substeps))
+    if (m3StepCheck(record.dt, record.substeps) != m3_success)
     {
         // The upper bound matters: one flipped bit could turn
         // substeps 4 into a billion and a two-second replay into
@@ -266,7 +266,8 @@ static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
     memcpy(&record, r->payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
     if (index < 0 || record.param < m3_bodyParamGravityScale ||
-        record.param > m3_bodyParamAngularDamping || !m3BodyParamValid(record.param, record.value))
+        record.param > m3_bodyParamAngularDamping ||
+        m3BodyParamCheck(record.param, record.value) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -393,7 +394,7 @@ static bool ApplySetGravity(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&gravity, payload, sizeof(gravity));
-    if (!m3GravityValid(gravity))
+    if (m3GravityCheck(gravity) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -411,7 +412,7 @@ static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!m3ContactTuningValid(record.hertz, record.dampingRatio, record.pushSpeed))
+    if (m3ContactTuningCheck(record.hertz, record.dampingRatio, record.pushSpeed) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -431,7 +432,7 @@ static bool ApplyWorldScalar(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&value, payload, sizeof(value));
     if (op == m3_opSetRestitutionThreshold ? !(m3FiniteF(value) && value >= 0.0f)
-                                           : !m3SpeedCapValid(value))
+                                           : m3SpeedCapCheck(value) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -459,7 +460,7 @@ static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&value, payload, sizeof(value));
-    if (!m3SpeedCapValid(value))
+    if (m3SpeedCapCheck(value) != m3_success)
     {
         return false;
     }
@@ -570,7 +571,7 @@ static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (!m3WindValid(record.dir, record.speed, record.gustHertz, record.gustScale))
+    if (m3WindCheck(record.dir, record.speed, record.gustHertz, record.gustScale) != m3_success)
     {
         return false; // hostile bytes fail loudly
     }
@@ -692,7 +693,7 @@ static const ReplayCommand s_commands[m3_opCount] = {
 
 // Applies a tape's ops in order through the command table and reports
 // the first refusal: m3_errorCapacity when the op that failed was
-// refused memory, m3_errorInvalid otherwise. Partial application is
+// refused memory, m3_errorFormat otherwise. Partial application is
 // possible here; m3World_ReplayJournal below makes the whole call atomic.
 static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
 {
@@ -702,7 +703,7 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
     {
         if (size - cursor < 8)
         {
-            return m3_errorInvalid; // truncated header: reject loudly
+            return m3_errorFormat; // truncated header: reject loudly
         }
         m3ReplayRecord r;
         memcpy(&r.op, stream + cursor, 4);
@@ -710,32 +711,32 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
         cursor += 8;
         if (r.bytes < 0 || r.bytes > size - cursor)
         {
-            return m3_errorInvalid; // truncated payload
+            return m3_errorFormat; // truncated payload
         }
         r.payload = stream + cursor;
         cursor += r.bytes;
         if (r.op <= 0 || r.op >= m3_opCount || s_commands[r.op].apply == NULL)
         {
-            return m3_errorInvalid; // unknown op: reject loudly, never skip
+            return m3_errorFormat; // unknown op: reject loudly, never skip
         }
         int64_t refused = world->heap.refusedCalls;
         if (!s_commands[r.op].apply(world, &r))
         {
             // An op the allocator turned down leaves the tape good.
-            return world->heap.refusedCalls != refused ? m3_errorCapacity : m3_errorInvalid;
+            return world->heap.refusedCalls != refused ? m3_errorCapacity : m3_errorFormat;
         }
     }
-    return cursor == size ? m3_success : m3_errorInvalid;
+    return cursor == size ? m3_success : m3_errorFormat;
 }
 
 static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void* data, int32_t size)
 {
     if (m3WorldBusy(world))
     {
-        return m3Refuse(world, m3_errorState);
+        return m3Refuse(world, m3_errorBusy);
     }
     // A tape is untrusted data like a snapshot: a damaged or truncated one
-    // is refused with m3_errorInvalid, one another release wrote with
+    // is refused with m3_errorFormat, one another release wrote with
     // m3_errorVersion, and neither counts misuse.
     if (world == NULL || size < 0 || (data == NULL && size > 0))
     {

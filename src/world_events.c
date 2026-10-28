@@ -22,7 +22,7 @@ static M3_NOINLINE void WorldSetHitEventThresholdWorker(m3World* world, float va
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     if (world == NULL || !m3FiniteF(value) || value < 0.0f)
@@ -166,7 +166,7 @@ static M3_NOINLINE void WorldSetPreSolveCallbackWorker(m3World* world, m3PreSolv
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorState);
+        m3Refuse(world, m3_errorBusy);
         return;
     }
     if (world == NULL)

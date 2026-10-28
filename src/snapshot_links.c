@@ -556,5 +556,5 @@ m3Result m3SnapshotLinksCheck(m3World* world, const uint8_t* in)
                  JointListsValid(&inc) && BroadphaseValid(&inc) && PairsValid(&inc) &&
                  m3SnapshotValuesValid(&inc) && m3SnapshotBoundsValid(&inc);
     m3Free(&world->heap, inc.scratch);
-    return valid ? m3_success : m3_errorInvalid;
+    return valid ? m3_success : m3_errorFormat;
 }

@@ -14,7 +14,7 @@
 m3Result m3Refuse(const m3World* world, m3Result reason)
 {
     if (world == NULL || reason == m3_errorCapacity || reason == m3_errorUnsupported ||
-        reason == m3_errorVersion)
+        reason == m3_errorVersion || reason == m3_errorFormat)
     {
         return reason; // not the caller's bug against this world
     }

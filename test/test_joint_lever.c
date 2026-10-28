@@ -100,8 +100,7 @@ static void TestCreateKeepsTheRatio(void)
         uint64_t misuse = Misuse(world);
         int32_t joints = m3World_GetCounters(world).jointCount;
         jd = LeverDef(blocks[k], ground, past);
-        CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorInvalid,
-              "one past the ratio is refused");
+        CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorLimit, "one past the ratio is refused");
         CHECK(Misuse(world) == misuse + 1 && m3World_GetCounters(world).jointCount == joints,
               "counting one misuse and creating nothing");
         m3DestroyWorld(world);
@@ -189,7 +188,7 @@ static void TestBallChangesKeepTheRatio(void)
           "a density that makes it heavy is refused, counting one misuse");
     m3ShapeId heavy = m3_nullShapeId;
     sd.density = 1.0e6f;
-    CHECK(m3CreateSphereShape(world, ball, &sd, &sphere, &heavy) == m3_errorInvalid &&
+    CHECK(m3CreateSphereShape(world, ball, &sd, &sphere, &heavy) == m3_errorLimit &&
               Misuse(world) == misuse + 2,
           "so is a second shape that does");
     m3Body_SetType(world, ball, m3_staticBody);
@@ -236,7 +235,7 @@ static void TestRodChangesKeepTheRatio(void)
     MassBits before = MassOf(world, rod);
     uint64_t hash = m3World_Hash(world);
     uint64_t misuse = Misuse(world);
-    CHECK(m3DestroyShape(world, ball) == m3_errorInvalid && m3Shape_IsValid(world, ball) &&
+    CHECK(m3DestroyShape(world, ball) == m3_errorLimit && m3Shape_IsValid(world, ball) &&
               Misuse(world) == misuse + 1,
           "removing the ball is refused, counting one misuse");
     m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.5f};
@@ -273,7 +272,7 @@ static void TestRestoreKeepsTheRatio(void)
         memcpy(snap + M3_SNAPSHOT_HEADER_BYTES + (at < 0 ? 0 : at) +
                    sizeof(float) * (size_t)(ball.index1 - 1),
                &light, sizeof(light));
-        CHECK(m3World_Restore(world, snap, size) == m3_errorInvalid,
+        CHECK(m3World_Restore(world, snap, size) == m3_errorFormat,
               "a light ball in the bytes is refused");
         CHECK(m3World_Hash(world) == hash && Misuse(world) == misuse,
               "with the world left as it was and no misuse counted");
@@ -335,7 +334,7 @@ static void TestReplayKeepsTheRatio(void)
         memcpy(tape + ball + offsetof(m3CreateShapeOp, def) + offsetof(m3ShapeDef, density), &light,
                sizeof(light));
         m3World* edited = LeverWorld();
-        CHECK(m3World_ReplayJournal(edited, tape, bytes) == m3_errorInvalid,
+        CHECK(m3World_ReplayJournal(edited, tape, bytes) == m3_errorFormat,
               "the tape with a light ball is refused");
         m3DestroyWorld(edited);
     }

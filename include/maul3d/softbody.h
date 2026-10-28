@@ -16,11 +16,11 @@ extern "C"
 {
 #endif
 
-#define M3_SOFTBODY_MAX_PARTICLES 512
-#define M3_SOFTBODY_MAX_EDGES     5120
-#define M3_SOFTBODY_MAX_ANCHORS   32
-#define M3_SOFTBODY_MAX_TETS      1024
-#define M3_SOFTBODY_MAX_PRESSURE  100.0f
+#define M3_MAX_SOFTBODY_PARTICLES  512
+#define M3_MAX_SOFTBODY_EDGES      5120
+#define M3_MAX_SOFTBODY_ANCHORS    32
+#define M3_MAX_SOFTBODY_TETS       1024
+#define M3_SOFTBODY_PRESSURE_LIMIT 100.0f
 
     typedef struct m3SoftBodyId
     {
@@ -33,7 +33,7 @@ extern "C"
         m3Pos3 position;     // lattice minimum corner
         int32_t countX;      // particles per axis, each >= 1; the
         int32_t countY;      // product must fit
-        int32_t countZ;      // M3_SOFTBODY_MAX_PARTICLES
+        int32_t countZ;      // M3_MAX_SOFTBODY_PARTICLES
         m3real spacing;      // rest distance between lattice neighbors, at most 1e4
         m3real particleMass; // per particle, kilograms
         m3real compliance;   // XPBD compliance; zero = rigid rods
@@ -52,7 +52,7 @@ extern "C"
         /// CLOSED lattices (every axis count >= 2). Zero (default)
         /// is off; 1 holds the create
         /// volume, 2 inflates toward double, and no more than
-        /// M3_SOFTBODY_MAX_PRESSURE is taken. One global volume
+        /// M3_SOFTBODY_PRESSURE_LIMIT is taken. One global volume
         /// constraint over the surface, solved beside the edges.
         m3real pressure;
         /// Bind-pose tether: every particle clamps to this
@@ -66,11 +66,14 @@ extern "C"
     M3_API m3SoftBodyDef m3DefaultSoftBodyDef(void);
 
     /// Creates the lattice with structural edges and face diagonals
-    /// in fixed index order. Refuses hostile counts, non-finite or
-    /// non-positive geometry, a particle mass outside 1e-6 to 1e20 kg,
-    /// a radius past 1e4 m, a gravity scale past 1e4 and a particle
-    /// past 1e15 m on any axis (m3_errorInvalid) and a full pool
-    /// (m3_errorCapacity), leaving *softBodyOut the null id.
+    /// in fixed index order. Refuses non-positive counts and NaN,
+    /// negative or non-positive geometry with m3_errorInvalid; counts
+    /// past M3_MAX_SOFTBODY_PARTICLES or M3_MAX_SOFTBODY_EDGES, a
+    /// particle mass outside M3_MIN_MASS to M3_MASS_LIMIT, a radius or
+    /// spacing past M3_LOCAL_LIMIT, a gravity scale past M3_RATIO_LIMIT
+    /// and a particle past M3_POSITION_LIMIT on any axis with
+    /// m3_errorLimit; and a full pool with m3_errorCapacity, leaving
+    /// *softBodyOut the null id.
     /// Journaled with id verification.
     M3_NODISCARD M3_API m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def,
                                                   m3SoftBodyId* softBodyOut);
@@ -85,7 +88,9 @@ extern "C"
     /// bendCompliance, and pressure must be left at defaults (the
     /// lattice knobs; hostile mixes refuse loudly). Pins, anchors,
     /// wind, water, explosions, and collision all treat the
-    /// particles exactly like lattice particles.
+    /// particles exactly like lattice particles. It refuses as
+    /// m3CreateSoftBody does, with m3_errorLimit past
+    /// M3_MAX_SOFTBODY_TETS tets or M3_MAX_SOFTBODY_EDGES edges.
     M3_NODISCARD M3_API m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def,
                                                      const m3Vec3* points, int32_t pointCount,
                                                      const uint16_t* tets, int32_t tetCount,
