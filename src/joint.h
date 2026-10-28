@@ -8,6 +8,8 @@
 
 #include "world_internal.h"
 
+#include <math.h>
+
 // What the joint setters and replay accept for a joint's drives
 // (src/joint_params.c): a motor speed within M3_SPEED_LIMIT and an
 // effort within M3_FORCE_LIMIT, except on a distance joint, whose motor
@@ -71,18 +73,28 @@ static inline m3real m3GearSpin(m3Quat q, m3Quat frame)
 }
 
 // Wrap to (-pi, pi]: spin differences cross the seam every half
-// turn and the drift correction must chase the SHORT way.
+// turn and the drift correction must chase the SHORT way. Constant time:
+// past three half turns the whole turns come off at once, since one
+// step a turn never ends once 2 pi is below the angle's spacing. Within
+// three half turns it takes the one step it always did, so every angle a
+// gear reaches keeps its bits. An angle too large to carry a phase lands
+// on the seam.
 static inline m3real m3WrapPi(m3real a)
 {
-    while (a > M3_PI)
+    const m3real turn = 2.0f * M3_PI;
+    if (a > 3.0f * M3_PI || a < -3.0f * M3_PI)
     {
-        a -= 2.0f * M3_PI;
+        a -= turn * floorf((a + M3_PI) / turn);
     }
-    while (a < -M3_PI)
+    if (a > M3_PI)
     {
-        a += 2.0f * M3_PI;
+        a -= turn;
     }
-    return a;
+    else if (a < -M3_PI)
+    {
+        a += turn;
+    }
+    return a > M3_PI ? M3_PI : (a < -M3_PI ? -M3_PI : a);
 }
 
 int32_t m3JointSlot(const m3World* world, m3JointId jointId);

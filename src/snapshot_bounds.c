@@ -182,7 +182,10 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     }
     if (type == (uint8_t)m3_gearJoint)
     {
-        return m3WithinF(motor.z, M3_RATIO_LIMIT) && motor.z != 0.0f;
+        // The ratio, and each body's spin at create, which m3GearSpin
+        // keeps within a half turn.
+        return m3WithinF(motor.z, M3_RATIO_LIMIT) && motor.z != 0.0f && m3WithinF(motor.x, M3_PI) &&
+               m3WithinF(motor.y, M3_PI);
     }
     if (type == (uint8_t)m3_motorJoint)
     {
