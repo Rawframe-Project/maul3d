@@ -907,9 +907,68 @@ static void TestFullPairTableKeepsLowestKeys(void)
     m3DestroyWorld(full);
 }
 
+// A world of 16 shapes with the given pair table, a few bodies settled
+// in it.
+static m3World* PairTableWorld(int32_t pairCapacity)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 16;
+    wd.shapeCapacity = 16;
+    wd.pairCapacity = pairCapacity;
+    m3World* world = NewWorld(&wd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = (m3Pos3){0.6 * (double)i, 0.0, 0.0};
+        NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    }
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    return world;
+}
+
+// The pair table sizes snapshot blocks, so the snapshot header carries it
+// beside the pool capacities. It once did not: a snapshot of a world with
+// a large table passed the header check of the same def with the default
+// table, and its blocks were read at the wrong offsets.
+static void TestPairCapacityInSnapshot(void)
+{
+    m3World* large = PairTableWorld(50000);
+    int32_t size = m3World_SnapshotSize(large);
+    uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+    CHECK(bytes != NULL && Snapshot(large, bytes, size) == size, "the large table snapshots");
+    int32_t stored = 0;
+    memcpy(&stored, bytes + 56, sizeof(stored));
+    CHECK(stored == 50000, "its header holds the pair capacity after the eight pool capacities");
+
+    m3World* other = PairTableWorld(0);
+    uint64_t hash = m3World_Hash(other);
+    CHECK(m3World_Restore(other, bytes, size) == m3_errorFormat,
+          "a snapshot of another pair capacity is m3_errorFormat");
+    CHECK(m3World_Hash(other) == hash, "and leaves the world as it was");
+
+    m3World* same = PairTableWorld(50000);
+    CHECK(m3World_Restore(same, bytes, size) == m3_success, "the same pair capacity restores");
+    uint8_t* again = (uint8_t*)malloc((size_t)size);
+    CHECK(again != NULL && m3World_SnapshotSize(same) == size &&
+              Snapshot(same, again, size) == size && memcmp(again, bytes, (size_t)size) == 0,
+          "exactly");
+    free(again);
+    free(bytes);
+    m3DestroyWorld(same);
+    m3DestroyWorld(other);
+    m3DestroyWorld(large);
+}
+
 int main(void)
 {
     TestFullPairTableKeepsLowestKeys();
+    TestPairCapacityInSnapshot();
     TestAllocatorHook();
     TestMemoryUsage();
     TestWorldLifecycle();
