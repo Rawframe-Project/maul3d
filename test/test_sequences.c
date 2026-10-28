@@ -403,11 +403,16 @@ static void TestStaleRuntimeSetters(void)
             m3Shape_SetDensity(world, staleS, 4.0f);
             m3Shape_EnableHitEvents(world, staleS, true);
             m3Shape_EnablePreSolve(world, staleS, true);
-            m3Joint_SetLimits(world, staleJ, true, -1.0f, 1.0f);
-            m3Joint_SetMotor(world, staleJ, true, 1.0f, 1.0f);
+            m3Joint_SetLimits(world, staleJ, -1.0f, 1.0f);
+            m3Joint_EnableLimit(world, staleJ, true);
+            m3Joint_SetMotorSpeed(world, staleJ, 1.0f);
+            m3Joint_SetMaxMotorEffort(world, staleJ, 1.0f);
+            m3Joint_EnableMotor(world, staleJ, true);
             m3Joint_SetCollideConnected(world, staleJ, true);
             m3Joint_SetBreakThresholds(world, staleJ, 1.0f, 1.0f);
-            m3Joint_SetSpring(world, staleJ, true, 5.0f, 1.0f);
+            m3Joint_SetSpringHertz(world, staleJ, 5.0f);
+            m3Joint_SetSpringDampingRatio(world, staleJ, 1.0f);
+            m3Joint_EnableSpring(world, staleJ, true);
             m3Joint_SetTargetAngle(world, staleJ, 0.5f);
         }
         for (int32_t i = 0; i < 60; ++i)

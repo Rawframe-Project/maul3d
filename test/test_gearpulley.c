@@ -99,7 +99,7 @@ static void TestGearTakesNoMotor(void)
     // mesh, and a speed past a half turn left a snapshot restore
     // refuses.
     Mesh mesh = NewMesh();
-    CHECK_REFUSES(mesh.world, m3Joint_SetMotor(mesh.world, mesh.gear, true, 1000.0f, 1.0f),
+    CHECK_REFUSES(mesh.world, m3Joint_SetMotorSpeed(mesh.world, mesh.gear, 1000.0f),
                   "a gear takes no motor");
     for (int32_t i = 0; i < 60; ++i)
     {

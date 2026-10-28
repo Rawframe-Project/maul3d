@@ -608,7 +608,9 @@ static tbScene SceneMachines(void)
     servo.bodyIdA = servoPost;
     servo.bodyIdB = plate;
     m3JointId hold = NewJoint(scene.world, &servo);
-    m3Joint_SetSpring(scene.world, hold, true, 5.0f, 1.0f);
+    m3Joint_SetSpringHertz(scene.world, hold, 5.0f);
+    m3Joint_SetSpringDampingRatio(scene.world, hold, 1.0f);
+    m3Joint_EnableSpring(scene.world, hold, true);
     m3Joint_SetMotorPose(scene.world, hold, (m3Vec3){0.0f, -1.0f, 0.0f},
                          (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
     return scene;
@@ -1036,7 +1038,9 @@ static tbScene SceneJointCart(void)
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
         scene.axles[w] = NewJoint(scene.world, &jd);
-        m3Joint_SetSpring(scene.world, scene.axles[w], true, 4.0f, 0.7f);
+        m3Joint_SetSpringHertz(scene.world, scene.axles[w], 4.0f);
+        m3Joint_SetSpringDampingRatio(scene.world, scene.axles[w], 0.7f);
+        m3Joint_EnableSpring(scene.world, scene.axles[w], true);
         m3Joint_SetTargetTranslation(scene.world, scene.axles[w], 0.0f);
         // The break cap sits ABOVE the drive torque: plain driving
         // never snaps an axle (the first tuning had them inverted
@@ -1842,7 +1846,9 @@ int main(void)
             {
                 if (m3Joint_IsValid(scene.world, scene.axles[w]))
                 {
-                    m3Joint_SetMotor(scene.world, scene.axles[w], spin != 0.0f, spin, 70.0f);
+                    m3Joint_SetMotorSpeed(scene.world, scene.axles[w], spin);
+                    m3Joint_SetMaxMotorEffort(scene.world, scene.axles[w], 70.0f);
+                    m3Joint_EnableMotor(scene.world, scene.axles[w], spin != 0.0f);
                     if ((w & 1) != 0)
                     {
                         // The +x pair leads under W's forward spin.

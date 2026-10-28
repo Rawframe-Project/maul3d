@@ -36,7 +36,7 @@ extern "C"
         /// MOTOR: a servo weld. Drives body B toward a target
         /// pose relative to body A's create-time joint frame: a soft
         /// 3-DOF rotation drive plus a soft 3-DOF translation drive,
-        /// each budget-capped. Tune with m3Joint_SetSpring (the
+        /// each budget-capped. Tune with the joint spring (the
         /// shared stiffness), aim with m3Joint_SetMotorPose, budget
         /// with m3Joint_SetLimits (lower = max force, upper = max
         /// torque, 0 = uncapped; the documented motor slot map).
@@ -139,7 +139,7 @@ extern "C"
         /// 0.1) refuses loudly. enableLimit bounds the suspension
         /// translation in meters; enableMotor drives the SPIN
         /// (rad/s, torque cap): the drive axle. The suspension
-        /// spring is the joint drive: m3Joint_SetSpring plus
+        /// spring is the joint drive: m3Joint_EnableSpring plus
         /// m3Joint_SetTargetTranslation. m3Joint_GetAngle reads the
         /// spin angle, m3Joint_GetTranslation the suspension travel.
         /// Breakage applies unchanged: a capped axle snaps
@@ -185,21 +185,35 @@ extern "C"
     M3_API m3BodyId m3Joint_GetBodyA(const m3World* world, m3JointId joint);
     M3_API m3BodyId m3Joint_GetBodyB(const m3World* world, m3JointId joint);
 
-    /// Runtime joint control. All journaled; both bodies wake
-    /// on any change. Limits and motor reuse the def semantics per
-    /// type (angles for revolute and spherical twist, meters for
-    /// prismatic and distance); toggling zeroes the row's stored
-    /// impulse so a stale warm start cannot kick. A motor joint's limits
-    /// are its force and torque budgets, each in [0, 1e20]; a distance
-    /// joint's motor is its spring, hertz in [0, 1e5] and positive when
-    /// enabled, damping ratio in [0, 1e4]; every other motor runs within
-    /// 1e5 rad/s or m/s with an effort in [0, 1e20]. Only revolute,
-    /// prismatic, wheel, generic and distance joints take a motor:
-    /// SetMotor on another type changes nothing and counts one misuse.
-    M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower,
-                                  float upper);
-    M3_API void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,
-                                 float maxEffort);
+    /// Runtime joint control. All journaled; both bodies wake on any
+    /// change, and each call zeroes the stored impulse of the rows it
+    /// changes, so a stale warm start cannot kick. A refused call changes
+    /// nothing and counts one misuse; a getter reads zeros for a stale id,
+    /// which counts one misuse, and for a type without that part.
+    ///
+    /// Limits: angles for revolute joints and the spherical twist, meters
+    /// for prismatic, wheel and distance joints. The range is ordered
+    /// when it is set and whenever the limit is on. A motor joint's limits
+    /// are its force and torque budgets, each in [0, 1e20]. Other joint
+    /// types take no limits.
+    M3_API void m3Joint_EnableLimit(m3World* world, m3JointId joint, bool enable);
+    M3_API bool m3Joint_IsLimitEnabled(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, float lower, float upper);
+    /// Either output may be null.
+    M3_API void m3Joint_GetLimits(const m3World* world, m3JointId joint, float* lowerOut,
+                                  float* upperOut);
+
+    /// Motor: only revolute, prismatic, wheel, generic and distance joints
+    /// take one. Its speed is within 1e5 rad/s or m/s and its effort in
+    /// [0, 1e20]. A distance joint's motor is its spring: the speed is
+    /// the hertz, in [0, 1e5] and positive while it is on, and the effort
+    /// the damping ratio, in [0, 1e4].
+    M3_API void m3Joint_EnableMotor(m3World* world, m3JointId joint, bool enable);
+    M3_API bool m3Joint_IsMotorEnabled(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_SetMotorSpeed(m3World* world, m3JointId joint, float speed);
+    M3_API float m3Joint_GetMotorSpeed(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_SetMaxMotorEffort(m3World* world, m3JointId joint, float maxEffort);
+    M3_API float m3Joint_GetMaxMotorEffort(const m3World* world, m3JointId joint);
 
     /// Aim the MOTOR joint: offset in body A's joint frame,
     /// rotation as the target relative orientation. The offset lies
@@ -251,15 +265,19 @@ extern "C"
     M3_API m3real m3Joint_GetAngle(const m3World* world, m3JointId joint);
     M3_API m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint);
 
-    /// Position drive: a soft
-    /// constraint with the given frequency and damping ratio pulls
-    /// the joint toward its target. Revolute drives the hinge angle,
-    /// prismatic the translation, spherical the relative rotation;
-    /// other types refuse. The frequency is positive and at most 1e5
-    /// Hz, the damping ratio in [0, 1e4]. Toggling zeroes the spring's
-    /// stored impulse. All journaled; both bodies wake.
-    M3_API void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
-                                  float dampingRatio);
+    /// Position drive: a soft constraint with the given frequency and
+    /// damping ratio pulls the joint toward its target. Revolute drives
+    /// the hinge angle, prismatic and wheel the translation, spherical the
+    /// relative rotation, and the motor joint its aim; other types refuse.
+    /// The frequency is in [0, 1e5] Hz and positive while the spring is
+    /// on, the damping ratio in [0, 1e4]. The spring keeps its values
+    /// while it is off.
+    M3_API void m3Joint_EnableSpring(m3World* world, m3JointId joint, bool enable);
+    M3_API bool m3Joint_IsSpringEnabled(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_SetSpringHertz(m3World* world, m3JointId joint, float hertz);
+    M3_API float m3Joint_GetSpringHertz(const m3World* world, m3JointId joint);
+    M3_API void m3Joint_SetSpringDampingRatio(m3World* world, m3JointId joint, float dampingRatio);
+    M3_API float m3Joint_GetSpringDampingRatio(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
     M3_API void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters);
     /// The target must be a unit rotation; garbage refuses loudly by

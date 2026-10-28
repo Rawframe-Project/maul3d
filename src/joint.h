@@ -15,20 +15,25 @@
 // effort within M3_FORCE_LIMIT, except on a distance joint, whose motor
 // fields carry its spring; a spring or steering frequency non-negative,
 // positive when enabled, within M3_HERTZ_LIMIT and damping within
-// M3_RATIO_LIMIT, on a joint type that drives; an ordered limit range, or on a motor joint, force
-// and torque budgets within M3_FORCE_LIMIT; a motor joint's aim offset within M3_LOCAL_LIMIT.
+// M3_RATIO_LIMIT, on a joint type that drives; a limit range ordered while it is on, or on a
+// motor joint, force and torque budgets within M3_FORCE_LIMIT; a motor joint's aim offset within
+// M3_LOCAL_LIMIT.
 m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort);
 // The types whose motor slot is a motor: the gear and the motor joint keep
 // their own values there.
 bool m3JointHasMotor(uint8_t type);
-m3Result m3JointLimitsCheck(int32_t type, float lower, float upper);
-bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta);
+// The types that take limits; the motor joint keeps its force and torque
+// budgets in the limit slot.
+bool m3JointHasLimits(uint8_t type);
+m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
+bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
+                        float zeta);
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
                        float hertz, float zeta, float maxEffort);
 bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation);
 // The spring and steering checks for a joint of this type, as restore
 // reads it.
-bool m3JointSpringFits(uint8_t type, float hertz, float zeta);
+bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta);
 bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, float zeta,
                       float maxEffort);
 

@@ -176,12 +176,18 @@ static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep)
         }
         if (i == 60)
         {
-            m3Joint_SetMotor(world, hinge, true, 2.0f, 40.0f);
+            m3Joint_SetMotorSpeed(world, hinge, 2.0f);
+            m3Joint_SetMaxMotorEffort(world, hinge, 40.0f);
+            m3Joint_EnableMotor(world, hinge, true);
         }
         if (i == 120)
         {
-            m3Joint_SetMotor(world, hinge, false, 0.0f, 0.0f);
-            m3Joint_SetSpring(world, hinge, true, 5.0f, 0.9f);
+            m3Joint_SetMotorSpeed(world, hinge, 0.0f);
+            m3Joint_SetMaxMotorEffort(world, hinge, 0.0f);
+            m3Joint_EnableMotor(world, hinge, false);
+            m3Joint_SetSpringHertz(world, hinge, 5.0f);
+            m3Joint_SetSpringDampingRatio(world, hinge, 0.9f);
+            m3Joint_EnableSpring(world, hinge, true);
             m3Joint_SetTargetAngle(world, hinge, -0.4f);
         }
         if (i == 150)

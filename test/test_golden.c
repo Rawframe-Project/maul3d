@@ -370,7 +370,9 @@ static void AddHinges(m3World* world, m3BodyId ground)
     ball.enableCone = true;
     ball.coneAngle = 0.5f;
     m3JointId joint = NewJoint(world, &ball);
-    m3Joint_SetSpring(world, joint, true, 2.0f, 0.3f);
+    m3Joint_SetSpringHertz(world, joint, 2.0f);
+    m3Joint_SetSpringDampingRatio(world, joint, 0.3f);
+    m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetRotation(
         world, joint, m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.2f, 0.0f, 0.0f}));
 
@@ -382,7 +384,9 @@ static void AddHinges(m3World* world, m3BodyId ground)
     hinge.motorSpeed = 2.0f;
     hinge.maxMotorEffort = 3.0f;
     joint = NewJoint(world, &hinge);
-    m3Joint_SetSpring(world, joint, true, 1.0f, 0.5f);
+    m3Joint_SetSpringHertz(world, joint, 1.0f);
+    m3Joint_SetSpringDampingRatio(world, joint, 0.5f);
+    m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetAngle(world, joint, 0.3f);
 
     m3JointDef parallel = HangDef(world, ground, 24.0, 2.0, 0.3, m3_parallelJoint, NULL);
@@ -446,10 +450,13 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
 
     m3JointDef servo = HangDef(world, ground, 34.0, 2.0, 0.0, m3_motorJoint, NULL);
     m3JointId joint = NewJoint(world, &servo);
-    m3Joint_SetSpring(world, joint, true, 3.0f, 1.0f);
+    m3Joint_SetSpringHertz(world, joint, 3.0f);
+    m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
+    m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetMotorPose(world, joint, (m3Vec3){0.0f, -1.2f, 0.3f},
                          m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.0f, 0.4f, 0.0f}));
-    m3Joint_SetLimits(world, joint, true, 50.0f, 20.0f);
+    m3Joint_SetLimits(world, joint, 50.0f, 20.0f);
+    m3Joint_EnableLimit(world, joint, true);
 
     m3JointDef wheel = HangDef(world, ground, 36.0, 2.4, 0.0, m3_wheelJoint, NULL);
     wheel.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
@@ -461,7 +468,9 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     wheel.motorSpeed = 5.0f;
     wheel.maxMotorEffort = 2.0f;
     joint = NewJoint(world, &wheel);
-    m3Joint_SetSpring(world, joint, true, 4.0f, 0.7f);
+    m3Joint_SetSpringHertz(world, joint, 4.0f);
+    m3Joint_SetSpringDampingRatio(world, joint, 0.7f);
+    m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetTranslation(world, joint, 0.0f);
     m3Joint_SetSteer(world, joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
 
@@ -917,8 +926,11 @@ static void TourShapes(const Tour* t)
 
 static void TourJointsAndSoft(const Tour* t)
 {
-    m3Joint_SetLimits(t->world, t->spare, true, 0.5f, 2.5f);
-    m3Joint_SetMotor(t->world, t->spare, true, 0.5f, 2.0f);
+    m3Joint_SetLimits(t->world, t->spare, 0.5f, 2.5f);
+    m3Joint_EnableLimit(t->world, t->spare, true);
+    m3Joint_SetMotorSpeed(t->world, t->spare, 0.5f);
+    m3Joint_SetMaxMotorEffort(t->world, t->spare, 2.0f);
+    m3Joint_EnableMotor(t->world, t->spare, true);
     m3Joint_SetCollideConnected(t->world, t->spare, true);
     m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);

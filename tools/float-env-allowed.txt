@@ -45,6 +45,9 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Joint_GetBodyB
     m3Joint_GetCollideConnected
     m3Joint_GetType
+    m3Joint_IsLimitEnabled
+    m3Joint_IsMotorEnabled
+    m3Joint_IsSpringEnabled
     m3Joint_IsValid
     m3Shape_GetBody
     m3Shape_GetFilter
@@ -78,3 +81,8 @@ journal and replay bytes, framed and counted:
 
 stored floats read back as they are, with no arithmetic:
     m3Character_GetStance
+    m3Joint_GetLimits
+    m3Joint_GetMaxMotorEffort
+    m3Joint_GetMotorSpeed
+    m3Joint_GetSpringDampingRatio
+    m3Joint_GetSpringHertz
