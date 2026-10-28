@@ -691,8 +691,11 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     }
                     v = m3Add3(v,
                                m3MulSV3(-h * world->water.waterDensity[wv] * (1.0f / 1000.0f), g));
-                    v = m3Add3(v, m3MulSV3(h * world->water.waterLinDrag[wv],
-                                           m3Sub3(world->water.waterFlow[wv], v)));
+                    // Implicit, as a rigid body's: the pull toward the
+                    // flow never passes it, whatever the drag.
+                    m3Vec3 flow = world->water.waterFlow[wv];
+                    v = m3Add3(flow, m3MulSV3(1.0f / (1.0f + h * world->water.waterLinDrag[wv]),
+                                              m3Sub3(v, flow)));
                     break;
                 }
                 world->softBodies.softPrev[k] = world->softBodies.softPos[k];
