@@ -141,6 +141,11 @@ extern "C"
     /// Returns m3_errorCapacity, with the tree unchanged and nothing
     /// recorded, when the world's allocator refuses the scratch.
     M3_NODISCARD M3_API m3Result m3World_RebuildBroadphase(m3World* world);
+
+// Water volume slots per world: a fixed, small table. A create past it
+// is refused with m3_errorCapacity.
+#define M3_MAX_WATER_VOLUMES 8
+
     /// A water volume: a world-anchored axis-aligned box of
     /// still or flowing water. The surface is the box top; there is
     /// no fluid simulation BY LAW. Rigid bodies inside get buoyancy
@@ -170,7 +175,7 @@ extern "C"
     /// A box past M3_POSITION_LIMIT, a density past M3_DENSITY_LIMIT or
     /// a flow past M3_SPEED_LIMIT returns m3_errorLimit, any other bad
     /// field m3_errorInvalid.
-    /// Up to 8 volumes per world; journaled, snapshotted, hashed
+    /// Up to M3_MAX_WATER_VOLUMES per world; journaled, snapshotted, hashed
     /// off-default. Creating or destroying a volume wakes every
     /// body whose bounds touch it (the tide moves things).
     M3_NODISCARD M3_API m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,

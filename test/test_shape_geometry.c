@@ -358,6 +358,119 @@ static void TestParticlesStayWithinTheLimit(void)
     m3DestroyWorld(world);
 }
 
+// Whether a static shape stays usable: finite bounds, a ray at it that
+// hits at a finite point with a unit normal, and a snapshot that
+// restores.
+static bool StaysFinite(m3World* world, m3ShapeId shape, m3Pos3 origin, m3Vec3 ray)
+{
+    m3AabbResult box = m3Shape_GetAabb(world, shape);
+    const double c[6] = {box.lowerBound.x, box.lowerBound.y, box.lowerBound.z,
+                         box.upperBound.x, box.upperBound.y, box.upperBound.z};
+    bool finite = true;
+    for (int32_t k = 0; k < 6; ++k)
+    {
+        finite = finite && c[k] - c[k] == 0.0;
+    }
+    m3RayCastResult hit = m3World_CastRayClosest(world, origin, ray, m3DefaultQueryFilter());
+    finite = finite && hit.hit && hit.point.x - hit.point.x == 0.0 &&
+             hit.point.y - hit.point.y == 0.0 && hit.point.z - hit.point.z == 0.0 &&
+             isfinite(hit.fraction) && fabsf(m3Dot3(hit.normal, hit.normal) - 1.0f) <= 1.0e-3f;
+    int32_t size = m3World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    bool restores =
+        snap != NULL && Snapshot(world, snap, size) == size && Restore(world, snap, size);
+    free(snap);
+    return finite && restores;
+}
+
+// Static geometry within M3_GEOMETRY_LIMIT, on cells within M3_CELL_LIMIT,
+// is taken and stays finite through its bounds, a ray and a restore. A
+// vertex, sample or cell past its bound is refused with m3_errorLimit
+// and one misuse, a NaN with m3_errorInvalid. Unbounded, a grid of cells
+// near FLT_MAX had infinite bounds and a snapshot its world could not
+// restore, and a mesh of 1e20 m gave rays a non-finite hit.
+static void TestStaticGeometryAtTheLimit(void)
+{
+    m3World* world = DefaultWorld();
+    m3BodyId ground = StaticBody(world);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId id = m3_nullShapeId;
+    m3Result result = m3_success;
+
+    static float heights[M3_MAX_HEIGHTFIELD_SIZE * M3_MAX_HEIGHTFIELD_SIZE];
+    for (int32_t i = 0; i < M3_MAX_HEIGHTFIELD_SIZE * M3_MAX_HEIGHTFIELD_SIZE; ++i)
+    {
+        heights[i] = (i & 1) != 0 ? M3_GEOMETRY_LIMIT : -M3_GEOMETRY_LIMIT;
+    }
+    CHECK_ACCEPTS(
+        world,
+        result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, M3_MAX_HEIGHTFIELD_SIZE,
+                                              M3_MAX_HEIGHTFIELD_SIZE, M3_CELL_LIMIT, &id),
+        "a grid at both limits counts no misuse");
+    const double cell = (double)M3_CELL_LIMIT;
+    const double reach = (double)M3_GEOMETRY_LIMIT;
+    CHECK(result == m3_success &&
+              StaysFinite(world, id, (m3Pos3){10.0 * cell, 2.0 * reach, 20.0 * cell},
+                          (m3Vec3){0.0f, -4.0f * M3_GEOMETRY_LIMIT, 0.0f}),
+          "a grid at both limits stays finite");
+    const float cells[3] = {2.0f * M3_CELL_LIMIT, 3.0e38f, INFINITY};
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        CHECK_REFUSES(
+            world,
+            result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
+            "a grid cell past the limit counts one misuse");
+        CHECK(result == m3_errorLimit, "a grid cell past M3_CELL_LIMIT is refused as limit");
+        CHECK_REFUSES(
+            world,
+            result = m3CreateHeightFieldShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
+            "a mesh height field cell past the limit counts one misuse");
+        CHECK(result == m3_errorLimit,
+              "a mesh height field cell past M3_CELL_LIMIT is refused as limit");
+    }
+    heights[5] = 2.0f * M3_GEOMETRY_LIMIT;
+    CHECK_REFUSES(
+        world, result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
+        "a far sample counts one misuse");
+    CHECK(result == m3_errorLimit, "a sample past M3_GEOMETRY_LIMIT is refused as limit");
+    heights[5] = NAN;
+    CHECK_REFUSES(
+        world, result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
+        "a NaN sample counts one misuse");
+    CHECK(result == m3_errorInvalid, "a NaN sample is invalid");
+
+    const float g = M3_GEOMETRY_LIMIT;
+    m3Vec3 vertices[3] = {{-g, 0.0f, -g}, {g, 0.0f, -g}, {0.0f, 0.0f, g}};
+    const uint16_t triangle[3] = {0, 2, 1};
+    CHECK_ACCEPTS(world,
+                  result = m3CreateMeshShape(world, ground, &sd, vertices, 3, triangle, 1, &id),
+                  "a mesh at the limit counts no misuse");
+    CHECK(result == m3_success && StaysFinite(world, id, (m3Pos3){1.0, reach, 1.0},
+                                              (m3Vec3){0.0f, -2.0f * M3_GEOMETRY_LIMIT, 0.0f}),
+          "a mesh at the limit stays finite");
+    vertices[1].x = 2.0f * M3_GEOMETRY_LIMIT;
+    CHECK_REFUSES(world,
+                  result = m3CreateMeshShape(world, ground, &sd, vertices, 3, triangle, 1, &id),
+                  "a far vertex counts one misuse");
+    CHECK(result == m3_errorLimit, "a vertex past M3_GEOMETRY_LIMIT is refused as limit");
+
+    static uint8_t voxels[16 * 16 * 16];
+    memset(voxels, 1, sizeof(voxels));
+    m3BodyId block = StaticBody(world);
+    CHECK_ACCEPTS(world,
+                  result =
+                      m3CreateVoxelChunkShape(world, block, &sd, voxels, NULL, M3_CELL_LIMIT, &id),
+                  "a voxel chunk at the limit counts no misuse");
+    CHECK(result == m3_success && StaysFinite(world, id, (m3Pos3){-cell, 1.5 * cell, 1.5 * cell},
+                                              (m3Vec3){2.0f * M3_CELL_LIMIT, 0.0f, 0.0f}),
+          "a voxel chunk at the limit stays finite");
+    CHECK_REFUSES(world,
+                  result = m3CreateVoxelChunkShape(world, block, &sd, voxels, NULL, 3.0e37f, &id),
+                  "a voxel cell past the limit counts one misuse");
+    CHECK(result == m3_errorLimit, "a voxel cell past M3_CELL_LIMIT is refused as limit");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestPlaneOffsetAtTheLimit();
@@ -365,6 +478,7 @@ int main(void)
     TestRestoreTakesCreatedGeometry();
     TestSoftCreatesWithinTheLimit();
     TestParticlesStayWithinTheLimit();
+    TestStaticGeometryAtTheLimit();
     if (s_failures == 0)
     {
         printf("test_shape_geometry: all checks passed\n");

@@ -35,6 +35,9 @@ typedef struct m3RayLocalHit
 // distance, which cancel from about 1e4 m and overflow from about 1e19
 // m; here a far or long ray loses no more than the float position of its
 // origin does, and the normal comes from q, which is small near a hit.
+// A ray along a coordinate axis rounds q only at q's own small size; any
+// other takes the rounding of m's float components into q, so its normal is off by up to about
+// 2 |m| FLT_EPSILON over the radius: 1e-3 at 1e4 m from a unit sphere.
 // m is the origin's offset from the center and d the translation, both
 // in that plane; the hit's offset from the center is written to offset.
 // maul2d casts at circles in the same form.

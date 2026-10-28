@@ -119,7 +119,8 @@ m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom)
     case m3_heightFieldShape:
         return m3CheckValid(ZeroV3(geom->v) && geom->s == 0.0f && restZero);
     case m3_voxelShape:
-        return m3CheckValid(ZeroV3(geom->v) && m3FiniteF(geom->s) && restZero);
+        return m3BothChecks(m3CheckValid(ZeroV3(geom->v) && restZero),
+                            m3CheckPositive(geom->s, M3_CELL_LIMIT));
     default:
         return m3_errorInvalid;
     }
@@ -163,9 +164,10 @@ static m3Result MeshContentCheck(const m3MeshData* mesh)
     }
     for (int32_t i = 0; i < mesh->vertexCount; ++i)
     {
-        if (!m3FiniteV3(mesh->vertices[i]))
+        m3Result vertex = m3CheckWithinV3(mesh->vertices[i], M3_GEOMETRY_LIMIT);
+        if (vertex != m3_success)
         {
-            return m3_errorInvalid;
+            return vertex;
         }
     }
     return m3_success;
@@ -200,8 +202,8 @@ static m3Result ShapeContentCheck(const m3World* world, int32_t bodyIndex, uint8
     if (content->voxels != NULL)
     {
         const m3VoxelChunkData* chunk = content->voxels;
-        return m3CheckValid(!def->isSensor && m3FiniteF(chunk->cellSize) &&
-                            chunk->cellSize > 0.0f && chunk->filledCount > 0);
+        return m3BothChecks(m3CheckValid(!def->isSensor && chunk->filledCount > 0),
+                            m3CheckPositive(chunk->cellSize, M3_CELL_LIMIT));
     }
     return m3_success;
 }

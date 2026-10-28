@@ -165,8 +165,8 @@ extern "C"
     M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
 
     /// A convex hull built from a point cloud (QuickHull, coplanar
-    /// faces merged, mass integrated). Between 4 and 64 points, each
-    /// coordinate within 1e4 of the body origin. A point within 512
+    /// faces merged, mass integrated). Between 4 and M3_MAX_HULL_POINTS
+    /// points, each coordinate within M3_LOCAL_LIMIT of the body origin. A point within 512
     /// times the builder's tolerance (16 FLT_EPSILON of the cloud's
     /// summed extents) of an earlier point is merged into it, so the
     /// hull may lose detail up to about 1e-3 of the summed extents.
@@ -179,11 +179,13 @@ extern "C"
                                                    int32_t count, m3ShapeId* shapeOut);
 
     /// A static triangle mesh (level geometry, voxel chunk surfaces).
-    /// Static bodies only; up to 65,535 vertices and 65,535 triangles
-    /// per mesh (three indices each, counter-clockwise from outside:
-    /// contacts cull the back side). Ghost collisions on shared edges
-    /// are filtered by feature welding. Refused loudly on a dynamic
-    /// body, out-of-cap counts, or out-of-range indices.
+    /// Static bodies only; up to M3_MAX_MESH_VERTICES vertices and
+    /// M3_MAX_MESH_TRIANGLES triangles per mesh, three indices each,
+    /// counter-clockwise from outside: contacts cull the back side.
+    /// Every vertex lies within M3_GEOMETRY_LIMIT of the body origin.
+    /// Ghost collisions on shared edges are filtered by feature welding.
+    /// A dynamic body, an index past the vertices or a NaN vertex returns
+    /// m3_errorInvalid; a count or a vertex past its bound m3_errorLimit.
     M3_NODISCARD M3_API m3Result m3CreateMeshShape(m3World* world, m3BodyId body,
                                                    const m3ShapeDef* def, const m3Vec3* vertices,
                                                    int32_t vertexCount, const uint16_t* indices,
@@ -216,9 +218,11 @@ extern "C"
     /// A heightfield chunk: an nx by nz grid of heights (row-major,
     /// x fastest) spaced `cellSize` apart in x and z, triangulated
     /// into a static mesh through the same welded triangle path.
-    /// Grid limits per chunk: 2..32 in each direction (the mesh caps);
-    /// larger terrain tiles as chunks, the voxel-world model. The
-    /// grid's minimum corner sits at the body origin.
+    /// Grid limits per chunk: 2 to M3_MAX_HEIGHTFIELD_MESH_SIZE in each
+    /// direction; larger terrain tiles as chunks, the voxel-world model.
+    /// The cell size is positive and within M3_CELL_LIMIT, and every
+    /// height within M3_GEOMETRY_LIMIT; past either is m3_errorLimit.
+    /// The grid's minimum corner sits at the body origin.
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
                                                           const m3ShapeDef* def,
                                                           const float* heights, int32_t nx,
@@ -228,10 +232,11 @@ extern "C"
     /// The NATIVE grid heightfield: the same nx-by-nz grid
     /// contract as above, but stored as raw heights (four bytes per
     /// sample) instead of triangulated into a mesh: the low-memory
-    /// terrain path. Grid limits per chunk: 2..255 in each
-    /// direction; larger terrain tiles as chunks. Static bodies
-    /// only; the minimum corner sits at the body origin. Rays,
-    /// contacts, overlaps, shape casts, movers and continuous
+    /// terrain path. Grid limits per chunk: 2 to
+    /// M3_MAX_HEIGHTFIELD_SIZE in each direction; larger terrain tiles
+    /// as chunks. The cell size and the heights are bounded as above.
+    /// Static bodies only; the minimum corner sits at the body origin.
+    /// Rays, contacts, overlaps, shape casts, movers and continuous
     /// collision all see its triangles. Samples that
     /// would carry the world's snapshot past M3_MAX_SNAPSHOT_BYTES are
     /// refused with m3_errorCapacity, with the world as it was.
@@ -242,7 +247,8 @@ extern "C"
                                                               m3ShapeId* shapeOut);
 
     /// A voxel chunk: a dense 16x16x16 grid anchored at the body
-    /// origin, cells of `cellSize` meters. `voxels` is one byte per
+    /// origin, cells of `cellSize` meters, positive and within
+    /// M3_CELL_LIMIT. `voxels` is one byte per
     /// voxel (zero = empty), x fastest then y then z; `payload` is
     /// an optional uint16 per voxel (material, health, type),
     /// carried as state and hashed. Static bodies only; sensors

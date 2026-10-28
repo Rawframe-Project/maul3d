@@ -74,7 +74,7 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
     int32_t slot = m3IdPoolAlloc(&world->water.waterPool);
     if (slot < 0)
     {
-        return M3_CREATE_FULL; // all 8 slots taken: loud at the caller
+        return M3_CREATE_FULL; // every slot taken: loud at the caller
     }
     world->water.waterLo[slot] = def->lo;
     world->water.waterHi[slot] = def->hi;

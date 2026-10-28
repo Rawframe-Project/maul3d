@@ -67,9 +67,6 @@ static inline int32_t m3CellFromF(m3real f, m3real nanPark)
 // hashed (a name moves no matter).
 #define M3_BODY_NAME_CAPACITY 32
 
-// Water volume slots per world: a fixed, small table.
-#define M3_MAX_WATER_VOLUMES 8
-
 // Immutable interned hull data (lifetime 3): vertices, face planes,
 // and face vertex loops for the SAT, plus unit-density mass
 // properties. Content-deduplicated on intern; shapes reference by

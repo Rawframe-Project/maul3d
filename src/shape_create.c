@@ -358,9 +358,10 @@ static m3Result MeshInputCheck(const m3Vec3* vertices, int32_t vertexCount, cons
     }
     for (int32_t i = 0; i < vertexCount; ++i)
     {
-        if (!m3FiniteV3(vertices[i]))
+        m3Result vertex = m3CheckWithinV3(vertices[i], M3_GEOMETRY_LIMIT);
+        if (vertex != m3_success)
         {
-            return m3_errorInvalid; // poisoned vertex: contract
+            return vertex; // a poisoned or far vertex: contract
         }
     }
     return m3_success;
@@ -465,21 +466,23 @@ static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyI
     {
         return m3Refuse(world, m3_errorBusy);
     }
-    if (heights == NULL || nx < 2 || nz < 2 || !(cellSize > 0.0f) || !m3FiniteF(cellSize))
+    if (heights == NULL || nx < 2 || nz < 2)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    m3Result size = m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_MESH_SIZE),
-                                 m3CheckCount(nz, M3_MAX_HEIGHTFIELD_MESH_SIZE));
+    m3Result size = m3BothChecks(m3BothChecks(m3CheckCount(nx, M3_MAX_HEIGHTFIELD_MESH_SIZE),
+                                              m3CheckCount(nz, M3_MAX_HEIGHTFIELD_MESH_SIZE)),
+                                 m3CheckPositive(cellSize, M3_CELL_LIMIT));
     if (size != m3_success)
     {
         return m3Refuse(world, size); // grid contract: chunks tile larger terrain
     }
     for (int32_t i = 0; i < nx * nz; ++i)
     {
-        if (!m3FiniteF(heights[i]))
+        m3Result sample = m3CheckWithin(heights[i], M3_GEOMETRY_LIMIT);
+        if (sample != m3_success)
         {
-            return m3Refuse(world, m3_errorInvalid); // poisoned sample: contract
+            return m3Refuse(world, sample); // a poisoned or far sample: contract
         }
     }
     if (m3BodySlot(world, body) < 0)
@@ -653,9 +656,14 @@ static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId
     {
         return target;
     }
-    if (voxels == NULL || !(cellSize > 0.0f) || !m3FiniteF(cellSize))
+    if (voxels == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
+    }
+    m3Result cell = m3CheckPositive(cellSize, M3_CELL_LIMIT);
+    if (cell != m3_success)
+    {
+        return m3Refuse(world, cell);
     }
     if (world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody || def->isSensor)
     {
