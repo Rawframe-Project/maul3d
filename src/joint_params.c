@@ -361,8 +361,9 @@ static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, boo
     {
         return;
     }
-    if (m3JointMotorCheck(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort) !=
-        m3_success)
+    if (!m3JointHasMotor(world->joints.jointType[slot]) ||
+        m3JointMotorCheck(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort) !=
+            m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
         return;
@@ -604,6 +605,13 @@ static int JointTypeDrives(uint8_t type)
     return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
            type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint ||
            type == (uint8_t)m3_motorJoint;
+}
+
+bool m3JointHasMotor(uint8_t type)
+{
+    return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
+           type == (uint8_t)m3_wheelJoint || type == (uint8_t)m3_genericJoint ||
+           type == (uint8_t)m3_distanceJoint;
 }
 
 m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort)

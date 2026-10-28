@@ -193,7 +193,9 @@ extern "C"
     /// are its force and torque budgets, each in [0, 1e20]; a distance
     /// joint's motor is its spring, hertz in [0, 1e5] and positive when
     /// enabled, damping ratio in [0, 1e4]; every other motor runs within
-    /// 1e5 rad/s or m/s with an effort in [0, 1e20].
+    /// 1e5 rad/s or m/s with an effort in [0, 1e20]. Only revolute,
+    /// prismatic, wheel, generic and distance joints take a motor:
+    /// SetMotor on another type changes nothing and counts one misuse.
     M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower,
                                   float upper);
     M3_API void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed,

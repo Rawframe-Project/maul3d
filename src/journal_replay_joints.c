@@ -127,8 +127,9 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     else
     {
-        if (m3JointMotorCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
-            m3_success)
+        if (!m3JointHasMotor(world->joints.jointType[slot]) ||
+            m3JointMotorCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
+                m3_success)
         {
             return false;
         }
