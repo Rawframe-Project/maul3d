@@ -777,9 +777,111 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     m3DestroyWorld(world);
 }
 
+// A long, shallow cast or a fast body over a flat grid, mesh or voxel
+// floor meets it where its path does, past more pieces than the 64 the
+// cast and the sweep once tried in storage order. Each floor is 128 m
+// along x; a 0.5 m sphere's path drops 2 m on its way across.
+static m3World* LongFloor(int32_t kind, m3real* topOut)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.maximumLinearSpeed = 1.0e4f;
+    m3World* world = NewWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    static float flat[129 * 5];
+    static m3Vec3 vertices[129 * 5];
+    static uint16_t indices[6 * 128 * 4];
+    static uint8_t cells[16 * 16 * 16];
+    *topOut = 0.0f;
+    if (kind == 0)
+    {
+        NewHeightFieldGridShape(world, ground, &sd, flat, 129, 5, 1.0f);
+    }
+    else if (kind == 1)
+    {
+        int32_t n = 0;
+        for (int32_t z = 0; z < 5; ++z)
+        {
+            for (int32_t x = 0; x < 129; ++x)
+            {
+                vertices[z * 129 + x] = (m3Vec3){(m3real)x, 0.0f, (m3real)z};
+            }
+        }
+        for (int32_t z = 0; z < 4; ++z)
+        {
+            for (int32_t x = 0; x < 128; ++x)
+            {
+                uint16_t v00 = (uint16_t)(z * 129 + x);
+                uint16_t v10 = (uint16_t)(v00 + 1);
+                uint16_t v01 = (uint16_t)(v00 + 129);
+                uint16_t v11 = (uint16_t)(v01 + 1);
+                const uint16_t quad[6] = {v00, v11, v10, v00, v01, v11};
+                memcpy(&indices[n], quad, sizeof(quad));
+                n += 6;
+            }
+        }
+        NewMeshShape(world, ground, &sd, vertices, 129 * 5, indices, n / 3);
+    }
+    else
+    {
+        // A checkerboard of 8 m cubes, so its surface holds 128 boxes.
+        memset(cells, 0, sizeof(cells));
+        for (int32_t z = 0; z < 16; ++z)
+        {
+            for (int32_t x = 0; x < 16; ++x)
+            {
+                cells[x + 16 * 16 * z] = (uint8_t)((x + z) % 2 == 0 ? 1 : 0);
+            }
+        }
+        NewVoxelChunkShape(world, ground, &sd, cells, NULL, 8.0f);
+        *topOut = 8.0f;
+    }
+    return world;
+}
+
+static void TestLongPathsMeetFarPieces(void)
+{
+    const char* names[3] = {"grid", "mesh", "voxel"};
+    for (int32_t kind = 0; kind < 3; ++kind)
+    {
+        m3real top;
+        m3World* world = LongFloor(kind, &top);
+        // The path drops 2 m. Over the voxel chunk it runs along the
+        // diagonal, so its box covers all 128 cubes, and meets a far cube
+        // at fraction 0.85.
+        m3real across = kind == 2 ? 120.0f : 0.0f;
+        m3real meet = kind == 2 ? 0.85f : 0.5f;
+        m3Pos3 start = {0.5, (double)(top + 0.5f + 2.0f * meet), kind == 2 ? 0.5 : 2.5};
+        m3Vec3 path = {kind == 2 ? 120.0f : 100.0f, -2.0f, across};
+        m3RayCastResult cast =
+            m3World_CastSphereClosest(world, start, 0.5f, path, m3DefaultQueryFilter());
+        printf("long cast over the %s: hit %d fraction %g\n", names[kind], (int)cast.hit,
+               (double)cast.fraction);
+        // The time of impact stops within its 5 mm tolerance of the floor.
+        CHECK(cast.hit && fabsf(cast.fraction - meet) < 5.0e-3f && cast.normal.y > 0.99f,
+              "a long shallow cast meets the floor where its path does");
+
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.type = m3_dynamicBody;
+        bd.position = start;
+        bd.linearVelocity = m3MulSV3(60.0f, path);
+        m3BodyId pellet = NewBody(world, &bd);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+        NewSphereShape(world, pellet, &sd, &ball);
+        m3World_Step(world, 1.0f / 60.0f, 1);
+        m3Pos3 at = m3Body_GetPosition(world, pellet);
+        printf("fast body over the %s: x %g y %g\n", names[kind], at.x, at.y);
+        CHECK(at.y > (double)top + 0.4, "a fast body at a shallow angle stops on the floor");
+        m3DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
+    TestLongPathsMeetFarPieces();
     TestContactEvents();
     TestRayHitsEveryFamily();
     TestRayClosestOfMany();

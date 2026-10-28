@@ -61,10 +61,11 @@ static void TakeImpact(Sweeper* sw, const m3TOIInput* input)
     }
 }
 
-// The box the fast body's center of mass sweeps, padded by its reach,
-// in the frame of a target body (static meshes and voxel chunks keep
-// their triangles in their own frame).
-static void SweptBoxIn(const Sweeper* sw, int32_t target, m3Vec3* lo, m3Vec3* hi)
+// The box the fast body's center of mass sweeps up to fraction, padded
+// by its reach, in the frame of a target body (static meshes, grids and
+// voxel chunks keep their pieces in their own frame). The center moves
+// on a line through the step, so the box holds the body up to fraction.
+static void SweptBoxIn(const Sweeper* sw, int32_t target, m3real fraction, m3Vec3* lo, m3Vec3* hi)
 {
     const m3World* world = sw->world;
     const m3Transform* xfT = &world->bodies.transforms[target];
@@ -77,9 +78,59 @@ static void SweptBoxIn(const Sweeper* sw, int32_t target, m3Vec3* lo, m3Vec3* hi
     m3Vec3 c2 = m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(xfF->p.x + (double)rlc.x - xfT->p.x),
                                                  (m3real)(xfF->p.y + (double)rlc.y - xfT->p.y),
                                                  (m3real)(xfF->p.z + (double)rlc.z - xfT->p.z)});
+    c2 = m3Add3(c1, m3MulSV3(fraction, m3Sub3(c2, c1)));
     m3real pad = world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN;
     *lo = (m3Vec3){m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
     *hi = (m3Vec3){m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
+}
+
+// A sweep against a static surface's pieces: its triangles, or a voxel
+// chunk's boxes. A piece is tried only while it lies in the fast body's
+// path up to the earliest impact found so far; one past it cannot come
+// earlier.
+typedef struct SurfaceSweep
+{
+    Sweeper* sw;
+    int32_t body;
+    m3Vec3 scratch[2];
+    m3TOIInput input;
+} SurfaceSweep;
+
+static void SurfaceSweepBegin(Sweeper* sw, int32_t body, SurfaceSweep* ss)
+{
+    ss->sw = sw;
+    ss->body = body;
+    ss->input.proxyB = m3MakeShapeProxy(sw->world, sw->shape, ss->scratch);
+    ss->input.sweepA = RelativeSweep(sw->world, body, sw->com0, sw->rot0, sw->base);
+    ss->input.sweepB = sw->sweep;
+}
+
+static void SweepPiece(SurfaceSweep* ss, const m3Vec3* points, int32_t count, m3Vec3 lo, m3Vec3 hi)
+{
+    m3Vec3 pathLo;
+    m3Vec3 pathHi;
+    SweptBoxIn(ss->sw, ss->body, ss->sw->fraction, &pathLo, &pathHi);
+    if (hi.x < pathLo.x || lo.x > pathHi.x || hi.y < pathLo.y || lo.y > pathHi.y ||
+        hi.z < pathLo.z || lo.z > pathHi.z)
+    {
+        return;
+    }
+    ss->input.proxyA = (m3DistanceProxy){points, count, 0.0f};
+    ss->input.maxFraction = ss->sw->fraction;
+    TakeImpact(ss->sw, &ss->input);
+}
+
+static bool SweepTriangle(const m3Vec3 tri[3], void* context)
+{
+    m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
+    m3Vec3 lo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
+                 m3MinF(tv[0].y, m3MinF(tv[1].y, tv[2].y)),
+                 m3MinF(tv[0].z, m3MinF(tv[1].z, tv[2].z))};
+    m3Vec3 hi = {m3MaxF(tv[0].x, m3MaxF(tv[1].x, tv[2].x)),
+                 m3MaxF(tv[0].y, m3MaxF(tv[1].y, tv[2].y)),
+                 m3MaxF(tv[0].z, m3MaxF(tv[1].z, tv[2].z))};
+    SweepPiece((SurfaceSweep*)context, tv, 3, lo, hi);
+    return true;
 }
 
 // Sweeps against a voxel chunk's merged boxes, unextended: the seam
@@ -92,17 +143,14 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     m3real cell = world->voxels.voxelData[slot].cellSize;
-    m3Vec3 scratch[2];
-    m3TOIInput input;
-    input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
-    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
-    input.sweepB = sw->sweep;
+    SurfaceSweep ss;
+    SurfaceSweepBegin(sw, body, &ss);
     m3Vec3 lo;
     m3Vec3 hi;
-    SweptBoxIn(sw, body, &lo, &hi);
+    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
     uint16_t gather[M3_MESH_MAX_TRIS];
     int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < count && g < 64; ++g)
+    for (int32_t g = 0; g < count; ++g)
     {
         m3Vec3 blo;
         m3Vec3 bhi;
@@ -113,82 +161,46 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
             corners[k] = (m3Vec3){(k & 1) != 0 ? bhi.x : blo.x, (k & 2) != 0 ? bhi.y : blo.y,
                                   (k & 4) != 0 ? bhi.z : blo.z};
         }
-        input.proxyA = (m3DistanceProxy){corners, 8, 0.0f};
-        input.maxFraction = sw->fraction;
-        TakeImpact(sw, &input);
+        SweepPiece(&ss, corners, 8, blo, bhi);
     }
 }
 
-// Sweeps against the mesh triangles the swept box overlaps, at most 64,
-// in ascending triangle order.
+// Sweeps against the mesh triangles the swept box overlaps, in ascending
+// triangle order.
 static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
 {
     m3World* world = sw->world;
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
-    m3Vec3 scratch[2];
-    m3TOIInput input;
-    input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
-    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
-    input.sweepB = sw->sweep;
+    SurfaceSweep ss;
+    SurfaceSweepBegin(sw, body, &ss);
     m3Vec3 lo;
     m3Vec3 hi;
-    SweptBoxIn(sw, body, &lo, &hi);
+    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
     uint16_t gather[M3_MESH_MAX_TRIS];
     int32_t count = m3MeshBvhGather(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], lo,
                                     hi, gather, M3_COUNT_OF(gather));
-    int32_t budget = 64;
-    for (int32_t g = 0; g < count && budget > 0; ++g)
+    for (int32_t g = 0; g < count; ++g)
     {
         int32_t t = gather[g];
         m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
                         mesh->vertices[mesh->indices[3 * t + 1]],
                         mesh->vertices[mesh->indices[3 * t + 2]]};
-        if (!m3TriangleTouchesBox(tv, lo, hi))
-        {
-            continue;
-        }
-        budget -= 1;
-        input.proxyA = (m3DistanceProxy){tv, 3, 0.0f};
-        input.maxFraction = sw->fraction;
-        TakeImpact(sw, &input);
+        (void)SweepTriangle(tv, &ss);
     }
 }
 
-typedef struct TerrainSweep
-{
-    Sweeper* sw;
-    m3TOIInput input;
-    int32_t budget;
-} TerrainSweep;
-
-static bool SweepTerrainTriangle(const m3Vec3 tri[3], void* context)
-{
-    TerrainSweep* ts = (TerrainSweep*)context;
-    m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
-    ts->input.proxyA = (m3DistanceProxy){tv, 3, 0.0f};
-    ts->input.maxFraction = ts->sw->fraction;
-    TakeImpact(ts->sw, &ts->input);
-    ts->budget -= 1;
-    return ts->budget > 0;
-}
-
 // Sweeps against a height field grid's triangles the swept box overlaps,
-// at most 64, in ascending cell order, as for a mesh.
+// in ascending cell order, as for a mesh.
 static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
 {
     m3World* world = sw->world;
-    m3Vec3 scratch[2];
-    TerrainSweep ts;
-    ts.sw = sw;
-    ts.input.proxyB = m3MakeShapeProxy(world, sw->shape, scratch);
-    ts.input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
-    ts.input.sweepB = sw->sweep;
-    ts.budget = 64;
+    SurfaceSweep ss;
+    SurfaceSweepBegin(sw, body, &ss);
     m3Vec3 lo;
     m3Vec3 hi;
-    SweptBoxIn(sw, body, &lo, &hi);
+    SweptBoxIn(sw, body, sw->fraction, &lo, &hi);
     m3HeightFieldVisit(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], lo, hi,
-                       SweepTerrainTriangle, &ts);
+                       SweepTriangle, &ss);
 }
 
 // Whether the fast shape sweeps against shape at all: never itself or

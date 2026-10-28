@@ -124,14 +124,13 @@ static m3DistanceOutput PieceDistance(m3DistanceProxy piece, const m3Vec3 caps[2
 }
 
 // The nearest of a static surface's pieces within reach of the segment:
-// its triangles or a voxel chunk's boxes, at most 64 tried in the
-// surface's own order, the first nearest kept.
+// its triangles or a voxel chunk's boxes, tried in the surface's own
+// order, the first nearest kept.
 typedef struct NearestCtx
 {
     const m3Vec3* caps;
     m3DistanceOutput best;
     bool found;
-    int32_t budget;
 } NearestCtx;
 
 static void OfferPiece(NearestCtx* near, m3DistanceProxy piece)
@@ -142,7 +141,6 @@ static void OfferPiece(NearestCtx* near, m3DistanceProxy piece)
         near->best = out;
         near->found = true;
     }
-    near->budget -= 1;
 }
 
 static bool OfferTriangle(const m3Vec3 tri[3], void* context)
@@ -150,7 +148,7 @@ static bool OfferTriangle(const m3Vec3 tri[3], void* context)
     NearestCtx* near = (NearestCtx*)context;
     m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
     OfferPiece(near, (m3DistanceProxy){tv, 3, 0.0f});
-    return near->budget > 0;
+    return true;
 }
 
 static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3Vec3 hi,
@@ -170,7 +168,7 @@ static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3V
         const m3MeshData* mesh = &world->meshes.meshData[index];
         int32_t count =
             m3MeshBvhGather(&world->meshes.meshBvh[index], lo, hi, gather, M3_COUNT_OF(gather));
-        for (int32_t g = 0; g < count && near->budget > 0; ++g)
+        for (int32_t g = 0; g < count; ++g)
         {
             int32_t t = gather[g];
             m3Vec3 tv[3] = {mesh->vertices[mesh->indices[3 * t + 0]],
@@ -187,7 +185,7 @@ static void NearestOfSurface(const m3World* world, int32_t shape, m3Vec3 lo, m3V
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     m3real cell = world->voxels.voxelData[slot].cellSize;
     int32_t count = m3MeshBvhGather(&surface->bvh, lo, hi, gather, M3_COUNT_OF(gather));
-    for (int32_t g = 0; g < count && near->budget > 0; ++g)
+    for (int32_t g = 0; g < count; ++g)
     {
         m3Vec3 blo;
         m3Vec3 bhi;
@@ -226,7 +224,6 @@ static m3DistanceOutput NearestPiece(const m3World* world, int32_t shape, const 
     NearestCtx near;
     memset(&near, 0, sizeof(near));
     near.caps = caps;
-    near.budget = 64;
     NearestOfSurface(world, shape, lo, hi, &near);
     if (!near.found)
     {
