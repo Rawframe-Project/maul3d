@@ -6,10 +6,12 @@
 // body, shape and joint, the world and the scene's character through the
 // public getters and gives each value to its own setter, which must take
 // it without counting a misuse. Where a create may keep a value no setter
-// takes (a limit range left unordered while off, a servo's aim at its
-// create pose), the oracle checks the create's rule instead. It changes
-// the world (a setter wakes bodies and zeroes warm impulses), so a target
-// runs it last.
+// takes (a limit range left unordered while off, a servo's aim at a gap
+// past the setter's reach), the oracle checks the create's rule instead.
+// The character's own body keeps its type, which SetType refuses for that
+// body whatever the type. The oracle changes the world (a setter moves,
+// wakes and renames bodies and zeroes warm impulses), so a target runs it
+// last.
 
 #ifndef MAUL3D_TEST_FUZZ_ORACLE_H
 #define MAUL3D_TEST_FUZZ_ORACLE_H
@@ -23,8 +25,14 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #define FUZZ_ORACLE_CAPACITY 64
+
+// The reach of a motor joint's aim at create, M3_SERVO_AIM_LIMIT in
+// src/joint.h: the gap between two anchors on bodies within
+// M3_POSITION_LIMIT, under 3.5e15 on every axis in any frame.
+#define FUZZ_SERVO_AIM_LIMIT 4.0e15f
 
 static inline uint64_t FuzzMisuse(const m3World* world)
 {
@@ -53,8 +61,32 @@ static inline void FuzzShapeValues(m3World* world, m3ShapeId shape)
     m3Shape_SetFilter(world, shape, category, mask, group);
 }
 
-static inline void FuzzBodyValues(m3World* world, m3BodyId body)
+// Whether a body is the character's own: the kinematic body the character
+// stands on, at the character's position.
+static inline bool FuzzCharacterBody(const m3World* world, m3BodyId body, m3CharacterId hero)
 {
+    if (!m3Character_IsValid(world, hero) || m3Body_GetType(world, body) != m3_kinematicBody)
+    {
+        return false;
+    }
+    m3Pos3 at = m3Body_GetPosition(world, body);
+    m3Pos3 heroAt = m3Character_GetPosition(world, hero);
+    return at.x == heroAt.x && at.y == heroAt.y && at.z == heroAt.z;
+}
+
+static inline void FuzzBodyValues(m3World* world, m3BodyId body, m3CharacterId hero)
+{
+    m3Transform pose = m3Body_GetTransform(world, body);
+    m3Body_SetTransform(world, body, pose.p, pose.q);
+    if (!FuzzCharacterBody(world, body, hero))
+    {
+        m3Body_SetType(world, body, m3Body_GetType(world, body));
+    }
+    m3Body_Enable(world, body, m3Body_IsEnabled(world, body));
+    char name[32];
+    strncpy(name, m3Body_GetName(world, body), sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    m3Body_SetName(world, body, name);
     m3Body_SetLinearVelocity(world, body, m3Body_GetLinearVelocity(world, body));
     m3Body_SetAngularVelocity(world, body, m3Body_GetAngularVelocity(world, body));
     m3Body_SetGravityScale(world, body, m3Body_GetGravityScale(world, body));
@@ -65,6 +97,11 @@ static inline void FuzzBodyValues(m3World* world, m3BodyId body)
     m3Body_EnableBullet(world, body, m3Body_IsBulletEnabled(world, body));
     m3Body_EnableSleep(world, body, m3Body_IsSleepEnabled(world, body));
     m3Body_EnableFastRotation(world, body, m3Body_IsFastRotationEnabled(world, body));
+    // Only a dynamic body sleeps or wakes.
+    if (m3Body_GetType(world, body) == m3_dynamicBody)
+    {
+        m3Body_SetAwake(world, body, m3Body_IsAwake(world, body));
+    }
     m3ShapeId shapes[FUZZ_ORACLE_CAPACITY];
     int32_t count = m3Body_GetShapes(world, body, shapes, FUZZ_ORACLE_CAPACITY);
     for (int32_t i = 0; i < count && i < FUZZ_ORACLE_CAPACITY; ++i)
@@ -147,10 +184,17 @@ static inline bool FuzzJointValues(m3World* world, m3JointId joint)
         m3MotorJoint_SetMaxForce(world, joint, m3MotorJoint_GetMaxForce(world, joint));
         m3MotorJoint_SetMaxTorque(world, joint, m3MotorJoint_GetMaxTorque(world, joint));
         // The create aims at the bodies' gap, which may lie past the
-        // setter's reach; the rotation is the setter's unit one.
+        // setter's reach of M3_LOCAL_LIMIT but not past the create's.
         m3Vec3 linear = m3MotorJoint_GetLinearOffset(world, joint);
-        if (!isfinite(linear.x) || !isfinite(linear.y) || !isfinite(linear.z) ||
-            !FuzzUnitQuat(m3MotorJoint_GetAngularOffset(world, joint)))
+        m3Quat angular = m3MotorJoint_GetAngularOffset(world, joint);
+        if (fabsf(linear.x) <= M3_LOCAL_LIMIT && fabsf(linear.y) <= M3_LOCAL_LIMIT &&
+            fabsf(linear.z) <= M3_LOCAL_LIMIT)
+        {
+            m3MotorJoint_SetOffsets(world, joint, linear, angular);
+        }
+        else if (!(fabsf(linear.x) <= FUZZ_SERVO_AIM_LIMIT) ||
+                 !(fabsf(linear.y) <= FUZZ_SERVO_AIM_LIMIT) ||
+                 !(fabsf(linear.z) <= FUZZ_SERVO_AIM_LIMIT) || !FuzzUnitQuat(angular))
         {
             return false;
         }
@@ -183,7 +227,7 @@ static inline bool FuzzValuesHold(m3World* world, m3CharacterId hero)
     int32_t bodyCount = m3World_GetBodies(world, bodies, FUZZ_ORACLE_CAPACITY);
     for (int32_t i = 0; i < bodyCount && i < FUZZ_ORACLE_CAPACITY; ++i)
     {
-        FuzzBodyValues(world, bodies[i]);
+        FuzzBodyValues(world, bodies[i], hero);
     }
     bool createRules = true;
     m3JointId joints[FUZZ_ORACLE_CAPACITY];

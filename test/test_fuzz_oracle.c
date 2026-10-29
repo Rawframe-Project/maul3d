@@ -69,6 +69,7 @@ typedef enum Corruption
     corrupt_gravityScale,
     corrupt_friction,
     corrupt_gravity,
+    corrupt_rotation,
 } Corruption;
 
 // Writes a value no setter takes straight into the scene's state.
@@ -101,6 +102,10 @@ static void Corrupt(m3World* world, const FuzzScene* scene, Corruption which)
     case corrupt_gravity:
         world->gravity.y = -2.0f * M3_ACCEL_LIMIT;
         break;
+    case corrupt_rotation:
+        // Twice a unit quaternion: no pose a caller could set.
+        world->bodies.transforms[crate].q.w *= 2.0f;
+        break;
     }
 }
 
@@ -117,6 +122,7 @@ static void TestOracleCatches(void)
         {corrupt_gravityScale, "a gravity scale past its limit"},
         {corrupt_friction, "a negative friction"},
         {corrupt_gravity, "a world gravity past its limit"},
+        {corrupt_rotation, "a body rotation far from unit length"},
     };
     for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
     {
