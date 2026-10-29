@@ -207,6 +207,22 @@ static inline bool FuzzJointValues(m3World* world, m3JointId joint)
             return false;
         }
     }
+    else if (type == m3_sphericalJoint)
+    {
+        // A def may leave a negative angle while its cone is off; the
+        // setter takes none.
+        float angle = m3SphericalJoint_GetConeAngle(world, joint);
+        bool enabled = m3SphericalJoint_IsConeEnabled(world, joint);
+        if (angle >= 0.0f)
+        {
+            m3SphericalJoint_SetConeAngle(world, joint, angle);
+        }
+        else if (enabled || !isfinite(angle))
+        {
+            return false;
+        }
+        m3SphericalJoint_EnableCone(world, joint, enabled);
+    }
     else if (type == m3_wheelJoint)
     {
         m3WheelJoint_SetTargetSteeringAngle(world, joint,

@@ -49,6 +49,7 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Joint_IsMotorEnabled
     m3Joint_IsSpringEnabled
     m3Joint_IsValid
+    m3SphericalJoint_IsConeEnabled
     m3WheelJoint_IsSteeringEnabled
     m3Shape_GetBody
     m3Shape_GetFilter
@@ -93,6 +94,7 @@ stored floats read back as they are, with no arithmetic:
     m3MotorJoint_GetLinearOffset
     m3MotorJoint_GetMaxForce
     m3MotorJoint_GetMaxTorque
+    m3SphericalJoint_GetConeAngle
     m3WheelJoint_GetMaxSteeringTorque
     m3WheelJoint_GetSteeringDampingRatio
     m3WheelJoint_GetSteeringHertz

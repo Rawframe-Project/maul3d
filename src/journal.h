@@ -102,6 +102,7 @@ typedef enum m3Op
     m3_opSetBodyUserData = 83,        // body + user data
     m3_opSetShapeUserData = 84,       // shape + user data
     m3_opDistanceJointSetLength = 85, // joint + spring rest length
+    m3_opSphericalJointSetCone = 86,  // joint + cone switch and angle
     m3_opCount
 } m3Op;
 
@@ -255,6 +256,15 @@ typedef struct m3OpDistanceJointSetLength
     m3JointId id;
     float length;
 } m3OpDistanceJointSetLength;
+
+// The cone's switch and angle share one record: each cone call records
+// the part it sets and the rest as the joint holds it.
+typedef struct m3OpSphericalJointSetCone
+{
+    m3JointId id;
+    int32_t enable;
+    float angle;
+} m3OpSphericalJointSetCone;
 
 typedef struct m3OpJointVector
 {

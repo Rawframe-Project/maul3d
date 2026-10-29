@@ -681,6 +681,7 @@ static const ReplayCommand s_commands[m3_opCount] = {
     [m3_opSetBodyUserData] = {ApplyUserData},
     [m3_opSetShapeUserData] = {ApplyUserData},
     [m3_opDistanceJointSetLength] = {m3ReplayDistanceJointSetLength},
+    [m3_opSphericalJointSetCone] = {m3ReplaySphericalJointSetCone},
     [m3_opSetHitEventThreshold] = {ApplySetHitEventThreshold},
     [m3_opEnableShapeHitEvents] = {m3ReplayShapeFlag},
     [m3_opEnableShapePreSolve] = {m3ReplayShapeFlag},

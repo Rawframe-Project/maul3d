@@ -340,6 +340,16 @@ extern "C"
     /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
     M3_API void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
+    /// The swing cone (m3JointDef enableCone and coneAngle), switched and
+    /// moved at run time; each takes effect in its own call. The angle is
+    /// finite and not negative, and EnableCone refuses to switch the cone
+    /// on over a negative angle a def left. Any other joint type, a stale
+    /// id or a refused value changes nothing and counts one misuse; the
+    /// getters then read false and zero.
+    M3_API void m3SphericalJoint_EnableCone(m3World* world, m3JointId joint, bool enable);
+    M3_API bool m3SphericalJoint_IsConeEnabled(const m3World* world, m3JointId joint);
+    M3_API void m3SphericalJoint_SetConeAngle(m3World* world, m3JointId joint, float angle);
+    M3_API float m3SphericalJoint_GetConeAngle(const m3World* world, m3JointId joint);
 
 #ifdef __cplusplus
 }

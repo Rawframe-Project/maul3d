@@ -759,7 +759,7 @@ typedef struct m3Joints
     uint8_t* jointConnectedCollision;
     m3Vec3* jointImpulse;        // warm-start linear impulse
     m3Vec3* jointPerpImpulse;    // x, y = collinearity rows; z = motor
-    m3Vec3* jointLimitImpulse;   // x = lower, y = upper, z unused
+    m3Vec3* jointLimitImpulse;   // x = lower, y = upper, z = the spherical cone
     m3Vec3* jointAngularImpulse; // prismatic 3-DOF rotation lock
     m3Quat* jointFrameQA;        // joint frame in body A (axis = local z)
     m3Quat* jointFrameQB;

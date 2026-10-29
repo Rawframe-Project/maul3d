@@ -15,7 +15,7 @@
 // Joint flags (world->joints.jointFlags). The cone bit is the wheel's steer bit.
 #define M3_JOINT_LIMIT  1u // limits enabled
 #define M3_JOINT_MOTOR  2u // motor enabled
-#define M3_JOINT_CONE   4u // spherical cone and twist limit enabled
+#define M3_JOINT_CONE   4u // spherical: swing cone enabled; its twist range is the limit
 #define M3_JOINT_STEER  4u // wheel: steering drive enabled
 #define M3_JOINT_SPRING 8u // drive spring enabled
 
