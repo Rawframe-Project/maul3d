@@ -641,8 +641,8 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
     }
 }
 
-void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
-                           uint16_t payload)
+void m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
+                                uint16_t payload)
 {
     uint64_t env = m3FloatEnvEnter();
     VoxelChunkSetVoxelWorker(world, shape, x, y, z, payload);
@@ -683,7 +683,7 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
     }
 }
 
-void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
+void m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
 {
     uint64_t env = m3FloatEnvEnter();
     VoxelChunkClearVoxelWorker(world, shape, x, y, z);
@@ -728,8 +728,8 @@ static M3_NOINLINE void VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape,
     m3VoxelSetFillInternal(world, index, x, y, z, fill);
 }
 
-void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
-                          uint8_t fill)
+void m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
+                               uint8_t fill)
 {
     uint64_t env = m3FloatEnvEnter();
     VoxelChunkSetFillWorker(world, shape, x, y, z, fill);
@@ -782,8 +782,8 @@ static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId sh
     return cleared;
 }
 
-int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
-                              const int32_t hi[3])
+int32_t m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
+                                   const int32_t hi[3])
 {
     uint64_t env = m3FloatEnvEnter();
     int32_t result = VoxelChunkClearBoxWorker(world, shape, lo, hi);

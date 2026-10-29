@@ -414,7 +414,7 @@ static M3_NOINLINE void ShapeSetMeshMaterialsWorker(m3World* world, m3ShapeId sh
     }
 }
 
-void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
+void m3MeshShape_SetMaterials(m3World* world, m3ShapeId shape,
                               const m3MeshSurfaceMaterial* materials, int32_t materialCount,
                               const uint8_t* triangleMaterials)
 {

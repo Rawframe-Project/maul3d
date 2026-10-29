@@ -213,7 +213,7 @@ extern "C"
     /// Journaled; refuses loudly on a non-mesh shape, hostile
     /// values, or out-of-range group bytes. A mesh without painted
     /// materials keeps using its shape material everywhere.
-    M3_API void m3Shape_SetMeshMaterials(m3World* world, m3ShapeId shape,
+    M3_API void m3MeshShape_SetMaterials(m3World* world, m3ShapeId shape,
                                          const m3MeshSurfaceMaterial* materials,
                                          int32_t materialCount, const uint8_t* triangleMaterials);
 
@@ -293,7 +293,7 @@ extern "C"
     /// first chunk was created, so no edit asks the allocator. An
     /// edit whose surface would pass the bound changes nothing,
     /// journals nothing and counts no misuse: it counts in
-    /// m3Counters.voxelEditsRefused instead, and m3VoxelChunk_ClearBox
+    /// m3Counters.voxelEditsRefused instead, and m3VoxelChunkShape_ClearBox
     /// returns -1. A create whose grid passes it is refused with
     /// m3_errorCapacity.
     ///
@@ -304,24 +304,24 @@ extern "C"
     /// y = 0. Voxels with no path to the base layer survive
     /// creation but fragment on the first clearing edit anywhere in
     /// the chunk (the sweep is chunk-wide by design).
-    M3_API void m3VoxelChunk_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                      int32_t z, uint16_t payload);
-    M3_API void m3VoxelChunk_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                        int32_t z);
+    M3_API void m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                           int32_t z, uint16_t payload);
+    M3_API void m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                             int32_t z);
     /// Clears the inclusive box [lo, hi] per axis. Returns the
     /// number of voxels that were actually cleared (zero is legal),
     /// or -1 on a stale id, a non-voxel shape, a bad region, or a
     /// surface past the box bound.
-    M3_API int32_t m3VoxelChunk_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
-                                         const int32_t hi[3]);
+    M3_API int32_t m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
+                                              const int32_t hi[3]);
     /// Fill fraction: 255 is a whole voxel, 1 a sliver. A
     /// mass and destruction property, never geometry: the voxel
     /// still collides as a full box, but its fragment mass scales
     /// by fill / 255. Refuses zero fill (that is a clear: use
-    /// m3VoxelChunk_ClearVoxel) and empty voxels. Journaled state,
+    /// m3VoxelChunkShape_ClearVoxel) and empty voxels. Journaled state,
     /// hashed, inside the rollback delta like every edit.
-    M3_API void m3VoxelChunk_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                     int32_t z, uint8_t fill);
+    M3_API void m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                          int32_t z, uint8_t fill);
 
     /// True while the id names a live shape of this world; false for
     /// the null id and stale generations, without counting misuse.

@@ -197,7 +197,7 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
             return false;
         }
     }
-    // Paint as m3Shape_SetMeshMaterials leaves it: the same wall, with the
+    // Paint as m3MeshShape_SetMaterials leaves it: the same wall, with the
     // table entries past the count zero, or no paint at all with every
     // entry and group byte zero.
     const uint8_t* paint = indices + 7 * (size_t)tc;

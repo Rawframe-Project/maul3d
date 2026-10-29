@@ -51,15 +51,15 @@ static void Apply(Chunk* c, Edit edit, int32_t x, int32_t y, int32_t z)
 {
     if (edit == edit_set)
     {
-        m3VoxelChunk_SetVoxel(c->world, c->shape, x, y, z, 7);
+        m3VoxelChunkShape_SetVoxel(c->world, c->shape, x, y, z, 7);
     }
     else if (edit == edit_clear)
     {
-        m3VoxelChunk_ClearVoxel(c->world, c->shape, x, y, z);
+        m3VoxelChunkShape_ClearVoxel(c->world, c->shape, x, y, z);
     }
     else
     {
-        m3VoxelChunk_SetFill(c->world, c->shape, x, y, z, 99);
+        m3VoxelChunkShape_SetFill(c->world, c->shape, x, y, z, 99);
     }
 }
 

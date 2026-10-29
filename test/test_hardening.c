@@ -255,7 +255,7 @@ static int32_t FindBytes(const uint8_t* buffer, int32_t size, const void* patter
 }
 
 // A restore lands mesh content only when it is content a mesh create
-// and m3Shape_SetMeshMaterials would take: a triangle index past the
+// and m3MeshShape_SetMaterials would take: a triangle index past the
 // vertices, a vertex that is not finite, a material the paint wall
 // refuses or a group past the material count is refused as invalid
 // before the BVH build or a contact reads it.
@@ -276,7 +276,7 @@ static void TestRestoreRefusesBadMeshContent(void)
     paint[0].friction = 0.37f;
     paint[1].friction = 0.61f;
     uint8_t groups[2] = {0, 1};
-    m3Shape_SetMeshMaterials(world, floor, paint, 2, groups);
+    m3MeshShape_SetMaterials(world, floor, paint, 2, groups);
     int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);

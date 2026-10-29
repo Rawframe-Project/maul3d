@@ -263,7 +263,7 @@ static void TestWorkerTwinsAtScale(void)
                 int32_t cx = 5 + (i / 10) % 6;
                 int32_t lo[3] = {cx, 2, 5};
                 int32_t hi[3] = {cx, 2, 10};
-                m3VoxelChunk_ClearBox(world, chunk, lo, hi);
+                m3VoxelChunkShape_ClearBox(world, chunk, lo, hi);
             }
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }

@@ -472,7 +472,11 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3Joint_SetSpringDampingRatio(world, joint, 0.7f);
     m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetTranslation(world, joint, 0.0f);
-    m3WheelJoint_SetSteer(world, joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
+    m3WheelJoint_SetSteeringHertz(world, joint, 5.0f);
+    m3WheelJoint_SetSteeringDampingRatio(world, joint, 0.7f);
+    m3WheelJoint_SetMaxSteeringTorque(world, joint, 10.0f);
+    m3WheelJoint_SetTargetSteeringAngle(world, joint, 0.2f);
+    m3WheelJoint_EnableSteering(world, joint, true);
 
     m3BodyId gearA;
     m3BodyId gearB;
@@ -577,7 +581,7 @@ static void Destroy(m3World* world, m3ShapeId wall, double ox, double oz)
 {
     static const int32_t lo[3] = {6, 0, 6};
     static const int32_t hi[3] = {9, 11, 9};
-    m3VoxelChunk_ClearBox(world, wall, lo, hi);
+    m3VoxelChunkShape_ClearBox(world, wall, lo, hi);
     m3ExplosionDef blast = m3DefaultExplosionDef();
     blast.position = (m3Pos3){0.0 + ox, 3.0, 0.5 + oz};
     blast.radius = 2.0f;
@@ -919,7 +923,7 @@ static void TourShapes(const Tour* t)
     static const m3MeshSurfaceMaterial paint[2] = {{0.9f, 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}},
                                                    {0.2f, 0.3f, 0.0f, {0.0f, 0.0f, 0.4f}}};
     static const uint8_t groups[2] = {0, 1};
-    m3Shape_SetMeshMaterials(t->world, t->deck, paint, 2, groups);
+    m3MeshShape_SetMaterials(t->world, t->deck, paint, 2, groups);
     m3Sphere bigger = {{0.0f, 0.0f, 0.0f}, 0.35f};
     m3Shape_SetSphere(t->world, t->ballShape, &bigger);
 }
@@ -944,9 +948,9 @@ static void TourActors(const Tour* t)
     m3Vehicle_SetGear(t->world, t->cast.car, 2);
     m3Vehicle_SetTankCommands(t->world, t->tank, 0.5f, -0.5f, 0.0f);
     CHECK(m3World_RebuildBroadphase(t->world) == m3_success, "the tour rebuilds the tree");
-    m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
-    m3VoxelChunk_SetFill(t->world, t->cast.stairs, 2, 0, 2, 128);
-    m3VoxelChunk_ClearVoxel(t->world, t->cast.stairs, 14, 7, 5);
+    m3VoxelChunkShape_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
+    m3VoxelChunkShape_SetFill(t->world, t->cast.stairs, 2, 0, 2, 128);
+    m3VoxelChunkShape_ClearVoxel(t->world, t->cast.stairs, 14, 7, 5);
 }
 
 static void TourTeardown(const Tour* t)
@@ -1000,8 +1004,8 @@ static void TourCalls(Tour* t, int32_t frame)
         TourTeardown(t);
         break;
     case 140:
-        m3VoxelChunk_ClearVoxel(t->world, t->cast.stairs, 12, 5, 9);
-        m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 3, 9, 9, 2);
+        m3VoxelChunkShape_ClearVoxel(t->world, t->cast.stairs, 12, 5, 9);
+        m3VoxelChunkShape_SetVoxel(t->world, t->cast.stairs, 3, 9, 9, 2);
         break;
     case 160:
         m3World_EnableSleep(t->world, true);
@@ -1257,7 +1261,7 @@ static void WalkOp(Walk* w)
         int32_t x = (int32_t)(Next() % VOXEL_DIM);
         int32_t y = (int32_t)(Next() % 6);
         int32_t z = (int32_t)(Next() % VOXEL_DIM);
-        m3VoxelChunk_ClearVoxel(w->world, w->wall, x, y, z);
+        m3VoxelChunkShape_ClearVoxel(w->world, w->wall, x, y, z);
         break;
     }
     default:

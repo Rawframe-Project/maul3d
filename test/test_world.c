@@ -477,7 +477,7 @@ static m3World* BuildLaneScene(void)
     m3ShapeId mesh = NewMeshShape(world, ground, &sd, belt, 4, tris, 2);
     m3MeshSurfaceMaterial moving = {0.8f, 0.0f, 0.0f, {1.5f, 0.0f, 0.5f}};
     uint8_t groups[2] = {0, 0};
-    m3Shape_SetMeshMaterials(world, mesh, &moving, 1, groups);
+    m3MeshShape_SetMaterials(world, mesh, &moving, 1, groups);
 
     for (int32_t i = 0; i < 40; ++i)
     {
@@ -759,7 +759,7 @@ static void CheckHashSees(int which, const char* what)
     switch (which)
     {
     case 0:
-        m3Shape_SetMeshMaterials(w, changed.floor, &paint, 1, groups);
+        m3MeshShape_SetMaterials(w, changed.floor, &paint, 1, groups);
         break;
     case 1:
         m3Body_SetGravityScale(w, changed.box, 2.0f);

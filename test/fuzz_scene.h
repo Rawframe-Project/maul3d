@@ -238,7 +238,7 @@ static inline void FuzzSession(m3World* world, const FuzzScene* scene)
     m3Body_ApplyLinearImpulse(world, scene->ball, (m3Vec3){0.0f, 0.5f, 0.2f});
     m3World_SetGravity(world, (m3Vec3){0.0f, -9.0f, 0.5f});
     FuzzStep(world, 4);
-    m3VoxelChunk_ClearVoxel(world, scene->voxels, 0, 0, 0);
+    m3VoxelChunkShape_ClearVoxel(world, scene->voxels, 0, 0, 0);
     m3ExplosionDef blast = m3DefaultExplosionDef();
     blast.position = (m3Pos3){1.0, 0.5, 0.0};
     blast.radius = 1.0f;

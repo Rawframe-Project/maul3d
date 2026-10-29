@@ -642,7 +642,7 @@ stays version + solver revision + precision + FP policy, because
 a config-hash knob would refuse the journal instead of replaying
 it.
 
-Painted mesh materials: m3Shape_SetMeshMaterials gives a
+Painted mesh materials: m3MeshShape_SetMaterials gives a
 mesh shape up to eight surface materials and one group byte per
 triangle. The struck triangle's entry replaces the MESH side of
 the contact mix (friction, restitution, rolling resistance), and
@@ -900,11 +900,13 @@ grew nothing and there is no new state: a wheel joint is
 ordinary joint state and rides every snapshot and hash law that
 already existed.
 
-Steering: `m3WheelJoint_SetSteer(enable, targetAngle, hertz, zeta,
-maxTorque)` yaws the wheel about its strut toward the target
-(radians, at most 1.0 either way), a soft drive with its own
-budget (0 = uncapped); `m3WheelJoint_GetSteerAngle` reads the live
-angle back. Steer the front pair of a wheel-joint cart and you
+Steering: `m3WheelJoint_EnableSteering` switches a soft drive
+that yaws the wheel about its strut toward
+`m3WheelJoint_SetTargetSteeringAngle` (radians, at most 1.0 either
+way), with its own `SetSteeringHertz`, `SetSteeringDampingRatio`
+and `SetMaxSteeringTorque` (0 = uncapped). The values hold while
+steering is off, so set the frequency before enabling it.
+`m3WheelJoint_GetSteeringAngle` reads the live angle back. Steer the front pair of a wheel-joint cart and you
 have rack-and-pinion steering on real contacts, no vehicle
 required. Journaled, snapshotted, bit-exact through rollback.
 

@@ -312,16 +312,16 @@ static void VoxelEdit(m3World* world, m3ShapeId slab, int32_t edit)
     switch (edit)
     {
     case 0:
-        m3VoxelChunk_SetVoxel(world, slab, 6, 1, 6, 7);
+        m3VoxelChunkShape_SetVoxel(world, slab, 6, 1, 6, 7);
         break;
     case 1:
-        m3VoxelChunk_ClearVoxel(world, slab, 0, 0, 0);
+        m3VoxelChunkShape_ClearVoxel(world, slab, 0, 0, 0);
         break;
     case 2:
-        (void)m3VoxelChunk_ClearBox(world, slab, boxLo, boxHi);
+        (void)m3VoxelChunkShape_ClearBox(world, slab, boxLo, boxHi);
         break;
     case 3:
-        m3VoxelChunk_ClearVoxel(world, slab, 3, 1, 3); // the pillar's top fractures
+        m3VoxelChunkShape_ClearVoxel(world, slab, 3, 1, 3); // the pillar's top fractures
         break;
     default:
         blast.position = (m3Pos3){10.0, 0.25, 7.5};
@@ -354,8 +354,8 @@ static void TestVoxelEditsUnderBudget(void)
             m3World* world = CreateWorld(&budget, true, false, &body);
             m3ShapeId slab = m3_nullShapeId;
             CHECK(CreateSlab(world, body, &slab) == m3_success, "the slab creates");
-            m3VoxelChunk_SetVoxel(world, slab, 3, 1, 3, 1);
-            m3VoxelChunk_SetVoxel(world, slab, 3, 2, 3, 1);
+            m3VoxelChunkShape_SetVoxel(world, slab, 3, 1, 3, 1);
+            m3VoxelChunkShape_SetVoxel(world, slab, 3, 2, 3, 1);
             uint64_t hash = m3World_Hash(world);
             uint64_t misuse = m3World_GetCounters(world).misuse;
             CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");

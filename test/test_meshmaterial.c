@@ -44,7 +44,7 @@ static double SlideDistance(bool slippery)
         memset(mats, 0, sizeof(mats));
         mats[0].friction = 0.02f;
         uint8_t tri[2] = {0, 0};
-        m3Shape_SetMeshMaterials(world, floor, mats, 1, tri);
+        m3MeshShape_SetMaterials(world, floor, mats, 1, tri);
     }
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -89,7 +89,7 @@ static void TestConveyorTriangle(void)
             mats[1].friction = 0.8f;
             mats[1].surfaceVelocity = (m3Vec3){1.5f, 0.0f, 0.0f};
             uint8_t tri[2] = {1, 1};
-            m3Shape_SetMeshMaterials(world, floor, mats, 2, tri);
+            m3MeshShape_SetMaterials(world, floor, mats, 2, tri);
         }
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
@@ -135,14 +135,14 @@ static void TestPaintWalls(void)
     mats[0].friction = 0.5f;
     mats[1].friction = 0.5f;
     uint8_t tri[2] = {0, 1};
-    m3Shape_SetMeshMaterials(world, orb, mats, 2, tri);   // not a mesh
-    m3Shape_SetMeshMaterials(world, floor, mats, 0, tri); // zero groups
-    m3Shape_SetMeshMaterials(world, floor, mats, 9, tri); // too many
+    m3MeshShape_SetMaterials(world, orb, mats, 2, tri);   // not a mesh
+    m3MeshShape_SetMaterials(world, floor, mats, 0, tri); // zero groups
+    m3MeshShape_SetMaterials(world, floor, mats, 9, tri); // too many
     mats[1].friction = NAN;
-    m3Shape_SetMeshMaterials(world, floor, mats, 2, tri); // hostile value
+    m3MeshShape_SetMaterials(world, floor, mats, 2, tri); // hostile value
     mats[1].friction = 0.5f;
     uint8_t bad[2] = {0, 2};
-    m3Shape_SetMeshMaterials(world, floor, mats, 2, bad); // group out of range
+    m3MeshShape_SetMaterials(world, floor, mats, 2, bad); // group out of range
     CHECK(m3World_Hash(world) == before, "every refused paint moved no bits");
     m3DestroyWorld(world);
 }
@@ -197,7 +197,7 @@ static void TestPaintJournaledWithoutMemory(void)
     mats[0].friction = 0.02f;
     uint8_t tri[2] = {0, 0};
     refuse = true;
-    CHECK_ACCEPTS(world, m3Shape_SetMeshMaterials(world, floor, mats, 1, tri),
+    CHECK_ACCEPTS(world, m3MeshShape_SetMaterials(world, floor, mats, 1, tri),
                   "the paint applies with no memory to spare");
     refuse = false;
     CHECK(Snapshot(world, painted, size) == size && !SnapshotIs(world, unpainted, size),

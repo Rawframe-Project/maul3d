@@ -1639,7 +1639,7 @@ int main(void)
             {
                 int32_t lo[3] = {cx - 1 < 0 ? 0 : cx - 1, cy, cz - 1 < 0 ? 0 : cz - 1};
                 int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy, cz + 1 > 15 ? 15 : cz + 1};
-                if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+                if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
                 {
                     SpawnFragments(scene.world);
                 }
@@ -1655,7 +1655,7 @@ int main(void)
                              cz - 1 < 0 ? 0 : cz - 1};
             int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy + 1 > 15 ? 15 : cy + 1,
                              cz + 1 > 15 ? 15 : cz + 1};
-            if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+            if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
             {
                 SpawnFragments(scene.world);
             }
@@ -1852,8 +1852,11 @@ int main(void)
                     if ((w & 1) != 0)
                     {
                         // The +x pair leads under W's forward spin.
-                        m3WheelJoint_SetSteer(scene.world, scene.axles[w], true, steer, 8.0f, 1.0f,
-                                              0.0f);
+                        m3WheelJoint_SetSteeringHertz(scene.world, scene.axles[w], 8.0f);
+                        m3WheelJoint_SetSteeringDampingRatio(scene.world, scene.axles[w], 1.0f);
+                        m3WheelJoint_SetMaxSteeringTorque(scene.world, scene.axles[w], 0.0f);
+                        m3WheelJoint_SetTargetSteeringAngle(scene.world, scene.axles[w], steer);
+                        m3WheelJoint_EnableSteering(scene.world, scene.axles[w], true);
                     }
                 }
             }

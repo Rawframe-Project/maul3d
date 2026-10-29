@@ -151,6 +151,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/voxel_coverage.c
     src/voxel_fracture.c
     src/water.c
+    src/wheel_joint_params.c
     src/world.c
     src/world_events.c
     src/world_hash.c

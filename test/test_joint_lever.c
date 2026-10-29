@@ -369,11 +369,11 @@ static void TestVoxelEditsKeepJointedMass(void)
     CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the box hangs from the wall");
     MassBits holderBefore = MassOf(world, holder);
     MassBits boxBefore = MassOf(world, box);
-    m3VoxelChunk_SetVoxel(world, wall, 1, 9, 1, 0);
-    m3VoxelChunk_ClearVoxel(world, wall, 2, 2, 2);
+    m3VoxelChunkShape_SetVoxel(world, wall, 1, 9, 1, 0);
+    m3VoxelChunkShape_ClearVoxel(world, wall, 2, 2, 2);
     const int32_t lo[3] = {5, 0, 5};
     const int32_t hi[3] = {7, 3, 7};
-    (void)m3VoxelChunk_ClearBox(world, wall, lo, hi);
+    (void)m3VoxelChunkShape_ClearBox(world, wall, lo, hi);
     m3ExplosionDef blast = m3DefaultExplosionDef();
     blast.position = (m3Pos3){4.0, 3.5, 4.0};
     blast.radius = 2.0f;

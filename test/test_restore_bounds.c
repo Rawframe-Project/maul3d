@@ -403,7 +403,11 @@ static Scene Build(void)
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(w, &jd);
     s.wheel = wheel.index1 - 1;
-    m3WheelJoint_SetSteer(w, wheel, true, 0.1f, 5.0f, 0.7f, 10.0f);
+    m3WheelJoint_SetSteeringHertz(w, wheel, 5.0f);
+    m3WheelJoint_SetSteeringDampingRatio(w, wheel, 0.7f);
+    m3WheelJoint_SetMaxSteeringTorque(w, wheel, 10.0f);
+    m3WheelJoint_SetTargetSteeringAngle(w, wheel, 0.1f);
+    m3WheelJoint_EnableSteering(w, wheel, true);
     jd = m3DefaultJointDef();
     jd.type = m3_genericJoint;
     jd.bodyIdA = ground;
