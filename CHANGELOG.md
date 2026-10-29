@@ -6,6 +6,47 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.10.0](https://github.com/Rawframe-Project/maul3d/compare/v0.9.0...v0.10.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* public names change, old to new:
+    - `m3TaskFn`, `m3EnqueueTaskFn`, `m3FinishTaskFn`, `m3PreSolveFn` to
+    `m3TaskFunction`, `m3EnqueueTaskFunction`, `m3FinishTaskFunction`,
+    `m3PreSolveFunction`
+    - `m3ResultName` to `m3GetResultName`
+    - `m3CpuSupportsBackend` to `m3IsCpuBackendSupported`
+    - `m3World_SnapshotSize` to `m3World_GetSnapshotSize`
+    - `m3Joint_SetSteer` to `m3WheelJoint_EnableSteering`,
+    `m3WheelJoint_SetTargetSteeringAngle`, `m3WheelJoint_SetSteeringHertz`,
+    `m3WheelJoint_SetSteeringDampingRatio` and
+    `m3WheelJoint_SetMaxSteeringTorque`, with the new readers
+    `m3WheelJoint_IsSteeringEnabled`, `GetTargetSteeringAngle`,
+    `GetSteeringHertz`, `GetSteeringDampingRatio` and `GetMaxSteeringTorque`
+    - `m3Joint_GetSteerAngle` to `m3WheelJoint_GetSteeringAngle`
+    - `m3Joint_SetTargetAngle` to `m3RevoluteJoint_SetTargetAngle`
+    - `m3Joint_SetTargetRotation` to `m3SphericalJoint_SetTargetRotation`
+    - `m3Body_Enable` and `m3Body_Disable` to `m3Body_Enable` with a bool
+    - `m3Body_SetBullet` to `m3Body_EnableBullet`
+    - `m3Body_IsBullet` to `m3Body_IsBulletEnabled`
+    - `m3BodyDef.isBullet` to `enableBullet`
+    - `m3BodyDef.isEnabled` to `enable`
+    - `m3Shape_EnablePreSolve` to `m3Shape_EnablePreSolveEvents`
+    - `m3Shape_IsPreSolveEnabled` to `m3Shape_IsPreSolveEventsEnabled`
+    - `m3Vehicle_SelectGear` to `m3Vehicle_SetGear`
+    - `m3Shape_SetMeshMaterials` to `m3MeshShape_SetMaterials`
+    - `m3VoxelChunk_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill` to
+    `m3VoxelChunkShape_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill`
+    - C#: `Native.ResultName` to `Native.GetResultName`
+    - C#: `Native.SnapshotSize` to `Native.GetSnapshotSize`
+    - C#: `BodyDef.IsBullet` to `BodyDef.EnableBullet`
+    - C#: `BodyDef.IsEnabled` to `BodyDef.Enable`
+
+### Changed
+
+* name calls and hook types by the family naming rule ([#188](https://github.com/Rawframe-Project/maul3d/issues/188)) ([eafca64](https://github.com/Rawframe-Project/maul3d/commit/eafca646c10b77efa1dd6a2ba6e8bfa4454734f3))
+
 ## [0.9.0](https://github.com/Rawframe-Project/maul3d/compare/v0.8.0...v0.9.0) (2026-10-29)
 
 ### Added
