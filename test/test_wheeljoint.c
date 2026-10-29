@@ -245,6 +245,53 @@ static void TestHostileWall(void)
     m3DestroyWorld(world);
 }
 
+// The cone switch belongs to the spherical joint. On a wheel the same
+// bit is the steering switch, so a wheel def with enableCone would start
+// steering at 0 Hz and its world's snapshot would not restore; every type
+// but the spherical refuses the switch at create.
+static void TestConeIsSphericalOnly(void)
+{
+    m3World* world = PlaneWorld();
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId hub = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, -1.0, 0.0};
+    m3BodyId rim = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_wheelJoint;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.enableCone = true;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a wheel refuses the cone switch");
+    jd.type = m3_revoluteJoint;
+    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "and so does a hinge");
+    jd = m3DefaultJointDef();
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.enableCone = true;
+    jd.coneAngle = 0.5f;
+    m3JointId ball = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, ball), "a spherical joint takes it");
+    jd.type = m3_wheelJoint;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.enableCone = false;
+    m3JointId wheel = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, wheel) && !m3WheelJoint_IsSteeringEnabled(world, wheel),
+          "a wheel without it starts with steering off");
+    int32_t size = m3World_GetSnapshotSize(world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size, "snapshot taken");
+    m3World* restored = PlaneWorld();
+    CHECK(snapshot != NULL && Restore(restored, snapshot, size), "and the world restores");
+    m3DestroyWorld(restored);
+    free(snapshot);
+    m3DestroyWorld(world);
+}
+
 static void TestRubbleFieldTwins(void)
 {
     // A joint-wheeled cart crosses a rubble field without ray
@@ -302,6 +349,7 @@ int main(void)
     TestBrokenAxleDeterministic();
     TestHostileWall();
     TestRubbleFieldTwins();
+    TestConeIsSphericalOnly();
     if (s_failures == 0)
     {
         printf("test_wheeljoint: all passed\n");
