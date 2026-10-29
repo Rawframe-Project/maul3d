@@ -944,11 +944,11 @@ static void TestDistanceSpring(void)
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
     jd.minLength = 0.0f;
-    jd.maxLength = 5.0f;      // wide bounds: the spring owns the middle
-    jd.enableMotor = true;    // documented reuse: the spring
-    jd.motorSpeed = 1.5f;     // hertz
-    jd.maxMotorEffort = 0.2f; // damping ratio
-    jd.coneAngle = 2.0f;      // documented reuse: the rest length
+    jd.maxLength = 5.0f; // wide bounds: the spring owns the middle
+    jd.enableSpring = true;
+    jd.springHertz = 1.5f;
+    jd.springDampingRatio = 0.2f;
+    jd.length = 2.0f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the spring creates");
 
     int32_t crossings = 0;
@@ -999,9 +999,15 @@ static void TestNewJointContracts(void)
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative minimum length refuses");
     jd.minLength = 0.5f;
     jd.enableMotor = true;
-    jd.motorSpeed = 0.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a spring with zero hertz refuses");
+    jd.motorSpeed = 1.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a distance joint refuses a motor");
     jd.enableMotor = false;
+    jd.enableSpring = true;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a spring with zero hertz refuses");
+    jd.springHertz = 2.0f;
+    jd.length = -1.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative rest length refuses");
+    jd.length = 3.0f; // past the range: the range holds what the spring pulls toward
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the honest rope creates");
     m3DestroyWorld(world);
 }

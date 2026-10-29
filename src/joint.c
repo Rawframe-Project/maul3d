@@ -242,17 +242,13 @@ static bool GenericDefValid(const m3JointDef* def)
     return mode != (uint8_t)m3_axisLocked;
 }
 
-// The distance contract: an explicit range (a rod has equal bounds), and
-// a spring only with a real hertz and a rest length inside the range.
+// The distance contract: an explicit range (a rod has equal bounds), a
+// spring rest length, and neither a limit nor a motor.
 static bool DistanceDefValid(const m3JointDef* def)
 {
-    if (def->enableLimit || !m3DistanceLengthsFit(def->minLength, def->maxLength))
-    {
-        return false;
-    }
-    return !def->enableMotor || (def->motorSpeed > 0.0f && def->maxMotorEffort >= 0.0f &&
-                                 !(def->coneAngle > 0.0f && (def->coneAngle < def->minLength ||
-                                                             def->coneAngle > def->maxLength)));
+    return !def->enableLimit && !def->enableMotor &&
+           m3DistanceLengthsFit(def->minLength, def->maxLength) &&
+           m3DistanceRestLengthFits(def->length);
 }
 
 // The whole def contract in one place: known type, real axes where the
@@ -292,8 +288,19 @@ static m3Result JointDefCheck(const m3JointDef* def)
                      !(def->enableLimit && def->lowerLimit > def->upperLimit));
     result = m3BothChecks(
         result, m3BothChecks(m3CheckLocalV3(def->localAnchorA), m3CheckLocalV3(def->localAnchorB)));
-    result = m3BothChecks(result, m3JointMotorCheck(def->type, def->enableMotor ? 1 : 0,
-                                                    def->motorSpeed, def->maxMotorEffort));
+    result = m3BothChecks(result, m3JointMotorCheck(def->motorSpeed, def->maxMotorEffort));
+    // The spring on the types that take one, as SetSpringHertz and
+    // SetSpringDampingRatio take it; no other type switches one on.
+    if (m3JointHasSpring((uint8_t)def->type))
+    {
+        result =
+            m3BothChecks(result, m3JointSpringCheck(def->enableSpring ? 1 : 0, def->springHertz,
+                                                    def->springDampingRatio));
+    }
+    else
+    {
+        result = m3BothChecks(result, m3CheckValid(!def->enableSpring));
+    }
     if (motorJoint)
     {
         // The budgets ride the limit slot, so they take its check.
@@ -408,9 +415,9 @@ static void InitJointSlots(m3World* world, int32_t index, const m3JointDef* def,
     }
     else if (def->type == (int32_t)m3_distanceJoint)
     {
-        // The length range rides the limit slot, always on.
-        j->jointLimits[index].x = def->minLength;
-        j->jointLimits[index].y = def->maxLength;
+        // The length range rides the limit slot, always on, and the
+        // spring's rest length the cone slot.
+        j->jointLimits[index] = (m3Vec3){def->minLength, def->maxLength, def->length};
     }
     if (def->type == (int32_t)m3_gearJoint)
     {
@@ -496,11 +503,14 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     j->jointLimitImpulse[index] = zero;
     j->jointAngularImpulse[index] = zero;
     bool limited = def->enableLimit || def->type == (int32_t)m3_distanceJoint;
+    bool sprung = m3JointHasSpring((uint8_t)def->type);
     j->jointFlags[index] =
         (uint8_t)((limited ? M3_JOINT_LIMIT : 0u) | (def->enableMotor ? M3_JOINT_MOTOR : 0u) |
-                  (def->enableCone ? M3_JOINT_CONE : 0u));
+                  (def->enableCone ? M3_JOINT_CONE : 0u) |
+                  (sprung && def->enableSpring ? M3_JOINT_SPRING : 0u));
     j->jointBreak[index] = zero; // unbreakable
-    j->jointSpring[index] = zero;
+    j->jointSpring[index] =
+        sprung ? (m3Vec3){def->springHertz, def->springDampingRatio, 0.0f} : zero;
     j->jointTargetScalar[index] = 0.0f;
     j->jointTargetQ[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
     j->jointSpringImpulse[index] = zero;

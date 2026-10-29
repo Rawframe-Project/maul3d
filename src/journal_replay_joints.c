@@ -26,6 +26,7 @@ bool m3ReplayCreateJoint(m3World* world, const m3ReplayRecord* r)
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableMotor));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableCone));
     m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableConnectedCollision));
+    m3NormalizeBoolByte(&record.def, offsetof(m3JointDef, enableSpring));
     int32_t bodyA = m3BodySlot(world, record.def.bodyIdA);
     int32_t bodyB = m3BodySlot(world, record.def.bodyIdB);
     if (bodyA < 0 || bodyB < 0)
@@ -77,6 +78,24 @@ bool m3ReplayMotorJointSetOffsets(m3World* world, const m3ReplayRecord* r)
         return false; // hostile servo bytes fail loudly
     }
     m3MotorJointSetOffsetsInternal(world, slot, record.linearOffset, record.angularOffset);
+    return true;
+}
+
+bool m3ReplayDistanceJointSetLength(m3World* world, const m3ReplayRecord* r)
+{
+    m3OpDistanceJointSetLength record;
+    if (r->bytes != (int32_t)sizeof(record))
+    {
+        return false;
+    }
+    memcpy(&record, r->payload, sizeof(record));
+    int32_t slot = m3JointSlot(world, record.id);
+    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_distanceJoint ||
+        !m3DistanceRestLengthFits(record.length))
+    {
+        return false; // hostile length bytes fail loudly
+    }
+    m3DistanceJointSetLengthInternal(world, slot, record.length);
     return true;
 }
 
@@ -135,8 +154,7 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     else
     {
         if (!m3JointHasMotor(world->joints.jointType[slot]) ||
-            m3JointMotorCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
-                m3_success)
+            m3JointMotorCheck(record.a, record.b) != m3_success)
         {
             return false;
         }

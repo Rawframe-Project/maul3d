@@ -412,9 +412,10 @@ static void AddSliders(m3World* world, m3BodyId ground)
     rope.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
     rope.minLength = 0.5f;
     rope.maxLength = 1.5f;
-    rope.enableMotor = true;
-    rope.motorSpeed = 3.0f;
-    rope.maxMotorEffort = 0.4f;
+    rope.length = 1.5f;
+    rope.enableSpring = true;
+    rope.springHertz = 3.0f;
+    rope.springDampingRatio = 0.4f;
     NewJoint(world, &rope);
 
     m3JointDef six = HangDef(world, ground, 30.0, 2.0, 0.2, m3_genericJoint, NULL);
@@ -740,6 +741,7 @@ typedef struct Tour
     m3ShapeId ballShape;
     m3ShapeId deck;
     m3JointId spare;
+    m3JointId ghost; // a generic joint with every axis free: no rows
     m3VehicleId tank;
     m3CharacterId guest;
     m3SoftBodyId rope;
@@ -853,9 +855,23 @@ static void TourCreate(Tour* t)
     jd.minLength = 1.0f;
     jd.maxLength = 3.0f;
     t->spare = NewJoint(world, &jd);
+    // The motor record's joint: free on every axis, with no motor axis and
+    // its bodies left colliding, so its calls reach the tape and move
+    // nothing.
+    jd = m3DefaultJointDef();
+    jd.type = m3_genericJoint;
+    jd.bodyIdA = t->crate;
+    jd.bodyIdB = t->ball;
+    jd.enableConnectedCollision = true;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        jd.genericLinear[k] = (uint8_t)m3_axisFree;
+        jd.genericAngular[k] = (uint8_t)m3_axisFree;
+    }
+    t->ghost = NewJoint(world, &jd);
     CHECK(m3Vehicle_IsValid(world, t->tank) && m3SoftBody_IsValid(world, t->tet) &&
               m3SoftBody_IsValid(world, t->rope) && m3Character_IsValid(world, t->guest) &&
-              m3Joint_IsValid(world, t->spare),
+              m3Joint_IsValid(world, t->spare) && m3Joint_IsValid(world, t->ghost),
           "the tour's own actors create");
 }
 
@@ -929,9 +945,12 @@ static void TourShapes(const Tour* t)
 static void TourJointsAndSoft(const Tour* t)
 {
     m3DistanceJoint_SetLengthRange(t->world, t->spare, 0.5f, 2.5f);
-    m3Joint_SetMotorSpeed(t->world, t->spare, 0.5f);
-    m3Joint_SetMaxMotorEffort(t->world, t->spare, 2.0f);
-    m3Joint_EnableMotor(t->world, t->spare, true);
+    m3DistanceJoint_SetLength(t->world, t->spare, 2.5f);
+    m3Joint_SetSpringHertz(t->world, t->spare, 0.5f);
+    m3Joint_SetSpringDampingRatio(t->world, t->spare, 2.0f);
+    m3Joint_EnableSpring(t->world, t->spare, true);
+    m3Joint_SetMotorSpeed(t->world, t->ghost, 0.5f);
+    m3Joint_SetMaxMotorEffort(t->world, t->ghost, 2.0f);
     m3Joint_EnableConnectedCollision(t->world, t->spare, true);
     m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);

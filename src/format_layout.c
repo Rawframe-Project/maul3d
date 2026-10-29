@@ -93,6 +93,9 @@ M3_PIN_SIZE(m3OpCreateWaterVolume, 88);
 M3_PIN_AT(m3OpCreateWaterVolume, def, 0);
 M3_PIN_AT(m3OpCreateWaterVolume, expected, 80);
 
+M3_PIN_SIZE(m3OpDistanceJointSetLength, 12);
+M3_PIN_AT(m3OpDistanceJointSetLength, id, 0);
+M3_PIN_AT(m3OpDistanceJointSetLength, length, 8);
 M3_PIN_SIZE(m3OpJointSetBreak, 16);
 M3_PIN_AT(m3OpJointSetBreak, id, 0);
 M3_PIN_AT(m3OpJointSetBreak, maxForce, 8);
@@ -296,9 +299,9 @@ M3_PIN_AT(m3CreateMeshShapeOp, expected, 112);
 M3_PIN_AT(m3CreateMeshShapeOp, vertexCount, 120);
 M3_PIN_AT(m3CreateMeshShapeOp, triangleCount, 124);
 
-M3_PIN_SIZE(m3CreateJointOp, 240);
+M3_PIN_SIZE(m3CreateJointOp, 256);
 M3_PIN_AT(m3CreateJointOp, def, 0);
-M3_PIN_AT(m3CreateJointOp, expected, 232);
+M3_PIN_AT(m3CreateJointOp, expected, 248);
 
 M3_PIN_SIZE(m3CreateHullShapeOp, 3200);
 M3_PIN_AT(m3CreateHullShapeOp, def, 0);
@@ -406,7 +409,7 @@ M3_PIN_AT(m3ShapeDef, localPosition, 68);
 M3_PIN_AT(m3ShapeDef, localRotation, 80);
 M3_PIN_AT(m3ShapeDef, internalValue, 96);
 
-M3_PIN_SIZE(m3JointDef, 232);
+M3_PIN_SIZE(m3JointDef, 248);
 M3_PIN_AT(m3JointDef, type, 0);
 M3_PIN_AT(m3JointDef, bodyIdA, 4);
 M3_PIN_AT(m3JointDef, bodyIdB, 12);
@@ -437,7 +440,11 @@ M3_PIN_AT(m3JointDef, maxForce, 208);
 M3_PIN_AT(m3JointDef, maxTorque, 212);
 M3_PIN_AT(m3JointDef, minLength, 216);
 M3_PIN_AT(m3JointDef, maxLength, 220);
-M3_PIN_AT(m3JointDef, internalValue, 224);
+M3_PIN_AT(m3JointDef, length, 224);
+M3_PIN_AT(m3JointDef, enableSpring, 228);
+M3_PIN_AT(m3JointDef, springHertz, 232);
+M3_PIN_AT(m3JointDef, springDampingRatio, 236);
+M3_PIN_AT(m3JointDef, internalValue, 240);
 
 M3_PIN_SIZE(m3DrivetrainDef, 132);
 M3_PIN_AT(m3DrivetrainDef, curveCount, 0);

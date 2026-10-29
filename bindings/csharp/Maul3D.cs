@@ -196,6 +196,10 @@ namespace Maul3D
         public float MaxTorque;
         public float MinLength;
         public float MaxLength;
+        public float Length;
+        public byte EnableSpring; // C _Bool: one byte, 0 or 1
+        public float SpringHertz;
+        public float SpringDampingRatio;
         public int InternalValue;
     }
 
@@ -343,7 +347,7 @@ namespace Maul3D
             Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
-            Check<JointDef>(232);
+            Check<JointDef>(248);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);
             Check<Version>(6);

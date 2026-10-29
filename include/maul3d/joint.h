@@ -103,14 +103,9 @@ extern "C"
         bool enableCone;
         m3real coneAngle; // radians from the A frame's z-axis
         /// Distance joints hold the anchor distance in [minLength,
-        /// maxLength] below and take no limit: enableLimit refuses them.
-        /// Their optional spring reuses
-        /// the motor fields, documented reuse: enableMotor turns it
-        /// on, motorSpeed is the spring hertz (> 0, at most 1e5), maxMotorEffort
-        /// is the damping ratio (>= 0); coneAngle (a further
-        /// documented reuse) is the spring's rest length when
-        /// positive and must sit inside [minLength, maxLength]; when
-        /// zero, the rest length is maxLength. Fixed joints ignore axes
+        /// maxLength] below and take neither a limit nor a motor:
+        /// enableLimit and enableMotor refuse them. Their optional spring
+        /// pulls toward length, below. Fixed joints ignore axes
         /// and limits entirely: they weld the create-time pose.
         /// Jointed bodies do not collide with each other unless this
         /// is set (the classic chain-fight guard).
@@ -167,6 +162,18 @@ extern "C"
         /// ignore them.
         m3real minLength;
         m3real maxLength;
+        /// The distance joint's spring rest length in meters, finite and
+        /// not negative. It need not lie within the range: the range holds
+        /// whatever the spring pulls toward. Other types ignore it.
+        m3real length;
+        /// The spring, on the types that take one (revolute, prismatic,
+        /// spherical, wheel, motor and distance joints): springHertz in
+        /// [0, 1e5] and positive when enableSpring is set, the damping
+        /// ratio in [0, 1e4]. Every other type refuses enableSpring and
+        /// ignores the values.
+        bool enableSpring;
+        m3real springHertz;
+        m3real springDampingRatio;
         int32_t internalValue;
     } m3JointDef;
 
@@ -210,11 +217,8 @@ extern "C"
     M3_API void m3Joint_GetLimits(const m3World* world, m3JointId joint, float* lowerOut,
                                   float* upperOut);
 
-    /// Motor: only revolute, prismatic, wheel, generic and distance joints
-    /// take one. Its speed is within 1e5 rad/s or m/s and its effort in
-    /// [0, 1e20]. A distance joint's motor is its spring: the speed is
-    /// the hertz, in [0, 1e5] and positive while it is on, and the effort
-    /// the damping ratio, in [0, 1e4].
+    /// Motor: only revolute, prismatic, wheel and generic joints take one.
+    /// Its speed is within 1e5 rad/s or m/s and its effort in [0, 1e20].
     M3_API void m3Joint_EnableMotor(m3World* world, m3JointId joint, bool enable);
     M3_API bool m3Joint_IsMotorEnabled(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetMotorSpeed(m3World* world, m3JointId joint, float speed);
@@ -244,14 +248,19 @@ extern "C"
 
     /// The distance joint's length range in meters, 0 <= minLength <=
     /// maxLength, finite: a rod is minLength == maxLength, a rope a range.
-    /// A spring whose def gave no rest length pulls toward maxLength.
-    /// Distance joints only: the setter
-    /// refuses any other type loudly, the getter reads zeros for it, and
-    /// either counts one misuse. Either output may be null. Journaled.
+    /// Distance joints only: the setter refuses any other type loudly, the
+    /// getter reads zeros for it, and either counts one misuse. Either
+    /// output may be null. Journaled.
     M3_API void m3DistanceJoint_SetLengthRange(m3World* world, m3JointId joint, float minLength,
                                                float maxLength);
     M3_API void m3DistanceJoint_GetLengthRange(const m3World* world, m3JointId joint,
                                                float* minLengthOut, float* maxLengthOut);
+
+    /// The distance joint's spring rest length in meters, finite and not
+    /// negative, which the joint spring part pulls toward while it is on.
+    /// Distance joints only, as the length range. Journaled.
+    M3_API void m3DistanceJoint_SetLength(m3World* world, m3JointId joint, float length);
+    M3_API float m3DistanceJoint_GetLength(const m3World* world, m3JointId joint);
 
     /// Wheel steering: a soft drive about the strut axis toward a target
     /// angle. While steering is enabled, the wheel's frame-x lock becomes
@@ -311,7 +320,8 @@ extern "C"
     /// Position drive: a soft constraint with the given frequency and
     /// damping ratio pulls the joint toward its target. Revolute drives
     /// the hinge angle, prismatic and wheel the translation, spherical the
-    /// relative rotation, and the motor joint its aim; other types refuse.
+    /// relative rotation, the motor joint its aim, and the distance joint
+    /// the anchor distance toward its length; other types refuse.
     /// The frequency is in [0, 1e5] Hz and positive while the spring is
     /// on, the damping ratio in [0, 1e4]. The spring keeps its values
     /// while it is off.

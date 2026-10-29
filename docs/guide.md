@@ -408,11 +408,12 @@ new math:
 - `m3_fixedJoint`: weld. The relative pose at create time IS the
   weld pose (axes and limits are ignored by contract).
 - `m3_distanceJoint`: rope or rod along the anchor axis, held
-  within `minLength` and `maxLength`. Equal lengths make a rod;
-  `hertz`/`zeta` in the motor fields make a soft spring whose rest
-  length rides `coneAngle` and must lie inside the range, or is
-  `maxLength` when `coneAngle` is zero.
-  `m3DistanceJoint_SetLengthRange` changes the range at run time.
+  within `minLength` and `maxLength`. Equal lengths make a rod.
+  The joint spring (`enableSpring`, `springHertz`,
+  `springDampingRatio`) pulls toward `length`, which need not lie
+  in the range: the range holds whatever the spring pulls toward.
+  `m3DistanceJoint_SetLengthRange` and `m3DistanceJoint_SetLength`
+  change them at run time.
 - `m3_genericJoint`: per-axis `m3AxisMode` (locked, free, limited)
   over three linear and three angular axes, plus one motor on any
   movable axis. The v1 angular contract: at most one limited
@@ -787,11 +788,13 @@ setters, and rebind mid-run: `m3Joint_EnableLimit` with
 `m3Joint_EnableSpring` with `m3Joint_SetSpringHertz` and
 `m3Joint_SetSpringDampingRatio`. `IsLimitEnabled`,
 `IsMotorEnabled`, `IsSpringEnabled` and a getter per value read
-them back. A part keeps its values while it is off, and each
+them back. A def can switch the spring on at create through
+`enableSpring`, `springHertz` and `springDampingRatio`. A part keeps its values while it is off, and each
 call zeroes the stored impulse of the rows it changes. A limit
 range is ordered when it is set and whenever the limit is on; a
 spring is positive in hertz while it is on. Only revolute,
-prismatic, wheel, generic and distance joints take a motor, and
+prismatic, wheel and generic joints take a motor, only revolute,
+prismatic, spherical, wheel, motor and distance joints a spring, and
 only revolute, prismatic, spherical and wheel joints take limits;
 the calls refuse every other type, the motor joint and the distance
 joint included, whose budgets and length range have calls of their

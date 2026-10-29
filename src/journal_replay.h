@@ -75,6 +75,7 @@ m3ReplayApplyFunction m3ReplayShapeFlag;
 m3ReplayApplyFunction m3ReplayCreateJoint;
 m3ReplayApplyFunction m3ReplayDestroyJoint;
 m3ReplayApplyFunction m3ReplayMotorJointSetOffsets;
+m3ReplayApplyFunction m3ReplayDistanceJointSetLength;
 m3ReplayApplyFunction m3ReplayJointSetSteer;
 m3ReplayApplyFunction m3ReplayJointVector;
 m3ReplayApplyFunction m3ReplayJointEnableConnectedCollision;

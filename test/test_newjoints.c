@@ -605,6 +605,109 @@ static void TestDistanceLengthRangeReplay(void)
     CHECK(!ReplaysLengthRange(1.5f), "a recorded range out of order is refused");
 }
 
+// The distance joint's spring is the joint spring part, pulling toward its
+// rest length: the def's spring and length read back, SetLength takes any
+// finite length not below 0, the motor calls refuse the joint, another
+// type refuses the length calls, and a recorded length replays.
+static void TestDistanceSpringAndLength(void)
+{
+    m3JointId rope;
+    m3JointId ball;
+    m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    CHECK(!m3Joint_IsSpringEnabled(world, rope) && m3DistanceJoint_GetLength(world, rope) == 0.0f,
+          "a rope from the default def has no spring and a zero rest length");
+    CHECK_ACCEPTS(world, m3DistanceJoint_SetLength(world, rope, 3.0f),
+                  "a rest length past the range is taken");
+    CHECK(m3DistanceJoint_GetLength(world, rope) == 3.0f, "and reads back");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLength(world, rope, -0.5f),
+                  "a negative rest length refuses");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLength(world, rope, NAN), "a NaN rest length refuses");
+    CHECK(m3DistanceJoint_GetLength(world, rope) == 3.0f, "a refused length changes nothing");
+    CHECK_ACCEPTS(world, m3Joint_SetSpringHertz(world, rope, 2.0f), "the rope takes a spring");
+    CHECK_ACCEPTS(world, m3Joint_EnableSpring(world, rope, true), "and switches it on");
+    CHECK_REFUSES(world, m3Joint_SetMotorSpeed(world, rope, 1.0f), "a rope takes no motor");
+    CHECK_REFUSES(world, m3Joint_EnableMotor(world, rope, true), "nor a motor switch");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLength(world, ball, 1.0f),
+                  "a spherical joint takes no rest length");
+    CHECK_REFUSES(world, CHECK(m3DistanceJoint_GetLength(world, ball) == 0.0f, "zero length"),
+                  "and reading one counts misuse");
+    m3DestroyWorld(world);
+
+    // The def's spring, on a rope and on a hinge.
+    world = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    m3BodyId bodies[2];
+    CHECK(m3World_GetBodies(world, bodies, 2) == 2, "two bodies");
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_distanceJoint;
+    jd.bodyIdA = bodies[0];
+    jd.bodyIdB = bodies[1];
+    jd.maxLength = 2.0f;
+    jd.length = 1.25f;
+    jd.enableSpring = true;
+    jd.springHertz = 3.0f;
+    jd.springDampingRatio = 0.5f;
+    m3JointId sprung = NewJoint(world, &jd);
+    CHECK(m3Joint_IsSpringEnabled(world, sprung) && m3Joint_GetSpringHertz(world, sprung) == 3.0f &&
+              m3Joint_GetSpringDampingRatio(world, sprung) == 0.5f &&
+              m3DistanceJoint_GetLength(world, sprung) == 1.25f,
+          "the rope def's spring and length read back");
+    jd = m3DefaultJointDef();
+    jd.type = m3_revoluteJoint;
+    jd.bodyIdA = bodies[0];
+    jd.bodyIdB = bodies[1];
+    jd.enableSpring = true;
+    jd.springHertz = 4.0f;
+    m3JointId hinge = NewJoint(world, &jd);
+    CHECK(m3Joint_IsSpringEnabled(world, hinge) && m3Joint_GetSpringHertz(world, hinge) == 4.0f,
+          "a hinge def's spring reads back");
+    jd.springHertz = 0.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a def spring at 0 Hz refuses");
+    jd.type = m3_fixedJoint;
+    jd.springHertz = 4.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a weld refuses a def spring");
+    m3DestroyWorld(world);
+}
+
+// Records a rope whose rest length is then set to 1.75, with every 1.75 in
+// the tape's records set to length, and tells whether a fresh world
+// replays it.
+static bool ReplaysRestLength(float length)
+{
+    static uint8_t tape[16384];
+    m3JointId rope;
+    m3JointId ball;
+    m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the rope tape records");
+    m3DistanceJoint_SetLength(world, rope, 1.75f);
+    int32_t bytes = StopJournal(world);
+    const float recorded = 1.75f;
+    int32_t patched = 0;
+    for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
+    {
+        if (memcmp(tape + i, &recorded, 4) == 0)
+        {
+            memcpy(tape + i, &length, 4);
+            ++patched;
+        }
+    }
+    CHECK(patched == 1, "the length sits in the one length record");
+    m3World* replayed = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    bool ok = ReplayJournal(replayed, tape, bytes);
+    if (ok && length == recorded)
+    {
+        CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the length replays bit-identical");
+    }
+    m3DestroyWorld(replayed);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+static void TestRestLengthReplay(void)
+{
+    CHECK(ReplaysRestLength(1.75f), "a recorded rest length replays");
+    CHECK(!ReplaysRestLength(-1.0f), "a recorded negative rest length is refused");
+}
+
 static void TestMotorJointServo(void)
 {
     // The servo weld: springless it idles FREE (the joint
@@ -845,6 +948,8 @@ int main(void)
     TestSteeringReplayRefusesZeroHertz();
     TestDistanceLengthRange();
     TestDistanceLengthRangeReplay();
+    TestDistanceSpringAndLength();
+    TestRestLengthReplay();
     TestMotorJointServo();
     TestJointWalls();
     if (s_failures == 0)
