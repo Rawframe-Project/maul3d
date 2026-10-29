@@ -232,6 +232,8 @@ static const Case s_cases[] = {
     {"break torque", COMPONENT(joints.jointBreak, m3Vec3, which_hinge, 1), (double)(0.0), -1},
     {"motor speed", COMPONENT(joints.jointMotor, m3Vec3, which_hinge, 0), (double)(M3_SPEED_LIMIT), +1},
     {"motor effort", COMPONENT(joints.jointMotor, m3Vec3, which_hinge, 1), (double)(M3_FORCE_LIMIT), +1},
+    {"unused motor slot", COMPONENT(joints.jointMotor, m3Vec3, which_hinge, 2), (double)(0.0), +1},
+    {"unused motor slot below", COMPONENT(joints.jointMotor, m3Vec3, which_cone, 2), (double)(0.0), -1},
     {"spring hertz", COMPONENT(joints.jointSpring, m3Vec3, which_hinge, 0), (double)(M3_HERTZ_LIMIT), +1},
     {"gear ratio", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)(M3_RATIO_LIMIT), +1},
     {"gear ratio not zero", COMPONENT(joints.jointMotor, m3Vec3, which_gear, 2), (double)FLT_TRUE_MIN, -1},

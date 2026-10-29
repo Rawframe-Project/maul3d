@@ -168,7 +168,8 @@ typedef struct JointFields
 // A joint's drive by its type: a spring as its setter took it (all zeros
 // until first set, then kept when switched off), and the motor, limit and
 // steering slots each type uses, the gear, pulley and motor joint reusing
-// them for their own values.
+// them for their own values. Every other type keeps the motor slot's
+// third value at its create's 0.
 static bool JointDriveValid(const JointFields* f, int32_t j)
 {
     uint8_t type = f->types[j];
@@ -210,7 +211,7 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
         return m3JointSteerFits(type, (flags & M3_JOINT_STEER) != 0, motor.z, steer.x, steer.y,
                                 steer.z);
     }
-    return true;
+    return motor.z == 0.0f;
 }
 
 // A joint's target as its setter took it: an angle within a half turn on
