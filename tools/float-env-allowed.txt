@@ -43,7 +43,7 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Character_IsValid
     m3Joint_GetBodyA
     m3Joint_GetBodyB
-    m3Joint_GetCollideConnected
+    m3Joint_IsConnectedCollisionEnabled
     m3Joint_GetType
     m3Joint_IsLimitEnabled
     m3Joint_IsMotorEnabled
@@ -69,7 +69,7 @@ ids, types, flags, names and user data, read or stored as they are:
     m3World_GetJoints
     m3World_GetStepCount
     m3World_IsContinuousEnabled
-    m3World_IsSleepingEnabled
+    m3World_IsSleepEnabled
 
 journal and replay bytes, framed and counted:
     m3DescribeJournal

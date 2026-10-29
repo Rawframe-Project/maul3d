@@ -16,14 +16,17 @@ typedef double BenchClock(void);
 
 typedef enum BenchScene
 {
-    BENCH_PYRAMID,   // a sphere pyramid
-    BENCH_HULLJAM,   // boxes and hull rocks jammed in a pit
-    BENCH_MESHFIELD, // mixed shapes on a height field
-    BENCH_MESHGRAND, // boxes raining on a large triangle mesh
+    BENCH_PYRAMID,    // a sphere pyramid
+    BENCH_HULLJAM,    // boxes and hull rocks jammed in a pit
+    BENCH_MESHFIELD,  // mixed shapes on a height field
+    BENCH_MESHGRAND,  // boxes raining on a large triangle mesh
+    BENCH_JOINTRIG,   // hinge chains, sliders and welds on offset anchors
+    BENCH_VEHICLERIG, // cars on wheel joints driving across a floor
+    BENCH_RAGDOLLS,   // ragdolls of spherical and revolute joints falling in a heap
     BENCH_SCENE_COUNT,
 } BenchScene;
 
-// The four plain scenes: build, then step.
+// The seven plain scenes: build, then step.
 uint64_t BenchStepScene(BenchScene scene, int32_t steps, BenchClock* clock, double* ms);
 
 // A voxel fort shelled by charges and raked by bullets, its fragments

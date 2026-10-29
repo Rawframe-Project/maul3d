@@ -550,9 +550,9 @@ static bool ApplyWorldFlag(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&on, payload, sizeof(on));
-    if (op == m3_opEnableSleeping)
+    if (op == m3_opEnableSleep)
     {
-        m3EnableSleepingInternal(world, on);
+        m3EnableSleepInternal(world, on);
     }
     else
     {
@@ -671,7 +671,7 @@ static const ReplayCommand s_commands[m3_opCount] = {
     [m3_opSetShapeGeom] = {m3ReplaySetShapeGeom},
     [m3_opSetAllowFastRotation] = {ApplySetAllowFastRotation},
     [m3_opWorldExplode] = {ApplyWorldExplode},
-    [m3_opEnableSleeping] = {ApplyWorldFlag},
+    [m3_opEnableSleep] = {ApplyWorldFlag},
     [m3_opEnableContinuous] = {ApplyWorldFlag},
     [m3_opSetWind] = {ApplySetWind},
     [m3_opSetSurfaceVelocity] = {m3ReplaySetSurfaceVelocity},
@@ -685,7 +685,7 @@ static const ReplayCommand s_commands[m3_opCount] = {
     [m3_opEnableShapePreSolve] = {m3ReplayShapeFlag},
     [m3_opJointSetLimits] = {m3ReplayJointVector},
     [m3_opJointSetMotor] = {m3ReplayJointVector},
-    [m3_opJointSetCollide] = {m3ReplayJointSetCollide},
+    [m3_opJointEnableConnectedCollision] = {m3ReplayJointEnableConnectedCollision},
     [m3_opJointSetBreak] = {m3ReplayJointSetBreak},
     [m3_opJointSetSpring] = {m3ReplayJointSetSpring},
     [m3_opJointSetTarget] = {m3ReplayJointSetTarget},

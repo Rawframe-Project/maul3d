@@ -635,7 +635,7 @@ knobs: `m3World_SetGravity` (sleepers stay asleep until
 disturbed), `SetContactTuning` (hertz, damping ratio, max
 depenetration speed; static contacts run twice the hertz),
 `SetRestitutionThreshold`, `SetMaximumLinearSpeed` (a hard
-per-substep clamp), `EnableSleeping` (off wakes everyone), and
+per-substep clamp), `EnableSleep` (off wakes everyone), and
 `EnableContinuous`. Knobs are STATE, not config: they journal,
 they snapshot, and they hash only off-default. The config hash
 stays version + solver revision + precision + FP policy, because
@@ -792,7 +792,7 @@ spring is positive in hertz while it is on. Only revolute,
 prismatic, wheel, generic and distance joints take a motor, and
 only revolute, prismatic, spherical, wheel, distance and motor
 joints take limits; the calls refuse every other type.
-`m3Joint_SetCollideConnected` lets the two jointed bodies collide.
+`m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
 The spring arms the position drive on revolute (target angle),
 prismatic and wheel (target translation) and spherical (target
 rotation) joints;

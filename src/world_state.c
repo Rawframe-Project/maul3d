@@ -397,7 +397,7 @@ static const m3StateArray s_state[] = {
     M3_STATE_CHECKED(joints.jointBodyB, int32_t, joint, M3_STATE_SNAPSHOT, indexOrNone, body),
     M3_STATE_CHECKED(joints.jointLocalA, m3Vec3, joint, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(joints.jointLocalB, m3Vec3, joint, M3_STATE_SNAPSHOT, finite32, one),
-    M3_STATE_CHECKED(joints.jointCollide, uint8_t, joint, M3_STATE_SNAPSHOT, bool, one),
+    M3_STATE_CHECKED(joints.jointConnectedCollision, uint8_t, joint, M3_STATE_SNAPSHOT, bool, one),
     M3_STATE_CHECKED(joints.jointImpulse, m3Vec3, joint, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(joints.jointPerpImpulse, m3Vec3, joint, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(joints.jointLimitImpulse, m3Vec3, joint, M3_STATE_SNAPSHOT, finite32, one),

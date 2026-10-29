@@ -115,9 +115,9 @@ static void TestCollideToggle(void)
     StepN(world, 60);
     double gap0 = CenterDistance(world, a, b);
     CHECK(gap0 < 0.95, "connected boxes overlap in peace");
-    CHECK(!m3Joint_GetCollideConnected(world, link), "the flag reads back off");
-    m3Joint_SetCollideConnected(world, link, true);
-    CHECK(m3Joint_GetCollideConnected(world, link), "the flag reads back on");
+    CHECK(!m3Joint_IsConnectedCollisionEnabled(world, link), "the flag reads back off");
+    m3Joint_EnableConnectedCollision(world, link, true);
+    CHECK(m3Joint_IsConnectedCollisionEnabled(world, link), "the flag reads back on");
     StepN(world, 120);
     // The pair hinges about the joint as it separates, sideways or one
     // over the other; either way the unit boxes end at least a box apart.
