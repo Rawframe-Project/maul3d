@@ -923,9 +923,8 @@ static tbScene SceneTower(void)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = post;
     jd.bodyIdB = ball;
-    jd.enableLimit = true;
-    jd.lowerLimit = 0.0f;
-    jd.upperLimit = 8.4f;
+    jd.minLength = 0.0f;
+    jd.maxLength = 8.4f;
     m3JointId rope = NewJoint(scene.world, &jd);
     m3Joint_SetBreakThresholds(scene.world, rope, 2200.0f, 0.0f);
     return scene;

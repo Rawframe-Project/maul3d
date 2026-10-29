@@ -19,7 +19,7 @@
 #define M3_SNAPSHOT_VERSION      6u          // 6: the pair capacity in the header
 #define M3_SNAPSHOT_HEADER_BYTES 60
 #define M3_JOURNAL_MAGIC         0x4E4A334Du // "M3JN"
-#define M3_JOURNAL_VERSION       3u          // 3: the joint def with the motor budgets
+#define M3_JOURNAL_VERSION       4u          // 4: the joint def with the distance lengths
 #define M3_JOURNAL_HEADER_BYTES  16
 #define M3_REPLAY_MAGIC          0x5052334Du // "M3RP"
 #define M3_REPLAY_VERSION        3u          // 3: the state prefix

@@ -112,9 +112,8 @@ static void TestCreateKeepsTheRatio(void)
         m3JointDef jd = LeverDef(rows[k], Ground(world), Rod(world, s_past));
         if (rows[k] == m3_distanceJoint)
         {
-            jd.enableLimit = true;
-            jd.lowerLimit = 0.0f;
-            jd.upperLimit = 1.0f;
+            jd.minLength = 0.0f;
+            jd.maxLength = 1.0f;
         }
         if (rows[k] == m3_genericJoint)
         {

@@ -146,9 +146,8 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = scene->crate;
     jd.bodyIdB = scene->ball;
-    jd.enableLimit = true;
-    jd.lowerLimit = 0.5f;
-    jd.upperLimit = 2.0f;
+    jd.minLength = 0.5f;
+    jd.maxLength = 2.0f;
     FuzzCreated(scene, m3Joint_IsValid(world, NewJoint(world, &jd)));
     jd = m3DefaultJointDef();
     jd.type = m3_revoluteJoint;

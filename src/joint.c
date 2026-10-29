@@ -246,13 +246,13 @@ static bool GenericDefValid(const m3JointDef* def)
 // a spring only with a real hertz and a rest length inside the range.
 static bool DistanceDefValid(const m3JointDef* def)
 {
-    if (!def->enableLimit || def->lowerLimit < 0.0f)
+    if (def->enableLimit || !m3DistanceLengthsFit(def->minLength, def->maxLength))
     {
         return false;
     }
     return !def->enableMotor || (def->motorSpeed > 0.0f && def->maxMotorEffort >= 0.0f &&
-                                 !(def->coneAngle > 0.0f && (def->coneAngle < def->lowerLimit ||
-                                                             def->coneAngle > def->upperLimit)));
+                                 !(def->coneAngle > 0.0f && (def->coneAngle < def->minLength ||
+                                                             def->coneAngle > def->maxLength)));
 }
 
 // The whole def contract in one place: known type, real axes where the
@@ -383,8 +383,9 @@ static m3Vec3 ServoCreateGap(const m3World* world, const m3JointDef* def, int32_
 
 // The motor, limit and ground slots. The spherical keeps its cone angle
 // in limits.z. The motor joint keeps its aim in the motor slot and its
-// budgets in the limit slot, and the gear and the pulley reuse the motor
-// and limit slots; each is written after the generic values on purpose.
+// budgets in the limit slot, the distance joint its length range in the
+// limit slot, and the gear and the pulley reuse the motor and limit
+// slots; each is written after the generic values on purpose.
 static void InitJointSlots(m3World* world, int32_t index, const m3JointDef* def,
                            const JointBake* bake)
 {
@@ -404,6 +405,12 @@ static void InitJointSlots(m3World* world, int32_t index, const m3JointDef* def,
         // The servo's force and torque budgets ride its limit slot.
         j->jointLimits[index].x = def->maxForce;
         j->jointLimits[index].y = def->maxTorque;
+    }
+    else if (def->type == (int32_t)m3_distanceJoint)
+    {
+        // The length range rides the limit slot, always on.
+        j->jointLimits[index].x = def->minLength;
+        j->jointLimits[index].y = def->maxLength;
     }
     if (def->type == (int32_t)m3_gearJoint)
     {
@@ -488,9 +495,10 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     j->jointPerpImpulse[index] = zero;
     j->jointLimitImpulse[index] = zero;
     j->jointAngularImpulse[index] = zero;
-    j->jointFlags[index] = (uint8_t)((def->enableLimit ? M3_JOINT_LIMIT : 0u) |
-                                     (def->enableMotor ? M3_JOINT_MOTOR : 0u) |
-                                     (def->enableCone ? M3_JOINT_CONE : 0u));
+    bool limited = def->enableLimit || def->type == (int32_t)m3_distanceJoint;
+    j->jointFlags[index] =
+        (uint8_t)((limited ? M3_JOINT_LIMIT : 0u) | (def->enableMotor ? M3_JOINT_MOTOR : 0u) |
+                  (def->enableCone ? M3_JOINT_CONE : 0u));
     j->jointBreak[index] = zero; // unbreakable
     j->jointSpring[index] = zero;
     j->jointTargetScalar[index] = 0.0f;

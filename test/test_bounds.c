@@ -124,8 +124,7 @@ static void BuildScene(Scene* s)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = s->box;
     jd.bodyIdB = s->arm;
-    jd.enableLimit = true;
-    jd.upperLimit = 5.0f;
+    jd.maxLength = 5.0f;
     jd.enableMotor = true;
     jd.motorSpeed = 2.0f;
     jd.maxMotorEffort = 0.5f;
@@ -651,8 +650,7 @@ static void DefRopeRatio(Scene* s, float v)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = s->box;
     jd.bodyIdB = s->puck;
-    jd.enableLimit = true;
-    jd.upperLimit = 5.0f;
+    jd.maxLength = 5.0f;
     jd.enableMotor = true;
     jd.motorSpeed = 2.0f;
     jd.maxMotorEffort = v;

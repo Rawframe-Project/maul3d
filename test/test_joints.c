@@ -866,9 +866,8 @@ static void TestRopeAndRod(void)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
-    jd.enableLimit = true;
-    jd.lowerLimit = 0.0f;
-    jd.upperLimit = 2.0f;
+    jd.minLength = 0.0f;
+    jd.maxLength = 2.0f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the rope creates");
 
     // Ten steps of slack: free fall matches gravity analytically
@@ -902,9 +901,8 @@ static void TestRopeAndRod(void)
     rod.type = m3_distanceJoint;
     rod.bodyIdA = anchor2;
     rod.bodyIdB = bob;
-    rod.enableLimit = true;
-    rod.lowerLimit = 2.0f;
-    rod.upperLimit = 2.0f;
+    rod.minLength = 2.0f;
+    rod.maxLength = 2.0f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &rod)), "the rod creates");
     m3Body_SetLinearVelocity(world, bob, (m3Vec3){0.0f, 6.0f, 0.0f}); // push UP
     for (int32_t i = 0; i < 300; ++i)
@@ -945,9 +943,8 @@ static void TestDistanceSpring(void)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
-    jd.enableLimit = true;
-    jd.lowerLimit = 0.0f;
-    jd.upperLimit = 5.0f;     // wide bounds: the spring owns the middle
+    jd.minLength = 0.0f;
+    jd.maxLength = 5.0f;      // wide bounds: the spring owns the middle
     jd.enableMotor = true;    // documented reuse: the spring
     jd.motorSpeed = 1.5f;     // hertz
     jd.maxMotorEffort = 0.2f; // damping ratio
@@ -990,14 +987,17 @@ static void TestNewJointContracts(void)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    jd.enableLimit = false; // the range is the contract
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)),
-          "a distance joint without a range refuses");
-    jd.enableLimit = true;
-    jd.lowerLimit = -1.0f;
-    jd.upperLimit = 2.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative lower distance refuses");
+    jd.enableLimit = true; // the range is the lengths, not a limit
     jd.lowerLimit = 0.5f;
+    jd.upperLimit = 2.0f;
+    jd.maxLength = 2.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a distance joint refuses a limit");
+    jd.enableLimit = false;
+    jd.minLength = 2.5f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an unordered length range refuses");
+    jd.minLength = -1.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative minimum length refuses");
+    jd.minLength = 0.5f;
     jd.enableMotor = true;
     jd.motorSpeed = 0.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a spring with zero hertz refuses");

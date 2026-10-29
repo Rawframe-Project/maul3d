@@ -410,9 +410,8 @@ static void AddSliders(m3World* world, m3BodyId ground)
 
     m3JointDef rope = HangDef(world, ground, 28.0, 2.0, 0.3, m3_distanceJoint, NULL);
     rope.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
-    rope.enableLimit = true;
-    rope.lowerLimit = 0.5f;
-    rope.upperLimit = 1.5f;
+    rope.minLength = 0.5f;
+    rope.maxLength = 1.5f;
     rope.enableMotor = true;
     rope.motorSpeed = 3.0f;
     rope.maxMotorEffort = 0.4f;
@@ -851,9 +850,8 @@ static void TourCreate(Tour* t)
     jd.type = m3_distanceJoint;
     jd.bodyIdA = t->crate;
     jd.bodyIdB = t->ball;
-    jd.enableLimit = true;
-    jd.lowerLimit = 1.0f;
-    jd.upperLimit = 3.0f;
+    jd.minLength = 1.0f;
+    jd.maxLength = 3.0f;
     t->spare = NewJoint(world, &jd);
     CHECK(m3Vehicle_IsValid(world, t->tank) && m3SoftBody_IsValid(world, t->tet) &&
               m3SoftBody_IsValid(world, t->rope) && m3Character_IsValid(world, t->guest) &&
@@ -930,8 +928,7 @@ static void TourShapes(const Tour* t)
 
 static void TourJointsAndSoft(const Tour* t)
 {
-    m3Joint_SetLimits(t->world, t->spare, 0.5f, 2.5f);
-    m3Joint_EnableLimit(t->world, t->spare, true);
+    m3DistanceJoint_SetLengthRange(t->world, t->spare, 0.5f, 2.5f);
     m3Joint_SetMotorSpeed(t->world, t->spare, 0.5f);
     m3Joint_SetMaxMotorEffort(t->world, t->spare, 2.0f);
     m3Joint_EnableMotor(t->world, t->spare, true);
@@ -1221,9 +1218,11 @@ static void WalkJoin(Walk* w)
     jd.type = (Next() & 1) != 0 ? m3_distanceJoint : m3_sphericalJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    jd.enableLimit = true;
+    jd.enableLimit = jd.type == m3_sphericalJoint;
     jd.lowerLimit = 0.5f;
     jd.upperLimit = 2.0f;
+    jd.minLength = 0.5f;
+    jd.maxLength = 2.0f;
     NewJoint(w->world, &jd);
 }
 
