@@ -134,13 +134,13 @@ static inline bool FuzzHasLimits(m3JointType type)
 static inline bool FuzzHasMotor(m3JointType type)
 {
     return type == m3_revoluteJoint || type == m3_prismaticJoint || type == m3_wheelJoint ||
-           type == m3_genericJoint || type == m3_distanceJoint;
+           type == m3_genericJoint;
 }
 
 static inline bool FuzzHasSpring(m3JointType type)
 {
     return type == m3_revoluteJoint || type == m3_prismaticJoint || type == m3_sphericalJoint ||
-           type == m3_wheelJoint || type == m3_motorJoint;
+           type == m3_wheelJoint || type == m3_motorJoint || type == m3_distanceJoint;
 }
 
 // Each part's values go in before its switch, as a caller turning the
@@ -185,6 +185,7 @@ static inline bool FuzzJointValues(m3World* world, m3JointId joint)
         float maxLength = 0.0f;
         m3DistanceJoint_GetLengthRange(world, joint, &minLength, &maxLength);
         m3DistanceJoint_SetLengthRange(world, joint, minLength, maxLength);
+        m3DistanceJoint_SetLength(world, joint, m3DistanceJoint_GetLength(world, joint));
     }
     else if (type == m3_motorJoint)
     {
