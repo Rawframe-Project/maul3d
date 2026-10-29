@@ -8,44 +8,71 @@ snapshot and journal formats.
 
 ## [0.10.0](https://github.com/Rawframe-Project/maul3d/compare/v0.9.0...v0.10.0) (2026-10-29)
 
+### Added
 
-### ⚠ BREAKING CHANGES
-
-* public names change, old to new:
-    - `m3TaskFn`, `m3EnqueueTaskFn`, `m3FinishTaskFn`, `m3PreSolveFn` to
-    `m3TaskFunction`, `m3EnqueueTaskFunction`, `m3FinishTaskFunction`,
-    `m3PreSolveFunction`
-    - `m3ResultName` to `m3GetResultName`
-    - `m3CpuSupportsBackend` to `m3IsCpuBackendSupported`
-    - `m3World_SnapshotSize` to `m3World_GetSnapshotSize`
-    - `m3Joint_SetSteer` to `m3WheelJoint_EnableSteering`,
-    `m3WheelJoint_SetTargetSteeringAngle`, `m3WheelJoint_SetSteeringHertz`,
-    `m3WheelJoint_SetSteeringDampingRatio` and
-    `m3WheelJoint_SetMaxSteeringTorque`, with the new readers
-    `m3WheelJoint_IsSteeringEnabled`, `GetTargetSteeringAngle`,
-    `GetSteeringHertz`, `GetSteeringDampingRatio` and `GetMaxSteeringTorque`
-    - `m3Joint_GetSteerAngle` to `m3WheelJoint_GetSteeringAngle`
-    - `m3Joint_SetTargetAngle` to `m3RevoluteJoint_SetTargetAngle`
-    - `m3Joint_SetTargetRotation` to `m3SphericalJoint_SetTargetRotation`
-    - `m3Body_Enable` and `m3Body_Disable` to `m3Body_Enable` with a bool
-    - `m3Body_SetBullet` to `m3Body_EnableBullet`
-    - `m3Body_IsBullet` to `m3Body_IsBulletEnabled`
-    - `m3BodyDef.isBullet` to `enableBullet`
-    - `m3BodyDef.isEnabled` to `enable`
-    - `m3Shape_EnablePreSolve` to `m3Shape_EnablePreSolveEvents`
-    - `m3Shape_IsPreSolveEnabled` to `m3Shape_IsPreSolveEventsEnabled`
-    - `m3Vehicle_SelectGear` to `m3Vehicle_SetGear`
-    - `m3Shape_SetMeshMaterials` to `m3MeshShape_SetMaterials`
-    - `m3VoxelChunk_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill` to
-    `m3VoxelChunkShape_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill`
-    - C#: `Native.ResultName` to `Native.GetResultName`
-    - C#: `Native.SnapshotSize` to `Native.GetSnapshotSize`
-    - C#: `BodyDef.IsBullet` to `BodyDef.EnableBullet`
-    - C#: `BodyDef.IsEnabled` to `BodyDef.Enable`
+- **Readers for wheel steering.** `m3WheelJoint_IsSteeringEnabled`,
+  `m3WheelJoint_GetTargetSteeringAngle`, `GetSteeringHertz`,
+  `GetSteeringDampingRatio` and `GetMaxSteeringTorque` read back what
+  the steering setters store.
+  ([#188](https://github.com/Rawframe-Project/maul3d/pull/188))
 
 ### Changed
 
-* name calls and hook types by the family naming rule ([#188](https://github.com/Rawframe-Project/maul3d/issues/188)) ([eafca64](https://github.com/Rawframe-Project/maul3d/commit/eafca646c10b77efa1dd6a2ba6e8bfa4454734f3))
+- **Breaking: public names follow the Maul family's naming rule.** A call
+  on one object is named after that object. A call that accepts only one
+  joint or shape kind is named after that kind. Getters take `Get`, and
+  every on/off switch is an `Enable` / `Is...Enabled` pair. Hook types end
+  in `Function`. Rename your calls as below. Each one does what the old
+  name did, except `m3Body_Enable`, which now takes a bool, and steering,
+  covered in the next item.
+
+  | 0.9.0 | 0.10.0 |
+  |---|---|
+  | `m3TaskFn`, `m3EnqueueTaskFn`, `m3FinishTaskFn` | `m3TaskFunction`, `m3EnqueueTaskFunction`, `m3FinishTaskFunction` |
+  | `m3PreSolveFn` | `m3PreSolveFunction` |
+  | `m3ResultName` | `m3GetResultName` |
+  | `m3CpuSupportsBackend` | `m3IsCpuBackendSupported` |
+  | `m3World_SnapshotSize` | `m3World_GetSnapshotSize` |
+  | `m3Body_Enable` and `m3Body_Disable` | `m3Body_Enable` with `true` or `false` |
+  | `m3BodyDef.isEnabled` | `m3BodyDef.enable` |
+  | `m3Body_SetBullet`, `m3Body_IsBullet` | `m3Body_EnableBullet`, `m3Body_IsBulletEnabled` |
+  | `m3BodyDef.isBullet` | `m3BodyDef.enableBullet` |
+  | `m3Shape_EnablePreSolve`, `m3Shape_IsPreSolveEnabled` | `m3Shape_EnablePreSolveEvents`, `m3Shape_IsPreSolveEventsEnabled` |
+  | `m3Shape_SetMeshMaterials` | `m3MeshShape_SetMaterials` |
+  | `m3VoxelChunk_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill` | `m3VoxelChunkShape_SetVoxel`, `ClearVoxel`, `ClearBox`, `SetFill` |
+  | `m3Joint_SetTargetAngle` | `m3RevoluteJoint_SetTargetAngle` |
+  | `m3Joint_SetTargetRotation` | `m3SphericalJoint_SetTargetRotation` |
+  | `m3Joint_SetSteer` | see the next item |
+  | `m3Joint_GetSteerAngle` | `m3WheelJoint_GetSteeringAngle` |
+  | `m3Vehicle_SelectGear` | `m3Vehicle_SetGear` |
+  | C# `Native.ResultName` | `Native.GetResultName` |
+  | C# `Native.SnapshotSize` | `Native.GetSnapshotSize` |
+  | C# `BodyDef.IsBullet` | `BodyDef.EnableBullet` |
+  | C# `BodyDef.IsEnabled` | `BodyDef.Enable` |
+
+  Struct layouts and the snapshot format are unchanged. The journal stays
+  at format 3. ([#188](https://github.com/Rawframe-Project/maul3d/pull/188))
+- **Breaking: wheel steering has a switch and a setter per value.**
+  `m3Joint_SetSteer(enable, targetAngle, hertz, zeta, maxEffort)` becomes
+  `m3WheelJoint_EnableSteering(enable)` and four setters:
+  `m3WheelJoint_SetTargetSteeringAngle`, `SetSteeringHertz`,
+  `SetSteeringDampingRatio` and `SetMaxSteeringTorque`. `zeta` is now
+  the damping ratio, and the budget is a torque, 0 for no cap. Steering
+  keeps its values while it is off. As before, enabled steering needs a
+  positive frequency. Because the switch is now a call of its own, set
+  the frequency first and then enable steering: enabling it before any
+  frequency is set is refused and counts one misuse. Each call records
+  its own journal entry. A tape that steers is therefore longer than the
+  same scene recorded with 0.9.0, and its bytes hash differently, while
+  the simulation itself is unchanged.
+  ([#188](https://github.com/Rawframe-Project/maul3d/pull/188))
+
+### Fixed
+
+- The motor joint's getters read zeros for a joint of another type
+  without counting a misuse. They now count one, as the wheel joint's
+  steering getters do.
+  ([#188](https://github.com/Rawframe-Project/maul3d/pull/188))
 
 ## [0.9.0](https://github.com/Rawframe-Project/maul3d/compare/v0.8.0...v0.9.0) (2026-10-29)
 
