@@ -499,6 +499,12 @@ static void TestMotorJointServo(void)
                              (m3Quat){0.0f, 0.0f, 0.0f, 2.0f}); // far from unit
         m3Joint_SetMotorPose(world, servo, (m3Vec3){NAN, 0.0f, 0.0f},
                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+        // The servo keeps its aim in the motor slot, so a motor call
+        // must not reach it.
+        uint64_t aimed = m3World_Hash(world);
+        CHECK_REFUSES(world, m3Joint_SetMotor(world, servo, true, 2.0f, 1.0f),
+                      "a motor joint takes no motor");
+        CHECK(m3World_Hash(world) == aimed, "the refused motor moved no bits");
         hashes[run] = m3World_Hash(world);
         if (recording)
         {

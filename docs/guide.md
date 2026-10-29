@@ -779,7 +779,9 @@ step or a restore clears them.
 ## Joint runtime control, drives, and breakage
 
 `m3Joint_SetLimits` and `m3Joint_SetMotor` rebind mid-run
-(toggling zeroes the row's stored impulse).
+(toggling zeroes the row's stored impulse). Only revolute,
+prismatic, wheel, generic and distance joints take a motor;
+`m3Joint_SetMotor` refuses every other type.
 `m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
 `m3Joint_SetSpring(enable, hertz, dampingRatio)` arms the position
 drive on revolute (target angle), prismatic (target translation),

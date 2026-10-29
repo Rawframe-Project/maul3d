@@ -16,13 +16,21 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static void TestGearCouplesSpin(void)
+typedef struct Mesh
 {
-    // Two disks hinged about z on a static frame, meshed 2:1 in
-    // zero gravity: kick one and the mesh splits the spin with the
-    // opposite sign, and keeps the split.
+    m3World* world;
+    m3BodyId gearA;
+    m3BodyId gearB;
+    m3JointId gear;
+} Mesh;
+
+// Two disks hinged about z on a static frame, meshed 2:1 in zero
+// gravity, at rest.
+static Mesh NewMesh(void)
+{
     m3WorldDef wd = m3DefaultWorldDef();
     wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
     wd.bodyCapacity = 8;
@@ -58,7 +66,19 @@ static void TestGearCouplesSpin(void)
     gd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     gd.ratio = 2.0f;
-    CHECK(m3Joint_IsValid(world, NewJoint(world, &gd)), "the gear creates");
+    m3JointId gear = NewJoint(world, &gd);
+    CHECK(m3Joint_IsValid(world, gear), "the gear creates");
+    return (Mesh){world, gearA, gearB, gear};
+}
+
+static void TestGearCouplesSpin(void)
+{
+    // Kick one disk and the mesh splits the spin with the opposite
+    // sign, and keeps the split.
+    Mesh mesh = NewMesh();
+    m3World* world = mesh.world;
+    m3BodyId gearA = mesh.gearA;
+    m3BodyId gearB = mesh.gearB;
     m3Body_ApplyAngularImpulse(world, gearA, (m3Vec3){0.0f, 0.0f, 0.05f});
     for (int32_t i = 0; i < 120; ++i)
     {
@@ -70,6 +90,37 @@ static void TestGearCouplesSpin(void)
     CHECK(wA.z * wB.z < 0.0f, "positive ratio counter-rotates (the external mesh)");
     CHECK(fabsf(wA.z + 2.0f * wB.z) < 0.02f, "the mesh holds spinA + 2 spinB");
     m3DestroyWorld(world);
+}
+
+static void TestGearTakesNoMotor(void)
+{
+    // The gear keeps each disk's spin at create in the motor slot: a
+    // motor call that reached it turned the disks at rest to a new
+    // mesh, and a speed past a half turn left a snapshot restore
+    // refuses.
+    Mesh mesh = NewMesh();
+    CHECK_REFUSES(mesh.world, m3Joint_SetMotor(mesh.world, mesh.gear, true, 1000.0f, 1.0f),
+                  "a gear takes no motor");
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        (void)m3World_Step(mesh.world, 1.0f / 60.0f, 4);
+    }
+    m3Quat qA = m3Body_GetRotation(mesh.world, mesh.gearA);
+    m3Quat qB = m3Body_GetRotation(mesh.world, mesh.gearB);
+    CHECK(fabsf(qA.z) < 1e-6f && fabsf(qB.z) < 1e-6f, "the meshed disks stay at rest");
+    int32_t size = m3World_SnapshotSize(mesh.world);
+    void* snapshot = malloc((size_t)size);
+    int32_t bytes = snapshot != NULL ? Snapshot(mesh.world, snapshot, size) : -1;
+    CHECK(bytes > 0, "the mesh snapshots");
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 8;
+    wd.shapeCapacity = 8;
+    wd.jointCapacity = 8;
+    m3World* restored = NewWorld(&wd);
+    CHECK(bytes > 0 && Restore(restored, snapshot, bytes), "and the snapshot restores");
+    m3DestroyWorld(restored);
+    free(snapshot);
+    m3DestroyWorld(mesh.world);
 }
 
 static void PulleyLengths(const m3World* world, m3BodyId a, m3BodyId b, double* len1, double* len2)
@@ -174,6 +225,7 @@ static void TestTransmissionWalls(void)
 int main(void)
 {
     TestGearCouplesSpin();
+    TestGearTakesNoMotor();
     TestPulleyTradesRope();
     TestTransmissionWalls();
     if (s_failures == 0)
