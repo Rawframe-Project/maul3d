@@ -81,7 +81,9 @@ static JointCart MakeJointCart(m3World* world, m3Pos3 at)
         jd.lowerLimit = -0.1f;
         jd.upperLimit = 0.1f;
         cart.joints[w] = NewJoint(world, &jd);
-        m3Joint_SetSpring(world, cart.joints[w], true, 4.0f, 0.7f);
+        m3Joint_SetSpringHertz(world, cart.joints[w], 4.0f);
+        m3Joint_SetSpringDampingRatio(world, cart.joints[w], 0.7f);
+        m3Joint_EnableSpring(world, cart.joints[w], true);
         m3Joint_SetTargetTranslation(world, cart.joints[w], 0.0f);
     }
     return cart;
@@ -91,7 +93,9 @@ static void DriveCart(m3World* world, const JointCart* cart, float speed, float 
 {
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
-        m3Joint_SetMotor(world, cart->joints[w], true, speed, torque);
+        m3Joint_SetMotorSpeed(world, cart->joints[w], speed);
+        m3Joint_SetMaxMotorEffort(world, cart->joints[w], torque);
+        m3Joint_EnableMotor(world, cart->joints[w], true);
     }
 }
 
@@ -218,7 +222,9 @@ static void TestHostileWall(void)
     m3Joint_SetTargetAngle(world, wheel, 1.0f); // the wheel's drive is its
                                                 // suspension: angle targets
                                                 // stay revolute-only
-    m3Joint_SetSpring(world, wheel, true, 3.0f, 0.5f);
+    m3Joint_SetSpringHertz(world, wheel, 3.0f);
+    m3Joint_SetSpringDampingRatio(world, wheel, 0.5f);
+    m3Joint_EnableSpring(world, wheel, true);
     m3Joint_SetTargetTranslation(world, wheel, 0.05f);
     for (int32_t i = 0; i < 60; ++i)
     {

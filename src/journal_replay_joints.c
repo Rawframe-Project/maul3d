@@ -119,7 +119,9 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opJointSetLimits)
     {
-        if (m3JointLimitsCheck(world->joints.jointType[slot], record.a, record.b) != m3_success)
+        if (!m3JointHasLimits(world->joints.jointType[slot]) ||
+            m3JointLimitsCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
+                m3_success)
         {
             return false;
         }
@@ -188,7 +190,7 @@ bool m3ReplayJointSetSpring(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || !m3JointSpringValid(world, slot, record.hertz, record.zeta))
+    if (slot < 0 || !m3JointSpringValid(world, slot, record.enable, record.hertz, record.zeta))
     {
         return false; // hostile bytes fail loudly
     }

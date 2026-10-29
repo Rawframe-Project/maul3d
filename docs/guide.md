@@ -778,14 +778,24 @@ step or a restore clears them.
 
 ## Joint runtime control, drives, and breakage
 
-`m3Joint_SetLimits` and `m3Joint_SetMotor` rebind mid-run
-(toggling zeroes the row's stored impulse). Only revolute,
-prismatic, wheel, generic and distance joints take a motor;
-`m3Joint_SetMotor` refuses every other type.
+Limits, the motor and the spring each have a switch and value
+setters, and rebind mid-run: `m3Joint_EnableLimit` with
+`m3Joint_SetLimits(lower, upper)`, `m3Joint_EnableMotor` with
+`m3Joint_SetMotorSpeed` and `m3Joint_SetMaxMotorEffort`, and
+`m3Joint_EnableSpring` with `m3Joint_SetSpringHertz` and
+`m3Joint_SetSpringDampingRatio`. `IsLimitEnabled`,
+`IsMotorEnabled`, `IsSpringEnabled` and a getter per value read
+them back. A part keeps its values while it is off, and each
+call zeroes the stored impulse of the rows it changes. A limit
+range is ordered when it is set and whenever the limit is on; a
+spring is positive in hertz while it is on. Only revolute,
+prismatic, wheel, generic and distance joints take a motor, and
+only revolute, prismatic, spherical, wheel, distance and motor
+joints take limits; the calls refuse every other type.
 `m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
-`m3Joint_SetSpring(enable, hertz, dampingRatio)` arms the position
-drive on revolute (target angle), prismatic (target translation),
-and spherical (target rotation) joints;
+The spring arms the position drive on revolute (target angle),
+prismatic and wheel (target translation) and spherical (target
+rotation) joints;
 `m3Joint_SetTargetAngle/SetTargetTranslation/SetTargetRotation`
 move the goal. The rotation target lives in the JOINT FRAMES
 (frame z is the create-time local axis). Reaction readback:
@@ -877,9 +887,9 @@ localAxisB the axle in the wheel frame; the axle is captured at
 create and snapped exactly perpendicular to the strut (more
 than a small skew refuses loudly). One joint composes both
 halves: the wheel slides along the strut (travel limits from
-enableLimit, suspension spring from m3Joint_SetSpring plus
+enableLimit, suspension spring from m3Joint_EnableSpring plus
 m3Joint_SetTargetTranslation) and spins freely about its axle
-(drive with m3Joint_SetMotor; read the spin with
+(drive with m3Joint_EnableMotor; read the spin with
 m3Joint_GetAngle and the travel with m3Joint_GetTranslation).
 
 Breakage works as for every joint: the force cap snaps a
@@ -902,7 +912,7 @@ required. Journaled, snapshotted, bit-exact through rollback.
 `m3_motorJoint` drives body B toward a target pose relative to
 body A with NO hard rows: a soft 3-DOF rotation drive plus a
 soft 3-DOF translation drive, each clamped to its own budget.
-Tune stiffness with `m3Joint_SetSpring` (shared by both drives),
+Tune stiffness with the joint spring (shared by both drives),
 aim with `m3Joint_SetMotorPose(offset, rotation)` (the offset in
 A's create-time frame, the rotation relative to the create
 pose), and budget with `m3Joint_SetLimits` where lower = max

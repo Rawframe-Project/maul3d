@@ -198,44 +198,6 @@ static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
     return true;
 }
 
-static M3_NOINLINE void JointSetLimitsWorker(m3World* world, m3JointId joint, bool enable,
-                                             float lower, float upper)
-{
-    if (m3WorldBusy(world))
-    {
-        m3Refuse(world, m3_errorBusy);
-        return;
-    }
-    int32_t slot;
-    if (!ResolveJoint(world, joint, &slot))
-    {
-        return;
-    }
-    if (m3JointLimitsCheck(world->joints.jointType[slot], lower, upper) != m3_success)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpJointVector record;
-        memset(&record, 0, sizeof(record));
-        record.id = joint;
-        record.enable = enable ? 1 : 0;
-        record.a = lower;
-        record.b = upper;
-        m3JournalRecord(world, m3_opJointSetLimits, &record, (int32_t)sizeof(record));
-    }
-    m3JointSetLimitsInternal(world, slot, enable ? 1 : 0, lower, upper);
-}
-
-void m3Joint_SetLimits(m3World* world, m3JointId joint, bool enable, float lower, float upper)
-{
-    uint64_t env = m3FloatEnvEnter();
-    JointSetLimitsWorker(world, joint, enable, lower, upper);
-    m3FloatEnvLeave(env);
-}
-
 static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, bool enable,
                                             float targetAngle, float hertz, float zeta,
                                             float maxEffort)
@@ -345,46 +307,6 @@ void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetMotorPoseWorker(world, joint, offset, rotation);
-    m3FloatEnvLeave(env);
-}
-
-static M3_NOINLINE void JointSetMotorWorker(m3World* world, m3JointId joint, bool enable,
-                                            float speed, float maxEffort)
-{
-    if (m3WorldBusy(world))
-    {
-        m3Refuse(world, m3_errorBusy);
-        return;
-    }
-    int32_t slot;
-    if (!ResolveJoint(world, joint, &slot))
-    {
-        return;
-    }
-    if (!m3JointHasMotor(world->joints.jointType[slot]) ||
-        m3JointMotorCheck(world->joints.jointType[slot], enable ? 1 : 0, speed, maxEffort) !=
-            m3_success)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpJointVector record;
-        memset(&record, 0, sizeof(record));
-        record.id = joint;
-        record.enable = enable ? 1 : 0;
-        record.a = speed;
-        record.b = maxEffort;
-        m3JournalRecord(world, m3_opJointSetMotor, &record, (int32_t)sizeof(record));
-    }
-    m3JointSetMotorInternal(world, slot, enable ? 1 : 0, speed, maxEffort);
-}
-
-void m3Joint_SetMotor(m3World* world, m3JointId joint, bool enable, float speed, float maxEffort)
-{
-    uint64_t env = m3FloatEnvEnter();
-    JointSetMotorWorker(world, joint, enable, speed, maxEffort);
     m3FloatEnvLeave(env);
 }
 
@@ -627,7 +549,14 @@ m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxE
                         m3CheckNonNegative(maxEffort, M3_FORCE_LIMIT));
 }
 
-m3Result m3JointLimitsCheck(int32_t type, float lower, float upper)
+bool m3JointHasLimits(uint8_t type)
+{
+    return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
+           type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint ||
+           type == (uint8_t)m3_distanceJoint || type == (uint8_t)m3_motorJoint;
+}
+
+m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)
 {
     if (type == m3_motorJoint)
     {
@@ -636,18 +565,20 @@ m3Result m3JointLimitsCheck(int32_t type, float lower, float upper)
         return m3BothChecks(m3CheckNonNegative(lower, M3_FORCE_LIMIT),
                             m3CheckNonNegative(upper, M3_FORCE_LIMIT));
     }
-    return m3CheckValid(m3FiniteF(lower) && m3FiniteF(upper) && lower <= upper);
+    return m3CheckValid(m3FiniteF(lower) && m3FiniteF(upper) && (enable == 0 || lower <= upper));
 }
 
-bool m3JointSpringValid(const m3World* world, int32_t slot, float hertz, float zeta)
+bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz, float zeta)
 {
-    return m3JointSpringFits(world->joints.jointType[slot], hertz, zeta);
+    return m3JointSpringFits(world->joints.jointType[slot], enable, hertz, zeta);
 }
 
-bool m3JointSpringFits(uint8_t type, float hertz, float zeta)
+// A spring keeps its values while off, so only an enabled one needs a
+// positive frequency.
+bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta)
 {
-    return JointTypeDrives(type) && hertz > 0.0f && hertz <= M3_HERTZ_LIMIT && zeta >= 0.0f &&
-           zeta <= M3_RATIO_LIMIT;
+    return JointTypeDrives(type) && hertz >= 0.0f && hertz <= M3_HERTZ_LIMIT &&
+           (enable == 0 || hertz > 0.0f) && zeta >= 0.0f && zeta <= M3_RATIO_LIMIT;
 }
 
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
@@ -674,8 +605,109 @@ bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3
            m3FiniteQuat(rotation) && q2 >= 0.81f && q2 <= 1.21f;
 }
 
-static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bool enable,
-                                             float hertz, float dampingRatio)
+// --- Limits, motor and spring ----------------------------------------
+//
+// Each switch shares one journal record with its two values, so the
+// switch and every value setter record the whole record: the part the
+// call sets and the rest as the joint holds it.
+
+typedef enum JointFamily
+{
+    JOINT_LIMITS,
+    JOINT_MOTOR,
+    JOINT_SPRING,
+} JointFamily;
+
+// The part of a record a call sets: the switch, the first value (lower,
+// speed, hertz), the second (upper, effort, damping) or both values.
+typedef enum JointPart
+{
+    PART_SWITCH,
+    PART_FIRST,
+    PART_SECOND,
+    PART_VALUES,
+} JointPart;
+
+typedef struct JointRecord
+{
+    int32_t enable;
+    float first;
+    float second;
+} JointRecord;
+
+static const m3Vec3* JointFamilySlot(const m3World* world, int32_t slot, JointFamily family)
+{
+    if (family == JOINT_LIMITS)
+    {
+        return &world->joints.jointLimits[slot];
+    }
+    return family == JOINT_MOTOR ? &world->joints.jointMotor[slot]
+                                 : &world->joints.jointSpring[slot];
+}
+
+static uint8_t JointFamilyFlag(JointFamily family)
+{
+    if (family == JOINT_LIMITS)
+    {
+        return M3_JOINT_LIMIT;
+    }
+    return family == JOINT_MOTOR ? M3_JOINT_MOTOR : M3_JOINT_SPRING;
+}
+
+static JointRecord JointHeld(const m3World* world, int32_t slot, JointFamily family)
+{
+    const m3Vec3* values = JointFamilySlot(world, slot, family);
+    int32_t enable = (world->joints.jointFlags[slot] & JointFamilyFlag(family)) != 0 ? 1 : 0;
+    return (JointRecord){enable, values->x, values->y};
+}
+
+// A limit range is ordered whenever a call sets it, and whenever the
+// limit is switched on.
+static bool JointRecordFits(uint8_t type, JointFamily family, JointPart part, JointRecord r)
+{
+    if (family == JOINT_LIMITS)
+    {
+        int32_t ordered = part == PART_SWITCH ? r.enable : 1;
+        return m3JointHasLimits(type) &&
+               m3JointLimitsCheck(type, ordered, r.first, r.second) == m3_success;
+    }
+    if (family == JOINT_MOTOR)
+    {
+        return m3JointHasMotor(type) &&
+               m3JointMotorCheck(type, r.enable, r.first, r.second) == m3_success;
+    }
+    return m3JointSpringFits(type, r.enable, r.first, r.second);
+}
+
+static void JointRecordJournal(m3World* world, m3JointId joint, JointFamily family, JointRecord r)
+{
+    if (world->recorder.journalActive == 0)
+    {
+        return;
+    }
+    if (family == JOINT_SPRING)
+    {
+        m3OpJointSetSpring record;
+        memset(&record, 0, sizeof(record));
+        record.id = joint;
+        record.enable = r.enable;
+        record.hertz = r.first;
+        record.zeta = r.second;
+        m3JournalRecord(world, m3_opJointSetSpring, &record, (int32_t)sizeof(record));
+        return;
+    }
+    m3OpJointVector record;
+    memset(&record, 0, sizeof(record));
+    record.id = joint;
+    record.enable = r.enable;
+    record.a = r.first;
+    record.b = r.second;
+    m3JournalRecord(world, family == JOINT_LIMITS ? m3_opJointSetLimits : m3_opJointSetMotor,
+                    &record, (int32_t)sizeof(record));
+}
+
+static M3_NOINLINE void JointSetPart(m3World* world, m3JointId joint, JointFamily family,
+                                     JointPart part, bool enable, float first, float second)
 {
     if (m3WorldBusy(world))
     {
@@ -687,30 +719,148 @@ static M3_NOINLINE void JointSetSpringWorker(m3World* world, m3JointId joint, bo
     {
         return;
     }
-    if (!m3JointSpringValid(world, slot, hertz, dampingRatio))
+    JointRecord r = JointHeld(world, slot, family);
+    r.enable = part == PART_SWITCH ? (enable ? 1 : 0) : r.enable;
+    r.first = part == PART_FIRST || part == PART_VALUES ? first : r.first;
+    r.second = part == PART_SECOND || part == PART_VALUES ? second : r.second;
+    if (!JointRecordFits(world->joints.jointType[slot], family, part, r))
     {
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    if (world->recorder.journalActive != 0)
+    JointRecordJournal(world, joint, family, r);
+    if (family == JOINT_LIMITS)
     {
-        m3OpJointSetSpring record;
-        memset(&record, 0, sizeof(record));
-        record.id = joint;
-        record.enable = enable ? 1 : 0;
-        record.hertz = hertz;
-        record.zeta = dampingRatio;
-        m3JournalRecord(world, m3_opJointSetSpring, &record, (int32_t)sizeof(record));
+        m3JointSetLimitsInternal(world, slot, r.enable, r.first, r.second);
     }
-    m3JointSetSpringInternal(world, slot, enable ? 1 : 0, hertz, dampingRatio);
+    else if (family == JOINT_MOTOR)
+    {
+        m3JointSetMotorInternal(world, slot, r.enable, r.first, r.second);
+    }
+    else
+    {
+        m3JointSetSpringInternal(world, slot, r.enable, r.first, r.second);
+    }
 }
 
-void m3Joint_SetSpring(m3World* world, m3JointId joint, bool enable, float hertz,
-                       float dampingRatio)
+// The record as the joint holds it; zeros for a stale id, which counts
+// one misuse, and for a type without that family.
+static JointRecord JointGetPart(const m3World* world, m3JointId joint, JointFamily family)
+{
+    int32_t slot;
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return (JointRecord){0, 0.0f, 0.0f};
+    }
+    uint8_t type = world->joints.jointType[slot];
+    bool has = family == JOINT_LIMITS
+                   ? m3JointHasLimits(type)
+                   : (family == JOINT_MOTOR ? m3JointHasMotor(type) : JointTypeDrives(type) != 0);
+    return has ? JointHeld(world, slot, family) : (JointRecord){0, 0.0f, 0.0f};
+}
+
+void m3Joint_EnableLimit(m3World* world, m3JointId joint, bool enable)
 {
     uint64_t env = m3FloatEnvEnter();
-    JointSetSpringWorker(world, joint, enable, hertz, dampingRatio);
+    JointSetPart(world, joint, JOINT_LIMITS, PART_SWITCH, enable, 0, 0);
     m3FloatEnvLeave(env);
+}
+
+bool m3Joint_IsLimitEnabled(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_LIMITS).enable != 0;
+}
+
+void m3Joint_SetLimits(m3World* world, m3JointId joint, float lower, float upper)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_LIMITS, PART_VALUES, false, lower, upper);
+    m3FloatEnvLeave(env);
+}
+
+void m3Joint_GetLimits(const m3World* world, m3JointId joint, float* lowerOut, float* upperOut)
+{
+    JointRecord r = JointGetPart(world, joint, JOINT_LIMITS);
+    if (lowerOut != NULL)
+    {
+        *lowerOut = r.first;
+    }
+    if (upperOut != NULL)
+    {
+        *upperOut = r.second;
+    }
+}
+
+void m3Joint_EnableMotor(m3World* world, m3JointId joint, bool enable)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_MOTOR, PART_SWITCH, enable, 0, 0);
+    m3FloatEnvLeave(env);
+}
+
+bool m3Joint_IsMotorEnabled(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_MOTOR).enable != 0;
+}
+
+void m3Joint_SetMotorSpeed(m3World* world, m3JointId joint, float speed)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_MOTOR, PART_FIRST, false, speed, 0);
+    m3FloatEnvLeave(env);
+}
+
+float m3Joint_GetMotorSpeed(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_MOTOR).first;
+}
+
+void m3Joint_SetMaxMotorEffort(m3World* world, m3JointId joint, float maxEffort)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_MOTOR, PART_SECOND, false, 0, maxEffort);
+    m3FloatEnvLeave(env);
+}
+
+float m3Joint_GetMaxMotorEffort(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_MOTOR).second;
+}
+
+void m3Joint_EnableSpring(m3World* world, m3JointId joint, bool enable)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_SPRING, PART_SWITCH, enable, 0, 0);
+    m3FloatEnvLeave(env);
+}
+
+bool m3Joint_IsSpringEnabled(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_SPRING).enable != 0;
+}
+
+void m3Joint_SetSpringHertz(m3World* world, m3JointId joint, float hertz)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_SPRING, PART_FIRST, false, hertz, 0);
+    m3FloatEnvLeave(env);
+}
+
+float m3Joint_GetSpringHertz(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_SPRING).first;
+}
+
+void m3Joint_SetSpringDampingRatio(m3World* world, m3JointId joint, float dampingRatio)
+{
+    uint64_t env = m3FloatEnvEnter();
+    JointSetPart(world, joint, JOINT_SPRING, PART_SECOND, false, 0, dampingRatio);
+    m3FloatEnvLeave(env);
+}
+
+float m3Joint_GetSpringDampingRatio(const m3World* world, m3JointId joint)
+{
+    return JointGetPart(world, joint, JOINT_SPRING).second;
 }
 
 bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q)

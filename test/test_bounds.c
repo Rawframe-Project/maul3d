@@ -549,34 +549,34 @@ static void HullPoint(Scene* s, float v)
 
 static void MotorSpeed(Scene* s, float v)
 {
-    m3Joint_SetMotor(s->world, s->hinge, true, v, 10.0f);
+    m3Joint_SetMotorSpeed(s->world, s->hinge, v);
 }
 
 static void MotorEffort(Scene* s, float v)
 {
-    m3Joint_SetMotor(s->world, s->hinge, true, 1.0f, v);
+    m3Joint_SetMaxMotorEffort(s->world, s->hinge, v);
 }
 
 // A distance joint's motor fields are its spring's hertz and damping
 // ratio.
 static void RopeHertz(Scene* s, float v)
 {
-    m3Joint_SetMotor(s->world, s->rope, true, v, 0.5f);
+    m3Joint_SetMotorSpeed(s->world, s->rope, v);
 }
 
 static void RopeRatio(Scene* s, float v)
 {
-    m3Joint_SetMotor(s->world, s->rope, true, 2.0f, v);
+    m3Joint_SetMaxMotorEffort(s->world, s->rope, v);
 }
 
 static void SpringHertz(Scene* s, float v)
 {
-    m3Joint_SetSpring(s->world, s->hinge, true, v, 0.5f);
+    m3Joint_SetSpringHertz(s->world, s->hinge, v);
 }
 
 static void SpringRatio(Scene* s, float v)
 {
-    m3Joint_SetSpring(s->world, s->hinge, true, 5.0f, v);
+    m3Joint_SetSpringDampingRatio(s->world, s->hinge, v);
 }
 
 static void SteerHertz(Scene* s, float v)
@@ -625,12 +625,12 @@ static void SocketTarget(Scene* s, float v)
 // A motor joint's limits are its force and torque budgets.
 static void ServoForce(Scene* s, float v)
 {
-    m3Joint_SetLimits(s->world, s->servo, true, v, 0.0f);
+    m3Joint_SetLimits(s->world, s->servo, v, 0.0f);
 }
 
 static void ServoTorque(Scene* s, float v)
 {
-    m3Joint_SetLimits(s->world, s->servo, true, 0.0f, v);
+    m3Joint_SetLimits(s->world, s->servo, 0.0f, v);
 }
 
 static void DefMotorSpeed(Scene* s, float v)
@@ -1209,15 +1209,21 @@ static void TestFrequencySign(void)
     Scene s;
     BuildScene(&s);
     uint64_t misuse = Misuse(s.world);
-    m3Joint_SetMotor(s.world, s.rope, false, 0.0f, 0.5f);
+    m3Joint_EnableMotor(s.world, s.rope, false);
+    m3Joint_SetMotorSpeed(s.world, s.rope, 0.0f);
     m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, 0.0f, 0.5f, 0.0f);
+    m3Joint_SetSpringHertz(s.world, s.hinge, 0.0f);
     CHECK(Misuse(s.world) == misuse, "a disabled spring or steer takes a zero frequency");
-    m3Joint_SetMotor(s.world, s.rope, true, 0.0f, 0.5f);
+    m3Joint_EnableMotor(s.world, s.rope, true);
     CHECK(Misuse(s.world) == misuse + 1, "an enabled distance spring needs a positive frequency");
-    m3Joint_SetMotor(s.world, s.rope, false, -1.0f, 0.5f);
+    m3Joint_SetMotorSpeed(s.world, s.rope, -1.0f);
     CHECK(Misuse(s.world) == misuse + 2, "a distance spring frequency is never negative");
     m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, -1.0f, 0.5f, 0.0f);
     CHECK(Misuse(s.world) == misuse + 3, "a steering frequency is never negative");
+    m3Joint_EnableSpring(s.world, s.hinge, true);
+    CHECK(Misuse(s.world) == misuse + 4, "an enabled joint spring needs a positive frequency");
+    m3Joint_SetSpringHertz(s.world, s.hinge, -1.0f);
+    CHECK(Misuse(s.world) == misuse + 5, "a joint spring frequency is never negative");
     m3DestroyWorld(s.world);
 }
 

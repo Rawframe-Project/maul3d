@@ -177,7 +177,8 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     m3Vec3 limits = InV3(f->limits, j);
     m3Vec3 spring = InV3(f->springs, j);
     bool springNeverSet = (flags & M3_JOINT_SPRING) == 0 && spring.x == 0.0f && spring.y == 0.0f;
-    if (!springNeverSet && !m3JointSpringFits(type, spring.x, spring.y))
+    if (!springNeverSet &&
+        !m3JointSpringFits(type, (flags & M3_JOINT_SPRING) != 0, spring.x, spring.y))
     {
         return false;
     }
@@ -190,7 +191,7 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     }
     if (type == (uint8_t)m3_motorJoint)
     {
-        return (m3JointLimitsCheck(type, limits.x, limits.y) ==
+        return (m3JointLimitsCheck(type, (flags & M3_JOINT_LIMIT) != 0, limits.x, limits.y) ==
                 m3_success); // the motor slot holds the aim
     }
     if (m3JointMotorCheck(type, (flags & M3_JOINT_MOTOR) != 0, motor.x, motor.y) != m3_success)

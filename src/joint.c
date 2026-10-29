@@ -296,8 +296,8 @@ static m3Result JointDefCheck(const m3JointDef* def)
                                                     def->motorSpeed, def->maxMotorEffort));
     if (motorJoint)
     {
-        result =
-            m3BothChecks(result, m3JointLimitsCheck(def->type, def->lowerLimit, def->upperLimit));
+        result = m3BothChecks(result, m3JointLimitsCheck(def->type, def->enableLimit ? 1 : 0,
+                                                         def->lowerLimit, def->upperLimit));
     }
     return result;
 }

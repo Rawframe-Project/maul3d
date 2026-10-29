@@ -577,7 +577,9 @@ static m3World* SceneVehicleRig(void)
             jd.motorSpeed = -10.0f;
             jd.maxMotorEffort = 200.0f;
             m3JointId joint = NewJoint(world, &jd);
-            m3Joint_SetSpring(world, joint, true, 4.0f, 0.7f);
+            m3Joint_SetSpringHertz(world, joint, 4.0f);
+            m3Joint_SetSpringDampingRatio(world, joint, 0.7f);
+            m3Joint_EnableSpring(world, joint, true);
             m3Joint_SetTargetTranslation(world, joint, 0.0f);
             if ((w & 1) != 0)
             {

@@ -771,10 +771,13 @@ static void CheckHashSees(int which, const char* what)
         m3Body_SetAngularDamping(w, changed.box, 0.5f);
         break;
     case 4:
-        m3Joint_SetLimits(w, changed.hinge, false, -0.5f, 0.5f);
+        m3Joint_SetLimits(w, changed.hinge, -0.5f, 0.5f);
+        m3Joint_EnableLimit(w, changed.hinge, false);
         break;
     case 5:
-        m3Joint_SetMotor(w, changed.hinge, false, 3.0f, 10.0f);
+        m3Joint_SetMotorSpeed(w, changed.hinge, 3.0f);
+        m3Joint_SetMaxMotorEffort(w, changed.hinge, 10.0f);
+        m3Joint_EnableMotor(w, changed.hinge, false);
         break;
     default:
         m3Joint_EnableConnectedCollision(w, changed.hinge, true);

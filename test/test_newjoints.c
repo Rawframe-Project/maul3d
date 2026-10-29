@@ -164,7 +164,9 @@ static double ArmDroop(bool spring, bool motor, float budget)
     m3JointId joint = NewJoint(world, &jd);
     if (spring)
     {
-        m3Joint_SetSpring(world, joint, true, 6.0f, 1.0f);
+        m3Joint_SetSpringHertz(world, joint, 6.0f);
+        m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
+        m3Joint_EnableSpring(world, joint, true);
         m3Joint_SetTargetAngle(world, joint, 0.0f);
     }
     for (int32_t i = 0; i < 240; ++i)
@@ -360,10 +362,13 @@ static double ServoDroop(float maxForce)
     jd.bodyIdA = anchor;
     jd.bodyIdB = cube;
     m3JointId servo = NewJoint(world, &jd);
-    m3Joint_SetSpring(world, servo, true, 8.0f, 1.0f);
+    m3Joint_SetSpringHertz(world, servo, 8.0f);
+    m3Joint_SetSpringDampingRatio(world, servo, 1.0f);
+    m3Joint_EnableSpring(world, servo, true);
     if (maxForce > 0.0f)
     {
-        m3Joint_SetLimits(world, servo, true, maxForce, 0.0f);
+        m3Joint_SetLimits(world, servo, maxForce, 0.0f);
+        m3Joint_EnableLimit(world, servo, true);
     }
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -432,7 +437,9 @@ static void TestMotorJointServo(void)
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
         m3JointId servo = NewJoint(world, &jd);
-        m3Joint_SetSpring(world, servo, true, 6.0f, 1.0f);
+        m3Joint_SetSpringHertz(world, servo, 6.0f);
+        m3Joint_SetSpringDampingRatio(world, servo, 1.0f);
+        m3Joint_EnableSpring(world, servo, true);
         m3Quat aim = {0.0f, 0.0f, 0.70710678f, 0.70710678f}; // 90 deg about z
         m3Joint_SetMotorPose(world, servo, (m3Vec3){0.6f, -1.0f, 0.0f}, aim);
         for (int32_t i = 0; i < 240; ++i)
@@ -480,7 +487,9 @@ static void TestMotorJointServo(void)
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
         m3JointId servo = NewJoint(world, &jd);
-        m3Joint_SetSpring(world, servo, true, 6.0f, 1.0f);
+        m3Joint_SetSpringHertz(world, servo, 6.0f);
+        m3Joint_SetSpringDampingRatio(world, servo, 1.0f);
+        m3Joint_EnableSpring(world, servo, true);
         m3Joint_SetMotorPose(world, servo, (m3Vec3){0.3f, -1.0f, 0.0f},
                              (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
         for (int32_t i = 0; i < 60; ++i)
@@ -502,7 +511,7 @@ static void TestMotorJointServo(void)
         // The servo keeps its aim in the motor slot, so a motor call
         // must not reach it.
         uint64_t aimed = m3World_Hash(world);
-        CHECK_REFUSES(world, m3Joint_SetMotor(world, servo, true, 2.0f, 1.0f),
+        CHECK_REFUSES(world, m3Joint_SetMotorSpeed(world, servo, 2.0f),
                       "a motor joint takes no motor");
         CHECK(m3World_Hash(world) == aimed, "the refused motor moved no bits");
         hashes[run] = m3World_Hash(world);
