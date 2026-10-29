@@ -6,6 +6,26 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.9.0](https://github.com/Rawframe-Project/maul3d/compare/v0.8.0...v0.9.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **joint:** a motor joint's budgets are m3JointDef.maxForce and maxTorque, set with m3MotorJoint_SetMaxForce and SetMaxTorque, and m3Joint_SetMotorPose is m3MotorJoint_SetOffsets; m3JointDef grows to 224 bytes and journal tapes use format 3.
+* **joint:** m3Joint_SetLimits takes only the range, and m3Joint_SetMotor and m3Joint_SetSpring are replaced by a switch, a setter per value and getters, as in the table.
+* the six names in the table are renamed; the def layouts and journal ops keep their bytes.
+
+### Fixed
+
+* **joint:** refuse SetMotor on joint types without a motor ([#184](https://github.com/Rawframe-Project/maul3d/issues/184)) ([5d6a647](https://github.com/Rawframe-Project/maul3d/commit/5d6a6477e26f6bec3257b826ad4e8f7514442dac)), closes [#183](https://github.com/Rawframe-Project/maul3d/issues/183)
+
+
+### Changed
+
+* **joint:** give the motor joint its budgets and SetOffsets ([#187](https://github.com/Rawframe-Project/maul3d/issues/187)) ([65de1f7](https://github.com/Rawframe-Project/maul3d/commit/65de1f74a3dd28f07f185af374603d3bde4343fb))
+* **joint:** split limit, motor and spring switches from values ([#185](https://github.com/Rawframe-Project/maul3d/issues/185)) ([bf3f773](https://github.com/Rawframe-Project/maul3d/commit/bf3f773c76d685777fa3e12aa13a08283a2c6762))
+* name connected collision and sleep by the enable rule ([#182](https://github.com/Rawframe-Project/maul3d/issues/182)) ([7e68ca6](https://github.com/Rawframe-Project/maul3d/commit/7e68ca649d35942ffba4754cedbbd3b9bfb05578))
+
 ## [0.8.0](https://github.com/Rawframe-Project/maul3d/compare/v0.7.0...v0.8.0) (2026-10-28)
 
 ### Added
