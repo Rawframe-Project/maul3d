@@ -247,8 +247,8 @@ static bool GenericRangesFit(uint32_t modes, int32_t shift, m3Vec3 lower, m3Vec3
 }
 
 // A joint's limits as its create and SetLimits keep them: ordered while
-// the limit is on, a spherical cone angle not negative while the cone is
-// on, and a pulley's rope constant, a sum of lengths, not negative. A
+// the limit is on, a spherical cone as its create and cone calls keep it,
+// and a pulley's rope constant, a sum of lengths, not negative. A
 // motor joint's limit slots hold its budgets, checked with its drive. A
 // distance joint's hold its length range, always on, and its spring's rest
 // length, as its create, SetLengthRange and SetLength keep them.
@@ -264,8 +264,8 @@ static bool JointLimitsFit(uint8_t type, uint8_t flags, m3Vec3 limits)
                m3DistanceRestLengthFits(limits.z);
     }
     return !((flags & M3_JOINT_LIMIT) != 0 && !(limits.x <= limits.y)) &&
-           !(type == (uint8_t)m3_sphericalJoint && (flags & M3_JOINT_CONE) != 0 &&
-             limits.z < 0.0f) &&
+           !(type == (uint8_t)m3_sphericalJoint &&
+             !m3SphericalConeFits((flags & M3_JOINT_CONE) != 0 ? 1 : 0, limits.z)) &&
            !(type == (uint8_t)m3_pulleyJoint && limits.z < 0.0f);
 }
 

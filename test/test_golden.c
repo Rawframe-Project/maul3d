@@ -361,7 +361,8 @@ static m3JointDef HangDef(m3World* world, m3BodyId ground, double x, double y, d
     return jd;
 }
 
-static void AddHinges(m3World* world, m3BodyId ground)
+// Returns the ball joint, whose cone the tour moves.
+static m3JointId AddHinges(m3World* world, m3BodyId ground)
 {
     m3JointDef ball = HangDef(world, ground, 20.0, 2.2, 0.4, m3_sphericalJoint, NULL);
     ball.enableLimit = true;
@@ -370,6 +371,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     ball.enableCone = true;
     ball.coneAngle = 0.5f;
     m3JointId joint = NewJoint(world, &ball);
+    m3JointId shoulder = joint;
     m3Joint_SetSpringHertz(world, joint, 2.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 0.3f);
     m3Joint_EnableSpring(world, joint, true);
@@ -393,6 +395,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     parallel.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     parallel.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
     NewJoint(world, &parallel);
+    return shoulder;
 }
 
 static void AddSliders(m3World* world, m3BodyId ground)
@@ -742,6 +745,7 @@ typedef struct Tour
     m3ShapeId deck;
     m3JointId spare;
     m3JointId ghost; // a generic joint with every axis free: no rows
+    m3JointId shoulder;
     m3VehicleId tank;
     m3CharacterId guest;
     m3SoftBodyId rope;
@@ -768,7 +772,7 @@ static void BuildTour(Tour* t, m3World* world)
     m3World_SetPreSolveCallback(world, TourVeto, NULL);
     m3BodyId ground = AddGround(world);
     AddTerrain(world);
-    AddHinges(world, ground);
+    t->shoulder = AddHinges(world, ground);
     AddSliders(world, ground);
     AddWeldsAndDrives(world, ground);
     t->cast = AddVehicles(world, 0.0, 60.0);
@@ -951,6 +955,9 @@ static void TourJointsAndSoft(const Tour* t)
     m3Joint_EnableSpring(t->world, t->spare, true);
     m3Joint_SetMotorSpeed(t->world, t->ghost, 0.5f);
     m3Joint_SetMaxMotorEffort(t->world, t->ghost, 2.0f);
+    m3SphericalJoint_EnableCone(t->world, t->shoulder, false);
+    m3SphericalJoint_SetConeAngle(t->world, t->shoulder, 0.6f);
+    m3SphericalJoint_EnableCone(t->world, t->shoulder, true);
     m3Joint_EnableConnectedCollision(t->world, t->spare, true);
     m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);

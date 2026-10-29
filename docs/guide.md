@@ -400,8 +400,12 @@ Twelve types, every one built from the same proven row blocks
 (point, axial, rotation-vector) so a new joint is a recipe, not
 new math:
 
-- `m3_sphericalJoint`: a shared point, plus an optional cone limit
-  (`coneAngle`) and twist limit pair.
+- `m3_sphericalJoint`: a shared point, plus an optional swing cone
+  (`enableCone`, `coneAngle`) and twist limit pair. The cone is the
+  spherical joint's alone: every other type refuses `enableCone`.
+  `m3SphericalJoint_EnableCone` and `m3SphericalJoint_SetConeAngle`
+  change it at run time; the angle is never negative while the cone
+  is on.
 - `m3_revoluteJoint`: hinge; angle limits and a motor
   (`motorSpeed`, `maxMotorTorque`).
 - `m3_prismaticJoint`: slider; translation limits and a motor.

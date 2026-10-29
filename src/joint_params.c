@@ -408,6 +408,16 @@ void m3DistanceJointSetLengthInternal(m3World* world, int32_t j, float length)
     JointWakeBodies(world, j);
 }
 
+void m3SphericalJointSetConeInternal(m3World* world, int32_t j, int32_t enable, float angle)
+{
+    world->joints.jointFlags[j] = (uint8_t)((world->joints.jointFlags[j] & ~M3_JOINT_CONE) |
+                                            (enable != 0 ? M3_JOINT_CONE : 0u));
+    world->joints.jointLimits[j].z = angle;
+    // A toggled or moved cone invalidates its stored row impulse.
+    world->joints.jointLimitImpulse[j].z = 0.0f;
+    JointWakeBodies(world, j);
+}
+
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q)
 {
     world->joints.jointTargetScalar[j] = scalar;
@@ -463,6 +473,11 @@ bool m3DistanceLengthsFit(float minLength, float maxLength)
 bool m3DistanceRestLengthFits(float length)
 {
     return m3FiniteF(length) && length >= 0.0f;
+}
+
+bool m3SphericalConeFits(int32_t enable, float angle)
+{
+    return m3FiniteF(angle) && !(enable != 0 && angle < 0.0f);
 }
 
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)

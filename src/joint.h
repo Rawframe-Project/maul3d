@@ -35,6 +35,9 @@ m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upp
 bool m3DistanceLengthsFit(float minLength, float maxLength);
 // A distance joint's spring rest length: finite and not negative.
 bool m3DistanceRestLengthFits(float length);
+// A spherical joint's cone: a finite angle, not negative while the cone is
+// on. A def may leave a negative angle with its cone off.
+bool m3SphericalConeFits(int32_t enable, float angle);
 
 // The reach of a motor joint's aim. Its create aims at the gap between
 // the anchors in body A's frame. Each body's position is within
@@ -82,6 +85,8 @@ void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float h
 
 // A distance joint's spring rest length, kept in its limit slot's z.
 void m3DistanceJointSetLengthInternal(m3World* world, int32_t j, float length);
+// A spherical joint's cone: its switch and its angle, in the limit slot's z.
+void m3SphericalJointSetConeInternal(m3World* world, int32_t j, int32_t enable, float angle);
 
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q);
 

@@ -634,11 +634,12 @@ static void TestTwistJacobianFiniteDifference(void)
     CHECK(checked >= 15, "enough non-degenerate poses were checked");
 }
 
-static void TestShoulderCone(void)
+// An arm on a spherical joint, sticking out horizontal from its socket, with
+// its 30-degree cone on or off. Dropped from horizontal (swing 90 degrees),
+// it must be caught by the cone and settle hanging inside it, never outside
+// the band.
+static m3World* ShoulderWorld(bool cone, m3BodyId* armOut, m3JointId* shoulderOut)
 {
-    // An arm on a spherical joint with a 30-degree cone: dropped from
-    // horizontal (swing 90 degrees), it must be caught by the cone
-    // and settle hanging inside it, never outside the band.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
@@ -652,15 +653,15 @@ static void TestShoulderCone(void)
     bd.position = (m3Pos3){0.6, 0.0, 0.0}; // arm sticks out horizontal
     bd.linearDamping = 1.0f;
     bd.angularDamping = 1.0f;
-    m3BodyId arm = NewBody(world, &bd);
+    *armOut = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Capsule capsule = {{-0.5f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.1f};
-    NewCapsuleShape(world, arm, &sd, &capsule);
+    NewCapsuleShape(world, *armOut, &sd, &capsule);
 
     m3JointDef jd = m3DefaultJointDef();
     jd.type = m3_sphericalJoint;
     jd.bodyIdA = socket;
-    jd.bodyIdB = arm;
+    jd.bodyIdB = *armOut;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.6f, 0.0f, 0.0f};
     // The cone axis points along +x, HORIZONTAL: gravity wants the
@@ -670,18 +671,188 @@ static void TestShoulderCone(void)
     // (the first version of this test learned that the hard way).
     jd.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
     jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f}; // the arm's long axis
-    jd.enableCone = true;
+    jd.enableCone = cone;
     jd.coneAngle = 0.5236f; // 30 degrees
-    CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the shoulder creates");
+    *shoulderOut = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, *shoulderOut), "the shoulder creates");
+    return world;
+}
 
-    StepN(world, 480);
+// The sine of the arm's angle below the horizon.
+static double ArmDroop(const m3World* world, m3BodyId arm, double* lengthOut)
+{
     m3Pos3 p = m3Body_GetPosition(world, arm);
     double len = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+    *lengthOut = len;
+    return -p.y / len;
+}
+
+static void TestShoulderCone(void)
+{
+    m3BodyId arm;
+    m3JointId shoulder;
+    m3World* world = ShoulderWorld(true, &arm, &shoulder);
+    StepN(world, 480);
+    double len;
+    double droop = ArmDroop(world, arm, &len);
     CHECK(len > 0.55 && len < 0.65, "the arm still hangs from the socket");
-    double droop = -p.y / len; // sine of the angle below the horizon
     CHECK(droop > 0.44 && droop < 0.56, "the cone catches the droop at thirty degrees");
-    CHECK(p.x > 0.4, "the arm stays out along the cone axis");
+    CHECK(m3Body_GetPosition(world, arm).x > 0.4, "the arm stays out along the cone axis");
     m3DestroyWorld(world);
+}
+
+// The same shoulder built with its cone off hangs straight down; the cone
+// switched on at run time lifts the arm back into it, and switched off
+// again lets it fall.
+static void TestShoulderConeAtRunTime(void)
+{
+    m3BodyId arm;
+    m3JointId shoulder;
+    m3World* world = ShoulderWorld(false, &arm, &shoulder);
+    StepN(world, 480);
+    double len;
+    CHECK(ArmDroop(world, arm, &len) > 0.95, "without its cone the arm hangs straight down");
+    m3SphericalJoint_SetConeAngle(world, shoulder, 0.5236f);
+    m3SphericalJoint_EnableCone(world, shoulder, true);
+    StepN(world, 480);
+    double droop = ArmDroop(world, arm, &len);
+    CHECK(len > 0.55 && len < 0.65, "the arm still hangs from the socket");
+    CHECK(droop > 0.44 && droop < 0.56, "the cone switched on lifts it to thirty degrees");
+    m3SphericalJoint_EnableCone(world, shoulder, false);
+    StepN(world, 480);
+    CHECK(ArmDroop(world, arm, &len) > 0.95, "switched off, it lets the arm fall again");
+    CHECK(m3World_GetCounters(world).misuse == 0, "no call was refused");
+    m3DestroyWorld(world);
+}
+
+// The cone calls' rules: the angle is finite and never set negative, the
+// switch refuses a negative angle a def left, and every other joint type
+// refuses the calls and counts a misuse each.
+static void TestConeCalls(void)
+{
+    m3BodyId arm;
+    m3JointId shoulder;
+    m3World* world = ShoulderWorld(false, &arm, &shoulder);
+    CHECK(!m3SphericalJoint_IsConeEnabled(world, shoulder) &&
+              m3SphericalJoint_GetConeAngle(world, shoulder) == 0.5236f,
+          "the def's cone reads back, switched off");
+    m3SphericalJoint_SetConeAngle(world, shoulder, 0.4f);
+    CHECK(m3SphericalJoint_GetConeAngle(world, shoulder) == 0.4f &&
+              !m3SphericalJoint_IsConeEnabled(world, shoulder),
+          "an angle is taken with the cone off");
+    m3SphericalJoint_EnableCone(world, shoulder, true);
+    CHECK(m3SphericalJoint_IsConeEnabled(world, shoulder), "the cone switches on");
+    CHECK(m3World_GetCounters(world).misuse == 0, "and nothing was refused");
+
+    static const float bad[] = {-0.1f, NAN, INFINITY, -INFINITY};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); ++i)
+    {
+        uint64_t misuse = m3World_GetCounters(world).misuse;
+        m3SphericalJoint_SetConeAngle(world, shoulder, bad[i]);
+        CHECK(m3World_GetCounters(world).misuse == misuse + 1u &&
+                  m3SphericalJoint_GetConeAngle(world, shoulder) == 0.4f,
+              "a negative or non-finite angle is refused and changes nothing");
+    }
+    m3SphericalJoint_EnableCone(world, shoulder, false);
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    m3SphericalJoint_SetConeAngle(world, shoulder, -0.1f);
+    CHECK(m3World_GetCounters(world).misuse == misuse + 1u, "with the cone off too");
+
+    // The body sleeps; a cone call wakes it.
+    m3Body_SetAwake(world, arm, false);
+    m3SphericalJoint_SetConeAngle(world, shoulder, 0.3f);
+    CHECK(m3Body_IsAwake(world, arm), "a cone call wakes the joint's bodies");
+    m3DestroyWorld(world);
+
+    // A def may leave a negative angle while its cone is off; the switch
+    // refuses to turn the cone on over it, and takes it once moved.
+    m3WorldDef wd = m3DefaultWorldDef();
+    world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId socket = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, -1.0, 0.0};
+    m3BodyId bob = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.bodyIdA = socket;
+    jd.bodyIdB = bob;
+    jd.coneAngle = -0.5f;
+    m3JointId ball = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, ball) && m3SphericalJoint_GetConeAngle(world, ball) == -0.5f,
+          "a def leaves a negative angle with its cone off");
+    m3SphericalJoint_EnableCone(world, ball, true);
+    CHECK(!m3SphericalJoint_IsConeEnabled(world, ball) && m3World_GetCounters(world).misuse == 1u,
+          "the switch refuses to turn the cone on over it");
+    m3SphericalJoint_EnableCone(world, ball, false);
+    CHECK(m3World_GetCounters(world).misuse == 1u, "switching it off again is taken");
+    m3SphericalJoint_SetConeAngle(world, ball, 0.2f);
+    m3SphericalJoint_EnableCone(world, ball, true);
+    CHECK(m3SphericalJoint_IsConeEnabled(world, ball) && m3World_GetCounters(world).misuse == 1u,
+          "once moved, the cone switches on");
+
+    // Every other type refuses the four calls, and a stale id too.
+    jd.type = m3_revoluteJoint;
+    jd.coneAngle = 0.0f;
+    m3JointId hinge = NewJoint(world, &jd);
+    m3JointId gone = NewJoint(world, &jd);
+    DestroyJoint(world, gone);
+    m3JointId others[2] = {hinge, gone};
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        misuse = m3World_GetCounters(world).misuse;
+        m3SphericalJoint_EnableCone(world, others[i], true);
+        m3SphericalJoint_SetConeAngle(world, others[i], 0.3f);
+        bool on = m3SphericalJoint_IsConeEnabled(world, others[i]);
+        float angle = m3SphericalJoint_GetConeAngle(world, others[i]);
+        CHECK(!on && angle == 0.0f && m3World_GetCounters(world).misuse == misuse + 4u,
+              "a hinge or a stale id refuses each cone call, and the getters read false and zero");
+    }
+    CHECK(!m3Joint_IsLimitEnabled(world, hinge) && !m3Joint_IsMotorEnabled(world, hinge),
+          "and the hinge keeps its own switches");
+    m3DestroyWorld(world);
+}
+
+// Records the shoulder's cone moved to 0.6 and switched on, with every 0.6
+// in the tape's records set to angle, and tells whether a fresh shoulder
+// replays it.
+static bool ReplaysCone(float angle)
+{
+    static uint8_t tape[16384];
+    m3BodyId arm;
+    m3JointId shoulder;
+    m3World* world = ShoulderWorld(false, &arm, &shoulder);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the shoulder tape records");
+    m3SphericalJoint_SetConeAngle(world, shoulder, 0.6f);
+    m3SphericalJoint_EnableCone(world, shoulder, true);
+    StepN(world, 30);
+    int32_t bytes = StopJournal(world);
+    const float recorded = 0.6f;
+    int32_t patched = 0;
+    for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
+    {
+        if (memcmp(tape + i, &recorded, 4) == 0)
+        {
+            memcpy(tape + i, &angle, 4);
+            ++patched;
+        }
+    }
+    CHECK(patched == 2, "the angle sits in the two cone records");
+    m3World* replayed = ShoulderWorld(false, &arm, &shoulder);
+    bool ok = ReplayJournal(replayed, tape, bytes);
+    if (ok && angle == recorded)
+    {
+        CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the cone replays bit-identical");
+    }
+    m3DestroyWorld(replayed);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+static void TestConeReplay(void)
+{
+    CHECK(ReplaysCone(0.6f), "a recorded cone replays");
+    CHECK(!ReplaysCone(-1.0f), "a recorded cone switched on over a negative angle is refused");
+    CHECK(!ReplaysCone(NAN), "and so is a NaN angle");
 }
 
 static void TestTwistClamp(void)
@@ -1388,6 +1559,9 @@ int main(void)
     TestSliderGravityAlongRail();
     TestTwistJacobianFiniteDifference();
     TestShoulderCone();
+    TestShoulderConeAtRunTime();
+    TestConeCalls();
+    TestConeReplay();
     TestTwistClamp();
     TestHeavyBodyHangs();
     TestHeavyBodyWelds();

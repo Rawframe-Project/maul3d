@@ -99,6 +99,25 @@ bool m3ReplayDistanceJointSetLength(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
+bool m3ReplaySphericalJointSetCone(m3World* world, const m3ReplayRecord* r)
+{
+    m3OpSphericalJointSetCone record;
+    if (r->bytes != (int32_t)sizeof(record))
+    {
+        return false;
+    }
+    memcpy(&record, r->payload, sizeof(record));
+    int32_t slot = m3JointSlot(world, record.id);
+    if (slot < 0 || world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint ||
+        (record.enable != 0 && record.enable != 1) ||
+        !m3SphericalConeFits(record.enable, record.angle))
+    {
+        return false; // hostile cone bytes fail loudly
+    }
+    m3SphericalJointSetConeInternal(world, slot, record.enable, record.angle);
+    return true;
+}
+
 bool m3ReplayJointSetSteer(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;

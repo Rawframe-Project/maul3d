@@ -22,6 +22,7 @@ typedef struct Rig
     m3ShapeId shape;
     m3JointId hinge;
     m3JointId wheel;
+    m3JointId ball;
 } Rig;
 
 static Rig BuildRig(void)
@@ -53,6 +54,10 @@ static Rig BuildRig(void)
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     r.wheel = NewJoint(r.world, &jd);
+    jd = m3DefaultJointDef();
+    jd.bodyIdA = r.body;
+    jd.bodyIdB = rim;
+    r.ball = NewJoint(r.world, &jd);
     // The spring and the steering switch on only with a frequency.
     m3Joint_SetSpringHertz(r.world, r.hinge, 4.0f);
     m3WheelJoint_SetSteeringHertz(r.world, r.wheel, 4.0f);
@@ -91,6 +96,7 @@ SWITCH(Spring, hinge, m3Joint_EnableSpring, m3Joint_IsSpringEnabled)
 SWITCH(ConnectedCollision, hinge, m3Joint_EnableConnectedCollision,
        m3Joint_IsConnectedCollisionEnabled)
 SWITCH(Steering, wheel, m3WheelJoint_EnableSteering, m3WheelJoint_IsSteeringEnabled)
+SWITCH(Cone, ball, m3SphericalJoint_EnableCone, m3SphericalJoint_IsConeEnabled)
 
 static void SetWorldSleep(const Rig* r, bool on)
 {
@@ -124,6 +130,7 @@ static const Switch s_switches[] = {
     {"joint spring", SetSpring, ReadSpring},
     {"connected collision", SetConnectedCollision, ReadConnectedCollision},
     {"wheel steering", SetSteering, ReadSteering},
+    {"spherical cone", SetCone, ReadCone},
     {"world sleep", SetWorldSleep, ReadWorldSleep},
     {"continuous", SetContinuous, ReadContinuous},
 };
