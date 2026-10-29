@@ -351,10 +351,62 @@ static void TestWheelTargetKeepsSteering(void)
     m3DestroyWorld(world);
 }
 
+// Records a wheel whose steering takes a frequency of 6.25 Hz and then
+// switches on, with every 6.25 in the tape's records set to hertz, and
+// tells whether a fresh world replays it.
+static bool ReplaysSteering(float hertz)
+{
+    static uint8_t tape[16384];
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the steering tape records");
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId hub = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.4, 0.0};
+    m3BodyId rim = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_wheelJoint;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    m3JointId wheel = NewJoint(world, &jd);
+    m3WheelJoint_SetSteeringHertz(world, wheel, 6.25f);
+    m3WheelJoint_EnableSteering(world, wheel, true);
+    int32_t bytes = StopJournal(world);
+    m3DestroyWorld(world);
+    const float recorded = 6.25f;
+    int32_t patched = 0;
+    for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
+    {
+        if (memcmp(tape + i, &recorded, 4) == 0)
+        {
+            memcpy(tape + i, &hertz, 4);
+            ++patched;
+        }
+    }
+    CHECK(patched == 2, "the frequency sits in the two steering records");
+    world = NewWorld(&wd);
+    bool replayed = ReplayJournal(world, tape, bytes);
+    m3DestroyWorld(world);
+    return replayed;
+}
+
+// Replay checks a steering record as the setters do: a tape whose
+// enabled steering holds a zero frequency is refused, not applied.
+static void TestSteeringReplayRefusesZeroHertz(void)
+{
+    CHECK(ReplaysSteering(3.5f), "a steering tape with a positive frequency replays");
+    CHECK(!ReplaysSteering(0.0f), "a steering tape enabled at 0 Hz is refused");
+}
+
 // The steering switch and its four values are separate calls on one
 // record: each value reads back as set, switching steering off keeps the
 // values, steering needs a frequency before it switches on, and a joint
-// that is not a wheel refuses every setter and reads zeros.
+// that is not a wheel refuses every setter and getter.
 static void TestSteeringSwitchKeepsValues(void)
 {
     m3WorldDef wd = m3DefaultWorldDef();
@@ -402,10 +454,11 @@ static void TestSteeringSwitchKeepsValues(void)
     m3JointId ball = NewJoint(world, &jd);
     m3WheelJoint_SetSteeringHertz(world, ball, 6.0f);
     m3WheelJoint_EnableSteering(world, ball, true);
-    CHECK(m3World_GetCounters(world).misuse == misuse + 4 &&
-              !m3WheelJoint_IsSteeringEnabled(world, ball) &&
-              m3WheelJoint_GetSteeringHertz(world, ball) == 0.0f,
-          "a spherical joint refuses steering and reads zeros");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 4, "a spherical joint refuses steering");
+    CHECK_REFUSES(world, CHECK(!m3WheelJoint_IsSteeringEnabled(world, ball), "steering off"),
+                  "a spherical's steering switch reads off and counts misuse");
+    CHECK_REFUSES(world, CHECK(m3WheelJoint_GetSteeringHertz(world, ball) == 0.0f, "zero hertz"),
+                  "a spherical's steering frequency reads zero and counts misuse");
     m3DestroyWorld(world);
 }
 
@@ -623,9 +676,10 @@ static void TestMotorJointServo(void)
         CHECK(m3World_Hash(world) == before, "the refused aim moved no bits");
         CHECK_REFUSES(world, m3MotorJoint_SetMaxForce(world, ball, 1.0f),
                       "a spherical takes no servo budget");
-        CHECK(m3MotorJoint_GetMaxForce(world, ball) == 0.0f &&
-                  m3MotorJoint_GetLinearOffset(world, ball).x == 0.0f,
-              "a spherical's servo getters read zeros");
+        CHECK_REFUSES(world, CHECK(m3MotorJoint_GetMaxForce(world, ball) == 0.0f, "zero budget"),
+                      "a spherical's servo budget reads zero and counts misuse");
+        CHECK_REFUSES(world, CHECK(m3MotorJoint_GetLinearOffset(world, ball).x == 0.0f, "zero aim"),
+                      "a spherical's servo aim reads zero and counts misuse");
 
         // The def's budgets, the aim and the budgets read back, and the
         // servo takes no limits.
@@ -685,6 +739,7 @@ int main(void)
     TestWheelSteering();
     TestWheelTargetKeepsSteering();
     TestSteeringSwitchKeepsValues();
+    TestSteeringReplayRefusesZeroHertz();
     TestMotorJointServo();
     TestJointWalls();
     if (s_failures == 0)

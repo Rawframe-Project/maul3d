@@ -221,7 +221,9 @@ extern "C"
     /// in body A's joint frame, within 1e4 m on every axis, and
     /// angularOffset its target rotation relative to that frame, a unit
     /// quaternion within 10% that is stored normalized. A fresh servo aims
-    /// at its create pose.
+    /// at its create pose. Motor joints only, here and for the budgets:
+    /// each setter refuses any other type loudly, each getter reads zeros
+    /// for it, and either counts one misuse.
     M3_API void m3MotorJoint_SetOffsets(m3World* world, m3JointId joint, m3Vec3 linearOffset,
                                         m3Quat angularOffset);
     M3_API m3Vec3 m3MotorJoint_GetLinearOffset(const m3World* world, m3JointId joint);
@@ -243,8 +245,8 @@ extern "C"
     /// ratio in [0, 1e4] and the torque budget in [0, 1e20], 0 for no
     /// cap. The values hold while steering is off, so set the frequency
     /// before enabling it. Wheel joints only: each setter refuses any
-    /// other type loudly and counts one misuse, and each getter reads 0
-    /// for it. Journaled.
+    /// other type loudly, each getter reads 0 for it, and either counts
+    /// one misuse. Journaled.
     M3_API void m3WheelJoint_EnableSteering(m3World* world, m3JointId joint, bool enable);
     M3_API bool m3WheelJoint_IsSteeringEnabled(const m3World* world, m3JointId joint);
     M3_API void m3WheelJoint_SetTargetSteeringAngle(m3World* world, m3JointId joint, float radians);

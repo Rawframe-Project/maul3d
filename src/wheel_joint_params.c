@@ -97,14 +97,18 @@ static M3_NOINLINE void WheelJointSetSteering(m3World* world, m3JointId joint, S
     m3JointSetSteerInternal(world, slot, r.enable, r.target, r.hertz, r.dampingRatio, r.maxTorque);
 }
 
-// The steering as the joint holds it; zeros for a stale id, which counts
-// one misuse, and for a joint that is not a wheel.
+// The steering as the joint holds it; zeros for a stale id and for a
+// joint that is not a wheel, each of which counts one misuse.
 static SteerRecord WheelJointGetSteering(const m3World* world, m3JointId joint)
 {
     int32_t slot;
-    if (!ResolveJoint(world, joint, &slot) ||
-        world->joints.jointType[slot] != (uint8_t)m3_wheelJoint)
+    if (!ResolveJoint(world, joint, &slot))
     {
+        return (SteerRecord){0, 0.0f, 0.0f, 0.0f, 0.0f};
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_wheelJoint)
+    {
+        m3Refuse(world, m3_errorInvalid);
         return (SteerRecord){0, 0.0f, 0.0f, 0.0f, 0.0f};
     }
     return SteerHeld(world, slot);
