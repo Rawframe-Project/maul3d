@@ -18,6 +18,7 @@ cpu:
 destruction: body body_state distance fpenv journal manifold misuse query shape_state voxel world_internal
 diff: fpenv world_internal
 distance: core
+distance_joint_params: fpenv joint joint_solver journal misuse world_internal
 draw: broad_phase fpenv manifold misuse shape_state world_internal
 dynamic_tree: allocator
 format_layout: journal world_internal

@@ -441,8 +441,13 @@ m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxE
 bool m3JointHasLimits(uint8_t type)
 {
     return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
-           type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint ||
-           type == (uint8_t)m3_distanceJoint;
+           type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint;
+}
+
+bool m3DistanceLengthsFit(float minLength, float maxLength)
+{
+    return m3FiniteF(minLength) && m3FiniteF(maxLength) && minLength >= 0.0f &&
+           minLength <= maxLength;
 }
 
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)

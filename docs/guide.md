@@ -407,10 +407,12 @@ new math:
 - `m3_prismaticJoint`: slider; translation limits and a motor.
 - `m3_fixedJoint`: weld. The relative pose at create time IS the
   weld pose (axes and limits are ignored by contract).
-- `m3_distanceJoint`: rope or rod along the anchor axis. Equal
-  bounds make a rod; `hertz`/`zeta` in the motor fields make a
-  soft spring whose rest length rides `coneAngle` and must lie
-  inside the bounds.
+- `m3_distanceJoint`: rope or rod along the anchor axis, held
+  within `minLength` and `maxLength`. Equal lengths make a rod;
+  `hertz`/`zeta` in the motor fields make a soft spring whose rest
+  length rides `coneAngle` and must lie inside the range, or is
+  `maxLength` when `coneAngle` is zero.
+  `m3DistanceJoint_SetLengthRange` changes the range at run time.
 - `m3_genericJoint`: per-axis `m3AxisMode` (locked, free, limited)
   over three linear and three angular axes, plus one motor on any
   movable axis. The v1 angular contract: at most one limited
@@ -790,15 +792,16 @@ call zeroes the stored impulse of the rows it changes. A limit
 range is ordered when it is set and whenever the limit is on; a
 spring is positive in hertz while it is on. Only revolute,
 prismatic, wheel, generic and distance joints take a motor, and
-only revolute, prismatic, spherical, wheel and distance joints
-take limits; the calls refuse every other type, the motor joint
-included, whose budgets have calls of their own.
+only revolute, prismatic, spherical and wheel joints take limits;
+the calls refuse every other type, the motor joint and the distance
+joint included, whose budgets and length range have calls of their
+own.
 `m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
 The spring arms the position drive on revolute (target angle),
 prismatic and wheel (target translation) and spherical (target
-rotation) joints;
-`m3RevoluteJoint_SetTargetAngle/SetTargetTranslation/SetTargetRotation`
-move the goal. The rotation target lives in the JOINT FRAMES
+rotation) joints; `m3RevoluteJoint_SetTargetAngle`,
+`m3Joint_SetTargetTranslation` and
+`m3SphericalJoint_SetTargetRotation` move the goal. The rotation target lives in the JOINT FRAMES
 (frame z is the create-time local axis). Reaction readback:
 `m3Joint_GetConstraintForce/GetConstraintTorque` return last-step
 magnitudes assembled per type; they read 0 until the first step

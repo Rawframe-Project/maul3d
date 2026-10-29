@@ -121,8 +121,12 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     if (op == m3_opJointSetLimits)
     {
         uint8_t type = world->joints.jointType[slot];
-        if (!(m3JointHasLimits(type) || type == (uint8_t)m3_motorJoint) ||
-            m3JointLimitsCheck(type, record.enable, record.a, record.b) != m3_success)
+        bool fits =
+            type == (uint8_t)m3_distanceJoint
+                ? record.enable == 1 && m3DistanceLengthsFit(record.a, record.b)
+                : (m3JointHasLimits(type) || type == (uint8_t)m3_motorJoint) &&
+                      m3JointLimitsCheck(type, record.enable, record.a, record.b) == m3_success;
+        if (!fits)
         {
             return false;
         }

@@ -148,9 +148,8 @@ static int32_t RecordSession(uint8_t fill, uint8_t* tape, int32_t capacity)
     jointModel.type = m3_distanceJoint;
     jointModel.bodyIdA = a;
     jointModel.bodyIdB = b;
-    jointModel.enableLimit = true;
-    jointModel.lowerLimit = 1.0f;
-    jointModel.upperLimit = 3.0f;
+    jointModel.minLength = 1.0f;
+    jointModel.maxLength = 3.0f;
     m3JointDef jd;
     PADDED(m3JointDef, jd, jointModel, fill);
     s_paint(fill);

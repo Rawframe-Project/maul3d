@@ -20,7 +20,7 @@ extern "C"
         m3_revoluteJoint = 1,  // hinge: one rotation axis, limits, motor
         m3_prismaticJoint = 2, // slider: one translation axis, limits, motor
         m3_fixedJoint = 3,     // weld: full 6-DOF lock at the create pose
-        m3_distanceJoint = 4,  // rope/rod: anchor distance in [lower, upper]
+        m3_distanceJoint = 4,  // rope/rod: anchor distance in [minLength, maxLength]
         m3_genericJoint = 5,   // 6-DOF: per-axis lock/free/limit + one motor
         m3_wheelJoint = 6,
         /// FILTER: no constraint rows at all; the joint's
@@ -102,15 +102,15 @@ extern "C"
         /// lowerLimit and upperLimit as twist angles.
         bool enableCone;
         m3real coneAngle; // radians from the A frame's z-axis
-        /// Distance joints REQUIRE enableLimit with
-        /// 0 <= lowerLimit <= upperLimit meters (a rod is lower ==
-        /// upper; a rope is a range). Their optional spring reuses
+        /// Distance joints hold the anchor distance in [minLength,
+        /// maxLength] below and take no limit: enableLimit refuses them.
+        /// Their optional spring reuses
         /// the motor fields, documented reuse: enableMotor turns it
         /// on, motorSpeed is the spring hertz (> 0, at most 1e5), maxMotorEffort
         /// is the damping ratio (>= 0); coneAngle (a further
         /// documented reuse) is the spring's rest length when
-        /// positive and must sit inside [lower, upper]; when zero,
-        /// the rest length is the upper limit. Fixed joints ignore axes
+        /// positive and must sit inside [minLength, maxLength]; when
+        /// zero, the rest length is maxLength. Fixed joints ignore axes
         /// and limits entirely: they weld the create-time pose.
         /// Jointed bodies do not collide with each other unless this
         /// is set (the classic chain-fight guard).
@@ -162,6 +162,11 @@ extern "C"
         /// [0, 1e20], 0 for no cap. Other types ignore them.
         m3real maxForce;
         m3real maxTorque;
+        /// The distance joint's range, 0 <= minLength <= maxLength meters:
+        /// a rod is minLength == maxLength, a rope a range. Other types
+        /// ignore them.
+        m3real minLength;
+        m3real maxLength;
         int32_t internalValue;
     } m3JointDef;
 
@@ -195,9 +200,9 @@ extern "C"
     /// which counts one misuse, and for a type without that part.
     ///
     /// Limits: angles for revolute joints and the spherical twist, meters
-    /// for prismatic, wheel and distance joints. The range is ordered
-    /// when it is set and whenever the limit is on. Other joint types take
-    /// no limits.
+    /// for prismatic and wheel joints. The range is ordered when it is set
+    /// and whenever the limit is on. Other joint types take no limits; a
+    /// distance joint's range is its length range below.
     M3_API void m3Joint_EnableLimit(m3World* world, m3JointId joint, bool enable);
     M3_API bool m3Joint_IsLimitEnabled(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetLimits(m3World* world, m3JointId joint, float lower, float upper);
@@ -236,6 +241,17 @@ extern "C"
     M3_API float m3MotorJoint_GetMaxForce(const m3World* world, m3JointId joint);
     M3_API void m3MotorJoint_SetMaxTorque(m3World* world, m3JointId joint, float maxTorque);
     M3_API float m3MotorJoint_GetMaxTorque(const m3World* world, m3JointId joint);
+
+    /// The distance joint's length range in meters, 0 <= minLength <=
+    /// maxLength, finite: a rod is minLength == maxLength, a rope a range.
+    /// A spring whose def gave no rest length pulls toward maxLength.
+    /// Distance joints only: the setter
+    /// refuses any other type loudly, the getter reads zeros for it, and
+    /// either counts one misuse. Either output may be null. Journaled.
+    M3_API void m3DistanceJoint_SetLengthRange(m3World* world, m3JointId joint, float minLength,
+                                               float maxLength);
+    M3_API void m3DistanceJoint_GetLengthRange(const m3World* world, m3JointId joint,
+                                               float* minLengthOut, float* maxLengthOut);
 
     /// Wheel steering: a soft drive about the strut axis toward a target
     /// angle. While steering is enabled, the wheel's frame-x lock becomes

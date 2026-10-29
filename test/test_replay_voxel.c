@@ -63,11 +63,14 @@ static void Apply(Chunk* c, Edit edit, int32_t x, int32_t y, int32_t z)
     }
 }
 
+// The tape's state prefix, whose version number may equal a coordinate.
+#define TAPE_HEADER_BYTES 16
+
 // Replaces the one occurrence of from's bytes in the record with to's.
 static bool Patch(int32_t bytes, int32_t from, int32_t to)
 {
     int32_t at = -1;
-    for (int32_t i = 0; i + 4 <= bytes; ++i)
+    for (int32_t i = TAPE_HEADER_BYTES; i + 4 <= bytes; ++i)
     {
         if (memcmp(s_journal + i, &from, 4) == 0)
         {

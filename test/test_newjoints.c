@@ -502,6 +502,109 @@ static double ServoDroop(float maxForce)
     return droop;
 }
 
+// Two bodies in zero gravity on a distance joint with the given range,
+// and a spherical joint between the same bodies.
+static m3World* RopeWorld(float minLength, float maxLength, m3JointId* ropeOut, m3JointId* ballOut)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId a = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    m3BodyId b = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_distanceJoint;
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
+    jd.minLength = minLength;
+    jd.maxLength = maxLength;
+    *ropeOut = NewJoint(world, &jd);
+    jd = m3DefaultJointDef();
+    jd.bodyIdA = a;
+    jd.bodyIdB = b;
+    *ballOut = NewJoint(world, &jd);
+    return world;
+}
+
+// The distance joint's range is its length range, set and read through
+// its own calls: the limit calls refuse it, a range must be ordered and
+// not negative, another joint type refuses the calls, and replay checks a
+// recorded range the same way.
+static void TestDistanceLengthRange(void)
+{
+    m3JointId rope;
+    m3JointId ball;
+    m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    float minLength = 0.0f;
+    float maxLength = 0.0f;
+    m3DistanceJoint_GetLengthRange(world, rope, &minLength, &maxLength);
+    CHECK(minLength == 0.5f && maxLength == 2.0f, "the def's range reads back");
+    CHECK_ACCEPTS(world, m3DistanceJoint_SetLengthRange(world, rope, 1.0f, 1.0f),
+                  "an equal range makes a rod");
+    m3DistanceJoint_GetLengthRange(world, rope, &minLength, NULL);
+    m3DistanceJoint_GetLengthRange(world, rope, NULL, &maxLength);
+    CHECK(minLength == 1.0f && maxLength == 1.0f, "the rod reads back");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLengthRange(world, rope, 2.0f, 1.0f),
+                  "an unordered range refuses");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLengthRange(world, rope, -0.5f, 1.0f),
+                  "a negative minimum refuses");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLengthRange(world, rope, 0.5f, NAN),
+                  "a NaN maximum refuses");
+    m3DistanceJoint_GetLengthRange(world, rope, &minLength, &maxLength);
+    CHECK(minLength == 1.0f && maxLength == 1.0f, "a refused range changes nothing");
+    CHECK_REFUSES(world, m3Joint_EnableLimit(world, rope, true), "a rope takes no limit");
+    CHECK_REFUSES(world, m3Joint_SetLimits(world, rope, 0.0f, 3.0f), "nor a limit range");
+    CHECK(!m3Joint_IsLimitEnabled(world, rope), "and reads no limit");
+    CHECK_REFUSES(world, m3DistanceJoint_SetLengthRange(world, ball, 0.5f, 1.0f),
+                  "a spherical joint takes no length range");
+    CHECK_REFUSES(world, m3DistanceJoint_GetLengthRange(world, ball, &minLength, &maxLength),
+                  "and reading one counts misuse");
+    CHECK(minLength == 0.0f && maxLength == 0.0f, "and reads zeros");
+    m3DestroyWorld(world);
+}
+
+// Records a rope whose range is then set to 0.75 to 1.25, with every 0.75
+// in the tape's records set to minLength, and tells whether a fresh world
+// replays it.
+static bool ReplaysLengthRange(float minLength)
+{
+    static uint8_t tape[16384];
+    m3JointId rope;
+    m3JointId ball;
+    m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the rope tape records");
+    m3DistanceJoint_SetLengthRange(world, rope, 0.75f, 1.25f);
+    int32_t bytes = StopJournal(world);
+    const float recorded = 0.75f;
+    int32_t patched = 0;
+    for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
+    {
+        if (memcmp(tape + i, &recorded, 4) == 0)
+        {
+            memcpy(tape + i, &minLength, 4);
+            ++patched;
+        }
+    }
+    CHECK(patched == 1, "the minimum sits in the one range record");
+    m3World* replayed = RopeWorld(0.5f, 2.0f, &rope, &ball);
+    bool ok = ReplayJournal(replayed, tape, bytes);
+    if (ok && minLength == recorded)
+    {
+        CHECK(m3World_Hash(replayed) == m3World_Hash(world), "the range replays bit-identical");
+    }
+    m3DestroyWorld(replayed);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+static void TestDistanceLengthRangeReplay(void)
+{
+    CHECK(ReplaysLengthRange(0.75f), "a recorded range replays");
+    CHECK(!ReplaysLengthRange(1.5f), "a recorded range out of order is refused");
+}
+
 static void TestMotorJointServo(void)
 {
     // The servo weld: springless it idles FREE (the joint
@@ -740,6 +843,8 @@ int main(void)
     TestWheelTargetKeepsSteering();
     TestSteeringSwitchKeepsValues();
     TestSteeringReplayRefusesZeroHertz();
+    TestDistanceLengthRange();
+    TestDistanceLengthRangeReplay();
     TestMotorJointServo();
     TestJointWalls();
     if (s_failures == 0)

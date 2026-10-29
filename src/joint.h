@@ -23,10 +23,12 @@ m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxE
 // their own values there.
 bool m3JointHasMotor(uint8_t type);
 // The types that take limits. The motor joint keeps its force and torque
-// budgets in the limit slot and on the limit record, through its own
-// calls.
+// budgets, and the distance joint its length range, in the limit slot and
+// on the limit record, through their own calls.
 bool m3JointHasLimits(uint8_t type);
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
+// A distance joint's length range: finite, 0 <= minLength <= maxLength.
+bool m3DistanceLengthsFit(float minLength, float maxLength);
 bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
                         float zeta);
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,

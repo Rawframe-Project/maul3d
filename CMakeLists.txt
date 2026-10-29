@@ -79,6 +79,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/destruction.c
     src/diff.c
     src/distance.c
+    src/distance_joint_params.c
     src/draw.c
     src/dynamic_tree.c
     src/format_layout.c
