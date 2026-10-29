@@ -5,10 +5,12 @@
 // m3_errorFormat or m3_errorVersion and leave the world byte for byte
 // as it was, or are accepted; a world restored from them writes a
 // snapshot that restores into a fresh world and writes the same bytes
-// again. The restored world is not stepped: restore checks every index,
-// count, flag and float, not every structural invariant, so stepping is
-// promised only for snapshots this engine wrote (world.h).
+// again, and every value it reads back is one a caller could have set
+// (fuzz_oracle.h). The restored world is not stepped: restore checks
+// every index, count, flag and float, not every structural invariant, so
+// stepping is promised only for snapshots this engine wrote (world.h).
 
+#include "fuzz_oracle.h"
 #include "fuzz_scene.h"
 
 #include <stdint.h>
@@ -27,6 +29,7 @@ static void Require(bool condition)
 // session, so a refusal has real state to leave alone.
 static uint8_t* s_scene;
 static int32_t s_sceneBytes;
+static m3CharacterId s_hero;
 
 static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
 {
@@ -60,6 +63,7 @@ int LLVMFuzzerInitialize(int* argc, char*** argv)
     Require(FuzzBuild(world, &scene) && FuzzCountsHold(world, &scene));
     FuzzSession(world, &scene);
     s_scene = SnapshotOf(world, &s_sceneBytes);
+    s_hero = scene.hero;
     m3DestroyWorld(world);
     return 0;
 }
@@ -89,6 +93,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         Require(againBytes == bytes && memcmp(rewritten, written, (size_t)bytes) == 0);
         free(rewritten);
         m3DestroyWorld(again);
+        Require(FuzzValuesHold(world, s_hero));
     }
     free(written);
     m3DestroyWorld(world);
