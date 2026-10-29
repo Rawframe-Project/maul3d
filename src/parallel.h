@@ -13,6 +13,6 @@
 // range runs in the library's floating-point environment on whatever
 // thread the host gives it, and the hooks themselves in the host's.
 // Results never depend on the split.
-void m3RunTasks(m3World* world, m3TaskFn* fn, void* ctx, int32_t itemCount, int32_t minRange);
+void m3RunTasks(m3World* world, m3TaskFunction* fn, void* ctx, int32_t itemCount, int32_t minRange);
 
 #endif // MAUL3D_SRC_PARALLEL_H

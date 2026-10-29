@@ -1026,14 +1026,14 @@ typedef struct m3World
     float windPhase;
     uint64_t stepCount;
     m3Heap heap; // the def's allocator; every allocation of this world goes through it
-    m3EnqueueTaskFn* enqueueTask; // host threading hooks (never state)
-    m3FinishTaskFn* finishTask;
+    m3EnqueueTaskFunction* enqueueTask; // host threading hooks (never state)
+    m3FinishTaskFunction* finishTask;
     void* userTaskContext;
     // Persistent bytes this world holds (arrays at create plus
     // count-derived content while it lives) and the step scratch
     // capacity; the scratch PEAK already rides m3Counters.
     int64_t memoryBytes;
-    m3PreSolveFn* preSolveFn; // host wiring, never state (like the task hooks)
+    m3PreSolveFunction* preSolveFunction; // host wiring, never state (like the task hooks)
     void* preSolveContext;
     // Per-step scratch, never snapshotted.
     m3Stack scratch;

@@ -20,7 +20,7 @@ typedef struct m3ReplayRecord
     int32_t bytes;
 } m3ReplayRecord;
 
-typedef bool m3ReplayApplyFn(m3World* world, const m3ReplayRecord* r);
+typedef bool m3ReplayApplyFunction(m3World* world, const m3ReplayRecord* r);
 
 // Journaled defs are untrusted bytes: a flipped bit in an embedded bool
 // field is undefined even to load as _Bool, so every handler normalizes
@@ -53,53 +53,53 @@ static inline void m3NormalizeShapeDefBools(m3ShapeDef* def)
 }
 
 // journal_replay_shapes.c: shapes, meshes, hulls, height fields and voxels.
-m3ReplayApplyFn m3ReplayCreateShape;
-m3ReplayApplyFn m3ReplayCreateMeshShape;
-m3ReplayApplyFn m3ReplayCreateHullShape;
-m3ReplayApplyFn m3ReplayCreateVoxelChunkShape;
-m3ReplayApplyFn m3ReplayVoxelSet;
-m3ReplayApplyFn m3ReplayVoxelClear;
-m3ReplayApplyFn m3ReplayVoxelSetFill;
-m3ReplayApplyFn m3ReplayVoxelClearBox;
-m3ReplayApplyFn m3ReplayDestroyShape;
-m3ReplayApplyFn m3ReplayShapeScalar;
-m3ReplayApplyFn m3ReplaySetShapeDensity;
-m3ReplayApplyFn m3ReplayCreateHeightFieldGrid;
-m3ReplayApplyFn m3ReplaySetMeshMaterials;
-m3ReplayApplyFn m3ReplaySetShapeGeom;
-m3ReplayApplyFn m3ReplaySetSurfaceVelocity;
-m3ReplayApplyFn m3ReplaySetFilter;
-m3ReplayApplyFn m3ReplayShapeFlag;
+m3ReplayApplyFunction m3ReplayCreateShape;
+m3ReplayApplyFunction m3ReplayCreateMeshShape;
+m3ReplayApplyFunction m3ReplayCreateHullShape;
+m3ReplayApplyFunction m3ReplayCreateVoxelChunkShape;
+m3ReplayApplyFunction m3ReplayVoxelSet;
+m3ReplayApplyFunction m3ReplayVoxelClear;
+m3ReplayApplyFunction m3ReplayVoxelSetFill;
+m3ReplayApplyFunction m3ReplayVoxelClearBox;
+m3ReplayApplyFunction m3ReplayDestroyShape;
+m3ReplayApplyFunction m3ReplayShapeScalar;
+m3ReplayApplyFunction m3ReplaySetShapeDensity;
+m3ReplayApplyFunction m3ReplayCreateHeightFieldGrid;
+m3ReplayApplyFunction m3ReplaySetMeshMaterials;
+m3ReplayApplyFunction m3ReplaySetShapeGeom;
+m3ReplayApplyFunction m3ReplaySetSurfaceVelocity;
+m3ReplayApplyFunction m3ReplaySetFilter;
+m3ReplayApplyFunction m3ReplayShapeFlag;
 
 // journal_replay_joints.c: joints.
-m3ReplayApplyFn m3ReplayCreateJoint;
-m3ReplayApplyFn m3ReplayDestroyJoint;
-m3ReplayApplyFn m3ReplayJointSetMotorPose;
-m3ReplayApplyFn m3ReplayJointSetSteer;
-m3ReplayApplyFn m3ReplayJointVector;
-m3ReplayApplyFn m3ReplayJointEnableConnectedCollision;
-m3ReplayApplyFn m3ReplayJointSetBreak;
-m3ReplayApplyFn m3ReplayJointSetSpring;
-m3ReplayApplyFn m3ReplayJointSetTarget;
+m3ReplayApplyFunction m3ReplayCreateJoint;
+m3ReplayApplyFunction m3ReplayDestroyJoint;
+m3ReplayApplyFunction m3ReplayJointSetMotorPose;
+m3ReplayApplyFunction m3ReplayJointSetSteer;
+m3ReplayApplyFunction m3ReplayJointVector;
+m3ReplayApplyFunction m3ReplayJointEnableConnectedCollision;
+m3ReplayApplyFunction m3ReplayJointSetBreak;
+m3ReplayApplyFunction m3ReplayJointSetSpring;
+m3ReplayApplyFunction m3ReplayJointSetTarget;
 
 // journal_replay_actors.c: characters, vehicles, soft bodies and water.
-m3ReplayApplyFn m3ReplayCreateCharacter;
-m3ReplayApplyFn m3ReplayDestroyCharacter;
-m3ReplayApplyFn m3ReplayCharacterMove;
-m3ReplayApplyFn m3ReplayCharacterStance;
-m3ReplayApplyFn m3ReplayCreateVehicle;
-m3ReplayApplyFn m3ReplayDestroyVehicle;
-m3ReplayApplyFn m3ReplayVehicleTankCommands;
-m3ReplayApplyFn m3ReplayVehicleCommands;
-m3ReplayApplyFn m3ReplayVehicleDrivetrain;
-m3ReplayApplyFn m3ReplayVehicleGear;
-m3ReplayApplyFn m3ReplayCreateSoftBody;
-m3ReplayApplyFn m3ReplayDestroySoftBody;
-m3ReplayApplyFn m3ReplaySoftBodyPin;
-m3ReplayApplyFn m3ReplaySoftBodyAnchor;
-m3ReplayApplyFn m3ReplaySoftBodyAnchorSoft;
-m3ReplayApplyFn m3ReplayCreateSoftBodyTet;
-m3ReplayApplyFn m3ReplayCreateWaterVolume;
-m3ReplayApplyFn m3ReplayDestroyWaterVolume;
+m3ReplayApplyFunction m3ReplayCreateCharacter;
+m3ReplayApplyFunction m3ReplayDestroyCharacter;
+m3ReplayApplyFunction m3ReplayCharacterMove;
+m3ReplayApplyFunction m3ReplayCharacterStance;
+m3ReplayApplyFunction m3ReplayCreateVehicle;
+m3ReplayApplyFunction m3ReplayDestroyVehicle;
+m3ReplayApplyFunction m3ReplayVehicleTankCommands;
+m3ReplayApplyFunction m3ReplayVehicleCommands;
+m3ReplayApplyFunction m3ReplayVehicleDrivetrain;
+m3ReplayApplyFunction m3ReplayVehicleGear;
+m3ReplayApplyFunction m3ReplayCreateSoftBody;
+m3ReplayApplyFunction m3ReplayDestroySoftBody;
+m3ReplayApplyFunction m3ReplaySoftBodyPin;
+m3ReplayApplyFunction m3ReplaySoftBodyAnchor;
+m3ReplayApplyFunction m3ReplaySoftBodyAnchorSoft;
+m3ReplayApplyFunction m3ReplayCreateSoftBodyTet;
+m3ReplayApplyFunction m3ReplayCreateWaterVolume;
+m3ReplayApplyFunction m3ReplayDestroyWaterVolume;
 
 #endif // MAUL3D_SRC_JOURNAL_REPLAY_H

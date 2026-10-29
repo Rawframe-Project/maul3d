@@ -30,7 +30,7 @@
 
 typedef struct PoolRange
 {
-    m3TaskFn* task;
+    m3TaskFunction* task;
     void* taskContext;
     int32_t start;
     int32_t end;
@@ -64,8 +64,8 @@ static void* PoolMain(void* arg)
 }
 #endif
 
-static void* PoolEnqueue(m3TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
-                         void* userContext)
+static void* PoolEnqueue(m3TaskFunction* task, int32_t itemCount, int32_t minRange,
+                         void* taskContext, void* userContext)
 {
     (void)userContext;
     static PoolTask taskSlot;

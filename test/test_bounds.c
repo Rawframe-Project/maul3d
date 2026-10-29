@@ -934,16 +934,16 @@ static void BlastSoftPush(Scene* s, float v)
 
 // ---- The driver ----
 
-typedef void SiteFn(Scene* s, float value);
+typedef void SiteFunction(Scene* s, float value);
 
 typedef struct Site
 {
     const char* name;
-    SiteFn* prepare; // earlier calls of the site, or NULL; they accept both values
-    SiteFn* apply;   // the call the limit refuses
-    float ok;        // at the limit, or just inside it where rounding sits
-    float past;      // just past the limit
-    int32_t width;   // how the journal stores the value: 4 a float, 8 a double
+    SiteFunction* prepare; // earlier calls of the site, or NULL; they accept both values
+    SiteFunction* apply;   // the call the limit refuses
+    float ok;              // at the limit, or just inside it where rounding sits
+    float past;            // just past the limit
+    int32_t width;         // how the journal stores the value: 4 a float, 8 a double
 } Site;
 
 static uint8_t s_journal[1 << 20];
@@ -1260,7 +1260,7 @@ static void TestMassFloorsDynamicOnly(void)
 // Replay asks the state the public calls ask, not only the values: a
 // journal recorded where a call is accepted refuses to replay onto a world
 // where that call is refused, and replays onto the one it was recorded on.
-typedef void StateFn(Scene* s);
+typedef void StateFunction(Scene* s);
 
 static void TankCommands(Scene* s)
 {
@@ -1283,7 +1283,7 @@ static void BoxKinematic(Scene* s)
     m3Body_SetType(s->world, s->box, m3_kinematicBody);
 }
 
-static void CheckReplayState(const char* name, StateFn* call, StateFn* refusing)
+static void CheckReplayState(const char* name, StateFunction* call, StateFunction* refusing)
 {
     char what[192];
     Scene s;

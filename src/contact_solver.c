@@ -460,7 +460,7 @@ static void RunColor(m3World* world, const m3ContactPlan* plan, int32_t color, m
     int32_t start = plan->coloring.starts[color];
     int32_t size = plan->coloring.starts[color + 1] - start;
     StageTask task = {world, plan, plan->coloring.lists + start, NULL, stage};
-    m3TaskFn* fn = StageRange;
+    m3TaskFunction* fn = StageRange;
     int32_t items = size;
     int32_t minRange = 8;
     if (plan->blocks != NULL && color < M3_GRAPH_COLORS)

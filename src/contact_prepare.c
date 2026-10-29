@@ -75,7 +75,7 @@ static bool Vetoed(m3World* world, const m3Manifold* manifold, uint64_t key, int
     {
         return SortedContains(world->contacts.replayVetoKeys, world->contacts.replayVetoCount, key);
     }
-    if (world->preSolveFn == NULL ||
+    if (world->preSolveFunction == NULL ||
         (world->shapes.shapePreSolve[shapeA] == 0 && world->shapes.shapePreSolve[shapeB] == 0))
     {
         return false;
@@ -83,7 +83,7 @@ static bool Vetoed(m3World* world, const m3Manifold* manifold, uint64_t key, int
     m3Pos3 point = DeepestPoint(world, manifold, world->shapes.shapeBody[shapeB]);
     m3ShapeId idA = {shapeA + 1, world->shapes.shapePool.generations[shapeA]};
     m3ShapeId idB = {shapeB + 1, world->shapes.shapePool.generations[shapeB]};
-    if (world->preSolveFn(idA, idB, point, manifold->normal, world->preSolveContext))
+    if (world->preSolveFunction(idA, idB, point, manifold->normal, world->preSolveContext))
     {
         return false;
     }

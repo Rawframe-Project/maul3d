@@ -601,7 +601,7 @@ static bool ApplySetHitEventThreshold(m3World* world, const m3ReplayRecord* r)
 // function pointer rides in a struct so the table is plain const data.
 typedef struct ReplayCommand
 {
-    m3ReplayApplyFn* apply;
+    m3ReplayApplyFunction* apply;
 } ReplayCommand;
 
 static const ReplayCommand s_commands[m3_opCount] = {

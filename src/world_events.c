@@ -161,7 +161,7 @@ void m3AppendJointBreakEvent(m3World* world, m3JointId joint)
     world->joints.jointBreakEventCount += 1;
 }
 
-static M3_NOINLINE void WorldSetPreSolveCallbackWorker(m3World* world, m3PreSolveFn* fn,
+static M3_NOINLINE void WorldSetPreSolveCallbackWorker(m3World* world, m3PreSolveFunction* fn,
                                                        void* context)
 {
     if (m3WorldBusy(world))
@@ -174,11 +174,11 @@ static M3_NOINLINE void WorldSetPreSolveCallbackWorker(m3World* world, m3PreSolv
         m3Refuse(world, m3_errorInvalid);
         return;
     }
-    world->preSolveFn = fn;
+    world->preSolveFunction = fn;
     world->preSolveContext = context;
 }
 
-void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFn* fn, void* context)
+void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFunction* fn, void* context)
 {
     uint64_t env = m3FloatEnvEnter();
     WorldSetPreSolveCallbackWorker(world, fn, context);

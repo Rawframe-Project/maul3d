@@ -12,7 +12,7 @@
 // shares.
 typedef struct TaskCall
 {
-    m3TaskFn* fn;
+    m3TaskFunction* fn;
     void* context;
 } TaskCall;
 
@@ -56,7 +56,7 @@ static M3_NOINLINE void Finish(const m3World* world, void* task)
     m3FloatHostLeave(host);
 }
 
-void m3RunTasks(m3World* world, m3TaskFn* fn, void* ctx, int32_t itemCount, int32_t minRange)
+void m3RunTasks(m3World* world, m3TaskFunction* fn, void* ctx, int32_t itemCount, int32_t minRange)
 {
     TaskCall call = {fn, ctx};
     Finish(world, Enqueue(world, &call, itemCount, minRange));
