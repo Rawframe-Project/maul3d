@@ -40,8 +40,11 @@ bool m3DistanceRestLengthFits(float length);
 // the anchors in body A's frame. Each body's position is within
 // M3_POSITION_LIMIT on every axis and each anchor within M3_LOCAL_LIMIT,
 // so the gap is shorter than 2 sqrt(3) (M3_POSITION_LIMIT +
-// M3_LOCAL_LIMIT), under 3.5e15, and so is each of its components in any
-// frame. SetOffsets takes an aim within M3_LOCAL_LIMIT.
+// M3_LOCAL_LIMIT), under 3.5e15. A body's rotation is held only to
+// |q|^2 in (0.98, 1.02), and m3RotateVec3's expanded form stretches a
+// vector perpendicular to the axis by up to about 4% at |q|^2 = 1.02, so
+// each component of the aim in body A's frame stays under about 3.61e15.
+// SetOffsets takes an aim within M3_LOCAL_LIMIT.
 #define M3_SERVO_AIM_LIMIT 4.0e15f
 bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
                         float zeta);

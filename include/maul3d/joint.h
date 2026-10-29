@@ -97,9 +97,10 @@ extern "C"
         bool enableMotor;
         m3real motorSpeed;     // rad/s or m/s by joint type, within 1e5
         m3real maxMotorEffort; // non-negative, at most 1e20
-        /// Spherical only: the swing cone (the shoulder). enableLimit
-        /// doubles as the twist range for the spherical, using
-        /// lowerLimit and upperLimit as twist angles.
+        /// Spherical only: the swing cone (the shoulder). Every other
+        /// type refuses enableCone. enableLimit doubles as the twist
+        /// range for the spherical, using lowerLimit and upperLimit as
+        /// twist angles.
         bool enableCone;
         m3real coneAngle; // radians from the A frame's z-axis
         /// Distance joints hold the anchor distance in [minLength,

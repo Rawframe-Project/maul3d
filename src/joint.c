@@ -284,6 +284,7 @@ static m3Result JointDefCheck(const m3JointDef* def)
     m3Result result =
         m3CheckValid(typeValid && m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
                      m3FiniteF(def->coneAngle) && !(def->enableCone && def->coneAngle < 0.0f) &&
+                     !(def->enableCone && def->type != (int32_t)m3_sphericalJoint) &&
                      m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
                      !(def->enableLimit && def->lowerLimit > def->upperLimit));
     result = m3BothChecks(
