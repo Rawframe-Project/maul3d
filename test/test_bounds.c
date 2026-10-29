@@ -596,7 +596,7 @@ static void SteerEffort(Scene* s, float v)
 
 static void ServoAim(Scene* s, float v)
 {
-    m3Joint_SetMotorPose(s->world, s->servo, (m3Vec3){0.0f, v, 0.0f}, s_identity);
+    m3MotorJoint_SetOffsets(s->world, s->servo, (m3Vec3){0.0f, v, 0.0f}, s_identity);
 }
 
 static void HingeTarget(Scene* s, float v)
@@ -622,15 +622,14 @@ static void SocketTarget(Scene* s, float v)
     m3Joint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
 }
 
-// A motor joint's limits are its force and torque budgets.
 static void ServoForce(Scene* s, float v)
 {
-    m3Joint_SetLimits(s->world, s->servo, v, 0.0f);
+    m3MotorJoint_SetMaxForce(s->world, s->servo, v);
 }
 
 static void ServoTorque(Scene* s, float v)
 {
-    m3Joint_SetLimits(s->world, s->servo, 0.0f, v);
+    m3MotorJoint_SetMaxTorque(s->world, s->servo, v);
 }
 
 static void DefMotorSpeed(Scene* s, float v)
@@ -667,7 +666,7 @@ static void DefServoForce(Scene* s, float v)
     jd.bodyIdA = s->ground;
     jd.bodyIdB = s->box;
     jd.localAnchorA = (m3Vec3){0.0f, 2.0f, 0.0f};
-    jd.lowerLimit = v;
+    jd.maxForce = v;
     NewJoint(s->world, &jd);
 }
 

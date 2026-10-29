@@ -288,16 +288,17 @@ static m3Result JointDefCheck(const m3JointDef* def)
     m3Result result =
         m3CheckValid(typeValid && m3FiniteV3(def->localAxisA) && m3FiniteV3(def->localAxisB) &&
                      m3FiniteF(def->coneAngle) && !(def->enableCone && def->coneAngle < 0.0f) &&
-                     (motorJoint || (m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
-                                     !(def->enableLimit && def->lowerLimit > def->upperLimit))));
+                     m3FiniteF(def->lowerLimit) && m3FiniteF(def->upperLimit) &&
+                     !(def->enableLimit && def->lowerLimit > def->upperLimit));
     result = m3BothChecks(
         result, m3BothChecks(m3CheckLocalV3(def->localAnchorA), m3CheckLocalV3(def->localAnchorB)));
     result = m3BothChecks(result, m3JointMotorCheck(def->type, def->enableMotor ? 1 : 0,
                                                     def->motorSpeed, def->maxMotorEffort));
     if (motorJoint)
     {
-        result = m3BothChecks(result, m3JointLimitsCheck(def->type, def->enableLimit ? 1 : 0,
-                                                         def->lowerLimit, def->upperLimit));
+        // The budgets ride the limit slot, so they take its check.
+        result =
+            m3BothChecks(result, m3JointLimitsCheck(def->type, 0, def->maxForce, def->maxTorque));
     }
     return result;
 }
@@ -381,8 +382,9 @@ static m3Vec3 ServoCreateGap(const m3World* world, const m3JointDef* def, int32_
 }
 
 // The motor, limit and ground slots. The spherical keeps its cone angle
-// in limits.z. The gear and the pulley reuse the motor and limit slots
-// and are written after the generic values on purpose.
+// in limits.z. The motor joint keeps its aim in the motor slot and its
+// budgets in the limit slot, and the gear and the pulley reuse the motor
+// and limit slots; each is written after the generic values on purpose.
 static void InitJointSlots(m3World* world, int32_t index, const m3JointDef* def,
                            const JointBake* bake)
 {
@@ -397,6 +399,12 @@ static void InitJointSlots(m3World* world, int32_t index, const m3JointDef* def,
     j->jointGroundA[index] = (m3Pos3){0.0, 0.0, 0.0};
     j->jointGroundB[index] = (m3Pos3){0.0, 0.0, 0.0};
     j->jointLimits[index] = (m3Vec3){def->lowerLimit, def->upperLimit, def->coneAngle};
+    if (def->type == (int32_t)m3_motorJoint)
+    {
+        // The servo's force and torque budgets ride its limit slot.
+        j->jointLimits[index].x = def->maxForce;
+        j->jointLimits[index].y = def->maxTorque;
+    }
     if (def->type == (int32_t)m3_gearJoint)
     {
         // Each body's spin about its own gear axis at create, and the

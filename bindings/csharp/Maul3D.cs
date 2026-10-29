@@ -192,6 +192,8 @@ namespace Maul3D
         public float Ratio;
         public Pos3 GroundAnchorA;
         public Pos3 GroundAnchorB;
+        public float MaxForce;
+        public float MaxTorque;
         public int InternalValue;
     }
 
@@ -339,7 +341,7 @@ namespace Maul3D
             Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
-            Check<JointDef>(216);
+            Check<JointDef>(224);
             Check<RayCastResult>(56);
             Check<QueryFilter>(16);
             Check<Version>(6);

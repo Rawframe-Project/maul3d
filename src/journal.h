@@ -83,7 +83,7 @@ typedef enum m3Op
     m3_opSetBodyName = 68,                   // body + 32 name bytes
     m3_opSetShapeGeom = 69,                  // shape + type + geom swap
     m3_opJointSetSteer = 70,                 // wheel strut drive
-    m3_opJointSetMotorPose = 71,             // motor joint servo aim
+    m3_opMotorJointSetOffsets = 71,          // motor joint servo aim
     m3_opSetMeshMaterials = 72,              // per-triangle materials
     m3_opRebuildBroadphase = 73,             // balanced tree rebuild
     m3_opCreateWaterVolume = 74,             // water box
@@ -217,12 +217,12 @@ typedef struct m3OpJointEnableConnectedCollision
     int32_t on;
 } m3OpJointEnableConnectedCollision;
 
-typedef struct m3OpJointSetMotorPose
+typedef struct m3OpMotorJointSetOffsets
 {
     m3JointId id;
-    m3Vec3 offset;
-    m3Quat rotation;
-} m3OpJointSetMotorPose;
+    m3Vec3 linearOffset;
+    m3Quat angularOffset;
+} m3OpMotorJointSetOffsets;
 
 typedef struct m3OpJointSetSpring
 {

@@ -611,8 +611,8 @@ static tbScene SceneMachines(void)
     m3Joint_SetSpringHertz(scene.world, hold, 5.0f);
     m3Joint_SetSpringDampingRatio(scene.world, hold, 1.0f);
     m3Joint_EnableSpring(scene.world, hold, true);
-    m3Joint_SetMotorPose(scene.world, hold, (m3Vec3){0.0f, -1.0f, 0.0f},
-                         (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
+    m3MotorJoint_SetOffsets(scene.world, hold, (m3Vec3){0.0f, -1.0f, 0.0f},
+                            (m3Quat){0.0f, 0.38268343f, 0.0f, 0.92387953f});
     return scene;
 }
 

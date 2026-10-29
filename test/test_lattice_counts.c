@@ -50,11 +50,15 @@ static void TestPublicCreate(void)
     }
 }
 
-// Replaces the one occurrence of from's bytes in the journal with to's.
+// The tape's state prefix, whose version number may equal a count.
+#define TAPE_HEADER_BYTES 16
+
+// Replaces the one occurrence of from's bytes in the journal's records
+// with to's.
 static bool Patch(int32_t bytes, int32_t from, int32_t to)
 {
     int32_t at = -1;
-    for (int32_t i = 0; i + 4 <= bytes; ++i)
+    for (int32_t i = TAPE_HEADER_BYTES; i + 4 <= bytes; ++i)
     {
         if (memcmp(s_journal + i, &from, 4) == 0)
         {

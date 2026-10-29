@@ -60,22 +60,23 @@ bool m3ReplayDestroyJoint(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-bool m3ReplayJointSetMotorPose(m3World* world, const m3ReplayRecord* r)
+bool m3ReplayMotorJointSetOffsets(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
-    m3OpJointSetMotorPose record;
+    m3OpMotorJointSetOffsets record;
     if (bytes != (int32_t)sizeof(record))
     {
         return false;
     }
     memcpy(&record, payload, sizeof(record));
     int32_t slot = m3JointSlot(world, record.id);
-    if (slot < 0 || !m3JointMotorPoseValid(world, slot, record.offset, record.rotation))
+    if (slot < 0 ||
+        !m3MotorJointOffsetsValid(world, slot, record.linearOffset, record.angularOffset))
     {
         return false; // hostile servo bytes fail loudly
     }
-    m3JointSetMotorPoseInternal(world, slot, record.offset, record.rotation);
+    m3MotorJointSetOffsetsInternal(world, slot, record.linearOffset, record.angularOffset);
     return true;
 }
 
@@ -119,9 +120,9 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opJointSetLimits)
     {
-        if (!m3JointHasLimits(world->joints.jointType[slot]) ||
-            m3JointLimitsCheck(world->joints.jointType[slot], record.enable, record.a, record.b) !=
-                m3_success)
+        uint8_t type = world->joints.jointType[slot];
+        if (!(m3JointHasLimits(type) || type == (uint8_t)m3_motorJoint) ||
+            m3JointLimitsCheck(type, record.enable, record.a, record.b) != m3_success)
         {
             return false;
         }
