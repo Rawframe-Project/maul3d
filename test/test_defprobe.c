@@ -370,6 +370,8 @@ static void ProbeJoints(void)
         FIELD(m3JointDef, motorSpeed, 'f'),
         FIELD(m3JointDef, maxMotorEffort, 'f'),
         FIELD(m3JointDef, coneAngle, 'f'),
+        FIELD(m3JointDef, minLength, 'f'),
+        FIELD(m3JointDef, maxLength, 'f'),
         FIELD(m3JointDef, genericLinearLower[0], 'f'),
         FIELD(m3JointDef, genericLinearUpper[0], 'f'),
         FIELD(m3JointDef, genericAngularLower[1], 'f'),
@@ -378,17 +380,22 @@ static void ProbeJoints(void)
         FIELD(m3JointDef, groundAnchorA.y, 'd'),
         FIELD(m3JointDef, groundAnchorB.y, 'd'),
     };
-    // Every joint type whose default def joins the two boxes is probed,
-    // with its limit, motor and cone on so their fields are read.
+    // Every joint type is probed, with each switch it takes on so the
+    // fields behind it are read: the limit and the motor, the cone on the
+    // spherical, and on the distance joint its length range alone. A base
+    // def that does not build fails the probe rather than dropping its type.
     for (int32_t type = m3_sphericalJoint; type <= m3_pulleyJoint; ++type)
     {
         m3JointDef jd = m3DefaultJointDef();
         jd.type = (m3JointType)type;
-        jd.bodyIdA = s_boxA;
-        jd.bodyIdB = s_boxB;
-        jd.enableLimit = true;
-        jd.enableMotor = true;
-        jd.enableCone = true;
+        jd.enableLimit = type != m3_distanceJoint;
+        jd.enableMotor = type != m3_distanceJoint;
+        jd.enableCone = type == m3_sphericalJoint;
+        if (type == m3_wheelJoint)
+        {
+            jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut
+            jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
+        }
         jd.groundAnchorA = (m3Pos3){0.0, 4.0, 0.0};
         jd.groundAnchorB = (m3Pos3){2.0, 4.0, 0.0};
         m3World* world = Scene();
@@ -396,12 +403,15 @@ static void ProbeJoints(void)
         jd.bodyIdB = s_boxB;
         m3Result base = BuildJoint(world, &jd);
         m3DestroyWorld(world);
-        if (base != m3_success)
-        {
-            continue; // the type needs more than its default def
-        }
         char what[32];
         snprintf(what, sizeof(what), "m3JointDef(type %d)", (int)type);
+        if (base != m3_success)
+        {
+            char message[64];
+            snprintf(message, sizeof(message), "%s: the base def builds", what);
+            CHECK(false, message);
+            continue;
+        }
         Target target = {what, &jd, sizeof(jd), BuildJoint, true};
         Probe(&target, fields, COUNT(fields));
     }
