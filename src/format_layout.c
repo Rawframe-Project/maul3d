@@ -102,10 +102,10 @@ M3_PIN_SIZE(m3OpJointEnableConnectedCollision, 12);
 M3_PIN_AT(m3OpJointEnableConnectedCollision, id, 0);
 M3_PIN_AT(m3OpJointEnableConnectedCollision, on, 8);
 
-M3_PIN_SIZE(m3OpJointSetMotorPose, 36);
-M3_PIN_AT(m3OpJointSetMotorPose, id, 0);
-M3_PIN_AT(m3OpJointSetMotorPose, offset, 8);
-M3_PIN_AT(m3OpJointSetMotorPose, rotation, 20);
+M3_PIN_SIZE(m3OpMotorJointSetOffsets, 36);
+M3_PIN_AT(m3OpMotorJointSetOffsets, id, 0);
+M3_PIN_AT(m3OpMotorJointSetOffsets, linearOffset, 8);
+M3_PIN_AT(m3OpMotorJointSetOffsets, angularOffset, 20);
 
 M3_PIN_SIZE(m3OpJointSetSpring, 20);
 M3_PIN_AT(m3OpJointSetSpring, id, 0);
@@ -296,9 +296,9 @@ M3_PIN_AT(m3CreateMeshShapeOp, expected, 112);
 M3_PIN_AT(m3CreateMeshShapeOp, vertexCount, 120);
 M3_PIN_AT(m3CreateMeshShapeOp, triangleCount, 124);
 
-M3_PIN_SIZE(m3CreateJointOp, 224);
+M3_PIN_SIZE(m3CreateJointOp, 232);
 M3_PIN_AT(m3CreateJointOp, def, 0);
-M3_PIN_AT(m3CreateJointOp, expected, 216);
+M3_PIN_AT(m3CreateJointOp, expected, 224);
 
 M3_PIN_SIZE(m3CreateHullShapeOp, 3200);
 M3_PIN_AT(m3CreateHullShapeOp, def, 0);
@@ -406,7 +406,7 @@ M3_PIN_AT(m3ShapeDef, localPosition, 68);
 M3_PIN_AT(m3ShapeDef, localRotation, 80);
 M3_PIN_AT(m3ShapeDef, internalValue, 96);
 
-M3_PIN_SIZE(m3JointDef, 216);
+M3_PIN_SIZE(m3JointDef, 224);
 M3_PIN_AT(m3JointDef, type, 0);
 M3_PIN_AT(m3JointDef, bodyIdA, 4);
 M3_PIN_AT(m3JointDef, bodyIdB, 12);
@@ -433,7 +433,9 @@ M3_PIN_AT(m3JointDef, genericAngularUpper, 144);
 M3_PIN_AT(m3JointDef, ratio, 156);
 M3_PIN_AT(m3JointDef, groundAnchorA, 160);
 M3_PIN_AT(m3JointDef, groundAnchorB, 184);
-M3_PIN_AT(m3JointDef, internalValue, 208);
+M3_PIN_AT(m3JointDef, maxForce, 208);
+M3_PIN_AT(m3JointDef, maxTorque, 212);
+M3_PIN_AT(m3JointDef, internalValue, 216);
 
 M3_PIN_SIZE(m3DrivetrainDef, 132);
 M3_PIN_AT(m3DrivetrainDef, curveCount, 0);

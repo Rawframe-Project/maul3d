@@ -80,13 +80,14 @@ void m3JointSetSteerInternal(m3World* world, int32_t j, int32_t enable, float ta
     JointWakeBodies(world, j);
 }
 
-void m3JointSetMotorPoseInternal(m3World* world, int32_t j, m3Vec3 offset, m3Quat rotation)
+void m3MotorJointSetOffsetsInternal(m3World* world, int32_t j, m3Vec3 linearOffset,
+                                    m3Quat angularOffset)
 {
     // The motor slot map: the target offset rides jointMotor
     // (the servo has no velocity motor), the rotation rides the
     // spherical target slot.
-    world->joints.jointMotor[j] = offset;
-    world->joints.jointTargetQ[j] = m3NormalizeQuat(rotation);
+    world->joints.jointMotor[j] = linearOffset;
+    world->joints.jointTargetQ[j] = m3NormalizeQuat(angularOffset);
     JointWakeBodies(world, j);
 }
 
@@ -271,43 +272,6 @@ float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
     float result = JointGetSteerAngleWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
-}
-
-static M3_NOINLINE void JointSetMotorPoseWorker(m3World* world, m3JointId joint, m3Vec3 offset,
-                                                m3Quat rotation)
-{
-    if (m3WorldBusy(world))
-    {
-        m3Refuse(world, m3_errorBusy);
-        return;
-    }
-    int32_t slot;
-    if (!ResolveJoint(world, joint, &slot))
-    {
-        return; // the servo aim is a motor-joint contract
-    }
-    if (!m3JointMotorPoseValid(world, slot, offset, rotation))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return; // the servo aim is a motor-joint contract
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpJointSetMotorPose record;
-        memset(&record, 0, sizeof(record));
-        record.id = joint;
-        record.offset = offset;
-        record.rotation = rotation;
-        m3JournalRecord(world, m3_opJointSetMotorPose, &record, (int32_t)sizeof(record));
-    }
-    m3JointSetMotorPoseInternal(world, slot, offset, rotation);
-}
-
-void m3Joint_SetMotorPose(m3World* world, m3JointId joint, m3Vec3 offset, m3Quat rotation)
-{
-    uint64_t env = m3FloatEnvEnter();
-    JointSetMotorPoseWorker(world, joint, offset, rotation);
-    m3FloatEnvLeave(env);
 }
 
 static M3_NOINLINE void JointEnableConnectedCollisionWorker(m3World* world, m3JointId joint,
@@ -553,7 +517,7 @@ bool m3JointHasLimits(uint8_t type)
 {
     return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
            type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint ||
-           type == (uint8_t)m3_distanceJoint || type == (uint8_t)m3_motorJoint;
+           type == (uint8_t)m3_distanceJoint;
 }
 
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)
@@ -597,12 +561,13 @@ bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, f
            zeta <= M3_RATIO_LIMIT && maxEffort >= 0.0f && maxEffort <= M3_FORCE_LIMIT;
 }
 
-bool m3JointMotorPoseValid(const m3World* world, int32_t slot, m3Vec3 offset, m3Quat rotation)
+bool m3MotorJointOffsetsValid(const m3World* world, int32_t slot, m3Vec3 linearOffset,
+                              m3Quat angularOffset)
 {
-    m3real q2 = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
-                rotation.w * rotation.w;
-    return world->joints.jointType[slot] == (uint8_t)m3_motorJoint && m3LocalV3(offset) &&
-           m3FiniteQuat(rotation) && q2 >= 0.81f && q2 <= 1.21f;
+    m3real q2 = angularOffset.x * angularOffset.x + angularOffset.y * angularOffset.y +
+                angularOffset.z * angularOffset.z + angularOffset.w * angularOffset.w;
+    return world->joints.jointType[slot] == (uint8_t)m3_motorJoint && m3LocalV3(linearOffset) &&
+           m3FiniteQuat(angularOffset) && q2 >= 0.81f && q2 <= 1.21f;
 }
 
 // --- Limits, motor and spring ----------------------------------------

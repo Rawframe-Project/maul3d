@@ -790,8 +790,9 @@ call zeroes the stored impulse of the rows it changes. A limit
 range is ordered when it is set and whenever the limit is on; a
 spring is positive in hertz while it is on. Only revolute,
 prismatic, wheel, generic and distance joints take a motor, and
-only revolute, prismatic, spherical, wheel, distance and motor
-joints take limits; the calls refuse every other type.
+only revolute, prismatic, spherical, wheel and distance joints
+take limits; the calls refuse every other type, the motor joint
+included, whose budgets have calls of their own.
 `m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
 The spring arms the position drive on revolute (target angle),
 prismatic and wheel (target translation) and spherical (target
@@ -913,11 +914,12 @@ required. Journaled, snapshotted, bit-exact through rollback.
 body A with NO hard rows: a soft 3-DOF rotation drive plus a
 soft 3-DOF translation drive, each clamped to its own budget.
 Tune stiffness with the joint spring (shared by both drives),
-aim with `m3Joint_SetMotorPose(offset, rotation)` (the offset in
-A's create-time frame, the rotation relative to the create
-pose), and budget with `m3Joint_SetLimits` where lower = max
-force and upper = max torque, 0 = uncapped (for this type they
-are independent allowances, not a range). A fresh servo aims at
+aim with `m3MotorJoint_SetOffsets(linearOffset, angularOffset)`
+(the offset in A's create-time frame, the rotation relative to
+the create pose), and budget with the def's `maxForce` and
+`maxTorque` or `m3MotorJoint_SetMaxForce` and
+`m3MotorJoint_SetMaxTorque`, 0 = uncapped. The getters read the
+aim and the budgets back. A fresh servo aims at
 its own create pose; without a spring it holds NOTHING and the
 bodies drift free. Use it for animated platforms, grabbers, and
 kinematic-feeling props that still lose to a bigger

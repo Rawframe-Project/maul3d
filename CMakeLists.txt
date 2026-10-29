@@ -113,6 +113,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/math_functions.c
     src/mesh_bvh.c
     src/misuse.c
+    src/motor_joint_params.c
     src/mover.c
     src/narrowphase.c
     src/parallel.c
