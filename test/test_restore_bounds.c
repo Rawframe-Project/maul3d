@@ -243,6 +243,8 @@ static const Case s_cases[] = {
     {"pulley ground B", POSITION(joints.jointGroundB, m3Pos3, which_pulley, 8), (double)(-M3_POSITION_LIMIT), -1},
     {"servo force budget", COMPONENT(joints.jointLimits, m3Vec3, which_servo, 0), (double)(M3_FORCE_LIMIT), +1},
     {"servo torque budget", COMPONENT(joints.jointLimits, m3Vec3, which_servo, 1), (double)(M3_FORCE_LIMIT), +1},
+    {"servo aim", COMPONENT(joints.jointMotor, m3Vec3, which_servo, 0), (double)(M3_SERVO_AIM_LIMIT), +1},
+    {"servo aim below", COMPONENT(joints.jointMotor, m3Vec3, which_servo, 2), (double)(-M3_SERVO_AIM_LIMIT), -1},
     {"steer target", COMPONENT(joints.jointMotor, m3Vec3, which_wheel, 2), (double)(1.0), +1},
     {"steer hertz", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 0), (double)(M3_HERTZ_LIMIT), +1},
     {"steer damping", COMPONENT(joints.jointTargetQ, m3Quat, which_wheel, 1), (double)(M3_RATIO_LIMIT), +1},

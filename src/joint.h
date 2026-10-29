@@ -29,6 +29,14 @@ bool m3JointHasLimits(uint8_t type);
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
 // A distance joint's length range: finite, 0 <= minLength <= maxLength.
 bool m3DistanceLengthsFit(float minLength, float maxLength);
+
+// The reach of a motor joint's aim. Its create aims at the gap between
+// the anchors in body A's frame. Each body's position is within
+// M3_POSITION_LIMIT on every axis and each anchor within M3_LOCAL_LIMIT,
+// so the gap is shorter than 2 sqrt(3) (M3_POSITION_LIMIT +
+// M3_LOCAL_LIMIT), under 3.5e15, and so is each of its components in any
+// frame. SetOffsets takes an aim within M3_LOCAL_LIMIT.
+#define M3_SERVO_AIM_LIMIT 4.0e15f
 bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
                         float zeta);
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
