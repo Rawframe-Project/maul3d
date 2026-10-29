@@ -8,23 +8,66 @@ snapshot and journal formats.
 
 ## [0.9.0](https://github.com/Rawframe-Project/maul3d/compare/v0.8.0...v0.9.0) (2026-10-29)
 
+### Added
 
-### ⚠ BREAKING CHANGES
-
-* **joint:** a motor joint's budgets are m3JointDef.maxForce and maxTorque, set with m3MotorJoint_SetMaxForce and SetMaxTorque, and m3Joint_SetMotorPose is m3MotorJoint_SetOffsets; m3JointDef grows to 224 bytes and journal tapes use format 3.
-* **joint:** m3Joint_SetLimits takes only the range, and m3Joint_SetMotor and m3Joint_SetSpring are replaced by a switch, a setter per value and getters, as in the table.
-* the six names in the table are renamed; the def layouts and journal ops keep their bytes.
-
-### Fixed
-
-* **joint:** refuse SetMotor on joint types without a motor ([#184](https://github.com/Rawframe-Project/maul3d/issues/184)) ([5d6a647](https://github.com/Rawframe-Project/maul3d/commit/5d6a6477e26f6bec3257b826ad4e8f7514442dac)), closes [#183](https://github.com/Rawframe-Project/maul3d/issues/183)
-
+- **Getters for joint limits, motors and springs.** `m3Joint_IsLimitEnabled`
+  and `m3Joint_GetLimits`, `m3Joint_IsMotorEnabled`,
+  `m3Joint_GetMotorSpeed` and `m3Joint_GetMaxMotorEffort`, and
+  `m3Joint_IsSpringEnabled`, `m3Joint_GetSpringHertz` and
+  `m3Joint_GetSpringDampingRatio` read back what the setters store.
+  ([#185](https://github.com/Rawframe-Project/maul3d/pull/185))
+- **Getters for the motor joint.** `m3MotorJoint_GetMaxForce`,
+  `GetMaxTorque`, `GetLinearOffset` and `GetAngularOffset`.
+  ([#187](https://github.com/Rawframe-Project/maul3d/pull/187))
 
 ### Changed
 
-* **joint:** give the motor joint its budgets and SetOffsets ([#187](https://github.com/Rawframe-Project/maul3d/issues/187)) ([65de1f7](https://github.com/Rawframe-Project/maul3d/commit/65de1f74a3dd28f07f185af374603d3bde4343fb))
-* **joint:** split limit, motor and spring switches from values ([#185](https://github.com/Rawframe-Project/maul3d/issues/185)) ([bf3f773](https://github.com/Rawframe-Project/maul3d/commit/bf3f773c76d685777fa3e12aa13a08283a2c6762))
-* name connected collision and sleep by the enable rule ([#182](https://github.com/Rawframe-Project/maul3d/issues/182)) ([7e68ca6](https://github.com/Rawframe-Project/maul3d/commit/7e68ca649d35942ffba4754cedbbd3b9bfb05578))
+- **Breaking: a joint's limits, motor and spring each have a switch and a
+  setter per value.** `m3Joint_SetLimits(enable, lower, upper)` becomes
+  `m3Joint_EnableLimit(enable)` and `m3Joint_SetLimits(lower, upper)`.
+  `m3Joint_SetMotor(enable, speed, maxEffort)` becomes
+  `m3Joint_EnableMotor`, `m3Joint_SetMotorSpeed` and
+  `m3Joint_SetMaxMotorEffort`.
+  `m3Joint_SetSpring(enable, hertz, dampingRatio)` becomes
+  `m3Joint_EnableSpring`, `m3Joint_SetSpringHertz` and
+  `m3Joint_SetSpringDampingRatio`. A part keeps its values while it is
+  off. A limit range must be ordered when it is set and whenever the
+  limit is on, and a spring may hold 0 Hz while it is off. Gear, pulley,
+  fixed, parallel, filter, generic and motor joints now refuse limits
+  instead of ignoring them.
+  ([#185](https://github.com/Rawframe-Project/maul3d/pull/185),
+  [#187](https://github.com/Rawframe-Project/maul3d/pull/187))
+- **Breaking: the motor joint has its own budgets and aim.** Its force
+  and torque budgets are `m3JointDef.maxForce` and `maxTorque`, set at
+  run time with `m3MotorJoint_SetMaxForce` and `m3MotorJoint_SetMaxTorque`,
+  instead of `lowerLimit`, `upperLimit` and `m3Joint_SetLimits`.
+  `m3Joint_SetMotorPose(offset, rotation)` becomes
+  `m3MotorJoint_SetOffsets(linearOffset, angularOffset)`. `m3JointDef`
+  grows from 216 to 224 bytes, and journal tapes use format 3, so tapes
+  from earlier releases are refused. The C# `JointDef` gains `MaxForce`
+  and `MaxTorque`.
+  ([#187](https://github.com/Rawframe-Project/maul3d/pull/187))
+- **Breaking: two switches are renamed.** `m3JointDef.collideConnected`
+  becomes `enableConnectedCollision`, with
+  `m3Joint_EnableConnectedCollision` and
+  `m3Joint_IsConnectedCollisionEnabled` in place of
+  `m3Joint_SetCollideConnected` and `m3Joint_GetCollideConnected`.
+  `m3WorldDef.enableSleeping` becomes `enableSleep`, with
+  `m3World_EnableSleep` and `m3World_IsSleepEnabled` in place of
+  `m3World_EnableSleeping` and `m3World_IsSleepingEnabled`. The C#
+  fields follow. The renames alone leave the def layouts and the
+  snapshot unchanged.
+  ([#182](https://github.com/Rawframe-Project/maul3d/pull/182))
+
+### Fixed
+
+- `m3Joint_SetMotor` wrote into the motor slot of any joint. On a gear it
+  overwrote the bodies' reference spins, so meshed gears at rest turned
+  to a new relation, and past a half turn the world's snapshot could no
+  longer be restored. On a motor joint it moved the servo's aim. Only
+  revolute, prismatic, wheel, generic and distance joints take a motor
+  now, and the motor calls refuse every other type.
+  ([#184](https://github.com/Rawframe-Project/maul3d/pull/184))
 
 ## [0.8.0](https://github.com/Rawframe-Project/maul3d/compare/v0.7.0...v0.8.0) (2026-10-28)
 
