@@ -65,6 +65,7 @@ typedef enum Corruption
 {
     corrupt_ropeOrder,
     corrupt_ropeMinimum,
+    corrupt_ropeLength,
     corrupt_springHertz,
     corrupt_gravityScale,
     corrupt_friction,
@@ -88,9 +89,12 @@ static void Corrupt(m3World* world, const FuzzScene* scene, Corruption which)
     case corrupt_ropeMinimum:
         world->joints.jointLimits[rope].x = -1.0f;
         break;
+    case corrupt_ropeLength:
+        // The rest length rides the limit slot's z.
+        world->joints.jointLimits[rope].z = -1.0f;
+        break;
     case corrupt_springHertz:
-        // A distance joint's motor speed is its spring's frequency.
-        world->joints.jointMotor[rope].x = 2.0f * M3_HERTZ_LIMIT;
+        world->joints.jointSpring[rope].x = 2.0f * M3_HERTZ_LIMIT;
         break;
     case corrupt_gravityScale:
         world->bodies.gravityScales[crate] = 2.0f * M3_RATIO_LIMIT;
@@ -118,6 +122,7 @@ static void TestOracleCatches(void)
     } cases[] = {
         {corrupt_ropeOrder, "an unordered rope range"},
         {corrupt_ropeMinimum, "a negative rope minimum"},
+        {corrupt_ropeLength, "a negative rope rest length"},
         {corrupt_springHertz, "a rope spring frequency past its limit"},
         {corrupt_gravityScale, "a gravity scale past its limit"},
         {corrupt_friction, "a negative friction"},

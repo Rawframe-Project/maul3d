@@ -202,6 +202,10 @@ void m3JournalJointDef(m3JointDef* out, const m3JointDef* def)
     out->maxTorque = def->maxTorque;
     out->minLength = def->minLength;
     out->maxLength = def->maxLength;
+    out->length = def->length;
+    out->enableSpring = def->enableSpring;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->internalValue = def->internalValue;
 }
 

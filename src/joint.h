@@ -12,16 +12,20 @@
 
 // What the joint setters and replay accept for a joint's drives
 // (src/joint_params.c): a motor speed within M3_SPEED_LIMIT and an
-// effort within M3_FORCE_LIMIT, except on a distance joint, whose motor
-// fields carry its spring; a spring or steering frequency non-negative,
-// positive when enabled, within M3_HERTZ_LIMIT and damping within
-// M3_RATIO_LIMIT, on a joint type that drives; a limit range ordered while it is on, or on a
-// motor joint, force and torque budgets within M3_FORCE_LIMIT; a motor joint's aim offset within
+// effort within M3_FORCE_LIMIT; a spring or steering frequency
+// non-negative, positive when enabled, within M3_HERTZ_LIMIT and damping
+// within M3_RATIO_LIMIT, on a joint type that takes one; a limit range
+// ordered while it is on, or on a motor joint, force and torque budgets
+// within M3_FORCE_LIMIT; a motor joint's aim offset within
 // M3_LOCAL_LIMIT.
-m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort);
+m3Result m3JointMotorCheck(float speed, float maxEffort);
+m3Result m3JointSpringCheck(int32_t enable, float hertz, float dampingRatio);
 // The types whose motor slot is a motor: the gear and the motor joint keep
 // their own values there.
 bool m3JointHasMotor(uint8_t type);
+// The types that take a spring: a position drive toward a target, or for
+// the distance joint toward its length.
+bool m3JointHasSpring(uint8_t type);
 // The types that take limits. The motor joint keeps its force and torque
 // budgets, and the distance joint its length range, in the limit slot and
 // on the limit record, through their own calls.
@@ -29,6 +33,8 @@ bool m3JointHasLimits(uint8_t type);
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
 // A distance joint's length range: finite, 0 <= minLength <= maxLength.
 bool m3DistanceLengthsFit(float minLength, float maxLength);
+// A distance joint's spring rest length: finite and not negative.
+bool m3DistanceRestLengthFits(float length);
 
 // The reach of a motor joint's aim. Its create aims at the gap between
 // the anchors in body A's frame. Each body's position is within
@@ -73,6 +79,9 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
                                m3real* outTorque);
 
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta);
+
+// A distance joint's spring rest length, kept in its limit slot's z.
+void m3DistanceJointSetLengthInternal(m3World* world, int32_t j, float length);
 
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q);
 

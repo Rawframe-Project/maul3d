@@ -96,11 +96,12 @@ typedef enum m3Op
     // them without the host's callback. Payload: the vetoed pair
     // keys, canonical ascending (count = bytes / 8).
     m3_opStepVetoes = 79,
-    m3_opSetFilter = 80,        // shape + category, mask and group
-    m3_opSetBodyParam = 81,     // body + parameter + value
-    m3_opSetBullet = 82,        // body + 0/1
-    m3_opSetBodyUserData = 83,  // body + user data
-    m3_opSetShapeUserData = 84, // shape + user data
+    m3_opSetFilter = 80,              // shape + category, mask and group
+    m3_opSetBodyParam = 81,           // body + parameter + value
+    m3_opSetBullet = 82,              // body + 0/1
+    m3_opSetBodyUserData = 83,        // body + user data
+    m3_opSetShapeUserData = 84,       // shape + user data
+    m3_opDistanceJointSetLength = 85, // joint + spring rest length
     m3_opCount
 } m3Op;
 
@@ -248,6 +249,12 @@ typedef struct m3OpJointSetTarget
     float scalar;
     m3Quat q;
 } m3OpJointSetTarget;
+
+typedef struct m3OpDistanceJointSetLength
+{
+    m3JointId id;
+    float length;
+} m3OpDistanceJointSetLength;
 
 typedef struct m3OpJointVector
 {

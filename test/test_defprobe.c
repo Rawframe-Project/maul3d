@@ -31,7 +31,7 @@ typedef struct Field
 {
     const char* name;
     size_t offset;
-    char kind; // 'f' float, 'd' double, 'i' int32
+    char kind; // 'f' float, 'd' double, 'i' int32, 'b' bool
 } Field;
 
 #define FIELD(type, member, kind) {#member, offsetof(type, member), kind}
@@ -41,6 +41,8 @@ static const float s_floats[] = {NAN, INFINITY, -INFINITY, -1.0f, 0.0f, 1.0e30f,
 static const double s_doubles[] = {(double)NAN, (double)INFINITY, -(double)INFINITY, 1.0e300,
                                    -1.0e300};
 static const int32_t s_ints[] = {-1, 0, 99, INT32_MAX, INT32_MIN};
+// A bool holds only these: any other byte is not a bool a caller can pass.
+static const bool s_bools[] = {false, true};
 
 // Every world the probe makes allocates through this host allocator,
 // which refuses any block over 64 MB. A poisoned capacity of INT32_MAX
@@ -131,6 +133,9 @@ static void Poison(uint8_t* def, const Field* field, int32_t value)
     case 'd':
         memcpy(def + field->offset, &s_doubles[value], sizeof(double));
         break;
+    case 'b':
+        memcpy(def + field->offset, &s_bools[value], sizeof(bool));
+        break;
     default:
         memcpy(def + field->offset, &s_ints[value], sizeof(int32_t));
         break;
@@ -139,7 +144,17 @@ static void Poison(uint8_t* def, const Field* field, int32_t value)
 
 static int32_t ValueCount(char kind)
 {
-    return kind == 'f' ? COUNT(s_floats) : (kind == 'd' ? COUNT(s_doubles) : COUNT(s_ints));
+    switch (kind)
+    {
+    case 'f':
+        return COUNT(s_floats);
+    case 'd':
+        return COUNT(s_doubles);
+    case 'b':
+        return COUNT(s_bools);
+    default:
+        return COUNT(s_ints);
+    }
 }
 
 // Whether a refusal names its poison: NaN is invalid, and any other
@@ -379,11 +394,17 @@ static void ProbeJoints(void)
         FIELD(m3JointDef, ratio, 'f'),
         FIELD(m3JointDef, groundAnchorA.y, 'd'),
         FIELD(m3JointDef, groundAnchorB.y, 'd'),
+        FIELD(m3JointDef, length, 'f'),
+        FIELD(m3JointDef, enableSpring, 'b'),
+        FIELD(m3JointDef, springHertz, 'f'),
+        FIELD(m3JointDef, springDampingRatio, 'f'),
     };
     // Every joint type is probed, with each switch it takes on so the
     // fields behind it are read: the limit and the motor, the cone on the
-    // spherical, and on the distance joint its length range alone. A base
-    // def that does not build fails the probe rather than dropping its type.
+    // spherical, and the spring on the six types that take one. The
+    // distance joint takes no limit or motor switch: its length range and
+    // rest length are read without one. A base def that does not build
+    // fails the probe rather than dropping its type.
     for (int32_t type = m3_sphericalJoint; type <= m3_pulleyJoint; ++type)
     {
         m3JointDef jd = m3DefaultJointDef();
@@ -391,6 +412,11 @@ static void ProbeJoints(void)
         jd.enableLimit = type != m3_distanceJoint;
         jd.enableMotor = type != m3_distanceJoint;
         jd.enableCone = type == m3_sphericalJoint;
+        jd.enableSpring = type == m3_revoluteJoint || type == m3_prismaticJoint ||
+                          type == m3_sphericalJoint || type == m3_wheelJoint ||
+                          type == m3_motorJoint || type == m3_distanceJoint;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
         if (type == m3_wheelJoint)
         {
             jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut

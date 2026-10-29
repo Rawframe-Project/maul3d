@@ -257,6 +257,7 @@ static const Case s_cases[] = {
     {"cone angle", COMPONENT(joints.jointLimits, m3Vec3, which_cone, 2), (double)(0.0), -1},
     {"rope minimum length", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 0), (double)(0.0), -1},
     {"rope length order", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 1), (double)(1.0), -1},
+    {"rope rest length", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 2), (double)(0.0), -1},
     {"pulley rope constant", COMPONENT(joints.jointLimits, m3Vec3, which_pulley, 2), (double)(0.0), -1},
     {"target on a gear", SCALAR(joints.jointTargetScalar, which_gear), (double)(0.0), +1},
     {"generic linear range", COMPONENT(joints.jointGenLinUpper, m3Vec3, which_six, 0), (double)(-0.5), -1},

@@ -147,7 +147,9 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
         torque = fabsf(lim.x) + fabsf(lim.y) + fabsf(lim.z);
         break;
     case (uint8_t)m3_distanceJoint:
-        force += fabsf(lim.x) + fabsf(lim.y) + fabsf(perp.z);
+        // The range rides lim.x, lim.y and the spring springImpulse.x,
+        // all along the anchor line.
+        force += fabsf(lim.x) + fabsf(lim.y) + fabsf(world->joints.jointSpringImpulse[j].x);
         break;
     case (uint8_t)m3_genericJoint:
         // The slot map: linear uppers ride perp x, y; the
@@ -400,6 +402,12 @@ void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float h
     JointWakeBodies(world, j);
 }
 
+void m3DistanceJointSetLengthInternal(m3World* world, int32_t j, float length)
+{
+    world->joints.jointLimits[j].z = length;
+    JointWakeBodies(world, j);
+}
+
 void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q)
 {
     world->joints.jointTargetScalar[j] = scalar;
@@ -412,30 +420,32 @@ void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q)
     JointWakeBodies(world, j);
 }
 
-static int JointTypeDrives(uint8_t type)
+bool m3JointHasSpring(uint8_t type)
 {
     return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
            type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_wheelJoint ||
-           type == (uint8_t)m3_motorJoint;
+           type == (uint8_t)m3_motorJoint || type == (uint8_t)m3_distanceJoint;
 }
 
 bool m3JointHasMotor(uint8_t type)
 {
     return type == (uint8_t)m3_revoluteJoint || type == (uint8_t)m3_prismaticJoint ||
-           type == (uint8_t)m3_wheelJoint || type == (uint8_t)m3_genericJoint ||
-           type == (uint8_t)m3_distanceJoint;
+           type == (uint8_t)m3_wheelJoint || type == (uint8_t)m3_genericJoint;
 }
 
-m3Result m3JointMotorCheck(int32_t type, int32_t enable, float speed, float maxEffort)
+m3Result m3JointMotorCheck(float speed, float maxEffort)
 {
-    if (type == m3_distanceJoint) // the spring's hertz and damping ratio
-    {
-        return m3BothChecks(m3BothChecks(m3CheckNonNegative(speed, M3_HERTZ_LIMIT),
-                                         m3CheckValid(enable == 0 || speed != 0.0f)),
-                            m3CheckNonNegative(maxEffort, M3_RATIO_LIMIT));
-    }
     return m3BothChecks(m3CheckWithin(speed, M3_SPEED_LIMIT),
                         m3CheckNonNegative(maxEffort, M3_FORCE_LIMIT));
+}
+
+// A spring keeps its values while off, so only an enabled one needs a
+// positive frequency.
+m3Result m3JointSpringCheck(int32_t enable, float hertz, float dampingRatio)
+{
+    return m3BothChecks(m3BothChecks(m3CheckNonNegative(hertz, M3_HERTZ_LIMIT),
+                                     m3CheckValid(enable == 0 || hertz > 0.0f)),
+                        m3CheckNonNegative(dampingRatio, M3_RATIO_LIMIT));
 }
 
 bool m3JointHasLimits(uint8_t type)
@@ -448,6 +458,11 @@ bool m3DistanceLengthsFit(float minLength, float maxLength)
 {
     return m3FiniteF(minLength) && m3FiniteF(maxLength) && minLength >= 0.0f &&
            minLength <= maxLength;
+}
+
+bool m3DistanceRestLengthFits(float length)
+{
+    return m3FiniteF(length) && length >= 0.0f;
 }
 
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)
@@ -467,12 +482,9 @@ bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, floa
     return m3JointSpringFits(world->joints.jointType[slot], enable, hertz, zeta);
 }
 
-// A spring keeps its values while off, so only an enabled one needs a
-// positive frequency.
 bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta)
 {
-    return JointTypeDrives(type) && hertz >= 0.0f && hertz <= M3_HERTZ_LIMIT &&
-           (enable == 0 || hertz > 0.0f) && zeta >= 0.0f && zeta <= M3_RATIO_LIMIT;
+    return m3JointHasSpring(type) && m3JointSpringCheck(enable, hertz, zeta) == m3_success;
 }
 
 bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
@@ -568,8 +580,7 @@ static bool JointRecordFits(uint8_t type, JointFamily family, JointPart part, Jo
     }
     if (family == JOINT_MOTOR)
     {
-        return m3JointHasMotor(type) &&
-               m3JointMotorCheck(type, r.enable, r.first, r.second) == m3_success;
+        return m3JointHasMotor(type) && m3JointMotorCheck(r.first, r.second) == m3_success;
     }
     return m3JointSpringFits(type, r.enable, r.first, r.second);
 }
@@ -650,7 +661,7 @@ static JointRecord JointGetPart(const m3World* world, m3JointId joint, JointFami
     uint8_t type = world->joints.jointType[slot];
     bool has = family == JOINT_LIMITS
                    ? m3JointHasLimits(type)
-                   : (family == JOINT_MOTOR ? m3JointHasMotor(type) : JointTypeDrives(type) != 0);
+                   : (family == JOINT_MOTOR ? m3JointHasMotor(type) : m3JointHasSpring(type));
     return has ? JointHeld(world, slot, family) : (JointRecord){0, 0.0f, 0.0f};
 }
 

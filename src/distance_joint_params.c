@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The distance joint's runtime calls: its length range. Public functions
-// validate and journal; the internal setter in joint_params.c mutates and
-// is what replay drives.
+// The distance joint's runtime calls: its length range and its spring's
+// rest length. Public functions validate and journal; the internal setters
+// in joint_params.c mutate and are what replay drives.
 
 #include "fpenv.h"
 #include "joint.h"
@@ -94,4 +94,57 @@ void m3DistanceJoint_GetLengthRange(const m3World* world, m3JointId joint, float
     {
         *maxLengthOut = range.y;
     }
+}
+
+static M3_NOINLINE void DistanceJointSetLengthWorker(m3World* world, m3JointId joint, float length)
+{
+    if (m3WorldBusy(world))
+    {
+        m3Refuse(world, m3_errorBusy);
+        return;
+    }
+    int32_t slot;
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_distanceJoint ||
+        !m3DistanceRestLengthFits(length))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m3OpDistanceJointSetLength record;
+        memset(&record, 0, sizeof(record));
+        record.id = joint;
+        record.length = length;
+        m3JournalRecord(world, m3_opDistanceJointSetLength, &record, (int32_t)sizeof(record));
+    }
+    m3DistanceJointSetLengthInternal(world, slot, length);
+}
+
+void m3DistanceJoint_SetLength(m3World* world, m3JointId joint, float length)
+{
+    uint64_t env = m3FloatEnvEnter();
+    DistanceJointSetLengthWorker(world, joint, length);
+    m3FloatEnvLeave(env);
+}
+
+// Zero for a stale id and for a joint that is not a distance joint, each of
+// which counts one misuse.
+float m3DistanceJoint_GetLength(const m3World* world, m3JointId joint)
+{
+    int32_t slot;
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return 0.0f;
+    }
+    if (world->joints.jointType[slot] != (uint8_t)m3_distanceJoint)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0.0f;
+    }
+    return world->joints.jointLimits[slot].z;
 }
