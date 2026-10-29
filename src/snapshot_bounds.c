@@ -192,8 +192,11 @@ static bool JointDriveValid(const JointFields* f, int32_t j)
     }
     if (type == (uint8_t)m3_motorJoint)
     {
-        return (m3JointLimitsCheck(type, (flags & M3_JOINT_LIMIT) != 0, limits.x, limits.y) ==
-                m3_success); // the motor slot holds the aim
+        // The motor slot holds the aim, within the create's reach.
+        return m3JointLimitsCheck(type, (flags & M3_JOINT_LIMIT) != 0, limits.x, limits.y) ==
+                   m3_success &&
+               m3WithinF(motor.x, M3_SERVO_AIM_LIMIT) && m3WithinF(motor.y, M3_SERVO_AIM_LIMIT) &&
+               m3WithinF(motor.z, M3_SERVO_AIM_LIMIT);
     }
     if (m3JointMotorCheck(type, (flags & M3_JOINT_MOTOR) != 0, motor.x, motor.y) != m3_success)
     {
