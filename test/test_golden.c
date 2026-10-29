@@ -77,7 +77,7 @@
 
 typedef struct PoolRange
 {
-    m3TaskFn* task;
+    m3TaskFunction* task;
     void* taskContext;
     int32_t start;
     int32_t end;
@@ -111,8 +111,8 @@ static void* PoolMain(void* arg)
 }
 #endif
 
-static void* PoolEnqueue(m3TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
-                         void* userContext)
+static void* PoolEnqueue(m3TaskFunction* task, int32_t itemCount, int32_t minRange,
+                         void* taskContext, void* userContext)
 {
     PoolTask* t = (PoolTask*)userContext; // one task in flight, as the engine promises
     int32_t grain = (itemCount + POOL_WORKERS - 1) / POOL_WORKERS;
@@ -373,7 +373,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     m3Joint_SetSpringHertz(world, joint, 2.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 0.3f);
     m3Joint_EnableSpring(world, joint, true);
-    m3Joint_SetTargetRotation(
+    m3SphericalJoint_SetTargetRotation(
         world, joint, m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.2f, 0.0f, 0.0f}));
 
     m3JointDef hinge = HangDef(world, ground, 22.0, 2.0, 0.5, m3_revoluteJoint, NULL);
@@ -387,7 +387,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     m3Joint_SetSpringHertz(world, joint, 1.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 0.5f);
     m3Joint_EnableSpring(world, joint, true);
-    m3Joint_SetTargetAngle(world, joint, 0.3f);
+    m3RevoluteJoint_SetTargetAngle(world, joint, 0.3f);
 
     m3JointDef parallel = HangDef(world, ground, 24.0, 2.0, 0.3, m3_parallelJoint, NULL);
     parallel.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -472,7 +472,11 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3Joint_SetSpringDampingRatio(world, joint, 0.7f);
     m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetTranslation(world, joint, 0.0f);
-    m3Joint_SetSteer(world, joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
+    m3WheelJoint_SetSteeringHertz(world, joint, 5.0f);
+    m3WheelJoint_SetSteeringDampingRatio(world, joint, 0.7f);
+    m3WheelJoint_SetMaxSteeringTorque(world, joint, 10.0f);
+    m3WheelJoint_SetTargetSteeringAngle(world, joint, 0.2f);
+    m3WheelJoint_EnableSteering(world, joint, true);
 
     m3BodyId gearA;
     m3BodyId gearB;
@@ -577,7 +581,7 @@ static void Destroy(m3World* world, m3ShapeId wall, double ox, double oz)
 {
     static const int32_t lo[3] = {6, 0, 6};
     static const int32_t hi[3] = {9, 11, 9};
-    m3VoxelChunk_ClearBox(world, wall, lo, hi);
+    m3VoxelChunkShape_ClearBox(world, wall, lo, hi);
     m3ExplosionDef blast = m3DefaultExplosionDef();
     blast.position = (m3Pos3){0.0 + ox, 3.0, 0.5 + oz};
     blast.radius = 2.0f;
@@ -882,11 +886,11 @@ static void TourBodyState(const Tour* t)
     m3Body_EnableSleep(t->world, t->crate, false);
     m3Body_SetSleepThreshold(t->world, t->crate, 0.1f);
     m3Body_SetAwake(t->world, t->crate, true);
-    m3Body_Disable(t->world, t->kinematic);
+    m3Body_Enable(t->world, t->kinematic, false);
     m3Body_SetGravityScale(t->world, t->crate, 0.8f);
     m3Body_SetLinearDamping(t->world, t->crate, 0.1f);
     m3Body_SetAngularDamping(t->world, t->crate, 0.2f);
-    m3Body_SetBullet(t->world, t->crate, true);
+    m3Body_EnableBullet(t->world, t->crate, true);
     m3Body_SetUserData(t->world, t->crate, 0x1234u);
     m3Body_SetName(t->world, t->crate, "crate");
     m3Body_EnableFastRotation(t->world, t->crate, true);
@@ -912,14 +916,14 @@ static void TourShapes(const Tour* t)
     m3Shape_SetRollingResistance(t->world, t->ballShape, 0.05f);
     m3Shape_SetDensity(t->world, t->crateShape, 800.0f);
     m3Shape_EnableHitEvents(t->world, t->crateShape, true);
-    m3Shape_EnablePreSolve(t->world, t->deck, true);
+    m3Shape_EnablePreSolveEvents(t->world, t->deck, true);
     m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0);
     m3Shape_SetUserData(t->world, t->crateShape, 0x5678u);
     m3Shape_SetSurfaceVelocity(t->world, t->deck, (m3Vec3){0.5f, 0.0f, 0.0f});
     static const m3MeshSurfaceMaterial paint[2] = {{0.9f, 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}},
                                                    {0.2f, 0.3f, 0.0f, {0.0f, 0.0f, 0.4f}}};
     static const uint8_t groups[2] = {0, 1};
-    m3Shape_SetMeshMaterials(t->world, t->deck, paint, 2, groups);
+    m3MeshShape_SetMaterials(t->world, t->deck, paint, 2, groups);
     m3Sphere bigger = {{0.0f, 0.0f, 0.0f}, 0.35f};
     m3Shape_SetSphere(t->world, t->ballShape, &bigger);
 }
@@ -941,12 +945,12 @@ static void TourJointsAndSoft(const Tour* t)
 static void TourActors(const Tour* t)
 {
     (void)SetStance(t->world, t->cast.hero, 0.25f, 0.2f);
-    m3Vehicle_SelectGear(t->world, t->cast.car, 2);
+    m3Vehicle_SetGear(t->world, t->cast.car, 2);
     m3Vehicle_SetTankCommands(t->world, t->tank, 0.5f, -0.5f, 0.0f);
     CHECK(m3World_RebuildBroadphase(t->world) == m3_success, "the tour rebuilds the tree");
-    m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
-    m3VoxelChunk_SetFill(t->world, t->cast.stairs, 2, 0, 2, 128);
-    m3VoxelChunk_ClearVoxel(t->world, t->cast.stairs, 14, 7, 5);
+    m3VoxelChunkShape_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
+    m3VoxelChunkShape_SetFill(t->world, t->cast.stairs, 2, 0, 2, 128);
+    m3VoxelChunkShape_ClearVoxel(t->world, t->cast.stairs, 14, 7, 5);
 }
 
 static void TourTeardown(const Tour* t)
@@ -993,15 +997,15 @@ static void TourCalls(Tour* t, int32_t frame)
         break;
     case 40:
         m3Body_SetType(t->world, t->ball, m3_dynamicBody);
-        m3Body_Enable(t->world, t->kinematic);
+        m3Body_Enable(t->world, t->kinematic, true);
         m3World_EnableContinuous(t->world, true);
         break;
     case 130:
         TourTeardown(t);
         break;
     case 140:
-        m3VoxelChunk_ClearVoxel(t->world, t->cast.stairs, 12, 5, 9);
-        m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 3, 9, 9, 2);
+        m3VoxelChunkShape_ClearVoxel(t->world, t->cast.stairs, 12, 5, 9);
+        m3VoxelChunkShape_SetVoxel(t->world, t->cast.stairs, 3, 9, 9, 2);
         break;
     case 160:
         m3World_EnableSleep(t->world, true);
@@ -1047,7 +1051,7 @@ static void CheckRestoreBetweenCallsAndStep(uint64_t expected)
     for (int32_t frame = 0; frame < TOUR_FRAMES; ++frame)
     {
         TourCalls(&t, frame);
-        int32_t size = m3World_SnapshotSize(t.world);
+        int32_t size = m3World_GetSnapshotSize(t.world);
         uint8_t* bytes = (uint8_t*)malloc((size_t)size);
         if (bytes == NULL || Snapshot(t.world, bytes, size) != size ||
             !Restore(t.world, bytes, size))
@@ -1080,7 +1084,7 @@ static uint64_t SceneRollback(void)
     {
         TourFrame(&t, frame);
     }
-    int32_t size = m3World_SnapshotSize(t.world);
+    int32_t size = m3World_GetSnapshotSize(t.world);
     uint8_t* before = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(t.world, before, size) == size, "the snapshot fits its size");
 
@@ -1089,7 +1093,7 @@ static uint64_t SceneRollback(void)
         TourFrame(&t, frame);
     }
     uint64_t first = m3World_Hash(t.world);
-    int32_t afterSize = m3World_SnapshotSize(t.world);
+    int32_t afterSize = m3World_GetSnapshotSize(t.world);
     uint8_t* after = (uint8_t*)malloc((size_t)afterSize);
     Snapshot(t.world, after, afterSize);
 
@@ -1100,7 +1104,7 @@ static uint64_t SceneRollback(void)
     }
     CHECK(m3World_Hash(t.world) == first, "the rerun lands on the same bits");
     uint8_t* again = (uint8_t*)malloc((size_t)afterSize);
-    CHECK(m3World_SnapshotSize(t.world) == afterSize &&
+    CHECK(m3World_GetSnapshotSize(t.world) == afterSize &&
               Snapshot(t.world, again, afterSize) == afterSize &&
               memcmp(after, again, (size_t)afterSize) == 0,
           "the rerun's snapshot is byte for byte the first one's");
@@ -1257,7 +1261,7 @@ static void WalkOp(Walk* w)
         int32_t x = (int32_t)(Next() % VOXEL_DIM);
         int32_t y = (int32_t)(Next() % 6);
         int32_t z = (int32_t)(Next() % VOXEL_DIM);
-        m3VoxelChunk_ClearVoxel(w->world, w->wall, x, y, z);
+        m3VoxelChunkShape_ClearVoxel(w->world, w->wall, x, y, z);
         break;
     }
     default:

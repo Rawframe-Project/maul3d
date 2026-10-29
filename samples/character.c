@@ -19,7 +19,7 @@ static void Require(m3Result result, const char* what)
 {
     if (result != m3_success)
     {
-        fprintf(stderr, "%s: %s\n", what, m3ResultName(result));
+        fprintf(stderr, "%s: %s\n", what, m3GetResultName(result));
         exit(1);
     }
 }

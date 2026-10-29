@@ -51,7 +51,7 @@ static void TestCountsMatchTheScene(void)
     CHECK(c.hullCount >= 1, "boxes intern hull slabs");
     CHECK(c.islandCount == 0 && c.colorCount == 0, "step statistics are zero before a step");
     CHECK(c.snapshotBytes > 0, "the snapshot size reports");
-    CHECK(c.snapshotBytes == m3World_SnapshotSize(world), "the two size paths agree");
+    CHECK(c.snapshotBytes == m3World_GetSnapshotSize(world), "the two size paths agree");
 
     // A joint arrives, then a lattice: the counters follow.
     m3BodyDef ad = m3DefaultBodyDef();
@@ -230,7 +230,7 @@ static void TestReadback(void)
     bd.gravityScale = 0.5f;
     bd.linearDamping = 0.25f;
     bd.angularDamping = 0.75f;
-    bd.isBullet = true;
+    bd.enableBullet = true;
     m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = 2.0f;
@@ -266,7 +266,7 @@ static void TestReadback(void)
     CHECK(NearF(lv.x, pv.x, 1e-5f) && NearF(lv.z, pv.z, 1e-5f), "the same point, given locally");
     CHECK(m3Body_GetGravityScale(world, body) == 0.5f &&
               m3Body_GetLinearDamping(world, body) == 0.25f &&
-              m3Body_GetAngularDamping(world, body) == 0.75f && m3Body_IsBullet(world, body),
+              m3Body_GetAngularDamping(world, body) == 0.75f && m3Body_IsBulletEnabled(world, body),
           "def settings read back");
     m3AabbResult bounds = m3Body_ComputeAabb(world, body);
     CHECK(bounds.lowerBound.x <= 0.5 && bounds.upperBound.x >= 1.5 && bounds.lowerBound.y <= 1.5,

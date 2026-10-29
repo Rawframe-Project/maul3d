@@ -122,11 +122,11 @@ int main(void)
     }
     if (built != m3_success)
     {
-        fprintf(stderr, "m3lockstep: building the scene: %s\n", m3ResultName(built));
+        fprintf(stderr, "m3lockstep: building the scene: %s\n", m3GetResultName(built));
         return 1;
     }
 
-    int32_t snapCapacity = m3World_SnapshotSize(online.world);
+    int32_t snapCapacity = m3World_GetSnapshotSize(online.world);
     uint8_t* confirmedSnap = (uint8_t*)malloc((size_t)snapCapacity);
     int32_t snapBytes = 0;
     if (confirmedSnap == NULL ||

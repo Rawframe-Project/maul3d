@@ -17,11 +17,11 @@ defs filled with constants:
     m3DefaultWorldDefValues
 
 the build, the CPU, result names and the integer hash:
-    m3CpuSupportsBackend
+    m3IsCpuBackendSupported
     m3GetSimdBackend
     m3GetVersion
     m3Hash64
-    m3ResultName
+    m3GetResultName
 
 ids, types, flags, names and user data, read or stored as they are:
     m3Body_GetJoints
@@ -31,7 +31,7 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Body_GetType
     m3Body_GetUserData
     m3Body_IsAwake
-    m3Body_IsBullet
+    m3Body_IsBulletEnabled
     m3Body_IsEnabled
     m3Body_IsFastRotationEnabled
     m3Body_IsSleepEnabled
@@ -49,12 +49,13 @@ ids, types, flags, names and user data, read or stored as they are:
     m3Joint_IsMotorEnabled
     m3Joint_IsSpringEnabled
     m3Joint_IsValid
+    m3WheelJoint_IsSteeringEnabled
     m3Shape_GetBody
     m3Shape_GetFilter
     m3Shape_GetType
     m3Shape_GetUserData
     m3Shape_IsHitEventsEnabled
-    m3Shape_IsPreSolveEnabled
+    m3Shape_IsPreSolveEventsEnabled
     m3Shape_IsSensor
     m3Shape_IsValid
     m3Shape_SetUserData
@@ -90,3 +91,7 @@ stored floats read back as they are, with no arithmetic:
     m3MotorJoint_GetLinearOffset
     m3MotorJoint_GetMaxForce
     m3MotorJoint_GetMaxTorque
+    m3WheelJoint_GetMaxSteeringTorque
+    m3WheelJoint_GetSteeringDampingRatio
+    m3WheelJoint_GetSteeringHertz
+    m3WheelJoint_GetTargetSteeringAngle

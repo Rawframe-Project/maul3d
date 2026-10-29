@@ -761,7 +761,7 @@ static void TestBulletStopsAtWall(void)
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 0.0, 0.0};
         bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
-        bd.isBullet = variant == 1;
+        bd.enableBullet = variant == 1;
         m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
         NewSphereShape(world, ball, &sd, &sphere);
@@ -805,7 +805,7 @@ static void TestBulletVsDynamicTarget(void)
 
         bd.position = (m3Pos3){0.0, 0.0, 0.0};
         bd.linearVelocity = (m3Vec3){150.0f, 0.0f, 0.0f};
-        bd.isBullet = variant == 1;
+        bd.enableBullet = variant == 1;
         m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
         NewSphereShape(world, ball, &sd, &sphere);
@@ -1111,7 +1111,7 @@ static void TestBulletStopsAtMeshWall(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 0.0, 0.0};
     bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
-    bd.isBullet = true;
+    bd.enableBullet = true;
     m3BodyId ball = NewBody(world, &bd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
     NewSphereShape(world, ball, &sd, &sphere);

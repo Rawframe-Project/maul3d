@@ -167,7 +167,7 @@ static double ArmDroop(bool spring, bool motor, float budget)
         m3Joint_SetSpringHertz(world, joint, 6.0f);
         m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
         m3Joint_EnableSpring(world, joint, true);
-        m3Joint_SetTargetAngle(world, joint, 0.0f);
+        m3RevoluteJoint_SetTargetAngle(world, joint, 0.0f);
     }
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -204,7 +204,7 @@ static void TestWheelSteering(void)
 {
     // A hub and a rim on a wheel joint in zero gravity: the steer
     // drive yaws the rim about the strut to the target, reads back
-    // through GetSteerAngle, honors the journal, and refuses the
+    // through GetSteeringAngle, honors the journal, and refuses the
     // hostile wall.
     static uint8_t journal[65536];
     uint64_t hashes[2];
@@ -235,23 +235,28 @@ static void TestWheelSteering(void)
         jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
         m3JointId wheel = NewJoint(world, &jd);
         CHECK(m3Joint_IsValid(world, wheel), "the wheel creates");
-        m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
+        m3WheelJoint_SetSteeringHertz(world, wheel, 8.0f);
+        m3WheelJoint_SetSteeringDampingRatio(world, wheel, 1.0f);
+        m3WheelJoint_SetMaxSteeringTorque(world, wheel, 0.0f);
+        m3WheelJoint_SetTargetSteeringAngle(world, wheel, 0.5f);
+        m3WheelJoint_EnableSteering(world, wheel, true);
         for (int32_t i = 0; i < 120; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        float angle = m3Joint_GetSteerAngle(world, wheel);
+        float angle = m3WheelJoint_GetSteeringAngle(world, wheel);
         CHECK(fabsf(angle - 0.5f) < 0.05f, "the rim yaws to the steer target");
-        m3Joint_SetSteer(world, wheel, true, -0.5f, 8.0f, 1.0f, 0.0f);
+        m3WheelJoint_SetTargetSteeringAngle(world, wheel, -0.5f);
         for (int32_t i = 0; i < 120; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) + 0.5f) < 0.05f, "the steer reverses");
+        CHECK(fabsf(m3WheelJoint_GetSteeringAngle(world, wheel) + 0.5f) < 0.05f,
+              "the steer reverses");
         // The hostile wall runs in BOTH runs so the twins stay
         // symmetric: a refused steer never touches state.
-        m3Joint_SetSteer(world, wheel, true, 2.0f, 8.0f, 1.0f, 0.0f); // beyond the range
-        CHECK(m3Joint_GetSteerAngle(world, wheel) > -1.1f,
+        m3WheelJoint_SetTargetSteeringAngle(world, wheel, 2.0f); // beyond the range
+        CHECK(m3WheelJoint_GetSteeringAngle(world, wheel) > -1.1f,
               "an absurd target refused, the drive holds");
         hashes[run] = m3World_Hash(world);
         if (recording)
@@ -286,8 +291,12 @@ static void TestWheelSteering(void)
     jd.bodyIdB = b;
     m3JointId ball = NewJoint(world, &jd);
     uint64_t before = m3World_Hash(world);
-    m3Joint_SetSteer(world, ball, true, 0.3f, 8.0f, 1.0f, 0.0f);
-    CHECK(m3Joint_GetSteerAngle(world, ball) == 0.0f, "a spherical never steers");
+    m3WheelJoint_SetSteeringHertz(world, ball, 8.0f);
+    m3WheelJoint_SetSteeringDampingRatio(world, ball, 1.0f);
+    m3WheelJoint_SetMaxSteeringTorque(world, ball, 0.0f);
+    m3WheelJoint_SetTargetSteeringAngle(world, ball, 0.3f);
+    m3WheelJoint_EnableSteering(world, ball, true);
+    CHECK(m3WheelJoint_GetSteeringAngle(world, ball) == 0.0f, "a spherical never steers");
     CHECK(m3World_Hash(world) == before, "the refused steer moved no bits");
     m3DestroyWorld(world);
 }
@@ -318,15 +327,19 @@ static void TestWheelTargetKeepsSteering(void)
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
-    m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
+    m3WheelJoint_SetSteeringHertz(world, wheel, 8.0f);
+    m3WheelJoint_SetSteeringDampingRatio(world, wheel, 1.0f);
+    m3WheelJoint_SetMaxSteeringTorque(world, wheel, 0.0f);
+    m3WheelJoint_SetTargetSteeringAngle(world, wheel, 0.5f);
+    m3WheelJoint_EnableSteering(world, wheel, true);
     m3Joint_SetTargetTranslation(world, wheel, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) - 0.5f) < 0.05f,
+    CHECK(fabsf(m3WheelJoint_GetSteeringAngle(world, wheel) - 0.5f) < 0.05f,
           "a wheel given a translation target still steers");
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
     int32_t bytes = Snapshot(world, snapshot, size);
     m3World* restored = NewWorld(&wd);
@@ -335,6 +348,117 @@ static void TestWheelTargetKeepsSteering(void)
           "and its snapshot restores");
     m3DestroyWorld(restored);
     free(snapshot);
+    m3DestroyWorld(world);
+}
+
+// Records a wheel whose steering takes a frequency of 6.25 Hz and then
+// switches on, with every 6.25 in the tape's records set to hertz, and
+// tells whether a fresh world replays it.
+static bool ReplaysSteering(float hertz)
+{
+    static uint8_t tape[16384];
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the steering tape records");
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId hub = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.4, 0.0};
+    m3BodyId rim = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_wheelJoint;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    m3JointId wheel = NewJoint(world, &jd);
+    m3WheelJoint_SetSteeringHertz(world, wheel, 6.25f);
+    m3WheelJoint_EnableSteering(world, wheel, true);
+    int32_t bytes = StopJournal(world);
+    m3DestroyWorld(world);
+    const float recorded = 6.25f;
+    int32_t patched = 0;
+    for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
+    {
+        if (memcmp(tape + i, &recorded, 4) == 0)
+        {
+            memcpy(tape + i, &hertz, 4);
+            ++patched;
+        }
+    }
+    CHECK(patched == 2, "the frequency sits in the two steering records");
+    world = NewWorld(&wd);
+    bool replayed = ReplayJournal(world, tape, bytes);
+    m3DestroyWorld(world);
+    return replayed;
+}
+
+// Replay checks a steering record as the setters do: a tape whose
+// enabled steering holds a zero frequency is refused, not applied.
+static void TestSteeringReplayRefusesZeroHertz(void)
+{
+    CHECK(ReplaysSteering(3.5f), "a steering tape with a positive frequency replays");
+    CHECK(!ReplaysSteering(0.0f), "a steering tape enabled at 0 Hz is refused");
+}
+
+// The steering switch and its four values are separate calls on one
+// record: each value reads back as set, switching steering off keeps the
+// values, steering needs a frequency before it switches on, and a joint
+// that is not a wheel refuses every setter and getter.
+static void TestSteeringSwitchKeepsValues(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId hub = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.4, 0.0};
+    m3BodyId rim = NewBody(world, &bd);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_wheelJoint;
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    m3JointId wheel = NewJoint(world, &jd);
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    m3WheelJoint_EnableSteering(world, wheel, true);
+    CHECK(!m3WheelJoint_IsSteeringEnabled(world, wheel) &&
+              m3World_GetCounters(world).misuse == misuse + 1,
+          "steering without a frequency refuses to switch on");
+    m3WheelJoint_SetSteeringHertz(world, wheel, 6.0f);
+    m3WheelJoint_SetSteeringDampingRatio(world, wheel, 0.8f);
+    m3WheelJoint_SetMaxSteeringTorque(world, wheel, 30.0f);
+    m3WheelJoint_SetTargetSteeringAngle(world, wheel, 0.4f);
+    m3WheelJoint_EnableSteering(world, wheel, true);
+    CHECK(m3WheelJoint_IsSteeringEnabled(world, wheel), "steering switches on");
+    m3WheelJoint_EnableSteering(world, wheel, false);
+    CHECK(!m3WheelJoint_IsSteeringEnabled(world, wheel) &&
+              m3WheelJoint_GetSteeringHertz(world, wheel) == 6.0f &&
+              m3WheelJoint_GetSteeringDampingRatio(world, wheel) == 0.8f &&
+              m3WheelJoint_GetMaxSteeringTorque(world, wheel) == 30.0f &&
+              m3WheelJoint_GetTargetSteeringAngle(world, wheel) == 0.4f,
+          "switching steering off keeps its values");
+    m3WheelJoint_EnableSteering(world, wheel, true);
+    m3WheelJoint_SetSteeringHertz(world, wheel, 0.0f);
+    CHECK(m3WheelJoint_GetSteeringHertz(world, wheel) == 6.0f &&
+              m3World_GetCounters(world).misuse == misuse + 2,
+          "enabled steering refuses a zero frequency");
+    jd = m3DefaultJointDef();
+    jd.bodyIdA = hub;
+    jd.bodyIdB = rim;
+    m3JointId ball = NewJoint(world, &jd);
+    m3WheelJoint_SetSteeringHertz(world, ball, 6.0f);
+    m3WheelJoint_EnableSteering(world, ball, true);
+    CHECK(m3World_GetCounters(world).misuse == misuse + 4, "a spherical joint refuses steering");
+    CHECK_REFUSES(world, CHECK(!m3WheelJoint_IsSteeringEnabled(world, ball), "steering off"),
+                  "a spherical's steering switch reads off and counts misuse");
+    CHECK_REFUSES(world, CHECK(m3WheelJoint_GetSteeringHertz(world, ball) == 0.0f, "zero hertz"),
+                  "a spherical's steering frequency reads zero and counts misuse");
     m3DestroyWorld(world);
 }
 
@@ -552,9 +676,10 @@ static void TestMotorJointServo(void)
         CHECK(m3World_Hash(world) == before, "the refused aim moved no bits");
         CHECK_REFUSES(world, m3MotorJoint_SetMaxForce(world, ball, 1.0f),
                       "a spherical takes no servo budget");
-        CHECK(m3MotorJoint_GetMaxForce(world, ball) == 0.0f &&
-                  m3MotorJoint_GetLinearOffset(world, ball).x == 0.0f,
-              "a spherical's servo getters read zeros");
+        CHECK_REFUSES(world, CHECK(m3MotorJoint_GetMaxForce(world, ball) == 0.0f, "zero budget"),
+                      "a spherical's servo budget reads zero and counts misuse");
+        CHECK_REFUSES(world, CHECK(m3MotorJoint_GetLinearOffset(world, ball).x == 0.0f, "zero aim"),
+                      "a spherical's servo aim reads zero and counts misuse");
 
         // The def's budgets, the aim and the budgets read back, and the
         // servo takes no limits.
@@ -613,6 +738,8 @@ int main(void)
     TestFourStateDrive();
     TestWheelSteering();
     TestWheelTargetKeepsSteering();
+    TestSteeringSwitchKeepsValues();
+    TestSteeringReplayRefusesZeroHertz();
     TestMotorJointServo();
     TestJointWalls();
     if (s_failures == 0)

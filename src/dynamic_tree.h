@@ -72,14 +72,14 @@ bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], cons
 /// which depends on its history (insertions, moves, rebuilds), not only
 /// on hashed state, so a caller whose effects depend on the order visits
 /// the leaves in slot order instead.
-typedef bool (*m3TreeQueryFn)(int32_t userData, void* context);
-void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
+typedef bool (*m3TreeQueryFunction)(int32_t userData, void* context);
+void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFunction fn,
                  void* context);
 
 /// The same, visiting only leaves whose kind bits meet mask; a subtree
 /// without such a leaf is skipped whole.
 void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3], uint32_t mask,
-                     m3TreeQueryFn fn, void* context);
+                     m3TreeQueryFunction fn, void* context);
 
 /// Rebuilds the whole tree top down from leaf bounds and payloads given
 /// in canonical order: a median split along the axis where the centroids

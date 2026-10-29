@@ -77,15 +77,15 @@ static void TestHeightFieldAtTheBound(void)
     // The measure reads capacities alone, so a pair capacity raised in
     // place stands the world's snapshot next to the bound without memory.
     int32_t pairs = world->contacts.pairCapacity;
-    int64_t base = m3World_SnapshotSize(world);
+    int64_t base = m3World_GetSnapshotSize(world);
     world->contacts.pairCapacity = pairs + 1;
-    int64_t perPair = m3World_SnapshotSize(world) - base;
+    int64_t perPair = m3World_GetSnapshotSize(world) - base;
     int32_t fits = pairs + (int32_t)((M3_MAX_SNAPSHOT_BYTES - growth - base) / perPair);
     int64_t near = base + (int64_t)(fits - pairs) * perPair;
 
     world->contacts.pairCapacity = fits + 1;
     uint64_t hash = m3World_Hash(world);
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint64_t misuse = m3World_GetCounters(world).misuse;
     m3ShapeDef sd = m3DefaultShapeDef();
     m3ShapeId shape = {1, 1};
@@ -93,14 +93,14 @@ static void TestHeightFieldAtTheBound(void)
                   m3_errorCapacity &&
               shape.index1 == 0,
           "a grid that would carry the snapshot past the bound is refused");
-    CHECK(m3World_Hash(world) == hash && m3World_SnapshotSize(world) == size &&
+    CHECK(m3World_Hash(world) == hash && m3World_GetSnapshotSize(world) == size &&
               m3World_GetCounters(world).misuse == misuse,
           "with the world as it was, and no misuse counted");
 
     world->contacts.pairCapacity = fits;
     CHECK(m3CreateHeightFieldGridShape(world, ground, &sd, heights, side, side, 1.0f, &shape) ==
                   m3_success &&
-              m3World_SnapshotSize(world) == near + growth,
+              m3World_GetSnapshotSize(world) == near + growth,
           "a grid that keeps the snapshot within the bound is taken");
     world->contacts.pairCapacity = pairs;
     free(heights);

@@ -252,7 +252,7 @@ static void TestFastBodiesAndCharactersStayOnTheGrid(void)
     {
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
-        bd.isBullet = i == 1;
+        bd.enableBullet = i == 1;
         bd.position = (m3Pos3){-10.0 + 20.0 * i, 6.0, 0.5};
         bd.linearVelocity = (m3Vec3){0.0f, -2000.0f, 0.0f};
         fast[i] = NewBody(world, &bd);

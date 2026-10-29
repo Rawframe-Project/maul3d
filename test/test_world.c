@@ -111,7 +111,7 @@ static void TestSnapshot(void)
     def.bodyCapacity = 8;
     m3World* world = NewWorld(&def);
 
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     CHECK(size > 0, "the empty world has a snapshot size");
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
@@ -331,7 +331,7 @@ static void TestPairs(void)
           "pair keys are exact and canonically ordered");
 
     // Snapshot round-trip carries the pairs (v2 format).
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "v2 snapshot");
     w->contacts.pairCount = 0;
@@ -477,7 +477,7 @@ static m3World* BuildLaneScene(void)
     m3ShapeId mesh = NewMeshShape(world, ground, &sd, belt, 4, tris, 2);
     m3MeshSurfaceMaterial moving = {0.8f, 0.0f, 0.0f, {1.5f, 0.0f, 0.5f}};
     uint8_t groups[2] = {0, 0};
-    m3Shape_SetMeshMaterials(world, mesh, &moving, 1, groups);
+    m3MeshShape_SetMaterials(world, mesh, &moving, 1, groups);
 
     for (int32_t i = 0; i < 40; ++i)
     {
@@ -564,7 +564,7 @@ static void TestHullSnapshotShrink(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     m3World* bare = NewWorld(&def);
-    int32_t bareBytes = m3World_SnapshotSize(bare);
+    int32_t bareBytes = m3World_GetSnapshotSize(bare);
     m3WorldDef def2 = def;
     m3World* boxed = NewWorld(&def2);
     m3BodyDef bd = m3DefaultBodyDef();
@@ -573,7 +573,7 @@ static void TestHullSnapshotShrink(void)
     m3BodyId body = NewBody(boxed, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(boxed, body, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-    int32_t boxedBytes = m3World_SnapshotSize(boxed);
+    int32_t boxedBytes = m3World_GetSnapshotSize(boxed);
     CHECK(boxedBytes - bareBytes < (int32_t)sizeof(m3HullData),
           "one box hull travels lighter than one fixed slab");
 
@@ -759,7 +759,7 @@ static void CheckHashSees(int which, const char* what)
     switch (which)
     {
     case 0:
-        m3Shape_SetMeshMaterials(w, changed.floor, &paint, 1, groups);
+        m3MeshShape_SetMaterials(w, changed.floor, &paint, 1, groups);
         break;
     case 1:
         m3Body_SetGravityScale(w, changed.box, 2.0f);
@@ -942,7 +942,7 @@ static m3World* PairTableWorld(int32_t pairCapacity)
 static void TestPairCapacityInSnapshot(void)
 {
     m3World* large = PairTableWorld(50000);
-    int32_t size = m3World_SnapshotSize(large);
+    int32_t size = m3World_GetSnapshotSize(large);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL && Snapshot(large, bytes, size) == size, "the large table snapshots");
     int32_t stored = 0;
@@ -958,7 +958,7 @@ static void TestPairCapacityInSnapshot(void)
     m3World* same = PairTableWorld(50000);
     CHECK(m3World_Restore(same, bytes, size) == m3_success, "the same pair capacity restores");
     uint8_t* again = (uint8_t*)malloc((size_t)size);
-    CHECK(again != NULL && m3World_SnapshotSize(same) == size &&
+    CHECK(again != NULL && m3World_GetSnapshotSize(same) == size &&
               Snapshot(same, again, size) == size && memcmp(again, bytes, (size_t)size) == 0,
           "exactly");
     free(again);

@@ -56,11 +56,11 @@ extern "C"
         /// dynamic body already sweeps against statics; the bullet
         /// flag buys the dynamic-target sweep. Bullet versus bullet
         /// is not resolved (a documented limitation).
-        bool isBullet;
+        bool enableBullet;
         m3MotionLocks motionLocks;
         bool enableSleep;        // false = this body never sleeps
         float sleepThreshold;    // resting speed; zero = the world default
-        bool isEnabled;          // false = created outside simulation and queries
+        bool enable;             // false = created outside simulation and queries
         bool enableFastRotation; // may spin past the world's angular cap, up to 1e5 rad/s
         int32_t internalValue;
     } m3BodyDef;
@@ -116,14 +116,14 @@ extern "C"
     M3_API float m3Body_GetGravityScale(const m3World* world, m3BodyId body);
     M3_API float m3Body_GetLinearDamping(const m3World* world, m3BodyId body);
     M3_API float m3Body_GetAngularDamping(const m3World* world, m3BodyId body);
-    M3_API bool m3Body_IsBullet(const m3World* world, m3BodyId body);
+    M3_API bool m3Body_IsBulletEnabled(const m3World* world, m3BodyId body);
     /// Journaled setters for what the def set, as in Maul2D. Damping
     /// must be finite and non-negative, a gravity scale within 1e4.
     /// Thread class: writer.
     M3_API void m3Body_SetGravityScale(m3World* world, m3BodyId body, float scale);
     M3_API void m3Body_SetLinearDamping(m3World* world, m3BodyId body, float damping);
     M3_API void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping);
-    M3_API void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag);
+    M3_API void m3Body_EnableBullet(m3World* world, m3BodyId body, bool flag);
     M3_API void m3Body_SetUserData(m3World* world, m3BodyId body, uint64_t userData);
     M3_API m3AabbResult m3Body_ComputeAabb(const m3World* world, m3BodyId body);
     M3_API int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids,
@@ -157,8 +157,7 @@ extern "C"
     M3_API void m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
     /// A disabled body vanishes from simulation AND queries without
     /// being destroyed; enabling wakes its neighborhood. Journaled.
-    M3_API void m3Body_Enable(m3World* world, m3BodyId body);
-    M3_API void m3Body_Disable(m3World* world, m3BodyId body);
+    M3_API void m3Body_Enable(m3World* world, m3BodyId body, bool enable);
     M3_API bool m3Body_IsEnabled(const m3World* world, m3BodyId body);
     /// Motion locks: locked components re-zero every substep, so 2.5D
     /// scenes and upright enemies stay exact. Journaled.

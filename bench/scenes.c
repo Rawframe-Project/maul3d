@@ -583,7 +583,11 @@ static m3World* SceneVehicleRig(void)
             m3Joint_SetTargetTranslation(world, joint, 0.0f);
             if ((w & 1) != 0)
             {
-                m3Joint_SetSteer(world, joint, true, car % 2 != 0 ? 0.2f : -0.2f, 5.0f, 0.7f, 0.0f);
+                m3WheelJoint_SetSteeringHertz(world, joint, 5.0f);
+                m3WheelJoint_SetSteeringDampingRatio(world, joint, 0.7f);
+                m3WheelJoint_SetMaxSteeringTorque(world, joint, 0.0f);
+                m3WheelJoint_SetTargetSteeringAngle(world, joint, car % 2 != 0 ? 0.2f : -0.2f);
+                m3WheelJoint_EnableSteering(world, joint, true);
             }
         }
     }
@@ -703,7 +707,7 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             int32_t sy = 1 + (shells * 2) % 6;
             int32_t lo[3] = {sx, sy, 2};
             int32_t hi[3] = {sx + 1 < 16 ? sx + 1 : 15, sy + 1, 2};
-            m3VoxelChunk_ClearBox(world, keep, lo, hi);
+            m3VoxelChunkShape_ClearBox(world, keep, lo, hi);
             shells += 1;
             m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
             for (int32_t e = 0; e < fragments.fragmentCount && e < 16; ++e)
@@ -717,7 +721,7 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             // through the breaches once the charges open them.
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
-            bd.isBullet = true;
+            bd.enableBullet = true;
             bd.position = (m3Pos3){RandRange(&rng, -4.0, 4.0), 2.5, -20.0};
             bd.linearVelocity = (m3Vec3){0.0f, 0.0f, 150.0f};
             m3BodyId bullet = NewBody(world, &bd);
@@ -752,7 +756,7 @@ uint64_t BenchCityblock(int32_t totalSteps, BenchClock* clock, double phaseMs[3]
             int32_t cy = 2 + (carves / towerCount) % 3;
             int32_t lo[3] = {5, cy, 5};
             int32_t hi[3] = {10, cy, 10};
-            m3VoxelChunk_ClearBox(world, victim, lo, hi);
+            m3VoxelChunkShape_ClearBox(world, victim, lo, hi);
             carves += 1;
             m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
             for (int32_t e = 0; e < fragments.fragmentCount && e < 24; ++e)
@@ -791,7 +795,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     double t0 = Now(clock);
     result.bytes = Snapshot(world, snap, snapBytes);

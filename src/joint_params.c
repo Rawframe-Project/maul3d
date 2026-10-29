@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joint runtime control: limits, motors, springs, targets, steering and
-// breakage, and the joint readback. Public functions validate and
-// journal; the internal setters mutate and are what replay drives.
+// Joint runtime control: limits, motors, springs, targets and breakage,
+// and the joint readback. Public functions validate and journal; the
+// internal setters mutate and are what replay drives.
 
 #include "body_state.h"
 #include "fpenv.h"
@@ -197,81 +197,6 @@ static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
     }
     *slotOut = slot;
     return true;
-}
-
-static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, bool enable,
-                                            float targetAngle, float hertz, float zeta,
-                                            float maxEffort)
-{
-    if (m3WorldBusy(world))
-    {
-        m3Refuse(world, m3_errorBusy);
-        return;
-    }
-    int32_t slot;
-    if (!ResolveJoint(world, joint, &slot))
-    {
-        return; // steering is a wheel contract, refused loudly
-    }
-    if (!m3JointSteerValid(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort))
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return; // steering is a wheel contract, refused loudly
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m3OpJointSetSteer record;
-        memset(&record, 0, sizeof(record));
-        record.id = joint;
-        record.enable = enable ? 1 : 0;
-        record.target = targetAngle;
-        record.hertz = hertz;
-        record.zeta = zeta;
-        record.effort = maxEffort;
-        m3JournalRecord(world, m3_opJointSetSteer, &record, (int32_t)sizeof(record));
-    }
-    m3JointSetSteerInternal(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort);
-}
-
-void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
-                      float zeta, float maxEffort)
-{
-    uint64_t env = m3FloatEnvEnter();
-    JointSetSteerWorker(world, joint, enable, targetAngle, hertz, zeta, maxEffort);
-    m3FloatEnvLeave(env);
-}
-
-static M3_NOINLINE float JointGetSteerAngleWorker(const m3World* world, m3JointId joint)
-{
-    int32_t slot;
-    if (!ResolveJoint(world, joint, &slot))
-    {
-        return 0.0f;
-    }
-    if (world->joints.jointType[slot] != (uint8_t)m3_wheelJoint)
-    {
-        m3Refuse(world, m3_errorInvalid);
-        return 0.0f;
-    }
-    int32_t bodyA = world->joints.jointBodyA[slot];
-    int32_t bodyB = world->joints.jointBodyB[slot];
-    m3Quat quatA = m3MulQuat(world->bodies.transforms[bodyA].q, world->joints.jointFrameQA[slot]);
-    m3Quat quatB = m3MulQuat(world->bodies.transforms[bodyB].q, world->joints.jointFrameQB[slot]);
-    if (quatA.x * quatB.x + quatA.y * quatB.y + quatA.z * quatB.z + quatA.w * quatB.w < 0.0f)
-    {
-        quatB = (m3Quat){-quatB.x, -quatB.y, -quatB.z, -quatB.w};
-    }
-    m3Quat conjA = {-quatA.x, -quatA.y, -quatA.z, quatA.w};
-    m3Quat relQ = m3MulQuat(conjA, quatB);
-    return 2.0f * m3Atan2(relQ.x, relQ.w);
-}
-
-float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
-{
-    uint64_t env = m3FloatEnvEnter();
-    float result = JointGetSteerAngleWorker(world, joint);
-    m3FloatEnvLeave(env);
-    return result;
 }
 
 static M3_NOINLINE void JointEnableConnectedCollisionWorker(m3World* world, m3JointId joint,
@@ -883,7 +808,7 @@ static M3_NOINLINE void JointSetTargetAngleWorker(m3World* world, m3JointId join
     JointTargetOp(world, joint, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
+void m3RevoluteJoint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetTargetAngleWorker(world, joint, radians);
@@ -942,7 +867,7 @@ static M3_NOINLINE void JointSetTargetRotationWorker(m3World* world, m3JointId j
     JointTargetOp(world, joint, slot, 0.0f, target);
 }
 
-void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
+void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetTargetRotationWorker(world, joint, target);

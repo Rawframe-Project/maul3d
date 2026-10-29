@@ -13,7 +13,7 @@ static void Require(m3Result result, const char* what)
 {
     if (result != m3_success)
     {
-        printf("M3_CONSUMER_FAIL %s: %s\n", what, m3ResultName(result));
+        printf("M3_CONSUMER_FAIL %s: %s\n", what, m3GetResultName(result));
         exit(1);
     }
 }
@@ -52,7 +52,7 @@ int main(void)
         return 1;
     }
 
-    int32_t capacity = m3World_SnapshotSize(world);
+    int32_t capacity = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)capacity);
     int32_t bytes = 0;
     Require(m3World_Snapshot(world, snap, capacity, &bytes), "snapshot");
@@ -91,7 +91,7 @@ int main(void)
     Require(m3CreateVoxelChunkShape(world, wallBody, &vd, voxels, NULL, 1.0f, &wall),
             "voxel create");
     uint64_t misuse = m3World_GetCounters(world).misuse;
-    m3VoxelChunk_ClearVoxel(world, wall, 5, 0, 8);
+    m3VoxelChunkShape_ClearVoxel(world, wall, 5, 0, 8);
     if (m3World_GetCounters(world).misuse != misuse)
     {
         printf("M3_CONSUMER_FAIL voxel edit\n");

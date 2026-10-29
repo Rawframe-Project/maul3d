@@ -23,7 +23,7 @@ static void Built(m3Result result, const char* what)
 {
     if (result != m3_success)
     {
-        fprintf(stderr, "m3replay: %s: %s\n", what, m3ResultName(result));
+        fprintf(stderr, "m3replay: %s: %s\n", what, m3GetResultName(result));
         exit(1);
     }
 }
@@ -188,7 +188,7 @@ static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep)
             m3Joint_SetSpringHertz(world, hinge, 5.0f);
             m3Joint_SetSpringDampingRatio(world, hinge, 0.9f);
             m3Joint_EnableSpring(world, hinge, true);
-            m3Joint_SetTargetAngle(world, hinge, -0.4f);
+            m3RevoluteJoint_SetTargetAngle(world, hinge, -0.4f);
         }
         if (i == 150)
         {
@@ -209,7 +209,7 @@ static int Record(const char* path)
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
 
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     if (snap == NULL || Snapshot(world, snap, snapBytes) != snapBytes)
     {
@@ -419,7 +419,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     s->keys = (uint8_t**)calloc((size_t)s->keyCount, sizeof(uint8_t*));
     s->keySizes = (int32_t*)calloc((size_t)s->keyCount, sizeof(int32_t));
     // Key 0 is the pre-step world (creates land inside segment 0).
-    s->keySizes[0] = m3World_SnapshotSize(s->world);
+    s->keySizes[0] = m3World_GetSnapshotSize(s->world);
     s->keys[0] = (uint8_t*)malloc((size_t)s->keySizes[0]);
     if (Snapshot(s->world, s->keys[0], s->keySizes[0]) != s->keySizes[0])
     {
@@ -434,7 +434,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
         if ((i + 1) % M3_SCRUB_INTERVAL == 0 && (i + 1) / M3_SCRUB_INTERVAL < s->keyCount)
         {
             int32_t k = (i + 1) / M3_SCRUB_INTERVAL;
-            s->keySizes[k] = m3World_SnapshotSize(s->world);
+            s->keySizes[k] = m3World_GetSnapshotSize(s->world);
             s->keys[k] = (uint8_t*)malloc((size_t)s->keySizes[k]);
             if (Snapshot(s->world, s->keys[k], s->keySizes[k]) != s->keySizes[k])
             {
@@ -574,7 +574,7 @@ static uint8_t* RecordBlob(int32_t steps, int32_t injectStep, int32_t* outBytes)
 {
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
@@ -777,7 +777,7 @@ static int SelfTest(void)
 {
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;

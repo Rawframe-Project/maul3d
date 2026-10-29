@@ -64,8 +64,8 @@ void m3MotorJoint_SetOffsets(m3World* world, m3JointId joint, m3Vec3 linearOffse
     m3FloatEnvLeave(env);
 }
 
-// The slot of a motor joint, or -1 with no misuse counted for another
-// type; a stale id counts one.
+// The slot of a motor joint, or -1 for a stale id and for another type,
+// each of which counts one misuse.
 static int32_t MotorJointSlot(const m3World* world, m3JointId joint)
 {
     int32_t slot;
@@ -73,7 +73,12 @@ static int32_t MotorJointSlot(const m3World* world, m3JointId joint)
     {
         return -1;
     }
-    return world->joints.jointType[slot] == (uint8_t)m3_motorJoint ? slot : -1;
+    if (world->joints.jointType[slot] != (uint8_t)m3_motorJoint)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return -1;
+    }
+    return slot;
 }
 
 m3Vec3 m3MotorJoint_GetLinearOffset(const m3World* world, m3JointId joint)

@@ -386,7 +386,7 @@ bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], cons
 // sibling per level plus the node in hand, and an AVL tree over any
 // int32 node count is under 64 levels deep.
 void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3], uint32_t mask,
-                     m3TreeQueryFn fn, void* context)
+                     m3TreeQueryFunction fn, void* context)
 {
     int32_t stack[M3_TREE_STACK_CAPACITY];
     int32_t top = 0;
@@ -420,7 +420,7 @@ bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], cons
     return Overlap(tree->nodes[nodeId].lo, tree->nodes[nodeId].hi, lo, hi);
 }
 
-void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFn fn,
+void m3TreeQuery(const m3Tree* tree, const double lo[3], const double hi[3], m3TreeQueryFunction fn,
                  void* context)
 {
     m3TreeQueryMask(tree, lo, hi, 0xFFFFFFFFu, fn, context);

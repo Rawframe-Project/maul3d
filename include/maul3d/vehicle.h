@@ -180,7 +180,7 @@ extern "C"
     /// Select a gear (journaled): -1 reverse, 0 neutral, 1..gearCount.
     /// Opens the clutch for clutchSteps. A no-op without a drivetrain,
     /// out of range, or when reverseRatio is zero and gear is -1.
-    M3_API void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear);
+    M3_API void m3Vehicle_SetGear(m3World* world, m3VehicleId vehicle, int32_t gear);
 
     /// Current gear; 0 when no drivetrain is attached.
     M3_API int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle);

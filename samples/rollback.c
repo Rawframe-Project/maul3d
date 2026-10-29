@@ -17,7 +17,7 @@ static void Require(m3Result result, const char* what)
 {
     if (result != m3_success)
     {
-        fprintf(stderr, "%s: %s\n", what, m3ResultName(result));
+        fprintf(stderr, "%s: %s\n", what, m3GetResultName(result));
         exit(1);
     }
 }
@@ -42,7 +42,7 @@ int main(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     Require(m3CreateSphereShape(world, ball, &sd, &sphere, &shape), "m3CreateSphereShape");
 
-    int32_t capacity = m3World_SnapshotSize(world);
+    int32_t capacity = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)capacity);
     if (snap == NULL)
     {

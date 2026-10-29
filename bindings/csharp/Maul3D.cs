@@ -128,11 +128,11 @@ namespace Maul3D
         public float LinearDamping;
         public float AngularDamping;
         public ulong UserData;
-        public byte IsBullet; // C _Bool: one byte, 0 or 1
+        public byte EnableBullet; // C _Bool: one byte, 0 or 1
         public MotionLocks MotionLocks;
         public byte EnableSleep;
         public float SleepThreshold;
-        public byte IsEnabled;
+        public byte Enable;
         public byte EnableFastRotation;
         public int InternalValue;
     }
@@ -244,8 +244,8 @@ namespace Maul3D
 
         [DllImport(Lib, EntryPoint = "m3GetVersion")]
         public static extern Version GetVersion();
-        [DllImport(Lib, EntryPoint = "m3ResultName")]
-        public static extern IntPtr ResultName(Result result);
+        [DllImport(Lib, EntryPoint = "m3GetResultName")]
+        public static extern IntPtr GetResultName(Result result);
 
         // World
         [DllImport(Lib, EntryPoint = "m3DefaultWorldDefValues")]
@@ -268,8 +268,8 @@ namespace Maul3D
         // Snapshot and rollback: the buffer is opaque bytes; restore
         // refuses any config or version mismatch (loudly, by contract,
         // never a partial restore).
-        [DllImport(Lib, EntryPoint = "m3World_SnapshotSize")]
-        public static extern int SnapshotSize(IntPtr world);
+        [DllImport(Lib, EntryPoint = "m3World_GetSnapshotSize")]
+        public static extern int GetSnapshotSize(IntPtr world);
         [DllImport(Lib, EntryPoint = "m3World_Snapshot")]
         public static extern Result Snapshot(IntPtr world, byte[] buffer, int capacity,
                                              out int bytes);

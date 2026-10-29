@@ -221,7 +221,9 @@ extern "C"
     /// in body A's joint frame, within 1e4 m on every axis, and
     /// angularOffset its target rotation relative to that frame, a unit
     /// quaternion within 10% that is stored normalized. A fresh servo aims
-    /// at its create pose.
+    /// at its create pose. Motor joints only, here and for the budgets:
+    /// each setter refuses any other type loudly, each getter reads zeros
+    /// for it, and either counts one misuse.
     M3_API void m3MotorJoint_SetOffsets(m3World* world, m3JointId joint, m3Vec3 linearOffset,
                                         m3Quat angularOffset);
     M3_API m3Vec3 m3MotorJoint_GetLinearOffset(const m3World* world, m3JointId joint);
@@ -235,19 +237,31 @@ extern "C"
     M3_API void m3MotorJoint_SetMaxTorque(m3World* world, m3JointId joint, float maxTorque);
     M3_API float m3MotorJoint_GetMaxTorque(const m3World* world, m3JointId joint);
 
-    /// Wheel steering: a soft target-angle drive about the
-    /// strut axis. While enabled, the wheel's frame-x lock becomes
-    /// the drive (frame y stays locked), so the axle yaws toward
-    /// targetAngle (radians, |target| <= 1) at the given stiffness;
-    /// maxEffort > 0 caps the torque, 0 leaves it uncapped; hertz is
-    /// in [0, 1e5] and positive when enabled, the damping ratio in
-    /// [0, 1e4] and maxEffort at most 1e20. Wheel joints only; refused loudly elsewhere. Journaled.
-    M3_API void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle,
-                                 float hertz, float zeta, float maxEffort);
+    /// Wheel steering: a soft drive about the strut axis toward a target
+    /// angle. While steering is enabled, the wheel's frame-x lock becomes
+    /// the drive (frame y stays locked), so the axle yaws toward the
+    /// target. The target is in radians with |target| <= 1, the
+    /// frequency in [0, 1e5] and positive while enabled, the damping
+    /// ratio in [0, 1e4] and the torque budget in [0, 1e20], 0 for no
+    /// cap. The values hold while steering is off, so set the frequency
+    /// before enabling it. Wheel joints only: each setter refuses any
+    /// other type loudly, each getter reads 0 for it, and either counts
+    /// one misuse. Journaled.
+    M3_API void m3WheelJoint_EnableSteering(m3World* world, m3JointId joint, bool enable);
+    M3_API bool m3WheelJoint_IsSteeringEnabled(const m3World* world, m3JointId joint);
+    M3_API void m3WheelJoint_SetTargetSteeringAngle(m3World* world, m3JointId joint, float radians);
+    M3_API float m3WheelJoint_GetTargetSteeringAngle(const m3World* world, m3JointId joint);
+    M3_API void m3WheelJoint_SetSteeringHertz(m3World* world, m3JointId joint, float hertz);
+    M3_API float m3WheelJoint_GetSteeringHertz(const m3World* world, m3JointId joint);
+    M3_API void m3WheelJoint_SetSteeringDampingRatio(m3World* world, m3JointId joint,
+                                                     float dampingRatio);
+    M3_API float m3WheelJoint_GetSteeringDampingRatio(const m3World* world, m3JointId joint);
+    M3_API void m3WheelJoint_SetMaxSteeringTorque(m3World* world, m3JointId joint, float maxTorque);
+    M3_API float m3WheelJoint_GetMaxSteeringTorque(const m3World* world, m3JointId joint);
 
     /// The current strut twist in radians (wheel joints; 0 for
-    /// every other type and stale ids).
-    M3_API float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint);
+    /// every other type, which counts one misuse, and stale ids).
+    M3_API float m3WheelJoint_GetSteeringAngle(const m3World* world, m3JointId joint);
 
     /// Let (or forbid) the two jointed bodies collide with each
     /// other. Journaled; binds at the next step's pair scan.
@@ -291,14 +305,14 @@ extern "C"
     M3_API float m3Joint_GetSpringHertz(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetSpringDampingRatio(m3World* world, m3JointId joint, float dampingRatio);
     M3_API float m3Joint_GetSpringDampingRatio(const m3World* world, m3JointId joint);
-    M3_API void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
+    M3_API void m3RevoluteJoint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
     M3_API void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters);
     /// The target must be a unit rotation; garbage refuses loudly by
     /// doing nothing. The target lives in the JOINT FRAMES (frame z
     /// is the create-time local axis): it is the desired rotation of
     /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
-    M3_API void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
+    M3_API void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
 
 #ifdef __cplusplus
 }

@@ -113,7 +113,7 @@ static M3_NOINLINE int32_t WorldSnapshotSizeWorker(const m3World* world)
     return m3SnapshotWithinBound(size) ? (int32_t)size : -1;
 }
 
-int32_t m3World_SnapshotSize(const m3World* world)
+int32_t m3World_GetSnapshotSize(const m3World* world)
 {
     uint64_t env = m3FloatEnvEnter();
     int32_t result = WorldSnapshotSizeWorker(world);
@@ -132,7 +132,7 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
     int64_t size = m3SnapshotBytes(world);
     if ((int64_t)capacity < size)
     {
-        // A buffer sized with m3World_SnapshotSize always fits, so a short
+        // A buffer sized with m3World_GetSnapshotSize always fits, so a short
         // one is the caller's bug as well as a capacity refusal.
         m3Refuse(world, m3_errorInvalid);
         return m3_errorCapacity;
@@ -197,7 +197,7 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
             return false;
         }
     }
-    // Paint as m3Shape_SetMeshMaterials leaves it: the same wall, with the
+    // Paint as m3MeshShape_SetMaterials leaves it: the same wall, with the
     // table entries past the count zero, or no paint at all with every
     // entry and group byte zero.
     const uint8_t* paint = indices + 7 * (size_t)tc;

@@ -125,7 +125,7 @@ contact, joint change, command, or a waking neighbor returns it.
 
 ## The snapshot law
 
-`m3World_SnapshotSize / m3World_Snapshot / m3World_Restore` save and
+`m3World_GetSnapshotSize / m3World_Snapshot / m3World_Restore` save and
 load the COMPLETE simulation state, bit for bit, in a portable,
 versioned, field-by-field format. Never a raw memory image.
 
@@ -174,7 +174,7 @@ nothing else. A native grid height field takes up to 260 KB, counted
 when it is created: `m3CreateHeightFieldGridShape` refuses samples
 that would carry the snapshot past the bound with `m3_errorCapacity`,
 and a replayed grid the same way with `m3_errorFormat`, each leaving
-the world as it was. `m3World_SnapshotSize` gives a world's exact size.
+the world as it was. `m3World_GetSnapshotSize` gives a world's exact size.
 
 The header starts with the 16-byte state prefix maul2d shares, which
 carries the writer's ABI version and the format's own number
@@ -220,7 +220,7 @@ with m3_errorVersion, and a replay the world's allocator
 turns down, before the first op or in the middle of one, with
 m3_errorCapacity. Backing out never needs memory, because the replay
 takes it up front: for the whole call it holds a snapshot of the world
-(m3World_SnapshotSize bytes) and a second copy of the world's mesh and
+(m3World_GetSnapshotSize bytes) and a second copy of the world's mesh and
 height field content and mesh trees (about contentBytes of
 m3World_GetMemoryUsage) and a few arrays sized by the mesh, shape and
 voxel capacities. Budget that headroom on a tight allocator: without it the
@@ -302,7 +302,7 @@ any point between steps and have no effect on determinism.
 ## Continuous collision
 
 Every fast dynamic body sweeps against static geometry, so nothing
-tunnels through a floor. A body flagged `isBullet` additionally
+tunnels through a floor. A body flagged `enableBullet` additionally
 sweeps against dynamic and kinematic targets, with both bodies'
 sweeps in the time-of-impact kernel. Bullet versus bullet is not
 resolved (a documented limitation).
@@ -615,7 +615,7 @@ arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
 servo: the body lands exactly on the target next step and the
 order clears; the exit velocity stays yours by contract.
 `m3Body_SetType` flips dynamic/kinematic/static with a full mass
-rebuild. `m3Body_Disable` removes the body from
+rebuild. `m3Body_Enable` with false removes the body from
 contacts, CCD, rays, casts, overlaps, and soft-lattice collision.
 `m3Body_SetMotionLocks` freezes any subset of the six axes (bits
 0..2 linear xyz, 3..5 angular xyz), re-zeroed every substep so
@@ -642,7 +642,7 @@ stays version + solver revision + precision + FP policy, because
 a config-hash knob would refuse the journal instead of replaying
 it.
 
-Painted mesh materials: m3Shape_SetMeshMaterials gives a
+Painted mesh materials: m3MeshShape_SetMaterials gives a
 mesh shape up to eight surface materials and one group byte per
 triangle. The struck triangle's entry replaces the MESH side of
 the contact mix (friction, restitution, rolling resistance), and
@@ -755,7 +755,7 @@ Snapshot economics: hull and mesh content travel
 count-derived, so an empty slot costs bytes, not kilobytes, and a
 box hull costs its used prefix instead of a 5808-byte slab.
 Snapshot sizes GROW with world content: measure with
-m3World_SnapshotSize per keyframe, never once per session.
+m3World_GetSnapshotSize per keyframe, never once per session.
 
 ## Hit events, move events, and the pre-solve veto
 
@@ -768,7 +768,7 @@ transform and a fell-asleep mark; sleeping bodies cost nothing.
 The joint break stream reports joints that destroyed themselves
 this step; the id inside is already stale, use it as a key. The
 pre-solve veto (`m3World_SetPreSolveCallback` plus
-`m3Shape_EnablePreSolve`) runs serially in canonical pair order
+`m3Shape_EnablePreSolveEvents`) runs serially in canonical pair order
 and may disable any flagged contact for the step: the one-way
 platform tool. THE CONTRACT, LOUD: the callback must be a pure
 function of its arguments; the journal records inputs, never host
@@ -797,7 +797,7 @@ included, whose budgets have calls of their own.
 The spring arms the position drive on revolute (target angle),
 prismatic and wheel (target translation) and spherical (target
 rotation) joints;
-`m3Joint_SetTargetAngle/SetTargetTranslation/SetTargetRotation`
+`m3RevoluteJoint_SetTargetAngle/SetTargetTranslation/SetTargetRotation`
 move the goal. The rotation target lives in the JOINT FRAMES
 (frame z is the create-time local axis). Reaction readback:
 `m3Joint_GetConstraintForce/GetConstraintTorque` return last-step
@@ -854,7 +854,7 @@ equally across driven wheels (an open differential) and the
 friction circle still has the last word at each tire.
 
 With a drivetrain attached, throttle drives forward gears only:
-reverse is gear -1 (m3Vehicle_SelectGear, journaled; 0 is
+reverse is gear -1 (m3Vehicle_SetGear, journaled; 0 is
 neutral) and takes throttle magnitude with direction from the
 gear. Auto shift climbs above shiftUpRpm and drops below
 shiftDownRpm, forward gears only, never while the clutch is
@@ -900,11 +900,13 @@ grew nothing and there is no new state: a wheel joint is
 ordinary joint state and rides every snapshot and hash law that
 already existed.
 
-Steering: `m3Joint_SetSteer(enable, targetAngle, hertz, zeta,
-maxTorque)` yaws the wheel about its strut toward the target
-(radians, at most 1.0 either way), a soft drive with its own
-budget (0 = uncapped); `m3Joint_GetSteerAngle` reads the live
-angle back. Steer the front pair of a wheel-joint cart and you
+Steering: `m3WheelJoint_EnableSteering` switches a soft drive
+that yaws the wheel about its strut toward
+`m3WheelJoint_SetTargetSteeringAngle` (radians, at most 1.0 either
+way), with its own `SetSteeringHertz`, `SetSteeringDampingRatio`
+and `SetMaxSteeringTorque` (0 = uncapped). The values hold while
+steering is off, so set the frequency before enabling it.
+`m3WheelJoint_GetSteeringAngle` reads the live angle back. Steer the front pair of a wheel-joint cart and you
 have rack-and-pinion steering on real contacts, no vehicle
 required. Journaled, snapshotted, bit-exact through rollback.
 

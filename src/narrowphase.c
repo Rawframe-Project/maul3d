@@ -16,7 +16,8 @@
 
 #include <string.h>
 
-typedef void m3CollidePairFn(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB);
+typedef void m3CollidePairFunction(m3World* world, m3Manifold* fresh, int32_t shapeA,
+                                   int32_t shapeB);
 
 static void CollideVoxelPair(m3World* world, m3Manifold* fresh, int32_t shapeA, int32_t shapeB)
 {
@@ -501,7 +502,7 @@ static void CollideSphereSpherePair(m3World* world, m3Manifold* fresh, int32_t s
 // The function pointer rides in a struct so the table is plain const data.
 typedef struct PairCollider
 {
-    m3CollidePairFn* collide;
+    m3CollidePairFunction* collide;
 } PairCollider;
 
 // Which collider handles a pair, by the two shape types. The order of

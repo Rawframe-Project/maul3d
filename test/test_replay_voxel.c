@@ -51,15 +51,15 @@ static void Apply(Chunk* c, Edit edit, int32_t x, int32_t y, int32_t z)
 {
     if (edit == edit_set)
     {
-        m3VoxelChunk_SetVoxel(c->world, c->shape, x, y, z, 7);
+        m3VoxelChunkShape_SetVoxel(c->world, c->shape, x, y, z, 7);
     }
     else if (edit == edit_clear)
     {
-        m3VoxelChunk_ClearVoxel(c->world, c->shape, x, y, z);
+        m3VoxelChunkShape_ClearVoxel(c->world, c->shape, x, y, z);
     }
     else
     {
-        m3VoxelChunk_SetFill(c->world, c->shape, x, y, z, 99);
+        m3VoxelChunkShape_SetFill(c->world, c->shape, x, y, z, 99);
     }
 }
 
@@ -98,7 +98,7 @@ static void CheckEdit(const char* name, Edit edit)
             char what[160];
             Chunk c = BuildChunk();
             CHECK(m3Shape_IsValid(c.world, c.shape), "the chunk builds");
-            int32_t snapshotBytes = m3World_SnapshotSize(c.world);
+            int32_t snapshotBytes = m3World_GetSnapshotSize(c.world);
             uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
             CHECK(snapshot != NULL, "the snapshot buffer");
             Snapshot(c.world, snapshot, snapshotBytes);

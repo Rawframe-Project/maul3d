@@ -168,9 +168,9 @@ static void TestBodyDefBoolBytesReadAsTrue(void)
         {offsetof(m3BodyDef, motionLocks.angularX), "motionLocks.angularX"},
         {offsetof(m3BodyDef, motionLocks.angularY), "motionLocks.angularY"},
         {offsetof(m3BodyDef, motionLocks.angularZ), "motionLocks.angularZ"},
-        {offsetof(m3BodyDef, isBullet), "isBullet"},
+        {offsetof(m3BodyDef, enableBullet), "enableBullet"},
         {offsetof(m3BodyDef, enableSleep), "enableSleep"},
-        {offsetof(m3BodyDef, isEnabled), "isEnabled"},
+        {offsetof(m3BodyDef, enable), "enable"},
         {offsetof(m3BodyDef, enableFastRotation), "enableFastRotation"},
     };
     static uint8_t on[4096];

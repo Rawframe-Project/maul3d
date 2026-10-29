@@ -50,7 +50,7 @@ static m3World* GridWorld(m3BodyId* ground)
 // The bytes left under the bound.
 static int64_t Room(const m3World* world)
 {
-    return M3_SNAPSHOT_BOUND - m3World_SnapshotSize(world);
+    return M3_SNAPSHOT_BOUND - m3World_GetSnapshotSize(world);
 }
 
 static m3Result Grid(m3World* world, m3BodyId ground, int32_t nx, int32_t nz)
@@ -132,7 +132,7 @@ static uint8_t* ResizeGrid(const m3World* world, const uint8_t* snap, int32_t si
 
 static uint8_t* TakeSnapshot(const m3World* world, int32_t* sizeOut)
 {
-    *sizeOut = m3World_SnapshotSize(world);
+    *sizeOut = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)*sizeOut);
     CHECK(snap != NULL && Snapshot(world, snap, *sizeOut) == *sizeOut, "the world snapshots");
     return snap;
@@ -204,7 +204,7 @@ static void TestRestorePastTheBound(void)
     int32_t grownSize = 0;
     uint8_t* grown = ResizeGrid(roomy, snap, size, 3, 129, 1.0f / 64.0f, &grownSize);
     CHECK(grown != NULL && Restore(roomy, grown, grownSize) &&
-              m3World_SnapshotSize(roomy) == grownSize,
+              m3World_GetSnapshotSize(roomy) == grownSize,
           "the grown grid restores into a world with room for it");
     free(grown);
     free(snap);
@@ -219,7 +219,7 @@ static void TestRestorePastTheBound(void)
     uint64_t hash = m3World_Hash(world);
     CHECK(grown != NULL && m3World_Restore(world, grown, grownSize) == m3_errorFormat,
           "a snapshot past the bound is refused");
-    CHECK(m3World_Hash(world) == hash && m3World_SnapshotSize(world) == size,
+    CHECK(m3World_Hash(world) == hash && m3World_GetSnapshotSize(world) == size,
           "with the world as it was");
     free(grown);
     free(snap);
@@ -257,7 +257,7 @@ static void TestReplayPastTheBound(void)
     uint64_t hash = m3World_Hash(full);
     CHECK(m3World_ReplayJournal(full, tape, tapeBytes) == m3_errorFormat,
           "a replayed grid that would carry the snapshot past the bound is refused");
-    CHECK(m3World_Hash(full) == hash && m3World_SnapshotSize(full) == size,
+    CHECK(m3World_Hash(full) == hash && m3World_GetSnapshotSize(full) == size,
           "and the world backs out to the state it had");
     free(tape);
     free(shrunk);

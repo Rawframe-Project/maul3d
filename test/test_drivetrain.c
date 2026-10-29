@@ -94,7 +94,7 @@ static void TestUphillBogAndClimb(void)
         m3DrivetrainDef dt = m3DefaultDrivetrainDef();
         dt.autoShift = false; // the gear is the experiment variable
         m3Vehicle_SetDrivetrain(world, car, &dt);
-        m3Vehicle_SelectGear(world, car, variant == 0 ? 5 : 1);
+        m3Vehicle_SetGear(world, car, variant == 0 ? 5 : 1);
         for (int32_t i = 0; i < 120; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4); // settle on the slope
@@ -178,7 +178,7 @@ static void TestNeutralAndReverse(void)
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
     dt.autoShift = false;
     m3Vehicle_SetDrivetrain(world, car, &dt);
-    m3Vehicle_SelectGear(world, car, 0);
+    m3Vehicle_SetGear(world, car, 0);
     for (int32_t i = 0; i < 120; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -190,7 +190,7 @@ static void TestNeutralAndReverse(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(fabs(m3Body_GetPosition(world, chassis).x - startX) < 0.1, "neutral drives nothing");
-    m3Vehicle_SelectGear(world, car, -1);
+    m3Vehicle_SetGear(world, car, -1);
     for (int32_t i = 0; i < 180; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -212,7 +212,7 @@ static double DiffYaw(int32_t mode, m3real couple, uint64_t* outHash)
     dt.diffMode = mode;
     dt.diffCouple = couple;
     m3Vehicle_SetDrivetrain(world, car, &dt);
-    m3Vehicle_SelectGear(world, car, 1);
+    m3Vehicle_SetGear(world, car, 1);
     double yaw = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
@@ -261,7 +261,7 @@ static void TestDifferentials(void)
     m3Vehicle_SetDrivetrain(world, car, &good);
     // Neither hostile def attached: gear selection still refuses
     // like a drivetrain-less car accepts nothing but neutral.
-    m3Vehicle_SelectGear(world, car, 1);
+    m3Vehicle_SetGear(world, car, 1);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3DestroyWorld(world);
 }
@@ -442,20 +442,20 @@ static void TestHostileWall(void)
     CHECK(m3Vehicle_GetGear(world, car) == 0, "nine garbage defs all bounce");
     CHECK(m3Vehicle_GetEngineRpm(world, car) == 0.0f, "no drivetrain, no tachometer");
 
-    m3Vehicle_SelectGear(world, car, 3); // no drivetrain attached
+    m3Vehicle_SetGear(world, car, 3); // no drivetrain attached
     CHECK(m3Vehicle_GetGear(world, car) == 0, "gear select without a drivetrain bounces");
 
     dt = m3DefaultDrivetrainDef();
     dt.reverseRatio = 0.0f; // this car forbids reverse
     m3Vehicle_SetDrivetrain(world, car, &dt);
     CHECK(m3Vehicle_GetGear(world, car) == 1, "the valid def lands in first");
-    m3Vehicle_SelectGear(world, car, -1);
+    m3Vehicle_SetGear(world, car, -1);
     CHECK(m3Vehicle_GetGear(world, car) == 1, "reverse without a reverse ratio bounces");
-    m3Vehicle_SelectGear(world, car, 6); // gearCount is 5
+    m3Vehicle_SetGear(world, car, 6); // gearCount is 5
     CHECK(m3Vehicle_GetGear(world, car) == 1, "an out-of-range gear bounces");
 
     m3Vehicle_SetDrivetrain(world, m3_nullVehicleId, &dt); // stale id no-op
-    m3Vehicle_SelectGear(world, m3_nullVehicleId, 1);
+    m3Vehicle_SetGear(world, m3_nullVehicleId, 1);
     for (int32_t i = 0; i < 60; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);

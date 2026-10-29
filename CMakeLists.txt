@@ -151,6 +151,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/voxel_coverage.c
     src/voxel_fracture.c
     src/water.c
+    src/wheel_joint_params.c
     src/world.c
     src/world_events.c
     src/world_hash.c
@@ -175,7 +176,7 @@ if(MAUL3D_BUILD_SHARED)
     target_compile_definitions(maul3d_cpu PRIVATE MAUL3D_SHARED maul3d_EXPORTS)
 endif()
 # cpu.c declares only its internal header; the public header comes first
-# so m3GetSimdBackend and m3CpuSupportsBackend keep their export.
+# so m3GetSimdBackend and m3IsCpuBackendSupported keep their export.
 if(MSVC)
     target_compile_options(maul3d_cpu PRIVATE /FImaul3d/base.h)
 else()

@@ -581,17 +581,17 @@ static void SpringRatio(Scene* s, float v)
 
 static void SteerHertz(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, v, 0.5f, 100.0f);
+    m3WheelJoint_SetSteeringHertz(s->world, s->wheel, v);
 }
 
 static void SteerRatio(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, v, 100.0f);
+    m3WheelJoint_SetSteeringDampingRatio(s->world, s->wheel, v);
 }
 
-static void SteerEffort(Scene* s, float v)
+static void SteerTorque(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, 0.5f, v);
+    m3WheelJoint_SetMaxSteeringTorque(s->world, s->wheel, v);
 }
 
 static void ServoAim(Scene* s, float v)
@@ -601,7 +601,7 @@ static void ServoAim(Scene* s, float v)
 
 static void HingeTarget(Scene* s, float v)
 {
-    m3Joint_SetTargetAngle(s->world, s->hinge, v);
+    m3RevoluteJoint_SetTargetAngle(s->world, s->hinge, v);
 }
 
 static void Socket(Scene* s, float v)
@@ -619,7 +619,7 @@ static void Socket(Scene* s, float v)
 // band, [0.99, 1.01], between 0.806 and 0.807.
 static void SocketTarget(Scene* s, float v)
 {
-    m3Joint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
+    m3SphericalJoint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
 }
 
 static void ServoForce(Scene* s, float v)
@@ -933,16 +933,16 @@ static void BlastSoftPush(Scene* s, float v)
 
 // ---- The driver ----
 
-typedef void SiteFn(Scene* s, float value);
+typedef void SiteFunction(Scene* s, float value);
 
 typedef struct Site
 {
     const char* name;
-    SiteFn* prepare; // earlier calls of the site, or NULL; they accept both values
-    SiteFn* apply;   // the call the limit refuses
-    float ok;        // at the limit, or just inside it where rounding sits
-    float past;      // just past the limit
-    int32_t width;   // how the journal stores the value: 4 a float, 8 a double
+    SiteFunction* prepare; // earlier calls of the site, or NULL; they accept both values
+    SiteFunction* apply;   // the call the limit refuses
+    float ok;              // at the limit, or just inside it where rounding sits
+    float past;            // just past the limit
+    int32_t width;         // how the journal stores the value: 4 a float, 8 a double
 } Site;
 
 static uint8_t s_journal[1 << 20];
@@ -1030,7 +1030,7 @@ static void CheckSite(const Site* site)
     m3DestroyWorld(s.world);
 
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_SnapshotSize(s.world);
+    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     StartJournal(s.world, s_journal, (int32_t)sizeof(s_journal));
@@ -1120,7 +1120,7 @@ static void TestSites(void)
         {"spring damping", NULL, SpringRatio, 1.0e4f, Up(1.0e4f), 4},
         {"steer hertz", NULL, SteerHertz, 1.0e5f, Up(1.0e5f), 4},
         {"steer damping", NULL, SteerRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"steer effort", NULL, SteerEffort, 1.0e20f, Up(1.0e20f), 4},
+        {"steer torque", NULL, SteerTorque, 1.0e20f, Up(1.0e20f), 4},
         {"servo aim", NULL, ServoAim, 1.0e4f, Up(1.0e4f), 4},
         {"hinge target angle", NULL, HingeTarget, M3_PI, Up(M3_PI), 4},
         {"socket target rotation", Socket, SocketTarget, 0.806f, 0.807f, 4},
@@ -1210,14 +1210,15 @@ static void TestFrequencySign(void)
     uint64_t misuse = Misuse(s.world);
     m3Joint_EnableMotor(s.world, s.rope, false);
     m3Joint_SetMotorSpeed(s.world, s.rope, 0.0f);
-    m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, 0.0f, 0.5f, 0.0f);
+    m3WheelJoint_EnableSteering(s.world, s.wheel, false);
+    m3WheelJoint_SetSteeringHertz(s.world, s.wheel, 0.0f);
     m3Joint_SetSpringHertz(s.world, s.hinge, 0.0f);
     CHECK(Misuse(s.world) == misuse, "a disabled spring or steer takes a zero frequency");
     m3Joint_EnableMotor(s.world, s.rope, true);
     CHECK(Misuse(s.world) == misuse + 1, "an enabled distance spring needs a positive frequency");
     m3Joint_SetMotorSpeed(s.world, s.rope, -1.0f);
     CHECK(Misuse(s.world) == misuse + 2, "a distance spring frequency is never negative");
-    m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, -1.0f, 0.5f, 0.0f);
+    m3WheelJoint_SetSteeringHertz(s.world, s.wheel, -1.0f);
     CHECK(Misuse(s.world) == misuse + 3, "a steering frequency is never negative");
     m3Joint_EnableSpring(s.world, s.hinge, true);
     CHECK(Misuse(s.world) == misuse + 4, "an enabled joint spring needs a positive frequency");
@@ -1259,7 +1260,7 @@ static void TestMassFloorsDynamicOnly(void)
 // Replay asks the state the public calls ask, not only the values: a
 // journal recorded where a call is accepted refuses to replay onto a world
 // where that call is refused, and replays onto the one it was recorded on.
-typedef void StateFn(Scene* s);
+typedef void StateFunction(Scene* s);
 
 static void TankCommands(Scene* s)
 {
@@ -1282,12 +1283,12 @@ static void BoxKinematic(Scene* s)
     m3Body_SetType(s->world, s->box, m3_kinematicBody);
 }
 
-static void CheckReplayState(const char* name, StateFn* call, StateFn* refusing)
+static void CheckReplayState(const char* name, StateFunction* call, StateFunction* refusing)
 {
     char what[192];
     Scene s;
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_SnapshotSize(s.world);
+    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     uint64_t misuse = Misuse(s.world);
@@ -1303,7 +1304,7 @@ static void CheckReplayState(const char* name, StateFn* call, StateFn* refusing)
     BuildScene(&s);
     refusing(&s);
     misuse = Misuse(s.world);
-    snapshotBytes = m3World_SnapshotSize(s.world);
+    snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* changed = (uint8_t*)realloc(snapshot, (size_t)snapshotBytes);
     CHECK(changed != NULL, "the snapshot buffer grows");
     Snapshot(s.world, changed, snapshotBytes);

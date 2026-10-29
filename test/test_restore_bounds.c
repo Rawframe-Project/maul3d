@@ -403,7 +403,11 @@ static Scene Build(void)
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(w, &jd);
     s.wheel = wheel.index1 - 1;
-    m3Joint_SetSteer(w, wheel, true, 0.1f, 5.0f, 0.7f, 10.0f);
+    m3WheelJoint_SetSteeringHertz(w, wheel, 5.0f);
+    m3WheelJoint_SetSteeringDampingRatio(w, wheel, 0.7f);
+    m3WheelJoint_SetMaxSteeringTorque(w, wheel, 10.0f);
+    m3WheelJoint_SetTargetSteeringAngle(w, wheel, 0.1f);
+    m3WheelJoint_EnableSteering(w, wheel, true);
     jd = m3DefaultJointDef();
     jd.type = m3_genericJoint;
     jd.bodyIdA = ground;
@@ -557,7 +561,7 @@ static void TestBoundsAtTheirEdges(void)
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
           "the scene builds");
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -593,7 +597,7 @@ static void TestGroundNormalLength(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -625,7 +629,7 @@ static void TestFarRestValuesAreRefused(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -691,7 +695,7 @@ static void TestStepHoldsWithinTheLimit(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
     if (snap == NULL)
@@ -776,7 +780,7 @@ static void TestTargetReach(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -830,7 +834,7 @@ static void TestBodyMassLimit(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
     m3ShapeId ball = NewSphereShape(world, heavy, &sd, &sphere);
     CHECK(m3Shape_IsValid(world, ball), "the body builds below the mass limit");
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
     if (snap == NULL)
@@ -862,7 +866,7 @@ static void TestTypeChangeMass(void)
     m3Body_SetType(world, ball, m3_kinematicBody);
     CHECK(m3Body_GetMass(world, ball) == 0.0f, "a body turned kinematic has no mass");
     Scene twin = Build();
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
           "its world restores in a second world");

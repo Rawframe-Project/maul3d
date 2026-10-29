@@ -55,7 +55,7 @@ static inline int64_t EmptySnapshot(int32_t* capacity, const m3WorldDef* def, in
 {
     *capacity = value;
     m3World* world = NewWorld(def);
-    int64_t size = m3World_SnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     m3DestroyWorld(world);
     return size;
 }

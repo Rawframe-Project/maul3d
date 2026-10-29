@@ -159,7 +159,7 @@ extern "C"
     /// @return A static, NUL-terminated string such as "m3_errorCapacity".
     /// @par Thread safety
     /// Safe from any thread.
-    M3_API const char* m3ResultName(m3Result result);
+    M3_API const char* m3GetResultName(m3Result result);
 
     /// Returns the SIMD backend the library was compiled for: "avx2",
     /// "neon" or "scalar". Every backend produces the same bits; this only
@@ -180,7 +180,7 @@ extern "C"
     /// @return 1 when the CPU can run this library, 0 when it cannot.
     /// @par Thread safety
     /// Safe from any thread.
-    M3_API int32_t m3CpuSupportsBackend(void);
+    M3_API int32_t m3IsCpuBackendSupported(void);
 
     // Ids of the objects a world owns: a 1-based slot (0 is the null id)
     // and the generation the slot had when the object was made, so an id

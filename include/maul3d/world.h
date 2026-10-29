@@ -42,10 +42,10 @@ extern "C"
     /// narrow phase, whose deepest call, a height field pair's, keeps
     /// under 48 KiB on the stack: give the threads that run ranges at
     /// least 64 KiB of stack.
-    typedef void m3TaskFn(int32_t startIndex, int32_t endIndex, void* taskContext);
-    typedef void* m3EnqueueTaskFn(m3TaskFn* task, int32_t itemCount, int32_t minRange,
-                                  void* taskContext, void* userContext);
-    typedef void m3FinishTaskFn(void* userTask, void* userContext);
+    typedef void m3TaskFunction(int32_t startIndex, int32_t endIndex, void* taskContext);
+    typedef void* m3EnqueueTaskFunction(m3TaskFunction* task, int32_t itemCount, int32_t minRange,
+                                        void* taskContext, void* userContext);
+    typedef void m3FinishTaskFunction(void* userTask, void* userContext);
 
     /// Query-side filter: a query behaves like a shape with
     /// these bits. A shape is visible to the query when the
@@ -86,8 +86,8 @@ extern "C"
         // no contact and pass through each other. m3Counters.pairsDropped
         // counts them; raise this when it grows.
         int32_t pairCapacity;
-        m3EnqueueTaskFn* enqueueTask; // both null = serial (the default)
-        m3FinishTaskFn* finishTask;
+        m3EnqueueTaskFunction* enqueueTask; // both null = serial (the default)
+        m3FinishTaskFunction* finishTask;
         void* userTaskContext;
         // Tuning knobs. All journaled-settable at runtime too;
         // they are engine STATE: snapshots carry them and replays
@@ -305,10 +305,10 @@ extern "C"
     /// extents are not stored; restore rebuilds them from each body's
     /// type and shapes. A world restore accepts steps, queries and
     /// snapshots like one the API built.
-    /// Snapshot writes m3World_SnapshotSize bytes, never more than
+    /// Snapshot writes m3World_GetSnapshotSize bytes, never more than
     /// M3_MAX_SNAPSHOT_BYTES, and sets *bytesOut; a smaller buffer
     /// returns m3_errorCapacity.
-    M3_API int32_t m3World_SnapshotSize(const m3World* world);
+    M3_API int32_t m3World_GetSnapshotSize(const m3World* world);
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
                                                   int32_t capacity, int32_t* bytesOut);
     M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int32_t size);
@@ -459,7 +459,7 @@ extern "C"
 
     /// Pre-solve veto: called during contact preparation, in
     /// canonical pair order, for pairs where either shape opted in
-    /// (m3Shape_EnablePreSolve). Return false to disable the contact
+    /// (m3Shape_EnablePreSolveEvents). Return false to disable the contact
     /// for THIS step (the one-way platform tool). point is the
     /// deepest contact point, normal points from shape A to shape B.
     ///
@@ -471,8 +471,8 @@ extern "C"
     /// consults a clock, a random source, or mutable host state
     /// breaks bit-exactness and that breakage is YOURS. The engine
     /// calls it from the serial prepare pass, never from workers.
-    typedef bool m3PreSolveFn(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
-                              void* context);
+    typedef bool m3PreSolveFunction(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
+                                    void* context);
 
     /// Register (or clear with NULL) the pre-solve callback. The
     /// REGISTRATION is host wiring (never journaled, never snapshot
@@ -482,7 +482,7 @@ extern "C"
     /// no callback installed and lands on the recorded bits. During
     /// such a step the recorded set wins and any installed callback
     /// stays silent; do not expect callbacks to fire under replay.
-    M3_API void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFn* fn, void* context);
+    M3_API void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFunction* fn, void* context);
 
     /// The closest hit of a ray or shape cast: origin in world doubles,
     /// translation = direction times reach, fraction in [0, 1] along
@@ -797,7 +797,7 @@ extern "C"
     /// allocator refuses what the replay or one of its ops needs.
     /// The back-out is taken before the first op so that it cannot
     /// fail: for the whole call the replay holds a snapshot of the
-    /// world (m3World_SnapshotSize bytes) and a second copy of its
+    /// world (m3World_GetSnapshotSize bytes) and a second copy of its
     /// mesh and height field content and mesh trees (about
     /// contentBytes of m3World_GetMemoryUsage) and arrays sized by the
     /// mesh, shape and voxel capacities. A tape that fits a tight allocator without that

@@ -98,7 +98,7 @@ static m3World* Scene(void)
 // Whether a snapshot of world restores into a fresh twin.
 static bool Restores(const m3World* world)
 {
-    int32_t capacity = m3World_SnapshotSize(world);
+    int32_t capacity = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
     m3World* twin = NewWorld(&s_worldDef);
     int32_t bytes = 0;
@@ -166,7 +166,7 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
 {
     static uint8_t tape[65536];
     m3World* world = Scene();
-    int32_t capacity = m3World_SnapshotSize(world);
+    int32_t capacity = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
     int32_t snapBytes = 0;
     bool ok = snap != NULL && m3World_Snapshot(world, snap, capacity, &snapBytes) == m3_success &&
@@ -531,7 +531,7 @@ static void ProbeWorlds(void)
                 continue;
             }
             m3World* twin = NULL;
-            int32_t capacity = m3World_SnapshotSize(world);
+            int32_t capacity = m3World_GetSnapshotSize(world);
             uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
             int32_t bytes = 0;
             bool ok = snap != NULL && m3CreateWorld(&def, &twin) == m3_success &&

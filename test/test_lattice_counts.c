@@ -84,7 +84,7 @@ static void TestReplay(void)
     for (size_t i = 0; i < sizeof(s_wide) / sizeof(s_wide[0]); ++i)
     {
         m3World* world = NewSoftWorld();
-        int32_t snapshotBytes = m3World_SnapshotSize(world);
+        int32_t snapshotBytes = m3World_GetSnapshotSize(world);
         uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
         CHECK(snapshot != NULL, "the snapshot buffer");
         Snapshot(world, snapshot, snapshotBytes);

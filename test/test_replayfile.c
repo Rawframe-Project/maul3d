@@ -34,7 +34,7 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
 {
     m3WorldDef def = Def();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
 
@@ -187,7 +187,7 @@ static void TestPreSolveReplay(void)
 {
     m3WorldDef def = Def();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     static uint8_t journal[262144];
@@ -203,7 +203,7 @@ static void TestPreSolveReplay(void)
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
     m3BodyId faller = NewBody(world, &bd);
     NewBoxShape(world, faller, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-    m3Shape_EnablePreSolve(world, floor, true);
+    m3Shape_EnablePreSolveEvents(world, floor, true);
     int calls = 0;
     m3World_SetPreSolveCallback(world, VetoAll, &calls);
     for (int32_t i = 0; i < 120; ++i)

@@ -1375,7 +1375,7 @@ static m3WorldDef s_recordDef; // the probe recipe for verify
 static void RecordArm(m3World* world, m3WorldDef def)
 {
     s_recordDef = def;
-    s_recordSnapBytes = m3World_SnapshotSize(world);
+    s_recordSnapBytes = m3World_GetSnapshotSize(world);
     free(s_recordSnap);
     s_recordSnap = (uint8_t*)malloc((size_t)s_recordSnapBytes);
     Snapshot(world, s_recordSnap, s_recordSnapBytes);
@@ -1479,7 +1479,7 @@ int main(void)
     int32_t vetoFlash = 0;
     bool reverseGear = false;
 
-    int32_t snapBytes = m3World_SnapshotSize(scene.world);
+    int32_t snapBytes = m3World_GetSnapshotSize(scene.world);
     enum
     {
         RING = 64
@@ -1520,7 +1520,7 @@ int main(void)
             s_recording = false;
             m3DestroyWorld(scene.world);
             scene = s_scenes[sceneIndex].build();
-            snapBytes = m3World_SnapshotSize(scene.world);
+            snapBytes = m3World_GetSnapshotSize(scene.world);
             for (int32_t i = 0; i < RING; ++i)
             {
                 free(ring[i]);
@@ -1618,7 +1618,7 @@ int main(void)
         {
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
-            bd.isBullet = true;
+            bd.enableBullet = true;
             bd.position = rayOrigin;
             float speed = 70.0f;
             bd.linearVelocity = (m3Vec3){pick.direction.x * speed, pick.direction.y * speed,
@@ -1639,7 +1639,7 @@ int main(void)
             {
                 int32_t lo[3] = {cx - 1 < 0 ? 0 : cx - 1, cy, cz - 1 < 0 ? 0 : cz - 1};
                 int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy, cz + 1 > 15 ? 15 : cz + 1};
-                if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+                if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
                 {
                     SpawnFragments(scene.world);
                 }
@@ -1655,7 +1655,7 @@ int main(void)
                              cz - 1 < 0 ? 0 : cz - 1};
             int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy + 1 > 15 ? 15 : cy + 1,
                              cz + 1 > 15 ? 15 : cz + 1};
-            if (m3VoxelChunk_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+            if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
             {
                 SpawnFragments(scene.world);
             }
@@ -1819,7 +1819,7 @@ int main(void)
             if (scene.geared && IsKeyPressed(KEY_Q))
             {
                 reverseGear = !reverseGear;
-                m3Vehicle_SelectGear(scene.world, scene.car, reverseGear ? -1 : 1);
+                m3Vehicle_SetGear(scene.world, scene.car, reverseGear ? -1 : 1);
             }
             float throttle;
             if (scene.geared)
@@ -1852,8 +1852,11 @@ int main(void)
                     if ((w & 1) != 0)
                     {
                         // The +x pair leads under W's forward spin.
-                        m3Joint_SetSteer(scene.world, scene.axles[w], true, steer, 8.0f, 1.0f,
-                                         0.0f);
+                        m3WheelJoint_SetSteeringHertz(scene.world, scene.axles[w], 8.0f);
+                        m3WheelJoint_SetSteeringDampingRatio(scene.world, scene.axles[w], 1.0f);
+                        m3WheelJoint_SetMaxSteeringTorque(scene.world, scene.axles[w], 0.0f);
+                        m3WheelJoint_SetTargetSteeringAngle(scene.world, scene.axles[w], steer);
+                        m3WheelJoint_EnableSteering(scene.world, scene.axles[w], true);
                     }
                 }
             }
@@ -2056,7 +2059,7 @@ int main(void)
         {
             m3DestroyWorld(scene.world);
             scene = s_scenes[sceneIndex].build();
-            snapBytes = m3World_SnapshotSize(scene.world);
+            snapBytes = m3World_GetSnapshotSize(scene.world);
             for (int32_t i = 0; i < RING; ++i)
             {
                 free(ring[i]);
@@ -2116,7 +2119,7 @@ int main(void)
             // and the journal covers the session from second zero.
             m3DestroyWorld(scene.world);
             scene = s_scenes[sceneIndex].build();
-            snapBytes = m3World_SnapshotSize(scene.world);
+            snapBytes = m3World_GetSnapshotSize(scene.world);
             for (int32_t i = 0; i < RING; ++i)
             {
                 free(ring[i]);
@@ -2144,7 +2147,7 @@ int main(void)
             sceneIndex = (sceneIndex + 1) % SCENE_COUNT;
             m3DestroyWorld(scene.world);
             scene = s_scenes[sceneIndex].build();
-            snapBytes = m3World_SnapshotSize(scene.world);
+            snapBytes = m3World_GetSnapshotSize(scene.world);
             for (int32_t i = 0; i < RING; ++i)
             {
                 free(ring[i]);
@@ -2185,7 +2188,7 @@ int main(void)
                     browser = false;
                     m3DestroyWorld(scene.world);
                     scene = s_scenes[sceneIndex].build();
-                    snapBytes = m3World_SnapshotSize(scene.world);
+                    snapBytes = m3World_GetSnapshotSize(scene.world);
                     for (int32_t i = 0; i < RING; ++i)
                     {
                         free(ring[i]);

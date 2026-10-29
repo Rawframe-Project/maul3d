@@ -257,7 +257,7 @@ static void TestBlastSoftKick(void)
     m3ExplosionDef ed = m3DefaultExplosionDef();
     ed.impulsePerArea = 1.0e10f;
     m3World_Explode(world, &ed);
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     int32_t bytes = 0;
     CHECK(snapshot != NULL && m3World_Snapshot(world, snapshot, size, &bytes) == m3_success,
@@ -395,10 +395,10 @@ static void TestWheelPush(void)
     dd.finalDrive = 1.0e4f;
     dd.autoShift = false;
     m3Vehicle_SetDrivetrain(world, vehicle, &dd);
-    m3Vehicle_SelectGear(world, vehicle, 1);
+    m3Vehicle_SetGear(world, vehicle, 1);
     m3Vehicle_SetCommands(world, vehicle, 1.0f, 0.0f, 0.0f);
     CHECK(m3Body_GetMass(world, chassis) > 0.999e20f, "the chassis weighs the mass limit");
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     void* before = malloc((size_t)size);
     int32_t written = 0;
     CHECK(before != NULL && m3World_Snapshot(world, before, size, &written) == m3_success,

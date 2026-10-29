@@ -269,7 +269,7 @@ float m3Body_GetAngularDamping(const m3World* world, m3BodyId body)
     return result;
 }
 
-bool m3Body_IsBullet(const m3World* world, m3BodyId body)
+bool m3Body_IsBulletEnabled(const m3World* world, m3BodyId body)
 {
     int32_t index;
     return m3ResolveBody(world, body, &index) && world->bodies.bulletFlags[index] != 0;

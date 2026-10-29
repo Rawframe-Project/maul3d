@@ -265,7 +265,7 @@ static void TestHeaviestAgainstKinematicRoundTrip(void)
     }
     CHECK(world->contacts.pairCount > 0, "the bodies touch");
 
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL, "snapshot storage");
     if (snap == NULL)

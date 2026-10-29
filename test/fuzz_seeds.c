@@ -61,7 +61,7 @@ static void WriteSeed(const char* dir, const char* target, const char* name, con
 
 static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
 {
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     int32_t written = 0;
     if (bytes == NULL || m3World_Snapshot(world, bytes, size, &written) != m3_success)

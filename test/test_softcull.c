@@ -553,7 +553,7 @@ static Outcome RunScene(BuildScene* build, bool cullOff, bool gravity, int32_t s
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    Outcome out = {NULL, m3World_SnapshotSize(world), 0, 0};
+    Outcome out = {NULL, m3World_GetSnapshotSize(world), 0, 0};
     out.bytes = (uint8_t*)malloc((size_t)out.size);
     CHECK(Snapshot(world, out.bytes, out.size) == out.size, "the scene snapshots");
     for (int32_t i = 0; i < probe.count; ++i)

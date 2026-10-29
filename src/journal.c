@@ -62,11 +62,11 @@ void m3JournalBodyDef(m3BodyDef* out, const m3BodyDef* def)
     out->linearDamping = def->linearDamping;
     out->angularDamping = def->angularDamping;
     out->userData = def->userData;
-    out->isBullet = def->isBullet;
+    out->enableBullet = def->enableBullet;
     out->motionLocks = def->motionLocks;
     out->enableSleep = def->enableSleep;
     out->sleepThreshold = def->sleepThreshold;
-    out->isEnabled = def->isEnabled;
+    out->enable = def->enable;
     out->enableFastRotation = def->enableFastRotation;
     out->internalValue = def->internalValue;
 }
