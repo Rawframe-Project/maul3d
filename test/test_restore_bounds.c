@@ -9,6 +9,7 @@
 
 #include "helpers.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "snapshot_bounds.h"
 #include "state_prefix.h"
 #include "test_harness.h"
@@ -46,6 +47,7 @@ typedef struct Scene
     int32_t jelly;   // a soft body of one tet
     int32_t six;     // a generic joint with a limited axis
     int32_t cone;    // a spherical joint with a cone
+    int32_t rope;    // a distance joint with a range of 1 to 2 m
 } Scene;
 
 typedef enum Which
@@ -74,6 +76,7 @@ typedef enum Which
     which_six,
     which_dot,
     which_cone,
+    which_rope,
 } Which;
 
 static int32_t SlotOf(const Scene* s, Which which)
@@ -129,6 +132,8 @@ static int32_t SlotOf(const Scene* s, Which which)
         return s->dot;
     case which_cone:
         return s->cone;
+    case which_rope:
+        return s->rope;
     }
     return 0;
 }
@@ -246,6 +251,8 @@ static const Case s_cases[] = {
     {"target rotation on a hinge", COMPONENT(joints.jointTargetQ, m3Quat, which_hinge, 3), (double)(1.0), +1},
     {"limit order", COMPONENT(joints.jointLimits, m3Vec3, which_hinge, 1), (double)(-1.0), -1},
     {"cone angle", COMPONENT(joints.jointLimits, m3Vec3, which_cone, 2), (double)(0.0), -1},
+    {"rope minimum length", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 0), (double)(0.0), -1},
+    {"rope length order", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 1), (double)(1.0), -1},
     {"pulley rope constant", COMPONENT(joints.jointLimits, m3Vec3, which_pulley, 2), (double)(0.0), -1},
     {"target on a gear", SCALAR(joints.jointTargetScalar, which_gear), (double)(0.0), +1},
     {"generic linear range", COMPONENT(joints.jointGenLinUpper, m3Vec3, which_six, 0), (double)(-0.5), -1},
@@ -328,7 +335,8 @@ static void Put(const Scene* s, uint8_t* snap, const Value* v, double x)
 }
 
 // The scene: a ball, a crate on a hinge, a gear, a pulley, a servo, a
-// wheel, a generic joint and a coned spherical joint, a kinematic rail, a
+// wheel, a generic joint, a coned spherical joint and a rope from the
+// ground to the crate, a kinematic rail, a
 // character, a vehicle with a drivetrain, a closed lattice anchored to the
 // crate, a lone particle, a tet body, a water volume and a steady wind.
 static Scene Build(void)
@@ -433,6 +441,13 @@ static Scene Build(void)
     jd.enableCone = true;
     jd.coneAngle = 0.5f;
     s.cone = NewJoint(w, &jd).index1 - 1;
+    jd = m3DefaultJointDef();
+    jd.type = m3_distanceJoint;
+    jd.bodyIdA = ground;
+    jd.bodyIdB = crate;
+    jd.minLength = 1.0f;
+    jd.maxLength = 2.0f;
+    s.rope = NewJoint(w, &jd).index1 - 1;
 
     bd = m3DefaultBodyDef();
     bd.type = m3_kinematicBody;
@@ -504,6 +519,63 @@ static Scene Build(void)
     return s;
 }
 
+// A distance joint's range is always on and is a length range: a snapshot
+// with the rope's limit bit cleared, even over an ordered range, or with
+// a negative minimum, is refused, as the setter refuses it, and the world
+// is left as it was.
+static void TestRopeRangeOnRestore(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int32_t size = m3World_GetSnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
+          "snapshot taken");
+    if (clean == NULL || edited == NULL)
+    {
+        free(clean);
+        free(edited);
+        m3DestroyWorld(world);
+        return;
+    }
+    uint64_t hash = m3World_Hash(world);
+    size_t limits = F(joints.jointLimits);
+    size_t flags = F(joints.jointFlags);
+    const struct
+    {
+        const char* name;
+        bool limitBit;
+        float minLength;
+        float maxLength;
+    } cases[] = {
+        {"the bit cleared over an unordered range", false, 3.0f, 1.0f},
+        {"the bit cleared over an ordered range", false, 1.0f, 2.0f},
+        {"a negative minimum", true, -1.0f, 2.0f},
+    };
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
+    {
+        memcpy(edited, clean, (size_t)size);
+        uint8_t* bits = At(&s, edited, flags, sizeof(uint8_t), which_rope, 0);
+        *bits = cases[c].limitBit ? (uint8_t)(*bits | M3_JOINT_LIMIT)
+                                  : (uint8_t)(*bits & ~M3_JOINT_LIMIT);
+        PutF32(At(&s, edited, limits, sizeof(m3Vec3), which_rope, 0), cases[c].minLength);
+        PutF32(At(&s, edited, limits, sizeof(m3Vec3), which_rope, sizeof(float)),
+               cases[c].maxLength);
+        bool refused = m3World_Restore(world, edited, size) == m3_errorFormat;
+        if (!refused)
+        {
+            printf("  rope: %s restores\n", cases[c].name);
+        }
+        CHECK(refused, "a rope range the setter refuses is refused on restore");
+        CHECK(m3World_Hash(world) == hash, "and the world is left as it was");
+    }
+    CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "the clean rope restores");
+    free(edited);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 // The gear's drift wraps an angle into (-pi, pi] in constant time. It
 // once stepped 2 pi at a time, which never ends once 2 pi is below the
 // angle's spacing, and restore let in any finite gear spin: a snapshot
@@ -556,7 +628,7 @@ static void TestBoundsAtTheirEdges(void)
     Scene s = Build();
     m3World* world = s.world;
     m3Counters counters = m3World_GetCounters(world);
-    CHECK(counters.misuse == 0 && counters.jointCount == 7 && counters.vehicleCount == 1 &&
+    CHECK(counters.misuse == 0 && counters.jointCount == 8 && counters.vehicleCount == 1 &&
               counters.softBodyCount == 3 && counters.characterCount == 1 && s.pool >= 0 &&
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
@@ -887,6 +959,7 @@ int main(void)
     TestBodyMassLimit();
     TestTypeChangeMass();
     TestGearDriftWrapsAnyAngle();
+    TestRopeRangeOnRestore();
     if (s_failures == 0)
     {
         printf("test_restore_bounds: all checks passed\n");
