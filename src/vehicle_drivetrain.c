@@ -223,7 +223,7 @@ static M3_NOINLINE void VehicleSelectGearWorker(m3World* world, m3VehicleId vehi
     }
 }
 
-void m3Vehicle_SelectGear(m3World* world, m3VehicleId vehicle, int32_t gear)
+void m3Vehicle_SetGear(m3World* world, m3VehicleId vehicle, int32_t gear)
 {
     uint64_t env = m3FloatEnvEnter();
     VehicleSelectGearWorker(world, vehicle, gear);

@@ -258,7 +258,7 @@ static void TestRestoreKeepsTheRatio(void)
     m3BodyId rod;
     m3ShapeId ball;
     m3World* world = RodWithBall(&rod, &ball);
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the world snapshots");
     if (snap != NULL)

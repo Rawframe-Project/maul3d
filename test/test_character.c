@@ -295,7 +295,7 @@ static void TestReplayHoldsTheOwnership(void)
         m3ShapeId otherShape = NewSphereShape(world, other, &sd, &ball);
         m3ShapeId capsule = CapsuleOf(world, cd.position);
         m3BodyId body = m3Shape_GetBody(world, capsule);
-        int32_t size = m3World_SnapshotSize(world);
+        int32_t size = m3World_GetSnapshotSize(world);
         uint8_t* start = (uint8_t*)malloc((size_t)size);
         CHECK(start != NULL && Snapshot(world, start, size) == size, "the start is saved");
 

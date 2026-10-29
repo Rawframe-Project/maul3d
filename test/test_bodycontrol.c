@@ -153,12 +153,12 @@ static void TestTypeFlipAndDisable(void)
     m3RayCastResult before = m3World_CastRayClosest(
         world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(before.hit && before.point.y > 0.9, "the ray sees the enabled crate");
-    m3Body_Disable(world, lid);
+    m3Body_Enable(world, lid, false);
     CHECK(!m3Body_IsEnabled(world, lid), "disabled reads back");
     m3RayCastResult after = m3World_CastRayClosest(
         world, (m3Pos3){10.0, 5.0, 0.0}, (m3Vec3){0.0f, -6.0f, 0.0f}, m3DefaultQueryFilter());
     CHECK(after.hit && after.point.y < 0.1, "the ray passes through the disabled crate");
-    m3Body_Enable(world, lid);
+    m3Body_Enable(world, lid, true);
     CHECK(m3Body_IsEnabled(world, lid) && m3Body_IsAwake(world, lid), "enabling wakes the body");
     m3DestroyWorld(world);
 }
@@ -303,7 +303,7 @@ static void TestDefsCarrySettings(void)
     NewBoxShape(world, wheel, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     CHECK(m3Body_IsFastRotationEnabled(world, wheel), "fast rotation from the def");
 
-    bd.isEnabled = false;
+    bd.enable = false;
     bd.position = (m3Pos3){0.0, 8.0, 6.0};
     m3BodyId dormant = NewBody(world, &bd);
     CHECK(!m3Body_IsEnabled(world, dormant), "created disabled from the def");

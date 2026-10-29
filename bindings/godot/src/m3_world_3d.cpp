@@ -98,7 +98,7 @@ void M3World3D::set_body_velocity(int64_t body, godot::Vector3 velocity)
 godot::PackedByteArray M3World3D::snapshot() const
 {
     godot::PackedByteArray out;
-    int32_t size = m3World_SnapshotSize(world_);
+    int32_t size = m3World_GetSnapshotSize(world_);
     int32_t written = 0;
     out.resize(size);
     if (m3World_Snapshot(world_, out.ptrw(), size, &written) != m3_success)

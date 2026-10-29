@@ -583,7 +583,8 @@ static m3World* SceneVehicleRig(void)
             m3Joint_SetTargetTranslation(world, joint, 0.0f);
             if ((w & 1) != 0)
             {
-                m3Joint_SetSteer(world, joint, true, car % 2 != 0 ? 0.2f : -0.2f, 5.0f, 0.7f, 0.0f);
+                m3WheelJoint_SetSteer(world, joint, true, car % 2 != 0 ? 0.2f : -0.2f, 5.0f, 0.7f,
+                                      0.0f);
             }
         }
     }
@@ -717,7 +718,7 @@ uint64_t BenchVoxfort(int32_t steps, BenchClock* clock, double* ms)
             // through the breaches once the charges open them.
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
-            bd.isBullet = true;
+            bd.enableBullet = true;
             bd.position = (m3Pos3){RandRange(&rng, -4.0, 4.0), 2.5, -20.0};
             bd.linearVelocity = (m3Vec3){0.0f, 0.0f, 150.0f};
             m3BodyId bullet = NewBody(world, &bd);
@@ -791,7 +792,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     double t0 = Now(clock);
     result.bytes = Snapshot(world, snap, snapBytes);

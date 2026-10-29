@@ -130,7 +130,7 @@ static void TestRebuildWithoutMemory(void)
     // holds. With memory the op is recorded and replays to the same tree.
     bool refuse = false;
     m3World* world = City(&refuse);
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* start = (uint8_t*)malloc((size_t)size);
     uint8_t* rebuilt = (uint8_t*)malloc((size_t)size);
     CHECK(start != NULL && rebuilt != NULL && Snapshot(world, start, size) == size,

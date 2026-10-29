@@ -42,7 +42,7 @@ m3Version m3GetVersion(void)
     return (m3Version){M3_VERSION_MAJOR, M3_VERSION_MINOR, M3_VERSION_PATCH};
 }
 
-const char* m3ResultName(m3Result result)
+const char* m3GetResultName(m3Result result)
 {
     switch (result)
     {

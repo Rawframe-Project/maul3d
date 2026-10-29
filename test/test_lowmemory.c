@@ -106,7 +106,7 @@ static const m3Pos3 kOverSlab = {12.0, 5.0, 2.0};
 // Whether a world's snapshot equals the given bytes.
 static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
 {
-    if (m3World_SnapshotSize(world) != size)
+    if (m3World_GetSnapshotSize(world) != size)
     {
         return false;
     }
@@ -119,7 +119,7 @@ static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
 
 static uint8_t* TakeSnapshot(const m3World* world, int32_t* sizeOut)
 {
-    *sizeOut = m3World_SnapshotSize(world);
+    *sizeOut = m3World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)*sizeOut);
     if (bytes != NULL && Snapshot(world, bytes, *sizeOut) != *sizeOut)
     {

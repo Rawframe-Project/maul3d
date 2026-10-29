@@ -30,7 +30,7 @@ static int32_t s_sceneBytes;
 
 static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
 {
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     Require(size > 0);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     Require(bytes != NULL);

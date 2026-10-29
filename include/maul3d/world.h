@@ -305,10 +305,10 @@ extern "C"
     /// extents are not stored; restore rebuilds them from each body's
     /// type and shapes. A world restore accepts steps, queries and
     /// snapshots like one the API built.
-    /// Snapshot writes m3World_SnapshotSize bytes, never more than
+    /// Snapshot writes m3World_GetSnapshotSize bytes, never more than
     /// M3_MAX_SNAPSHOT_BYTES, and sets *bytesOut; a smaller buffer
     /// returns m3_errorCapacity.
-    M3_API int32_t m3World_SnapshotSize(const m3World* world);
+    M3_API int32_t m3World_GetSnapshotSize(const m3World* world);
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
                                                   int32_t capacity, int32_t* bytesOut);
     M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int32_t size);
@@ -459,7 +459,7 @@ extern "C"
 
     /// Pre-solve veto: called during contact preparation, in
     /// canonical pair order, for pairs where either shape opted in
-    /// (m3Shape_EnablePreSolve). Return false to disable the contact
+    /// (m3Shape_EnablePreSolveEvents). Return false to disable the contact
     /// for THIS step (the one-way platform tool). point is the
     /// deepest contact point, normal points from shape A to shape B.
     ///
@@ -797,7 +797,7 @@ extern "C"
     /// allocator refuses what the replay or one of its ops needs.
     /// The back-out is taken before the first op so that it cannot
     /// fail: for the whole call the replay holds a snapshot of the
-    /// world (m3World_SnapshotSize bytes) and a second copy of its
+    /// world (m3World_GetSnapshotSize bytes) and a second copy of its
     /// mesh and height field content and mesh trees (about
     /// contentBytes of m3World_GetMemoryUsage) and arrays sized by the
     /// mesh, shape and voxel capacities. A tape that fits a tight allocator without that

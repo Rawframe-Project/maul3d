@@ -98,7 +98,7 @@ static void CheckEdit(const char* name, Edit edit)
             char what[160];
             Chunk c = BuildChunk();
             CHECK(m3Shape_IsValid(c.world, c.shape), "the chunk builds");
-            int32_t snapshotBytes = m3World_SnapshotSize(c.world);
+            int32_t snapshotBytes = m3World_GetSnapshotSize(c.world);
             uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
             CHECK(snapshot != NULL, "the snapshot buffer");
             Snapshot(c.world, snapshot, snapshotBytes);

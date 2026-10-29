@@ -319,11 +319,11 @@ M3_PIN_AT(m3BodyDef, gravityScale, 72);
 M3_PIN_AT(m3BodyDef, linearDamping, 76);
 M3_PIN_AT(m3BodyDef, angularDamping, 80);
 M3_PIN_AT(m3BodyDef, userData, 88);
-M3_PIN_AT(m3BodyDef, isBullet, 96);
+M3_PIN_AT(m3BodyDef, enableBullet, 96);
 M3_PIN_AT(m3BodyDef, motionLocks, 97);
 M3_PIN_AT(m3BodyDef, enableSleep, 103);
 M3_PIN_AT(m3BodyDef, sleepThreshold, 104);
-M3_PIN_AT(m3BodyDef, isEnabled, 108);
+M3_PIN_AT(m3BodyDef, enable, 108);
 M3_PIN_AT(m3BodyDef, enableFastRotation, 109);
 M3_PIN_AT(m3BodyDef, internalValue, 112);
 

@@ -223,7 +223,7 @@ static void TestSnapshotJournalAndDerivedRebuild(void)
 
     // Snapshot, scrub the derived surface, restore: bit-identical
     // state AND a byte-identical rebuilt surface (the derived law).
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the voxel snapshot writes");
     m3VoxelSurface* before = (m3VoxelSurface*)malloc(sizeof(m3VoxelSurface));
@@ -351,7 +351,7 @@ static void TestSnapshotRefusesInconsistentChunk(void)
     m3VoxelChunkData* chunk =
         &wp->voxels.voxelData[wp->shapes.shapeVoxelIndex[chunkShape.index1 - 1]];
     chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1; // a bit the count does not know
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "the damaged world still snapshots");
     chunk->occupancy[M3_VOXEL_COUNT / 8 - 1] ^= 1;
@@ -556,7 +556,7 @@ static void TestFractureBridge(void)
     CHECK(count == 0, "a span anchored through one pillar drops nothing");
 
     // Snapshot here: the rollback must re-derive the same fracture.
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the pre-cut snapshot writes");
 
@@ -898,7 +898,7 @@ static void TestBulletVsVoxelWall(void)
 
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
-            bd.isBullet = true;
+            bd.enableBullet = true;
             bd.position = (m3Pos3){2.0, 8.5, 8.5};
             bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
             m3BodyId bullet = NewBody(world, &bd);
@@ -1036,7 +1036,7 @@ static void TestSetFillContracts(void)
           "fill is not geometry: the surface is untouched");
 
     // And it rides the snapshot like every other bit of state.
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the fill snapshot writes");
     uint64_t at77 = m3World_Hash(world);
@@ -1226,7 +1226,7 @@ static void TestJournalCompositionRefusal(void)
     }
     m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the seed snapshot writes");
 
@@ -1378,7 +1378,7 @@ static void TestBoxLimitRefusesEdits(void)
     m3BodyId ball = NewBody(world, &dd);
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, ball, &sd, &sphere);
-    int32_t seedBytes = m3World_SnapshotSize(world);
+    int32_t seedBytes = m3World_GetSnapshotSize(world);
     uint8_t* seed = (uint8_t*)malloc((size_t)seedBytes);
     CHECK(Snapshot(world, seed, seedBytes) == seedBytes, "the seed snapshot writes");
 
@@ -1449,7 +1449,7 @@ static void TestBoxLimitRefusesEdits(void)
 
     // A snapshot whose chunk passes the limit is not one this world
     // could have taken.
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "the two-box world snapshots");
     CHECK(m3World_Restore(twin, snap, size) == m3_errorFormat,
@@ -1516,7 +1516,7 @@ static void TestCheckerboardFillsTheTree(void)
     // A restore rebuilds the full surface into the same slot. No clear
     // here: past the base layer every voxel is its own island, so a
     // clear would fracture them all away.
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "the checkerboard snapshots");
     uint64_t hash = m3World_Hash(world);

@@ -373,7 +373,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     m3Joint_SetSpringHertz(world, joint, 2.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 0.3f);
     m3Joint_EnableSpring(world, joint, true);
-    m3Joint_SetTargetRotation(
+    m3SphericalJoint_SetTargetRotation(
         world, joint, m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.2f, 0.0f, 0.0f}));
 
     m3JointDef hinge = HangDef(world, ground, 22.0, 2.0, 0.5, m3_revoluteJoint, NULL);
@@ -387,7 +387,7 @@ static void AddHinges(m3World* world, m3BodyId ground)
     m3Joint_SetSpringHertz(world, joint, 1.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 0.5f);
     m3Joint_EnableSpring(world, joint, true);
-    m3Joint_SetTargetAngle(world, joint, 0.3f);
+    m3RevoluteJoint_SetTargetAngle(world, joint, 0.3f);
 
     m3JointDef parallel = HangDef(world, ground, 24.0, 2.0, 0.3, m3_parallelJoint, NULL);
     parallel.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -472,7 +472,7 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3Joint_SetSpringDampingRatio(world, joint, 0.7f);
     m3Joint_EnableSpring(world, joint, true);
     m3Joint_SetTargetTranslation(world, joint, 0.0f);
-    m3Joint_SetSteer(world, joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
+    m3WheelJoint_SetSteer(world, joint, true, 0.2f, 5.0f, 0.7f, 10.0f);
 
     m3BodyId gearA;
     m3BodyId gearB;
@@ -882,11 +882,11 @@ static void TourBodyState(const Tour* t)
     m3Body_EnableSleep(t->world, t->crate, false);
     m3Body_SetSleepThreshold(t->world, t->crate, 0.1f);
     m3Body_SetAwake(t->world, t->crate, true);
-    m3Body_Disable(t->world, t->kinematic);
+    m3Body_Enable(t->world, t->kinematic, false);
     m3Body_SetGravityScale(t->world, t->crate, 0.8f);
     m3Body_SetLinearDamping(t->world, t->crate, 0.1f);
     m3Body_SetAngularDamping(t->world, t->crate, 0.2f);
-    m3Body_SetBullet(t->world, t->crate, true);
+    m3Body_EnableBullet(t->world, t->crate, true);
     m3Body_SetUserData(t->world, t->crate, 0x1234u);
     m3Body_SetName(t->world, t->crate, "crate");
     m3Body_EnableFastRotation(t->world, t->crate, true);
@@ -912,7 +912,7 @@ static void TourShapes(const Tour* t)
     m3Shape_SetRollingResistance(t->world, t->ballShape, 0.05f);
     m3Shape_SetDensity(t->world, t->crateShape, 800.0f);
     m3Shape_EnableHitEvents(t->world, t->crateShape, true);
-    m3Shape_EnablePreSolve(t->world, t->deck, true);
+    m3Shape_EnablePreSolveEvents(t->world, t->deck, true);
     m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0);
     m3Shape_SetUserData(t->world, t->crateShape, 0x5678u);
     m3Shape_SetSurfaceVelocity(t->world, t->deck, (m3Vec3){0.5f, 0.0f, 0.0f});
@@ -941,7 +941,7 @@ static void TourJointsAndSoft(const Tour* t)
 static void TourActors(const Tour* t)
 {
     (void)SetStance(t->world, t->cast.hero, 0.25f, 0.2f);
-    m3Vehicle_SelectGear(t->world, t->cast.car, 2);
+    m3Vehicle_SetGear(t->world, t->cast.car, 2);
     m3Vehicle_SetTankCommands(t->world, t->tank, 0.5f, -0.5f, 0.0f);
     CHECK(m3World_RebuildBroadphase(t->world) == m3_success, "the tour rebuilds the tree");
     m3VoxelChunk_SetVoxel(t->world, t->cast.stairs, 15, 12, 3, 7);
@@ -993,7 +993,7 @@ static void TourCalls(Tour* t, int32_t frame)
         break;
     case 40:
         m3Body_SetType(t->world, t->ball, m3_dynamicBody);
-        m3Body_Enable(t->world, t->kinematic);
+        m3Body_Enable(t->world, t->kinematic, true);
         m3World_EnableContinuous(t->world, true);
         break;
     case 130:
@@ -1047,7 +1047,7 @@ static void CheckRestoreBetweenCallsAndStep(uint64_t expected)
     for (int32_t frame = 0; frame < TOUR_FRAMES; ++frame)
     {
         TourCalls(&t, frame);
-        int32_t size = m3World_SnapshotSize(t.world);
+        int32_t size = m3World_GetSnapshotSize(t.world);
         uint8_t* bytes = (uint8_t*)malloc((size_t)size);
         if (bytes == NULL || Snapshot(t.world, bytes, size) != size ||
             !Restore(t.world, bytes, size))
@@ -1080,7 +1080,7 @@ static uint64_t SceneRollback(void)
     {
         TourFrame(&t, frame);
     }
-    int32_t size = m3World_SnapshotSize(t.world);
+    int32_t size = m3World_GetSnapshotSize(t.world);
     uint8_t* before = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(t.world, before, size) == size, "the snapshot fits its size");
 
@@ -1089,7 +1089,7 @@ static uint64_t SceneRollback(void)
         TourFrame(&t, frame);
     }
     uint64_t first = m3World_Hash(t.world);
-    int32_t afterSize = m3World_SnapshotSize(t.world);
+    int32_t afterSize = m3World_GetSnapshotSize(t.world);
     uint8_t* after = (uint8_t*)malloc((size_t)afterSize);
     Snapshot(t.world, after, afterSize);
 
@@ -1100,7 +1100,7 @@ static uint64_t SceneRollback(void)
     }
     CHECK(m3World_Hash(t.world) == first, "the rerun lands on the same bits");
     uint8_t* again = (uint8_t*)malloc((size_t)afterSize);
-    CHECK(m3World_SnapshotSize(t.world) == afterSize &&
+    CHECK(m3World_GetSnapshotSize(t.world) == afterSize &&
               Snapshot(t.world, again, afterSize) == afterSize &&
               memcmp(after, again, (size_t)afterSize) == 0,
           "the rerun's snapshot is byte for byte the first one's");

@@ -111,7 +111,7 @@ static void TestSnapshotRefusals(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int32_t bytes = m3World_SnapshotSize(world);
+    int32_t bytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, snap, bytes - 1) == -1, "a short buffer refuses, loudly");
     CHECK(Snapshot(world, snap, bytes) == bytes, "the right buffer writes");
@@ -392,7 +392,7 @@ static void TestStaleRuntimeSetters(void)
             m3Body_SetTransform(world, staleB, (m3Pos3){9.0, 9.0, 9.0},
                                 (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
             m3Body_SetType(world, staleB, m3_staticBody);
-            m3Body_Disable(world, staleB);
+            m3Body_Enable(world, staleB, false);
             m3Body_SetMotionLocks(world, staleB, Locks(0x3Fu));
             m3Body_SetSleepThreshold(world, staleB, 0.5f);
             m3Body_EnableSleep(world, staleB, false);
@@ -402,7 +402,7 @@ static void TestStaleRuntimeSetters(void)
             m3Shape_SetRollingResistance(world, staleS, 0.2f);
             m3Shape_SetDensity(world, staleS, 4.0f);
             m3Shape_EnableHitEvents(world, staleS, true);
-            m3Shape_EnablePreSolve(world, staleS, true);
+            m3Shape_EnablePreSolveEvents(world, staleS, true);
             m3Joint_SetLimits(world, staleJ, -1.0f, 1.0f);
             m3Joint_EnableLimit(world, staleJ, true);
             m3Joint_SetMotorSpeed(world, staleJ, 1.0f);
@@ -413,7 +413,7 @@ static void TestStaleRuntimeSetters(void)
             m3Joint_SetSpringHertz(world, staleJ, 5.0f);
             m3Joint_SetSpringDampingRatio(world, staleJ, 1.0f);
             m3Joint_EnableSpring(world, staleJ, true);
-            m3Joint_SetTargetAngle(world, staleJ, 0.5f);
+            m3RevoluteJoint_SetTargetAngle(world, staleJ, 0.5f);
         }
         for (int32_t i = 0; i < 60; ++i)
         {

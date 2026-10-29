@@ -134,7 +134,7 @@ static void BuildScene(Scene* scene, Reentry* r)
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     NewBoxShape(scene->world, NewBody(scene->world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
     (void)m3World_Step(scene->world, 1.0f / 60.0f, 4);
-    scene->snapshotSize = m3World_SnapshotSize(scene->world);
+    scene->snapshotSize = m3World_GetSnapshotSize(scene->world);
     scene->snapshot = (uint8_t*)malloc((size_t)scene->snapshotSize);
     (void)Snapshot(scene->world, scene->snapshot, scene->snapshotSize);
     m3ShapeId recorded = m3_nullShapeId;

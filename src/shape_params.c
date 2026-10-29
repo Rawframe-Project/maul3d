@@ -308,14 +308,14 @@ static M3_NOINLINE void ShapeEnablePreSolveWorker(m3World* world, m3ShapeId shap
     ShapeFlagOp(world, shape, m3_opEnableShapePreSolve, flag);
 }
 
-void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag)
+void m3Shape_EnablePreSolveEvents(m3World* world, m3ShapeId shape, bool flag)
 {
     uint64_t env = m3FloatEnvEnter();
     ShapeEnablePreSolveWorker(world, shape, flag);
     m3FloatEnvLeave(env);
 }
 
-bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape)
+bool m3Shape_IsPreSolveEventsEnabled(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
     return ResolveShape(world, shape, &slot) && world->shapes.shapePreSolve[slot] != 0;

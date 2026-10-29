@@ -167,7 +167,7 @@ static double ArmDroop(bool spring, bool motor, float budget)
         m3Joint_SetSpringHertz(world, joint, 6.0f);
         m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
         m3Joint_EnableSpring(world, joint, true);
-        m3Joint_SetTargetAngle(world, joint, 0.0f);
+        m3RevoluteJoint_SetTargetAngle(world, joint, 0.0f);
     }
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -235,23 +235,23 @@ static void TestWheelSteering(void)
         jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
         m3JointId wheel = NewJoint(world, &jd);
         CHECK(m3Joint_IsValid(world, wheel), "the wheel creates");
-        m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
+        m3WheelJoint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 120; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        float angle = m3Joint_GetSteerAngle(world, wheel);
+        float angle = m3WheelJoint_GetSteerAngle(world, wheel);
         CHECK(fabsf(angle - 0.5f) < 0.05f, "the rim yaws to the steer target");
-        m3Joint_SetSteer(world, wheel, true, -0.5f, 8.0f, 1.0f, 0.0f);
+        m3WheelJoint_SetSteer(world, wheel, true, -0.5f, 8.0f, 1.0f, 0.0f);
         for (int32_t i = 0; i < 120; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) + 0.5f) < 0.05f, "the steer reverses");
+        CHECK(fabsf(m3WheelJoint_GetSteerAngle(world, wheel) + 0.5f) < 0.05f, "the steer reverses");
         // The hostile wall runs in BOTH runs so the twins stay
         // symmetric: a refused steer never touches state.
-        m3Joint_SetSteer(world, wheel, true, 2.0f, 8.0f, 1.0f, 0.0f); // beyond the range
-        CHECK(m3Joint_GetSteerAngle(world, wheel) > -1.1f,
+        m3WheelJoint_SetSteer(world, wheel, true, 2.0f, 8.0f, 1.0f, 0.0f); // beyond the range
+        CHECK(m3WheelJoint_GetSteerAngle(world, wheel) > -1.1f,
               "an absurd target refused, the drive holds");
         hashes[run] = m3World_Hash(world);
         if (recording)
@@ -286,8 +286,8 @@ static void TestWheelSteering(void)
     jd.bodyIdB = b;
     m3JointId ball = NewJoint(world, &jd);
     uint64_t before = m3World_Hash(world);
-    m3Joint_SetSteer(world, ball, true, 0.3f, 8.0f, 1.0f, 0.0f);
-    CHECK(m3Joint_GetSteerAngle(world, ball) == 0.0f, "a spherical never steers");
+    m3WheelJoint_SetSteer(world, ball, true, 0.3f, 8.0f, 1.0f, 0.0f);
+    CHECK(m3WheelJoint_GetSteerAngle(world, ball) == 0.0f, "a spherical never steers");
     CHECK(m3World_Hash(world) == before, "the refused steer moved no bits");
     m3DestroyWorld(world);
 }
@@ -318,15 +318,15 @@ static void TestWheelTargetKeepsSteering(void)
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
-    m3Joint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
+    m3WheelJoint_SetSteer(world, wheel, true, 0.5f, 8.0f, 1.0f, 0.0f);
     m3Joint_SetTargetTranslation(world, wheel, 0.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(fabsf(m3Joint_GetSteerAngle(world, wheel) - 0.5f) < 0.05f,
+    CHECK(fabsf(m3WheelJoint_GetSteerAngle(world, wheel) - 0.5f) < 0.05f,
           "a wheel given a translation target still steers");
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
     int32_t bytes = Snapshot(world, snapshot, size);
     m3World* restored = NewWorld(&wd);

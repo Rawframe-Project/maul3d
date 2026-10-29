@@ -74,7 +74,7 @@ static void TestContactEvents(void)
     CHECK(ends == 1, "one end event for the launch");
 
     // Events are transient: a snapshot restore clears them.
-    int32_t snapBytes = m3World_SnapshotSize(world);
+    int32_t snapBytes = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "snapshot writes");
     CHECK(Restore(world, snap, snapBytes), "snapshot restores");
@@ -465,7 +465,7 @@ static void TestSensorSleepAndBullets(void)
     bd.position = (m3Pos3){4.0, 5.0, 0.0};
     bd.linearVelocity = (m3Vec3){200.0f, 0.0f, 0.0f};
     bd.gravityScale = 0.0f;
-    bd.isBullet = true;
+    bd.enableBullet = true;
     m3BodyId bullet = NewBody(world, &bd);
     m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.1f};
     NewSphereShape(world, bullet, &sd, &small);

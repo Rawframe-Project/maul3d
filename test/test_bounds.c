@@ -581,17 +581,17 @@ static void SpringRatio(Scene* s, float v)
 
 static void SteerHertz(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, v, 0.5f, 100.0f);
+    m3WheelJoint_SetSteer(s->world, s->wheel, true, 0.2f, v, 0.5f, 100.0f);
 }
 
 static void SteerRatio(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, v, 100.0f);
+    m3WheelJoint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, v, 100.0f);
 }
 
 static void SteerEffort(Scene* s, float v)
 {
-    m3Joint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, 0.5f, v);
+    m3WheelJoint_SetSteer(s->world, s->wheel, true, 0.2f, 5.0f, 0.5f, v);
 }
 
 static void ServoAim(Scene* s, float v)
@@ -601,7 +601,7 @@ static void ServoAim(Scene* s, float v)
 
 static void HingeTarget(Scene* s, float v)
 {
-    m3Joint_SetTargetAngle(s->world, s->hinge, v);
+    m3RevoluteJoint_SetTargetAngle(s->world, s->hinge, v);
 }
 
 static void Socket(Scene* s, float v)
@@ -619,7 +619,7 @@ static void Socket(Scene* s, float v)
 // band, [0.99, 1.01], between 0.806 and 0.807.
 static void SocketTarget(Scene* s, float v)
 {
-    m3Joint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
+    m3SphericalJoint_SetTargetRotation(s->world, s->socket, (m3Quat){0.0f, 0.0f, 0.6f, v});
 }
 
 static void ServoForce(Scene* s, float v)
@@ -1030,7 +1030,7 @@ static void CheckSite(const Site* site)
     m3DestroyWorld(s.world);
 
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_SnapshotSize(s.world);
+    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     StartJournal(s.world, s_journal, (int32_t)sizeof(s_journal));
@@ -1210,14 +1210,14 @@ static void TestFrequencySign(void)
     uint64_t misuse = Misuse(s.world);
     m3Joint_EnableMotor(s.world, s.rope, false);
     m3Joint_SetMotorSpeed(s.world, s.rope, 0.0f);
-    m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, 0.0f, 0.5f, 0.0f);
+    m3WheelJoint_SetSteer(s.world, s.wheel, false, 0.0f, 0.0f, 0.5f, 0.0f);
     m3Joint_SetSpringHertz(s.world, s.hinge, 0.0f);
     CHECK(Misuse(s.world) == misuse, "a disabled spring or steer takes a zero frequency");
     m3Joint_EnableMotor(s.world, s.rope, true);
     CHECK(Misuse(s.world) == misuse + 1, "an enabled distance spring needs a positive frequency");
     m3Joint_SetMotorSpeed(s.world, s.rope, -1.0f);
     CHECK(Misuse(s.world) == misuse + 2, "a distance spring frequency is never negative");
-    m3Joint_SetSteer(s.world, s.wheel, false, 0.0f, -1.0f, 0.5f, 0.0f);
+    m3WheelJoint_SetSteer(s.world, s.wheel, false, 0.0f, -1.0f, 0.5f, 0.0f);
     CHECK(Misuse(s.world) == misuse + 3, "a steering frequency is never negative");
     m3Joint_EnableSpring(s.world, s.hinge, true);
     CHECK(Misuse(s.world) == misuse + 4, "an enabled joint spring needs a positive frequency");
@@ -1287,7 +1287,7 @@ static void CheckReplayState(const char* name, StateFunction* call, StateFunctio
     char what[192];
     Scene s;
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_SnapshotSize(s.world);
+    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     uint64_t misuse = Misuse(s.world);
@@ -1303,7 +1303,7 @@ static void CheckReplayState(const char* name, StateFunction* call, StateFunctio
     BuildScene(&s);
     refusing(&s);
     misuse = Misuse(s.world);
-    snapshotBytes = m3World_SnapshotSize(s.world);
+    snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* changed = (uint8_t*)realloc(snapshot, (size_t)snapshotBytes);
     CHECK(changed != NULL, "the snapshot buffer grows");
     Snapshot(s.world, changed, snapshotBytes);

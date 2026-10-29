@@ -52,7 +52,7 @@ for (int i = 0; i < 60; i++)
 Console.WriteLine($"hash {Native.Hash(world):x16}");
 
 // Rollback: snapshot, run ahead, restore, run again: same hash.
-var snap = new byte[Native.SnapshotSize(world)];
+var snap = new byte[Native.GetSnapshotSize(world)];
 Native.Snapshot(world, snap, snap.Length, out int bytes);
 // ... later ...
 Native.Restore(world, snap, bytes);

@@ -373,8 +373,8 @@ extern "C"
     /// Journaled; the flags are state and snapshot with the world.
     M3_API void m3Shape_EnableHitEvents(m3World* world, m3ShapeId shape, bool flag);
     M3_API bool m3Shape_IsHitEventsEnabled(const m3World* world, m3ShapeId shape);
-    M3_API void m3Shape_EnablePreSolve(m3World* world, m3ShapeId shape, bool flag);
-    M3_API bool m3Shape_IsPreSolveEnabled(const m3World* world, m3ShapeId shape);
+    M3_API void m3Shape_EnablePreSolveEvents(m3World* world, m3ShapeId shape, bool flag);
+    M3_API bool m3Shape_IsPreSolveEventsEnabled(const m3World* world, m3ShapeId shape);
 
     /// The collision filter, changed at runtime: shapes it touched wake
     /// and every pair is filtered again on the next step. Journaled.

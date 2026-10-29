@@ -240,7 +240,7 @@ static uint8_t* Spend(const Pool* p, m3World* world, int32_t* bytes)
     uint32_t spareGeneration = 0;
     snprintf(what, sizeof(what), "%s: the spent pool refuses", p->name);
     CHECK(!p->create(world, &spareIndex, &spareGeneration), what);
-    *bytes = m3World_SnapshotSize(world);
+    *bytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)*bytes);
     CHECK(snap != NULL && Snapshot(world, snap, *bytes) == *bytes, "the spent world snapshots");
     return snap;

@@ -39,9 +39,9 @@ static inline void m3NormalizeBodyDefBools(m3BodyDef* def)
     m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularX));
     m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularY));
     m3NormalizeBoolByte(def, offsetof(m3BodyDef, motionLocks.angularZ));
-    m3NormalizeBoolByte(def, offsetof(m3BodyDef, isBullet));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, enableBullet));
     m3NormalizeBoolByte(def, offsetof(m3BodyDef, enableSleep));
-    m3NormalizeBoolByte(def, offsetof(m3BodyDef, isEnabled));
+    m3NormalizeBoolByte(def, offsetof(m3BodyDef, enable));
     m3NormalizeBoolByte(def, offsetof(m3BodyDef, enableFastRotation));
 }
 

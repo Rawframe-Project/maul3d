@@ -185,7 +185,7 @@ static void TestPaintJournaledWithoutMemory(void)
     wd.allocator = (m3Allocator){ToggleAlloc, ToggleFree, &refuse};
     m3World* world = NewWorld(&wd);
     m3ShapeId floor = Quad(world);
-    int32_t size = m3World_SnapshotSize(world);
+    int32_t size = m3World_GetSnapshotSize(world);
     uint8_t* unpainted = (uint8_t*)malloc((size_t)size);
     uint8_t* painted = (uint8_t*)malloc((size_t)size);
     CHECK(unpainted != NULL && painted != NULL && Snapshot(world, unpainted, size) == size,

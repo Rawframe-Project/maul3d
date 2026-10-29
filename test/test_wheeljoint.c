@@ -219,9 +219,9 @@ static void TestHostileWall(void)
     CHECK(m3Joint_IsValid(world, wheel), "a small skew snaps and lands");
     CHECK(m3Joint_GetAngle(world, wheel) == 0.0f, "the spin angle starts at the create pose");
 
-    m3Joint_SetTargetAngle(world, wheel, 1.0f); // the wheel's drive is its
-                                                // suspension: angle targets
-                                                // stay revolute-only
+    m3RevoluteJoint_SetTargetAngle(world, wheel, 1.0f); // the wheel's drive is its
+                                                        // suspension: angle targets
+                                                        // stay revolute-only
     m3Joint_SetSpringHertz(world, wheel, 3.0f);
     m3Joint_SetSpringDampingRatio(world, wheel, 0.5f);
     m3Joint_EnableSpring(world, wheel, true);

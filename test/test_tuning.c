@@ -234,7 +234,7 @@ static void TestSleepAndContinuousToggles(void)
         (void)wall;
         m3BodyDef bulletDef = m3DefaultBodyDef();
         bulletDef.type = m3_dynamicBody;
-        bulletDef.isBullet = true;
+        bulletDef.enableBullet = true;
         bulletDef.position = (m3Pos3){0.0, 0.0, 0.0};
         m3BodyId bullet = NewBody(w, &bulletDef);
         m3Sphere s = {{0.0f, 0.0f, 0.0f}, 0.1f};

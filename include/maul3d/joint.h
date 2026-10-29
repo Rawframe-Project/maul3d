@@ -242,12 +242,12 @@ extern "C"
     /// maxEffort > 0 caps the torque, 0 leaves it uncapped; hertz is
     /// in [0, 1e5] and positive when enabled, the damping ratio in
     /// [0, 1e4] and maxEffort at most 1e20. Wheel joints only; refused loudly elsewhere. Journaled.
-    M3_API void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle,
-                                 float hertz, float zeta, float maxEffort);
+    M3_API void m3WheelJoint_SetSteer(m3World* world, m3JointId joint, bool enable,
+                                      float targetAngle, float hertz, float zeta, float maxEffort);
 
     /// The current strut twist in radians (wheel joints; 0 for
     /// every other type and stale ids).
-    M3_API float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint);
+    M3_API float m3WheelJoint_GetSteerAngle(const m3World* world, m3JointId joint);
 
     /// Let (or forbid) the two jointed bodies collide with each
     /// other. Journaled; binds at the next step's pair scan.
@@ -291,14 +291,14 @@ extern "C"
     M3_API float m3Joint_GetSpringHertz(const m3World* world, m3JointId joint);
     M3_API void m3Joint_SetSpringDampingRatio(m3World* world, m3JointId joint, float dampingRatio);
     M3_API float m3Joint_GetSpringDampingRatio(const m3World* world, m3JointId joint);
-    M3_API void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
+    M3_API void m3RevoluteJoint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
     M3_API void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters);
     /// The target must be a unit rotation; garbage refuses loudly by
     /// doing nothing. The target lives in the JOINT FRAMES (frame z
     /// is the create-time local axis): it is the desired rotation of
     /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
-    M3_API void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
+    M3_API void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
 
 #ifdef __cplusplus
 }

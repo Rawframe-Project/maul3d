@@ -233,8 +233,8 @@ static M3_NOINLINE void JointSetSteerWorker(m3World* world, m3JointId joint, boo
     m3JointSetSteerInternal(world, slot, enable ? 1 : 0, targetAngle, hertz, zeta, maxEffort);
 }
 
-void m3Joint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle, float hertz,
-                      float zeta, float maxEffort)
+void m3WheelJoint_SetSteer(m3World* world, m3JointId joint, bool enable, float targetAngle,
+                           float hertz, float zeta, float maxEffort)
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetSteerWorker(world, joint, enable, targetAngle, hertz, zeta, maxEffort);
@@ -266,7 +266,7 @@ static M3_NOINLINE float JointGetSteerAngleWorker(const m3World* world, m3JointI
     return 2.0f * m3Atan2(relQ.x, relQ.w);
 }
 
-float m3Joint_GetSteerAngle(const m3World* world, m3JointId joint)
+float m3WheelJoint_GetSteerAngle(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
     float result = JointGetSteerAngleWorker(world, joint);
@@ -883,7 +883,7 @@ static M3_NOINLINE void JointSetTargetAngleWorker(m3World* world, m3JointId join
     JointTargetOp(world, joint, slot, radians, (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
 }
 
-void m3Joint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
+void m3RevoluteJoint_SetTargetAngle(m3World* world, m3JointId joint, float radians)
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetTargetAngleWorker(world, joint, radians);
@@ -942,7 +942,7 @@ static M3_NOINLINE void JointSetTargetRotationWorker(m3World* world, m3JointId j
     JointTargetOp(world, joint, slot, 0.0f, target);
 }
 
-void m3Joint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
+void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target)
 {
     uint64_t env = m3FloatEnvEnter();
     JointSetTargetRotationWorker(world, joint, target);

@@ -178,8 +178,8 @@ static void TestPreSolveOneWay(void)
     pd.position = (m3Pos3){0.0, 3.0, 0.0};
     m3BodyId plate = NewBody(world, &pd);
     m3ShapeId plateShape = NewBoxShape(world, plate, &sd, (m3Vec3){2.0f, 0.1f, 2.0f});
-    m3Shape_EnablePreSolve(world, plateShape, true);
-    CHECK(m3Shape_IsPreSolveEnabled(world, plateShape), "pre-solve flag reads back");
+    m3Shape_EnablePreSolveEvents(world, plateShape, true);
+    CHECK(m3Shape_IsPreSolveEventsEnabled(world, plateShape), "pre-solve flag reads back");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;

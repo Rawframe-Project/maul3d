@@ -219,7 +219,7 @@ static void TestSpringServo(void)
     m3Joint_SetSpringHertz(world, hinge, 8.0f);
     m3Joint_SetSpringDampingRatio(world, hinge, 1.0f);
     m3Joint_EnableSpring(world, hinge, true);
-    m3Joint_SetTargetAngle(world, hinge, 0.6f);
+    m3RevoluteJoint_SetTargetAngle(world, hinge, 0.6f);
     StepN(world, 240);
     float angle = m3Joint_GetAngle(world, hinge);
     CHECK(fabsf(fabsf(angle) - 0.6f) < 0.1f, "the angle servo parks in the target band");
@@ -302,7 +302,7 @@ static void TestSphericalRotationDrive(void)
     m3Joint_SetSpringHertz(world, ball, 6.0f);
     m3Joint_SetSpringDampingRatio(world, ball, 1.0f);
     m3Joint_EnableSpring(world, ball, true);
-    m3Joint_SetTargetRotation(world, ball, target);
+    m3SphericalJoint_SetTargetRotation(world, ball, target);
     StepN(world, 300);
     m3Quat q = m3Body_GetRotation(world, crate);
     m3Quat want = {0.0f, s, 0.0f, c}; // 45 degrees about world y
@@ -326,9 +326,10 @@ static void TestHostileRuntime(void)
     CHECK_REFUSES(world, m3Joint_EnableSpring(world, link, true), "a zero-hertz spring refuses");
     CHECK_REFUSES(world, m3Joint_SetSpringHertz(world, link, NAN), "a NaN spring hertz refuses");
     m3Joint_SetBreakThresholds(world, link, -1.0f, 0.0f);
-    m3Joint_SetTargetAngle(world, link, 0.5f);       // ball joint: wrong type, no-op
-    m3Joint_SetTargetTranslation(world, link, 0.5f); // wrong type, no-op
-    m3Joint_SetTargetRotation(world, link, (m3Quat){3.0f, 0.0f, 0.0f, 1.0f}); // non-unit refused
+    m3RevoluteJoint_SetTargetAngle(world, link, 0.5f); // ball joint: wrong type, no-op
+    m3Joint_SetTargetTranslation(world, link, 0.5f);   // wrong type, no-op
+    m3SphericalJoint_SetTargetRotation(world, link,
+                                       (m3Quat){3.0f, 0.0f, 0.0f, 1.0f}); // non-unit refused
     m3JointId stale = link;
     stale.index1 += 99;
     CHECK_REFUSES(world, m3Joint_EnableMotor(world, stale, true), "a stale joint refuses");

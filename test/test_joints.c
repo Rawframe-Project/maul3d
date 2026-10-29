@@ -1164,7 +1164,7 @@ static void TestGenericAsSlider(void)
     CHECK(p.x * p.x + p.z * p.z < 0.001, "the perpendicular locks hold the rail line");
 
     // The new generic state rides the rollback like everything else.
-    int32_t bytes = m3World_SnapshotSize(world);
+    int32_t bytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, snap, bytes) == bytes, "the generic snapshot writes");
     for (int32_t i = 0; i < 60; ++i)

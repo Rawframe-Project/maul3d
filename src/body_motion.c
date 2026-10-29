@@ -578,7 +578,7 @@ static M3_NOINLINE void BodySetBulletWorker(m3World* world, m3BodyId body, bool 
     m3SetBulletInternal(world, index, flag ? 1 : 0);
 }
 
-void m3Body_SetBullet(m3World* world, m3BodyId body, bool flag)
+void m3Body_EnableBullet(m3World* world, m3BodyId body, bool flag)
 {
     uint64_t env = m3FloatEnvEnter();
     BodySetBulletWorker(world, body, flag);

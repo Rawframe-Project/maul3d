@@ -27,7 +27,7 @@ const char* m3GetSimdBackend(void)
 #endif
 }
 
-int32_t m3CpuSupportsBackend(void)
+int32_t m3IsCpuBackendSupported(void)
 {
 #if defined(MAUL3D_BUILT_FOR_AVX2)
     // The AVX2 kernels need AVX2 and FMA3, and the operating system must
@@ -70,5 +70,5 @@ int32_t m3CheckCpu(const char** backend)
     {
         *backend = m3GetSimdBackend();
     }
-    return m3CpuSupportsBackend();
+    return m3IsCpuBackendSupported();
 }

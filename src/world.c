@@ -721,7 +721,7 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
     counters.pairsDropped = world->contacts.pairsDropped;
     counters.heldPushRetakes = world->heldPushRetakes;
-    counters.snapshotBytes = m3World_SnapshotSize(world);
+    counters.snapshotBytes = m3World_GetSnapshotSize(world);
     counters.allocCalls = world->heap.allocCalls;
     counters.freeCalls = world->heap.freeCalls;
     counters.misuse = m3MisuseCount(world);

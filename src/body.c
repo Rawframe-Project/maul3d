@@ -29,7 +29,7 @@ m3BodyDef m3DefaultBodyDef(void)
     def.rotation = m3MakeIdentityQuat();
     def.gravityScale = 1.0f;
     def.enableSleep = true;
-    def.isEnabled = true;
+    def.enable = true;
     def.internalValue = M3_BODY_COOKIE;
     return def;
 }
@@ -81,9 +81,9 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     world->bodies.linearDamping[index] = def->linearDamping;
     world->bodies.angularDamping[index] = def->angularDamping;
     world->bodies.types[index] = (uint8_t)def->type;
-    world->bodies.bulletFlags[index] = def->isBullet ? 1 : 0;
+    world->bodies.bulletFlags[index] = def->enableBullet ? 1 : 0;
     world->bodies.userData[index] = def->userData;
-    world->bodies.bodyEnabled[index] = def->isEnabled ? 1 : 0;
+    world->bodies.bodyEnabled[index] = def->enable ? 1 : 0;
     world->bodies.bodyLocks[index] =
         (uint8_t)(m3LockBits(def->motionLocks) |
                   (def->enableFastRotation ? M3_LOCKS_ALLOW_FAST_ROTATION : 0u));
@@ -646,37 +646,20 @@ static void SetEnabled(m3World* world, m3BodyId bodyId, bool enabled)
     m3SetEnabledInternal(world, index, enabled ? 1 : 0);
 }
 
-static M3_NOINLINE void BodyEnableWorker(m3World* world, m3BodyId body)
+static M3_NOINLINE void BodyEnableWorker(m3World* world, m3BodyId body, bool enable)
 {
     if (m3WorldBusy(world))
     {
         m3Refuse(world, m3_errorBusy);
         return;
     }
-    SetEnabled(world, body, true);
+    SetEnabled(world, body, enable);
 }
 
-void m3Body_Enable(m3World* world, m3BodyId body)
+void m3Body_Enable(m3World* world, m3BodyId body, bool enable)
 {
     uint64_t env = m3FloatEnvEnter();
-    BodyEnableWorker(world, body);
-    m3FloatEnvLeave(env);
-}
-
-static M3_NOINLINE void BodyDisableWorker(m3World* world, m3BodyId body)
-{
-    if (m3WorldBusy(world))
-    {
-        m3Refuse(world, m3_errorBusy);
-        return;
-    }
-    SetEnabled(world, body, false);
-}
-
-void m3Body_Disable(m3World* world, m3BodyId body)
-{
-    uint64_t env = m3FloatEnvEnter();
-    BodyDisableWorker(world, body);
+    BodyEnableWorker(world, body, enable);
     m3FloatEnvLeave(env);
 }
 
