@@ -496,7 +496,7 @@ static Scene Build(void)
     jelly.pressure = 1.0f;
     m3SoftBodyId soft = NewSoftBody(w, &jelly);
     s.soft = soft.index1 - 1;
-    m3SoftBody_AnchorParticle(w, soft, 0, crate);
+    CHECK(m3SoftBody_AnchorParticle(w, soft, 0, crate) == m3_success, "the lattice anchors");
     m3SoftBodyDef single = m3DefaultSoftBodyDef();
     single.position = (m3Pos3){-4.0, 2.0, 4.0};
     single.countX = 1;

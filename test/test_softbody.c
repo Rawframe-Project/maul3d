@@ -47,7 +47,7 @@ static void TestHangingRope(void)
     m3SoftBodyId rope = NewSoftBody(world, &sb);
     CHECK(m3SoftBody_IsValid(world, rope), "the rope creates");
     CHECK(m3SoftBody_GetParticleCount(world, rope) == 20, "twenty particles");
-    m3SoftBody_PinParticle(world, rope, 19); // the top of the lattice
+    CHECK(m3SoftBody_PinParticle(world, rope, 19) == m3_success, "the top of the lattice pins");
 
     for (int32_t i = 0; i < 300; ++i)
     {
@@ -125,10 +125,16 @@ static void TestSoftContracts(void)
     sb.position = (m3Pos3){6.0, 1.0, 0.0};
     CHECK(!m3SoftBody_IsValid(world, NewSoftBody(world, &sb)), "the full pool refuses the third");
 
-    m3SoftBody_PinParticle(world, a, 9999); // out of range: no-op
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_PinParticle(world, a, 9999) == m3_errorInvalid,
+                        "an out-of-range pin is m3_errorInvalid"),
+                  "an out-of-range pin counts one misuse");
     DestroySoftBody(world, a);
     CHECK(!m3SoftBody_IsValid(world, a), "the destroyed soft body is stale");
-    m3SoftBody_PinParticle(world, a, 0); // stale: no-op
+    CHECK_REFUSES(
+        world,
+        CHECK(m3SoftBody_PinParticle(world, a, 0) == m3_errorStale, "a stale pin is m3_errorStale"),
+        "a stale pin counts one misuse");
     m3Pos3 p = m3SoftBody_GetParticlePosition(world, a, 0);
     CHECK(p.x == 0.0 && p.y == 0.0, "a stale getter returns zeros");
     DestroySoftBody(world, a); // stale: no-op
@@ -328,8 +334,9 @@ static void TestBallThroughCloth(void)
     sb.particleMass = 0.03f;
     m3SoftBodyId cloth = NewSoftBody(world, &sb);
     // Anchor the top ROW's two corners to the beam.
-    m3SoftBody_AnchorParticle(world, cloth, 90, beam); // (x0, y9)
-    m3SoftBody_AnchorParticle(world, cloth, 99, beam); // (x9, y9)
+    CHECK(m3SoftBody_AnchorParticle(world, cloth, 90, beam) == m3_success &&   // (x0, y9)
+              m3SoftBody_AnchorParticle(world, cloth, 99, beam) == m3_success, // (x9, y9)
+          "the top corners anchor");
     for (int32_t i = 0; i < 120; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4); // let it hang
@@ -393,8 +400,9 @@ static void TestClothFollowsBeam(void)
         sb.radius = 0.05f;
         sb.particleMass = 0.03f;
         m3SoftBodyId cloth = NewSoftBody(world, &sb);
-        m3SoftBody_AnchorParticle(world, cloth, 56, beam);
-        m3SoftBody_AnchorParticle(world, cloth, 63, beam);
+        CHECK(m3SoftBody_AnchorParticle(world, cloth, 56, beam) == m3_success &&
+                  m3SoftBody_AnchorParticle(world, cloth, 63, beam) == m3_success,
+              "the top corners anchor");
 
         m3Body_SetLinearVelocity(world, beam, (m3Vec3){0.8f, 0.0f, 0.0f});
         int64_t snapBytes = 0;
@@ -629,8 +637,9 @@ static void TestBendRods(void)
             CHECK(m3SoftBody_IsValid(world, rope), "the rope creates");
             // TWO pins make the clamp: a single point pin holds
             // no moment (even a rigid rod would swing free).
-            m3SoftBody_PinParticle(world, rope, 0);
-            m3SoftBody_PinParticle(world, rope, 1);
+            CHECK(m3SoftBody_PinParticle(world, rope, 0) == m3_success &&
+                      m3SoftBody_PinParticle(world, rope, 1) == m3_success,
+                  "the rope's end pins");
             for (int32_t i = 0; i < 300; ++i)
             {
                 (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -720,10 +729,20 @@ static void TestAnchorTableLimits(void)
     // Fill the whole anchor table with the top row and then some.
     for (int32_t a = 0; a < 40; ++a)
     {
-        m3SoftBody_AnchorParticle(world, cloth, 56 + (a % 8), beam); // 32 land, 8 no-op
+        m3Result expected = a < M3_MAX_SOFTBODY_ANCHORS ? m3_success : m3_errorLimit;
+        CHECK_ACCEPTS(world,
+                      CHECK(m3SoftBody_AnchorParticle(world, cloth, 56 + (a % 8), beam) == expected,
+                            "32 anchors land and 8 are m3_errorLimit"),
+                      "a full anchor table counts no misuse");
     }
-    m3SoftBody_AnchorParticle(world, cloth, -1, beam);   // hostile: no-op
-    m3SoftBody_AnchorParticle(world, cloth, 9999, beam); // hostile: no-op
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorParticle(world, cloth, -1, beam) == m3_errorInvalid,
+                        "a negative particle is m3_errorInvalid"),
+                  "a negative particle counts one misuse");
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorParticle(world, cloth, 9999, beam) == m3_errorInvalid,
+                        "an out-of-range particle is m3_errorInvalid"),
+                  "an out-of-range particle counts one misuse");
     for (int32_t i = 0; i < 60; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);

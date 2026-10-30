@@ -1104,7 +1104,7 @@ static tbScene SceneClothWind(void)
     // Pin the west edge: a hanging line, free to billow east.
     for (int32_t z = 0; z < 9; ++z)
     {
-        m3SoftBody_PinParticle(scene.world, scene.cloth, 0 + 13 * (0 + 1 * z));
+        (void)m3SoftBody_PinParticle(scene.world, scene.cloth, 0 + 13 * (0 + 1 * z));
     }
     m3World_SetWind(scene.world, (m3Vec3){1.0f, 0.0f, 0.15f}, 6.0f, 0.4f, 0.6f);
 
