@@ -195,39 +195,47 @@ bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose)
     return dx * dx + dy * dy + dz * dz <= limit * limit;
 }
 
-// A type change keeps the linear velocity within the new type's limit
-// (turning static zeroes it), keeps static-only scenery (a plane, mesh,
-// height field or voxel chunk) static, as its create required, holds a
-// body turning dynamic to the mass bounds a dynamic body's shapes meet, and
-// keeps every joint on the body within its lever ratio at the mass the
-// new type gives it.
-bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type)
+// A type change keeps static-only scenery (a plane, mesh, height field or
+// voxel chunk) static, as its create required, and leaves a character's
+// body alone: m3_errorInvalid. It keeps every joint on the body within its
+// lever ratio at the mass the new type gives it, holds a body turning
+// dynamic to the mass bounds a dynamic body's shapes meet, and keeps the
+// linear velocity within the new type's limit (turning static zeroes it):
+// m3_errorLimit, which the body's state decides, not the argument.
+m3Result m3TypeChangeCheck(const m3World* world, int32_t index, int32_t type)
 {
     if (type < (int32_t)m3_staticBody || type > (int32_t)m3_dynamicBody ||
-        m3CharacterOwnsBody(world, index) || !m3BodyTypeFits(world, index, (uint8_t)type))
+        m3CharacterOwnsBody(world, index))
     {
-        return false;
+        return m3_errorInvalid;
+    }
+    if (type != (int32_t)m3_staticBody)
+    {
+        for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1;
+             s = world->shapes.shapeNext[s])
+        {
+            uint8_t shape = world->shapes.shapeType[s];
+            if (shape == (uint8_t)m3_planeShape || shape == (uint8_t)m3_meshShape ||
+                shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelShape)
+            {
+                return m3_errorInvalid;
+            }
+        }
+    }
+    if (!m3BodyTypeFits(world, index, (uint8_t)type))
+    {
+        return m3_errorLimit;
     }
     if (type == (int32_t)m3_staticBody)
     {
-        return true;
-    }
-    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
-    {
-        uint8_t shape = world->shapes.shapeType[s];
-        if (shape == (uint8_t)m3_planeShape || shape == (uint8_t)m3_meshShape ||
-            shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelShape)
-        {
-            return false;
-        }
+        return m3_success;
     }
     if (type == (int32_t)m3_dynamicBody && world->bodies.types[index] != (uint8_t)m3_dynamicBody &&
         !m3BodyMassFits(world, index))
     {
-        return false;
+        return m3_errorLimit;
     }
-    return (m3BodyVelocityCheck((uint8_t)type, world->bodies.linearVelocities[index]) ==
-            m3_success);
+    return m3BodyVelocityCheck((uint8_t)type, world->bodies.linearVelocities[index]);
 }
 
 m3Result m3BodyParamCheck(int32_t param, float value)
@@ -556,24 +564,26 @@ void m3Body_SetTransform(m3World* world, m3BodyId body, m3Pos3 position, m3Quat 
     m3FloatEnvLeave(env);
 }
 
-static M3_NOINLINE void BodySetTargetTransformWorker(m3World* world, m3BodyId body, m3Pos3 position,
-                                                     m3Quat rotation)
+static M3_NOINLINE m3Result BodySetTargetTransformWorker(m3World* world, m3BodyId body,
+                                                         m3Pos3 position, m3Quat rotation)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!m3ResolveBody(world, body, &index))
+    int32_t index = m3BodySlot(world, body);
+    if (index < 0)
     {
-        return;
+        return m3Refuse(world, m3MissingId(body.index1));
     }
     m3Transform pose = {position, rotation};
+    if (world->bodies.types[index] != (uint8_t)m3_kinematicBody || !m3PoseValid(pose))
+    {
+        return m3Refuse(world, m3_errorInvalid); // kinematic bodies only: the servo contract
+    }
     if (!m3TargetValid(world, index, pose))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // kinematic bodies only, within reach: the servo contract
+        return m3_errorLimit; // out of reach of where the step left the body: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -584,31 +594,36 @@ static M3_NOINLINE void BodySetTargetTransformWorker(m3World* world, m3BodyId bo
         m3JournalRecord(world, m3_opSetTargetTransform, &record, (int32_t)sizeof(record));
     }
     m3SetTargetTransformInternal(world, index, pose);
+    return m3_success;
 }
 
-void m3Body_SetTargetTransform(m3World* world, m3BodyId body, m3Pos3 position, m3Quat rotation)
+m3Result m3Body_SetTargetTransform(m3World* world, m3BodyId body, m3Pos3 position, m3Quat rotation)
 {
     uint64_t env = m3FloatEnvEnter();
-    BodySetTargetTransformWorker(world, body, position, rotation);
+    m3Result result = BodySetTargetTransformWorker(world, body, position, rotation);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE void BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyType type)
+static M3_NOINLINE m3Result BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyType type)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!m3ResolveBody(world, body, &index))
+    int32_t index = m3BodySlot(world, body);
+    if (index < 0)
     {
-        return;
+        return m3Refuse(world, m3MissingId(body.index1));
     }
-    if (!m3TypeChangeValid(world, index, (int32_t)type))
+    m3Result result = m3TypeChangeCheck(world, index, (int32_t)type);
+    if (result == m3_errorInvalid)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, result);
+    }
+    if (result != m3_success)
+    {
+        return result; // the body's mass, joints or speed: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -619,13 +634,15 @@ static M3_NOINLINE void BodySetTypeWorker(m3World* world, m3BodyId body, m3BodyT
         m3JournalRecord(world, m3_opSetType, &record, (int32_t)sizeof(record));
     }
     m3SetTypeInternal(world, index, (uint8_t)type);
+    return m3_success;
 }
 
-void m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type)
+m3Result m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type)
 {
     uint64_t env = m3FloatEnvEnter();
-    BodySetTypeWorker(world, body, type);
+    m3Result result = BodySetTypeWorker(world, body, type);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 static void SetEnabled(m3World* world, m3BodyId bodyId, bool enabled)

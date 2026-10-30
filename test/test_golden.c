@@ -895,13 +895,16 @@ static void TourPush(const Tour* t)
     m3Body_ApplyLinearImpulseAtPoint(t->world, t->crate, (m3Vec3){0.0f, 0.0f, 0.3f},
                                      (m3Pos3){52.0, 1.2, 0.0});
     m3Quat turn = m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.0f, 0.3f, 0.0f});
-    m3Body_SetTargetTransform(t->world, t->kinematic, (m3Pos3){50.0, 1.5, 0.5}, turn);
+    CHECK(m3Body_SetTargetTransform(t->world, t->kinematic, (m3Pos3){50.0, 1.5, 0.5}, turn) ==
+              m3_success,
+          "the kinematic body takes a target");
     m3Body_SetTransform(t->world, t->ball, (m3Pos3){54.5, 1.5, 0.0}, turn);
 }
 
 static void TourBodyState(const Tour* t)
 {
-    m3Body_SetType(t->world, t->ball, m3_kinematicBody);
+    CHECK(m3Body_SetType(t->world, t->ball, m3_kinematicBody) == m3_success,
+          "the ball turns kinematic");
     m3Body_SetMotionLocks(t->world, t->crate,
                           (m3MotionLocks){false, false, false, true, false, true});
     m3Body_EnableSleep(t->world, t->crate, false);
@@ -935,7 +938,8 @@ static void TourShapes(const Tour* t)
     m3Shape_SetFriction(t->world, t->crateShape, 0.3f);
     m3Shape_SetRestitution(t->world, t->crateShape, 0.2f);
     m3Shape_SetRollingResistance(t->world, t->ballShape, 0.05f);
-    m3Shape_SetDensity(t->world, t->crateShape, 800.0f);
+    CHECK(m3Shape_SetDensity(t->world, t->crateShape, 800.0f) == m3_success,
+          "the crate takes a density");
     m3Shape_EnableHitEvents(t->world, t->crateShape, true);
     m3Shape_EnablePreSolveEvents(t->world, t->deck, true);
     m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0);
@@ -946,7 +950,7 @@ static void TourShapes(const Tour* t)
     static const uint8_t groups[2] = {0, 1};
     m3MeshShape_SetMaterials(t->world, t->deck, paint, 2, groups);
     m3Sphere bigger = {{0.0f, 0.0f, 0.0f}, 0.35f};
-    m3Shape_SetSphere(t->world, t->ballShape, &bigger);
+    CHECK(m3Shape_SetSphere(t->world, t->ballShape, &bigger) == m3_success, "the ball grows");
 }
 
 static void TourJointsAndSoft(const Tour* t)
@@ -1024,7 +1028,8 @@ static void TourCalls(Tour* t, int32_t frame)
         TourActors(t);
         break;
     case 40:
-        m3Body_SetType(t->world, t->ball, m3_dynamicBody);
+        CHECK(m3Body_SetType(t->world, t->ball, m3_dynamicBody) == m3_success,
+              "the ball turns dynamic again");
         m3Body_Enable(t->world, t->kinematic, true);
         m3World_EnableContinuous(t->world, true);
         break;

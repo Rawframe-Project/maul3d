@@ -192,8 +192,9 @@ static void TestPlatformCarry(void)
     for (int32_t i = 0; i < 240; ++i)
     {
         double t = (double)(i + 1) / 60.0;
-        m3Body_SetTargetTransform(world, platform, (m3Pos3){0.8 * t, 1.0, 0.0},
-                                  (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+        CHECK(m3Body_SetTargetTransform(world, platform, (m3Pos3){0.8 * t, 1.0, 0.0},
+                                        (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}) == m3_success,
+              "the platform takes its target");
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     double px = m3Body_GetPosition(world, platform).x;

@@ -37,10 +37,13 @@ static inline int32_t m3CellFromF(float f, float nanPark)
 // What a create internal returns instead of a slot, the negative status
 // of the refusal: the def failed its checks (the caller's bug, or a
 // damaged tape on replay), held a value past a published bound, or a pool
-// had no room.
+// had no room. M3_CREATE_HELD is m3_errorLimit for a bound the world's
+// other shapes and joints decide, a body's total mass or a joint's lever
+// ratio, which counts no misuse.
 #define M3_CREATE_INVALID ((int32_t)m3_errorInvalid)
 #define M3_CREATE_LIMIT   ((int32_t)m3_errorLimit)
 #define M3_CREATE_FULL    ((int32_t)m3_errorCapacity)
+#define M3_CREATE_HELD    (-100)
 
 // Bumped on any change that alters simulation behavior (solver math,
 // integration order, constants). It is part of the snapshot config hash,

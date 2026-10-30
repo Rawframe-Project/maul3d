@@ -128,7 +128,8 @@ static bool Within(m3Vec3 v, float limit)
 // 8e12 kg.
 static void Lighten(Heavy* scene)
 {
-    m3Shape_SetDensity(scene->world, scene->shape, 2.0e-13f);
+    CHECK(m3Shape_SetDensity(scene->world, scene->shape, 2.0e-13f) == m3_success,
+          "the body takes a density just over the floor");
     float invMass = scene->world->bodies.invMass[scene->body.index1 - 1];
     CHECK(invMass > 1.0e5f, "the body is light now");
 }

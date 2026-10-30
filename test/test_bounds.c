@@ -357,7 +357,7 @@ static void LeverImpulse(Scene* s, float v)
 
 static void Target(Scene* s, float v)
 {
-    m3Body_SetTargetTransform(s->world, s->kin, (m3Pos3){(double)v, 5.0, 0.0}, s_identity);
+    (void)m3Body_SetTargetTransform(s->world, s->kin, (m3Pos3){(double)v, 5.0, 0.0}, s_identity);
 }
 
 static void SleepThreshold(Scene* s, float v)
@@ -373,7 +373,7 @@ static void SpeedKinematic(Scene* s, float v)
 static void TurnDynamic(Scene* s, float v)
 {
     (void)v;
-    m3Body_SetType(s->world, s->kin, m3_dynamicBody);
+    (void)m3Body_SetType(s->world, s->kin, m3_dynamicBody);
 }
 
 static void SpeckKinematic(Scene* s, float v)
@@ -390,7 +390,7 @@ static void SpeckKinematic(Scene* s, float v)
 static void SpareDynamic(Scene* s, float v)
 {
     (void)v;
-    m3Body_SetType(s->world, s->spare, m3_dynamicBody);
+    (void)m3Body_SetType(s->world, s->spare, m3_dynamicBody);
 }
 
 // ---- Shapes ----
@@ -426,13 +426,13 @@ static void ThinSphere(Scene* s, float v)
 static void Reshape(Scene* s, float v)
 {
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, v};
-    m3Shape_SetSphere(s->world, s->armShape, &sphere);
+    (void)m3Shape_SetSphere(s->world, s->armShape, &sphere);
 }
 
 // The box's unit volume makes its density its mass.
 static void Density(Scene* s, float v)
 {
-    m3Shape_SetDensity(s->world, s->boxShape, v);
+    (void)m3Shape_SetDensity(s->world, s->boxShape, v);
 }
 
 // Twelve boxes of 8e18 kg leave 4e18 kg of the body's mass limit, a
@@ -466,13 +466,13 @@ static void DefDensity(Scene* s, float v)
 static void ReshapeRadius(Scene* s, float v)
 {
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, v};
-    m3Shape_SetSphere(s->world, s->ballShape, &sphere);
+    (void)m3Shape_SetSphere(s->world, s->ballShape, &sphere);
 }
 
 static void ReshapeCapsule(Scene* s, float v)
 {
     m3Capsule capsule = {{0.0f, 0.0f, 0.0f}, {v, 0.0f, 0.0f}, 0.5f};
-    m3Shape_SetCapsule(s->world, s->rodShape, &capsule);
+    (void)m3Shape_SetCapsule(s->world, s->rodShape, &capsule);
 }
 
 static void Restitution(Scene* s, float v)
@@ -941,6 +941,7 @@ typedef struct Site
     float ok;              // at the limit, or just inside it where rounding sits
     float past;            // just past the limit
     int32_t width;         // how the journal stores the value: 4 a float, 8 a double
+    bool held; // the world's other shapes or a body's state decide it: no misuse counted
 } Site;
 
 static uint8_t s_journal[1 << 20];
@@ -1021,8 +1022,9 @@ static void CheckSite(const Site* site)
     CHECK(Misuse(s.world) == misuse, what);
     uint64_t hash = m3World_Hash(s.world);
     site->apply(&s, site->past);
-    snprintf(what, sizeof(what), "%s: refused just past the limit, counted once", site->name);
-    CHECK(Misuse(s.world) == misuse + 1, what);
+    snprintf(what, sizeof(what), "%s: refused just past the limit, %s", site->name,
+             site->held ? "counting no misuse" : "counted once");
+    CHECK(Misuse(s.world) == misuse + (site->held ? 0u : 1u), what);
     snprintf(what, sizeof(what), "%s: the refusal changes nothing", site->name);
     CHECK(m3World_Hash(s.world) == hash, what);
     m3DestroyWorld(s.world);
@@ -1052,119 +1054,119 @@ static void TestSites(void)
 {
     const Site sites[] = {
         // The world.
-        {"gravity", NULL, Gravity, 1.0e4f, Up(1.0e4f), 4},
-        {"contact hertz", NULL, ContactHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"contact damping ratio", NULL, ContactRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"contact push speed", NULL, ContactPush, 1.0e5f, Up(1.0e5f), 4},
-        {"linear speed cap", NULL, LinearCap, 1.0e5f, Up(1.0e5f), 4},
-        {"angular speed cap", NULL, AngularCap, 1.0e5f, Up(1.0e5f), 4},
-        {"wind speed", NULL, WindSpeed, 1.0e5f, Up(1.0e5f), 4},
-        {"wind gust hertz", NULL, WindHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"wind gust scale", NULL, WindScale, 1.0e4f, Up(1.0e4f), 4},
-        {"wind direction", NULL, WindDirection, 1.0049f, 1.0051f, 4},
-        {"longest step", NULL, Step, 10.0f, Up(10.0f), 4},
-        {"shortest step", NULL, Step, 1.0e-4f, Down(1.0e-4f), 4},
+        {"gravity", NULL, Gravity, 1.0e4f, Up(1.0e4f), 4, false},
+        {"contact hertz", NULL, ContactHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"contact damping ratio", NULL, ContactRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"contact push speed", NULL, ContactPush, 1.0e5f, Up(1.0e5f), 4, false},
+        {"linear speed cap", NULL, LinearCap, 1.0e5f, Up(1.0e5f), 4, false},
+        {"angular speed cap", NULL, AngularCap, 1.0e5f, Up(1.0e5f), 4, false},
+        {"wind speed", NULL, WindSpeed, 1.0e5f, Up(1.0e5f), 4, false},
+        {"wind gust hertz", NULL, WindHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"wind gust scale", NULL, WindScale, 1.0e4f, Up(1.0e4f), 4, false},
+        {"wind direction", NULL, WindDirection, 1.0049f, 1.0051f, 4, false},
+        {"longest step", NULL, Step, 10.0f, Up(10.0f), 4, false},
+        {"shortest step", NULL, Step, 1.0e-4f, Down(1.0e-4f), 4, false},
         // Bodies.
-        {"dynamic velocity", NULL, DynamicVelocity, 1.0e5f, Up(1.0e5f), 4},
-        {"dynamic spin", NULL, DynamicSpin, 1.0e5f, Up(1.0e5f), 4},
-        {"kinematic velocity", NULL, KinematicVelocity, 1.0e10f, Up(1.0e10f), 4},
-        {"kinematic spin", NULL, KinematicSpin, 1.0e5f, Up(1.0e5f), 4},
-        {"def velocity", NULL, DefVelocity, 1.0e5f, Up(1.0e5f), 4},
-        {"def kinematic spin", NULL, DefKinematicSpin, 1.0e5f, Up(1.0e5f), 4},
-        {"def kinematic velocity", NULL, DefKinematicVelocity, 1.0e10f, Up(1.0e10f), 4},
-        {"def position", NULL, DefPosition, 1.0e15f, Up(1.0e15f), 8},
-        {"transform position", NULL, Teleport, 1.0e15f, Up(1.0e15f), 8},
-        {"def gravity scale", NULL, DefGravityScale, 1.0e4f, Up(1.0e4f), 4},
-        {"gravity scale", NULL, GravityScale, 1.0e4f, Up(1.0e4f), 4},
-        {"force", NULL, Force, 1.0e20f, Up(1.0e20f), 4},
-        {"accumulated force", HeldForce, AddedForce, 3.99e19f, 4.01e19f, 4},
-        {"torque", NULL, Torque, 1.0e20f, Up(1.0e20f), 4},
-        {"force at the center", NULL, CenterForce, 1.0e20f, Up(1.0e20f), 4},
-        {"force on a lever", NULL, LeverForce, 5.0e19f, Up(5.0e19f), 4},
-        {"linear impulse", NULL, LinearImpulse, 1.0e5f, Up(1.0e5f), 4},
-        {"angular impulse", NULL, AngularImpulse, 16650.0f, 16684.0f, 4},
-        {"impulse at the center", NULL, CenterImpulse, 1.0e5f, Up(1.0e5f), 4},
-        {"impulse on a lever", NULL, LeverImpulse, 16650.0f, 16684.0f, 4},
-        {"servo target", NULL, Target, 1.0e6f, Up(1.0e6f), 8},
-        {"type change speed", SpeedKinematic, TurnDynamic, 1.0e5f, Up(1.0e5f), 4},
-        {"sleep threshold sign", NULL, SleepThreshold, 0.375f, -0.375f, 4},
-        {"type change mass", SpeckKinematic, SpareDynamic, 6.25e-3f, 6.15e-3f, 4},
+        {"dynamic velocity", NULL, DynamicVelocity, 1.0e5f, Up(1.0e5f), 4, false},
+        {"dynamic spin", NULL, DynamicSpin, 1.0e5f, Up(1.0e5f), 4, false},
+        {"kinematic velocity", NULL, KinematicVelocity, 1.0e10f, Up(1.0e10f), 4, false},
+        {"kinematic spin", NULL, KinematicSpin, 1.0e5f, Up(1.0e5f), 4, false},
+        {"def velocity", NULL, DefVelocity, 1.0e5f, Up(1.0e5f), 4, false},
+        {"def kinematic spin", NULL, DefKinematicSpin, 1.0e5f, Up(1.0e5f), 4, false},
+        {"def kinematic velocity", NULL, DefKinematicVelocity, 1.0e10f, Up(1.0e10f), 4, false},
+        {"def position", NULL, DefPosition, 1.0e15f, Up(1.0e15f), 8, false},
+        {"transform position", NULL, Teleport, 1.0e15f, Up(1.0e15f), 8, false},
+        {"def gravity scale", NULL, DefGravityScale, 1.0e4f, Up(1.0e4f), 4, false},
+        {"gravity scale", NULL, GravityScale, 1.0e4f, Up(1.0e4f), 4, false},
+        {"force", NULL, Force, 1.0e20f, Up(1.0e20f), 4, false},
+        {"accumulated force", HeldForce, AddedForce, 3.99e19f, 4.01e19f, 4, false},
+        {"torque", NULL, Torque, 1.0e20f, Up(1.0e20f), 4, false},
+        {"force at the center", NULL, CenterForce, 1.0e20f, Up(1.0e20f), 4, false},
+        {"force on a lever", NULL, LeverForce, 5.0e19f, Up(5.0e19f), 4, false},
+        {"linear impulse", NULL, LinearImpulse, 1.0e5f, Up(1.0e5f), 4, false},
+        {"angular impulse", NULL, AngularImpulse, 16650.0f, 16684.0f, 4, false},
+        {"impulse at the center", NULL, CenterImpulse, 1.0e5f, Up(1.0e5f), 4, false},
+        {"impulse on a lever", NULL, LeverImpulse, 16650.0f, 16684.0f, 4, false},
+        {"servo target", NULL, Target, 1.0e6f, Up(1.0e6f), 8, true},
+        {"type change speed", SpeedKinematic, TurnDynamic, 1.0e5f, Up(1.0e5f), 4, true},
+        {"sleep threshold sign", NULL, SleepThreshold, 0.375f, -0.375f, 4, false},
+        {"type change mass", SpeckKinematic, SpareDynamic, 6.25e-3f, 6.15e-3f, 4, true},
         // Shapes.
-        {"shape mass floor", EmptyDynamic, LightSphere, 6.25e-3f, 6.15e-3f, 4},
-        {"shape inertia floor", EmptyDynamic, ThinSphere, 3.65e-4f, 3.55e-4f, 4},
-        {"reshape mass floor", NULL, Reshape, 6.25e-3f, 6.15e-3f, 4},
-        {"density mass floor", NULL, Density, 1.001e-6f, 0.999e-6f, 4},
-        {"body mass limit", HeavyBody, HeavyBox, 4.99e5f, 5.01e5f, 4},
-        {"def density", NULL, DefDensity, 1.0e6f, Up(1.0e6f), 4},
-        {"density", NULL, Density, 1.0e6f, Up(1.0e6f), 4},
-        {"reshape radius", NULL, ReshapeRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"reshape capsule point", NULL, ReshapeCapsule, 1.0e4f, Up(1.0e4f), 4},
-        {"restitution", NULL, Restitution, 1.0e4f, Up(1.0e4f), 4},
-        {"surface velocity", NULL, SurfaceVelocity, 1.0e5f, Up(1.0e5f), 4},
-        {"def restitution", NULL, DefRestitution, 1.0e4f, Up(1.0e4f), 4},
-        {"def surface velocity", NULL, DefSurfaceVelocity, 1.0e5f, Up(1.0e5f), 4},
-        {"sphere radius", NULL, SphereRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"sphere center", NULL, SphereCenter, 1.0e4f, Up(1.0e4f), 4},
-        {"capsule radius", NULL, CapsuleRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"capsule point", NULL, CapsulePoint, 1.0e4f, Up(1.0e4f), 4},
-        {"box extent", NULL, BoxExtent, 1.0e4f, Up(1.0e4f), 4},
-        {"hull point", NULL, HullPoint, 1.0e4f, Up(1.0e4f), 4},
+        {"shape mass floor", EmptyDynamic, LightSphere, 6.25e-3f, 6.15e-3f, 4, false},
+        {"shape inertia floor", EmptyDynamic, ThinSphere, 3.65e-4f, 3.55e-4f, 4, false},
+        {"reshape mass floor", NULL, Reshape, 6.25e-3f, 6.15e-3f, 4, false},
+        {"density mass floor", NULL, Density, 1.001e-6f, 0.999e-6f, 4, false},
+        {"body mass limit", HeavyBody, HeavyBox, 4.99e5f, 5.01e5f, 4, true},
+        {"def density", NULL, DefDensity, 1.0e6f, Up(1.0e6f), 4, false},
+        {"density", NULL, Density, 1.0e6f, Up(1.0e6f), 4, false},
+        {"reshape radius", NULL, ReshapeRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"reshape capsule point", NULL, ReshapeCapsule, 1.0e4f, Up(1.0e4f), 4, false},
+        {"restitution", NULL, Restitution, 1.0e4f, Up(1.0e4f), 4, false},
+        {"surface velocity", NULL, SurfaceVelocity, 1.0e5f, Up(1.0e5f), 4, false},
+        {"def restitution", NULL, DefRestitution, 1.0e4f, Up(1.0e4f), 4, false},
+        {"def surface velocity", NULL, DefSurfaceVelocity, 1.0e5f, Up(1.0e5f), 4, false},
+        {"sphere radius", NULL, SphereRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"sphere center", NULL, SphereCenter, 1.0e4f, Up(1.0e4f), 4, false},
+        {"capsule radius", NULL, CapsuleRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"capsule point", NULL, CapsulePoint, 1.0e4f, Up(1.0e4f), 4, false},
+        {"box extent", NULL, BoxExtent, 1.0e4f, Up(1.0e4f), 4, false},
+        {"hull point", NULL, HullPoint, 1.0e4f, Up(1.0e4f), 4, false},
         // Joints.
-        {"motor speed", NULL, MotorSpeed, 1.0e5f, Up(1.0e5f), 4},
-        {"motor effort", NULL, MotorEffort, 1.0e20f, Up(1.0e20f), 4},
-        {"rope spring hertz", NULL, RopeHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"rope spring damping", NULL, RopeRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"spring hertz", NULL, SpringHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"spring damping", NULL, SpringRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"steer hertz", NULL, SteerHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"steer damping", NULL, SteerRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"steer torque", NULL, SteerTorque, 1.0e20f, Up(1.0e20f), 4},
-        {"servo aim", NULL, ServoAim, 1.0e4f, Up(1.0e4f), 4},
-        {"hinge target angle", NULL, HingeTarget, M3_PI, Up(M3_PI), 4},
-        {"socket target rotation", Socket, SocketTarget, 0.806f, 0.807f, 4},
-        {"servo force budget", NULL, ServoForce, 1.0e20f, Up(1.0e20f), 4},
-        {"servo torque budget", NULL, ServoTorque, 1.0e20f, Up(1.0e20f), 4},
-        {"def motor speed", NULL, DefMotorSpeed, 1.0e5f, Up(1.0e5f), 4},
-        {"def rope damping", NULL, DefRopeRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"def servo budget", NULL, DefServoForce, 1.0e20f, Up(1.0e20f), 4},
-        {"gear ratio", NULL, GearRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"pulley ratio", NULL, PulleyRatio, 1.0e4f, Up(1.0e4f), 4},
+        {"motor speed", NULL, MotorSpeed, 1.0e5f, Up(1.0e5f), 4, false},
+        {"motor effort", NULL, MotorEffort, 1.0e20f, Up(1.0e20f), 4, false},
+        {"rope spring hertz", NULL, RopeHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"rope spring damping", NULL, RopeRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"spring hertz", NULL, SpringHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"spring damping", NULL, SpringRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"steer hertz", NULL, SteerHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"steer damping", NULL, SteerRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"steer torque", NULL, SteerTorque, 1.0e20f, Up(1.0e20f), 4, false},
+        {"servo aim", NULL, ServoAim, 1.0e4f, Up(1.0e4f), 4, false},
+        {"hinge target angle", NULL, HingeTarget, M3_PI, Up(M3_PI), 4, false},
+        {"socket target rotation", Socket, SocketTarget, 0.806f, 0.807f, 4, false},
+        {"servo force budget", NULL, ServoForce, 1.0e20f, Up(1.0e20f), 4, false},
+        {"servo torque budget", NULL, ServoTorque, 1.0e20f, Up(1.0e20f), 4, false},
+        {"def motor speed", NULL, DefMotorSpeed, 1.0e5f, Up(1.0e5f), 4, false},
+        {"def rope damping", NULL, DefRopeRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"def servo budget", NULL, DefServoForce, 1.0e20f, Up(1.0e20f), 4, false},
+        {"gear ratio", NULL, GearRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"pulley ratio", NULL, PulleyRatio, 1.0e4f, Up(1.0e4f), 4, false},
         // Vehicles.
-        {"wheel radius floor", NULL, WheelRadius, 1.0e-3f, Down(1.0e-3f), 4},
-        {"wheel radius", NULL, WheelRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"wheel hertz", NULL, WheelHertz, 1.0e5f, Up(1.0e5f), 4},
-        {"wheel damping", NULL, WheelRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"wheel anchor", NULL, WheelAnchor, 1.0e4f, Up(1.0e4f), 4},
-        {"wheel rest length", NULL, WheelRest, 1.0e4f, Up(1.0e4f), 4},
-        {"wheel brake share", NULL, WheelBrake, 1.0e4f, Up(1.0e4f), 4},
-        {"drive force", NULL, DriveForce, 1.0e20f, Up(1.0e20f), 4},
-        {"brake force", NULL, BrakeForce, 1.0e20f, Up(1.0e20f), 4},
-        {"tire grip", NULL, TireGrip, 1.0e4f, Up(1.0e4f), 4},
-        {"lean stabilization", NULL, Lean, 1.0e4f, Up(1.0e4f), 4},
-        {"engine torque", NULL, CurveTorque, 1.0e20f, Up(1.0e20f), 4},
-        {"gear", NULL, GearStep, 1.0e4f, Up(1.0e4f), 4},
-        {"final drive", NULL, FinalDrive, 1.0e4f, Up(1.0e4f), 4},
-        {"reverse ratio", NULL, ReverseRatio, 1.0e4f, Up(1.0e4f), 4},
-        {"differential coupling", NULL, DiffCouple, 1.0e15f, Up(1.0e15f), 4},
+        {"wheel radius floor", NULL, WheelRadius, 1.0e-3f, Down(1.0e-3f), 4, false},
+        {"wheel radius", NULL, WheelRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"wheel hertz", NULL, WheelHertz, 1.0e5f, Up(1.0e5f), 4, false},
+        {"wheel damping", NULL, WheelRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"wheel anchor", NULL, WheelAnchor, 1.0e4f, Up(1.0e4f), 4, false},
+        {"wheel rest length", NULL, WheelRest, 1.0e4f, Up(1.0e4f), 4, false},
+        {"wheel brake share", NULL, WheelBrake, 1.0e4f, Up(1.0e4f), 4, false},
+        {"drive force", NULL, DriveForce, 1.0e20f, Up(1.0e20f), 4, false},
+        {"brake force", NULL, BrakeForce, 1.0e20f, Up(1.0e20f), 4, false},
+        {"tire grip", NULL, TireGrip, 1.0e4f, Up(1.0e4f), 4, false},
+        {"lean stabilization", NULL, Lean, 1.0e4f, Up(1.0e4f), 4, false},
+        {"engine torque", NULL, CurveTorque, 1.0e20f, Up(1.0e20f), 4, false},
+        {"gear", NULL, GearStep, 1.0e4f, Up(1.0e4f), 4, false},
+        {"final drive", NULL, FinalDrive, 1.0e4f, Up(1.0e4f), 4, false},
+        {"reverse ratio", NULL, ReverseRatio, 1.0e4f, Up(1.0e4f), 4, false},
+        {"differential coupling", NULL, DiffCouple, 1.0e15f, Up(1.0e15f), 4, false},
         // Characters, soft bodies, water, explosions.
-        {"walker position", NULL, WalkerPosition, 1.0e15f, Up(1.0e15f), 8},
-        {"walker mass", NULL, WalkerMass, 1.0e20f, Up(1.0e20f), 4},
-        {"walker mass floor", NULL, WalkerMass, 1.0e-6f, Down(1.0e-6f), 4},
-        {"walker push ratio", NULL, WalkerPush, 1.0e4f, Up(1.0e4f), 4},
-        {"walker radius", NULL, WalkerRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"walker half height", NULL, WalkerHeight, 1.0e4f, Up(1.0e4f), 4},
-        {"walker move", NULL, Walk, 1.0e18f, Up(1.0e18f), 4},
-        {"particle mass", NULL, ParticleMass, 1.0e20f, Up(1.0e20f), 4},
-        {"particle mass floor", NULL, ParticleMass, 1.0e-6f, Down(1.0e-6f), 4},
-        {"lattice spacing", NULL, LatticeSpacing, 1.0e4f, Up(1.0e4f), 4},
-        {"particle radius", NULL, ParticleRadius, 1.0e4f, Up(1.0e4f), 4},
-        {"particle gravity scale", NULL, ParticleGravity, 1.0e4f, Up(1.0e4f), 4},
-        {"water density", NULL, WaterDensity, 1.0e6f, Up(1.0e6f), 4},
-        {"water corner", NULL, WaterCorner, 1.0e15f, Up(1.0e15f), 8},
-        {"water flow", NULL, WaterFlow, 1.0e5f, Up(1.0e5f), 4},
-        {"blast impulse", NULL, Blast, 1.0e10f, Up(1.0e10f), 4},
-        {"blast position", NULL, BlastPosition, 1.0e15f, Up(1.0e15f), 8},
-        {"blast soft push", NULL, BlastSoftPush, 1.0e4f, Up(1.0e4f), 4},
+        {"walker position", NULL, WalkerPosition, 1.0e15f, Up(1.0e15f), 8, false},
+        {"walker mass", NULL, WalkerMass, 1.0e20f, Up(1.0e20f), 4, false},
+        {"walker mass floor", NULL, WalkerMass, 1.0e-6f, Down(1.0e-6f), 4, false},
+        {"walker push ratio", NULL, WalkerPush, 1.0e4f, Up(1.0e4f), 4, false},
+        {"walker radius", NULL, WalkerRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"walker half height", NULL, WalkerHeight, 1.0e4f, Up(1.0e4f), 4, false},
+        {"walker move", NULL, Walk, 1.0e18f, Up(1.0e18f), 4, false},
+        {"particle mass", NULL, ParticleMass, 1.0e20f, Up(1.0e20f), 4, false},
+        {"particle mass floor", NULL, ParticleMass, 1.0e-6f, Down(1.0e-6f), 4, false},
+        {"lattice spacing", NULL, LatticeSpacing, 1.0e4f, Up(1.0e4f), 4, false},
+        {"particle radius", NULL, ParticleRadius, 1.0e4f, Up(1.0e4f), 4, false},
+        {"particle gravity scale", NULL, ParticleGravity, 1.0e4f, Up(1.0e4f), 4, false},
+        {"water density", NULL, WaterDensity, 1.0e6f, Up(1.0e6f), 4, false},
+        {"water corner", NULL, WaterCorner, 1.0e15f, Up(1.0e15f), 8, false},
+        {"water flow", NULL, WaterFlow, 1.0e5f, Up(1.0e5f), 4, false},
+        {"blast impulse", NULL, Blast, 1.0e10f, Up(1.0e10f), 4, false},
+        {"blast position", NULL, BlastPosition, 1.0e15f, Up(1.0e15f), 8, false},
+        {"blast soft push", NULL, BlastSoftPush, 1.0e4f, Up(1.0e4f), 4, false},
     };
     for (size_t i = 0; i < sizeof(sites) / sizeof(sites[0]); ++i)
     {
@@ -1232,10 +1234,11 @@ static void TestTypeChanges(void)
     BuildScene(&s);
     uint64_t misuse = Misuse(s.world);
     m3Body_SetLinearVelocity(s.world, s.kin, (m3Vec3){1.0e10f, 0.0f, 0.0f});
-    m3Body_SetType(s.world, s.kin, m3_staticBody);
-    CHECK(Misuse(s.world) == misuse, "a fast kinematic body may turn static");
-    m3Body_SetType(s.world, s.ground, m3_kinematicBody);
-    CHECK(Misuse(s.world) == misuse + 1, "a body holding a plane stays static");
+    CHECK(m3Body_SetType(s.world, s.kin, m3_staticBody) == m3_success && Misuse(s.world) == misuse,
+          "a fast kinematic body may turn static");
+    CHECK(m3Body_SetType(s.world, s.ground, m3_kinematicBody) == m3_errorInvalid &&
+              Misuse(s.world) == misuse + 1,
+          "a body holding a plane stays static");
     m3DestroyWorld(s.world);
 }
 
@@ -1278,7 +1281,7 @@ static void PutToSleep(Scene* s)
 
 static void BoxKinematic(Scene* s)
 {
-    m3Body_SetType(s->world, s->box, m3_kinematicBody);
+    (void)m3Body_SetType(s->world, s->box, m3_kinematicBody);
 }
 
 static void CheckReplayState(const char* name, StateFunction* call, StateFunction* refusing)

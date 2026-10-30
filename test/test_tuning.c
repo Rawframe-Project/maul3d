@@ -158,7 +158,7 @@ static void TestDensityRebuildsMass(void)
     float v1 = m3Body_GetLinearVelocity(world, body).x;
     m3Body_SetLinearVelocity(world, body, (m3Vec3){0.0f, 0.0f, 0.0f});
 
-    m3Shape_SetDensity(world, shape, 8.0f);
+    CHECK(m3Shape_SetDensity(world, shape, 8.0f) == m3_success, "the density lands");
     CHECK(fabsf(m3Shape_GetDensity(world, shape) - 8.0f) < 1.0e-6f, "density reads back");
     m3Body_ApplyLinearImpulse(world, body, (m3Vec3){1.0f, 0.0f, 0.0f});
     float v8 = m3Body_GetLinearVelocity(world, body).x;
@@ -166,7 +166,7 @@ static void TestDensityRebuildsMass(void)
 
     // Every density change rebuilds the books: back to 1, back to the
     // first kick.
-    m3Shape_SetDensity(world, shape, 1.0f);
+    CHECK(m3Shape_SetDensity(world, shape, 1.0f) == m3_success, "the density lands again");
     m3Body_SetLinearVelocity(world, body, (m3Vec3){0.0f, 0.0f, 0.0f});
     m3Body_ApplyLinearImpulse(world, body, (m3Vec3){1.0f, 0.0f, 0.0f});
     float vBack = m3Body_GetLinearVelocity(world, body).x;
@@ -268,10 +268,13 @@ static void TestHostileKnobs(void)
     m3Shape_SetFriction(world, floor, -1.0f);
     m3Shape_SetFriction(world, floor, NAN);
     CHECK(m3Shape_GetFriction(world, floor) == f0, "hostile friction refused");
-    m3Shape_SetDensity(world, floor, 0.0f);
-    m3Shape_SetDensity(world, floor, -5.0f);
+    CHECK(m3Shape_SetDensity(world, floor, 0.0f) == m3_errorInvalid &&
+              m3Shape_SetDensity(world, floor, -5.0f) == m3_errorInvalid,
+          "a density that is not positive is m3_errorInvalid");
     float d0 = m3Shape_GetDensity(world, floor);
-    CHECK_REFUSES(world, m3Shape_SetDensity(world, floor, 2.0e6f),
+    CHECK_REFUSES(world,
+                  CHECK(m3Shape_SetDensity(world, floor, 2.0e6f) == m3_errorLimit,
+                        "a density past M3_DENSITY_LIMIT is m3_errorLimit"),
                   "a density create refuses is refused here too");
     CHECK(m3Shape_GetDensity(world, floor) == d0, "refused density changes nothing");
     m3World_SetContactTuning(world, 0.0f, 10.0f, 3.0f);

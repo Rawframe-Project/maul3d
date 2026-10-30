@@ -645,9 +645,11 @@ must be dynamic with mass; anything nonzero wakes the body.
 `m3Body_SetTransform` teleports and wakes both the departure and
 arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
 servo: the body lands exactly on the target next step and the
-order clears; the exit velocity stays yours by contract.
+order clears; the exit velocity stays yours by contract. A target
+past `M3_SERVO_REACH_LIMIT` from the body returns `m3_errorLimit`.
 `m3Body_SetType` flips dynamic/kinematic/static with a full mass
-rebuild. `m3Body_Enable` with false removes the body from
+rebuild, and returns `m3_errorLimit` when the body's mass, joints or
+speed do not allow the new type. `m3Body_Enable` with false removes the body from
 contacts, CCD, rays, casts, overlaps, and soft-lattice collision.
 `m3Body_SetMotionLocks` freezes any subset of the six axes (bits
 0..2 linear xyz, 3..5 angular xyz), re-zeroed every substep so
@@ -1081,11 +1083,28 @@ answer "who touches me" through m3Body_GetContactData and
 m3Shape_GetContactData: manifold entries in canonical pair order
 with world points, separations, and last-step normal impulses.
 
-Every call that rejects its input records why: read m3LastResult
-right after a refusal (invalid input, a full pool, or data from a
-different build), on the same thread. Invalid arguments against a
-live world also count in m3Counters.misuseCount, so a host can poll once
+Every refusal returns its status and changes nothing. Misuse against a
+live world also counts in m3Counters.misuseCount, so a host can poll once
 per frame and catch bugs in release builds. Refusals never assert.
+
+Which refusals count misuse, in one place:
+
+- **Misuse, counted once.** What a correct program never does: a null
+  pointer, the null id or an id of the wrong kind, a stale id, a NaN, a
+  value outside its documented domain, an argument past a published
+  bound, a writer called while the world is busy, and a journal call in
+  the wrong recording state.
+- **Not misuse, counted nothing.** What a correct program can meet: a
+  full pool or caller buffer, an allocator that refuses, a CPU without
+  the backend, bytes from another version or damaged bytes, and an
+  `m3_errorLimit` that the world's state decides rather than the
+  argument. Those are a voxel edit whose surface would pass
+  `M3_MAX_VOXEL_SURFACE_BOXES`, an anchor past a full soft body table, a
+  shape create, resize, density change or destroy that would carry the
+  body's total mass past `M3_MASS_LIMIT` or a joint past its lever
+  ratio, a joint create past that ratio, a type change the body's
+  shapes, joints or speed refuse, and a servo target more than
+  `M3_SERVO_REACH_LIMIT` from where the step left the kinematic body.
 m3SetAssertHandler installs a host hook ahead of the abort for a
 failed internal invariant; returning nonzero declares the failure
 handled (test harnesses, crash reporters). There is no log hook:
@@ -1230,8 +1249,9 @@ Every value the API accepts is finite and within a limit, so that
 every product the step forms stays in float range. The limits are
 public constants in `maul3d/base.h`, beside the soft body, vehicle and
 drivetrain counts in their headers. A call past a limit refuses with
-`m3_errorLimit` (a create returns the null id), counts one misuse,
-journals nothing and changes nothing; replay refuses the same values in
+`m3_errorLimit` (a create returns the null id), counts one misuse
+unless the world's state decides it (see the list above), journals
+nothing and changes nothing; replay refuses the same values in
 a recorded op. A NaN is invalid rather than past a limit, and returns
 `m3_errorInvalid`; an infinity is past every limit. Each limit sits far
 past what real scenes use. Vectors are bounded per component.
@@ -1288,8 +1308,9 @@ density 1e6 on a 1e4 m arm reaches about 2.5e15. A joint create past
 the ratio is refused, and so is any change that would carry a joint
 there: a shape created on, destroyed from, resized on or given a new
 density on one of its bodies, or a body's type change. Each returns
-m3_errorLimit, or for a void setter changes nothing, and counts one
-misuse; restore and replay refuse it too. The ratio does not depend on
+m3_errorLimit, changes nothing and counts no misuse, since the
+bodies' masses decide it, not the argument. Restore and replay refuse
+it too. The ratio does not depend on
 how the bodies turn, so a joint within it stays within it as they
 move. The distance, generic, parallel, gear, pulley and filter joints
 solve single rows and keep no such limit.

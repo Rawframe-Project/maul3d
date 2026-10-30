@@ -140,19 +140,30 @@ extern "C"
     /// Kinematic servo: velocities are chosen at the next step so
     /// the body lands ON the target pose after that step, then the
     /// target clears. Kinematic bodies only (the correct way to
-    /// drive elevators and doors), with the target within 1e6 m of
-    /// where the body is.
-    M3_API void m3Body_SetTargetTransform(m3World* world, m3BodyId body, m3Pos3 position,
-                                          m3Quat rotation);
+    /// drive elevators and doors). Journaled. Returns m3_success;
+    /// m3_errorLimit for a target more than M3_SERVO_REACH_LIMIT from
+    /// where the body is, which the step decides, so it changes nothing
+    /// and counts no misuse; m3_errorStale for a stale id,
+    /// m3_errorInvalid for the null id, a body that is not kinematic or
+    /// a pose that is not finite, normalized and within 1e15 m, and
+    /// m3_errorBusy inside a step callback, which change nothing and
+    /// count one misuse.
+    M3_NODISCARD M3_API m3Result m3Body_SetTargetTransform(m3World* world, m3BodyId body,
+                                                           m3Pos3 position, m3Quat rotation);
     /// Switch dynamic, kinematic, static at runtime. Mass rebuilds
     /// from shapes when turning dynamic; velocities zero when
-    /// turning static; the neighborhood wakes. Refused when the linear
-    /// velocity is past the new type's limit, when the body would
-    /// turn dynamic with a shape below the mass floors or a total mass
-    /// past 1e20 kg, when it holds a plane, mesh, height field or
-    /// voxel chunk and would leave static, and when a joint on it would
-    /// pass its lever ratio at the new type's mass.
-    M3_API void m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
+    /// turning static; the neighborhood wakes. Journaled. Returns
+    /// m3_success; m3_errorLimit when a joint on the body would pass
+    /// its lever ratio at the new type's mass, when the body would turn
+    /// dynamic with a shape below the mass floors or a total mass past
+    /// M3_MASS_LIMIT, or when its linear velocity is past the new
+    /// type's limit, which change nothing and count no misuse;
+    /// m3_errorStale for a stale id, m3_errorInvalid for the null id, a
+    /// type out of range, a character's body, or a body holding a plane,
+    /// mesh, height field or voxel chunk that would leave static, and
+    /// m3_errorBusy inside a step callback, which change nothing and
+    /// count one misuse.
+    M3_NODISCARD M3_API m3Result m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
     /// A disabled body vanishes from simulation AND queries without
     /// being destroyed; enabling wakes its neighborhood. Journaled.
     M3_API void m3Body_Enable(m3World* world, m3BodyId body, bool enable);

@@ -484,7 +484,7 @@ int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bod
     m3LeverBody leverB = m3LeverBodyOf(world, bodyB);
     if (!m3LeverFits((uint8_t)def->type, &leverA, def->localAnchorA, &leverB, def->localAnchorB))
     {
-        return M3_CREATE_LIMIT;
+        return M3_CREATE_HELD; // the bodies' masses decide it: no misuse
     }
     int32_t index = m3IdPoolAlloc(&world->joints.jointPool);
     if (index < 0)

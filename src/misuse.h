@@ -37,9 +37,14 @@ static inline m3Result m3MissingId(uint32_t index1)
 }
 
 // The status of a public create whose internal refused: an invalid def,
-// or one past a bound, counts as misuse, a full pool does not.
+// or one past a bound, counts as misuse; a full pool, or a bound the
+// world's other shapes and joints decide, does not.
 static inline m3Result m3CreateRefusal(const m3World* world, int32_t refusal)
 {
+    if (refusal == M3_CREATE_HELD)
+    {
+        return m3_errorLimit;
+    }
     return m3Refuse(world, (m3Result)refusal);
 }
 

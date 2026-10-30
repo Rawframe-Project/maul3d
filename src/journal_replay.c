@@ -321,7 +321,7 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     }
     if (op == m3_opSetType)
     {
-        if (!m3TypeChangeValid(world, index, record.value))
+        if (m3TypeChangeCheck(world, index, record.value) != m3_success)
         {
             return false; // the public call refuses the same
         }

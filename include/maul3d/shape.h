@@ -159,10 +159,18 @@ extern "C"
     /// (interned slabs are immutable by law). Journaled; mass,
     /// extents, and the broadphase follow, and sleepers around both
     /// the old and the new bounds wake. The new geometry takes the
-    /// create's bounds, the mass floors and limit and the joints' lever
-    /// ratio included.
-    M3_API void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere);
-    M3_API void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule);
+    /// create's bounds. Returns m3_success; m3_errorLimit when the
+    /// body's total mass would pass M3_MASS_LIMIT or a joint on it its
+    /// lever ratio, which changes nothing and counts no misuse;
+    /// m3_errorStale for a stale id, m3_errorInvalid for the null id, a
+    /// shape of another kind, a character's capsule or bad geometry,
+    /// m3_errorLimit for geometry past a bound or a shape below the mass
+    /// floors, and m3_errorBusy inside a step callback, which change
+    /// nothing and count one misuse.
+    M3_NODISCARD M3_API m3Result m3Shape_SetSphere(m3World* world, m3ShapeId shape,
+                                                   const m3Sphere* sphere);
+    M3_NODISCARD M3_API m3Result m3Shape_SetCapsule(m3World* world, m3ShapeId shape,
+                                                    const m3Capsule* capsule);
 
     /// A convex hull built from a point cloud (QuickHull, coplanar
     /// faces merged, mass integrated). Between 4 and M3_MAX_HULL_POINTS
@@ -354,8 +362,8 @@ extern "C"
     /// Destroy one shape and rebuild the owner's mass books.
     /// Journaled; contacts involving the shape dissolve at the next
     /// step. The last shape leaves a shapeless dynamic body at unit
-    /// mass. Refused with m3_errorLimit when a joint on the owner
-    /// would pass its lever ratio at the mass left.
+    /// mass. Refused with m3_errorLimit, counting no misuse, when a
+    /// joint on the owner would pass its lever ratio at the mass left.
     M3_NODISCARD M3_API m3Result m3DestroyShape(m3World* world, m3ShapeId shape);
 
     /// Runtime material setters, with the def's bounds. Journaled;
@@ -371,10 +379,14 @@ extern "C"
 
     /// Set the density and rebuild the owning body's mass, center and
     /// inertia from all its shapes: a body's mass is always its shapes'.
-    /// Journaled. The density must be positive and at most 1e6, and on
-    /// a dynamic body keep the mass floors and limit and every joint's
-    /// lever ratio, as at creation.
-    M3_API void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density);
+    /// Journaled. Returns m3_success; m3_errorLimit when a dynamic
+    /// body's total mass would pass M3_MASS_LIMIT or a joint on it its
+    /// lever ratio, which changes nothing and counts no misuse; m3_errorStale for a stale id,
+    /// m3_errorInvalid for the null id or a density that is not positive, m3_errorLimit for one
+    /// past M3_DENSITY_LIMIT or a shape below the mass floors, and
+    /// m3_errorBusy inside a step callback, which change nothing and
+    /// count one misuse.
+    M3_NODISCARD M3_API m3Result m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density);
     M3_API float m3Shape_GetDensity(const m3World* world, m3ShapeId shape);
 
     /// Opt a shape into hit events / the pre-solve veto.

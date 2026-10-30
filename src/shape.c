@@ -497,11 +497,16 @@ int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
     }
     WriteShapeSlot(world, index, bodyIndex, type, geom, def);
     bool ok = AttachShapeContent(world, index, content);
-    if (ok && !m3ShapeMassFits(world, index, world->shapes.shapeType[index],
-                               &world->shapes.shapeGeom[index], world->shapes.shapeDensity[index]))
+    m3MassFit fit =
+        ok ? m3ShapeMassFit(world, index, world->shapes.shapeType[index],
+                            &world->shapes.shapeGeom[index], world->shapes.shapeDensity[index])
+           : m3_massFits;
+    if (fit != m3_massFits)
     {
         UndoShapeCreate(world, index, &marks);
-        return M3_CREATE_LIMIT; // too light, too thin or too heavy a body
+        // Too light or too thin a shape, or too heavy a body or a joint
+        // past its lever ratio.
+        return fit == m3_massBelowFloor ? M3_CREATE_LIMIT : M3_CREATE_HELD;
     }
     // Infinite planes stay out of the tree and take the dedicated pair pass.
     world->broadphase.proxyIds[index] = M3_TREE_NULL;
@@ -580,41 +585,34 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
     }
 }
 
-bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)
+m3Result m3ShapeSwapCheck(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)
 {
-    // The validation wall: both doors pass through here.
     // Only geometry that LIVES in m3ShapeGeom swaps (sphere and
     // capsule, conversions included); interned slabs are immutable.
     uint8_t current = world->shapes.shapeType[slot];
     if ((current != (uint8_t)m3_sphereShape && current != (uint8_t)m3_capsuleShape) ||
-        m3CharacterOwnsBody(world, world->shapes.shapeBody[slot]))
+        m3CharacterOwnsBody(world, world->shapes.shapeBody[slot]) ||
+        (type != (uint8_t)m3_sphereShape && type != (uint8_t)m3_capsuleShape))
     {
-        return false; // a character's capsule changes only through its stance
+        return m3_errorInvalid; // a character's capsule changes only through its stance
     }
-    if (type == (uint8_t)m3_sphereShape)
+    m3Result result = m3PlainGeomCheck(type, geom);
+    if (result == m3_success && type == (uint8_t)m3_capsuleShape)
     {
-        if (m3PlainGeomCheck(type, geom) != m3_success)
-        {
-            return false;
-        }
-    }
-    else if (type == (uint8_t)m3_capsuleShape)
-    {
-        if (m3PlainGeomCheck(type, geom) != m3_success)
-        {
-            return false;
-        }
         m3Vec3 axis = m3Sub3(geom->v2, geom->v);
         if (!(m3Dot3(axis, axis) > 0.0f))
         {
-            return false; // a zero-length capsule is a sphere
+            return m3_errorInvalid; // a zero-length capsule is a sphere
         }
     }
-    else
-    {
-        return false;
-    }
-    if (!m3ShapeMassFits(world, slot, type, geom, world->shapes.shapeDensity[slot]))
+    return result;
+}
+
+bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom)
+{
+    // The validation wall: both doors pass through here.
+    if (m3ShapeSwapCheck(world, slot, type, geom) != m3_success ||
+        !m3ShapeMassFits(world, slot, type, geom, world->shapes.shapeDensity[slot]))
     {
         return false;
     }
@@ -642,20 +640,29 @@ bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3
     return true;
 }
 
-static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
-                               const m3ShapeGeom* geom)
+static m3Result SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
+                                   const m3ShapeGeom* geom)
 {
     int32_t slot = m3ShapeSlot(world, shapeId);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(shapeId.index1));
-        return false;
+        return m3Refuse(world, m3MissingId(shapeId.index1));
     }
-    if (!m3SetShapeGeomInternal(world, slot, type, geom))
+    m3Result result = m3ShapeSwapCheck(world, slot, type, geom);
+    if (result != m3_success)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // refused swaps journal nothing
+        return m3Refuse(world, result); // refused swaps journal nothing
     }
+    m3MassFit fit = m3ShapeMassFit(world, slot, type, geom, world->shapes.shapeDensity[slot]);
+    if (fit == m3_massBelowFloor)
+    {
+        return m3Refuse(world, m3_errorLimit); // too light or too thin a shape
+    }
+    if (fit != m3_massFits)
+    {
+        return m3_errorLimit; // too heavy a body or a joint past its lever ratio
+    }
+    (void)m3SetShapeGeomInternal(world, slot, type, geom);
     if (world->recorder.journalActive != 0)
     {
         m3OpSetShapeGeom record;
@@ -665,62 +672,60 @@ static bool SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t type,
         record.geom = world->shapes.shapeGeom[slot];
         m3JournalRecord(world, m3_opSetShapeGeom, &record, (int32_t)sizeof(record));
     }
-    return true;
+    return m3_success;
 }
 
-static M3_NOINLINE void ShapeSetSphereWorker(m3World* world, m3ShapeId shape,
-                                             const m3Sphere* sphere)
+static M3_NOINLINE m3Result ShapeSetSphereWorker(m3World* world, m3ShapeId shape,
+                                                 const m3Sphere* sphere)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     if (sphere == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
     geom.v = sphere->center;
     geom.s = sphere->radius;
-    SetShapeGeomPublic(world, shape, (uint8_t)m3_sphereShape, &geom);
+    return SetShapeGeomPublic(world, shape, (uint8_t)m3_sphereShape, &geom);
 }
 
-void m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
+m3Result m3Shape_SetSphere(m3World* world, m3ShapeId shape, const m3Sphere* sphere)
 {
     uint64_t env = m3FloatEnvEnter();
-    ShapeSetSphereWorker(world, shape, sphere);
+    m3Result result = ShapeSetSphereWorker(world, shape, sphere);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE void ShapeSetCapsuleWorker(m3World* world, m3ShapeId shape,
-                                              const m3Capsule* capsule)
+static M3_NOINLINE m3Result ShapeSetCapsuleWorker(m3World* world, m3ShapeId shape,
+                                                  const m3Capsule* capsule)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     if (capsule == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
     geom.v = capsule->point1;
     geom.s = capsule->radius;
     geom.v2 = capsule->point2;
-    SetShapeGeomPublic(world, shape, (uint8_t)m3_capsuleShape, &geom);
+    return SetShapeGeomPublic(world, shape, (uint8_t)m3_capsuleShape, &geom);
 }
 
-void m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
+m3Result m3Shape_SetCapsule(m3World* world, m3ShapeId shape, const m3Capsule* capsule)
 {
     uint64_t env = m3FloatEnvEnter();
-    ShapeSetCapsuleWorker(world, shape, capsule);
+    m3Result result = ShapeSetCapsuleWorker(world, shape, capsule);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 bool m3Shape_IsValid(const m3World* world, m3ShapeId shape)
@@ -758,7 +763,7 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
     }
     if (!m3ShapeRemovalFits(world, index))
     {
-        return m3Refuse(world, m3_errorLimit); // a joint would pass its lever ratio
+        return m3_errorLimit; // a joint would pass its lever ratio: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
