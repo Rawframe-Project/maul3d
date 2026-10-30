@@ -269,13 +269,15 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
 
 m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
 {
-    if (bytesOut != NULL)
-    {
-        *bytesOut = 0; // cleared before any check, the world's included
-    }
+    // A stop made from the world's own callback writes nothing: the call in
+    // progress may have written bytesOut. Every other failure clears it.
     if (m3WorldBusy(world))
     {
         return m3Refuse(world, m3_errorBusy);
+    }
+    if (bytesOut != NULL)
+    {
+        *bytesOut = 0;
     }
     if (world == NULL || bytesOut == NULL)
     {
