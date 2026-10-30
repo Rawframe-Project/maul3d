@@ -116,13 +116,12 @@ extern "C"
         /// (angular), used only where the mode is limited. One
         /// motor: genericMotorAxis picks 0..2 (linear) or 3..5
         /// (angular), 255 for none; it drives motorSpeed with the
-        /// maxMotorEffort cap on a free or limited axis. Angular
-        /// limits come with a v1 contract: at most ONE angular axis
-        /// may be limited, and the other two must be BOTH locked
-        /// (a hinge with range) or BOTH free (a twist-limited
-        /// ball); anything else refuses loudly. Growing this def
-        /// bumps the cookie: stale-compiled callers are refused
-        /// loudly instead of misread (the freeze's mechanism).
+        /// maxMotorEffort cap on a free or limited axis. At most ONE
+        /// angular axis may be limited, and the other two must be
+        /// BOTH locked (a hinge with range) or BOTH free (a
+        /// twist-limited ball); anything else refuses loudly. The
+        /// def's cookie carries its size, so a caller compiled
+        /// against another layout is refused instead of misread.
         /// The wheel joint, the OPTIONAL rigid-wheel path for
         /// vehicles (the raycast vehicle stays the default): the
         /// wheel body B slides along a suspension axis fixed in the
@@ -149,8 +148,7 @@ extern "C"
         /// Gear and pulley: the coupling ratio (gear: any
         /// nonzero within 1e4, sign picks the mesh; pulley: > 0 and at
         /// most 1e4) and the pulley's two fixed WORLD anchor points,
-        /// within 1e15 m. Growing this def
-        /// bumps the cookie: stale-compiled callers refuse loudly.
+        /// within 1e15 m.
         m3real ratio;
         m3Pos3 groundAnchorA;
         m3Pos3 groundAnchorB;
@@ -312,9 +310,11 @@ extern "C"
     M3_API m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint);
     M3_API m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint);
 
-    /// Geometry reads: the revolute twist angle about the hinge
-    /// (radians) and the prismatic translation along the slide axis
-    /// (meters). Wrong-type calls read 0.
+    /// Geometry reads: the angle about the hinge of a revolute joint,
+    /// or a wheel joint's spin about its axle (radians), and the
+    /// translation along a prismatic joint's slide axis or a wheel
+    /// joint's suspension axis (meters). Any other type, or a stale
+    /// id, reads 0 and counts one misuse.
     M3_API m3real m3Joint_GetAngle(const m3World* world, m3JointId joint);
     M3_API m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint);
 
