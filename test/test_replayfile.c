@@ -169,6 +169,39 @@ static void TestSmallCapacity(void)
     free(blob);
 }
 
+// What a failure leaves in a size output: the world's calls clear it before
+// any check, a null world's included, and the encoder, which takes no
+// owner, leaves it as it was.
+static void TestSizeOutputsOnFailure(void)
+{
+    int32_t bytes;
+    uint64_t recorded;
+    int32_t ops;
+    int32_t steps;
+    uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
+    m3ReplayView view;
+    CHECK(DecodeReplay(blob, bytes, &view), "decode for the size output test");
+    uint8_t* out = (uint8_t*)malloc((size_t)bytes);
+    int32_t written = 1234;
+    CHECK(m3EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
+                         view.finalHash, out, bytes - 1, &written) == m3_errorCapacity &&
+              written == 1234,
+          "a short encode leaves the size as it was");
+    CHECK(m3EncodeReplay(NULL, view.snapshotBytes, view.journal, view.journalBytes, view.finalHash,
+                         out, bytes, &written) == m3_errorInvalid &&
+              written == 1234,
+          "and so does a refused one");
+
+    written = 1234;
+    CHECK(m3World_Snapshot(NULL, out, bytes, &written) == m3_errorInvalid && written == 0,
+          "a snapshot of no world leaves zero");
+    written = 1234;
+    CHECK(m3World_StopJournal(NULL, &written) == m3_errorInvalid && written == 0,
+          "and so does a stop of no world's journal");
+    free(out);
+    free(blob);
+}
+
 // A session recorded WITH a vetoing pre-solve
 // callback must replay to the same bits WITHOUT it: the veto
 // annex (op 79) makes the tape self-sufficient.
@@ -297,6 +330,7 @@ int main(void)
     TestRoundTrip();
     TestRefusals();
     TestSmallCapacity();
+    TestSizeOutputsOnFailure();
     TestFuzz();
     if (s_failures == 0)
     {
