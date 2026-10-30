@@ -256,7 +256,10 @@ A shape created with `isSensor` detects and never responds:
 - No contact response: bodies pass through, with no impulse and no
   effect on trajectories.
 - Its own event streams, read with `m3World_GetSensorEvents`,
-  derived by the same canonical walk as contact events. Contact streams stay silent for sensor pairs.
+  derived by the same canonical walk as contact events. Each event
+  names its `sensorShapeId` and its `visitorShapeId`, and carries the
+  `step` it belongs to: `m3World_GetStepCount` before that step.
+  Contact streams stay silent for sensor pairs.
 - No waking: a sleeping body inside a sensor keeps sleeping; the
   begin event stays open (narrowphase keeps watching because only
   the solver sleeps). No island coupling.

@@ -968,8 +968,8 @@ typedef struct m3Events
     int32_t moveEventCount;
     m3ContactBeginEvent* beginEvents;
     m3ContactEndEvent* endEvents;
-    m3ContactBeginEvent* sensorBeginEvents;
-    m3ContactEndEvent* sensorEndEvents;
+    m3SensorBeginEvent* sensorBeginEvents;
+    m3SensorEndEvent* sensorEndEvents;
     int32_t beginEventCount;
     int32_t endEventCount;
     // Fragment events: transient like every event stream;
