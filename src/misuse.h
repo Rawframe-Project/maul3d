@@ -41,4 +41,12 @@ static inline m3Result m3CreateRefusal(const m3World* world, int32_t refusal)
     return m3Refuse(world, (m3Result)refusal);
 }
 
+// A list call's array and capacity: a NULL array with capacity 0
+// measures, any array takes a capacity of 0 or more, and anything else is
+// refused.
+static inline bool m3ListOutputValid(const void* arrayOut, int32_t capacity)
+{
+    return capacity >= 0 && (arrayOut != NULL || capacity == 0);
+}
+
 #endif

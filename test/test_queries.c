@@ -1085,6 +1085,7 @@ typedef struct ListScene
     m3World* world;
     m3BodyId floorBody;
     m3ShapeId floor;
+    m3BodyId hub; // two shapes and two joints, away from the balls
 } ListScene;
 
 typedef int32_t ListCall(const ListScene* scene, void* out, int32_t capacity);
@@ -1143,6 +1144,26 @@ static int32_t ListShapeContacts(const ListScene* sc, void* out, int32_t capacit
     return m3Shape_GetContactData(sc->world, sc->floor, (m3ContactData*)out, capacity);
 }
 
+static int32_t ListBodies(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_GetBodies(sc->world, (m3BodyId*)out, capacity);
+}
+
+static int32_t ListJoints(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_GetJoints(sc->world, (m3JointId*)out, capacity);
+}
+
+static int32_t ListBodyShapes(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Body_GetShapes(sc->world, sc->hub, (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListBodyJoints(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Body_GetJoints(sc->world, sc->hub, (m3JointId*)out, capacity);
+}
+
 static void TestListOutputs(void)
 {
     m3WorldDef wd = m3DefaultWorldDef();
@@ -1164,6 +1185,21 @@ static void TestListOutputs(void)
     {
         (void)m3World_Step(sc.world, 1.0f / 60.0f, 4);
     }
+    // Built after the steps, far from every query above.
+    bd.type = m3_staticBody;
+    bd.position = (m3Pos3){20.0, 20.0, 0.0};
+    sc.hub = NewBody(sc.world, &bd);
+    NewSphereShape(sc.world, sc.hub, &sd, &ball);
+    NewSphereShape(sc.world, sc.hub, &sd, &ball);
+    bd.type = m3_dynamicBody;
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        bd.position = (m3Pos3){22.0 + 2.0 * i, 20.0, 0.0};
+        m3JointDef jd = m3DefaultJointDef();
+        jd.bodyIdA = sc.hub;
+        jd.bodyIdB = NewBody(sc.world, &bd);
+        NewJoint(sc.world, &jd);
+    }
     static const struct
     {
         ListCall* call;
@@ -1178,6 +1214,10 @@ static void TestListOutputs(void)
         {ListMover, "CollideMover"},
         {ListBodyContacts, "Body_GetContactData"},
         {ListShapeContacts, "Shape_GetContactData"},
+        {ListBodies, "World_GetBodies"},
+        {ListJoints, "World_GetJoints"},
+        {ListBodyShapes, "Body_GetShapes"},
+        {ListBodyJoints, "Body_GetJoints"},
     };
     static m3ContactData one[1]; // the largest entry of all of them
     for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)

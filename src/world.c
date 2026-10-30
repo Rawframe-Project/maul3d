@@ -374,7 +374,7 @@ void m3DestroyWorld(m3World* world)
 
 int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -386,7 +386,7 @@ int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capaci
         {
             continue;
         }
-        if (idsOut != NULL && total < capacity)
+        if (total < capacity)
         {
             idsOut[total] = (m3BodyId){b + 1, world->bodies.bodyPool.generations[b]};
         }
@@ -397,7 +397,7 @@ int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capaci
 
 int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -409,7 +409,7 @@ int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capac
         {
             continue;
         }
-        if (idsOut != NULL && total < capacity)
+        if (total < capacity)
         {
             idsOut[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
