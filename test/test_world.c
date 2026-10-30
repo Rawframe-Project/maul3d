@@ -433,7 +433,8 @@ static void TestTreeReferee(void)
         }
         if (round == 2)
         {
-            m3Body_SetType(world, walls[1], m3_dynamicBody);
+            CHECK(m3Body_SetType(world, walls[1], m3_dynamicBody) == m3_success,
+                  "a wall turns dynamic");
         }
         if (round == 3)
         {

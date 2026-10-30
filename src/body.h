@@ -28,7 +28,7 @@ bool m3PoseValid(m3Transform pose);
 bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
 // The same for a body of this type at now, as restore reads it.
 bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose);
-bool m3TypeChangeValid(const m3World* world, int32_t index, int32_t type);
+m3Result m3TypeChangeCheck(const m3World* world, int32_t index, int32_t type);
 m3Result m3BodyParamCheck(int32_t param, float value);
 // A sleep threshold, m/s: finite and not negative (src/body_sleep.c).
 bool m3SleepThresholdValid(float threshold);

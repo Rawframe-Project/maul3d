@@ -190,23 +190,31 @@ float m3Shape_GetRollingResistance(const m3World* world, m3ShapeId shape)
     return result;
 }
 
-static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, float density)
+static M3_NOINLINE m3Result ShapeSetDensityWorker(m3World* world, m3ShapeId shape, float density)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t slot;
-    if (!ResolveShape(world, shape, &slot))
+    int32_t slot = m3ShapeSlot(world, shape);
+    if (slot < 0)
     {
-        return;
+        return m3Refuse(world, m3MissingId(shape.index1));
     }
-    if (!m3DensityF(density) || !m3ShapeMassFits(world, slot, world->shapes.shapeType[slot],
-                                                 &world->shapes.shapeGeom[slot], density))
+    m3Result result = m3CheckPositive(density, M3_DENSITY_LIMIT);
+    if (result != m3_success)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, result);
+    }
+    m3MassFit fit = m3ShapeMassFit(world, slot, world->shapes.shapeType[slot],
+                                   &world->shapes.shapeGeom[slot], density);
+    if (fit == m3_massBelowFloor)
+    {
+        return m3Refuse(world, m3_errorLimit); // too light or too thin a shape
+    }
+    if (fit != m3_massFits)
+    {
+        return m3_errorLimit; // too heavy a body or a joint past its lever ratio
     }
     if (world->recorder.journalActive != 0)
     {
@@ -217,13 +225,15 @@ static M3_NOINLINE void ShapeSetDensityWorker(m3World* world, m3ShapeId shape, f
         m3JournalRecord(world, m3_opSetShapeDensity, &record, (int32_t)sizeof(record));
     }
     m3SetShapeDensityInternal(world, slot, density);
+    return m3_success;
 }
 
-void m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density)
+m3Result m3Shape_SetDensity(m3World* world, m3ShapeId shape, float density)
 {
     uint64_t env = m3FloatEnvEnter();
-    ShapeSetDensityWorker(world, shape, density);
+    m3Result result = ShapeSetDensityWorker(world, shape, density);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 static M3_NOINLINE float ShapeGetDensityWorker(const m3World* world, m3ShapeId shape)

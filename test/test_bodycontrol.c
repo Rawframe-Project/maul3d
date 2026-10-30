@@ -91,8 +91,9 @@ static void TestKinematicServo(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, slab, &sd, (m3Vec3){1.0f, 0.2f, 1.0f});
 
-    m3Body_SetTargetTransform(world, slab, (m3Pos3){1.5, 2.5, -0.5},
-                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    CHECK(m3Body_SetTargetTransform(world, slab, (m3Pos3){1.5, 2.5, -0.5},
+                                    (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}) == m3_success,
+          "the servo takes a target");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Pos3 p = m3Body_GetPosition(world, slab);
     CHECK(fabs(p.x - 1.5) < 1.0e-4 && fabs(p.y - 2.5) < 1.0e-4 && fabs(p.z + 0.5) < 1.0e-4,
@@ -109,12 +110,43 @@ static void TestKinematicServo(void)
     // A target 3 km away needs 1.8e5 m/s for one 60 Hz step, past the
     // speed limit the step holds dynamic bodies to; the servo still
     // lands it.
-    m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0, 2.5, -0.5},
-                              (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
+    CHECK(m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0, 2.5, -0.5},
+                                    (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}) == m3_success,
+          "the servo takes a target 3 km away");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Pos3 far = m3Body_GetPosition(world, slab);
     CHECK(fabs(far.x - 3000.0) < 1.0e-2 && fabs(far.y - 2.5) < 1.0e-4,
           "the servo lands a far target in one step");
+
+    // A target out of reach of where the step left the body is the
+    // world's to decide: m3_errorLimit, no misuse. A body that is not
+    // kinematic, a bad pose and a stale id are the caller's bug.
+    m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
+    CHECK_ACCEPTS(world,
+                  CHECK(m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0 + 2.0e6, 2.5, -0.5},
+                                                  identity) == m3_errorLimit,
+                        "a target past the reach is m3_errorLimit"),
+                  "a target past the reach counts no misuse");
+    m3BodyDef dd = m3DefaultBodyDef();
+    dd.type = m3_dynamicBody;
+    m3BodyId crate = NewBody(world, &dd);
+    CHECK_REFUSES(world,
+                  CHECK(m3Body_SetTargetTransform(world, crate, (m3Pos3){1.0, 0.0, 0.0},
+                                                  identity) == m3_errorInvalid,
+                        "a dynamic body is m3_errorInvalid"),
+                  "a dynamic body counts one misuse");
+    m3Quat squashed = {0.0f, 0.0f, 0.0f, 0.5f};
+    CHECK_REFUSES(world,
+                  CHECK(m3Body_SetTargetTransform(world, slab, (m3Pos3){3000.0, 2.5, -0.5},
+                                                  squashed) == m3_errorInvalid,
+                        "a rotation that is not normalized is m3_errorInvalid"),
+                  "a bad pose counts one misuse");
+    DestroyBody(world, crate);
+    CHECK_REFUSES(world,
+                  CHECK(m3Body_SetTargetTransform(world, crate, (m3Pos3){1.0, 0.0, 0.0},
+                                                  identity) == m3_errorStale,
+                        "a stale id is m3_errorStale"),
+                  "a stale id counts one misuse");
     m3DestroyWorld(world);
 }
 
@@ -137,7 +169,7 @@ static void TestTypeFlipAndDisable(void)
     }
     double restY = m3Body_GetPosition(world, crate).y;
     CHECK(restY > 3.5, "the crate rests on the hovering static shelf");
-    m3Body_SetType(world, shelf, m3_dynamicBody);
+    CHECK(m3Body_SetType(world, shelf, m3_dynamicBody) == m3_success, "the shelf turns dynamic");
     for (int32_t i = 0; i < 180; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);

@@ -1168,7 +1168,8 @@ static bool TapeRefused(m3World* world, const uint8_t* snap, int64_t snapBytes, 
     }
     if (makeDynamic.index1 != 0)
     {
-        m3Body_SetType(world, makeDynamic, m3_dynamicBody);
+        CHECK(m3Body_SetType(world, makeDynamic, m3_dynamicBody) == m3_success,
+              "the body turns dynamic");
     }
     uint64_t misuse = m3World_GetCounters(world).misuseCount;
     uint64_t hash = m3World_Hash(world);

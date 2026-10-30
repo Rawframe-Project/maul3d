@@ -241,12 +241,16 @@ static void TestCharacterOwnsItsBodyAndCapsule(void)
                   "the capsule is not destroyed on its own");
     CHECK_REFUSES(world, CHECK(m3DestroyBody(world, body) == m3_errorInvalid, "destroy"),
                   "the body is not destroyed on its own");
-    CHECK_REFUSES(world, m3Body_SetType(world, body, m3_dynamicBody), "the body is not retyped");
+    CHECK_REFUSES(world,
+                  CHECK(m3Body_SetType(world, body, m3_dynamicBody) == m3_errorInvalid, "retype"),
+                  "the body is not retyped");
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
-    CHECK_REFUSES(world, m3Shape_SetSphere(world, capsule, &ball),
+    CHECK_REFUSES(world,
+                  CHECK(m3Shape_SetSphere(world, capsule, &ball) == m3_errorInvalid, "reshape"),
                   "the capsule is not made a sphere");
     m3Capsule rod = {{0.0f, -0.2f, 0.0f}, {0.0f, 0.2f, 0.0f}, 0.1f};
-    CHECK_REFUSES(world, m3Shape_SetCapsule(world, capsule, &rod),
+    CHECK_REFUSES(world,
+                  CHECK(m3Shape_SetCapsule(world, capsule, &rod) == m3_errorInvalid, "reshape"),
                   "the capsule is not reshaped but by the stance");
     m3ShapeDef sd = m3DefaultShapeDef();
     m3ShapeId extra = m3_nullShapeId;
@@ -310,7 +314,8 @@ static void TestReplayHoldsTheOwnership(void)
         }
         else
         {
-            m3Body_SetType(world, other, m3_dynamicBody);
+            CHECK(m3Body_SetType(world, other, m3_dynamicBody) == m3_success,
+                  "the ordinary body turns dynamic");
         }
         int64_t bytes = StopJournal(world);
         // The record's payload starts with the id: retarget it.

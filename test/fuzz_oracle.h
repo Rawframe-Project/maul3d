@@ -51,7 +51,7 @@ static inline void FuzzShapeValues(m3World* world, m3ShapeId shape)
     m3Shape_SetFriction(world, shape, m3Shape_GetFriction(world, shape));
     m3Shape_SetRestitution(world, shape, m3Shape_GetRestitution(world, shape));
     m3Shape_SetRollingResistance(world, shape, m3Shape_GetRollingResistance(world, shape));
-    m3Shape_SetDensity(world, shape, m3Shape_GetDensity(world, shape));
+    (void)m3Shape_SetDensity(world, shape, m3Shape_GetDensity(world, shape));
     m3Shape_EnableHitEvents(world, shape, m3Shape_IsHitEventsEnabled(world, shape));
     m3Shape_EnablePreSolveEvents(world, shape, m3Shape_IsPreSolveEventsEnabled(world, shape));
     uint64_t category = 0;
@@ -80,7 +80,7 @@ static inline void FuzzBodyValues(m3World* world, m3BodyId body, m3CharacterId h
     m3Body_SetTransform(world, body, pose.p, pose.q);
     if (!FuzzCharacterBody(world, body, hero))
     {
-        m3Body_SetType(world, body, m3Body_GetType(world, body));
+        (void)m3Body_SetType(world, body, m3Body_GetType(world, body));
     }
     m3Body_Enable(world, body, m3Body_IsEnabled(world, body));
     // A copy, since the setter writes where the getter's string lives.

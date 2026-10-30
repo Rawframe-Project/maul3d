@@ -82,7 +82,8 @@ static uint64_t Misuse(const m3World* world)
 }
 
 // Every type that solves blocks takes the rod within the ratio and
-// refuses the one past it, counting one misuse; a distance or generic
+// refuses the one past it with m3_errorLimit, counting no misuse, since
+// the bodies' masses decide it; a distance or generic
 // joint, which solves single rows, takes either.
 static void TestCreateKeepsTheRatio(void)
 {
@@ -101,8 +102,8 @@ static void TestCreateKeepsTheRatio(void)
         int32_t joints = m3World_GetCounters(world).jointCount;
         jd = LeverDef(blocks[k], ground, past);
         CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorLimit, "one past the ratio is refused");
-        CHECK(Misuse(world) == misuse + 1 && m3World_GetCounters(world).jointCount == joints,
-              "counting one misuse and creating nothing");
+        CHECK(Misuse(world) == misuse && m3World_GetCounters(world).jointCount == joints,
+              "counting no misuse and creating nothing");
         m3DestroyWorld(world);
     }
     const m3JointType rows[2] = {m3_distanceJoint, m3_genericJoint};
@@ -160,7 +161,8 @@ static bool SameMass(const MassBits* a, const MassBits* b)
 // Light, it carries the joint: its inverse mass dwarfs the rod's turn.
 // Heavy, or made static, it no longer does, so a density change, a second
 // heavy shape and a type change that would make it so are each refused
-// and change nothing; a light enough change is taken.
+// with m3_errorLimit, count no misuse and change nothing; a light enough
+// change is taken.
 static void TestBallChangesKeepTheRatio(void)
 {
     m3World* world = LeverWorld();
@@ -182,25 +184,25 @@ static void TestBallChangesKeepTheRatio(void)
     uint64_t misuse = Misuse(world);
     float density = m3Shape_GetDensity(world, shape);
 
-    m3Shape_SetDensity(world, shape, 1.0e6f);
-    CHECK(m3Shape_GetDensity(world, shape) == density && Misuse(world) == misuse + 1,
-          "a density that makes it heavy is refused, counting one misuse");
+    CHECK(m3Shape_SetDensity(world, shape, 1.0e6f) == m3_errorLimit &&
+              m3Shape_GetDensity(world, shape) == density && Misuse(world) == misuse,
+          "a density that makes it heavy is refused, counting no misuse");
     m3ShapeId heavy = m3_nullShapeId;
     sd.density = 1.0e6f;
     CHECK(m3CreateSphereShape(world, ball, &sd, &sphere, &heavy) == m3_errorLimit &&
-              Misuse(world) == misuse + 2,
+              Misuse(world) == misuse,
           "so is a second shape that does");
-    m3Body_SetType(world, ball, m3_staticBody);
-    CHECK(m3Body_GetType(world, ball) == m3_dynamicBody && Misuse(world) == misuse + 3,
+    CHECK(m3Body_SetType(world, ball, m3_staticBody) == m3_errorLimit &&
+              m3Body_GetType(world, ball) == m3_dynamicBody && Misuse(world) == misuse,
           "and turning it static");
-    m3Body_SetType(world, ball, m3_kinematicBody);
-    CHECK(m3Body_GetType(world, ball) == m3_dynamicBody && Misuse(world) == misuse + 4,
+    CHECK(m3Body_SetType(world, ball, m3_kinematicBody) == m3_errorLimit &&
+              m3Body_GetType(world, ball) == m3_dynamicBody && Misuse(world) == misuse,
           "or kinematic");
     MassBits after = MassOf(world, ball);
     CHECK(SameMass(&before, &after) && m3World_Hash(world) == hash,
           "and the world is left as it was");
-    m3Shape_SetDensity(world, shape, 2000.0f);
-    CHECK(m3Shape_GetDensity(world, shape) == 2000.0f && Misuse(world) == misuse + 4,
+    CHECK(m3Shape_SetDensity(world, shape, 2000.0f) == m3_success &&
+              m3Shape_GetDensity(world, shape) == 2000.0f && Misuse(world) == misuse,
           "a density that keeps it light is taken");
     m3DestroyWorld(world);
 }
@@ -235,17 +237,19 @@ static void TestRodChangesKeepTheRatio(void)
     uint64_t hash = m3World_Hash(world);
     uint64_t misuse = Misuse(world);
     CHECK(m3DestroyShape(world, ball) == m3_errorLimit && m3Shape_IsValid(world, ball) &&
-              Misuse(world) == misuse + 1,
-          "removing the ball is refused, counting one misuse");
+              Misuse(world) == misuse,
+          "removing the ball is refused, counting no misuse");
     m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.5f};
-    m3Shape_SetSphere(world, ball, &small);
-    CHECK(Radius(world, ball) == 1.5f && Misuse(world) == misuse + 2, "so is shrinking it");
+    CHECK(m3Shape_SetSphere(world, ball, &small) == m3_errorLimit && Radius(world, ball) == 1.5f &&
+              Misuse(world) == misuse,
+          "so is shrinking it");
     MassBits after = MassOf(world, rod);
     CHECK(SameMass(&before, &after) && m3World_Hash(world) == hash,
           "and the world is left as it was");
     m3Sphere large = {{0.0f, 0.0f, 0.0f}, 2.0f};
-    m3Shape_SetSphere(world, ball, &large);
-    CHECK(Radius(world, ball) == 2.0f && Misuse(world) == misuse + 2, "growing it is taken");
+    CHECK(m3Shape_SetSphere(world, ball, &large) == m3_success && Radius(world, ball) == 2.0f &&
+              Misuse(world) == misuse,
+          "growing it is taken");
     m3DestroyWorld(world);
 }
 

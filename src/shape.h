@@ -21,6 +21,10 @@ void m3SetShapeRollingInternal(m3World* world, int32_t slot, float value);
 
 void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value);
 
+// The argument side of a geometry swap: a sphere or capsule shape not a
+// character's, taking a sphere or capsule the create would take.
+m3Result m3ShapeSwapCheck(const m3World* world, int32_t slot, uint8_t type,
+                          const m3ShapeGeom* geom);
 bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
 
 // The material wall: count 1..8, finite entries, nonnegative frictions,
@@ -89,12 +93,26 @@ m3LeverBody m3DynamicMassOf(m3MassShapeRead read, const void* context, int32_t h
 
 void m3RecomputeMass(m3World* world, int32_t bodyIndex);
 
+// How a shape's mass fits its body. Its own floors are a property of the
+// geometry and density it is given, so a call passing them is the
+// caller's bug; the body's total and its joints' lever ratios also
+// depend on the world's other shapes and joints, which a correct program
+// can meet.
+typedef enum m3MassFit
+{
+    m3_massFits,
+    m3_massBelowFloor,
+    m3_massPastWorld,
+} m3MassFit;
+
 // Whether shape slot's body, if dynamic, would keep every mass-bearing
 // shape at M3_MIN_MASS and M3_MIN_INERTIA or more and its total mass
 // within M3_MASS_LIMIT, and every joint on it within its lever ratio
 // (src/joint_lever.h), with slot given this type, geometry and density
 // (src/shape_mass.c). Create, reshape and density changes ask it first;
 // only a dynamic body's mass reaches the solver.
+m3MassFit m3ShapeMassFit(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
+                         float density);
 bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
                      float density);
 

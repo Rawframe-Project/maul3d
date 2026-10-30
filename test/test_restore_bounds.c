@@ -940,7 +940,7 @@ static void TestTypeChangeMass(void)
     Scene s = Build();
     m3World* world = s.world;
     m3BodyId ball = {(uint32_t)s.ball + 1u, world->bodies.bodyPool.generations[s.ball]};
-    m3Body_SetType(world, ball, m3_kinematicBody);
+    CHECK(m3Body_SetType(world, ball, m3_kinematicBody) == m3_success, "the ball turns kinematic");
     CHECK(m3Body_GetMass(world, ball) == 0.0f, "a body turned kinematic has no mass");
     Scene twin = Build();
     int64_t size = m3World_GetSnapshotSize(world);

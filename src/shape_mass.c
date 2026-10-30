@@ -238,44 +238,55 @@ static m3LeverBody MassWith(const m3World* world, int32_t body, uint8_t type,
 // The mass floors and ceiling over body's shapes, with slot (or -1 for
 // none) taking the given type, geometry and density, and every joint on
 // the body within its lever ratio at the mass that gives.
-static bool MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t type,
-                     const m3ShapeGeom* geom, float density)
+static m3MassFit MassFits(const m3World* world, int32_t body, int32_t slot, uint8_t type,
+                          const m3ShapeGeom* geom, float density)
 {
     double total = 0.0;
     for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
     {
-        bool fits = s == slot ? m3ShapeMassFloors(type, geom, ShapeHull(world, s), density, &total)
-                              : m3ShapeMassFloors(world->shapes.shapeType[s],
-                                                  &world->shapes.shapeGeom[s], ShapeHull(world, s),
-                                                  world->shapes.shapeDensity[s], &total);
-        if (!fits)
+        if (s == slot)
         {
-            return false;
+            if (!m3ShapeMassFloors(type, geom, ShapeHull(world, s), density, &total))
+            {
+                return m3_massBelowFloor;
+            }
+        }
+        else if (!m3ShapeMassFloors(world->shapes.shapeType[s], &world->shapes.shapeGeom[s],
+                                    ShapeHull(world, s), world->shapes.shapeDensity[s], &total))
+        {
+            return m3_massPastWorld; // a shape of a body turning dynamic
         }
     }
     if (!(total <= (double)M3_MASS_LIMIT))
     {
-        return false;
+        return m3_massPastWorld;
     }
     ShapeChange change = {slot, false, type, geom, density};
     m3Mat3 inertia;
     bool massive;
     m3LeverBody next = MassWith(world, body, (uint8_t)m3_dynamicBody, slot >= 0 ? &change : NULL,
                                 &inertia, &massive);
-    return m3BodyJointsFit(world, body, &next);
+    return m3BodyJointsFit(world, body, &next) ? m3_massFits : m3_massPastWorld;
+}
+
+m3MassFit m3ShapeMassFit(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
+                         float density)
+{
+    int32_t body = world->shapes.shapeBody[slot];
+    return world->bodies.types[body] != (uint8_t)m3_dynamicBody
+               ? m3_massFits
+               : MassFits(world, body, slot, type, geom, density);
 }
 
 bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
                      float density)
 {
-    int32_t body = world->shapes.shapeBody[slot];
-    return world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
-           MassFits(world, body, slot, type, geom, density);
+    return m3ShapeMassFit(world, slot, type, geom, density) == m3_massFits;
 }
 
 bool m3BodyMassFits(const m3World* world, int32_t body)
 {
-    return MassFits(world, body, -1, 0, NULL, 0.0f);
+    return MassFits(world, body, -1, 0, NULL, 0.0f) == m3_massFits;
 }
 
 // Adds one shape's inertia about the body center: I += Ic + m (|d|^2 E -

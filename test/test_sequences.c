@@ -402,7 +402,7 @@ static void TestStaleRuntimeSetters(void)
             m3JointId staleJ = {5, 7};
             m3Body_SetTransform(world, staleB, (m3Pos3){9.0, 9.0, 9.0},
                                 (m3Quat){0.0f, 0.0f, 0.0f, 1.0f});
-            m3Body_SetType(world, staleB, m3_staticBody);
+            (void)m3Body_SetType(world, staleB, m3_staticBody);
             m3Body_Enable(world, staleB, false);
             m3Body_SetMotionLocks(world, staleB, Locks(0x3Fu));
             m3Body_SetSleepThreshold(world, staleB, 0.5f);
@@ -411,7 +411,7 @@ static void TestStaleRuntimeSetters(void)
             m3Shape_SetFriction(world, staleS, 0.1f);
             m3Shape_SetRestitution(world, staleS, 0.9f);
             m3Shape_SetRollingResistance(world, staleS, 0.2f);
-            m3Shape_SetDensity(world, staleS, 4.0f);
+            (void)m3Shape_SetDensity(world, staleS, 4.0f);
             m3Shape_EnableHitEvents(world, staleS, true);
             m3Shape_EnablePreSolveEvents(world, staleS, true);
             m3Joint_SetLimits(world, staleJ, -1.0f, 1.0f);
