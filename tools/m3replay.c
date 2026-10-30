@@ -9,6 +9,10 @@
 //   m3replay record <out.m3j>
 //   m3replay info   <file.m3j>
 //   m3replay verify <file.m3j>
+//
+// seek, play and diff scrub a container step by step. They index steps in
+// 32 bits, so they refuse a tape of INT32_MAX steps or more; info and
+// verify read any tape the library does.
 
 // ftello and fseeko under strict C, with a 64-bit off_t on 32-bit glibc.
 #if !defined(_WIN32)
@@ -1012,6 +1016,8 @@ int main(int argc, char** argv)
         return SizeTest();
     }
     fprintf(stderr, "usage: m3replay record|info|verify <file.m3j> | seek <file> <N> | play "
-                    "<file> <A> <B> | diff <a> <b> | selftest | difftest | sizetest\n");
+                    "<file> <A> <B> | diff <a> <b> | selftest | difftest | sizetest\n"
+                    "seek, play and diff index steps in 32 bits and refuse a tape of "
+                    "INT32_MAX steps or more\n");
     return 1;
 }
