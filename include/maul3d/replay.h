@@ -103,7 +103,11 @@ extern "C"
     /// capacity rows sorted worst-first, sets outCount to the
     /// number written, and returns the TOTAL number of differing
     /// slots (which may exceed capacity), or -1 on refusal. Zero
-    /// means the worlds agree body-for-body.
+    /// means the worlds agree body-for-body. A refusal (a NULL world,
+    /// a NULL or empty array, a NULL count, different capacities) sets a
+    /// given outCount to 0 and zeroes a given array over its whole
+    /// capacity; a success writes only its rows. It only reads, so it is
+    /// never refused as busy.
     M3_API int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
                                    int32_t capacity, int32_t* outCount);
 

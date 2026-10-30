@@ -338,7 +338,9 @@ extern "C"
     M3_API m3WorldAabb m3Shape_GetAabb(const m3World* world, m3ShapeId shape);
     /// Who touches this shape now: fills up to capacity entries and
     /// returns the total, which may exceed capacity; a NULL array with
-    /// capacity 0 measures. See m3ContactData.
+    /// capacity 0 measures. A stale shape is a refusal. A refusal zeroes the array over its whole
+    /// capacity; a success, an empty one included, writes only its entries; a list call only reads,
+    /// so none is refused as busy. See m3ContactData.
     M3_API int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape,
                                           m3ContactData* dataOut, int32_t capacity);
 

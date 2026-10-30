@@ -237,15 +237,13 @@ static M3_NOINLINE int32_t WorldOverlapHullWorker(const m3World* world, m3Pos3 b
         !m3ListOutputValid(idsOut, capacity) || !m3FinitePos3(base) || !m3FiniteF(radius) ||
         radius < 0.0f)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
+        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     for (int32_t k = 0; k < count; ++k)
     {
         if (!m3FiniteV3(points[k]))
         {
-            m3Refuse(world, m3_errorInvalid);
-            return 0;
+            return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
         }
     }
     m3ProxyOverlapContext ctx;
@@ -298,8 +296,7 @@ static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
+        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
                      {(float)(p2.x - p1.x), (float)(p2.y - p1.y), (float)(p2.z - p1.z)}};
@@ -323,8 +320,7 @@ static M3_NOINLINE int32_t WorldOverlapBoxWorker(const m3World* world, m3Pos3 ce
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
+        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     m3Vec3 corners[8];
     for (int32_t c = 0; c < 8; ++c)

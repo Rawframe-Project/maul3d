@@ -9,6 +9,8 @@
 
 #include "world_internal.h"
 
+#include <string.h>
+
 // Counts a caller's bug against a world in m3Counters.misuse: an invalid
 // argument, one past a published bound, a stale id, or a call the world
 // does not allow now. A full pool, a refusing allocator, a CPU, an ABI
@@ -60,6 +62,27 @@ static inline bool m3SizeFitsMemory(int64_t bytes)
 static inline bool m3ListOutputValid(const void* arrayOut, int32_t capacity)
 {
     return capacity >= 0 && (arrayOut != NULL || capacity == 0);
+}
+
+// Zeroes a list call's array over its whole capacity when the call fails,
+// so no item an earlier call wrote is read as the answer. An array the
+// check above refuses is left as it is: its length is not known.
+static inline void m3ClearListOutput(void* arrayOut, int32_t capacity, size_t itemBytes)
+{
+    if (arrayOut != NULL && capacity > 0)
+    {
+        memset(arrayOut, 0, (size_t)capacity * itemBytes);
+    }
+}
+
+// A list call's refusal of an argument a correct program never passes:
+// its array cleared, one misuse counted, and the total 0 to return.
+static inline int32_t m3RefuseList(const m3World* world, void* arrayOut, int32_t capacity,
+                                   size_t itemBytes)
+{
+    m3ClearListOutput(arrayOut, capacity, itemBytes);
+    (void)m3Refuse(world, m3_errorInvalid);
+    return 0;
 }
 
 #endif

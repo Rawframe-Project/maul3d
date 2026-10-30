@@ -375,8 +375,7 @@ int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capaci
 {
     if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
+        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t b = 0; b < world->bodies.bodyPool.maxIndex; ++b)
@@ -398,8 +397,7 @@ int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capac
 {
     if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return 0;
+        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t j = 0; j < world->joints.jointPool.maxIndex; ++j)
