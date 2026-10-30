@@ -75,4 +75,14 @@ static inline void m3ClearListOutput(void* arrayOut, int32_t capacity, size_t it
     }
 }
 
+// A list call's refusal of an argument a correct program never passes:
+// its array cleared, one misuse counted, and the total 0 to return.
+static inline int32_t m3RefuseList(const m3World* world, void* arrayOut, int32_t capacity,
+                                   size_t itemBytes)
+{
+    m3ClearListOutput(arrayOut, capacity, itemBytes);
+    (void)m3Refuse(world, m3_errorInvalid);
+    return 0;
+}
+
 #endif
