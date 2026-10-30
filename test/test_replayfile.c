@@ -169,6 +169,64 @@ static void TestSmallCapacity(void)
     free(blob);
 }
 
+// The container is copied straight into out, so out may touch an input
+// but not overlap one: an overlap refuses before a byte is written, and
+// leaves the size and both inputs as they were.
+static void TestOverlappingOutRefuses(void)
+{
+    int64_t bytes;
+    uint64_t recorded;
+    int64_t ops;
+    int64_t steps;
+    uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
+    m3ReplayView view;
+    CHECK(DecodeReplay(blob, bytes, &view), "decode for the overlap test");
+    int64_t snapBytes = view.snapshotBytes;
+    int64_t tapeBytes = view.journalBytes;
+    // A container's room, the snapshot, the tape, a container's room.
+    uint8_t* arena = (uint8_t*)malloc((size_t)(2 * bytes + snapBytes + tapeBytes));
+    uint8_t* before = arena;
+    uint8_t* snap = arena + bytes;
+    uint8_t* tape = snap + snapBytes;
+    uint8_t* after = tape + tapeBytes;
+    memcpy(snap, view.snapshot, (size_t)snapBytes);
+    memcpy(tape, view.journal, (size_t)tapeBytes);
+
+    int64_t written = 1234;
+    CHECK(m3EncodeReplay(snap, snapBytes, tape, tapeBytes, view.finalHash, before, bytes,
+                         &written) == m3_success &&
+              written == bytes && memcmp(before, blob, (size_t)bytes) == 0,
+          "an out that ends where the snapshot starts is taken");
+    written = 1234;
+    CHECK(m3EncodeReplay(snap, snapBytes, tape, tapeBytes, view.finalHash, after, bytes,
+                         &written) == m3_success &&
+              written == bytes && memcmp(after, blob, (size_t)bytes) == 0,
+          "an out that starts where the tape ends is taken");
+
+    struct
+    {
+        uint8_t* out;
+        const char* what;
+    } overlaps[] = {
+        {before + 1, "an out whose last byte is the snapshot's first refuses"},
+        {after - 1, "an out whose first byte is the tape's last refuses"},
+        {snap, "an out at the snapshot refuses"},
+        {tape, "an out at the tape refuses"},
+        {snap + snapBytes - 1, "an out across both inputs refuses"},
+    };
+    for (size_t k = 0; k < sizeof(overlaps) / sizeof(overlaps[0]); ++k)
+    {
+        written = 1234;
+        CHECK(m3EncodeReplay(snap, snapBytes, tape, tapeBytes, view.finalHash, overlaps[k].out,
+                             bytes, &written) == m3_errorInvalid &&
+                  written == 1234 && memcmp(snap, view.snapshot, (size_t)snapBytes) == 0 &&
+                  memcmp(tape, view.journal, (size_t)tapeBytes) == 0,
+              overlaps[k].what);
+    }
+    free(arena);
+    free(blob);
+}
+
 // What a failure leaves in a size output: the world's calls clear it before
 // any check, a null world's included, and the encoder, which takes no
 // owner, leaves it as it was.
@@ -463,6 +521,7 @@ int main(void)
     TestRoundTrip();
     TestRefusals();
     TestSmallCapacity();
+    TestOverlappingOutRefuses();
     TestSizeOutputsOnFailure();
     TestBusyStopKeepsSize();
     TestFuzz();
