@@ -1,6 +1,7 @@
 # Publishes the documentation site to GitHub Pages: the README, the user
 # documentation, the API reference generated from the headers and the
-# changelog, built by tools/build_docs.py.
+# changelog, built by tools/build_docs.py in the CI image, which has the
+# Python and markdown it takes, as the checks job builds it.
 name: pages
 
 on:
@@ -20,28 +21,26 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
+    container:
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
+      options: --init
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
       - name: Documentation
-        run: |
-          pip install markdown==3.6
-          python tools/build_docs.py
+        run: python3 tools/build_docs.py
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       pages: write
