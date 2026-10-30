@@ -623,27 +623,81 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
     world->contacts.frozenDirty = 1;
 }
 
+// Groups the pair indices by their higher shape slot, a counting sort.
+static void BuildPairIndex(m3World* world)
+{
+    m3Contacts* contacts = &world->contacts;
+    int32_t capacity = world->shapes.shapeCapacity;
+    memset(contacts->highStarts, 0, (size_t)capacity * sizeof(int32_t));
+    for (int32_t i = 0; i < contacts->pairCount; ++i)
+    {
+        contacts->highStarts[(int32_t)(contacts->pairKeys[i] & 0xFFFFFFFFu)] += 1;
+    }
+    int32_t sum = 0;
+    for (int32_t s = 0; s < capacity; ++s)
+    {
+        int32_t count = contacts->highStarts[s];
+        contacts->highStarts[s] = sum;
+        sum += count;
+    }
+    // Each slot's start advances to its end as its pairs land, which is
+    // the next slot's start; one shift puts the starts back.
+    for (int32_t i = 0; i < contacts->pairCount; ++i)
+    {
+        int32_t high = (int32_t)(contacts->pairKeys[i] & 0xFFFFFFFFu);
+        contacts->pairsByHigh[contacts->highStarts[high]++] = i;
+    }
+    for (int32_t s = capacity - 1; s > 0; --s)
+    {
+        contacts->highStarts[s] = contacts->highStarts[s - 1];
+    }
+    if (capacity > 0)
+    {
+        contacts->highStarts[0] = 0;
+    }
+    contacts->pairIndexFresh = 1;
+}
+
 void m3ForgetShapePairs(m3World* world, int32_t shape)
 {
     m3Contacts* contacts = &world->contacts;
-    for (int32_t i = 0; i < contacts->pairCount; ++i)
+    // The run of keys with the shape in the high half, found by binary
+    // search: the keys are sorted outside the pair update.
+    uint64_t low = (uint64_t)shape << 32;
+    int32_t lo = 0;
+    int32_t hi = contacts->pairCount;
+    while (lo < hi)
     {
-        uint64_t key = contacts->pairKeys[i];
-        if ((int32_t)(key >> 32) == shape || (int32_t)(key & 0xFFFFFFFFu) == shape)
+        int32_t mid = lo + (hi - lo) / 2;
+        if (contacts->pairKeys[mid] < low)
         {
-            memset(&contacts->manifolds[i], 0, sizeof(m3Manifold));
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
         }
     }
-    int32_t w = 0;
-    for (int32_t k = 0; k < contacts->sleepingPairCount; ++k)
+    for (int32_t i = lo;
+         i < contacts->pairCount && (contacts->pairKeys[i] >> 32) == (uint64_t)shape; ++i)
     {
-        uint64_t key = contacts->sleepingPairKeys[k];
-        if ((int32_t)(key >> 32) != shape && (int32_t)(key & 0xFFFFFFFFu) != shape)
-        {
-            contacts->sleepingPairKeys[w++] = key;
-        }
+        memset(&contacts->manifolds[i], 0, sizeof(m3Manifold));
     }
-    contacts->sleepingPairCount = w;
+    if (contacts->pairIndexFresh == 0)
+    {
+        BuildPairIndex(world);
+    }
+    int32_t end = shape + 1 < world->shapes.shapeCapacity ? contacts->highStarts[shape + 1]
+                                                          : contacts->pairCount;
+    for (int32_t k = contacts->highStarts[shape]; k < end; ++k)
+    {
+        memset(&contacts->manifolds[contacts->pairsByHigh[k]], 0, sizeof(m3Manifold));
+    }
+    if (contacts->frozenDead[shape] == 0)
+    {
+        contacts->frozenDead[shape] = 1;
+        contacts->frozenDeadCount += 1;
+    }
 }
 
 void m3UpdatePairs(m3World* world)
@@ -802,6 +856,7 @@ void m3UpdatePairs(m3World* world)
             int32_t i = (int32_t)(key >> 32);
             int32_t j = (int32_t)(key & 0xFFFFFFFFu);
             if (world->shapes.shapePool.alive[i] == 0 || world->shapes.shapePool.alive[j] == 0 ||
+                world->contacts.frozenDead[i] != 0 || world->contacts.frozenDead[j] != 0 ||
                 PairHot(world, i, j))
             {
                 continue;
@@ -811,16 +866,23 @@ void m3UpdatePairs(m3World* world)
         }
         world->contacts.sleepingPairCount = w;
     }
+    if (world->contacts.frozenDeadCount > 0)
+    {
+        memset(world->contacts.frozenDead, 0, (size_t)world->shapes.shapeCapacity);
+        world->contacts.frozenDeadCount = 0;
+    }
 
     // One sort restores the canonical ascending order. Keys are
     // unique, so the result is independent of the sort implementation.
     qsort(world->contacts.pairKeys, (size_t)world->contacts.pairCount, sizeof(uint64_t),
           CompareKeys);
+    world->contacts.pairIndexFresh = 0;
 }
 
 // The brute-force scan: the result the tree must match.
 void m3UpdatePairsBruteForce(m3World* world)
 {
+    world->contacts.pairIndexFresh = 0;
     world->contacts.pairCount = 0;
     world->contacts.pairsHeaped = 0;
     int32_t maxShape = world->shapes.shapePool.maxIndex;
