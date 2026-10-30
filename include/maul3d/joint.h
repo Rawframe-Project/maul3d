@@ -14,7 +14,8 @@ extern "C"
 {
 #endif
 
-    typedef enum m3JointType
+    typedef int32_t m3JointType;
+    enum
     {
         m3_sphericalJoint = 0, // ball: pins two body-frame points together
         m3_revoluteJoint = 1,  // hinge: one rotation axis, limits, motor
@@ -62,22 +63,23 @@ extern "C"
         /// slack matters). Block and tackle: ratio 2 lifts B twice
         /// as slow with twice the force.
         m3_pulleyJoint = 11,
-    } m3JointType;
+    };
 
     /// Per-axis behavior of the generic joint, in the joint frame
     /// built from localAxisA/localAxisB (the frame's z axis).
-    typedef enum m3AxisMode
+    typedef int32_t m3AxisMode;
+    enum
     {
         m3_axisLocked = 0,
         m3_axisFree = 1,
         m3_axisLimited = 2,
-    } m3AxisMode;
+    };
 
     /// Build with m3DefaultJointDef; hand-rolled defs are rejected
     /// loudly. Anchors are body-frame points on each body.
     typedef struct m3JointDef
     {
-        int32_t type; // m3JointType
+        m3JointType type;
         m3BodyId bodyIdA;
         m3BodyId bodyIdB;
         // Anchors in each body's frame, each component within 1e4 m.

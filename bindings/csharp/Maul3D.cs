@@ -119,7 +119,7 @@ namespace Maul3D
     [StructLayout(LayoutKind.Sequential)]
     public struct BodyDef
     {
-        public int Type; // BodyType
+        public BodyType Type;
         public Pos3 Position;
         public Quat Rotation;
         public Vec3 LinearVelocity;
@@ -166,7 +166,7 @@ namespace Maul3D
     [StructLayout(LayoutKind.Sequential)]
     public struct JointDef
     {
-        public int Type; // JointType
+        public JointType Type;
         public BodyId BodyIdA;
         public BodyId BodyIdB;
         public Vec3 LocalAnchorA;

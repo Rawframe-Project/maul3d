@@ -31,6 +31,14 @@
 #define M3_PIN_AT(type, member, at)                                                                \
     _Static_assert(offsetof(type, member) == (at), #type "." #member " left the format's layout")
 
+// The public kinds and modes: fixed-width integers, as the records and
+// the defs below hold them.
+M3_PIN_SIZE(m3BodyType, 4);
+M3_PIN_SIZE(m3ShapeType, 4);
+M3_PIN_SIZE(m3JointType, 4);
+M3_PIN_SIZE(m3AxisMode, 4);
+M3_PIN_SIZE(m3DifferentialMode, 4);
+
 // The journal's records, in journal.h's order.
 M3_PIN_SIZE(m3OpBodyByte, 12);
 M3_PIN_AT(m3OpBodyByte, id, 0);

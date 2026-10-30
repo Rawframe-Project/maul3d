@@ -901,8 +901,9 @@ state: snapshotted, hashed when attached, rolled back mid-shift
 to the bit. Vehicles without a drivetrain keep the flat model
 untouched.
 
-Differentials: the def's `diffMode` picks open (0, the classic
-equal split), limited (1), or locked (2), and `diffCouple` sets
+Differentials: the def's `diffMode` picks `m3_differentialOpen`
+(the classic equal split), `m3_differentialLimitedSlip` or
+`m3_differentialLocked`, and `diffCouple` sets
 the coupling force per m/s of wheel-speed disparity. The
 coupling reads each driven wheel's contact speed with one step
 of lag (the drivetrain's own wheel-reading convention) and

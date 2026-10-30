@@ -133,6 +133,16 @@ extern "C"
     /// at standstill still has launch torque. Past the last point
     /// the curve extends flat.
     ///
+    /// How a drivetrain's differential splits the drive between its
+    /// driven wheels.
+    typedef int32_t m3DifferentialMode;
+    enum
+    {
+        m3_differentialOpen = 0,        // the equal split
+        m3_differentialLimitedSlip = 1, // coupled, clamped to the engine's own force
+        m3_differentialLocked = 2,      // coupled without that clamp
+    };
+
     /// With a drivetrain attached, throttle drives only forward
     /// gears; reverse is gear -1 (throttle magnitude, direction from
     /// the gear), gear 0 is neutral. Auto shift manages forward
@@ -153,14 +163,15 @@ extern "C"
         float shiftDownRpm;                         // auto shift drops below this
         int32_t clutchSteps; // steps of torque cut per shift, 0..M3_MAX_CLUTCH_STEPS
         bool autoShift;
-        /// Differential: 0 open (the equal split), 1 limited
-        /// slip, 2 locked. Nonzero modes couple each driven wheel
+        /// Differential: m3_differentialOpen (the equal split),
+        /// m3_differentialLimitedSlip or m3_differentialLocked. The
+        /// other two couple each driven wheel
         /// toward the driven mean of the LAST step's contact speeds
         /// with diffCouple newtons per m/s of disparity, at most 1e15; limited
         /// slip additionally clamps the coupling to the engine's
         /// own per-wheel force. One step of lag is the drivetrain's
         /// own convention (engine speed reads wheels the same way).
-        int32_t diffMode;
+        m3DifferentialMode diffMode;
         float diffCouple;
         int32_t internalValue;
     } m3DrivetrainDef;

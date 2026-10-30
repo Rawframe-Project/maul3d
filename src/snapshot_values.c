@@ -248,9 +248,11 @@ static bool VehiclesValid(const m3Incoming* inc)
             }
             continue;
         }
-        if (m3InI32(curveCount, v) < 2 || m3InI32(gearCount, v) < 1 || m3InI32(diffMode, v) < 0 ||
-            m3InI32(diffMode, v) > 2 || steps < 0 || steps > 600 || m3InI32(clutch, v) < 0 ||
-            m3InI32(clutch, v) > steps || gear < -1 || gear > m3InI32(gearCount, v))
+        if (m3InI32(curveCount, v) < 2 || m3InI32(gearCount, v) < 1 ||
+            m3InI32(diffMode, v) < m3_differentialOpen ||
+            m3InI32(diffMode, v) > m3_differentialLocked || steps < 0 || steps > 600 ||
+            m3InI32(clutch, v) < 0 || m3InI32(clutch, v) > steps || gear < -1 ||
+            gear > m3InI32(gearCount, v))
         {
             return false;
         }

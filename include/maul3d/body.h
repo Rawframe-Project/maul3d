@@ -14,12 +14,13 @@ extern "C"
 {
 #endif
 
-    typedef enum m3BodyType
+    typedef int32_t m3BodyType;
+    enum
     {
         m3_staticBody = 0,
         m3_kinematicBody = 1, // moved by velocity, immovable by contact
         m3_dynamicBody = 2,
-    } m3BodyType;
+    };
 
     /// Per-axis motion locks. A locked axis holds still: its velocity is
     /// zeroed every substep, so contacts cannot bank motion on it.
@@ -35,7 +36,7 @@ extern "C"
 
     typedef struct m3BodyDef
     {
-        int32_t type;           // m3BodyType
+        m3BodyType type;
         m3Pos3 position;        // world space, double, within 1e15 m
         m3Quat rotation;        // unit quaternion
         m3Vec3 linearVelocity;  // m/s, within 1e5 (kinematic: 1e10)

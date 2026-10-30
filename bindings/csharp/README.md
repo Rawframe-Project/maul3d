@@ -37,7 +37,7 @@ if (Native.CreateWorld(ref wd, out IntPtr world) != Result.Success)
 }
 
 var bd = Native.DefaultBodyDef();
-bd.Type = (int)BodyType.Dynamic;
+bd.Type = BodyType.Dynamic;
 bd.Position = new Pos3(0, 5, 0);
 Native.CreateBody(world, ref bd, out BodyId body);
 

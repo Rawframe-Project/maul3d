@@ -199,7 +199,7 @@ static void TestNeutralAndReverse(void)
     m3DestroyWorld(world);
 }
 
-static double DiffYaw(int32_t mode, float couple, uint64_t* outHash)
+static double DiffYaw(m3DifferentialMode mode, float couple, uint64_t* outHash)
 {
     // Same car, same throttle, same steer; only the differential
     // changes. The coupling resists the inner/outer wheel speed
@@ -239,14 +239,14 @@ static void TestDifferentials(void)
     uint64_t lockedB = 0;
     uint64_t openHash = 0;
     uint64_t limitedHash = 0;
-    double open = DiffYaw(0, 0.0f, &openHash);
-    double locked = DiffYaw(2, 20000.0f, &lockedA);
-    double limited = DiffYaw(1, 20000.0f, &limitedHash);
+    double open = DiffYaw(m3_differentialOpen, 0.0f, &openHash);
+    double locked = DiffYaw(m3_differentialLocked, 20000.0f, &lockedA);
+    double limited = DiffYaw(m3_differentialLimitedSlip, 20000.0f, &limitedHash);
     CHECK(open > 10.0, "the open car turns");
     CHECK(locked < open * 0.2, "the strong lock converges the wheels and resists the turn");
     CHECK(limited > 0.0 && limitedHash != openHash,
           "the limited mode is a real, distinct, deterministic regime");
-    DiffYaw(2, 20000.0f, &lockedB);
+    DiffYaw(m3_differentialLocked, 20000.0f, &lockedB);
     CHECK(lockedA == lockedB, "twin locked runs are bit-identical");
 
     // The hostile wall: bad modes and couplings never attach.
@@ -256,7 +256,7 @@ static void TestDifferentials(void)
     bad.diffMode = 3;
     m3Vehicle_SetDrivetrain(world, car, &bad);
     m3DrivetrainDef good = m3DefaultDrivetrainDef();
-    good.diffMode = 2;
+    good.diffMode = m3_differentialLocked;
     good.diffCouple = -1.0f;
     m3Vehicle_SetDrivetrain(world, car, &good);
     // Neither hostile def attached: gear selection still refuses
