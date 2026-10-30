@@ -59,8 +59,9 @@ bool m3AllocatorValid(const m3Allocator* allocator);
     } while (0)
 
 // Zeroed memory, or NULL when bytes is not positive or the allocator
-// refuses. Running out of memory is a refusal, never an assert.
-void* m3AllocZeroed(m3Heap* heap, int32_t bytes);
+// refuses. Running out of memory is a refusal, never an assert, and so is
+// a size the target's size_t cannot hold with the block header.
+void* m3AllocZeroed(m3Heap* heap, int64_t bytes);
 // Zeroed array of count elements, or NULL when count or elementBytes is
 // not positive, when count * elementBytes does not fit the allocator's
 // 32-bit byte count, or when the allocator refuses.

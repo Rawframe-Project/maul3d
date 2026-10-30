@@ -105,7 +105,7 @@ static const m3Pos3 kOverFloor = {0.5, 5.0, 0.5};
 static const m3Pos3 kOverSlab = {12.0, 5.0, 2.0};
 
 // Whether a world's snapshot equals the given bytes.
-static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
+static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int64_t size)
 {
     if (m3World_GetSnapshotSize(world) != size)
     {
@@ -118,7 +118,7 @@ static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
     return same;
 }
 
-static uint8_t* TakeSnapshot(const m3World* world, int32_t* sizeOut)
+static uint8_t* TakeSnapshot(const m3World* world, int64_t* sizeOut)
 {
     *sizeOut = m3World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)*sizeOut);
@@ -152,13 +152,13 @@ static void TestRestoreUnderBudget(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
 
-    int32_t size = 0;
+    int64_t size = 0;
     uint8_t* first = TakeSnapshot(world, &size);
     for (int32_t i = 0; i < 30; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t laterSize = 0;
+    int64_t laterSize = 0;
     uint8_t* later = TakeSnapshot(world, &laterSize);
     CHECK(first != NULL && later != NULL && laterSize == size &&
               memcmp(first, later, (size_t)size) != 0,
@@ -243,7 +243,7 @@ static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
         }
     }
     CHECK(refusals > 0 && refusedWhole, refusedMsg);
-    int32_t size = 0;
+    int64_t size = 0;
     uint8_t* expected = TakeSnapshot(reference, &size);
     CHECK(result == m3_success && expected != NULL && SnapshotIs(world, expected, size),
           "the create that succeeds leaves the world a create with memory to spare does");
@@ -363,7 +363,7 @@ static void TestVoxelEditsUnderBudget(void)
             budget.left = n;
             VoxelEdit(world, slab, edit);
             budget.left = -1;
-            int32_t journaled = StopJournal(world);
+            int64_t journaled = StopJournal(world);
             bool refused = m3World_Hash(world) == hash;
             landed += refused ? 0 : 1;
             // A refused edit journals nothing past the tape's 16-byte prefix.
@@ -397,7 +397,7 @@ static void TestReplayUnderBudget(void)
     m3BodyId box = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
-    int32_t startSize = 0;
+    int64_t startSize = 0;
     uint8_t* start = TakeSnapshot(world, &startSize);
 
     static uint8_t tape[1 << 16];
@@ -412,8 +412,8 @@ static void TestReplayUnderBudget(void)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t tapeBytes = StopJournal(world);
-    int32_t endSize = 0;
+    int64_t tapeBytes = StopJournal(world);
+    int64_t endSize = 0;
     uint8_t* end = TakeSnapshot(world, &endSize);
     CHECK(start != NULL && end != NULL && tapeBytes > 0, "the tape and both frames are taken");
     CHECK(Restore(world, start, startSize), "the world goes back to the start");

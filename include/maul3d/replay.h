@@ -26,20 +26,22 @@ extern "C"
     /// and the journal tape it holds.
     ///
     /// Layout, little-endian: the 16-byte state prefix (magic "M3RP",
-    /// abiVersion, formatVersion 3, headerBytes 40) | finalHash u64 |
-    /// snapshotBytes i32 | journalBytes i32 | stepCount i32 | opCount
-    /// i32 | snapshot | journal.
+    /// abiVersion, formatVersion 4, headerBytes 56) | finalHash u64 |
+    /// snapshotBytes i64 | journalBytes i64 | stepCount i64 | opCount
+    /// i64 | snapshot | journal. Sizes and counts are 64-bit; on a
+    /// 32-bit target a size past SIZE_MAX is refused with
+    /// m3_errorInvalid before any pointer is formed.
 
     /// Counts from a journal tape: total records, and how many of them
     /// are steps. Returns m3_errorVersion for a tape another release
     /// wrote and m3_errorFormat for malformed framing.
     typedef struct m3JournalInfo
     {
-        int32_t opCount;
-        int32_t stepCount;
+        int64_t opCount;
+        int64_t stepCount;
     } m3JournalInfo;
 
-    M3_NODISCARD M3_API m3Result m3DescribeJournal(const void* journal, int32_t bytes,
+    M3_NODISCARD M3_API m3Result m3DescribeJournal(const void* journal, int64_t bytes,
                                                    m3JournalInfo* infoOut);
 
     /// A decoded view into an encoded container: pointers alias the
@@ -47,17 +49,17 @@ extern "C"
     typedef struct m3ReplayView
     {
         const void* snapshot;
-        int32_t snapshotBytes;
+        int64_t snapshotBytes;
         const void* journal;
-        int32_t journalBytes;
+        int64_t journalBytes;
         uint64_t finalHash; // the recorder's end-of-session hash
         m3JournalInfo info;
     } m3ReplayView;
 
     /// Exact encoded size for the given payload sizes, or 0 when they
     /// cannot be a snapshot and a tape or the container would pass
-    /// INT32_MAX bytes.
-    M3_API int32_t m3GetEncodedReplaySize(int32_t snapshotBytes, int32_t journalBytes);
+    /// INT64_MAX bytes.
+    M3_API int64_t m3GetEncodedReplaySize(int64_t snapshotBytes, int64_t journalBytes);
 
     /// Encode a container. finalHash is the recorder's end hash
     /// (m3World_Hash after the session); verifiers compare against
@@ -66,19 +68,20 @@ extern "C"
     /// for a snapshot or tape another release wrote, m3_errorInvalid for
     /// a null pointer, m3_errorFormat for sizes too short to hold a
     /// snapshot or a tape, a header that is not a snapshot's or a
-    /// malformed journal, m3_errorLimit for a pair past INT32_MAX bytes,
-    /// and m3_errorCapacity for a small buffer.
-    M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes,
-                                                const void* journal, int32_t journalBytes,
-                                                uint64_t finalHash, void* out, int32_t capacity,
-                                                int32_t* bytesOut);
+    /// malformed journal, m3_errorLimit for a pair whose container no
+    /// buffer of this target can hold, and m3_errorCapacity for a small
+    /// buffer.
+    M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes,
+                                                const void* journal, int64_t journalBytes,
+                                                uint64_t finalHash, void* out, int64_t capacity,
+                                                int64_t* bytesOut);
 
     /// Decode and validate framing (the container's header, the
     /// snapshot's and the tape's prefixes, lengths, journal record
     /// walk). Returns m3_errorVersion when another release wrote the
     /// container or what it holds, and m3_errorFormat on any
     /// corruption, with the view untouched either way.
-    M3_NODISCARD M3_API m3Result m3DecodeReplay(const void* data, int32_t bytes,
+    M3_NODISCARD M3_API m3Result m3DecodeReplay(const void* data, int64_t bytes,
                                                 m3ReplayView* viewOut);
 
     /// One row of a world-versus-world body comparison. A

@@ -7,16 +7,11 @@
 // come from the one table in world_state.c, so a new array is one struct
 // field and one table row.
 //
-// A world's snapshot never passes M3_MAX_SNAPSHOT_BYTES, at any moment.
-// Its size is the header, the fixed prefix this table walks, and the
-// variable tail of mesh, hull and height field content. m3CreateWorld
-// refuses a def whose header, prefix and mesh and hull tails at their
-// largest would pass the bound, so no mesh or hull content can carry a
-// world past it. Height field content is the one tail that grows past
-// what create counts: a grid create, and its replay, refuse samples that
-// would carry the snapshot past the bound. A restore lands a state of the
-// size it reads and refuses one past the bound. Every size is computed in
-// 64 bits, from the one per-array size the walk copies.
+// A world's snapshot is the header, the fixed prefix this table walks,
+// and the variable tail of mesh, hull and height field content. Its size
+// has no cap of its own: every size is computed in 64 bits, from the one
+// per-array size the walk copies, and each array stays within INT32_MAX
+// bytes (m3AllocArray), so a world that fits memory fits its snapshot.
 
 #ifndef MAUL3D_SRC_WORLD_STATE_H
 #define MAUL3D_SRC_WORLD_STATE_H

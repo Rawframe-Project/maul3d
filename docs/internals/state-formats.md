@@ -31,7 +31,7 @@ The golden lines that pin a format's bytes, the snapshot's and the tape's, hash 
 |---|---|---|---|---|
 | Snapshot | `M3SN` | 6 | 60 bytes | `configHash` (`uint64_t`) at 16, then the nine capacities (`int32_t`) at 24: bodies, shapes, meshes, joints, voxels, characters, vehicles, soft bodies, pairs |
 | Journal tape | `M3JN` | 1 | 16 bytes | nothing; the records start at 16 |
-| Replay container | `M3RP` | 3 | 40 bytes | `finalHash` (`uint64_t`) at 16, then `snapshotBytes`, `journalBytes`, `stepCount` and `opCount` (`int32_t`) at 24, then the snapshot and the tape, each with its own header |
+| Replay container | `M3RP` | 4 | 56 bytes | `finalHash` (`uint64_t`) at 16, then `snapshotBytes`, `journalBytes`, `stepCount` and `opCount` (`int64_t`) at 24, then the snapshot and the tape, each with its own header |
 
 The snapshot's `configHash` covers what the bytes mean within one release: the format number, the solver revision, the sizes of `m3real` and of a position, and the floating-point policy. A snapshot restores only into a world with the same eight capacities.
 

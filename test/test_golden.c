@@ -218,7 +218,7 @@ static void Expect(const char* name, uint64_t hash, uint64_t committed)
 // the magic and the writer's ABI version, so a release bump moves no
 // line; a check pins the ABI word to this release's instead. Neither
 // format here embeds another's header.
-static uint64_t HashStateBytes(const uint8_t* bytes, int32_t count)
+static uint64_t HashStateBytes(const uint8_t* bytes, int64_t count)
 {
     uint32_t abi = 0;
     memcpy(&abi, bytes + 4, sizeof(abi));
@@ -1074,7 +1074,7 @@ static void CheckRestoreBetweenCallsAndStep(uint64_t expected)
     for (int32_t frame = 0; frame < TOUR_FRAMES; ++frame)
     {
         TourCalls(&t, frame);
-        int32_t size = m3World_GetSnapshotSize(t.world);
+        int64_t size = m3World_GetSnapshotSize(t.world);
         uint8_t* bytes = (uint8_t*)malloc((size_t)size);
         if (bytes == NULL || Snapshot(t.world, bytes, size) != size ||
             !Restore(t.world, bytes, size))
@@ -1107,7 +1107,7 @@ static uint64_t SceneRollback(void)
     {
         TourFrame(&t, frame);
     }
-    int32_t size = m3World_GetSnapshotSize(t.world);
+    int64_t size = m3World_GetSnapshotSize(t.world);
     uint8_t* before = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(t.world, before, size) == size, "the snapshot fits its size");
 
@@ -1116,7 +1116,7 @@ static uint64_t SceneRollback(void)
         TourFrame(&t, frame);
     }
     uint64_t first = m3World_Hash(t.world);
-    int32_t afterSize = m3World_GetSnapshotSize(t.world);
+    int64_t afterSize = m3World_GetSnapshotSize(t.world);
     uint8_t* after = (uint8_t*)malloc((size_t)afterSize);
     Snapshot(t.world, after, afterSize);
 
@@ -1343,7 +1343,7 @@ static uint64_t RunWalk(Walk* w, m3World* world, uint64_t seed)
 // records. The tour
 // makes every journaled call, so an op added without a tour call fails
 // here instead of quietly going unreplayed.
-static void CheckTapeHoldsEveryOp(const uint8_t* tape, int32_t bytes)
+static void CheckTapeHoldsEveryOp(const uint8_t* tape, int64_t bytes)
 {
     bool seen[m3_opCount];
     memset(seen, 0, sizeof(seen));
@@ -1399,7 +1399,7 @@ static uint64_t SceneJournal(void)
     CHECK(StartJournal(world, tape, TAPE_BYTES), "the session's journal starts");
     uint64_t hash = RunSession(world, &walk);
     CHECK(walk.bodyCount > 20, "the walk builds a populated corner");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the session fits its journal");
     s_tapeBytesHash = HashStateBytes(tape, bytes);
     CheckTapeHoldsEveryOp(tape, bytes);
@@ -1442,7 +1442,7 @@ typedef struct HostileRun
     uint64_t tail;
 } HostileRun;
 
-static HostileRun ReplayStack(const uint8_t* tape, int32_t bytes, int threaded)
+static HostileRun ReplayStack(const uint8_t* tape, int64_t bytes, int threaded)
 {
     m3World* world = MakeWorld(threaded);
     CHECK(ReplayJournal(world, tape, bytes), "the stack's tape replays");
@@ -1467,7 +1467,7 @@ static void CheckRun(HostileRun run, HostileRun expected, int threaded)
 
 // Runs one setting's checks with the thread in that setting, then puts
 // the thread back and checks the host's setting was left as it was.
-static void UnderHost(TestFloatSetting start, const uint8_t* tape, int32_t bytes,
+static void UnderHost(TestFloatSetting start, const uint8_t* tape, int64_t bytes,
                       HostileRun expected)
 {
     TestFloatSetting host = TestFloatHostileAt(s_hostSetting);
@@ -1500,7 +1500,7 @@ static int HostileMain(void)
     CHECK(StartJournal(world, tape, TAPE_BYTES), "the stack's journal starts");
     AddStack(world);
     StepN(world, HOSTILE_STEPS);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the stack fits its journal");
     m3DestroyWorld(world);
     HostileRun expected = ReplayStack(tape, bytes, 0);

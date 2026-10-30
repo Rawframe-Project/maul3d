@@ -246,7 +246,7 @@ static void TestDrawIsPureObserver(void)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = m3World_GetSnapshotSize(world);
+    int64_t bytes = m3World_GetSnapshotSize(world);
     uint8_t* before = (uint8_t*)malloc((size_t)bytes);
     uint8_t* after = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, before, bytes) == bytes, "snapshot before writes");
@@ -292,8 +292,8 @@ static void TestDrawIsPureObserver(void)
         m3World_Draw(drawn, &stepDraw);
         (void)m3World_Step(silent, 1.0f / 60.0f, 4);
     }
-    int32_t bytesA = m3World_GetSnapshotSize(drawn);
-    int32_t bytesB = m3World_GetSnapshotSize(silent);
+    int64_t bytesA = m3World_GetSnapshotSize(drawn);
+    int64_t bytesB = m3World_GetSnapshotSize(silent);
     CHECK(bytesA == bytesB, "twin snapshots size-match");
     uint8_t* snapA = (uint8_t*)malloc((size_t)bytesA);
     uint8_t* snapB = (uint8_t*)malloc((size_t)bytesB);

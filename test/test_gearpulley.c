@@ -108,9 +108,9 @@ static void TestGearTakesNoMotor(void)
     m3Quat qA = m3Body_GetRotation(mesh.world, mesh.gearA);
     m3Quat qB = m3Body_GetRotation(mesh.world, mesh.gearB);
     CHECK(fabsf(qA.z) < 1e-6f && fabsf(qB.z) < 1e-6f, "the meshed disks stay at rest");
-    int32_t size = m3World_GetSnapshotSize(mesh.world);
+    int64_t size = m3World_GetSnapshotSize(mesh.world);
     void* snapshot = malloc((size_t)size);
-    int32_t bytes = snapshot != NULL ? Snapshot(mesh.world, snapshot, size) : -1;
+    int64_t bytes = snapshot != NULL ? Snapshot(mesh.world, snapshot, size) : -1;
     CHECK(bytes > 0, "the mesh snapshots");
     m3WorldDef wd = m3DefaultWorldDef();
     wd.bodyCapacity = 8;

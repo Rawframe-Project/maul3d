@@ -43,17 +43,17 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
     m3ReplayView view;
     memset(&view, 0, sizeof(view));
-    m3Result result = m3DecodeReplay(data, (int32_t)size, &view);
+    m3Result result = m3DecodeReplay(data, (int64_t)size, &view);
     Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     if (result != m3_success)
     {
         return 0;
     }
-    int32_t encodedSize = m3GetEncodedReplaySize(view.snapshotBytes, view.journalBytes);
-    Require(encodedSize == (int32_t)size);
+    int64_t encodedSize = m3GetEncodedReplaySize(view.snapshotBytes, view.journalBytes);
+    Require(encodedSize == (int64_t)size);
     uint8_t* encoded = (uint8_t*)malloc((size_t)encodedSize);
     Require(encoded != NULL);
-    int32_t written = 0;
+    int64_t written = 0;
     Require(m3EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
                            view.finalHash, encoded, encodedSize, &written) == m3_success);
     Require(written == encodedSize && memcmp(encoded, data, size) == 0);

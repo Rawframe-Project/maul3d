@@ -261,7 +261,7 @@ static void TestWheelSteering(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = StopJournal(world);
+            int64_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the steering session records");
             m3WorldDef fresh = wd;
             m3World* replayed = NewWorld(&fresh);
@@ -339,9 +339,9 @@ static void TestWheelTargetKeepsSteering(void)
     }
     CHECK(fabsf(m3WheelJoint_GetSteeringAngle(world, wheel) - 0.5f) < 0.05f,
           "a wheel given a translation target still steers");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
-    int32_t bytes = Snapshot(world, snapshot, size);
+    int64_t bytes = Snapshot(world, snapshot, size);
     m3World* restored = NewWorld(&wd);
     CHECK(bytes > 0 && Restore(restored, snapshot, bytes) &&
               m3World_Hash(restored) == m3World_Hash(world),
@@ -376,7 +376,7 @@ static bool ReplaysSteering(float hertz)
     m3JointId wheel = NewJoint(world, &jd);
     m3WheelJoint_SetSteeringHertz(world, wheel, 6.25f);
     m3WheelJoint_EnableSteering(world, wheel, true);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     m3DestroyWorld(world);
     const float recorded = 6.25f;
     int32_t patched = 0;
@@ -576,7 +576,7 @@ static bool ReplaysLengthRange(float minLength)
     m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the rope tape records");
     m3DistanceJoint_SetLengthRange(world, rope, 0.75f, 1.25f);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     const float recorded = 0.75f;
     int32_t patched = 0;
     for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
@@ -679,7 +679,7 @@ static bool ReplaysRestLength(float length)
     m3World* world = RopeWorld(0.5f, 2.0f, &rope, &ball);
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the rope tape records");
     m3DistanceJoint_SetLength(world, rope, 1.75f);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     const float recorded = 1.75f;
     int32_t patched = 0;
     for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
@@ -846,7 +846,7 @@ static void TestMotorJointServo(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = StopJournal(world);
+            int64_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the servo session records");
             m3WorldDef fresh = wd;
             m3World* replayed = NewWorld(&fresh);

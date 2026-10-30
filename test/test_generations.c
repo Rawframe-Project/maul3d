@@ -202,7 +202,7 @@ static bool WaterValid(const m3World* world, uint32_t index1, uint32_t generatio
 
 // Spends every slot of the pool: returns the snapshot of the spent
 // world, its size in *bytes.
-static uint8_t* Spend(const Pool* p, m3World* world, int32_t* bytes)
+static uint8_t* Spend(const Pool* p, m3World* world, int64_t* bytes)
 {
     char what[160];
     m3IdPool* pool = p->pool(world);
@@ -253,7 +253,7 @@ static void CheckPool(const Pool* p, int32_t capacity)
     m3World* world = NewWorld(&def);
     s_ground = m3_nullBodyId;
     CHECK(p->pool(world)->capacity == capacity, "the pool has the capacity the test sets");
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* snap = Spend(p, world, &bytes);
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);

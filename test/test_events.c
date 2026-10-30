@@ -394,9 +394,9 @@ static void TestColdPairAndReusedSlot(void)
     gd.position = (m3Pos3){50.0, 0.0, 0.0};
     m3ShapeId newer = NewSphereShape(world, NewBody(world, &gd), &sd, &sphere);
     CHECK(newer.index1 == x.index1, "a static shape far away takes the freed slot");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
           "the world snapshots after the destroy");
     m3World* twin = NewWorld(&def);

@@ -239,9 +239,7 @@ extern "C"
     /// as chunks. The cell size and the heights are bounded as above.
     /// Static bodies only; the minimum corner sits at the body origin.
     /// Rays, contacts, overlaps, shape casts, movers and continuous
-    /// collision all see its triangles. Samples that
-    /// would carry the world's snapshot past M3_MAX_SNAPSHOT_BYTES are
-    /// refused with m3_errorCapacity, with the world as it was.
+    /// collision all see its triangles.
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body,
                                                               const m3ShapeDef* def,
                                                               const float* heights, int32_t nx,

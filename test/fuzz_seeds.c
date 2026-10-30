@@ -46,7 +46,7 @@ static void Fail(const char* what)
 }
 
 static void WriteSeed(const char* dir, const char* target, const char* name, const void* bytes,
-                      int32_t size)
+                      int64_t size)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s", dir, target);
@@ -59,11 +59,11 @@ static void WriteSeed(const char* dir, const char* target, const char* name, con
     }
 }
 
-static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
+static uint8_t* SnapshotOf(const m3World* world, int64_t* bytesOut)
 {
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     if (bytes == NULL || m3World_Snapshot(world, bytes, size, &written) != m3_success)
     {
         Fail("a snapshot");
@@ -74,7 +74,7 @@ static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
 
 static void WriteSnapshot(const char* dir, const char* name, const m3World* world)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* snapshot = SnapshotOf(world, &bytes);
     WriteSeed(dir, "fuzz_snapshot", name, snapshot, bytes);
     WriteSeed(dir, "fuzz_restore_step", name, snapshot, bytes);
@@ -86,7 +86,7 @@ static void WriteSnapshot(const char* dir, const char* name, const m3World* worl
 // restore-then-step target at the edge of the soft bodies' rest values.
 static void WriteFarRestSeed(const char* dir, const m3World* world)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* snapshot = SnapshotOf(world, &bytes);
     int32_t slot = 0;
     while (slot < world->softBodies.softPool.maxIndex &&
@@ -171,7 +171,7 @@ static const SessionOp s_sessionOps[] = {
 
 // The records of one kind on a tape, by the [i32 op][i32 size][payload]
 // walk m3DescribeJournal makes, which must agree with its counts.
-static int32_t CountOps(const uint8_t* tape, int32_t bytes, int32_t op)
+static int32_t CountOps(const uint8_t* tape, int64_t bytes, int32_t op)
 {
     m3JournalInfo info;
     if (m3DescribeJournal(tape, bytes, &info) != m3_success)
@@ -199,8 +199,8 @@ static int32_t CountOps(const uint8_t* tape, int32_t bytes, int32_t op)
     return matches;
 }
 
-static void SessionOpsHold(const uint8_t* build, int32_t buildBytes, const uint8_t* session,
-                           int32_t sessionBytes)
+static void SessionOpsHold(const uint8_t* build, int64_t buildBytes, const uint8_t* session,
+                           int64_t sessionBytes)
 {
     for (size_t i = 0; i < sizeof(s_sessionOps) / sizeof(s_sessionOps[0]); ++i)
     {
@@ -229,7 +229,7 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
     }
     m3World* world = FreshWorld();
     FuzzScene scene;
-    int32_t buildBytes = 0;
+    int64_t buildBytes = 0;
     if (m3World_StartJournal(world, tape, TAPE_BYTES) != m3_success)
     {
         Fail("the owned seed's journal");
@@ -248,7 +248,7 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
     {
         Fail("the owned seed's targets");
     }
-    int32_t callBytes = 0;
+    int64_t callBytes = 0;
     if (m3DestroyShape(world, sphere) != m3_success ||
         m3Character_SetStance(world, scene.hero, 0.25f, 0.2f) != m3_success ||
         m3World_StopJournal(world, &callBytes) != m3_success)
@@ -260,7 +260,7 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
     memcpy(tape + buildBytes, calls + M3_JOURNAL_HEADER_BYTES, (size_t)callBytes);
     free(calls);
     int32_t found = 0;
-    for (int32_t at = buildBytes; at + (int32_t)sizeof(sphere) <= buildBytes + callBytes; ++at)
+    for (int64_t at = buildBytes; at + (int32_t)sizeof(sphere) <= buildBytes + callBytes; ++at)
     {
         if (memcmp(tape + at, &sphere, sizeof(sphere)) == 0)
         {
@@ -293,10 +293,10 @@ int main(int argc, char** argv)
 
     // The build alone, recorded from an empty world.
     m3World* world = FreshWorld();
-    int32_t emptyBytes = 0;
+    int64_t emptyBytes = 0;
     uint8_t* empty = SnapshotOf(world, &emptyBytes);
     FuzzScene scene;
-    int32_t tapeBytes = 0;
+    int64_t tapeBytes = 0;
     if (m3World_StartJournal(world, tape, TAPE_BYTES) != m3_success)
     {
         Fail("the build's journal");
@@ -313,7 +313,7 @@ int main(int argc, char** argv)
         Fail("the build's tape copy");
     }
     memcpy(buildTape, tape, (size_t)tapeBytes);
-    int32_t buildBytes = tapeBytes;
+    int64_t buildBytes = tapeBytes;
     WriteSnapshot(dir, "built", world);
     m3DestroyWorld(world);
 
@@ -334,9 +334,9 @@ int main(int argc, char** argv)
     WriteSeed(dir, "fuzz_journal", "session", tape, tapeBytes);
     WriteSnapshot(dir, "session", world);
     WriteFarRestSeed(dir, world);
-    int32_t replaySize = m3GetEncodedReplaySize(emptyBytes, tapeBytes);
+    int64_t replaySize = m3GetEncodedReplaySize(emptyBytes, tapeBytes);
     uint8_t* replay = (uint8_t*)malloc((size_t)replaySize);
-    int32_t replayBytes = 0;
+    int64_t replayBytes = 0;
     if (replay == NULL || m3EncodeReplay(empty, emptyBytes, tape, tapeBytes, m3World_Hash(world),
                                          replay, replaySize, &replayBytes) != m3_success)
     {
@@ -344,8 +344,8 @@ int main(int argc, char** argv)
     }
     WriteSeed(dir, "fuzz_replay", "session", replay, replayBytes);
     WriteOwnedSeed(dir, tape);
-    printf("fuzz_seeds: snapshot %d bytes, tape %d bytes, replay %d bytes\n", emptyBytes, tapeBytes,
-           replayBytes);
+    printf("fuzz_seeds: snapshot %lld bytes, tape %lld bytes, replay %lld bytes\n",
+           (long long)emptyBytes, (long long)tapeBytes, (long long)replayBytes);
     m3DestroyWorld(world);
     free(replay);
     free(empty);

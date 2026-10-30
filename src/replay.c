@@ -6,6 +6,7 @@
 
 #include "maul3d/replay.h"
 
+#include "misuse.h"
 #include "state_prefix.h"
 
 #include <string.h>
@@ -16,18 +17,18 @@ typedef struct m3ReplayHeader
 {
     m3StatePrefix prefix;
     uint64_t finalHash;
-    int32_t snapshotBytes;
-    int32_t journalBytes;
-    int32_t stepCount;
-    int32_t opCount;
+    int64_t snapshotBytes;
+    int64_t journalBytes;
+    int64_t stepCount;
+    int64_t opCount;
 } m3ReplayHeader;
 
 _Static_assert(sizeof(m3ReplayHeader) == M3_REPLAY_HEADER_BYTES,
                "the replay header must be padding-free");
 
-m3Result m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* infoOut)
+m3Result m3DescribeJournal(const void* journal, int64_t bytes, m3JournalInfo* infoOut)
 {
-    if (journal == NULL || bytes < 0 || infoOut == NULL)
+    if (journal == NULL || bytes < 0 || !m3SizeFitsMemory(bytes) || infoOut == NULL)
     {
         return m3_errorInvalid;
     }
@@ -38,9 +39,9 @@ m3Result m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* in
         return header;
     }
     const uint8_t* p = (const uint8_t*)journal;
-    int32_t cursor = M3_JOURNAL_HEADER_BYTES;
-    int32_t ops = 0;
-    int32_t steps = 0;
+    int64_t cursor = M3_JOURNAL_HEADER_BYTES;
+    int64_t ops = 0;
+    int64_t steps = 0;
     while (cursor < bytes)
     {
         if (bytes - cursor < 8)
@@ -67,22 +68,23 @@ m3Result m3DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* in
     return m3_success;
 }
 
-int32_t m3GetEncodedReplaySize(int32_t snapshotBytes, int32_t journalBytes)
+int64_t m3GetEncodedReplaySize(int64_t snapshotBytes, int64_t journalBytes)
 {
     if (snapshotBytes < M3_SNAPSHOT_HEADER_BYTES || journalBytes < M3_JOURNAL_HEADER_BYTES ||
-        snapshotBytes > INT32_MAX - M3_REPLAY_HEADER_BYTES - journalBytes)
+        snapshotBytes > INT64_MAX - M3_REPLAY_HEADER_BYTES - journalBytes)
     {
         return 0;
     }
     return M3_REPLAY_HEADER_BYTES + snapshotBytes + journalBytes;
 }
 
-m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
-                        int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity,
-                        int32_t* bytesOut)
+m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void* journal,
+                        int64_t journalBytes, uint64_t finalHash, void* out, int64_t capacity,
+                        int64_t* bytesOut)
 {
     // No owner: a failure leaves *bytesOut as it was, set only on success.
-    if (bytesOut == NULL || snapshot == NULL || journal == NULL || out == NULL)
+    if (bytesOut == NULL || snapshot == NULL || journal == NULL || out == NULL ||
+        !m3SizeFitsMemory(snapshotBytes) || !m3SizeFitsMemory(journalBytes))
     {
         return m3_errorInvalid;
     }
@@ -90,10 +92,10 @@ m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void*
     {
         return m3_errorFormat; // too short to hold their own headers
     }
-    int32_t need = m3GetEncodedReplaySize(snapshotBytes, journalBytes);
-    if (need == 0)
+    int64_t need = m3GetEncodedReplaySize(snapshotBytes, journalBytes);
+    if (need == 0 || !m3SizeFitsMemory(need))
     {
-        return m3_errorLimit; // the container would pass M3_MAX_SNAPSHOT_BYTES
+        return m3_errorLimit; // no buffer of this target holds the pair
     }
     if (capacity < need)
     {
@@ -128,9 +130,9 @@ m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void*
     return m3_success;
 }
 
-m3Result m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* viewOut)
+m3Result m3DecodeReplay(const void* data, int64_t bytes, m3ReplayView* viewOut)
 {
-    if (data == NULL || viewOut == NULL)
+    if (data == NULL || viewOut == NULL || bytes < 0 || !m3SizeFitsMemory(bytes))
     {
         return m3_errorInvalid;
     }
@@ -145,8 +147,7 @@ m3Result m3DecodeReplay(const void* data, int32_t bytes, m3ReplayView* viewOut)
     memcpy(&header, p, sizeof(header));
     if (header.snapshotBytes < M3_SNAPSHOT_HEADER_BYTES ||
         header.journalBytes < M3_JOURNAL_HEADER_BYTES ||
-        (int64_t)M3_REPLAY_HEADER_BYTES + header.snapshotBytes + header.journalBytes !=
-            (int64_t)bytes)
+        m3GetEncodedReplaySize(header.snapshotBytes, header.journalBytes) != bytes)
     {
         return m3_errorFormat;
     }

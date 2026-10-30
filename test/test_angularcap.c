@@ -157,7 +157,7 @@ static void TestHostileTape(void)
     m3BodyId body = Spinner(world, 0.0, 10.0f);
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the tape opens");
     m3Body_EnableFastRotation(world, body, true);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes == 16 + 20, "one flag op is the prefix, 8 header and 12 payload");
     m3DestroyWorld(world);
 

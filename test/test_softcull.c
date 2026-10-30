@@ -534,7 +534,7 @@ static void MovingScene(m3World* world, Probe* probe)
 typedef struct Outcome
 {
     uint8_t* bytes;
-    int32_t size;
+    int64_t size;
     int32_t moved;
     int32_t still;
 } Outcome;

@@ -210,7 +210,7 @@ static void TestRuntimeFilterChange(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m3Body_GetPosition(world, ball).y < -3.0, "the ghost falls through the ground");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     m3World* twin = NewWorld(&def);
     CHECK(ReplayJournal(twin, tape, bytes), "the session replays");
     CHECK(m3World_Hash(twin) == m3World_Hash(world), "the replayed filter change lands the same");

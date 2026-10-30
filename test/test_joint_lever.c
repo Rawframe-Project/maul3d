@@ -257,7 +257,7 @@ static void TestRestoreKeepsTheRatio(void)
     m3BodyId rod;
     m3ShapeId ball;
     m3World* world = RodWithBall(&rod, &ball);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the world snapshots");
     if (snap != NULL)
@@ -307,7 +307,7 @@ static void TestReplayKeepsTheRatio(void)
     m3JointDef jd = LeverDef(m3_revoluteJoint, ground, rod);
     m3JointId joint = m3_nullJointId;
     CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the rod with its ball is jointed");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);
 

@@ -120,7 +120,6 @@ maul_add_test(restore_links WHITEBOX)
 maul_add_test(joint_lever WHITEBOX)
 maul_add_test(restore_bounds WHITEBOX)
 maul_add_test(fuzz_oracle WHITEBOX)
-maul_add_test(snapshot_bound WHITEBOX)
 maul_add_test(shape_geometry WHITEBOX)
 maul_add_test(warmhold WHITEBOX)
 maul_add_test(rowsolve WHITEBOX)
@@ -141,25 +140,3 @@ endif()
 maul_add_header_tests()
 maul_add_exports_test()
 
-# The library again with the snapshot bound lowered to 4 MiB, for the one
-# suite that stands real worlds next to it (test_snapshot_lowbound.c). It
-# is built from the library's own sources wherever the white-box suites
-# are, and never installed.
-if(NOT ${MAUL_PREFIX}_BUILD_SHARED)
-    get_target_property(maul_lowbound_sources ${PROJECT_NAME} SOURCES)
-    list(TRANSFORM maul_lowbound_sources PREPEND ${PROJECT_SOURCE_DIR}/ REGEX "^src/")
-    add_library(${PROJECT_NAME}_lowbound STATIC ${maul_lowbound_sources})
-    target_include_directories(${PROJECT_NAME}_lowbound PUBLIC ${PROJECT_SOURCE_DIR}/include
-                               PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_compile_definitions(${PROJECT_NAME}_lowbound PUBLIC M3_SNAPSHOT_BOUND=4194304)
-    maul_apply_flags(${PROJECT_NAME}_lowbound)
-    if(NOT WIN32)
-        target_link_libraries(${PROJECT_NAME}_lowbound PUBLIC m)
-    endif()
-    add_executable(test_snapshot_lowbound ${PROJECT_SOURCE_DIR}/test/test_snapshot_lowbound.c)
-    target_link_libraries(test_snapshot_lowbound PRIVATE ${PROJECT_NAME}_lowbound)
-    target_include_directories(test_snapshot_lowbound PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    maul_apply_flags(test_snapshot_lowbound)
-    add_test(NAME snapshot_lowbound COMMAND test_snapshot_lowbound)
-    set_tests_properties(snapshot_lowbound PROPERTIES LABELS snapshot_lowbound)
-endif()

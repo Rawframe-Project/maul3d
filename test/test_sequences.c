@@ -85,7 +85,7 @@ static void TestStaleIdsEverywhere(void)
 
     // The journal calls answer a wrong recording state with its status.
     static uint8_t buf[256];
-    int32_t bytes = -1;
+    int64_t bytes = -1;
     CHECK(m3World_StopJournal(world, &bytes) == m3_errorState && bytes == 0,
           "stopping a journal that never started is refused");
     CHECK(StartJournal(world, buf, (int32_t)sizeof(buf)), "the journal starts");
@@ -111,7 +111,7 @@ static void TestSnapshotRefusals(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int32_t bytes = m3World_GetSnapshotSize(world);
+    int64_t bytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, snap, bytes - 1) == -1, "a short buffer refuses, loudly");
     CHECK(Snapshot(world, snap, bytes) == bytes, "the right buffer writes");
@@ -143,7 +143,7 @@ static void TestSnapshotRefusals(void)
 
 // Record a small session with creates, commands, a mid-journal
 // cascade destroy, and steps. Returns the byte count.
-static int32_t RecordSession(m3World* world, uint8_t* journal, int32_t cap)
+static int64_t RecordSession(m3World* world, uint8_t* journal, int64_t cap)
 {
     CHECK(StartJournal(world, journal, cap), "the journal arms");
     m3BodyDef bd = m3DefaultBodyDef();
@@ -172,7 +172,7 @@ static void TestJournalCorruptionIsAtomic(void)
 {
     static uint8_t journal[65536];
     m3World* source = SmallWorld();
-    int32_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
+    int64_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
     CHECK(bytes > 0, "the cascade session records");
     uint64_t sourceHash = m3World_Hash(source);
     m3DestroyWorld(source);
@@ -313,7 +313,7 @@ static void TestReplayWrongSizePayloads(void)
     static uint8_t journal[65536];
     static uint8_t evil[65536];
     m3World* source = SmallWorld();
-    int32_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
+    int64_t bytes = RecordSession(source, journal, (int32_t)sizeof(journal));
     m3DestroyWorld(source);
     CHECK(bytes > 16, "the session recorded");
 

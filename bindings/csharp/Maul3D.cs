@@ -274,12 +274,12 @@ namespace Maul3D
         // refuses any config or version mismatch (loudly, by contract,
         // never a partial restore).
         [DllImport(Lib, EntryPoint = "m3World_GetSnapshotSize")]
-        public static extern int GetSnapshotSize(IntPtr world);
+        public static extern long GetSnapshotSize(IntPtr world);
         [DllImport(Lib, EntryPoint = "m3World_Snapshot")]
-        public static extern Result Snapshot(IntPtr world, byte[] buffer, int capacity,
-                                             out int bytes);
+        public static extern Result Snapshot(IntPtr world, byte[] buffer, long capacity,
+                                             out long bytes);
         [DllImport(Lib, EntryPoint = "m3World_Restore")]
-        public static extern Result Restore(IntPtr world, byte[] data, int size);
+        public static extern Result Restore(IntPtr world, byte[] data, long size);
 
         // Body
         [DllImport(Lib, EntryPoint = "m3DefaultBodyDef")]

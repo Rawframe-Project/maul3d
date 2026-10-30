@@ -104,7 +104,7 @@ static void TestRefusedCreatesMoveNoIds(void)
     DestroyBody(world, filler[fillers - 1]);
     CHECK(m3Character_IsValid(world, NewCharacter(world, &cd)), "and fits once one frees up");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the tape closes");
 
     m3World* twin = NewWorld(&def);
@@ -116,7 +116,7 @@ static void TestRefusedCreatesMoveNoIds(void)
 
 // Records one dynamic body with a sphere, with the body def's bool at
 // `offset` set to `value`, and returns the tape's size.
-static int32_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset, bool value)
+static int64_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset, bool value)
 {
     m3WorldDef def = m3DefaultWorldDef();
     m3World* world = NewWorld(&def);
@@ -129,14 +129,14 @@ static int32_t RecordBodyWithFlag(uint8_t* tape, int32_t capacity, size_t offset
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, body, &sd, &sphere);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     m3DestroyWorld(world);
     return bytes;
 }
 
 // Replays a tape into a fresh world, steps it, and returns its hash, or
 // 0 when the replay refuses.
-static uint64_t ReplayAndStep(const uint8_t* tape, int32_t bytes)
+static uint64_t ReplayAndStep(const uint8_t* tape, int64_t bytes)
 {
     m3WorldDef def = m3DefaultWorldDef();
     m3World* world = NewWorld(&def);
@@ -181,9 +181,9 @@ static void TestBodyDefBoolBytesReadAsTrue(void)
         // Each recording runs in a new world generation, which the ids
         // on the tape carry; a second "on" tape tells those bytes apart
         // from the field's own byte.
-        int32_t bytes = RecordBodyWithFlag(on, (int32_t)sizeof(on), fields[f].offset, true);
-        int32_t offBytes = RecordBodyWithFlag(off, (int32_t)sizeof(off), fields[f].offset, false);
-        int32_t againBytes =
+        int64_t bytes = RecordBodyWithFlag(on, (int32_t)sizeof(on), fields[f].offset, true);
+        int64_t offBytes = RecordBodyWithFlag(off, (int32_t)sizeof(off), fields[f].offset, false);
+        int64_t againBytes =
             RecordBodyWithFlag(again, (int32_t)sizeof(again), fields[f].offset, true);
         int32_t at = -1;
         int32_t differing = 0;
@@ -242,7 +242,7 @@ int main(void)
     m3BodyId a2 = NewBody(a, &bd); // recycles a0's slot, new generation
     CHECK(a2.index1 == a0.index1 && a2.generation != a0.generation, "recycle in the journal");
 
-    int32_t bytes = StopJournal(a);
+    int64_t bytes = StopJournal(a);
     CHECK(bytes > 0, "journal ends with bytes");
 
     // Replay into a fresh world B: identical ids, identical state.

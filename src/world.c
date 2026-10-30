@@ -312,14 +312,13 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
     {
         return checked;
     }
-    // The world's snapshot must stay within M3_MAX_SNAPSHOT_BYTES whatever
-    // mesh and hull content it takes: measured on the def's capacities
+    // The step scratch is one block: measured on the def's capacities
     // alone, before anything is allocated.
     m3World measured;
     memset(&measured, 0, sizeof(measured));
     ApplyWorldDef(&measured, def);
     measured.broadphase.tree.capacity = TreeCapacity(def->shapeCapacity);
-    if (!m3SnapshotFitsCapacities(&measured) || m3StepScratchBytes(&measured) > INT32_MAX)
+    if (m3StepScratchBytes(&measured) > INT32_MAX)
     {
         return m3_errorCapacity;
     }

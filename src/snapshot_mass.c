@@ -17,8 +17,8 @@
 
 // Where each hull slot's content starts in the tail, or -1 for an empty
 // slot; TailFits has checked every count and size.
-static void HullContentStarts(const m3World* world, const uint8_t* raw, int32_t cursor,
-                              int32_t* starts)
+static void HullContentStarts(const m3World* world, const uint8_t* raw, int64_t cursor,
+                              int64_t* starts)
 {
     for (int32_t h = 0; h < world->shapes.shapeCapacity; ++h)
     {
@@ -28,10 +28,10 @@ static void HullContentStarts(const m3World* world, const uint8_t* raw, int32_t 
         starts[h] = counts[0] > 0 ? cursor : -1;
         if (counts[0] > 0)
         {
-            cursor += 4 + 2 * (int32_t)sizeof(m3Vec3) + (int32_t)sizeof(m3Mat3) +
-                      counts[0] * (int32_t)sizeof(m3Vec3) +
-                      counts[1] * ((int32_t)sizeof(m3Vec3) + 4 + 1 + 2) + counts[2] +
-                      counts[3] * (int32_t)sizeof(m3HullHalfEdge);
+            cursor += 4 + 2 * (int64_t)sizeof(m3Vec3) + (int64_t)sizeof(m3Mat3) +
+                      counts[0] * (int64_t)sizeof(m3Vec3) +
+                      counts[1] * ((int64_t)sizeof(m3Vec3) + 4 + 1 + 2) + counts[2] +
+                      counts[3] * (int64_t)sizeof(m3HullHalfEdge);
         }
     }
 }
@@ -50,7 +50,7 @@ typedef struct IncomingShapes
     const uint8_t* localPos;
     const uint8_t* localRot;
     const uint8_t* raw;
-    const int32_t* starts;
+    const int64_t* starts;
     m3HullData* hull;
 } IncomingShapes;
 
@@ -143,11 +143,11 @@ static bool IncomingLeversFit(m3World* world, const uint8_t* prefix, const Incom
 // links check has made the shape lists, joint bodies and content indices
 // safe to follow.
 m3Result m3SnapshotMassesFit(m3World* world, const uint8_t* raw, const uint8_t* prefix,
-                             int32_t hullCursor)
+                             int64_t hullCursor)
 {
-    int32_t* starts = (int32_t*)m3AllocArray(
+    int64_t* starts = (int64_t*)m3AllocArray(
         &world->heap, world->shapes.shapeCapacity > 0 ? world->shapes.shapeCapacity : 1,
-        (int64_t)sizeof(int32_t));
+        (int64_t)sizeof(int64_t));
     if (starts == NULL)
     {
         return m3_errorCapacity;

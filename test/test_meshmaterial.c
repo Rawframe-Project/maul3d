@@ -164,7 +164,7 @@ static void ToggleFree(void* memory, size_t bytes, size_t alignment, void* conte
 
 // Whether a world's snapshot equals the given bytes. The hash leaves
 // mesh materials out; the snapshot carries them.
-static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
+static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int64_t size)
 {
     uint8_t* now = (uint8_t*)malloc((size_t)size);
     bool same =
@@ -185,7 +185,7 @@ static void TestPaintJournaledWithoutMemory(void)
     wd.allocator = (m3Allocator){ToggleAlloc, ToggleFree, &refuse};
     m3World* world = NewWorld(&wd);
     m3ShapeId floor = Quad(world);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* unpainted = (uint8_t*)malloc((size_t)size);
     uint8_t* painted = (uint8_t*)malloc((size_t)size);
     CHECK(unpainted != NULL && painted != NULL && Snapshot(world, unpainted, size) == size,
@@ -202,7 +202,7 @@ static void TestPaintJournaledWithoutMemory(void)
     refuse = false;
     CHECK(Snapshot(world, painted, size) == size && !SnapshotIs(world, unpainted, size),
           "the paint is state");
-    int32_t tapeBytes = StopJournal(world);
+    int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the paint is on the tape");
     CHECK(Restore(world, unpainted, size) && SnapshotIs(world, unpainted, size),
           "the world rolls back to unpainted");

@@ -181,67 +181,7 @@ int64_t m3WalkOut(const m3World* world, uint8_t* out, m3WalkMode mode, int inclu
     return m3WalkBlocks((m3World*)world, out, NULL, mode, includeMesh);
 }
 
-bool m3SnapshotWithinBound(int64_t bytes)
-{
-    return bytes <= M3_SNAPSHOT_BOUND;
-}
-
 int64_t m3SnapshotBytes(const m3World* world)
 {
-    int64_t size = (int64_t)M3_SNAPSHOT_HEADER_BYTES + m3WalkOut(world, NULL, m3_walkMeasure, 1);
-    M3_ASSERT(m3SnapshotWithinBound(size)); // the world_state.h invariant
-    return size;
-}
-
-// The most bytes one mesh slot and one shape slot take in the tail, the
-// walk's own measure of the largest counts its checks let in. A shape
-// slot carries a hull and an empty height field: height field content is
-// counted as it is created, not here.
-static int64_t MeshSlotMostBytes(void)
-{
-    m3MeshData mesh;
-    memset(&mesh, 0, sizeof(mesh));
-    mesh.vertexCount = M3_MAX_MESH_VERTICES;
-    mesh.triangleCount = M3_MAX_MESH_TRIANGLES;
-    m3Walk walk = {NULL, NULL, m3_walkMeasure, 0};
-    m3WalkMesh(NULL, &walk, &mesh);
-    return walk.cursor;
-}
-
-static int64_t ShapeSlotMostBytes(void)
-{
-    m3HullData hull;
-    memset(&hull, 0, sizeof(hull));
-    hull.vertexCount = M3_HULL_MAX_VERTS;
-    hull.faceCount = M3_HULL_MAX_FACES;
-    hull.indexCount = M3_HULL_MAX_FACE_INDICES;
-    hull.edgeCount = M3_HULL_MAX_HALF_EDGES;
-    m3HeightFieldData empty;
-    memset(&empty, 0, sizeof(empty));
-    m3Walk walk = {NULL, NULL, m3_walkMeasure, 0};
-    m3WalkHull(&walk, &hull);
-    m3WalkHeightField(NULL, &walk, &empty);
-    return walk.cursor;
-}
-
-bool m3SnapshotFitsCapacities(const m3World* world)
-{
-    int64_t most = (int64_t)M3_SNAPSHOT_HEADER_BYTES + m3StateSnapshotBytes(world) +
-                   (int64_t)world->meshes.meshCapacity * MeshSlotMostBytes() +
-                   (int64_t)world->shapes.shapeCapacity * ShapeSlotMostBytes();
-    return m3SnapshotWithinBound(most);
-}
-
-bool m3SnapshotTakesHeightField(const m3World* world, int32_t nx, int32_t nz)
-{
-    // What the slot's walk adds over the empty slot it fills.
-    m3HeightFieldData hf;
-    memset(&hf, 0, sizeof(hf));
-    m3Walk empty = {NULL, NULL, m3_walkMeasure, 0};
-    m3WalkHeightField(NULL, &empty, &hf);
-    hf.nx = nx;
-    hf.nz = nz;
-    m3Walk filled = {NULL, NULL, m3_walkMeasure, 0};
-    m3WalkHeightField(NULL, &filled, &hf);
-    return m3SnapshotWithinBound(m3SnapshotBytes(world) + filled.cursor - empty.cursor);
+    return (int64_t)M3_SNAPSHOT_HEADER_BYTES + m3WalkOut(world, NULL, m3_walkMeasure, 1);
 }

@@ -13,8 +13,9 @@ Rollback netcode, lockstep multiplayer, replays and server-side
 verification are a few calls away:
 
 ```c
-int32_t size = m3World_GetSnapshotSize(world);
-m3World_Snapshot(world, buffer, size);
+int64_t size = m3World_GetSnapshotSize(world);
+int64_t written = 0;
+m3World_Snapshot(world, buffer, size, &written);
 /* ... mispredicted steps ... */
 m3World_Restore(world, buffer, size); // resimulate from here, bit for bit
 ```

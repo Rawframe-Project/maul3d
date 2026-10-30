@@ -28,16 +28,16 @@ static void Require(bool condition)
 // The world each input lands on: the shared scene after a short
 // session, so a refusal has real state to leave alone.
 static uint8_t* s_scene;
-static int32_t s_sceneBytes;
+static int64_t s_sceneBytes;
 static m3CharacterId s_hero;
 
-static uint8_t* SnapshotOf(const m3World* world, int32_t* bytesOut)
+static uint8_t* SnapshotOf(const m3World* world, int64_t* bytesOut)
 {
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     Require(size > 0);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     Require(bytes != NULL);
-    int32_t written = 0;
+    int64_t written = 0;
     Require(m3World_Snapshot(world, bytes, size, &written) == m3_success && written == size);
     *bytesOut = size;
     return bytes;
@@ -76,9 +76,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
     m3World* world = FreshWorld();
     Require(m3World_Restore(world, s_scene, s_sceneBytes) == m3_success);
-    m3Result result = m3World_Restore(world, data, (int32_t)size);
+    m3Result result = m3World_Restore(world, data, (int64_t)size);
     Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* written = SnapshotOf(world, &bytes);
     if (result != m3_success)
     {
@@ -88,7 +88,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     {
         m3World* again = FreshWorld();
         Require(m3World_Restore(again, written, bytes) == m3_success);
-        int32_t againBytes = 0;
+        int64_t againBytes = 0;
         uint8_t* rewritten = SnapshotOf(again, &againBytes);
         Require(againBytes == bytes && memcmp(rewritten, written, (size_t)bytes) == 0);
         free(rewritten);

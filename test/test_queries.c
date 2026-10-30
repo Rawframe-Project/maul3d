@@ -74,7 +74,7 @@ static void TestContactEvents(void)
     CHECK(ends == 1, "one end event for the launch");
 
     // Events are transient: a snapshot restore clears them.
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "snapshot writes");
     CHECK(Restore(world, snap, snapBytes), "snapshot restores");

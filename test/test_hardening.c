@@ -134,7 +134,7 @@ static void TestJournalOverflowIsLoud(void)
         NewBody(world, &bd); // each op needs more than 64 bytes
     }
     uint64_t misuse = m3World_GetCounters(world).misuse;
-    int32_t bytes = 77;
+    int64_t bytes = 77;
     CHECK(m3World_StopJournal(world, &bytes) == m3_errorCapacity && bytes == 0,
           "the stop reports the overflow as m3_errorCapacity and zeroes bytesOut");
     CHECK(m3World_GetCounters(world).misuse == misuse, "a full journal buffer is no misuse");
@@ -252,9 +252,9 @@ static m3World* CursorWorld(int32_t bodies)
 }
 
 // Finds a byte pattern in a buffer: its offset, or -1.
-static int32_t FindBytes(const uint8_t* buffer, int32_t size, const void* pattern, int32_t bytes)
+static int64_t FindBytes(const uint8_t* buffer, int64_t size, const void* pattern, int32_t bytes)
 {
-    for (int32_t at = 0; at + bytes <= size; ++at)
+    for (int64_t at = 0; at + bytes <= size; ++at)
     {
         if (memcmp(buffer + at, pattern, (size_t)bytes) == 0)
         {
@@ -287,18 +287,18 @@ static void TestRestoreRefusesBadMeshContent(void)
     paint[1].friction = 0.61f;
     uint8_t groups[2] = {0, 1};
     m3MeshShape_SetMaterials(world, floor, paint, 2, groups);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
     uint8_t* after = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && poisoned != NULL && after != NULL &&
               Snapshot(world, clean, size) == size,
           "the mesh world is snapshotted");
-    int32_t indicesAt = FindBytes(clean, size, tris, (int32_t)sizeof(tris));
-    int32_t vertexAt = FindBytes(clean, size, &verts[1], (int32_t)sizeof(m3Vec3));
-    int32_t paintAt = FindBytes(clean, size, paint, (int32_t)sizeof(paint));
+    int64_t indicesAt = FindBytes(clean, size, tris, (int32_t)sizeof(tris));
+    int64_t vertexAt = FindBytes(clean, size, &verts[1], (int32_t)sizeof(m3Vec3));
+    int64_t paintAt = FindBytes(clean, size, paint, (int32_t)sizeof(paint));
     // The group bytes follow the eight-entry material table.
-    int32_t groupsAt = paintAt + 8 * (int32_t)sizeof(m3MeshSurfaceMaterial);
+    int64_t groupsAt = paintAt + 8 * (int32_t)sizeof(m3MeshSurfaceMaterial);
     CHECK(indicesAt >= 0 && vertexAt >= 0 && paintAt >= 0 && groupsAt + 2 <= size &&
               memcmp(clean + groupsAt, groups, sizeof(groups)) == 0,
           "the mesh content is found");
@@ -328,7 +328,7 @@ static void TestRestoreRefusesBadMeshContent(void)
 
     struct
     {
-        int32_t at;
+        int64_t at;
         float friction;
         uint8_t group;
         const char* msg;
@@ -359,7 +359,7 @@ static void TestRestoreRefusesBadMeshContent(void)
 // One poisoning of a snapshot: write bytes at an offset.
 typedef struct Poison
 {
-    int32_t at;
+    int64_t at;
     uint8_t bytes[8];
     int32_t count;
     const char* msg;
@@ -368,7 +368,7 @@ typedef struct Poison
 // Restores each poisoned copy of a clean snapshot: each must be refused
 // as invalid with the world's bytes unchanged. The world then steps, so
 // code that took the poison would read it, and goes back to clean.
-static void CheckPoisonsRefused(m3World* world, const uint8_t* clean, int32_t size,
+static void CheckPoisonsRefused(m3World* world, const uint8_t* clean, int64_t size,
                                 const Poison* poisons, int32_t poisonCount)
 {
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
@@ -388,14 +388,14 @@ static void CheckPoisonsRefused(m3World* world, const uint8_t* clean, int32_t si
     free(poisoned);
 }
 
-static Poison PoisonU16(int32_t at, uint16_t value, const char* msg)
+static Poison PoisonU16(int64_t at, uint16_t value, const char* msg)
 {
     Poison p = {at, {0}, 2, msg};
     memcpy(p.bytes, &value, sizeof(value));
     return p;
 }
 
-static Poison PoisonF32(int32_t at, float value, const char* msg)
+static Poison PoisonF32(int64_t at, float value, const char* msg)
 {
     Poison p = {at, {0}, 4, msg};
     memcpy(p.bytes, &value, sizeof(value));
@@ -420,7 +420,7 @@ static void TestRestoreRefusesBadHullContent(void)
     const m3Vec3 half = {0.37f, 0.41f, 0.53f};
     NewBoxShape(world, NewBody(world, &bd), &sd, half);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the hull world is snapshotted");
 
@@ -429,10 +429,10 @@ static void TestRestoreRefusesBadHullContent(void)
     // and offsets, the counts, the starts, the 24 indices and the 24 half
     // edges (twin, next, origin, face).
     const m3Vec3 first[2] = {{-half.x, -half.y, -half.z}, {half.x, -half.y, -half.z}};
-    int32_t vertsAt = clean != NULL ? FindBytes(clean, size, first, (int32_t)sizeof(first)) : -1;
-    int32_t startsAt = vertsAt + 8 * 12 + 6 * 12 + 6 * 4 + 6;
-    int32_t indicesAt = startsAt + 6 * 2;
-    int32_t edgesAt = indicesAt + 24;
+    int64_t vertsAt = clean != NULL ? FindBytes(clean, size, first, (int32_t)sizeof(first)) : -1;
+    int64_t startsAt = vertsAt + 8 * 12 + 6 * 12 + 6 * 4 + 6;
+    int64_t indicesAt = startsAt + 6 * 2;
+    int64_t edgesAt = indicesAt + 24;
     CHECK(vertsAt >= 0 && edgesAt + 24 * 6 <= size, "the hull content is found");
     if (vertsAt >= 0 && edgesAt + 24 * 6 <= size)
     {
@@ -535,7 +535,7 @@ static void TestRestoreAcceptsEveryCreatedHull(void)
     }
     printf("M3_HULL_RESTORE created=%d of 700\n", created);
     CHECK(created == 700, "every cloud creates, tight clusters included");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the hull world is snapshotted");
     CHECK(snap != NULL && Restore(world, snap, size), "every created hull restores");
@@ -586,7 +586,7 @@ static void TestFarHullsCreate(void)
     }
     printf("M3_FAR_HULL refused=%d of 840\n", refused);
     CHECK(refused == 0, "a small hull far from its body's origin creates");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the far hulls are snapshotted");
     CHECK(snap != NULL && Restore(world, snap, size), "every far hull restores");
@@ -617,13 +617,13 @@ static void TestRestoreRefusesBadHullDerived(void)
     bd.position = (m3Pos3){0.0, 0.85, 0.0};
     NewHullShape(world, NewBody(world, &bd), &sd, rock, 8);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the rock world is snapshotted");
     // Before the vertices come the four counts, the unit mass, the
     // centroid, the inertia and the center; after them the face normals
     // and offsets.
-    int32_t vertsAt =
+    int64_t vertsAt =
         clean != NULL ? FindBytes(clean, size, rock, 2 * (int32_t)sizeof(m3Vec3)) : -1;
     int32_t vc = 0;
     int32_t fc = 0;
@@ -632,8 +632,8 @@ static void TestRestoreRefusesBadHullDerived(void)
         memcpy(&vc, clean + vertsAt - 80, 4);
         memcpy(&fc, clean + vertsAt - 76, 4);
     }
-    int32_t normalsAt = vertsAt + vc * 12;
-    int32_t offsetsAt = normalsAt + fc * 12;
+    int64_t normalsAt = vertsAt + vc * 12;
+    int64_t offsetsAt = normalsAt + fc * 12;
     CHECK(vertsAt >= 80 && vc == 8 && fc >= 6 && offsetsAt + fc * 4 <= size,
           "the rock's content is found");
     if (vertsAt >= 80 && vc == 8 && fc >= 6 && offsetsAt + fc * 4 <= size)
@@ -698,10 +698,10 @@ static void TestRestoreRefusesForgedNeedlePlane(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     NewHullShape(world, NewBody(world, &bd), &sd, pts, 9);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size, "the needle world is snapshotted");
-    int32_t vertsAt =
+    int64_t vertsAt =
         clean != NULL ? FindBytes(clean, size, &pts[1], 2 * (int32_t)sizeof(m3Vec3)) : -1;
     int32_t vc = 0;
     int32_t fc = 0;
@@ -710,8 +710,8 @@ static void TestRestoreRefusesForgedNeedlePlane(void)
         memcpy(&vc, clean + vertsAt - 80, 4);
         memcpy(&fc, clean + vertsAt - 76, 4);
     }
-    int32_t normalsAt = vertsAt + vc * 12;
-    int32_t offsetsAt = normalsAt + fc * 12;
+    int64_t normalsAt = vertsAt + vc * 12;
+    int64_t offsetsAt = normalsAt + fc * 12;
     CHECK(vertsAt >= 80 && vc == 8 && fc == 6 && offsetsAt + fc * 4 <= size,
           "the needle's content is found");
     if (vertsAt >= 80 && vc == 8 && fc == 6 && offsetsAt + fc * 4 <= size)
@@ -761,12 +761,12 @@ static void TestRestoreRefusesBadHeightFieldContent(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){1.0, 2.0, 1.0};
     NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && Snapshot(world, clean, size) == size,
           "the height field world is snapshotted");
     // The cell size, then the minimum and maximum, sit before the samples.
-    int32_t samplesAt =
+    int64_t samplesAt =
         clean != NULL ? FindBytes(clean, size, heights, (int32_t)sizeof(heights)) : -1;
     CHECK(samplesAt >= 12, "the samples are found");
     if (samplesAt >= 12)
@@ -791,7 +791,7 @@ static void TestRestoreRefusesBadCursors(void)
     // before anything is overwritten.
     m3World* world = CursorWorld(1);
     m3World* twin = CursorWorld(2);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     CHECK(m3World_GetSnapshotSize(twin) == size, "one world shape, one snapshot size");
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     uint8_t* other = (uint8_t*)malloc((size_t)size);
@@ -853,7 +853,7 @@ static void TestRestoreRefusesPoisonedWords(void)
     NewBoxShape(world, box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
 
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && poisoned != NULL, "snapshot buffers");
@@ -934,13 +934,13 @@ static void TestUntrustedDataCountsNoMisuse(void)
 {
     m3World* world = CursorWorld(3);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     static uint8_t tape[4096];
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t tapeBytes = StopJournal(world);
+    int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 16 + 8, "the journal holds a step after its prefix");
     CHECK(Restore(world, snap, size), "the clean snapshot restores");
     uint64_t before = m3World_GetCounters(world).misuse;
@@ -987,12 +987,12 @@ static void TestUntrustedDataCountsNoMisuse(void)
 // still restore, replay and decode after them. Offsets are the state
 // prefix's (docs/internals/state-formats.md): the ABI version at 4, the
 // format number at 8, the header size at 12, the snapshot's build hash
-// at 16, and a container's snapshot after its 40-byte header.
+// at 16, and a container's snapshot after its 56-byte header.
 static void TestOtherReleasesAreRefused(void)
 {
     m3World* world = CursorWorld(3);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     uint8_t* bad = (uint8_t*)malloc((size_t)snapBytes + 8192);
     static uint8_t tape[4096];
@@ -1000,10 +1000,10 @@ static void TestOtherReleasesAreRefused(void)
           "the snapshot is taken");
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t tapeBytes = StopJournal(world);
-    int32_t boxBytes = m3GetEncodedReplaySize(snapBytes, tapeBytes);
+    int64_t tapeBytes = StopJournal(world);
+    int64_t boxBytes = m3GetEncodedReplaySize(snapBytes, tapeBytes);
     uint8_t* box = (uint8_t*)malloc((size_t)boxBytes);
-    int32_t written = 0;
+    int64_t written = 0;
     CHECK(box != NULL && m3EncodeReplay(snap, snapBytes, tape, tapeBytes, m3World_Hash(world), box,
                                         boxBytes, &written) == m3_success,
           "the container is encoded");
@@ -1041,8 +1041,8 @@ static void TestOtherReleasesAreRefused(void)
         {CONTAINER, 8, m3_errorVersion, "a container of another format number"},
         {CONTAINER, 0, m3_errorFormat, "a container with another magic"},
         {CONTAINER, 12, m3_errorFormat, "a container with another header size"},
-        {CONTAINER, 40 + 4, m3_errorVersion, "a container holding another release's snapshot"},
-        {CONTAINER, 40 + 8, m3_errorVersion, "a container holding another snapshot format"},
+        {CONTAINER, 56 + 4, m3_errorVersion, "a container holding another release's snapshot"},
+        {CONTAINER, 56 + 8, m3_errorVersion, "a container holding another snapshot format"},
         {CONTAINER, -4, m3_errorVersion, "a container holding another release's tape"},
     };
     for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
@@ -1050,11 +1050,11 @@ static void TestOtherReleasesAreRefused(void)
         const uint8_t* clean = cases[c].format == SNAPSHOT ? snap
                                : cases[c].format == TAPE   ? tape
                                                            : box;
-        int32_t size = cases[c].format == SNAPSHOT ? snapBytes
+        int64_t size = cases[c].format == SNAPSHOT ? snapBytes
                        : cases[c].format == TAPE   ? tapeBytes
                                                    : written;
         // A negative offset names the container's tape: its ABI version.
-        int32_t at = cases[c].at >= 0 ? cases[c].at : 40 + snapBytes + 4;
+        int64_t at = cases[c].at >= 0 ? cases[c].at : 56 + snapBytes + 4;
         memcpy(bad, clean, (size_t)size);
         uint32_t word = 0;
         memcpy(&word, bad + at, 4);
@@ -1093,7 +1093,7 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(m3DecodeReplay(box, written, &view) == m3_success, "the container as written decodes");
     // A valid prefix whose header runs past the bytes is refused before the
     // header is read: 20 bytes of a snapshot or a container, in allocations
-    // of exactly that size, so a sanitizer sees any read of the 56 or 40.
+    // of exactly that size, so a sanitizer sees any read of either 56-byte header.
     uint8_t* stub = (uint8_t*)malloc(20);
     CHECK(stub != NULL, "the stub is allocated");
     if (stub != NULL)
@@ -1159,8 +1159,8 @@ static void CreateOnGround(m3World* world, m3BodyId ground, StaticDoor door)
 // Replays a tape over the snapshot, after an optional change the tape
 // does not hold. Whether it is refused as untrusted data: m3_errorInvalid,
 // no misuse, and the world as it was.
-static bool TapeRefused(m3World* world, const uint8_t* snap, int32_t snapBytes, const uint8_t* tape,
-                        int32_t tapeBytes, m3BodyId makeDynamic)
+static bool TapeRefused(m3World* world, const uint8_t* snap, int64_t snapBytes, const uint8_t* tape,
+                        int64_t tapeBytes, m3BodyId makeDynamic)
 {
     if (!Restore(world, snap, snapBytes))
     {
@@ -1185,9 +1185,9 @@ static void TestReplayHoldsTheShapeRules(void)
     m3World* world = NewWorld(&def);
     m3BodyDef gd = m3DefaultBodyDef();
     m3BodyId ground = NewBody(world, &gd);
-    int32_t capacity = m3World_GetSnapshotSize(world);
+    int64_t capacity = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
-    int32_t snapBytes = Snapshot(world, snap, capacity);
+    int64_t snapBytes = Snapshot(world, snap, capacity);
     CHECK(snap != NULL && snapBytes > 0, "the empty ground is snapshotted");
     static uint8_t tape[65536];
     for (int32_t door = 0; door < doorCount; ++door)
@@ -1195,7 +1195,7 @@ static void TestReplayHoldsTheShapeRules(void)
         CHECK(Restore(world, snap, snapBytes), "the ground restores");
         CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
         CreateOnGround(world, ground, (StaticDoor)door);
-        int32_t tapeBytes = StopJournal(world);
+        int64_t tapeBytes = StopJournal(world);
         CHECK(tapeBytes > 8, "the create is recorded");
         CHECK(TapeRefused(world, snap, snapBytes, tape, tapeBytes, ground),
               "a static-only shape on a dynamic body is refused by replay");

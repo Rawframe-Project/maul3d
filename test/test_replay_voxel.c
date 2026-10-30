@@ -67,7 +67,7 @@ static void Apply(Chunk* c, Edit edit, int32_t x, int32_t y, int32_t z)
 #define TAPE_HEADER_BYTES 16
 
 // Replaces the one occurrence of from's bytes in the record with to's.
-static bool Patch(int32_t bytes, int32_t from, int32_t to)
+static bool Patch(int64_t bytes, int32_t from, int32_t to)
 {
     int32_t at = -1;
     for (int32_t i = TAPE_HEADER_BYTES; i + 4 <= bytes; ++i)
@@ -101,13 +101,13 @@ static void CheckEdit(const char* name, Edit edit)
             char what[160];
             Chunk c = BuildChunk();
             CHECK(m3Shape_IsValid(c.world, c.shape), "the chunk builds");
-            int32_t snapshotBytes = m3World_GetSnapshotSize(c.world);
+            int64_t snapshotBytes = m3World_GetSnapshotSize(c.world);
             uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
             CHECK(snapshot != NULL, "the snapshot buffer");
             Snapshot(c.world, snapshot, snapshotBytes);
             StartJournal(c.world, s_journal, (int32_t)sizeof(s_journal));
             Apply(&c, edit, cell[0], cell[1], cell[2]);
-            int32_t bytes = StopJournal(c.world);
+            int64_t bytes = StopJournal(c.world);
             m3DestroyWorld(c.world);
 
             m3WorldDef def = m3DefaultWorldDef();

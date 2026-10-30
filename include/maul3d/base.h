@@ -302,17 +302,7 @@ extern "C"
 //   field built as a mesh.
 #define M3_MAX_HEIGHTFIELD_SIZE      255
 #define M3_MAX_HEIGHTFIELD_MESH_SIZE 32
-// The soft body, vehicle and drivetrain counts are in their headers.
-
-// The largest snapshot in bytes, INT32_MAX: snapshot sizes are int32_t
-// byte counts, and maul3d's journal records ops and never embeds a
-// snapshot, so a snapshot may take the whole range. (A replay container,
-// which holds one beside a tape, refuses a pair past INT32_MAX: see
-// m3GetEncodedReplaySize.) A world's snapshot never passes it:
-// m3CreateWorld refuses a def whose world could with its mesh and hull
-// content at the largest, and m3CreateHeightFieldGridShape refuses
-// samples that would carry it past.
-#define M3_MAX_SNAPSHOT_BYTES 2147483647
+    // The soft body, vehicle and drivetrain counts are in their headers.
 
 #ifdef __cplusplus
 }

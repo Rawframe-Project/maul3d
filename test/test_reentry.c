@@ -30,7 +30,7 @@ typedef struct Reentry
     m3BodyId body;
     m3ShapeId shape;
     const uint8_t* snapshot;
-    int32_t snapshotSize;
+    int64_t snapshotSize;
 } Reentry;
 
 static const m3Vec3 kQuadVerts[4] = {
@@ -112,9 +112,9 @@ typedef struct Scene
     m3BodyId ground;
     m3ShapeId floor;
     uint8_t* snapshot;
-    int32_t snapshotSize;
+    int64_t snapshotSize;
     uint8_t tape[4096];
-    int32_t tapeBytes;
+    int64_t tapeBytes;
 } Scene;
 
 static void BuildScene(Scene* scene, Reentry* r)

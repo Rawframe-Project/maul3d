@@ -21,10 +21,10 @@ m3StatePrefix m3MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t 
     return prefix;
 }
 
-m3Result m3CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uint32_t formatVersion,
+m3Result m3CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes)
 {
-    if (bytes == NULL || size < (int32_t)sizeof(m3StatePrefix))
+    if (bytes == NULL || size < (int64_t)sizeof(m3StatePrefix))
     {
         return m3_errorFormat;
     }

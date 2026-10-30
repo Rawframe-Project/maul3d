@@ -42,13 +42,13 @@ int main(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     Require(m3CreateSphereShape(world, ball, &sd, &sphere, &shape), "m3CreateSphereShape");
 
-    int32_t capacity = m3World_GetSnapshotSize(world);
+    int64_t capacity = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)capacity);
     if (snap == NULL)
     {
         return 1;
     }
-    int32_t size = 0;
+    int64_t size = 0;
     Require(m3World_Snapshot(world, snap, capacity, &size), "m3World_Snapshot");
     uint64_t then = m3World_Hash(world);
 

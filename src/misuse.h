@@ -41,6 +41,19 @@ static inline m3Result m3CreateRefusal(const m3World* world, int32_t refusal)
     return m3Refuse(world, (m3Result)refusal);
 }
 
+// Whether a byte count fits this target's size_t, so a buffer of that
+// length can exist: always on a 64-bit target, and up to SIZE_MAX on a
+// 32-bit one. A size past it is a caller's bug.
+static inline bool m3SizeFitsMemory(int64_t bytes)
+{
+#if SIZE_MAX < INT64_MAX
+    return bytes <= (int64_t)SIZE_MAX;
+#else
+    (void)bytes;
+    return true;
+#endif
+}
+
 // A list call's array and capacity: a NULL array with capacity 0
 // measures, any array takes a capacity of 0 or more, and anything else is
 // refused.

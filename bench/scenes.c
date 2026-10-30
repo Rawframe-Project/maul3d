@@ -795,7 +795,7 @@ BenchRollback BenchRollback5k(int32_t settleSteps, BenchClock* clock)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     double t0 = Now(clock);
     result.bytes = Snapshot(world, snap, snapBytes);

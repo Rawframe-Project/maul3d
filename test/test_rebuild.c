@@ -115,7 +115,7 @@ static void TestRebuildChangesNoAnswer(void)
 
 // Whether a world's snapshot, which carries the tree, equals the given
 // bytes.
-static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int32_t size)
+static bool SnapshotIs(const m3World* world, const uint8_t* bytes, int64_t size)
 {
     uint8_t* now = (uint8_t*)malloc((size_t)size);
     bool same =
@@ -132,7 +132,7 @@ static void TestRebuildWithoutMemory(void)
     // holds. With memory the op is recorded and replays to the same tree.
     bool refuse = false;
     m3World* world = City(&refuse);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* start = (uint8_t*)malloc((size_t)size);
     uint8_t* rebuilt = (uint8_t*)malloc((size_t)size);
     CHECK(start != NULL && rebuilt != NULL && Snapshot(world, start, size) == size,
@@ -148,7 +148,7 @@ static void TestRebuildWithoutMemory(void)
     refuse = false;
     CHECK(result == m3_errorCapacity, "the rebuild refuses with capacity");
     CHECK(SnapshotIs(world, start, size), "the refused rebuild keeps the old tree");
-    int32_t tapeBytes = StopJournal(world);
+    int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes >= 0 && DescribeJournal(tape, tapeBytes, &info) && info.opCount == 0,
           "the refused rebuild is not on the tape");
     CHECK(ReplayJournal(world, tape, tapeBytes) && SnapshotIs(world, start, size),

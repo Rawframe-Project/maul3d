@@ -24,7 +24,7 @@ typedef struct m3RestoreStage
     m3MeshBvh* meshBvhs;             // per mesh slot, built for live meshes
     m3HeightFieldData* heightFields; // per shape slot
     void** voxelTrees;               // per voxel slot, for live slots with none
-    int32_t hullCursor;              // where the hull tail starts in the buffer
+    int64_t hullCursor;              // where the hull tail starts in the buffer
 } m3RestoreStage;
 
 // Checks every byte of a snapshot against the world and takes all the
@@ -32,7 +32,7 @@ typedef struct m3RestoreStage
 // for bytes that fail a check, m3_errorCapacity when the allocator
 // refuses. On success the stage holds the memory until a commit or a
 // drop; on failure it holds nothing.
-m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3RestoreStage* stage);
+m3Result m3RestorePrepare(m3World* world, const void* data, int64_t size, m3RestoreStage* stage);
 
 // Lands a prepared snapshot. Allocates nothing, so it cannot fail.
 void m3RestoreCommit(m3World* world, m3RestoreStage* stage);

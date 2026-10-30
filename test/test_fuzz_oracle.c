@@ -59,7 +59,7 @@ static void TestSceneHolds(void)
 {
     FuzzScene scene;
     m3World* world = SceneWorld(&scene);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size, "snapshot taken");
     CHECK(FuzzValuesHold(world, scene.hero), "the scene's values are a caller's");
@@ -182,7 +182,7 @@ static void TestRestoredRopeFailsOracle(void)
         FuzzScene scene;
         m3World* world = SceneWorld(&scene);
         int32_t rope = RopeSlot(world);
-        int32_t size = m3World_GetSnapshotSize(world);
+        int64_t size = m3World_GetSnapshotSize(world);
         uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
         CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size, "snapshot taken");
         int64_t limits = m3StateFieldAt(world, offsetof(m3World, joints.jointLimits));
@@ -222,7 +222,7 @@ static void TestRestoredConeFailsOracle(void)
     FuzzScene scene;
     m3World* world = SceneWorld(&scene);
     int32_t shoulder = ShoulderSlot(world);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
     int64_t limits = m3StateFieldAt(world, offsetof(m3World, joints.jointLimits));
     bool ready = snapshot != NULL && Snapshot(world, snapshot, size) == size && limits >= 0 &&

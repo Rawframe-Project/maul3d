@@ -168,7 +168,7 @@ static void TestReplayTakesCreatedGeometry(void)
     }
     m3ShapeId shapes[shape_count];
     Build(world, shapes);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);
 
@@ -216,7 +216,7 @@ static void TestRestoreTakesCreatedGeometry(void)
     m3World* world = DefaultWorld();
     m3ShapeId shapes[shape_count];
     Build(world, shapes);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && edited != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
@@ -345,7 +345,7 @@ static void TestParticlesStayWithinTheLimit(void)
     CHECK(within, "every particle stays within the limit");
     CHECK(lifted, "the plane lifts the particles toward it");
 
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     m3World* twin = DefaultWorld();
     CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(twin, snap, size),
@@ -376,7 +376,7 @@ static bool StaysFinite(m3World* world, m3ShapeId shape, m3Pos3 origin, m3Vec3 r
     finite = finite && found && hit.point.x - hit.point.x == 0.0 &&
              hit.point.y - hit.point.y == 0.0 && hit.point.z - hit.point.z == 0.0 &&
              isfinite(hit.fraction) && fabsf(m3Dot3(hit.normal, hit.normal) - 1.0f) <= 1.0e-3f;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     bool restores =
         snap != NULL && Snapshot(world, snap, size) == size && Restore(world, snap, size);

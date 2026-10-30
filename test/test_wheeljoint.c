@@ -146,7 +146,7 @@ static void TestBrokenAxleDeterministic(void)
         }
         m3Joint_SetBreakThresholds(world, cart.joints[1], 0.0f, 25.0f);
         DriveCart(world, &cart, -30.0f, 90.0f);
-        int32_t snapBytes = 0;
+        int64_t snapBytes = 0;
         int32_t breakStep = -1;
         for (int32_t i = 0; i < 480; ++i)
         {
@@ -282,7 +282,7 @@ static void TestConeIsSphericalOnly(void)
     m3JointId wheel = NewJoint(world, &jd);
     CHECK(m3Joint_IsValid(world, wheel) && !m3WheelJoint_IsSteeringEnabled(world, wheel),
           "a wheel without it starts with steering off");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size, "snapshot taken");
     m3World* restored = PlaneWorld();

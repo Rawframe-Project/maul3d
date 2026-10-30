@@ -219,7 +219,7 @@ static void TestSleepKnobsAndControlReplay(void)
         m3BodyId normal = Crate(world, (m3Pos3){3.0, 0.5, 0.0});
         m3Body_EnableSleep(world, restless, false);
 
-        int32_t snapBytes = 0;
+        int64_t snapBytes = 0;
         for (int32_t i = 0; i < 260; ++i)
         {
             if (i == 40)
@@ -247,7 +247,7 @@ static void TestSleepKnobsAndControlReplay(void)
         uint64_t final = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = StopJournal(world);
+            int64_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the control session records");
             m3World* fresh = NewWorld(&def);
             CHECK(ReplayJournal(fresh, journal, bytes), "the control session replays");
