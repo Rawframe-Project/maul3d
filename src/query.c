@@ -33,7 +33,8 @@ typedef struct m3RayAllContext
     m3Vec3 translation;
     m3CastHit* hits;
     int32_t capacity;
-    int32_t count;
+    int32_t count; // kept, at most capacity
+    int32_t total; // every hit
     m3QueryFilter filter;
 } m3RayAllContext;
 
@@ -44,6 +45,7 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3CastResult* hit, int32_t 
 {
     // Insertion sort by (fraction, shape index): capacities are
     // small and the order is the contract.
+    ctx->total += 1;
     int32_t pos = ctx->count;
     while (pos > 0)
     {
@@ -94,10 +96,10 @@ static bool RayAllCallback(int32_t shape, void* userContext)
 }
 
 static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 origin,
-                                                 m3Vec3 translation, m3CastHit* hits,
-                                                 int32_t capacity, m3QueryFilter filter)
+                                                 m3Vec3 translation, m3QueryFilter filter,
+                                                 m3CastHit* hitsOut, int32_t capacity)
 {
-    if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
+    if (world == NULL || !m3ListOutputValid(hitsOut, capacity) || !m3FinitePos3(origin) ||
         !(m3Dot3(translation, translation) > 0.0f) ||
         !(translation.x >= -M3_CAST_LIMIT && translation.x <= M3_CAST_LIMIT) ||
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
@@ -106,7 +108,7 @@ static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 or
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    m3RayAllContext ctx = {world, origin, translation, hits, capacity, 0, filter};
+    m3RayAllContext ctx = {world, origin, translation, hitsOut, capacity, 0, 0, filter};
     double lo[3];
     double hi[3];
     double ex = origin.x + (double)translation.x;
@@ -132,14 +134,14 @@ static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 or
             }
         }
     }
-    return ctx.count;
+    return ctx.total;
 }
 
-int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3CastHit* hits,
-                           int32_t capacity, m3QueryFilter filter)
+int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
+                           m3QueryFilter filter, m3CastHit* hitsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldCastRayAllWorker(world, origin, translation, hits, capacity, filter);
+    int32_t result = WorldCastRayAllWorker(world, origin, translation, filter, hitsOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }
@@ -282,6 +284,7 @@ static void SelectionSiftDown(m3ShapeId* heap, int32_t size, int32_t i)
 void m3SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape)
 {
     m3ShapeId id = {shape + 1, world->shapes.shapePool.generations[shape]};
+    sel->total += 1;
     if (sel->size < sel->capacity)
     {
         int32_t i = sel->size++;
@@ -301,7 +304,7 @@ void m3SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape
     }
 }
 
-// Sorts the kept ids ascending and returns how many were written.
+// Sorts the kept ids ascending and returns how many were offered.
 int32_t m3SelectionFinish(m3ShapeSelection* sel)
 {
     for (int32_t end = sel->size - 1; end > 0; --end)
@@ -311,7 +314,7 @@ int32_t m3SelectionFinish(m3ShapeSelection* sel)
         sel->ids[end] = swap;
         SelectionSiftDown(sel->ids, end, 0);
     }
-    return sel->size;
+    return sel->total;
 }
 
 typedef struct m3OverlapContext
@@ -480,10 +483,10 @@ static bool OverlapCallback(int32_t shape, void* userContext)
     return true;
 }
 
-static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3ShapeId* shapes,
+static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3ShapeId* idsOut,
                              int32_t capacity)
 {
-    ctx->selection = (m3ShapeSelection){shapes, capacity, 0};
+    ctx->selection = (m3ShapeSelection){idsOut, capacity, 0, 0};
     m3TreeQuery(&world->broadphase.tree, ctx->lo, ctx->hi, OverlapCallback, ctx);
     for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
@@ -518,12 +521,12 @@ static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3Shap
 }
 
 static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3WorldAabb box,
-                                                  m3ShapeId* shapes, int32_t capacity,
-                                                  m3QueryFilter filter)
+                                                  m3QueryFilter filter, m3ShapeId* idsOut,
+                                                  int32_t capacity)
 {
     m3Pos3 lo = box.lowerBound;
     m3Pos3 hi = box.upperBound;
-    if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity) || !m3FinitePos3(lo) ||
         !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
     {
         m3Refuse(world, m3_errorInvalid);
@@ -540,23 +543,23 @@ static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3WorldA
     ctx.hi[0] = hi.x;
     ctx.hi[1] = hi.y;
     ctx.hi[2] = hi.z;
-    return OverlapGather(world, &ctx, shapes, capacity);
+    return OverlapGather(world, &ctx, idsOut, capacity);
 }
 
-int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3ShapeId* shapes,
-                            int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter filter,
+                            m3ShapeId* idsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldOverlapAabbWorker(world, box, shapes, capacity, filter);
+    int32_t result = WorldOverlapAabbWorker(world, box, filter, idsOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }
 
 static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3 center,
-                                                    m3real radius, m3ShapeId* shapes,
-                                                    int32_t capacity, m3QueryFilter filter)
+                                                    m3real radius, m3QueryFilter filter,
+                                                    m3ShapeId* idsOut, int32_t capacity)
 {
-    if (world == NULL || shapes == NULL || capacity <= 0 || !m3FiniteF(radius) ||
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity) || !m3FiniteF(radius) ||
         !(radius > 0.0f) || !m3FinitePos3(center))
     {
         m3Refuse(world, m3_errorInvalid);
@@ -574,14 +577,14 @@ static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3
     ctx.hi[0] = center.x + (double)radius;
     ctx.hi[1] = center.y + (double)radius;
     ctx.hi[2] = center.z + (double)radius;
-    return OverlapGather(world, &ctx, shapes, capacity);
+    return OverlapGather(world, &ctx, idsOut, capacity);
 }
 
-int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius, m3ShapeId* shapes,
-                              int32_t capacity, m3QueryFilter filter)
+int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius,
+                              m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldOverlapSphereWorker(world, center, radius, shapes, capacity, filter);
+    int32_t result = WorldOverlapSphereWorker(world, center, radius, filter, idsOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }
@@ -622,9 +625,9 @@ static void FillContactData(const m3World* world, int32_t pair, m3ContactData* o
 }
 
 static M3_NOINLINE int32_t ShapeGetContactDataWorker(const m3World* world, m3ShapeId shape,
-                                                     m3ContactData* out, int32_t capacity)
+                                                     m3ContactData* dataOut, int32_t capacity)
 {
-    if (world == NULL || out == NULL || capacity <= 0)
+    if (world == NULL || !m3ListOutputValid(dataOut, capacity))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -635,34 +638,37 @@ static M3_NOINLINE int32_t ShapeGetContactDataWorker(const m3World* world, m3Sha
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    int32_t written = 0;
-    for (int32_t i = 0; i < world->contacts.pairCount && written < capacity; ++i)
+    int32_t total = 0;
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
         uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
         int32_t shapeB = (int32_t)(key & 0xFFFFFFFFu);
         if ((shapeA == slot || shapeB == slot) && world->contacts.manifolds[i].pointCount > 0)
         {
-            FillContactData(world, i, &out[written]);
-            written += 1;
+            if (total < capacity)
+            {
+                FillContactData(world, i, &dataOut[total]);
+            }
+            total += 1;
         }
     }
-    return written;
+    return total;
 }
 
-int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
+int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* dataOut,
                                int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = ShapeGetContactDataWorker(world, shape, out, capacity);
+    int32_t result = ShapeGetContactDataWorker(world, shape, dataOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }
 
 static M3_NOINLINE int32_t BodyGetContactDataWorker(const m3World* world, m3BodyId body,
-                                                    m3ContactData* out, int32_t capacity)
+                                                    m3ContactData* dataOut, int32_t capacity)
 {
-    if (world == NULL || out == NULL || capacity <= 0)
+    if (world == NULL || !m3ListOutputValid(dataOut, capacity))
     {
         m3Refuse(world, m3_errorInvalid);
         return 0;
@@ -673,8 +679,8 @@ static M3_NOINLINE int32_t BodyGetContactDataWorker(const m3World* world, m3Body
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
-    int32_t written = 0;
-    for (int32_t i = 0; i < world->contacts.pairCount && written < capacity; ++i)
+    int32_t total = 0;
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
         uint64_t key = world->contacts.pairKeys[i];
         int32_t shapeA = (int32_t)(key >> 32);
@@ -683,18 +689,21 @@ static M3_NOINLINE int32_t BodyGetContactDataWorker(const m3World* world, m3Body
              world->shapes.shapeBody[shapeB] == bodyIndex) &&
             world->contacts.manifolds[i].pointCount > 0)
         {
-            FillContactData(world, i, &out[written]);
-            written += 1;
+            if (total < capacity)
+            {
+                FillContactData(world, i, &dataOut[total]);
+            }
+            total += 1;
         }
     }
-    return written;
+    return total;
 }
 
-int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* out,
+int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* dataOut,
                               int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = BodyGetContactDataWorker(world, body, out, capacity);
+    int32_t result = BodyGetContactDataWorker(world, body, dataOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }

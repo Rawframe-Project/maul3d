@@ -286,11 +286,11 @@ static void TestQueriesAgainstVoxels(void)
 
     // Overlaps: the sphere reach and the AABB both see the chunk.
     m3ShapeId found[4];
-    int32_t n = m3World_OverlapSphere(world, (m3Pos3){8.0, 4.3, 8.0}, 0.5f, found, 4,
-                                      m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapSphere(world, (m3Pos3){8.0, 4.3, 8.0}, 0.5f, m3DefaultQueryFilter(),
+                                      found, 4);
     CHECK(n == 1 && found[0].index1 == chunkShape.index1, "the sphere reach finds the chunk");
-    n = m3World_OverlapSphere(world, (m3Pos3){8.0, 5.5, 8.0}, 0.5f, found, 4,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){8.0, 5.5, 8.0}, 0.5f, m3DefaultQueryFilter(), found,
+                              4);
     CHECK(n == 0, "out of reach finds nothing");
     m3DestroyWorld(world);
 }

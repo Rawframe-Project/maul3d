@@ -386,7 +386,7 @@ static void TestMultiHitSorted(void)
     // A ray sloping down through both spheres into the floor.
     m3CastHit hits[8];
     int32_t n = m3World_CastRayAll(world, (m3Pos3){0.0, 6.0, 0.0}, (m3Vec3){16.0f, -8.0f, 0.0f},
-                                   hits, 8, m3DefaultQueryFilter());
+                                   m3DefaultQueryFilter(), hits, 8);
     CHECK(n == 3, "three hits along the ray");
     CHECK(hits[0].fraction < hits[1].fraction && hits[1].fraction < hits[2].fraction,
           "the hits are sorted by fraction");
@@ -395,8 +395,8 @@ static void TestMultiHitSorted(void)
     // Capacity two: the FAR hit drops.
     m3CastHit two[2];
     int32_t n2 = m3World_CastRayAll(world, (m3Pos3){0.0, 6.0, 0.0}, (m3Vec3){16.0f, -8.0f, 0.0f},
-                                    two, 2, m3DefaultQueryFilter());
-    CHECK(n2 == 2, "capacity caps the count");
+                                    m3DefaultQueryFilter(), two, 2);
+    CHECK(n2 == 3, "a short array still counts every hit");
     CHECK(two[0].fraction == hits[0].fraction && two[1].fraction == hits[1].fraction,
           "the near hits survive the cap");
     m3DestroyWorld(world);
@@ -430,17 +430,17 @@ static void TestPointAndOverlaps(void)
 
     // Overlaps: the AABB box catches the box, the sphere probes reach.
     m3ShapeId found[8];
-    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{4.0, 1.0, -1.0}, {6.0, 3.0, 1.0}}, found,
-                                    8, m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{4.0, 1.0, -1.0}, {6.0, 3.0, 1.0}},
+                                    m3DefaultQueryFilter(), found, 8);
     CHECK(n == 1 && found[0].index1 == boxShape.index1, "the AABB overlap finds the box");
-    n = m3World_OverlapSphere(world, (m3Pos3){5.0, 4.5, 0.0}, 1.6f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){5.0, 4.5, 0.0}, 1.6f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 1 && found[0].index1 == boxShape.index1, "the sphere overlap reaches the box");
-    n = m3World_OverlapSphere(world, (m3Pos3){5.0, 4.5, 0.0}, 1.4f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){5.0, 4.5, 0.0}, 1.4f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 0, "just out of reach finds nothing");
-    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.5, 0.0}, 0.6f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.5, 0.0}, 0.6f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 1 && found[0].index1 == floorShape.index1, "the sphere overlap reaches the floor");
     m3DestroyWorld(world);
 }
@@ -658,22 +658,22 @@ static void TestOverlapAndInsideFamilies(void)
     // OverlapSphere against the mesh: within a radius of a vertex
     // hits, just beyond misses (the vertex-reach bound).
     m3ShapeId found[8];
-    int32_t n = m3World_OverlapSphere(world, (m3Pos3){7.2, 2.0, 1.2}, 0.4f, found, 8,
-                                      m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapSphere(world, (m3Pos3){7.2, 2.0, 1.2}, 0.4f, m3DefaultQueryFilter(),
+                                      found, 8);
     CHECK(n == 1 && found[0].index1 == meshShape.index1, "the sphere reach finds the mesh");
-    n = m3World_OverlapSphere(world, (m3Pos3){7.2, 2.0, 1.2}, 0.1f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){7.2, 2.0, 1.2}, 0.1f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 0, "just out of reach finds nothing");
 
     // OverlapSphere and OverlapAabb against the plane.
-    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.2, 0.0}, 0.4f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.2, 0.0}, 0.4f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 1 && found[0].index1 == floorShape.index1, "the sphere reaches the plane");
-    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, -0.5, -1.0}, {1.0, 0.5, 1.0}}, found, 8,
-                            m3DefaultQueryFilter());
+    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, -0.5, -1.0}, {1.0, 0.5, 1.0}},
+                            m3DefaultQueryFilter(), found, 8);
     CHECK(n == 1 && found[0].index1 == floorShape.index1, "the AABB straddles the plane");
-    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 2.0, -1.0}, {1.0, 3.0, 1.0}}, found, 8,
-                            m3DefaultQueryFilter());
+    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 2.0, -1.0}, {1.0, 3.0, 1.0}},
+                            m3DefaultQueryFilter(), found, 8);
     CHECK(n == 0, "an AABB above the plane is clear");
 
     // Point-inside for the remaining families: capsule (cylinder
@@ -809,8 +809,8 @@ static void TestGenericCasts(void)
                                    m3DefaultQueryFilter(), &hit);
     CHECK(!found, "a planetary ray misses by contract");
     m3CastHit all[4];
-    CHECK(m3World_CastRayAll(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.0f, -1.0e30f, 0.0f}, all, 4,
-                             m3DefaultQueryFilter()) == 0,
+    CHECK(m3World_CastRayAll(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.0f, -1.0e30f, 0.0f},
+                             m3DefaultQueryFilter(), all, 4) == 0,
           "a planetary all-hits ray reports nothing");
     m3DestroyWorld(world);
 }
@@ -840,8 +840,8 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
         NewSphereShape(world, NewBody(world, &bd), &sd, &sphere);
     }
     static m3ShapeId all[BALLS + 8];
-    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}}, all,
-                                    BALLS + 8, m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}},
+                                    m3DefaultQueryFilter(), all, BALLS + 8);
     bool ascending = true;
     for (int32_t i = 1; i < n; ++i)
     {
@@ -850,10 +850,10 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     CHECK(n == BALLS && ascending, "all 300 overlaps come back in ascending order");
 
     m3ShapeId low[10];
-    int32_t k = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}}, low,
-                                    10, m3DefaultQueryFilter());
-    CHECK(k == 10 && low[0].index1 == all[0].index1 && low[9].index1 == all[9].index1,
-          "a short array keeps the lowest slots");
+    int32_t k = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}},
+                                    m3DefaultQueryFilter(), low, 10);
+    CHECK(k == BALLS && low[0].index1 == all[0].index1 && low[9].index1 == all[9].index1,
+          "a short array keeps the lowest slots and counts them all");
 
     // The mover sees the floor plane (the lowest slot, outside the
     // tree) and the ball above it, merged into one ascending list.
@@ -1076,6 +1076,185 @@ static void TestDiagonalFarRaysKeepTheirNormal(void)
     m3DestroyWorld(world);
 }
 
+// The list calls' outputs: a NULL array with capacity 0 measures the
+// total, an array shorter than the total still returns it, and a NULL array
+// with a positive capacity or a negative capacity refuses with one misuse.
+// One scene for all ten: three balls resting on a floor plane.
+typedef struct ListScene
+{
+    m3World* world;
+    m3BodyId floorBody;
+    m3ShapeId floor;
+    m3BodyId hub; // two shapes and two joints, away from the balls
+} ListScene;
+
+typedef int32_t ListCall(const ListScene* scene, void* out, int32_t capacity);
+
+static int32_t ListAabb(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_OverlapAabb(sc->world, (m3WorldAabb){{-3.0, -0.5, -1.0}, {3.0, 1.5, 1.0}},
+                               m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListSphere(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_OverlapSphere(sc->world, (m3Pos3){0.0, 0.5, 0.0}, 2.0f, m3DefaultQueryFilter(),
+                                 (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListCapsule(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_OverlapCapsule(sc->world, (m3Pos3){-1.5, 0.5, 0.0}, (m3Pos3){1.5, 0.5, 0.0},
+                                  0.6f, m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListBox(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_OverlapBox(sc->world, (m3Pos3){0.0, 0.5, 0.0}, (m3Vec3){2.0f, 0.6f, 0.6f},
+                              m3MakeIdentityQuat(), m3DefaultQueryFilter(), (m3ShapeId*)out,
+                              capacity);
+}
+
+static int32_t ListHull(const ListScene* sc, void* out, int32_t capacity)
+{
+    static const m3Vec3 ends[2] = {{-1.5f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f}};
+    return m3World_OverlapHullPoints(sc->world, (m3Pos3){0.0, 0.5, 0.0}, ends, 2, 0.6f,
+                                     m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListRay(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_CastRayAll(sc->world, (m3Pos3){-3.0, 0.5, 0.0}, (m3Vec3){6.0f, 0.0f, 0.0f},
+                              m3DefaultQueryFilter(), (m3CastHit*)out, capacity);
+}
+
+static int32_t ListMover(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_CollideMover(sc->world, (m3Pos3){0.0, 0.5, 1.0}, 0.2f, 0.3f, 1.0f,
+                                (m3MoverPlane*)out, capacity);
+}
+
+static int32_t ListBodyContacts(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Body_GetContactData(sc->world, sc->floorBody, (m3ContactData*)out, capacity);
+}
+
+static int32_t ListShapeContacts(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Shape_GetContactData(sc->world, sc->floor, (m3ContactData*)out, capacity);
+}
+
+static int32_t ListBodies(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_GetBodies(sc->world, (m3BodyId*)out, capacity);
+}
+
+static int32_t ListJoints(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3World_GetJoints(sc->world, (m3JointId*)out, capacity);
+}
+
+static int32_t ListBodyShapes(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Body_GetShapes(sc->world, sc->hub, (m3ShapeId*)out, capacity);
+}
+
+static int32_t ListBodyJoints(const ListScene* sc, void* out, int32_t capacity)
+{
+    return m3Body_GetJoints(sc->world, sc->hub, (m3JointId*)out, capacity);
+}
+
+static void TestListOutputs(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    ListScene sc;
+    sc.world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sc.floorBody = NewBody(sc.world, &bd);
+    m3Plane plane = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    sc.floor = NewPlaneShape(sc.world, sc.floorBody, &sd, &plane);
+    bd.type = m3_dynamicBody;
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        bd.position = (m3Pos3){(double)(i - 1), 0.5, 0.0};
+        NewSphereShape(sc.world, NewBody(sc.world, &bd), &sd, &ball);
+    }
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        (void)m3World_Step(sc.world, 1.0f / 60.0f, 4);
+    }
+    // Built after the steps, far from every query above.
+    bd.type = m3_staticBody;
+    bd.position = (m3Pos3){20.0, 20.0, 0.0};
+    sc.hub = NewBody(sc.world, &bd);
+    NewSphereShape(sc.world, sc.hub, &sd, &ball);
+    NewSphereShape(sc.world, sc.hub, &sd, &ball);
+    bd.type = m3_dynamicBody;
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        bd.position = (m3Pos3){22.0 + 2.0 * i, 20.0, 0.0};
+        m3JointDef jd = m3DefaultJointDef();
+        jd.bodyIdA = sc.hub;
+        jd.bodyIdB = NewBody(sc.world, &bd);
+        NewJoint(sc.world, &jd);
+    }
+    static const struct
+    {
+        ListCall* call;
+        const char* name;
+    } calls[] = {
+        {ListAabb, "OverlapAabb"},
+        {ListSphere, "OverlapSphere"},
+        {ListCapsule, "OverlapCapsule"},
+        {ListBox, "OverlapBox"},
+        {ListHull, "OverlapHullPoints"},
+        {ListRay, "CastRayAll"},
+        {ListMover, "CollideMover"},
+        {ListBodyContacts, "Body_GetContactData"},
+        {ListShapeContacts, "Shape_GetContactData"},
+        {ListBodies, "World_GetBodies"},
+        {ListJoints, "World_GetJoints"},
+        {ListBodyShapes, "Body_GetShapes"},
+        {ListBodyJoints, "Body_GetJoints"},
+    };
+    // One entry of any call's type: each call stores into the member of
+    // its own type, and the union's size and alignment cover them all.
+    static union
+    {
+        m3ContactData contact;
+        m3CastHit hit;
+        m3MoverPlane plane;
+        m3ShapeId shape;
+        m3BodyId body;
+        m3JointId joint;
+    } one[1];
+    for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)
+    {
+        uint64_t misuse = m3World_GetCounters(sc.world).misuse;
+        int32_t total = calls[c].call(&sc, NULL, 0);
+        bool measured = total >= 2 && m3World_GetCounters(sc.world).misuse == misuse;
+        int32_t shortTotal = calls[c].call(&sc, one, 1);
+        bool counted = shortTotal == total && m3World_GetCounters(sc.world).misuse == misuse;
+        int32_t refusedNull = calls[c].call(&sc, NULL, 3);
+        bool nullRefused = refusedNull == 0 && m3World_GetCounters(sc.world).misuse == misuse + 1u;
+        int32_t refusedNegative = calls[c].call(&sc, one, -1);
+        bool negativeRefused =
+            refusedNegative == 0 && m3World_GetCounters(sc.world).misuse == misuse + 2u;
+        if (!measured || !counted || !nullRefused || !negativeRefused)
+        {
+            printf("  %s: total %d, short %d, NULL %d, negative %d\n", calls[c].name, (int)total,
+                   (int)shortTotal, (int)refusedNull, (int)refusedNegative);
+        }
+        CHECK(measured, "a NULL array with capacity 0 measures the total, two or more here");
+        CHECK(counted, "a one-entry array returns the same total");
+        CHECK(nullRefused && negativeRefused,
+              "a NULL array with a positive capacity, or a negative capacity, refuses");
+    }
+    m3DestroyWorld(sc.world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
@@ -1083,6 +1262,7 @@ int main(void)
     TestContactEvents();
     TestRayHitsEveryFamily();
     TestRayClosestOfMany();
+    TestListOutputs();
     TestCastHitContract();
     TestShapeCasts();
     TestRayStartInsideContract();

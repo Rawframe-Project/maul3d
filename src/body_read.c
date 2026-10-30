@@ -8,6 +8,7 @@
 #include "body_state.h"
 #include "broad_phase.h"
 #include "fpenv.h"
+#include "misuse.h"
 #include "world_internal.h"
 
 static M3_NOINLINE m3Transform BodyGetTransformWorker(const m3World* world, m3BodyId body)
@@ -329,8 +330,13 @@ m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body)
     return result;
 }
 
-int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids, int32_t capacity)
+int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* idsOut, int32_t capacity)
 {
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -343,17 +349,22 @@ int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids, in
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (total < capacity)
         {
-            ids[total] = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
+            idsOut[total] = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids, int32_t capacity)
+int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* idsOut, int32_t capacity)
 {
+    if (world == NULL || !m3ListOutputValid(idsOut, capacity))
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return 0;
+    }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
@@ -367,9 +378,9 @@ int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids, in
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (total < capacity)
         {
-            ids[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
+            idsOut[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
         total += 1;
     }

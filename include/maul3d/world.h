@@ -533,10 +533,13 @@ extern "C"
                                   m3real radius, m3Vec3 translation, m3CastHit* hitOut);
 
     /// Collect contact planes for the mover at rest: every shape
-    /// within `skin` of the capsule contributes one plane. Returns
-    /// the count written (ascending shape order, deterministic).
+    /// within `skin` of the capsule contributes one plane, the lowest
+    /// shape indexes first in ascending order. Like every list call it
+    /// writes at most capacity entries and returns the total, which may
+    /// exceed capacity; a NULL array with capacity 0 measures. Pass the
+    /// smaller of the two to m3SolveMover.
     M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight,
-                                        m3real radius, m3real skin, m3MoverPlane* planes,
+                                        m3real radius, m3real skin, m3MoverPlane* planesOut,
                                         int32_t capacity);
 
     /// The closest translation to the wish that no plane blocks, and
@@ -562,11 +565,11 @@ extern "C"
                                        m3QueryFilter filter, m3CastHit* hitOut);
 
     /// Every ray hit along the translation, one entry point per
-    /// shape, sorted by fraction (ties to the lower shape index).
-    /// Returns the count written (never more than capacity; excess
-    /// hits are dropped from the FAR end, deterministically).
+    /// shape, sorted by fraction (ties to the lower shape index). It
+    /// writes the nearest capacity hits and returns the total, which
+    /// may exceed capacity; a NULL array with capacity 0 measures.
     M3_API int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                      m3CastHit* hits, int32_t capacity, m3QueryFilter filter);
+                                      m3QueryFilter filter, m3CastHit* hitsOut, int32_t capacity);
 
     /// Closest-hit shape casts: sweep a sphere or a capsule along a
     /// translation. fraction is the earliest touch in [0, 1]; a cast
@@ -597,15 +600,17 @@ extern "C"
     /// contain points; planes are solid half spaces.
     M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point);
 
-    /// Shapes whose tight bounds overlap the box, in ascending shape
-    /// index order. Returns the count written.
-    M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3ShapeId* shapes,
-                                       int32_t capacity, m3QueryFilter filter);
+    /// The overlap queries write the lowest capacity shape ids in
+    /// ascending shape index order and return the total, which may
+    /// exceed capacity; a NULL array with capacity 0 measures. A NULL
+    /// array with a positive capacity or a negative capacity refuses.
+    /// Shapes whose tight bounds overlap the box.
+    M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter filter,
+                                       m3ShapeId* idsOut, int32_t capacity);
 
-    /// Shapes within reach of the sphere (exact per family), in
-    /// ascending shape index order. Returns the count written.
+    /// Shapes within reach of the sphere (exact per family).
     M3_API int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius,
-                                         m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
+                                         m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity);
 
     /// The exact overlap family: capsule, oriented box, and
     /// raw convex cloud queries with the same contract as the
@@ -614,15 +619,15 @@ extern "C"
     /// filtered, read-only. Clouds carry base-relative points (the
     /// cast convention), at most 64 of them.
     M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
-                                          m3ShapeId* shapes, int32_t capacity,
-                                          m3QueryFilter filter);
+                                          m3QueryFilter filter, m3ShapeId* idsOut,
+                                          int32_t capacity);
     M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
-                                      m3Quat rotation, m3ShapeId* shapes, int32_t capacity,
-                                      m3QueryFilter filter);
+                                      m3Quat rotation, m3QueryFilter filter, m3ShapeId* idsOut,
+                                      int32_t capacity);
     M3_API int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base,
                                              const m3Vec3* points, int32_t count, m3real radius,
-                                             m3ShapeId* shapes, int32_t capacity,
-                                             m3QueryFilter filter);
+                                             m3QueryFilter filter, m3ShapeId* idsOut,
+                                             int32_t capacity);
 
     /// Explosion definition: one journaled call pushes every
     /// dynamic convex shape in range. The impulse scales with the
@@ -666,10 +671,11 @@ extern "C"
     M3_API uint64_t m3World_Hash(const m3World* world);
 
     /// Every live body or joint, up to capacity ids in ascending slot
-    /// order; returns the total. The step count is the number of steps
-    /// taken (snapshot state). Thread class: reader.
-    M3_API int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity);
-    M3_API int32_t m3World_GetJoints(const m3World* world, m3JointId* ids, int32_t capacity);
+    /// order; returns the total, which may exceed capacity, and a NULL
+    /// array with capacity 0 measures. The step count is the number of
+    /// steps taken (snapshot state). Thread class: reader.
+    M3_API int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capacity);
+    M3_API int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capacity);
     M3_API uint64_t m3World_GetStepCount(const m3World* world);
 
     /// Live contact readback: one entry per manifold touching
