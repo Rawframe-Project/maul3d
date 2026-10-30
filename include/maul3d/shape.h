@@ -27,7 +27,7 @@ extern "C"
 
     typedef struct m3Sphere
     {
-        m3Vec3 center; // body frame, within 1e4 m; the origin on dynamic bodies in 2a
+        m3Vec3 center; // body frame, within 1e4 m
         m3real radius; // positive, at most 1e4 m
     } m3Sphere;
 
@@ -110,8 +110,8 @@ extern "C"
 
     /// Create a box (a convex hull with analytic mass properties:
     /// m = 8 rho hx hy hz, I = m/3 diag(hy^2+hz^2, ...) about the
-    /// center). Half extents are positive and at most 1e4. Hull collision lands in the GJK and SAT
-    /// slices; until then a box participates in the broadphase and in mass only.
+    /// center). Half extents are positive and at most 1e4. A box is a hull: it collides,
+    /// casts and sweeps as one.
     M3_NODISCARD M3_API m3Result m3CreateBoxShape(m3World* world, m3BodyId body,
                                                   const m3ShapeDef* def, m3Vec3 halfExtents,
                                                   m3ShapeId* shapeOut);
