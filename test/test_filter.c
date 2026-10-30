@@ -159,7 +159,7 @@ static void TestQueryFilters(void)
     CHECK(castHit && cast.point.z > 2.0, "the filtered sphere cast agrees");
 
     m3CastHit hits[8];
-    int32_t n = m3World_CastRayAll(world, origin, dir, hits, 8, debrisOnly);
+    int32_t n = m3World_CastRayAll(world, origin, dir, debrisOnly, hits, 8);
     for (int32_t k = 0; k < n; ++k)
     {
         CHECK(hits[k].shapeId.index1 != 0, "all-hits entries are real");

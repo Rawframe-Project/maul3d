@@ -188,11 +188,11 @@ static void TestRayAndOverlap(void)
     CHECK(!missHit, "a ray beside the grid misses");
 
     m3ShapeId found[8];
-    int32_t n = m3World_OverlapSphere(world, (m3Pos3){0.0, 1.6, 0.0}, 0.5f, found, 8,
-                                      m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapSphere(world, (m3Pos3){0.0, 1.6, 0.0}, 0.5f, m3DefaultQueryFilter(),
+                                      found, 8);
     CHECK(n == 1 && found[0].index1 == terrain.index1, "the overlap family sees terrain");
-    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 6.0, 0.0}, 0.5f, found, 8,
-                              m3DefaultQueryFilter());
+    n = m3World_OverlapSphere(world, (m3Pos3){0.0, 6.0, 0.0}, 0.5f, m3DefaultQueryFilter(), found,
+                              8);
     CHECK(n == 0, "a sphere above the ramp sees nothing");
     m3DestroyWorld(world);
 }

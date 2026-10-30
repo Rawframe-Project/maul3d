@@ -329,7 +329,7 @@ m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body)
     return result;
 }
 
-int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids, int32_t capacity)
+int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* idsOut, int32_t capacity)
 {
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
@@ -343,16 +343,16 @@ int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids, in
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
+            idsOut[total] = (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids, int32_t capacity)
+int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* idsOut, int32_t capacity)
 {
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
@@ -367,9 +367,9 @@ int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids, in
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
+            idsOut[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
         total += 1;
     }

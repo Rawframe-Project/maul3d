@@ -372,7 +372,7 @@ void m3DestroyWorld(m3World* world)
     m3FloatEnvLeave(env);
 }
 
-int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity)
+int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -386,16 +386,16 @@ int32_t m3World_GetBodies(const m3World* world, m3BodyId* ids, int32_t capacity)
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = (m3BodyId){b + 1, world->bodies.bodyPool.generations[b]};
+            idsOut[total] = (m3BodyId){b + 1, world->bodies.bodyPool.generations[b]};
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m3World_GetJoints(const m3World* world, m3JointId* ids, int32_t capacity)
+int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -409,9 +409,9 @@ int32_t m3World_GetJoints(const m3World* world, m3JointId* ids, int32_t capacity
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
+            idsOut[total] = (m3JointId){j + 1, world->joints.jointPool.generations[j]};
         }
         total += 1;
     }

@@ -16,16 +16,28 @@ m3CastResult m3CastConvexClosestEx(const m3World* world, m3Pos3 base, const m3Ve
                                    int32_t ignoreBody);
 
 // A bounded selection of the lowest shape ids, kept as a max-heap while
-// candidates arrive in any order, then sorted ascending.
+// candidates arrive in any order, then sorted ascending, and a count of
+// every candidate offered. ids may be NULL when capacity is 0: the
+// selection then only counts.
 typedef struct m3ShapeSelection
 {
     m3ShapeId* ids;
     int32_t capacity;
     int32_t size;
+    int32_t total;
 } m3ShapeSelection;
 
 void m3SelectionOffer(m3ShapeSelection* sel, const m3World* world, int32_t shape);
-// Sorts the kept ids ascending and returns how many were written.
+// Sorts the kept ids ascending and returns how many were offered, which
+// may exceed the capacity.
 int32_t m3SelectionFinish(m3ShapeSelection* sel);
+
+// A list call's array and capacity: a NULL array with capacity 0
+// measures, any array takes a capacity of 0 or more, and anything else is
+// refused.
+static inline bool m3ListOutputValid(const void* arrayOut, int32_t capacity)
+{
+    return capacity >= 0 && (arrayOut != NULL || capacity == 0);
+}
 
 #endif // MAUL3D_SRC_QUERY_H

@@ -300,6 +300,12 @@ the pointer).
   meshes as open surfaces (a point is never "inside" a mesh).
 - Overlap queries (`m3World_OverlapAabb`, `m3World_OverlapSphere`)
   return exact shape-level results, planes included.
+- Every call that fills an array takes its filter, when it has one,
+  before the array, and the array's capacity right after it. It
+  writes at most that many entries and returns the total, which may
+  be more; a NULL array with capacity 0 measures the total, so a
+  caller can size the array first. A NULL array with a positive
+  capacity, or a negative capacity, is refused.
 
 Queries read the world and never write it; they are safe to call at
 any point between steps and have no effect on determinism.

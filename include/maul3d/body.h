@@ -119,9 +119,12 @@ extern "C"
     M3_API void m3Body_EnableBullet(m3World* world, m3BodyId body, bool flag);
     M3_API void m3Body_SetUserData(m3World* world, m3BodyId body, uint64_t userData);
     M3_API m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body);
-    M3_API int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids,
+    /// The body's shapes or joints, up to capacity ids; returns the
+    /// total, which may exceed capacity, and a NULL array with capacity
+    /// 0 measures.
+    M3_API int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* idsOut,
                                     int32_t capacity);
-    M3_API int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids,
+    M3_API int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* idsOut,
                                     int32_t capacity);
 
     /// Journaled setters: every mutation is a discrete op.
@@ -167,10 +170,11 @@ extern "C"
     /// the empty string for unnamed bodies and stale ids.
     M3_API void m3Body_SetName(m3World* world, m3BodyId body, const char* name);
     M3_API const char* m3Body_GetName(const m3World* world, m3BodyId body);
-    /// Who touches me now: fills up to capacity entries and
-    /// returns the count written. See m3ContactData in world.h.
-    M3_API int32_t m3Body_GetContactData(const m3World* world, m3BodyId body, m3ContactData* out,
-                                         int32_t capacity);
+    /// Who touches me now: fills up to capacity entries and returns
+    /// the total, which may exceed capacity; a NULL array with
+    /// capacity 0 measures. See m3ContactData in world.h.
+    M3_API int32_t m3Body_GetContactData(const m3World* world, m3BodyId body,
+                                         m3ContactData* dataOut, int32_t capacity);
     /// Whether this body may fall asleep; turning it off wakes it.
     /// Journaled.
     M3_API void m3Body_EnableSleep(m3World* world, m3BodyId body, bool flag);

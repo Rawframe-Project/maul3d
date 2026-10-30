@@ -59,7 +59,8 @@ typedef struct m3MoverCollideCtx
     m3real skin;
     m3MoverPlane* planes; // bounded max-heap on the shape slot while collecting
     int32_t capacity;
-    int32_t count;
+    int32_t count; // kept, at most capacity
+    int32_t total; // every plane offered
 } m3MoverCollideCtx;
 
 static void MoverPlaneSiftDown(m3MoverPlane* heap, int32_t size, int32_t i)
@@ -91,6 +92,7 @@ static void MoverPlaneSiftDown(m3MoverPlane* heap, int32_t size, int32_t i)
 // Keeps the planes of the `capacity` lowest shape slots offered.
 static void MoverOfferPlane(m3MoverCollideCtx* ctx, m3MoverPlane plane)
 {
+    ctx->total += 1;
     if (ctx->count < ctx->capacity)
     {
         int32_t i = ctx->count++;
@@ -103,7 +105,7 @@ static void MoverOfferPlane(m3MoverCollideCtx* ctx, m3MoverPlane plane)
             i = (i - 1) / 2;
         }
     }
-    else if (plane.shapeId.index1 < ctx->planes[0].shapeId.index1)
+    else if (ctx->capacity > 0 && plane.shapeId.index1 < ctx->planes[0].shapeId.index1)
     {
         ctx->planes[0] = plane;
         MoverPlaneSiftDown(ctx->planes, ctx->count, 0);
@@ -276,9 +278,9 @@ static bool MoverGatherCallback(int32_t shape, void* userContext)
 
 static M3_NOINLINE int32_t WorldCollideMoverWorker(const m3World* world, m3Pos3 center,
                                                    m3real halfHeight, m3real radius, m3real skin,
-                                                   m3MoverPlane* planes, int32_t capacity)
+                                                   m3MoverPlane* planesOut, int32_t capacity)
 {
-    if (world == NULL || planes == NULL || capacity <= 0 || !m3FinitePos3(center) ||
+    if (world == NULL || !m3ListOutputValid(planesOut, capacity) || !m3FinitePos3(center) ||
         !m3FiniteF(halfHeight) || halfHeight < 0.0f || !m3FiniteF(radius) || !(radius > 0.0f) ||
         !m3FiniteF(skin) || skin < 0.0f)
     {
@@ -292,7 +294,7 @@ static M3_NOINLINE int32_t WorldCollideMoverWorker(const m3World* world, m3Pos3 
     ctx.halfHeight = halfHeight;
     ctx.radius = radius;
     ctx.skin = skin;
-    ctx.planes = planes;
+    ctx.planes = planesOut;
     ctx.capacity = capacity;
     double reach = (double)(halfHeight + radius + skin);
     double lo[3] = {center.x - reach, center.y - reach, center.z - reach};
@@ -327,20 +329,20 @@ static M3_NOINLINE int32_t WorldCollideMoverWorker(const m3World* world, m3Pos3 
     // Ascending shape order keeps the plane list canonical.
     for (int32_t end = ctx.count - 1; end > 0; --end)
     {
-        m3MoverPlane swap = planes[0];
-        planes[0] = planes[end];
-        planes[end] = swap;
-        MoverPlaneSiftDown(planes, end, 0);
+        m3MoverPlane swap = planesOut[0];
+        planesOut[0] = planesOut[end];
+        planesOut[end] = swap;
+        MoverPlaneSiftDown(planesOut, end, 0);
     }
-    return ctx.count;
+    return ctx.total;
 }
 
 int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight, m3real radius,
-                             m3real skin, m3MoverPlane* planes, int32_t capacity)
+                             m3real skin, m3MoverPlane* planesOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
     int32_t result =
-        WorldCollideMoverWorker(world, center, halfHeight, radius, skin, planes, capacity);
+        WorldCollideMoverWorker(world, center, halfHeight, radius, skin, planesOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }

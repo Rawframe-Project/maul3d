@@ -79,12 +79,12 @@ static void TestRebuildChangesNoAnswer(void)
     m3World* rebuilt = City(NULL);
 
     m3ShapeId before[64];
-    int32_t beforeCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, before, 64,
-                                                m3DefaultQueryFilter());
+    int32_t beforeCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f,
+                                                m3DefaultQueryFilter(), before, 64);
     CHECK(m3World_RebuildBroadphase(rebuilt) == m3_success, "the tree rebuilds");
     m3ShapeId after[64];
-    int32_t afterCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f, after, 64,
-                                               m3DefaultQueryFilter());
+    int32_t afterCount = m3World_OverlapSphere(rebuilt, (m3Pos3){0.0, 0.5, 0.0}, 3.0f,
+                                               m3DefaultQueryFilter(), after, 64);
     CHECK(beforeCount == afterCount, "the rebuild keeps the overlap count");
     bool same = beforeCount == afterCount;
     for (int32_t i = 0; same && i < beforeCount; ++i)
