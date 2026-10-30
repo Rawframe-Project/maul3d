@@ -133,7 +133,17 @@ static void TestJournalOverflowIsLoud(void)
     {
         NewBody(world, &bd); // each op needs more than 64 bytes
     }
-    CHECK(StopJournal(world) == -1, "journal overflow reports -1, loudly");
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    int32_t bytes = 77;
+    CHECK(m3World_StopJournal(world, &bytes) == m3_errorCapacity && bytes == 0,
+          "the stop reports the overflow as m3_errorCapacity and zeroes bytesOut");
+    CHECK(m3World_GetCounters(world).misuse == misuse, "a full journal buffer is no misuse");
+    CHECK(m3World_StopJournal(world, &bytes) == m3_errorState,
+          "the overflowed journal is stopped: a second stop has none to stop");
+    uint8_t roomy[4096];
+    CHECK(StartJournal(world, roomy, (int32_t)sizeof(roomy)), "a new journal starts after it");
+    NewBody(world, &bd);
+    CHECK(StopJournal(world) > 16, "and records");
     (void)m3World_Step(world, 1.0f / 60.0f, 4); // the world itself is fine
     m3DestroyWorld(world);
 }
