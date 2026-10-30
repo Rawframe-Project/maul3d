@@ -101,6 +101,9 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
 
 void m3DestroyBodyInternal(m3World* world, int32_t index)
 {
+    // The id goes stale first: the shape cascade may call the host's free
+    // hook, and host code that reads the body back must find it gone.
+    m3IdPoolFree(&world->bodies.bodyPool, index);
     // Destroy attached joints first (the cascade, like shapes).
     while (world->joints.bodyJointHead[index] != -1)
     {
@@ -163,7 +166,6 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
             m3DestroyVehicleInternal(world, v);
         }
     }
-    m3IdPoolFree(&world->bodies.bodyPool, index);
 }
 
 bool m3PoseValid(m3Transform pose)

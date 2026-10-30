@@ -548,6 +548,9 @@ void m3RebuildPlaneList(m3World* world)
 
 void m3DestroyShapeInternal(m3World* world, int32_t index)
 {
+    // The id goes stale first: releasing the content may call the host's
+    // free hook, and host code that reads the shape back must find it gone.
+    m3IdPoolFree(&world->shapes.shapePool, index);
     int32_t bodyIndex = world->shapes.shapeBody[index];
     bool plane = world->shapes.shapeType[index] == (uint8_t)m3_planeShape;
     UnlinkShape(world, index);
@@ -577,7 +580,6 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
     sh->shapeLocalPos[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
     sh->shapeLocalRot[index] = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
     sh->shapeHasOffset[index] = 0;
-    m3IdPoolFree(&world->shapes.shapePool, index);
     m3RecomputeMass(world, bodyIndex);
     if (plane)
     {

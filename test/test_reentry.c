@@ -257,12 +257,140 @@ static void SweepOp(int32_t op)
     CHECK(whole, "a writer the allocator calls is refused busy, counted, and changes nothing");
 }
 
+// A destroy makes its id stale before the host's free hook runs on the
+// object's memory: host code that reads the shape or its body back from
+// the hook finds them gone, and a getter returns zeros without reaching
+// freed content. A shape's id once stayed live until its mesh, hull and
+// height field were freed, and a body's until its whole cascade had run.
+typedef struct Watch
+{
+    m3World* world; // NULL outside the destroy under watch
+    m3ShapeId shape;
+    m3BodyId body;
+    int32_t frees;
+    int32_t liveShape;
+    int32_t liveBody;
+    int32_t typeRead;
+} Watch;
+
+static void* WatchAlloc(size_t bytes, size_t alignment, void* context)
+{
+    (void)alignment;
+    (void)context;
+    return malloc(bytes);
+}
+
+static void WatchFree(void* memory, size_t bytes, size_t alignment, void* context)
+{
+    (void)bytes;
+    (void)alignment;
+    Watch* w = (Watch*)context;
+    if (w->world != NULL)
+    {
+        w->frees += 1;
+        w->liveShape += m3Shape_IsValid(w->world, w->shape) ? 1 : 0;
+        w->liveBody += m3Body_IsValid(w->world, w->body) ? 1 : 0;
+        // The box getter reads a mesh's or height field's content record,
+        // so it must return its zero before it reaches freed memory.
+        m3WorldAabb box = m3Shape_GetAabb(w->world, w->shape);
+        w->typeRead += m3Shape_GetType(w->world, w->shape) != 0 || box.upperBound.x != 0.0 ? 1 : 0;
+    }
+    free(memory);
+}
+
+enum
+{
+    KindMesh,
+    KindHull,
+    KindHeightField,
+    KindVoxel,
+    KindCount
+};
+
+static m3ShapeId WatchedShape(m3World* world, m3BodyId body, int32_t kind)
+{
+    static const m3Vec3 cloud[5] = {{-0.4f, -0.3f, -0.2f},
+                                    {0.5f, -0.2f, -0.3f},
+                                    {0.1f, 0.6f, -0.1f},
+                                    {-0.2f, 0.1f, 0.5f},
+                                    {0.3f, 0.2f, 0.4f}};
+    static const float heights[9] = {0.0f, 0.1f, 0.0f, 0.2f, 0.3f, 0.1f, 0.0f, 0.1f, 0.0f};
+    static uint8_t voxels[CHUNK_DIM * CHUNK_DIM * CHUNK_DIM];
+    m3ShapeDef sd = m3DefaultShapeDef();
+    switch (kind)
+    {
+    case KindMesh:
+        return NewMeshShape(world, body, &sd, kQuadVerts, 4, kQuadTris, 2);
+    case KindHull:
+        return NewHullShape(world, body, &sd, cloud, 5);
+    case KindHeightField:
+        return NewHeightFieldShape(world, body, &sd, heights, 3, 3, 1.0f);
+    default:
+        memset(voxels, 1, CHUNK_DIM * CHUNK_DIM);
+        return NewVoxelChunkShape(world, body, &sd, voxels, NULL, 1.0f);
+    }
+}
+
+static void TestDestroyStalesIdsBeforeFree(void)
+{
+    static const char* const names[KindCount] = {"mesh", "hull", "height field", "voxel chunk"};
+    for (int32_t kind = 0; kind < KindCount; ++kind)
+    {
+        for (int32_t viaBody = 0; viaBody < 2; ++viaBody)
+        {
+            Watch w;
+            memset(&w, 0, sizeof(w));
+            m3WorldDef wd = m3DefaultWorldDef();
+            wd.bodyCapacity = 4;
+            wd.shapeCapacity = 4;
+            wd.voxelCapacity = 1;
+            wd.allocator = (m3Allocator){WatchAlloc, WatchFree, &w};
+            m3World* world = NewWorld(&wd);
+            m3BodyDef bd = m3DefaultBodyDef();
+            m3BodyId body = NewBody(world, &bd);
+            m3ShapeId shape = WatchedShape(world, body, kind);
+            char what[96];
+            snprintf(what, sizeof(what), "the %s creates", names[kind]);
+            CHECK(m3Shape_IsValid(world, shape), what);
+            w.shape = shape;
+            w.body = body;
+            w.world = world;
+            if (viaBody != 0)
+            {
+                CHECK(m3DestroyBody(world, body) == m3_success, "the body destroys");
+            }
+            else
+            {
+                CHECK(m3DestroyShape(world, shape) == m3_success, "the shape destroys");
+            }
+            w.world = NULL;
+            snprintf(what, sizeof(what), "a free hook in the %s's %s destroy finds its id stale",
+                     names[kind], viaBody != 0 ? "body" : "shape");
+            CHECK(w.liveShape == 0 && w.typeRead == 0, what);
+            if (viaBody != 0)
+            {
+                snprintf(what, sizeof(what), "and the %s's body stale", names[kind]);
+                CHECK(w.liveBody == 0, what);
+            }
+            // A hull and a voxel chunk keep their records in the world's own
+            // slots; a mesh and a height field free theirs through the hook.
+            if (kind == KindMesh || kind == KindHeightField)
+            {
+                snprintf(what, sizeof(what), "the %s's destroy frees its content", names[kind]);
+                CHECK(w.frees > 0, what);
+            }
+            m3DestroyWorld(world);
+        }
+    }
+}
+
 int main(void)
 {
     for (int32_t op = 0; op < OpCount; ++op)
     {
         SweepOp(op);
     }
+    TestDestroyStalesIdsBeforeFree();
     if (s_failures == 0)
     {
         printf("test_reentry: all passed\n");
