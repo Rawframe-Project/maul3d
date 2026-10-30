@@ -494,6 +494,88 @@ static void TestSensorPassThrough(void)
     m3DestroyWorld(world);
 }
 
+static bool SameShapeId(m3ShapeId a, m3ShapeId b)
+{
+    return a.index1 == b.index1 && a.generation == b.generation;
+}
+
+// A ball falls through a static sensor box, built in either order so the
+// sensor holds the lower shape index once and the higher once. Every
+// sensor event must name the sensor and the ball by role, whatever their
+// indexes, and carry the step count from before its step.
+static void SensorEventRoles(bool sensorFirst)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){0.0, 3.0, 0.0};
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 6.0, 0.0};
+    m3ShapeDef zoneDef = m3DefaultShapeDef();
+    zoneDef.isSensor = true;
+    m3ShapeDef ballDef = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.3f};
+    m3ShapeId zone = {0, 0};
+    m3ShapeId ball = {0, 0};
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        if ((k == 0) == sensorFirst)
+        {
+            zone = NewBoxShape(world, NewBody(world, &gd), &zoneDef, (m3Vec3){1.0f, 0.5f, 1.0f});
+        }
+        else
+        {
+            ball = NewSphereShape(world, NewBody(world, &bd), &ballDef, &sphere);
+        }
+    }
+    CHECK((zone.index1 < ball.index1) == sensorFirst, "the build order sets the indexes");
+
+    int32_t begins = 0;
+    int32_t ends = 0;
+    bool rolesHold = true;
+    bool stepsHold = true;
+    uint64_t beginStep = 0;
+    uint64_t endStep = 0;
+    for (int32_t i = 0; i < 90; ++i)
+    {
+        uint64_t before = m3World_GetStepCount(world);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        m3SensorEvents events = m3World_GetSensorEvents(world);
+        for (int32_t e = 0; e < events.beginCount; ++e)
+        {
+            const m3SensorBeginEvent* ev = &events.beginEvents[e];
+            rolesHold = rolesHold && SameShapeId(ev->sensorShapeId, zone) &&
+                        SameShapeId(ev->visitorShapeId, ball);
+            stepsHold = stepsHold && ev->step == before;
+            beginStep = ev->step;
+            begins += 1;
+        }
+        for (int32_t e = 0; e < events.endCount; ++e)
+        {
+            const m3SensorEndEvent* ev = &events.endEvents[e];
+            rolesHold = rolesHold && SameShapeId(ev->sensorShapeId, zone) &&
+                        SameShapeId(ev->visitorShapeId, ball);
+            stepsHold = stepsHold && ev->step == before;
+            endStep = ev->step;
+            ends += 1;
+        }
+    }
+    CHECK(begins == 1 && ends == 1, "one sensor begin and one sensor end");
+    CHECK(rolesHold, "each sensor event names the sensor and the visitor by role");
+    CHECK(stepsHold, "each sensor event carries the step count from before its step");
+    CHECK(beginStep > 0 && endStep > beginStep, "the end comes steps after the begin");
+    m3DestroyWorld(world);
+}
+
+static void TestSensorEventRoles(void)
+{
+    SensorEventRoles(true);
+    SensorEventRoles(false);
+}
+
 static void TestSensorSleepAndBullets(void)
 {
     // A sensor neither wakes a sleeper nor stops a bullet, and a
@@ -1273,6 +1355,7 @@ int main(void)
     TestFarPointsMissVoxels();
     TestGenericCasts();
     TestSensorPassThrough();
+    TestSensorEventRoles();
     TestSensorSleepAndBullets();
     TestFarRaysKeepTheirNormal();
     TestDiagonalFarRaysKeepTheirNormal();

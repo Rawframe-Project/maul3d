@@ -371,13 +371,32 @@ extern "C"
 
     M3_API m3ContactEvents m3World_GetContactEvents(const m3World* world);
 
+    /// A shape that began overlapping a sensor during a step. Two sensors
+    /// never detect each other, so every sensor event has exactly one
+    /// sensor. Begin and end events pair up as contact events do.
+    typedef struct m3SensorBeginEvent
+    {
+        m3ShapeId sensorShapeId;
+        m3ShapeId visitorShapeId; // the shape inside the sensor
+        M3_ALIGN8 uint64_t step;  // the step the event belongs to
+    } m3SensorBeginEvent;
+
+    /// A shape that stopped overlapping a sensor during a step.
+    typedef struct m3SensorEndEvent
+    {
+        m3ShapeId sensorShapeId; // ids as they were when the overlap ended
+        m3ShapeId visitorShapeId;
+        M3_ALIGN8 uint64_t step;
+    } m3SensorEndEvent;
+
     /// Sensor overlap events, the same law as contact events but in
-    /// their own streams (a sensor touch is not a contact). shapeIdA
-    /// is the lower shape index; either side may be the sensor.
+    /// their own streams (a sensor touch is not a contact), in canonical
+    /// pair order. An event's step is m3World_GetStepCount before that
+    /// step: the first step's events carry 0.
     typedef struct m3SensorEvents
     {
-        const m3ContactBeginEvent* beginEvents;
-        const m3ContactEndEvent* endEvents;
+        const m3SensorBeginEvent* beginEvents;
+        const m3SensorEndEvent* endEvents;
         int32_t beginCount;
         int32_t endCount;
     } m3SensorEvents;

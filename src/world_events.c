@@ -220,13 +220,20 @@ static void EmitPairChange(m3World* world, uint64_t key, bool began)
     m3Events* ev = &world->events;
     if (world->shapes.shapeSensor[sA] != 0 || world->shapes.shapeSensor[sB] != 0)
     {
+        // The broad phase drops a pair of two sensors, so exactly one
+        // side is the sensor.
+        bool aSenses = world->shapes.shapeSensor[sA] != 0;
+        m3ShapeId sensor = aSenses ? idA : idB;
+        m3ShapeId visitor = aSenses ? idB : idA;
         if (began && ev->sensorBeginEventCount < room)
         {
-            ev->sensorBeginEvents[ev->sensorBeginEventCount++] = begin;
+            ev->sensorBeginEvents[ev->sensorBeginEventCount++] =
+                (m3SensorBeginEvent){sensor, visitor, world->stepCount};
         }
         else if (!began && ev->sensorEndEventCount < room)
         {
-            ev->sensorEndEvents[ev->sensorEndEventCount++] = end;
+            ev->sensorEndEvents[ev->sensorEndEventCount++] =
+                (m3SensorEndEvent){sensor, visitor, world->stepCount};
         }
     }
     else if (began && ev->beginEventCount < room)

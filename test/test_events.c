@@ -331,9 +331,9 @@ static ReuseEvents ReuseAfterDestroy(bool sensor, bool overlap)
     }
     for (int32_t i = 0; i < sensors.beginCount; ++i)
     {
-        out.newerNamed =
-            out.newerNamed || (sensors.beginEvents[i].shapeIdB.index1 == newer.index1 &&
-                               sensors.beginEvents[i].shapeIdB.generation == newer.generation);
+        out.newerNamed = out.newerNamed ||
+                         (sensors.beginEvents[i].visitorShapeId.index1 == newer.index1 &&
+                          sensors.beginEvents[i].visitorShapeId.generation == newer.generation);
     }
     m3DestroyWorld(world);
     return out;
