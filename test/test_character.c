@@ -715,7 +715,9 @@ static void TestCarvedFloorDrop(void)
     // grounding must drop from the edit alone.
     int32_t lo[3] = {7, 0, 7};
     int32_t hi[3] = {10, 0, 10};
-    CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo, hi) == 16, "the floor vanishes under foot");
+    int32_t cleared = 0;
+    CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo, hi, &cleared) == m3_success && cleared == 16,
+          "the floor vanishes under foot");
     CHECK(!m3Character_IsGrounded(world, hero), "grounding drops the same step the floor goes");
 
     // An edit elsewhere never touches a grounded character.
@@ -729,7 +731,8 @@ static void TestCarvedFloorDrop(void)
     CHECK(m3Character_IsGrounded(world, bystander), "the bystander stands");
     int32_t lo2[3] = {13, 0, 13};
     int32_t hi2[3] = {14, 0, 14};
-    CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo2, hi2) == 4, "the far carve lands");
+    CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo2, hi2, &cleared) == m3_success && cleared == 4,
+          "the far carve lands");
     CHECK(m3Character_IsGrounded(world, bystander), "a far edit never shakes the bystander");
     m3DestroyWorld(world);
 }

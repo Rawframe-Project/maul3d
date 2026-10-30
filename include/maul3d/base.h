@@ -299,9 +299,12 @@ extern "C"
 #define M3_MAX_MESH_TRIANGLES 65535
 #define M3_MAX_MESH_MATERIALS 8
 // - a height field grid's samples along each axis, and those of a height
-//   field built as a mesh.
+//   field built as a mesh;
 #define M3_MAX_HEIGHTFIELD_SIZE      255
 #define M3_MAX_HEIGHTFIELD_MESH_SIZE 32
+// - the merged boxes of a voxel chunk's collision surface, the count a
+//   checkerboard of single voxels needs.
+#define M3_MAX_VOXEL_SURFACE_BOXES 2048
     // The soft body, vehicle and drivetrain counts are in their headers.
 
 #ifdef __cplusplus

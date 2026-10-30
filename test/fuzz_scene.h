@@ -256,7 +256,7 @@ static inline void FuzzSession(m3World* world, const FuzzScene* scene)
     m3SphericalJoint_SetConeAngle(world, scene->shoulder, 0.6f);
     m3SphericalJoint_EnableCone(world, scene->shoulder, true);
     FuzzStep(world, 4);
-    m3VoxelChunkShape_ClearVoxel(world, scene->voxels, 0, 0, 0);
+    (void)m3VoxelChunkShape_ClearVoxel(world, scene->voxels, 0, 0, 0);
     m3ExplosionDef blast = m3DefaultExplosionDef();
     blast.position = (m3Pos3){1.0, 0.5, 0.0};
     blast.radius = 1.0f;

@@ -87,8 +87,8 @@ static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surfa
         return; // an empty chunk keeps the empty tree, which gathers nothing
     }
     // Bounds per merged box, in chunk-frame meters.
-    m3Vec3 los[M3_VOXEL_MAX_BOXES];
-    m3Vec3 his[M3_VOXEL_MAX_BOXES];
+    m3Vec3 los[M3_MAX_VOXEL_SURFACE_BOXES];
+    m3Vec3 his[M3_MAX_VOXEL_SURFACE_BOXES];
     for (int32_t b = 0; b < surface->boxCount; ++b)
     {
         los[b] = (m3Vec3){(float)surface->boxLo[b][0] * cell, (float)surface->boxLo[b][1] * cell,
@@ -100,7 +100,7 @@ static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surfa
     uint8_t* tree = (uint8_t*)world->voxels.voxelTrees[slot];
     M3_ASSERT(tree != NULL); // taken when the chunk landed
     surface->bvh.nodes = (m3MeshBvhNode*)tree;
-    surface->bvh.order = (uint16_t*)(tree + 2 * M3_VOXEL_MAX_BOXES * sizeof(m3MeshBvhNode));
+    surface->bvh.order = (uint16_t*)(tree + 2 * M3_MAX_VOXEL_SURFACE_BOXES * sizeof(m3MeshBvhNode));
     m3MeshBvhBuildIn(&surface->bvh, world->voxels.voxelTreeScratch, los, his, surface->boxCount);
 }
 
@@ -594,39 +594,45 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
 }
 
 // Public entries: validate, journal, apply (the command pattern).
-static bool ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* shapeOut)
+static m3Result ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* shapeOut)
 {
-    int32_t shape = m3ShapeSlot(world, id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (world == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return false; // stale, or not a voxel chunk: contract
+        return m3_errorInvalid;
+    }
+    int32_t shape = m3ShapeSlot(world, id);
+    if (shape < 0)
+    {
+        return m3Refuse(world, m3MissingId(id.index1));
+    }
+    if (world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    {
+        return m3Refuse(world, m3_errorInvalid); // not a voxel chunk
     }
     *shapeOut = shape;
-    return true;
+    return m3_success;
 }
 
-static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape, int32_t x,
-                                                 int32_t y, int32_t z, uint16_t payload)
+static M3_NOINLINE m3Result VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape, int32_t x,
+                                                     int32_t y, int32_t z, uint16_t payload)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!ResolveVoxelShape(world, shape, &index))
+    int32_t index = -1;
+    m3Result resolved = ResolveVoxelShape(world, shape, &index);
+    if (resolved != m3_success)
     {
-        return;
+        return resolved;
     }
     if (!m3VoxelCoordsValid(x, y, z))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (!m3VoxelSetInternal(world, index, x, y, z, payload))
     {
-        return; // the surface would pass the box limit: counted, nothing changed
+        return m3_errorLimit; // the surface would pass its bound: counted, nothing changed
     }
     if (world->recorder.journalActive != 0)
     {
@@ -639,37 +645,38 @@ static M3_NOINLINE void VoxelChunkSetVoxelWorker(m3World* world, m3ShapeId shape
         record.payload = payload;
         m3JournalRecord(world, m3_opVoxelSet, &record, (int32_t)sizeof(record));
     }
+    return m3_success;
 }
 
-void m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
-                                uint16_t payload)
+m3Result m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                    int32_t z, uint16_t payload)
 {
     uint64_t env = m3FloatEnvEnter();
-    VoxelChunkSetVoxelWorker(world, shape, x, y, z, payload);
+    m3Result result = VoxelChunkSetVoxelWorker(world, shape, x, y, z, payload);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId shape, int32_t x,
-                                                   int32_t y, int32_t z)
+static M3_NOINLINE m3Result VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId shape, int32_t x,
+                                                       int32_t y, int32_t z)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!ResolveVoxelShape(world, shape, &index))
+    int32_t index = -1;
+    m3Result resolved = ResolveVoxelShape(world, shape, &index);
+    if (resolved != m3_success)
     {
-        return;
+        return resolved;
     }
     if (!m3VoxelCoordsValid(x, y, z))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (!m3VoxelClearInternal(world, index, x, y, z))
     {
-        return; // the surface would pass the box limit: counted, nothing changed
+        return m3_errorLimit; // the surface would pass its bound: counted, nothing changed
     }
     if (world->recorder.journalActive != 0)
     {
@@ -681,38 +688,39 @@ static M3_NOINLINE void VoxelChunkClearVoxelWorker(m3World* world, m3ShapeId sha
         record.z = z;
         m3JournalRecord(world, m3_opVoxelClear, &record, (int32_t)sizeof(record));
     }
+    return m3_success;
 }
 
-void m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z)
+m3Result m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
+                                      int32_t z)
 {
     uint64_t env = m3FloatEnvEnter();
-    VoxelChunkClearVoxelWorker(world, shape, x, y, z);
+    m3Result result = VoxelChunkClearVoxelWorker(world, shape, x, y, z);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE void VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape, int32_t x,
-                                                int32_t y, int32_t z, uint8_t fill)
+static M3_NOINLINE m3Result VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape, int32_t x,
+                                                    int32_t y, int32_t z, uint8_t fill)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!ResolveVoxelShape(world, shape, &index))
+    int32_t index = -1;
+    m3Result resolved = ResolveVoxelShape(world, shape, &index);
+    if (resolved != m3_success)
     {
-        return;
+        return resolved;
     }
     if (!m3VoxelCoordsValid(x, y, z) || fill == 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // fill zero is a clear in disguise: refused
+        return m3Refuse(world, m3_errorInvalid); // fill zero is a clear in disguise
     }
     int32_t slot = world->shapes.shapeVoxelIndex[index];
     if (!m3VoxelGet(&world->voxels.voxelData[slot], x, y, z))
     {
-        m3Refuse(world, m3_errorInvalid);
-        return;
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (world->recorder.journalActive != 0)
     {
@@ -726,46 +734,54 @@ static M3_NOINLINE void VoxelChunkSetFillWorker(m3World* world, m3ShapeId shape,
         m3JournalRecord(world, m3_opVoxelSetFill, &record, (int32_t)sizeof(record));
     }
     m3VoxelSetFillInternal(world, index, x, y, z, fill);
+    return m3_success;
 }
 
-void m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
-                               uint8_t fill)
+m3Result m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y, int32_t z,
+                                   uint8_t fill)
 {
     uint64_t env = m3FloatEnvEnter();
-    VoxelChunkSetFillWorker(world, shape, x, y, z, fill);
+    m3Result result = VoxelChunkSetFillWorker(world, shape, x, y, z, fill);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId shape,
-                                                    const int32_t lo[3], const int32_t hi[3])
+static M3_NOINLINE m3Result VoxelChunkClearBoxWorker(m3World* world, m3ShapeId shape,
+                                                     const int32_t lo[3], const int32_t hi[3],
+                                                     int32_t* clearedOut)
 {
+    // A call back in from the world's own callback writes nothing: the
+    // call in progress may own clearedOut. Every other failure zeroes it.
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return -1;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!ResolveVoxelShape(world, shape, &index))
+    if (clearedOut == NULL)
     {
-        return -1;
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    *clearedOut = 0;
+    int32_t index = -1;
+    m3Result resolved = ResolveVoxelShape(world, shape, &index);
+    if (resolved != m3_success)
+    {
+        return resolved;
     }
     if (lo == NULL || hi == NULL)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return -1;
+        return m3Refuse(world, m3_errorInvalid);
     }
     for (int32_t k = 0; k < 3; ++k)
     {
         if (lo[k] < 0 || hi[k] >= M3_VOXEL_DIM || lo[k] > hi[k])
         {
-            m3Refuse(world, m3_errorInvalid);
-            return -1; // a region out of the chunk or inverted
+            return m3Refuse(world, m3_errorInvalid); // a region out of the chunk or inverted
         }
     }
     int32_t cleared = m3VoxelClearBoxInternal(world, index, lo, hi);
     if (cleared < 0)
     {
-        return -1; // the surface would pass the box limit: counted, nothing changed
+        return m3_errorLimit; // the surface would pass its bound: counted, nothing changed
     }
     if (world->recorder.journalActive != 0)
     {
@@ -779,14 +795,15 @@ static M3_NOINLINE int32_t VoxelChunkClearBoxWorker(m3World* world, m3ShapeId sh
         }
         m3JournalRecord(world, m3_opVoxelClearBox, &record, (int32_t)sizeof(record));
     }
-    return cleared;
+    *clearedOut = cleared;
+    return m3_success;
 }
 
-int32_t m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
-                                   const int32_t hi[3])
+m3Result m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
+                                    const int32_t hi[3], int32_t* clearedOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = VoxelChunkClearBoxWorker(world, shape, lo, hi);
+    m3Result result = VoxelChunkClearBoxWorker(world, shape, lo, hi, clearedOut);
     m3FloatEnvLeave(env);
     return result;
 }
