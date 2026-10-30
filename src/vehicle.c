@@ -64,8 +64,8 @@ m3VehicleDef m3DefaultVehicleDef(void)
         def.wheels[w].direction = (m3Vec3){0.0f, -1.0f, 0.0f};
         def.wheels[w].restLength = 0.4f;
         def.wheels[w].travel = 0.25f;
-        def.wheels[w].hertz = 1.5f;
-        def.wheels[w].zeta = 0.6f;
+        def.wheels[w].springHertz = 1.5f;
+        def.wheels[w].springDampingRatio = 0.6f;
         def.wheels[w].radius = 0.3f;
         def.wheels[w].brakeShare = 0.25f;
     }
@@ -97,8 +97,8 @@ m3Result m3WheelDefCheck(const m3WheelDef* wd)
                                    wd->travel > 0.0f && wd->travel <= wd->restLength);
     result = m3BothChecks(result, m3CheckLocalV3(wd->anchor));
     result = m3BothChecks(result, m3CheckPositive(wd->restLength, M3_LOCAL_LIMIT));
-    result = m3BothChecks(result, m3CheckPositive(wd->hertz, M3_HERTZ_LIMIT));
-    result = m3BothChecks(result, m3CheckNonNegative(wd->zeta, M3_RATIO_LIMIT));
+    result = m3BothChecks(result, m3CheckPositive(wd->springHertz, M3_HERTZ_LIMIT));
+    result = m3BothChecks(result, m3CheckNonNegative(wd->springDampingRatio, M3_RATIO_LIMIT));
     result = m3BothChecks(result, m3CheckPositive(wd->radius, M3_LOCAL_LIMIT));
     result = m3BothChecks(result, m3CheckAtLeast(wd->radius, M3_MIN_WHEEL_RADIUS));
     return m3BothChecks(result, m3CheckNonNegative(wd->brakeShare, M3_RATIO_LIMIT));
@@ -151,8 +151,8 @@ static void InitWheel(m3World* world, int32_t k, const m3WheelDef* wd)
     v->vehWheelDir[k] = dir;
     v->vehWheelRest[k] = src->restLength;
     v->vehWheelTravel[k] = src->travel;
-    v->vehWheelHertz[k] = src->hertz;
-    v->vehWheelZeta[k] = src->zeta;
+    v->vehWheelHertz[k] = src->springHertz;
+    v->vehWheelZeta[k] = src->springDampingRatio;
     v->vehWheelRadius[k] = src->radius;
     v->vehWheelFlags[k] = (uint8_t)((src->steerable ? 1u : 0u) | (src->driven ? 2u : 0u));
     v->vehWheelBrake[k] = src->brakeShare;

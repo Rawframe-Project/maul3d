@@ -597,7 +597,7 @@ static void TestVehicleContracts(void)
     float bad;
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
-    vd.wheels[3].hertz = bad;
+    vd.wheels[3].springHertz = bad;
     CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a NaN hertz refuses");
 
     // A static chassis refuses (vehicles spring against dynamics).

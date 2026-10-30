@@ -112,8 +112,8 @@ static void JournalWheelDef(m3WheelDef* out, const m3WheelDef* def)
     out->direction = def->direction;
     out->restLength = def->restLength;
     out->travel = def->travel;
-    out->hertz = def->hertz;
-    out->zeta = def->zeta;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->radius = def->radius;
     out->steerable = def->steerable;
     out->driven = def->driven;

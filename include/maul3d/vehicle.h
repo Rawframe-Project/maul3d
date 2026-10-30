@@ -27,19 +27,19 @@ extern "C"
 
     typedef struct m3WheelDef
     {
-        m3Vec3 anchor;     // suspension attach point, chassis-local
-        m3Vec3 direction;  // suspension direction, chassis-local, near
-                           // unit (normalized at create); usually down
-        m3real restLength; // suspension length at zero load
-        m3real travel;     // max compression from rest
-        m3real hertz;      // spring frequency; keep well under the
-                           // step rate over two pi (explicit spring)
-        m3real zeta;       // damping ratio
-        m3real radius;     // wheel radius (the cast reaches
-                           // restLength + radius along direction)
-        bool steerable;    // turns with the steer command
-        bool driven;       // takes the drive force or engine torque
-        m3real brakeShare; // this wheel's share of brakeForce
+        m3Vec3 anchor;             // suspension attach point, chassis-local
+        m3Vec3 direction;          // suspension direction, chassis-local, near
+                                   // unit (normalized at create); usually down
+        m3real restLength;         // suspension length at zero load
+        m3real travel;             // max compression from rest
+        m3real springHertz;        // spring frequency; keep well under the
+                                   // step rate over two pi (explicit spring)
+        m3real springDampingRatio; // damping ratio
+        m3real radius;             // wheel radius (the cast reaches
+                                   // restLength + radius along direction)
+        bool steerable;            // turns with the steer command
+        bool driven;               // takes the drive force or engine torque
+        m3real brakeShare;         // this wheel's share of brakeForce
     } m3WheelDef;
 
     typedef struct m3VehicleDef
