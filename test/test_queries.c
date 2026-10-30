@@ -1408,6 +1408,43 @@ static void TestListOutputs(void)
     m3DestroyWorld(sc.world);
 }
 
+// An inverted box, lower above upper on any axis, is an argument no
+// correct program passes: the query refuses it, counts one misuse and
+// zeroes the array over its capacity. A one-point box is a real query.
+static void TestOverlapAabbRefusesInvertedBox(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId shape = NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    m3ShapeId ids[4];
+    for (int32_t axis = 0; axis < 3; ++axis)
+    {
+        m3WorldAabb box = {{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
+        double* lower =
+            axis == 0 ? &box.lowerBound.x : (axis == 1 ? &box.lowerBound.y : &box.lowerBound.z);
+        *lower = 2.0;
+        memset(ids, 0xAB, sizeof(ids));
+        int32_t n = -1;
+        CHECK_REFUSES(world, n = m3World_OverlapAabb(world, box, m3DefaultQueryFilter(), ids, 4),
+                      "an inverted box counts one misuse");
+        bool zeroed = true;
+        for (int32_t k = 0; k < 4; ++k)
+        {
+            zeroed = zeroed && ids[k].index1 == 0 && ids[k].generation == 0;
+        }
+        CHECK(n == 0 && zeroed, "and returns 0 with the array zeroed");
+    }
+    m3WorldAabb point = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    int32_t n = -1;
+    CHECK_ACCEPTS(world, n = m3World_OverlapAabb(world, point, m3DefaultQueryFilter(), ids, 4),
+                  "a one-point box counts no misuse");
+    CHECK(n == 1 && ids[0].index1 == shape.index1, "and finds the shape around the point");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
@@ -1430,6 +1467,7 @@ int main(void)
     TestSensorSleepAndBullets();
     TestFarRaysKeepTheirNormal();
     TestDiagonalFarRaysKeepTheirNormal();
+    TestOverlapAabbRefusesInvertedBox();
     if (s_failures == 0)
     {
         printf("test_queries: all checks passed\n");

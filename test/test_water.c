@@ -139,6 +139,29 @@ static void TestWaterWalls(void)
     m3WaterVolumeDef def = m3DefaultWaterVolumeDef();
     def.bounds.upperBound = def.bounds.lowerBound; // empty box
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "an empty box refuses");
+    // A box inverted on any axis, or flat on one, can never hold a body:
+    // m3_errorInvalid, one misuse, and no slot, which the eight volumes
+    // below then fill.
+    for (int32_t axis = 0; axis < 3; ++axis)
+    {
+        for (int32_t flat = 0; flat < 2; ++flat)
+        {
+            def = m3DefaultWaterVolumeDef();
+            double* lower = axis == 0
+                                ? &def.bounds.lowerBound.x
+                                : (axis == 1 ? &def.bounds.lowerBound.y : &def.bounds.lowerBound.z);
+            double upper = axis == 0
+                               ? def.bounds.upperBound.x
+                               : (axis == 1 ? def.bounds.upperBound.y : def.bounds.upperBound.z);
+            *lower = flat != 0 ? upper : upper + 1.0;
+            m3WaterVolumeId volume = m3_nullWaterVolumeId;
+            CHECK_REFUSES(world,
+                          CHECK(m3CreateWaterVolume(world, &def, &volume) == m3_errorInvalid,
+                                "an inverted or flat box is m3_errorInvalid"),
+                          "an inverted or flat box counts one misuse");
+            CHECK(!m3WaterVolume_IsValid(world, volume), "and makes no volume");
+        }
+    }
     def = m3DefaultWaterVolumeDef();
     def.density = -5.0f;
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "negative density refuses");
