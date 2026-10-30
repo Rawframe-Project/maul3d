@@ -6,6 +6,7 @@
 // never inside the step.
 
 #include "fpenv.h"
+#include "misuse.h"
 #include "world_internal.h"
 
 #include "maul3d/replay.h"
