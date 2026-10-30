@@ -1219,7 +1219,17 @@ static void TestListOutputs(void)
         {ListBodyShapes, "Body_GetShapes"},
         {ListBodyJoints, "Body_GetJoints"},
     };
-    static m3ContactData one[1]; // the largest entry of all of them
+    // One entry of any call's type: each call stores into the member of
+    // its own type, and the union's size and alignment cover them all.
+    static union
+    {
+        m3ContactData contact;
+        m3CastHit hit;
+        m3MoverPlane plane;
+        m3ShapeId shape;
+        m3BodyId body;
+        m3JointId joint;
+    } one[1];
     for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)
     {
         uint64_t misuse = m3World_GetCounters(sc.world).misuse;
