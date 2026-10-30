@@ -1555,7 +1555,7 @@ static void TestOffsetAnchorsHold(void)
 {
     // The generic joint locks any subset of its six axes: all six make it
     // a weld, all but the turn about z a hinge, and it holds like them.
-    const int32_t types[5] = {m3_prismaticJoint, m3_revoluteJoint, m3_fixedJoint, m3_genericJoint,
+    const int32_t types[5] = {m3_prismaticJoint, m3_revoluteJoint, m3_weldJoint, m3_genericJoint,
                               m3_genericJoint};
     const int32_t freeTurns[5] = {-1, -1, -1, -1, 2};
     const char* names[5] = {"slider", "hinge", "weld", "generic weld", "generic hinge"};
