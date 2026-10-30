@@ -821,7 +821,7 @@ rotation) joints; `m3RevoluteJoint_SetTargetAngle`,
 `m3Joint_SetTargetTranslation` and
 `m3SphericalJoint_SetTargetRotation` move the goal. The rotation target lives in the JOINT FRAMES
 (frame z is the create-time local axis). Reaction readback:
-`m3Joint_GetReactionForce/GetConstraintTorque` return last-step
+`m3Joint_GetReactionForce` and `m3Joint_GetReactionTorque` return last-step
 magnitudes assembled per type; they read 0 until the first step
 after a restore. Breakage: `m3Joint_SetBreakLimits` arms
 force/torque caps (zero = off); an over-threshold reaction

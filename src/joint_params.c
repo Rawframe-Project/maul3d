@@ -181,7 +181,7 @@ void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3r
         *outForce = invH * fabsf(perp.z) * m3MaxF(1.0f, world->joints.jointMotor[j].z);
         *outTorque = 0.0f;
         return;
-    default: // fixed and motor: weld rows
+    default: // weld and motor: weld rows
         torque = m3Length3(ang);
         break;
     }
