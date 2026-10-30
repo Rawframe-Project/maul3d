@@ -24,9 +24,10 @@ motor).
 Everything is created from a **def** struct obtained from its
 `m3Default*Def()` function. Defs carry a private cookie; a def that
 was not built from the default function is refused. Every create
-returns an **id**; every failure returns the null id or false. The
-library never aborts on user input: bad defs, stale ids, exhausted
-pools, and hostile floats are refused through return values
+writes an **id** to its last argument. Every refusal changes nothing,
+and a call that can fail returns its status. The library never aborts
+on user input: bad defs, stale ids, exhausted pools, and hostile
+floats are refused through return values
 (assertions guard internal invariants only, states that cannot be
 reached from outside).
 

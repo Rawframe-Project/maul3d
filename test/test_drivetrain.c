@@ -14,6 +14,7 @@
 #include "maul3d/vehicle.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -255,6 +256,12 @@ static void TestDifferentials(void)
     m3DrivetrainDef bad = m3DefaultDrivetrainDef();
     bad.diffMode = 3;
     m3Vehicle_SetDrivetrain(world, car, &bad);
+    // A negative mode is as unknown as one past the last.
+    bad.diffMode = -1;
+    CHECK_REFUSES(world, m3Vehicle_SetDrivetrain(world, car, &bad), "a diffMode of -1 refuses");
+    bad.diffMode = INT32_MIN;
+    CHECK_REFUSES(world, m3Vehicle_SetDrivetrain(world, car, &bad),
+                  "a diffMode of INT32_MIN refuses");
     m3DrivetrainDef good = m3DefaultDrivetrainDef();
     good.diffMode = m3_differentialLocked;
     good.diffCouple = -1.0f;

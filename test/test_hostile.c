@@ -17,6 +17,7 @@
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -380,6 +381,76 @@ static uint64_t RunGauntlet(void)
     return hash;
 }
 
+// A kind or mode is an int32_t, so a negative value is as unknown as one
+// past the last: every call that takes one refuses it and creates or
+// changes nothing.
+static void TestNegativeKindsRefuse(void)
+{
+    static const int32_t negatives[2] = {-1, INT32_MIN};
+    m3World* world = FreshWorld();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId a = NewBody(world, &bd);
+    bd.position = (m3Pos3){0.0, 1.0, 0.0};
+    m3BodyId b = NewBody(world, &bd);
+
+    m3JointDef generic = m3DefaultJointDef();
+    generic.type = m3_genericJoint;
+    generic.bodyIdA = a;
+    generic.bodyIdB = b;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        generic.genericLinear[k] = m3_axisLocked;
+        generic.genericAngular[k] = m3_axisFree;
+    }
+
+    for (int32_t n = 0; n < 2; ++n)
+    {
+        m3BodyDef badBody = m3DefaultBodyDef();
+        badBody.type = negatives[n];
+        m3BodyId body = m3_nullBodyId;
+        CHECK(m3CreateBody(world, &badBody, &body) == m3_errorInvalid &&
+                  !m3Body_IsValid(world, body),
+              "a negative body type refuses");
+        CHECK(m3Body_SetType(world, a, negatives[n]) == m3_errorInvalid,
+              "a negative body type is not set");
+        CHECK(m3Body_GetType(world, a) == m3_dynamicBody, "the refused type changed nothing");
+
+        m3JointDef jd = m3DefaultJointDef();
+        jd.type = negatives[n];
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        m3JointId joint = m3_nullJointId;
+        CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorInvalid &&
+                  !m3Joint_IsValid(world, joint),
+              "a negative joint type refuses");
+
+        for (int32_t axis = 0; axis < 6; ++axis)
+        {
+            jd = generic;
+            if (axis < 3)
+            {
+                jd.genericLinear[axis] = negatives[n];
+            }
+            else
+            {
+                jd.genericAngular[axis - 3] = negatives[n];
+            }
+            joint = m3_nullJointId;
+            CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorInvalid &&
+                      !m3Joint_IsValid(world, joint),
+                  "a negative generic axis mode refuses");
+        }
+    }
+
+    // The same generic def with its own modes creates, so each refusal
+    // above was the mode's.
+    m3JointId joint = m3_nullJointId;
+    CHECK(m3CreateJoint(world, &generic, &joint) == m3_success && m3Joint_IsValid(world, joint),
+          "the generic def creates with its own modes");
+    m3DestroyWorld(world);
+}
+
 static void TestGauntletTwins(uint32_t seed)
 {
     s_rng = seed;
@@ -400,6 +471,7 @@ int main(int argc, char** argv)
     TestHostileBodyDefs();
     TestHostileShapeDefs();
     TestHostileJointDefsAndCommands();
+    TestNegativeKindsRefuse();
     TestGauntletTwins(0xF00DFACEu);
     for (int32_t k = 0; k < extraSeeds; ++k)
     {
