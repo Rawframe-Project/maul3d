@@ -1286,20 +1286,21 @@ static void TestListOutputs(void)
     {
         ListCall* call;
         const char* name;
+        size_t itemBytes;
     } calls[] = {
-        {ListAabb, "OverlapAabb"},
-        {ListSphere, "OverlapSphere"},
-        {ListCapsule, "OverlapCapsule"},
-        {ListBox, "OverlapBox"},
-        {ListHull, "OverlapHull"},
-        {ListRay, "CastRayAll"},
-        {ListMover, "CollideMover"},
-        {ListBodyContacts, "Body_GetContactData"},
-        {ListShapeContacts, "Shape_GetContactData"},
-        {ListBodies, "World_GetBodies"},
-        {ListJoints, "World_GetJoints"},
-        {ListBodyShapes, "Body_GetShapes"},
-        {ListBodyJoints, "Body_GetJoints"},
+        {ListAabb, "OverlapAabb", sizeof(m3ShapeId)},
+        {ListSphere, "OverlapSphere", sizeof(m3ShapeId)},
+        {ListCapsule, "OverlapCapsule", sizeof(m3ShapeId)},
+        {ListBox, "OverlapBox", sizeof(m3ShapeId)},
+        {ListHull, "OverlapHull", sizeof(m3ShapeId)},
+        {ListRay, "CastRayAll", sizeof(m3CastHit)},
+        {ListMover, "CollideMover", sizeof(m3MoverPlane)},
+        {ListBodyContacts, "Body_GetContactData", sizeof(m3ContactData)},
+        {ListShapeContacts, "Shape_GetContactData", sizeof(m3ContactData)},
+        {ListBodies, "World_GetBodies", sizeof(m3BodyId)},
+        {ListJoints, "World_GetJoints", sizeof(m3JointId)},
+        {ListBodyShapes, "Body_GetShapes", sizeof(m3ShapeId)},
+        {ListBodyJoints, "Body_GetJoints", sizeof(m3JointId)},
     };
     // One entry of any call's type: each call stores into the member of
     // its own type, and the union's size and alignment cover them all.
@@ -1365,7 +1366,7 @@ static void TestListOutputs(void)
             }
             bool zeroed = true;
             const unsigned char* bytes = (const unsigned char*)three;
-            for (size_t k = 0; k < sizeof(three); ++k)
+            for (size_t k = 0; k < 3 * calls[c].itemBytes; ++k)
             {
                 zeroed = zeroed && bytes[k] == 0;
             }
