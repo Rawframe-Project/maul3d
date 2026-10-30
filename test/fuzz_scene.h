@@ -128,8 +128,8 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
                            corners, 4, quad, 2));
     static const float bumps[9] = {0.0f, 0.1f, 0.0f, 0.1f, 0.3f, 0.1f, 0.0f, 0.1f, 0.0f};
     FuzzShape(world, scene,
-              NewHeightFieldGridShape(world, FuzzBody(world, scene, m3_staticBody, 3.0, 0.0, 3.0),
-                                      &sd, bumps, 3, 3, 1.0f));
+              NewHeightFieldShape(world, FuzzBody(world, scene, m3_staticBody, 3.0, 0.0, 3.0), &sd,
+                                  bumps, 3, 3, 1.0f));
     // A 2 x 2 x 2 block on the chunk's base layer, so a clearing edit
     // fractures what it cuts loose.
     static uint8_t cells[16 * 16 * 16];
@@ -209,7 +209,7 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
         {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.0f, 0.0f, 0.4f}};
     static const uint16_t tets[4] = {0, 1, 2, 3};
     FuzzCreated(scene,
-                m3SoftBody_IsValid(world, NewSoftBodyTet(world, &jelly, points, 4, tets, 1)));
+                m3SoftBody_IsValid(world, NewTetSoftBody(world, &jelly, points, 4, tets, 1)));
 
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.radius = 0.2f;

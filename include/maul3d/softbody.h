@@ -91,7 +91,7 @@ extern "C"
     /// particles exactly like lattice particles. It refuses as
     /// m3CreateSoftBody does, with m3_errorLimit past
     /// M3_MAX_SOFTBODY_TETS tets or M3_MAX_SOFTBODY_EDGES edges.
-    M3_NODISCARD M3_API m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def,
+    M3_NODISCARD M3_API m3Result m3CreateTetSoftBody(m3World* world, const m3SoftBodyDef* def,
                                                      const m3Vec3* points, int32_t pointCount,
                                                      const uint16_t* tets, int32_t tetCount,
                                                      m3SoftBodyId* softBodyOut);

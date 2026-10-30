@@ -510,7 +510,7 @@ static Scene Build(void)
     const m3Vec3 corners[4] = {
         {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.0f, 0.0f, 0.4f}};
     const uint16_t tet[4] = {0, 1, 2, 3};
-    s.jelly = NewSoftBodyTet(w, &tetDef, corners, 4, tet, 1).index1 - 1;
+    s.jelly = NewTetSoftBody(w, &tetDef, corners, 4, tet, 1).index1 - 1;
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
     pool.lo = (m3Pos3){4.0, 0.0, 4.0};

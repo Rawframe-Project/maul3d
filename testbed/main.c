@@ -1155,7 +1155,7 @@ static tbScene SceneMeadow(void)
     m3BodyId ground = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.7f;
-    NewHeightFieldShape(scene.world, ground, &sd, heights, 24, 24, 1.0f);
+    NewHeightFieldMeshShape(scene.world, ground, &sd, heights, 24, 24, 1.0f);
 
     m3ShapeDef hd = m3DefaultShapeDef();
     hd.friction = 0.5f;

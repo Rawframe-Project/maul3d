@@ -1189,10 +1189,12 @@ static void TestHeightFieldBowl(void)
             heights[iz * 17 + ix] = 0.02f * (dx * dx + dz * dz); // a parabolic bowl
         }
     }
-    CHECK(m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, heights, 17, 17, 1.0f)),
-          "the heightfield chunk builds");
-    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, heights, 40, 17, 1.0f)),
-          "an oversized grid is refused");
+    CHECK(
+        m3Shape_IsValid(world, NewHeightFieldMeshShape(world, ground, &sd, heights, 17, 17, 1.0f)),
+        "the heightfield chunk builds");
+    CHECK(
+        !m3Shape_IsValid(world, NewHeightFieldMeshShape(world, ground, &sd, heights, 40, 17, 1.0f)),
+        "an oversized grid is refused");
 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){3.0, 1.5, 0.0};

@@ -494,7 +494,7 @@ static void TestTetBodies(void)
         m3SoftBodyDef sb = m3DefaultSoftBodyDef();
         sb.position = (m3Pos3){0.0, 1.5, 0.0};
         sb.compliance = 1.0e-4f;
-        m3SoftBodyId jelly = NewSoftBodyTet(world, &sb, pts, 8, tets, 5);
+        m3SoftBodyId jelly = NewTetSoftBody(world, &sb, pts, 8, tets, 5);
         CHECK(m3SoftBody_IsValid(world, jelly), "the jelly creates");
         CHECK(m3SoftBody_GetParticleCount(world, jelly) == 8, "eight particles");
         for (int32_t i = 0; i < 240; ++i)
@@ -530,14 +530,14 @@ static void TestTetBodies(void)
     m3World* world = NewWorld(&wd);
     m3SoftBodyDef sb = m3DefaultSoftBodyDef();
     uint16_t bad[4] = {0, 1, 2, 9};
-    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, bad, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewTetSoftBody(world, &sb, pts, 8, bad, 1)),
           "an out-of-range tet refuses");
     uint16_t flat[4] = {0, 1, 2, 3}; // coplanar corners of one face
-    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, flat, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewTetSoftBody(world, &sb, pts, 8, flat, 1)),
           "a flat tet refuses");
     sb.pressure = 1.0f;
     uint16_t good[4] = {0, 1, 2, 5};
-    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &sb, pts, 8, good, 1)),
+    CHECK(!m3SoftBody_IsValid(world, NewTetSoftBody(world, &sb, pts, 8, good, 1)),
           "lattice pressure on a tet body refuses");
     m3DestroyWorld(world);
 }

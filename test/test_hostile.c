@@ -252,7 +252,7 @@ static void TestHostileShapeDefs(void)
           "inverted winding is the author's business");
 
     float heights[4] = {0.0f, M3_TEST_NAN, 0.0f, 0.0f};
-    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, heights, 2, 2, 1.0f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldMeshShape(world, ground, &sd, heights, 2, 2, 1.0f)),
           "a poisoned height sample refuses");
 
     // The world took all this abuse standing up.

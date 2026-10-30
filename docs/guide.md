@@ -720,7 +720,7 @@ frames, so twist stiffness is deliberately out. Pressure
 (`pressure`): closed lattices (every axis count at least 2) hold
 a target volume multiple through one global constraint over their
 surface; 2 inflates a cube toward double volume. Tet bodies
-(`m3CreateSoftBodyTet`): explicit points and tetrahedra, each tet
+(`m3CreateTetSoftBody`): explicit points and tetrahedra, each tet
 holding its create volume rigidly (the incompressible jelly);
 edges come from tet edges; flat or inverted tets refuse. The bind
 tether (`maxDeviation`): every particle clamps to a radius around
@@ -732,9 +732,9 @@ both sides by construction.
 
 ## The native heightfield
 
-m3CreateHeightFieldGridShape stores an nx-by-nz grid (2..255 per
+m3CreateHeightFieldShape stores an nx-by-nz grid (2..255 per
 axis) as raw samples, four bytes each: the low-memory terrain path
-beside meshes (the mesh-backed m3CreateHeightFieldShape remains
+beside meshes (the mesh-backed m3CreateHeightFieldMeshShape remains
 for small chunks). Cells split into two triangles on coordinate
 parity; contacts run the same welded triangle pipeline as meshes
 over a 16-cell contact window with a halo (bodies wider than the

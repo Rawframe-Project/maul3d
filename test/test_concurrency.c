@@ -264,7 +264,7 @@ static uint64_t SettleOnHeightField(Pool* pool)
     }
     m3BodyDef gd = m3DefaultBodyDef();
     m3ShapeDef sd = m3DefaultShapeDef();
-    (void)NewHeightFieldGridShape(world, NewBody(world, &gd), &sd, heights, 17, 17, 1.0f);
+    (void)NewHeightFieldShape(world, NewBody(world, &gd), &sd, heights, 17, 17, 1.0f);
     for (int32_t i = 0; i < 100; ++i)
     {
         m3BodyDef bd = m3DefaultBodyDef();

@@ -348,7 +348,7 @@ bool m3ReplayCreateSoftBodyTet(m3World* world, const m3ReplayRecord* r)
     memcpy(tets, (const uint8_t*)payload + sizeof(head) + (size_t)head.pointCount * sizeof(m3Vec3),
            (size_t)(4 * head.tetCount) * sizeof(uint16_t));
     int32_t slot =
-        m3CreateSoftBodyTetInternal(world, &head.def, pts, head.pointCount, tets, head.tetCount);
+        m3CreateTetSoftBodyInternal(world, &head.def, pts, head.pointCount, tets, head.tetCount);
     if (slot < 0 || (uint32_t)slot + 1u != head.expected.index1 ||
         world->softBodies.softPool.generations[slot] != head.expected.generation)
     {

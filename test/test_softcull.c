@@ -307,7 +307,7 @@ static void HeightFieldScene(m3World* world, Probe* probe)
     static const float heights[16] = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
                                       0.5f, 0.5f, 0.9f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
     m3ShapeDef sd = m3DefaultShapeDef();
-    NewHeightFieldGridShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
+    NewHeightFieldShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
     m3real r = 0.05f;
     // Over the flat first row on a line 0.15 apart, over the raised
     // sample's slopes, and off the far edge.
@@ -394,7 +394,7 @@ static void HeightFieldCornerScene(m3World* world, Probe* probe)
     {
         m3Pos3 p = {30.0 + 6.0 * i, -12.0, -40.0};
         m3Quat q = Turn((m3Vec3){0.0f, 1.0f, 0.0f}, 0.2f + 0.45f * (float)i);
-        NewHeightFieldGridShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
+        NewHeightFieldShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
         m3Pos3 center = WorldPoint(p, q, (m3Vec3){1.5f, 1.5f, 1.5f});
         m3Vec3 out = m3RotateVec3(q, i % 2 == 0 ? (m3Vec3){1.0f, 1.0f, 1.0f}
                                                 : (m3Vec3){-1.0f, -1.0f, -1.0f});

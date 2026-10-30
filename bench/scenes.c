@@ -221,7 +221,7 @@ static m3World* SceneMeshField(void)
     {
         heights[i] = (float)RandRange(&hseed, 0.0, 0.8);
     }
-    NewHeightFieldShape(world, terrain, &sd, heights, 32, 32, 1.0f);
+    NewHeightFieldMeshShape(world, terrain, &sd, heights, 32, 32, 1.0f);
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;

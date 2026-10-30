@@ -225,11 +225,11 @@ extern "C"
     /// The cell size is positive and within M3_CELL_LIMIT, and every
     /// height within M3_GEOMETRY_LIMIT; past either is m3_errorLimit.
     /// The grid's minimum corner sits at the body origin.
-    M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
-                                                          const m3ShapeDef* def,
-                                                          const float* heights, int32_t nx,
-                                                          int32_t nz, m3real cellSize,
-                                                          m3ShapeId* shapeOut);
+    M3_NODISCARD M3_API m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body,
+                                                              const m3ShapeDef* def,
+                                                              const float* heights, int32_t nx,
+                                                              int32_t nz, m3real cellSize,
+                                                              m3ShapeId* shapeOut);
 
     /// The NATIVE grid heightfield: the same nx-by-nz grid
     /// contract as above, but stored as raw heights (four bytes per
@@ -240,11 +240,11 @@ extern "C"
     /// Static bodies only; the minimum corner sits at the body origin.
     /// Rays, contacts, overlaps, shape casts, movers and continuous
     /// collision all see its triangles.
-    M3_NODISCARD M3_API m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body,
-                                                              const m3ShapeDef* def,
-                                                              const float* heights, int32_t nx,
-                                                              int32_t nz, m3real cellSize,
-                                                              m3ShapeId* shapeOut);
+    M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
+                                                          const m3ShapeDef* def,
+                                                          const float* heights, int32_t nx,
+                                                          int32_t nz, m3real cellSize,
+                                                          m3ShapeId* shapeOut);
 
     /// A voxel chunk: a dense 16x16x16 grid anchored at the body
     /// origin, cells of `cellSize` meters, positive and within

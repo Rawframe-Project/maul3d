@@ -325,7 +325,7 @@ static void AddTerrain(m3World* world)
         float dz = (float)(i / 9 - 4);
         heights[i] = 0.05f * (dx * dx + dz * dz);
     }
-    NewHeightFieldShape(world, bowl, &sd, heights, 9, 9, 1.0f);
+    NewHeightFieldMeshShape(world, bowl, &sd, heights, 9, 9, 1.0f);
 
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
     NewSphereShape(world, AddBody(world, m3_dynamicBody, 7.5, 2.5, -6.0), &sd, &ball);
@@ -808,8 +808,8 @@ static void TourCreate(Tour* t)
                            quad, 2);
     static float bumps[4 * 4] = {0.0f, 0.1f, 0.1f, 0.0f, 0.1f, 0.3f, 0.2f, 0.1f,
                                  0.1f, 0.2f, 0.3f, 0.1f, 0.0f, 0.1f, 0.1f, 0.0f};
-    NewHeightFieldGridShape(world, AddBody(world, m3_staticBody, 58.0, 0.0, -2.0), &sd, bumps, 4, 4,
-                            1.0f);
+    NewHeightFieldShape(world, AddBody(world, m3_staticBody, 58.0, 0.0, -2.0), &sd, bumps, 4, 4,
+                        1.0f);
 
     m3BodyId tankBody = AddBody(world, m3_dynamicBody, 40.0, 1.0, 60.0);
     NewBoxShape(world, tankBody, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
@@ -831,7 +831,7 @@ static void TourCreate(Tour* t)
     static const m3Vec3 points[4] = {
         {0.0f, 0.0f, 0.0f}, {0.6f, 0.0f, 0.0f}, {0.0f, 0.6f, 0.0f}, {0.0f, 0.0f, 0.6f}};
     static const uint16_t tets[4] = {0, 1, 2, 3};
-    t->tet = NewSoftBodyTet(world, &jelly, points, 4, tets, 1);
+    t->tet = NewTetSoftBody(world, &jelly, points, 4, tets, 1);
     m3SoftBodyDef rope = m3DefaultSoftBodyDef();
     rope.position = (m3Pos3){65.0, 3.0, 0.0};
     rope.countX = 6;
