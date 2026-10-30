@@ -87,7 +87,7 @@ static uint64_t Misuse(const m3World* world)
 static void TestCreateKeepsTheRatio(void)
 {
     const m3JointType blocks[6] = {m3_sphericalJoint, m3_revoluteJoint, m3_prismaticJoint,
-                                   m3_fixedJoint,     m3_wheelJoint,    m3_motorJoint};
+                                   m3_weldJoint,      m3_wheelJoint,    m3_motorJoint};
     for (int32_t k = 0; k < 6; ++k)
     {
         m3World* world = LeverWorld();

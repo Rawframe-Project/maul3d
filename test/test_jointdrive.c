@@ -141,8 +141,8 @@ static void TestReadbackBand(void)
     jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
     m3JointId rope = NewJoint(world, &jd);
     StepN(world, 180);
-    m3real force = m3Joint_GetConstraintForce(world, rope);
-    m3real torque = m3Joint_GetConstraintTorque(world, rope);
+    m3real force = m3Joint_GetReactionForce(world, rope);
+    m3real torque = m3Joint_GetReactionTorque(world, rope);
     CHECK(force > 8.0f && force < 12.0f, "the rope carries the m*g band");
     CHECK(torque < 2.0f, "a ball joint carries no torque worth naming");
     m3DestroyWorld(world);
@@ -166,7 +166,7 @@ static void TestBreakage(void)
         jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
         m3JointId rope = NewJoint(world, &jd);
         StepN(world, 60); // settle first, break laws read clean loads
-        m3Joint_SetBreakThresholds(world, rope, pass == 0 ? 200.0f : 40.0f, 0.0f);
+        m3Joint_SetBreakLimits(world, rope, pass == 0 ? 200.0f : 40.0f, 0.0f);
         int32_t breaks = 0;
         bool idMatches = true;
         for (int32_t i = 0; i < 120; ++i)
@@ -325,7 +325,15 @@ static void TestHostileRuntime(void)
     CHECK_REFUSES(world, m3Joint_SetMotorSpeed(world, link, 1.0f), "a ball joint takes no motor");
     CHECK_REFUSES(world, m3Joint_EnableSpring(world, link, true), "a zero-hertz spring refuses");
     CHECK_REFUSES(world, m3Joint_SetSpringHertz(world, link, NAN), "a NaN spring hertz refuses");
-    m3Joint_SetBreakThresholds(world, link, -1.0f, 0.0f);
+    m3Joint_SetBreakLimits(world, link, 120.0f, 30.0f);
+    float maxForce = -1.0f;
+    float maxTorque = -1.0f;
+    m3Joint_GetBreakLimits(world, link, &maxForce, &maxTorque);
+    CHECK(maxForce == 120.0f && maxTorque == 30.0f, "the break limits read back as set");
+    CHECK_REFUSES(world, m3Joint_SetBreakLimits(world, link, -1.0f, 0.0f),
+                  "a negative break limit refuses");
+    m3Joint_GetBreakLimits(world, link, &maxForce, NULL);
+    CHECK(maxForce == 120.0f, "a refused break limit keeps the old one");
     m3RevoluteJoint_SetTargetAngle(world, link, 0.5f); // ball joint: wrong type, no-op
     m3Joint_SetTargetTranslation(world, link, 0.5f);   // wrong type, no-op
     m3SphericalJoint_SetTargetRotation(world, link,
@@ -333,7 +341,14 @@ static void TestHostileRuntime(void)
     m3JointId stale = link;
     stale.index1 += 99;
     CHECK_REFUSES(world, m3Joint_EnableMotor(world, stale, true), "a stale joint refuses");
-    CHECK(m3Joint_GetConstraintForce(world, stale) == 0.0f, "stale id reads zero");
+    CHECK(m3Joint_GetReactionForce(world, stale) == 0.0f, "stale id reads zero");
+    maxForce = -1.0f;
+    maxTorque = -1.0f;
+    m3Joint_GetBreakLimits(world, stale, &maxForce, &maxTorque);
+    CHECK(maxForce == 0.0f && maxTorque == 0.0f, "a stale id reads zero break limits");
+    maxForce = -1.0f;
+    m3Joint_GetBreakLimits(NULL, link, &maxForce, NULL);
+    CHECK(maxForce == 0.0f, "a null world reads zero break limits");
     CHECK(m3Joint_GetAngle(world, link) == 0.0f, "GetAngle on a ball joint reads zero");
     CHECK(m3Joint_GetTranslation(world, link) == 0.0f, "GetTranslation on a ball joint reads zero");
     StepN(world, 10);
@@ -392,7 +407,7 @@ static void TestSwitchesKeepValues(void)
 
     // A weld takes none of the three; its getters read zeros.
     jd = m3DefaultJointDef();
-    jd.type = m3_fixedJoint;
+    jd.type = m3_weldJoint;
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     m3JointId weld = NewJoint(world, &jd);

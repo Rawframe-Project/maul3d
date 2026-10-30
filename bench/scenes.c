@@ -521,7 +521,7 @@ static m3World* SceneJointRig(void)
         m3BodyId b = NewBody(world, &bd);
         NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
         m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_fixedJoint;
+        jd.type = m3_weldJoint;
         jd.bodyIdA = a;
         jd.bodyIdB = b;
         jd.localAnchorA = (m3Vec3){0.4f, 0.4f, 0.4f};

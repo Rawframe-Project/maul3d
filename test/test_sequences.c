@@ -409,7 +409,7 @@ static void TestStaleRuntimeSetters(void)
             m3Joint_SetMaxMotorEffort(world, staleJ, 1.0f);
             m3Joint_EnableMotor(world, staleJ, true);
             m3Joint_EnableConnectedCollision(world, staleJ, true);
-            m3Joint_SetBreakThresholds(world, staleJ, 1.0f, 1.0f);
+            m3Joint_SetBreakLimits(world, staleJ, 1.0f, 1.0f);
             m3Joint_SetSpringHertz(world, staleJ, 5.0f);
             m3Joint_SetSpringDampingRatio(world, staleJ, 1.0f);
             m3Joint_EnableSpring(world, staleJ, true);
