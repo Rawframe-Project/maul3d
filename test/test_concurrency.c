@@ -174,7 +174,7 @@ static void TestMisuseFromConcurrentReaders(void)
     m3BodyDef bd = m3DefaultBodyDef();
     m3BodyId gone = NewBody(world, &bd);
     DestroyBody(world, gone);
-    uint64_t before = m3World_GetCounters(world).misuse;
+    uint64_t before = m3World_GetCounters(world).misuseCount;
     StaleReader reader = {world, gone, 2000};
     pthread_t one;
     pthread_t two;
@@ -182,7 +182,8 @@ static void TestMisuseFromConcurrentReaders(void)
     pthread_create(&two, NULL, StaleReaderMain, &reader);
     pthread_join(one, NULL);
     pthread_join(two, NULL);
-    CHECK(m3World_GetCounters(world).misuse == before + 4000u, "every concurrent refusal counts");
+    CHECK(m3World_GetCounters(world).misuseCount == before + 4000u,
+          "every concurrent refusal counts");
     m3DestroyWorld(world);
 }
 

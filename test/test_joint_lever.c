@@ -78,7 +78,7 @@ static float Radius(const m3World* world, m3ShapeId shape)
 
 static uint64_t Misuse(const m3World* world)
 {
-    return m3World_GetCounters(world).misuse;
+    return m3World_GetCounters(world).misuseCount;
 }
 
 // Every type that solves blocks takes the rod within the ratio and

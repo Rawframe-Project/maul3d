@@ -1058,11 +1058,11 @@ typedef struct m3World
     // Observer tail: profile and step statistics. NEVER
     // snapshot blocks, NEVER hash inputs; the walker and the hash
     // enumerate arrays explicitly and skip this region by design.
-    m3Profile profile;        // last completed step
-    int32_t lastIslandCount;  // last completed step
-    int32_t lastColorCount;   // last completed step
-    int32_t lastScratchPeak;  // bytes, last completed step
-    uint64_t heldPushRetakes; // held pushes taken again in double, cumulative
+    m3Profile profile;            // last completed step
+    int32_t lastIslandCount;      // last completed step
+    int32_t lastColorCount;       // last completed step
+    int32_t lastScratchPeak;      // bytes, last completed step
+    uint64_t heldPushRetakeCount; // held pushes taken again in double, cumulative
     // Cumulative refusals; atomic access only (m3Refuse, m3MisuseCount).
     // Both counters are 8-byte aligned, which a 64-bit integer in a struct
     // is not on 32-bit x86, so their atomics are lock-free everywhere.

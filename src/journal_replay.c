@@ -721,11 +721,11 @@ static m3Result ReplayApply(m3World* world, const void* data, int64_t size)
         {
             return m3_errorFormat; // unknown op: reject loudly, never skip
         }
-        int64_t refused = world->heap.refusedCalls;
+        int64_t refused = world->heap.refusedCount;
         if (!s_commands[r.op].apply(world, &r))
         {
             // An op the allocator turned down leaves the tape good.
-            return world->heap.refusedCalls != refused ? m3_errorCapacity : m3_errorFormat;
+            return world->heap.refusedCount != refused ? m3_errorCapacity : m3_errorFormat;
         }
     }
     return cursor == size ? m3_success : m3_errorFormat;

@@ -459,15 +459,15 @@ static void TestEditRefusalsAndEmptyEnd(void)
                   "a non-voxel shape refuses edits");
     int32_t lo[3] = {2, 0, 0};
     int32_t hi[3] = {1, 0, 0};
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, lo, hi) == -1,
           "an inverted region refuses");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "and counts one misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "and counts one misuse");
     int32_t origin[3] = {0, 0, 0};
     int32_t past[3] = {0, 0, 16};
     CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, origin, past) == -1,
           "a region past the chunk refuses");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 2, "and counts one misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 2, "and counts one misuse");
     m3ShapeId stale = chunkShape;
     stale.generation += 1;
     CHECK_REFUSES(world, m3VoxelChunkShape_ClearVoxel(world, stale, 0, 0, 0),
@@ -1477,11 +1477,11 @@ static void TestBoxLimitRefusesEdits(void)
     memset(voxels, 0, sizeof(voxels));
     voxels[0] = 1;
     voxels[M3_VOXEL_COUNT - 1] = 1;
-    uint64_t misuse = m3World_GetCounters(twin).misuse;
+    uint64_t misuse = m3World_GetCounters(twin).misuseCount;
     m3ShapeId two = m3_nullShapeId;
     CHECK(m3CreateVoxelChunkShape(twin, ground2, &sd, voxels, NULL, 1.0f, &two) == m3_errorCapacity,
           "a chunk past the limit is refused for capacity");
-    CHECK(m3World_GetCounters(twin).misuse == misuse, "the refused create counts no misuse");
+    CHECK(m3World_GetCounters(twin).misuseCount == misuse, "the refused create counts no misuse");
     voxels[M3_VOXEL_COUNT - 1] = 0;
     CHECK(m3Shape_IsValid(twin, NewVoxelChunkShape(twin, ground2, &sd, voxels, NULL, 1.0f)),
           "a chunk at the limit creates");

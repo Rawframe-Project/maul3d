@@ -27,9 +27,9 @@
 typedef struct m3Heap
 {
     m3Allocator allocator;
-    int64_t allocCalls;
-    int64_t freeCalls;
-    int64_t refusedCalls; // blocks the host's allocator refused
+    int64_t allocCount;
+    int64_t freeCount;
+    int64_t refusedCount; // blocks the host's allocator refused
     // Calls into the host's alloc or free under way. Only the thread
     // running a writer calls the allocator, so a plain count does.
     int32_t hostCalls;

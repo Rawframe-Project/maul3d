@@ -104,8 +104,8 @@ since its answer decides contacts.
 
 ## The step
 
-`m3World_Step(world, dt, substeps)` advances the world by dt seconds
-in `substeps` solver substeps (4 is the tested default) and returns
+`m3World_Step(world, dt, substepCount)` advances the world by dt seconds
+in `substepCount` solver substeps (4 is the tested default) and returns
 `m3_success`. A step never asks the allocator, so it never fails for
 memory: the world takes the scratch a step needs when it is created
 (see Capacities). A step that finds more broadphase pairs than the
@@ -1078,7 +1078,7 @@ with world points, separations, and last-step normal impulses.
 Every call that rejects its input records why: read m3LastResult
 right after a refusal (invalid input, a full pool, or data from a
 different build), on the same thread. Invalid arguments against a
-live world also count in m3Counters.misuse, so a host can poll once
+live world also count in m3Counters.misuseCount, so a host can poll once
 per frame and catch bugs in release builds. Refusals never assert.
 m3SetAssertHandler installs a host hook ahead of the abort for a
 failed internal invariant; returning nonzero declares the failure
@@ -1263,7 +1263,7 @@ for at most 1e5 m/s of separation, and a push the step itself lands
 on a body (a character's, a soft particle's, a wheel's, an
 explosion's) leaves it within 1e5 as well. A character's, a soft
 particle's or a wheel's push whose float sum overflows is taken again
-in double, and m3Counters.heldPushRetakes counts it. A stored contact
+in double, and m3Counters.heldPushRetakeCount counts it. A stored contact
 or joint impulse is held, direction kept, so its warm start changes a
 body's velocity or spin by at most 1e13 per component at that step's
 own masses and levers.

@@ -539,7 +539,7 @@ static uint64_t SceneStack(void)
     m3Counters before = m3World_GetCounters(world);
     StepN(world, 150);
     m3Counters after = m3World_GetCounters(world);
-    CHECK(after.allocCalls == before.allocCalls && after.freeCalls == before.freeCalls,
+    CHECK(after.allocCount == before.allocCount && after.freeCount == before.freeCount,
           "a warm world steps without allocating");
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);
@@ -1045,7 +1045,7 @@ static void TourCalls(Tour* t, int32_t frame)
     // The tour's calls are all valid: a refused one would silently drop
     // its op from the tape and its state from the rollback. Creates are
     // checked for valid ids where they happen.
-    if (m3World_GetCounters(t->world).misuse != 0 && !t->refusalSeen)
+    if (m3World_GetCounters(t->world).misuseCount != 0 && !t->refusalSeen)
     {
         printf("FAIL: a tour call was refused by frame %d\n", frame);
         s_failures += 1;

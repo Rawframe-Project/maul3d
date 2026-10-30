@@ -90,9 +90,9 @@ int main(void)
     m3ShapeId wall;
     Require(m3CreateVoxelChunkShape(world, wallBody, &vd, voxels, NULL, 1.0f, &wall),
             "voxel create");
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3VoxelChunkShape_ClearVoxel(world, wall, 5, 0, 8);
-    if (m3World_GetCounters(world).misuse != misuse)
+    if (m3World_GetCounters(world).misuseCount != misuse)
     {
         printf("M3_CONSUMER_FAIL voxel edit\n");
         return 1;

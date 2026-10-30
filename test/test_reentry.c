@@ -215,7 +215,7 @@ static void SweepOp(int32_t op)
         r.snapshot = scene.snapshot;
         r.snapshotSize = scene.snapshotSize;
         uint64_t steps = m3World_GetStepCount(scene.world);
-        uint64_t misuse = m3World_GetCounters(scene.world).misuse;
+        uint64_t misuse = m3World_GetCounters(scene.world).misuseCount;
         r.world = scene.world;
         r.at = at;
         m3Result result = RunOp(&scene, op);
@@ -237,7 +237,7 @@ static void SweepOp(int32_t op)
             FreeScene(&twin);
             continue;
         }
-        uint64_t counted = m3World_GetCounters(scene.world).misuse - misuse;
+        uint64_t counted = m3World_GetCounters(scene.world).misuseCount - misuse;
         bool ok = r.refused == PROBE_WRITERS - 1 && counted == PROBE_WRITERS &&
                   result == expected && m3World_GetStepCount(scene.world) == steps &&
                   m3World_Hash(scene.world) == m3World_Hash(twin.world);

@@ -251,7 +251,7 @@ static void TestReadback(void)
 
     m3Transform xf = m3Body_GetTransform(world, body);
     CHECK(xf.p.x == 1.0 && xf.p.y == 2.0 && xf.p.z == 3.0, "body transform");
-    m3Mat3 inertia = m3Body_GetRotationalInertia(world, body);
+    m3Mat3 inertia = m3Body_GetCentralInertia(world, body);
     CHECK(inertia.cx.x > 0.0f && inertia.cy.y > 0.0f && inertia.cz.z > 0.0f, "inertia tensor");
     m3Pos3 p = m3Body_GetWorldPoint(world, body, (m3Vec3){1.0f, 0.0f, 0.0f});
     CHECK(Near(p.x, 1.0, 1e-5) && Near(p.z, 2.0, 1e-5), "local +x maps to world -z");

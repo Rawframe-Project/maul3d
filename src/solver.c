@@ -389,19 +389,19 @@ m3Result m3StepInternal(m3World* world, float dt, int32_t substeps)
     return m3_success;
 }
 
-static M3_NOINLINE m3Result WorldStepWorker(m3World* world, float dt, int32_t substeps)
+static M3_NOINLINE m3Result WorldStepWorker(m3World* world, float dt, int32_t substepCount)
 {
     if (m3WorldBusy(world))
     {
         return m3Refuse(world, m3_errorBusy);
     }
-    if (world == NULL || m3StepCheck(dt, substeps) != m3_success)
+    if (world == NULL || m3StepCheck(dt, substepCount) != m3_success)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
     world->contacts.stepVetoCount = 0;
     m3WorldEnter(world);
-    m3Result result = m3StepInternal(world, dt, substeps);
+    m3Result result = m3StepInternal(world, dt, substepCount);
     m3WorldLeave(world);
     if (world->recorder.journalActive != 0)
     {
@@ -418,16 +418,16 @@ static M3_NOINLINE m3Result WorldStepWorker(m3World* world, float dt, int32_t su
         m3OpStep record;
         memset(&record, 0, sizeof(record));
         record.dt = dt;
-        record.substeps = substeps;
+        record.substeps = substepCount;
         m3JournalRecord(world, m3_opStep, &record, (int32_t)sizeof(record));
     }
     return result;
 }
 
-m3Result m3World_Step(m3World* world, float dt, int32_t substeps)
+m3Result m3World_Step(m3World* world, float dt, int32_t substepCount)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3Result result = WorldStepWorker(world, dt, substeps);
+    m3Result result = WorldStepWorker(world, dt, substepCount);
     m3FloatEnvLeave(env);
     return result;
 }

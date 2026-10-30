@@ -246,18 +246,18 @@ static inline bool SetStance(m3World* world, m3CharacterId character, float half
 #define CHECK_REFUSES(world, call, msg)                                                            \
     do                                                                                             \
     {                                                                                              \
-        uint64_t misuseBefore = m3World_GetCounters(world).misuse;                                 \
+        uint64_t misuseBefore = m3World_GetCounters(world).misuseCount;                            \
         call;                                                                                      \
-        CHECK(m3World_GetCounters(world).misuse == misuseBefore + 1u, msg);                        \
+        CHECK(m3World_GetCounters(world).misuseCount == misuseBefore + 1u, msg);                   \
     } while (0)
 
 // Checks that a call was taken: it counted no misuse.
 #define CHECK_ACCEPTS(world, call, msg)                                                            \
     do                                                                                             \
     {                                                                                              \
-        uint64_t misuseBefore = m3World_GetCounters(world).misuse;                                 \
+        uint64_t misuseBefore = m3World_GetCounters(world).misuseCount;                            \
         call;                                                                                      \
-        CHECK(m3World_GetCounters(world).misuse == misuseBefore, msg);                             \
+        CHECK(m3World_GetCounters(world).misuseCount == misuseBefore, msg);                        \
     } while (0)
 
 #endif // MAUL3D_TEST_HELPERS_H

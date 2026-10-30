@@ -437,12 +437,12 @@ static void TestSizesPastInt32(void)
 
 #if SIZE_MAX < INT64_MAX
     int64_t past = (int64_t)SIZE_MAX + 1;
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     CHECK(m3World_Restore(world, snap, past) == m3_errorInvalid &&
               m3World_StartJournal(world, tape, past) == m3_errorInvalid &&
               m3World_ReplayJournal(world, tape, past) == m3_errorInvalid,
           "a size past SIZE_MAX is refused as invalid");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 3u, "each counting one misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 3u, "each counting one misuse");
     m3JournalInfo info;
     int64_t encoded = 77;
     CHECK(m3DescribeJournal(tape, past, &info) == m3_errorInvalid &&

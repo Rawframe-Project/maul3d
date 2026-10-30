@@ -782,7 +782,7 @@ static void CheckHashSees(int which, const char* what)
         m3Joint_EnableConnectedCollision(w, changed.hinge, true);
         break;
     }
-    CHECK(m3World_GetCounters(w).misuse == 0, "the change is taken");
+    CHECK(m3World_GetCounters(w).misuseCount == 0, "the change is taken");
     CHECK(m3World_Hash(same.world) != m3World_Hash(w), what);
     m3DestroyWorld(same.world);
     m3DestroyWorld(changed.world);

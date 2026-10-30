@@ -202,11 +202,11 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
     {
         Poison(tape + last + 8, field, value);
         uint64_t hash = m3World_Hash(world);
-        uint64_t misuse = m3World_GetCounters(world).misuse;
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
         m3Result replayed = m3World_ReplayJournal(world, tape, tapeBytes);
         ok = created == m3_success
                  ? replayed == m3_success
-                 : replayed == m3_errorFormat && m3World_GetCounters(world).misuse == misuse &&
+                 : replayed == m3_errorFormat && m3World_GetCounters(world).misuseCount == misuse &&
                        m3World_Hash(world) == hash;
     }
     free(snap);
@@ -230,7 +230,7 @@ static void Probe(const Target* target, const Field* fields, int32_t count)
             memcpy(def, target->base, target->size);
             Poison(def, &fields[f], v);
             m3World* world = Scene();
-            uint64_t misuse = m3World_GetCounters(world).misuse;
+            uint64_t misuse = m3World_GetCounters(world).misuseCount;
             m3Result result = target->build(world, def);
             if (result == m3_success)
             {
@@ -246,7 +246,7 @@ static void Probe(const Target* target, const Field* fields, int32_t count)
                 }
             }
             else if (!RefusedAs(&fields[f], v, result) ||
-                     m3World_GetCounters(world).misuse != misuse + 1u)
+                     m3World_GetCounters(world).misuseCount != misuse + 1u)
             {
                 Report(what, &fields[f], v,
                        "refused without m3_errorInvalid or m3_errorLimit and one misuse");
@@ -319,9 +319,9 @@ static m3Result BuildDrivetrain(m3World* world, const void* def)
     {
         return m3_errorState; // the probe's own car must build
     }
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3Vehicle_SetDrivetrain(world, car, (const m3DrivetrainDef*)def);
-    return m3World_GetCounters(world).misuse == misuse ? m3_success : m3_errorInvalid;
+    return m3World_GetCounters(world).misuseCount == misuse ? m3_success : m3_errorInvalid;
 }
 
 static m3Result BuildSoftBody(m3World* world, const void* def)

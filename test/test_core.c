@@ -93,7 +93,7 @@ static void TestCreateWorld(void)
     NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     m3Counters counters = m3World_GetCounters(world);
-    CHECK(ledger.blocks > 0 && counters.allocCalls - counters.freeCalls == ledger.blocks,
+    CHECK(ledger.blocks > 0 && counters.allocCount - counters.freeCount == ledger.blocks,
           "the counters see every block the allocator handed out");
     CHECK(!ledger.misaligned, "every block met its alignment");
     m3DestroyWorld(world);
@@ -126,25 +126,26 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m3CreateBody(world, &bd, &third) == m3_errorCapacity && third.index1 == 0,
           "a third body is refused because the pool is full");
 
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3World_SetGravity(world, (m3Vec3){0.0f, NAN, 0.0f});
-    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "a NaN gravity counts as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "a NaN gravity counts as misuse");
     CHECK(m3DestroyBody(world, b) == m3_success, "the body destroys");
     CHECK(m3DestroyBody(world, b) == m3_errorStale, "a second destroy finds it stale");
     CHECK(m3DestroyBody(world, m3_nullBodyId) == m3_errorInvalid, "the null id is invalid");
     misuse += 2;
     CHECK(!m3Body_IsValid(world, b), "a validity query on a stale id answers false");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 1, "without counting as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "without counting as misuse");
     m3Pos3 gone = m3Body_GetPosition(world, b);
     CHECK(gone.x == 0.0 && gone.y == 0.0 && gone.z == 0.0, "reading through a stale id reads zero");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 2, "and counts once, against its world");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 2,
+          "and counts once, against its world");
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.density = -1.0f;
     m3ShapeId shape = m3_nullShapeId;
     CHECK(m3CreateBoxShape(world, a, &sd, (m3Vec3){0.5f, 0.5f, 0.5f}, &shape) == m3_errorInvalid &&
               shape.index1 == 0,
           "a negative density is refused");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 3, "and counts as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 3, "and counts as misuse");
 
     // Query inputs are caller data too: non-finite origins, radii and
     // boxes refuse and count instead of walking the broadphase.
@@ -165,7 +166,7 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m3World_Step(world, INFINITY, 4) == m3_errorInvalid, "an infinite step is refused");
     CHECK(m3World_Step(world, 1.0f / 60.0f, 0) == m3_errorInvalid, "so is one of no substep");
     CHECK(m3World_Step(NULL, 1.0f / 60.0f, 4) == m3_errorInvalid, "and a step of no world");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 9, "each refuses once");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 9, "each refuses once");
 
     m3DestroyWorld(world);
 }

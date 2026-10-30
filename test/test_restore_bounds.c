@@ -633,7 +633,7 @@ static void TestBoundsAtTheirEdges(void)
     Scene s = Build();
     m3World* world = s.world;
     m3Counters counters = m3World_GetCounters(world);
-    CHECK(counters.misuse == 0 && counters.jointCount == 8 && counters.vehicleCount == 1 &&
+    CHECK(counters.misuseCount == 0 && counters.jointCount == 8 && counters.vehicleCount == 1 &&
               counters.softBodyCount == 3 && counters.characterCount == 1 && s.pool >= 0 &&
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
@@ -659,7 +659,7 @@ static void TestBoundsAtTheirEdges(void)
     const Case cosineFloor = {"slope cosine floor", SCALAR(characters.charCosSlope, which_hero),
                               (double)m3ComputeCosSin(1.5f).c, -1};
     CheckCase(&s, clean, edited, size, hash, &cosineFloor);
-    CHECK(m3World_GetCounters(world).misuse == 0, "no refusal counted as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == 0, "no refusal counted as misuse");
     printf("restore bounds: %d values at and past their limits\n",
            (int)(sizeof(s_cases) / sizeof(s_cases[0])) + 1);
     free(edited);
@@ -690,7 +690,7 @@ static void TestGroundNormalLength(void)
         memcpy(edited, clean, (size_t)size);
         Put(&s, edited, &normal, 1.1);
         CHECK(m3World_Restore(world, edited, size) == m3_errorFormat, "a longer one is refused");
-        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuse == 0,
+        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuseCount == 0,
               "and the world is left as it was, with no misuse counted");
     }
     free(edited);
@@ -738,7 +738,7 @@ static void TestFarRestValuesAreRefused(void)
                 s_failures += 1;
             }
         }
-        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuse == 0,
+        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuseCount == 0,
               "each is refused, the world left as it was and no misuse counted");
         bool finite = true;
         for (int32_t i = 0; i < 120; ++i)

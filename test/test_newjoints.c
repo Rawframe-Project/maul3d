@@ -425,10 +425,10 @@ static void TestSteeringSwitchKeepsValues(void)
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3WheelJoint_EnableSteering(world, wheel, true);
     CHECK(!m3WheelJoint_IsSteeringEnabled(world, wheel) &&
-              m3World_GetCounters(world).misuse == misuse + 1,
+              m3World_GetCounters(world).misuseCount == misuse + 1,
           "steering without a frequency refuses to switch on");
     m3WheelJoint_SetSteeringHertz(world, wheel, 6.0f);
     m3WheelJoint_SetSteeringDampingRatio(world, wheel, 0.8f);
@@ -446,7 +446,7 @@ static void TestSteeringSwitchKeepsValues(void)
     m3WheelJoint_EnableSteering(world, wheel, true);
     m3WheelJoint_SetSteeringHertz(world, wheel, 0.0f);
     CHECK(m3WheelJoint_GetSteeringHertz(world, wheel) == 6.0f &&
-              m3World_GetCounters(world).misuse == misuse + 2,
+              m3World_GetCounters(world).misuseCount == misuse + 2,
           "enabled steering refuses a zero frequency");
     jd = m3DefaultJointDef();
     jd.bodyIdA = hub;
@@ -454,7 +454,8 @@ static void TestSteeringSwitchKeepsValues(void)
     m3JointId ball = NewJoint(world, &jd);
     m3WheelJoint_SetSteeringHertz(world, ball, 6.0f);
     m3WheelJoint_EnableSteering(world, ball, true);
-    CHECK(m3World_GetCounters(world).misuse == misuse + 4, "a spherical joint refuses steering");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 4,
+          "a spherical joint refuses steering");
     CHECK_REFUSES(world, CHECK(!m3WheelJoint_IsSteeringEnabled(world, ball), "steering off"),
                   "a spherical's steering switch reads off and counts misuse");
     CHECK_REFUSES(world, CHECK(m3WheelJoint_GetSteeringHertz(world, ball) == 0.0f, "zero hertz"),

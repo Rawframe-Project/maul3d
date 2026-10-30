@@ -143,13 +143,13 @@ static void TestSwitchesTakeEffectAtOnce(void)
     for (size_t i = 0; i < sizeof(s_switches) / sizeof(s_switches[0]); ++i)
     {
         const Switch* s = &s_switches[i];
-        uint64_t misuse = m3World_GetCounters(r.world).misuse;
+        uint64_t misuse = m3World_GetCounters(r.world).misuseCount;
         bool start = s->read(&r);
         s->set(&r, !start);
         bool flipped = s->read(&r) == !start;
         s->set(&r, start);
         bool back = s->read(&r) == start;
-        bool taken = m3World_GetCounters(r.world).misuse == misuse;
+        bool taken = m3World_GetCounters(r.world).misuseCount == misuse;
         if (!flipped || !back || !taken)
         {
             printf("  %s: flipped %d, back %d, taken %d\n", s->name, flipped, back, taken);

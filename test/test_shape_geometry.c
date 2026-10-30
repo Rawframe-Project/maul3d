@@ -500,7 +500,7 @@ static void TestLongCapsuleKeepsItsAxialMoment(void)
             const double mCyl = 1000.0 * pi * rr * 2.0 * (double)halves[k];
             const double mSph = 1000.0 * (4.0 / 3.0) * pi * rr * (double)r;
             const double axial = 0.5 * mCyl * rr + 0.4 * mSph * rr;
-            m3Mat3 inertia = m3Body_GetRotationalInertia(world, body);
+            m3Mat3 inertia = m3Body_GetCentralInertia(world, body);
             const float moments[3] = {inertia.cx.x, inertia.cy.y, inertia.cz.z};
             CHECK(result == m3_success && fabs((double)moments[axis] / axial - 1.0) < 1.0e-5,
                   "a long capsule creates with its axial moment in closed form");
