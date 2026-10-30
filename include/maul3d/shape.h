@@ -311,9 +311,9 @@ extern "C"
     M3_NODISCARD M3_API m3Result m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape,
                                                               int32_t x, int32_t y, int32_t z);
     /// Clears the inclusive box [lo, hi] per axis and writes the
-    /// number of voxels it cleared to *clearedOut (zero is legal). On
-    /// any failure *clearedOut is zero; a NULL clearedOut is refused
-    /// with m3_errorInvalid.
+    /// number of voxels it cleared to *clearedOut (zero is legal). A
+    /// busy refusal leaves *clearedOut as it was; any other failure
+    /// zeroes it, and a NULL clearedOut is refused with m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape,
                                                             const int32_t lo[3],
                                                             const int32_t hi[3],

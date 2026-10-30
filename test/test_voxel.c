@@ -1646,6 +1646,63 @@ static void TestCheckerboardFillsTheTree(void)
     m3DestroyWorld(world);
 }
 
+// A box clear called back in from the world's own pre-solve callback is
+// refused with m3_errorBusy and leaves the caller's count as it was: the
+// call in progress may own it.
+typedef struct BusyClear
+{
+    m3World* world;
+    m3ShapeId chunk;
+    int32_t calls;
+    int32_t busy;
+    int32_t kept;
+} BusyClear;
+
+static bool ClearFromPreSolve(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
+                              void* context)
+{
+    (void)shapeA;
+    (void)shapeB;
+    (void)point;
+    (void)normal;
+    BusyClear* probe = (BusyClear*)context;
+    probe->calls += 1;
+    const int32_t lo[3] = {0, 0, 0};
+    const int32_t hi[3] = {3, 0, 3};
+    int32_t count = 7;
+    probe->busy +=
+        m3VoxelChunkShape_ClearBox(probe->world, probe->chunk, lo, hi, &count) == m3_errorBusy ? 1
+                                                                                               : 0;
+    probe->kept += count == 7 ? 1 : 0;
+    return true;
+}
+
+static void TestClearBoxBusyKeepsCount(void)
+{
+    static uint8_t voxels[M3_VOXEL_COUNT];
+    m3World* world = SmallWorld();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    FillSlab(voxels, 1);
+    m3ShapeId slab = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){1.5, 1.45, 1.5};
+    m3ShapeDef presolve = m3DefaultShapeDef();
+    presolve.enablePreSolveEvents = true;
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, NewBody(world, &bd), &presolve, &ball);
+    BusyClear probe = {world, slab, 0, 0, 0};
+    m3World_SetPreSolveCallback(world, ClearFromPreSolve, &probe);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(probe.calls > 0, "the pre-solve callback ran");
+    CHECK(probe.busy == probe.calls, "every box clear it made is m3_errorBusy");
+    CHECK(probe.kept == probe.calls, "and leaves the caller's count as it was");
+    CHECK(ChunkOf(world, slab)->filledCount == 256, "and clears nothing");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestEscapeStopsAtWeldedBorder();
@@ -1657,6 +1714,7 @@ int main(void)
     TestSnapshotRefusesInconsistentChunk();
     TestEditsCarveAndWake();
     TestEditRefusalsAndEmptyEnd();
+    TestClearBoxBusyKeepsCount();
     TestFractureBridge();
     TestFractureTwoIslands();
     TestSeamWeldingCoverage();

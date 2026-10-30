@@ -750,15 +750,17 @@ static M3_NOINLINE m3Result VoxelChunkClearBoxWorker(m3World* world, m3ShapeId s
                                                      const int32_t lo[3], const int32_t hi[3],
                                                      int32_t* clearedOut)
 {
+    // A call back in from the world's own callback writes nothing: the
+    // call in progress may own clearedOut. Every other failure zeroes it.
+    if (m3WorldBusy(world))
+    {
+        return m3Refuse(world, m3_errorBusy);
+    }
     if (clearedOut == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
     *clearedOut = 0;
-    if (m3WorldBusy(world))
-    {
-        return m3Refuse(world, m3_errorBusy);
-    }
     int32_t index = -1;
     m3Result resolved = ResolveVoxelShape(world, shape, &index);
     if (resolved != m3_success)
