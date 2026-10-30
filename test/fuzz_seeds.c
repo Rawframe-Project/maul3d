@@ -163,6 +163,7 @@ static const SessionOp s_sessionOps[] = {
     {m3_opSetLinearVelocity, 1, "velocity sets"},
     {m3_opApplyLinearImpulse, 1, "impulses"},
     {m3_opSetGravity, 1, "gravity sets"},
+    {m3_opSphericalJointSetCone, 2, "cone records"},
     {m3_opVoxelClear, 1, "voxel clears"},
     {m3_opWorldExplode, 1, "blasts"},
     {m3_opDestroyJoint, 1, "joint destroys"},
