@@ -90,7 +90,7 @@ static void (*volatile s_paint)(uint8_t) = PaintStack;
 // on a stack painted with fill. The records with padding of their own
 // are all here: the hull, height field grid and voxel chunk creates, the
 // filter and both pushes at a point. Returns the tape's bytes.
-static int32_t RecordSession(uint8_t fill, uint8_t* tape, int32_t capacity)
+static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
 {
     m3WorldDef wd = m3DefaultWorldDef();
     m3World* world = NewWorld(&wd);
@@ -220,7 +220,7 @@ static int32_t RecordSession(uint8_t fill, uint8_t* tape, int32_t capacity)
     s_paint(fill);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_GetCounters(world).misuse == 0, "every call of the session lands");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     m3DestroyWorld(world);
     return bytes;
 }
@@ -233,8 +233,8 @@ static void TestTapeIgnoresDefPadding(void)
     };
     uint8_t* zeroed = (uint8_t*)malloc(TAPE_BYTES);
     uint8_t* filled = (uint8_t*)malloc(TAPE_BYTES);
-    int32_t zeroedBytes = RecordSession(0x00, zeroed, TAPE_BYTES);
-    int32_t filledBytes = RecordSession(0xFF, filled, TAPE_BYTES);
+    int64_t zeroedBytes = RecordSession(0x00, zeroed, TAPE_BYTES);
+    int64_t filledBytes = RecordSession(0xFF, filled, TAPE_BYTES);
     CHECK(zeroedBytes > 0 && zeroedBytes == filledBytes, "both sessions record the same length");
     CHECK(zeroedBytes > 0 && zeroedBytes == filledBytes &&
               memcmp(zeroed, filled, (size_t)zeroedBytes) == 0,

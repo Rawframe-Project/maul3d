@@ -9,6 +9,10 @@
 //   m3replay record <out.m3j>
 //   m3replay info   <file.m3j>
 //   m3replay verify <file.m3j>
+//
+// seek, play and diff scrub a container step by step. They index steps in
+// 32 bits, so they refuse a tape of INT32_MAX steps or more; info and
+// verify read any tape the library does.
 
 #include "maul3d/joint.h"
 #include "maul3d/replay.h"
@@ -877,6 +881,8 @@ int main(int argc, char** argv)
         return DiffTest();
     }
     fprintf(stderr, "usage: m3replay record|info|verify <file.m3j> | seek <file> <N> | play "
-                    "<file> <A> <B> | diff <a> <b> | selftest | difftest\n");
+                    "<file> <A> <B> | diff <a> <b> | selftest | difftest\n"
+                    "seek, play and diff index steps in 32 bits and refuse a tape of "
+                    "INT32_MAX steps or more\n");
     return 1;
 }
