@@ -201,7 +201,9 @@ void m3ResetStepEvents(m3World* world)
 }
 
 // A pair that started or stopped touching. A pair whose shape died emits
-// nothing: its id would be stale.
+// nothing: its id would be stale. A shape's destroy clears the touch of
+// its pairs (m3ForgetShapePairs), so a slot reused since then never
+// emits the dead shape's end.
 static void EmitPairChange(m3World* world, uint64_t key, bool began)
 {
     int32_t sA = (int32_t)(key >> 32);

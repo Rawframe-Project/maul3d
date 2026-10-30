@@ -19,6 +19,12 @@ int64_t m3PairUpdateScratchBytes(int32_t shapeCapacity);
 
 void m3FreezeDiscoverPairs(m3World* world, int32_t body);
 
+// A destroyed shape's pairs die with it: the manifold of each pair it is
+// in becomes a pair that never touched, and the frozen buffer drops its
+// keys. Its slot's next shape then starts with no touch, no warm-start
+// impulse and no end event of the dead shape's.
+void m3ForgetShapePairs(m3World* world, int32_t shape);
+
 // The 2a brute-force scan, kept as the referee: on any scene the tree
 // path must produce the identical pair list (a test gate).
 void m3UpdatePairsBruteForce(m3World* world);

@@ -623,6 +623,29 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
     world->contacts.frozenDirty = 1;
 }
 
+void m3ForgetShapePairs(m3World* world, int32_t shape)
+{
+    m3Contacts* contacts = &world->contacts;
+    for (int32_t i = 0; i < contacts->pairCount; ++i)
+    {
+        uint64_t key = contacts->pairKeys[i];
+        if ((int32_t)(key >> 32) == shape || (int32_t)(key & 0xFFFFFFFFu) == shape)
+        {
+            memset(&contacts->manifolds[i], 0, sizeof(m3Manifold));
+        }
+    }
+    int32_t w = 0;
+    for (int32_t k = 0; k < contacts->sleepingPairCount; ++k)
+    {
+        uint64_t key = contacts->sleepingPairKeys[k];
+        if ((int32_t)(key >> 32) != shape && (int32_t)(key & 0xFFFFFFFFu) != shape)
+        {
+            contacts->sleepingPairKeys[w++] = key;
+        }
+    }
+    contacts->sleepingPairCount = w;
+}
+
 void m3UpdatePairs(m3World* world)
 {
     // Once a step, not after every move: a full walk per insert would
