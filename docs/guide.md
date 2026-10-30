@@ -306,6 +306,14 @@ the pointer).
   be more; a NULL array with capacity 0 measures the total, so a
   caller can size the array first. A NULL array with a positive
   capacity, or a negative capacity, is refused.
+- A refused list call (a NULL world, a stale id, a bad argument)
+  returns 0 and zeroes the array over its whole capacity, so no entry
+  of an earlier call is read as the answer; zeroed ids are null ids.
+  A successful answer, an empty one included, writes only its entries
+  and leaves the rest of the array as it was. List calls only read,
+  so none is refused as busy. A refused `m3World_Snapshot` zeroes its
+  buffer over its capacity in the same way, so a host that rings
+  snapshot buffers sizes each with `m3World_GetSnapshotSize` first.
 
 Queries read the world and never write it; they are safe to call at
 any point between steps and have no effect on determinism.

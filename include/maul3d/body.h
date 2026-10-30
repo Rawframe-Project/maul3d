@@ -121,7 +121,9 @@ extern "C"
     M3_API m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body);
     /// The body's shapes or joints, up to capacity ids; returns the
     /// total, which may exceed capacity, and a NULL array with capacity
-    /// 0 measures.
+    /// 0 measures. A stale body is a refusal. A refusal zeroes the array over its whole capacity; a
+    /// success, an empty one included, writes only its entries; a list call only reads, so none is
+    /// refused as busy.
     M3_API int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* idsOut,
                                     int32_t capacity);
     M3_API int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* idsOut,
@@ -172,7 +174,9 @@ extern "C"
     M3_API const char* m3Body_GetName(const m3World* world, m3BodyId body);
     /// Who touches me now: fills up to capacity entries and returns
     /// the total, which may exceed capacity; a NULL array with
-    /// capacity 0 measures. See m3ContactData in world.h.
+    /// capacity 0 measures. A stale body is a refusal. A refusal zeroes the array over its whole
+    /// capacity; a success, an empty one included, writes only its entries; a list call only reads,
+    /// so none is refused as busy. See m3ContactData in world.h.
     M3_API int32_t m3Body_GetContactData(const m3World* world, m3BodyId body,
                                          m3ContactData* dataOut, int32_t capacity);
     /// Whether this body may fall asleep; turning it off wakes it.

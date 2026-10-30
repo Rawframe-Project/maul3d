@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "test_harness.h"
 
+#include "maul3d/replay.h"
 #include "maul3d/shape.h"
 
 #include <float.h>
@@ -1379,6 +1380,30 @@ static void TestListOutputs(void)
             CHECK(got == 0 && zeroed, "a refused list call zeroes its whole array");
         }
     }
+    // The world comparison refuses a NULL world and two worlds of
+    // different capacities the same way: -1, a zero count and its rows
+    // zeroed over their whole capacity.
+    m3WorldDef other = m3DefaultWorldDef();
+    other.bodyCapacity = wd.bodyCapacity + 1;
+    m3World* wider = NewWorld(&other);
+    const m3World* pairs[2][2] = {{sc.world, NULL}, {sc.world, wider}};
+    for (int32_t p = 0; p < 2; ++p)
+    {
+        m3BodyDiff rows[3];
+        memset(rows, 0x5A, sizeof(rows));
+        int32_t count = 7;
+        int32_t got = m3World_Compare(pairs[p][0], pairs[p][1], rows, 3, &count);
+        bool zeroed = true;
+        const unsigned char* bytes = (const unsigned char*)rows;
+        for (size_t k = 0; k < sizeof(rows); ++k)
+        {
+            zeroed = zeroed && bytes[k] == 0;
+        }
+        CHECK(got == -1 && count == 0 && zeroed,
+              p == 0 ? "a comparison with a NULL world zeroes its rows"
+                     : "a comparison of different capacities zeroes its rows");
+    }
+    m3DestroyWorld(wider);
     m3DestroyWorld(sc.world);
 }
 

@@ -558,7 +558,12 @@ extern "C"
     /// within `skin` of the capsule contributes one plane, the lowest
     /// shape indexes first in ascending order. Like every list call it
     /// writes at most capacity entries and returns the total, which may
-    /// exceed capacity; a NULL array with capacity 0 measures. Pass the
+    /// exceed capacity; a NULL array with capacity 0 measures. A refused
+    /// list call returns 0 and zeroes the array over its whole capacity,
+    /// so no entry of an earlier call is read as the answer, and zeroed
+    /// ids are null ids; a successful answer, an empty one included,
+    /// writes only its entries and leaves the rest of the array as it
+    /// was. A list call only reads, so none is refused as busy. Pass the
     /// smaller of the two to m3SolveMover.
     M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight,
                                         m3real radius, m3real skin, m3MoverPlane* planesOut,
@@ -590,6 +595,8 @@ extern "C"
     /// shape, sorted by fraction (ties to the lower shape index). It
     /// writes the nearest capacity hits and returns the total, which
     /// may exceed capacity; a NULL array with capacity 0 measures.
+    /// A refusal zeroes the array over its whole capacity; a success, an empty one included, writes
+    /// only its entries; a list call only reads, so none is refused as busy.
     M3_API int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                       m3QueryFilter filter, m3CastHit* hitsOut, int32_t capacity);
 
@@ -626,7 +633,9 @@ extern "C"
     /// ascending shape index order and return the total, which may
     /// exceed capacity; a NULL array with capacity 0 measures. A NULL
     /// array with a positive capacity or a negative capacity refuses.
-    /// Shapes whose tight bounds overlap the box.
+    /// A refusal zeroes the array over its whole capacity; a success, an empty one included, writes
+    /// only its entries; a list call only reads, so none is refused as busy. Shapes whose tight
+    /// bounds overlap the box.
     M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter filter,
                                        m3ShapeId* idsOut, int32_t capacity);
 
@@ -693,8 +702,10 @@ extern "C"
 
     /// Every live body or joint, up to capacity ids in ascending slot
     /// order; returns the total, which may exceed capacity, and a NULL
-    /// array with capacity 0 measures. The step count is the number of
-    /// steps taken (snapshot state). Thread class: reader.
+    /// array with capacity 0 measures. A refusal zeroes the array over its whole capacity; a
+    /// success, an empty one included, writes only its entries; a list call only reads, so none is
+    /// refused as busy. The step count is the number of steps taken (snapshot state). Thread class:
+    /// reader.
     M3_API int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capacity);
     M3_API int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capacity);
     M3_API uint64_t m3World_GetStepCount(const m3World* world);
