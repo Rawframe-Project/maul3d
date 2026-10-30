@@ -193,8 +193,13 @@ static void TestSizeOutputsOnFailure(void)
           "and so does a refused one");
 
     written = 1234;
-    CHECK(m3World_Snapshot(NULL, out, bytes, &written) == m3_errorInvalid && written == 0,
-          "a snapshot of no world leaves zero");
+    memset(out, 0x5A, (size_t)bytes);
+    bool zeroed = m3World_Snapshot(NULL, out, bytes, &written) == m3_errorInvalid && written == 0;
+    for (int64_t k = 0; k < bytes; ++k)
+    {
+        zeroed = zeroed && out[k] == 0;
+    }
+    CHECK(zeroed, "a snapshot of no world leaves zero and zeroes its buffer");
     written = 1234;
     CHECK(m3World_StopJournal(NULL, &written) == m3_errorInvalid && written == 0,
           "and so does a stop of no world's journal");

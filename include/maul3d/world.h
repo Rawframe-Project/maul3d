@@ -314,7 +314,10 @@ extern "C"
     /// snapshots like one the API built.
     /// Snapshot writes m3World_GetSnapshotSize bytes and sets *bytesOut;
     /// a smaller buffer returns m3_errorCapacity. Any failure, a null
-    /// world's included, leaves *bytesOut zero. Sizes are 64-bit and
+    /// world's included, leaves *bytesOut zero and zeroes the buffer over
+    /// its whole capacity, so no part of a refused snapshot reads as a
+    /// valid one; a host that rings snapshot buffers sizes each with
+    /// m3World_GetSnapshotSize first. Sizes are 64-bit and
     /// have no cap of their own: a world that fits memory snapshots. On a
     /// 32-bit target Restore refuses a size past SIZE_MAX with
     /// m3_errorInvalid before it forms a pointer.

@@ -115,6 +115,17 @@ static void TestSnapshotRefusals(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, snap, bytes - 1) == -1, "a short buffer refuses, loudly");
     CHECK(Snapshot(world, snap, bytes) == bytes, "the right buffer writes");
+    // A refused snapshot zeroes its buffer over the whole capacity, so the
+    // good snapshot just written there cannot be read as its answer.
+    int64_t written = 1234;
+    bool zeroed =
+        m3World_Snapshot(world, snap, bytes - 1, &written) == m3_errorCapacity && written == 0;
+    for (int64_t k = 0; k < bytes - 1; ++k)
+    {
+        zeroed = zeroed && snap[k] == 0;
+    }
+    CHECK(zeroed, "a short snapshot zeroes its buffer");
+    CHECK(Snapshot(world, snap, bytes) == bytes, "and the right buffer writes again");
     uint64_t hashBefore = m3World_Hash(world);
 
     // A corrupted header refuses and the world is untouched.

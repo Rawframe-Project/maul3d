@@ -105,6 +105,7 @@ static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 or
         !(translation.y >= -M3_CAST_LIMIT && translation.y <= M3_CAST_LIMIT) ||
         !(translation.z >= -M3_CAST_LIMIT && translation.z <= M3_CAST_LIMIT))
     {
+        m3ClearListOutput(hitsOut, capacity, sizeof(*hitsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -529,6 +530,7 @@ static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3WorldA
     if (world == NULL || !m3ListOutputValid(idsOut, capacity) || !m3FinitePos3(lo) ||
         !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -562,6 +564,7 @@ static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3
     if (world == NULL || !m3ListOutputValid(idsOut, capacity) || !m3FiniteF(radius) ||
         !(radius > 0.0f) || !m3FinitePos3(center))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -629,12 +632,14 @@ static M3_NOINLINE int32_t ShapeGetContactDataWorker(const m3World* world, m3Sha
 {
     if (world == NULL || !m3ListOutputValid(dataOut, capacity))
     {
+        m3ClearListOutput(dataOut, capacity, sizeof(*dataOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t slot = m3ShapeSlot(world, shape);
     if (slot < 0)
     {
+        m3ClearListOutput(dataOut, capacity, sizeof(*dataOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -670,12 +675,14 @@ static M3_NOINLINE int32_t BodyGetContactDataWorker(const m3World* world, m3Body
 {
     if (world == NULL || !m3ListOutputValid(dataOut, capacity))
     {
+        m3ClearListOutput(dataOut, capacity, sizeof(*dataOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t bodyIndex = m3BodySlot(world, body);
     if (bodyIndex < 0)
     {
+        m3ClearListOutput(dataOut, capacity, sizeof(*dataOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }

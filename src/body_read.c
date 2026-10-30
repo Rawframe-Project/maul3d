@@ -334,12 +334,14 @@ int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* idsOut,
 {
     if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         return 0;
     }
     int32_t total = 0;
@@ -362,12 +364,14 @@ int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* idsOut,
 {
     if (world == NULL || !m3ListOutputValid(idsOut, capacity))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
     int32_t index;
     if (!m3ResolveBody(world, body, &index))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         return 0;
     }
     int32_t total = 0;

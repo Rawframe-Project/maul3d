@@ -1334,6 +1334,50 @@ static void TestListOutputs(void)
         CHECK(nullRefused && negativeRefused,
               "a NULL array with a positive capacity, or a negative capacity, refuses");
     }
+    // A refused call zeroes its array over the whole capacity, so no item
+    // an earlier call wrote is read as the answer: a NULL world for every
+    // call, and a stale id for the calls that take one.
+    ListScene dead = sc;
+    dead.world = NULL;
+    ListScene stale = sc;
+    stale.floorBody.generation += 1;
+    stale.floor.generation += 1;
+    stale.hub.generation += 1;
+    static union
+    {
+        m3ContactData contact;
+        m3CastHit hit;
+        m3MoverPlane plane;
+        m3ShapeId shape;
+        m3BodyId body;
+        m3JointId joint;
+    } three[3];
+    for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)
+    {
+        const ListScene* refused[2] = {&dead, &stale};
+        for (int32_t r = 0; r < 2; ++r)
+        {
+            memset(three, 0x5A, sizeof(three));
+            int32_t got = calls[c].call(refused[r], three, 3);
+            if (r == 1 && got != 0)
+            {
+                continue; // takes no id: the stale scene is an ordinary call
+            }
+            bool zeroed = true;
+            const unsigned char* bytes = (const unsigned char*)three;
+            for (size_t k = 0; k < sizeof(three); ++k)
+            {
+                zeroed = zeroed && bytes[k] == 0;
+            }
+            if (got != 0 || !zeroed)
+            {
+                printf("  %s with %s: returned %d, array %s\n", calls[c].name,
+                       r == 0 ? "a NULL world" : "a stale id", (int)got,
+                       zeroed ? "zeroed" : "left as it was");
+            }
+            CHECK(got == 0 && zeroed, "a refused list call zeroes its whole array");
+        }
+    }
     m3DestroyWorld(sc.world);
 }
 

@@ -284,6 +284,7 @@ static M3_NOINLINE int32_t WorldCollideMoverWorker(const m3World* world, m3Pos3 
         !m3FiniteF(halfHeight) || halfHeight < 0.0f || !m3FiniteF(radius) || !(radius > 0.0f) ||
         !m3FiniteF(skin) || skin < 0.0f)
     {
+        m3ClearListOutput(planesOut, capacity, sizeof(*planesOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }

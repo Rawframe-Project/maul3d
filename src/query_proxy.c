@@ -237,6 +237,7 @@ static M3_NOINLINE int32_t WorldOverlapHullPointsWorker(const m3World* world, m3
         !m3ListOutputValid(idsOut, capacity) || !m3FinitePos3(base) || !m3FiniteF(radius) ||
         radius < 0.0f)
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -244,6 +245,7 @@ static M3_NOINLINE int32_t WorldOverlapHullPointsWorker(const m3World* world, m3
     {
         if (!m3FiniteV3(points[k]))
         {
+            m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
             m3Refuse(world, m3_errorInvalid);
             return 0;
         }
@@ -299,6 +301,7 @@ static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }
@@ -324,6 +327,7 @@ static M3_NOINLINE int32_t WorldOverlapBoxWorker(const m3World* world, m3Pos3 ce
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
     {
+        m3ClearListOutput(idsOut, capacity, sizeof(*idsOut));
         m3Refuse(world, m3_errorInvalid);
         return 0;
     }

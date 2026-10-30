@@ -68,6 +68,7 @@ static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3Wor
         {
             *outCount = 0;
         }
+        m3ClearListOutput(out, capacity, sizeof(*out));
         return -1;
     }
     int32_t maxA = a->bodies.bodyPool.maxIndex;
