@@ -80,7 +80,7 @@ static void WarmStartGeneric(const m3JointConstraint* c, const m3JointPose* pose
         if (AngularMode(c, k) != MODE_FREE)
         {
             m3JointRow row = m3TurnRow(m3FrameAxis(f.a, k));
-            m3real push = *m3Component(&angular, k);
+            float push = *m3Component(&angular, k);
             push -= AngularMode(c, k) == MODE_LIMITED ? c->limitImpulse.x : 0.0f;
             m3PushRow(&row, b, push);
         }
@@ -107,8 +107,8 @@ static void SolveLockedAxes(m3JointConstraint* c, const m3JointPose* pose, const
     }
     m3Vec3 error = turns ? m3RotationError(f, s_identity) : (m3Vec3){0.0f, 0.0f, 0.0f};
     m3JointRow rows[M3_BLOCK_ROWS];
-    m3real bias[M3_BLOCK_ROWS];
-    m3real* accumulated[M3_BLOCK_ROWS];
+    float bias[M3_BLOCK_ROWS];
+    float* accumulated[M3_BLOCK_ROWS];
     int32_t count = 0;
     for (int32_t k = 0; k < 3; ++k)
     {
@@ -149,7 +149,7 @@ static void SolveLinearLimits(m3JointConstraint* c, const m3JointPose* pose, con
         uint32_t mode = LinearMode(c, k);
         m3Vec3 axis = m3FrameAxis(f->a, k);
         m3JointRow row = m3SlideRow(pose, axis);
-        m3real coord = m3Dot3(axis, pose->gap);
+        float coord = m3Dot3(axis, pose->gap);
         if (mode == MODE_LIMITED)
         {
             m3SolveLimits(&row, coord, *m3Component(&c->genLinLower, k),
@@ -174,7 +174,7 @@ static void SolveAngularLimits(m3JointConstraint* c, const m3JointFrames* f, m3J
         m3JointRow row = m3TurnRow(axis);
         if (mode == MODE_LIMITED)
         {
-            m3real angle = 2.0f * m3Atan2(*m3Component(&part, k), rel.w);
+            float angle = 2.0f * m3Atan2(*m3Component(&part, k), rel.w);
             m3SolveLimits(&row, angle, *m3Component(&c->genAngLower, k),
                           *m3Component(&c->genAngUpper, k), c->softness,
                           m3Component(&c->angularImpulse, k), &c->limitImpulse.x, b, pass);
@@ -192,7 +192,7 @@ static void SolveGeneric(m3JointConstraint* c, const m3JointPose* pose, m3JointB
     m3JointRow motor;
     if (MotorRow(c, pose, &f, &motor))
     {
-        m3real budget = c->maxMotorEffort * pass->h;
+        float budget = c->maxMotorEffort * pass->h;
         m3SolveRow(&motor, b, m3RigidDrive(-c->motorSpeed), &c->limitImpulse.y, -budget, budget);
     }
 }

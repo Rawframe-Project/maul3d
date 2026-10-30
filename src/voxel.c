@@ -41,7 +41,7 @@ static void VoxelSet(m3VoxelChunkData* chunk, int32_t v)
 // Pack a caller-friendly grid (one byte per voxel, zero = empty)
 // into chunk state. Returns the filled count.
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
-                    m3real cellSize)
+                    float cellSize)
 {
     memset(chunk, 0, sizeof(*chunk));
     chunk->cellSize = cellSize;
@@ -80,7 +80,7 @@ static int32_t FilledVoxels(const m3VoxelChunkData* chunk)
 
 // The midphase over the merged boxes, built into the slot's own tree
 // storage.
-static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surface, m3real cell)
+static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surface, float cell)
 {
     if (surface->boxCount == 0)
     {
@@ -91,11 +91,11 @@ static void BuildSurfaceTree(m3World* world, int32_t slot, m3VoxelSurface* surfa
     m3Vec3 his[M3_VOXEL_MAX_BOXES];
     for (int32_t b = 0; b < surface->boxCount; ++b)
     {
-        los[b] = (m3Vec3){(m3real)surface->boxLo[b][0] * cell, (m3real)surface->boxLo[b][1] * cell,
-                          (m3real)surface->boxLo[b][2] * cell};
-        his[b] = (m3Vec3){(m3real)(surface->boxHi[b][0] + 1) * cell,
-                          (m3real)(surface->boxHi[b][1] + 1) * cell,
-                          (m3real)(surface->boxHi[b][2] + 1) * cell};
+        los[b] = (m3Vec3){(float)surface->boxLo[b][0] * cell, (float)surface->boxLo[b][1] * cell,
+                          (float)surface->boxLo[b][2] * cell};
+        his[b] = (m3Vec3){(float)(surface->boxHi[b][0] + 1) * cell,
+                          (float)(surface->boxHi[b][1] + 1) * cell,
+                          (float)(surface->boxHi[b][2] + 1) * cell};
     }
     uint8_t* tree = (uint8_t*)world->voxels.voxelTrees[slot];
     M3_ASSERT(tree != NULL); // taken when the chunk landed
@@ -244,21 +244,21 @@ void m3VoxelSurfaceBuild(m3World* world, int32_t slot)
 }
 
 // Chunk-frame bounds of one merged box.
-void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
+void m3VoxelBoxBounds(const m3VoxelSurface* surface, float cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi)
 {
-    *lo = (m3Vec3){(m3real)surface->boxLo[box][0] * cellSize,
-                   (m3real)surface->boxLo[box][1] * cellSize,
-                   (m3real)surface->boxLo[box][2] * cellSize};
-    *hi = (m3Vec3){(m3real)(surface->boxHi[box][0] + 1) * cellSize,
-                   (m3real)(surface->boxHi[box][1] + 1) * cellSize,
-                   (m3real)(surface->boxHi[box][2] + 1) * cellSize};
+    *lo =
+        (m3Vec3){(float)surface->boxLo[box][0] * cellSize, (float)surface->boxLo[box][1] * cellSize,
+                 (float)surface->boxLo[box][2] * cellSize};
+    *hi = (m3Vec3){(float)(surface->boxHi[box][0] + 1) * cellSize,
+                   (float)(surface->boxHi[box][1] + 1) * cellSize,
+                   (float)(surface->boxHi[box][2] + 1) * cellSize};
 }
 
 // A merged box as hull data in the CHUNK frame (m3BuildBoxHull
 // makes an origin-centered box; translate the vertices and shift
 // the face plane offsets by the same center).
-void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3HullData* out)
+void m3VoxelBoxHull(const m3VoxelSurface* surface, float cellSize, int32_t box, m3HullData* out)
 {
     m3Vec3 lo;
     m3Vec3 hi;
@@ -298,7 +298,7 @@ static bool VoxelWakeCallback(int32_t shape, void* userContext)
 static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], const int32_t hi[3])
 {
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3real cell = world->voxels.voxelData[slot].cellSize;
+    float cell = world->voxels.voxelData[slot].cellSize;
     int32_t body = world->shapes.shapeBody[shape];
     const m3Transform* xf = &world->bodies.transforms[body];
     // The region's eight corners in the chunk frame, rotated out,
@@ -307,9 +307,9 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
     double whi[3] = {-1.0e30, -1.0e30, -1.0e30};
     for (int32_t c = 0; c < 8; ++c)
     {
-        m3Vec3 corner = {(m3real)((c & 1) != 0 ? hi[0] + 1 : lo[0]) * cell,
-                         (m3real)((c & 2) != 0 ? hi[1] + 1 : lo[1]) * cell,
-                         (m3real)((c & 4) != 0 ? hi[2] + 1 : lo[2]) * cell};
+        m3Vec3 corner = {(float)((c & 1) != 0 ? hi[0] + 1 : lo[0]) * cell,
+                         (float)((c & 2) != 0 ? hi[1] + 1 : lo[1]) * cell,
+                         (float)((c & 4) != 0 ? hi[2] + 1 : lo[2]) * cell};
         m3Vec3 r = m3RotateVec3(xf->q, corner);
         double p[3] = {xf->p.x + (double)r.x, xf->p.y + (double)r.y, xf->p.z + (double)r.z};
         for (int32_t k = 0; k < 3; ++k)
@@ -336,9 +336,9 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
             continue;
         }
         const m3Pos3* p = &world->bodies.transforms[world->characters.charBody[c]].p;
-        m3real reachDown = world->characters.charHalfHeight[c] + world->characters.charRadius[c] +
-                           world->characters.charSnap[c] + M3_AABB_MARGIN;
-        m3real reachSide = world->characters.charRadius[c] + M3_AABB_MARGIN;
+        float reachDown = world->characters.charHalfHeight[c] + world->characters.charRadius[c] +
+                          world->characters.charSnap[c] + M3_AABB_MARGIN;
+        float reachSide = world->characters.charRadius[c] + M3_AABB_MARGIN;
         if (p->x + (double)reachSide < wlo[0] || p->x - (double)reachSide > whi[0] ||
             p->z + (double)reachSide < wlo[2] || p->z - (double)reachSide > whi[2] ||
             p->y - (double)reachDown > whi[1] || p->y + (double)reachDown < wlo[1])
@@ -375,7 +375,7 @@ static void VoxelWakeRegion(m3World* world, int32_t shape, const int32_t lo[3], 
             double ay = cxf->p.y + (double)anchorR.y;
             double az = cxf->p.z + (double)anchorR.z;
             m3Vec3 dir = m3RotateVec3(cxf->q, world->vehicles.vehWheelDir[k]);
-            m3real reach = world->vehicles.vehWheelRest[k] + world->vehicles.vehWheelRadius[k];
+            float reach = world->vehicles.vehWheelRest[k] + world->vehicles.vehWheelRadius[k];
             double ex = ax + (double)(dir.x * reach);
             double ey = ay + (double)(dir.y * reach);
             double ez = az + (double)(dir.z * reach);
@@ -536,7 +536,7 @@ bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y,
     return true;
 }
 
-int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, m3real radius)
+int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, float radius)
 {
     // The explosion bite: clear every cell whose center lies
     // inside the sphere (center in the CHUNK frame), then ONE
@@ -544,21 +544,21 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     // the ClearBox economy. Cell (x,y,z) spans [x, x+1) * cellSize.
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     m3VoxelChunkData* chunk = StageChunk(world, slot);
-    m3real cell = chunk->cellSize;
+    float cell = chunk->cellSize;
     int32_t lo[3];
     int32_t hi[3];
-    m3real c[3] = {center.x, center.y, center.z};
+    float c[3] = {center.x, center.y, center.z};
     for (int32_t a = 0; a < 3; ++a)
     {
-        m3real f0 = (c[a] - radius) / cell;
-        m3real f1 = (c[a] + radius) / cell;
+        float f0 = (c[a] - radius) / cell;
+        float f1 = (c[a] + radius) / cell;
         int32_t i0 = m3CellFromF(floorf(f0), 2.0e9f);
         int32_t i1 = m3CellFromF(floorf(f1), -2.0e9f);
         lo[a] = i0 < 0 ? 0 : (i0 > M3_VOXEL_DIM - 1 ? M3_VOXEL_DIM - 1 : i0);
         hi[a] = i1 < 0 ? 0 : (i1 > M3_VOXEL_DIM - 1 ? M3_VOXEL_DIM - 1 : i1);
     }
     int32_t cleared = 0;
-    m3real r2 = radius * radius;
+    float r2 = radius * radius;
     for (int32_t z = lo[2]; z <= hi[2]; ++z)
     {
         for (int32_t y = lo[1]; y <= hi[1]; ++y)
@@ -569,9 +569,9 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
                 {
                     continue;
                 }
-                m3real dx = ((m3real)x + 0.5f) * cell - center.x;
-                m3real dy = ((m3real)y + 0.5f) * cell - center.y;
-                m3real dz = ((m3real)z + 0.5f) * cell - center.z;
+                float dx = ((float)x + 0.5f) * cell - center.x;
+                float dy = ((float)y + 0.5f) * cell - center.y;
+                float dz = ((float)z + 0.5f) * cell - center.z;
                 if (dx * dx + dy * dy + dz * dz > r2)
                 {
                     continue;

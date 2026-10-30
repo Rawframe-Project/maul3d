@@ -20,7 +20,7 @@ static void MovePos(m3Pos3* p, m3Vec3 d)
 
 static m3Vec3 PosDelta(const m3Pos3* a, const m3Pos3* b)
 {
-    return (m3Vec3){(m3real)(a->x - b->x), (m3real)(a->y - b->y), (m3real)(a->z - b->z)};
+    return (m3Vec3){(float)(a->x - b->x), (float)(a->y - b->y), (float)(a->z - b->z)};
 }
 
 // The bounds of a lattice's predicted positions.
@@ -45,33 +45,33 @@ static void LatticeBounds(const m3World* world, int32_t slot, double lo[3], doub
 // applies PBD friction with a fixed mix: the tangential motion of this
 // substep shrinks by mu times the correction. Dead-centered pairs have
 // no deterministic normal and skip.
-static void ProjectParticlePair(m3World* world, int32_t ka, int32_t kb, m3real target)
+static void ProjectParticlePair(m3World* world, int32_t ka, int32_t kb, float target)
 {
     m3SoftBodies* sb = &world->softBodies;
     m3Vec3 d = PosDelta(&sb->softPos[ka], &sb->softPos[kb]);
-    m3real dist2 = m3Dot3(d, d);
-    m3real wa = sb->softInvMass[ka];
-    m3real wb = sb->softInvMass[kb];
-    m3real wSum = wa + wb;
+    float dist2 = m3Dot3(d, d);
+    float wa = sb->softInvMass[ka];
+    float wb = sb->softInvMass[kb];
+    float wSum = wa + wb;
     if (dist2 >= target * target || dist2 <= 1.0e-12f || wSum <= 0.0f)
     {
         return;
     }
-    m3real dist = sqrtf(dist2);
+    float dist = sqrtf(dist2);
     m3Vec3 n = m3MulSV3(1.0f / dist, d);
-    m3real pen = target - dist;
+    float pen = target - dist;
     MovePos(&sb->softPos[ka], m3MulSV3(pen * wa / wSum, n));
     MovePos(&sb->softPos[kb], m3MulSV3(-pen * wb / wSum, n));
-    const m3real mu = 0.5f;
+    const float mu = 0.5f;
     m3Vec3 velA = PosDelta(&sb->softPos[ka], &sb->softPrev[ka]);
     m3Vec3 velB = PosDelta(&sb->softPos[kb], &sb->softPrev[kb]);
     m3Vec3 rel = m3Sub3(velA, velB);
     m3Vec3 tangential = m3Sub3(rel, m3MulSV3(m3Dot3(rel, n), n));
-    m3real tLen = m3Length3(tangential);
+    float tLen = m3Length3(tangential);
     if (tLen > 1.0e-9f)
     {
-        m3real budget = mu * pen;
-        m3real cut = tLen < budget ? tLen : budget;
+        float budget = mu * pen;
+        float cut = tLen < budget ? tLen : budget;
         m3Vec3 corr = m3MulSV3(cut / tLen, tangential);
         MovePos(&sb->softPos[ka], m3MulSV3(-wa / wSum, corr));
         MovePos(&sb->softPos[kb], m3MulSV3(wb / wSum, corr));
@@ -99,7 +99,7 @@ void m3SoftSoftContacts(m3World* world)
             {
                 continue;
             }
-            m3real target = sb->softRadius[a] + sb->softRadius[b];
+            float target = sb->softRadius[a] + sb->softRadius[b];
             double reach = (double)target;
             double loB[3];
             double hiB[3];
@@ -139,9 +139,9 @@ void m3SoftSoftAnchors(m3World* world)
             }
             int32_t ka = sa * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleA[ak];
             int32_t kb = other * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleB[ak];
-            m3real wa = sb->softInvMass[ka];
-            m3real wb = sb->softInvMass[kb];
-            m3real wSum = wa + wb;
+            float wa = sb->softInvMass[ka];
+            float wb = sb->softInvMass[kb];
+            float wSum = wa + wb;
             if (wSum <= 0.0f)
             {
                 continue; // both pinned: nothing to split

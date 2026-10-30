@@ -20,9 +20,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static int NearF(m3real a, m3real b, m3real tol)
+static int NearF(float a, float b, float tol)
 {
-    m3real d = a - b;
+    float d = a - b;
     return (d < 0.0f ? -d : d) <= tol;
 }
 
@@ -273,7 +273,7 @@ static void TestFallbackSolves(void)
 
 // Checks one reduction of count points: between one and four picks,
 // ascending, each in [0, count), the deepest among them. Returns how many.
-static int32_t CheckPicks(const m3Vec3* points, const m3real* separations, int32_t count,
+static int32_t CheckPicks(const m3Vec3* points, const float* separations, int32_t count,
                           m3Vec3 normal, int32_t out[M3_MANIFOLD_MAX_POINTS])
 {
     int32_t n = m3ReduceContactPoints(points, separations, count, normal, out);
@@ -302,7 +302,7 @@ static void TestReducePicks(void)
         CASES = 2000
     };
     m3Vec3 points[MAX_COUNT];
-    m3real separations[MAX_COUNT];
+    float separations[MAX_COUNT];
     int32_t out[M3_MANIFOLD_MAX_POINTS];
 
     // A 2 x 2 square's corners and edge midpoints, deepest at a corner:
@@ -325,13 +325,13 @@ static void TestReducePicks(void)
     for (int32_t i = 0; i < 8; ++i)
     {
         points[i] = (m3Vec3){1.0f, -2.0f, 0.5f};
-        separations[i] = -0.01f * (m3real)(i % 3);
+        separations[i] = -0.01f * (float)(i % 3);
     }
     CheckPicks(points, separations, 8, up, out);
     for (int32_t i = 0; i < 8; ++i)
     {
-        points[i] = (m3Vec3){0.25f * (m3real)i, 0.0f, 0.0f};
-        separations[i] = -0.01f * (m3real)i;
+        points[i] = (m3Vec3){0.25f * (float)i, 0.0f, 0.0f};
+        separations[i] = -0.01f * (float)i;
     }
     n = CheckPicks(points, separations, 8, up, out);
     CHECK(n <= 3, "points on one line reduce to at most three");
@@ -367,19 +367,19 @@ static void TestReducePicks(void)
 static void TestReducePicksNotFinite(void)
 {
     m3Vec3 points[8];
-    m3real separations[8];
+    float separations[8];
     int32_t out[M3_MANIFOLD_MAX_POINTS];
     m3Vec3 up = {0.0f, 0.0f, 1.0f};
     for (int32_t i = 0; i < 8; ++i)
     {
         points[i] = (m3Vec3){NAN, NAN, NAN};
-        separations[i] = -0.01f * (m3real)i;
+        separations[i] = -0.01f * (float)i;
     }
     CheckPicks(points, separations, 8, up, out);
     // Only the deepest point is not finite.
     for (int32_t i = 0; i < 8; ++i)
     {
-        points[i] = (m3Vec3){(m3real)i, (m3real)(i % 3), 0.0f};
+        points[i] = (m3Vec3){(float)i, (float)(i % 3), 0.0f};
     }
     points[7] = (m3Vec3){NAN, 0.0f, 0.0f};
     CheckPicks(points, separations, 8, up, out);

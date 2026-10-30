@@ -20,16 +20,16 @@ typedef struct m3ConstraintPoint
 {
     m3Vec3 rA; // anchors from each center of mass, fixed at prepare
     m3Vec3 rB;
-    m3real baseSeparation; // separation minus the anchors' normal gap at prepare
-    m3real normalMass;
-    m3real leverArm;         // distance from the manifold center: the twist budget arm
-    m3real relativeVelocity; // normal speed at prepare, negative when closing
-    m3real normalImpulse;
+    float baseSeparation; // separation minus the anchors' normal gap at prepare
+    float normalMass;
+    float leverArm;         // distance from the manifold center: the twist budget arm
+    float relativeVelocity; // normal speed at prepare, negative when closing
+    float normalImpulse;
     // Summed over every pass of the step: a zero means the point never
     // pushed, and restitution skips it. The friction budgets use the
     // current pass's impulses instead; a sum across passes would inflate
     // the cone several times over.
-    m3real totalNormalImpulse;
+    float totalNormalImpulse;
 } m3ConstraintPoint;
 
 typedef struct m3ContactConstraint
@@ -45,23 +45,23 @@ typedef struct m3ContactConstraint
     // at each corner of a box gives gravity a false pitching lever.
     m3Vec3 originA;
     m3Vec3 originB;
-    m3real frictionK11; // inverse of the 2x2 tangent mass, symmetric
-    m3real frictionK12;
-    m3real frictionK22;
-    m3real frictionImpulse1;
-    m3real frictionImpulse2;
-    m3real twistMass;
-    m3real twistImpulse;
-    m3real tangentVelocity1; // conveyor target along t1 and t2
-    m3real tangentVelocity2;
-    m3real friction;
-    m3real restitution;
-    m3real invMassA;
-    m3real invMassB;
+    float frictionK11; // inverse of the 2x2 tangent mass, symmetric
+    float frictionK12;
+    float frictionK22;
+    float frictionImpulse1;
+    float frictionImpulse2;
+    float twistMass;
+    float twistImpulse;
+    float tangentVelocity1; // conveyor target along t1 and t2
+    float tangentVelocity2;
+    float friction;
+    float restitution;
+    float invMassA;
+    float invMassB;
     m3Mat3 invIA; // world inverse inertia, fixed at prepare
     m3Mat3 invIB;
     m3Softness softness;
-    m3real rollingResistance; // mixed by maximum, scaled by the pair's extent
+    float rollingResistance; // mixed by maximum, scaled by the pair's extent
     m3Vec3 rollingImpulse;
     m3Mat3 rollingK; // iA + iB
     m3ConstraintPoint points[M3_MANIFOLD_MAX_POINTS];
@@ -89,7 +89,7 @@ typedef struct m3ContactPlan
     int32_t blockStarts[M3_GRAPH_COLORS + 1]; // per color, then the end
     const m3Vec3* deltaPos; // how far each body moved and turned since the step began
     const m3Quat* deltaRot;
-    m3real invH;
+    float invH;
 } m3ContactPlan;
 
 typedef enum m3ContactStage

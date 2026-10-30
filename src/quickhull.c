@@ -44,7 +44,7 @@ typedef struct QhFace
     uint8_t alive;
     uint8_t visible;
     m3Vec3 normal;
-    m3real offset;
+    float offset;
 } QhFace;
 
 typedef struct QhBuilder
@@ -57,7 +57,7 @@ typedef struct QhBuilder
     int32_t freeCount;
     int32_t faceHigh; // slots ever used
     int32_t hullVertexCount;
-    m3real tolerance;
+    float tolerance;
     // Scratch for one step.
     int16_t stack[M3_QH_MAX_FACES];
     int16_t visible[M3_QH_MAX_FACES];
@@ -69,7 +69,7 @@ typedef struct QhBuilder
     int16_t group[M3_QH_MAX_FACES];
 } QhBuilder;
 
-static m3real Above(const QhFace* f, m3Vec3 point)
+static float Above(const QhFace* f, m3Vec3 point)
 {
     return m3Dot3(f->normal, point) - f->offset;
 }
@@ -135,7 +135,7 @@ static bool SetTriangle(QhBuilder* b, int32_t f, int32_t v0, int32_t v1, int32_t
     {
         return false;
     }
-    face->offset = (m3real)offset;
+    face->offset = (float)offset;
     return true;
 }
 
@@ -169,18 +169,18 @@ static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
     {
         for (int32_t k = 0; k < 3; ++k)
         {
-            m3real c = k == 0 ? b->p[i].x : (k == 1 ? b->p[i].y : b->p[i].z);
-            m3real cl = k == 0 ? b->p[lo[k]].x : (k == 1 ? b->p[lo[k]].y : b->p[lo[k]].z);
-            m3real ch = k == 0 ? b->p[hi[k]].x : (k == 1 ? b->p[hi[k]].y : b->p[hi[k]].z);
+            float c = k == 0 ? b->p[i].x : (k == 1 ? b->p[i].y : b->p[i].z);
+            float cl = k == 0 ? b->p[lo[k]].x : (k == 1 ? b->p[lo[k]].y : b->p[lo[k]].z);
+            float ch = k == 0 ? b->p[hi[k]].x : (k == 1 ? b->p[hi[k]].y : b->p[hi[k]].z);
             lo[k] = c < cl ? i : lo[k];
             hi[k] = c > ch ? i : hi[k];
         }
     }
     int32_t axis = 0;
-    m3real spread = -1.0f;
+    float spread = -1.0f;
     for (int32_t k = 0; k < 3; ++k)
     {
-        m3real d = m3Length3(m3Sub3(b->p[hi[k]], b->p[lo[k]]));
+        float d = m3Length3(m3Sub3(b->p[hi[k]], b->p[lo[k]]));
         if (d > spread)
         {
             spread = d;
@@ -194,10 +194,10 @@ static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
     out[0] = lo[axis];
     out[1] = hi[axis];
     m3Vec3 dir = m3Sub3(b->p[out[1]], b->p[out[0]]);
-    m3real best = -1.0f;
+    float best = -1.0f;
     for (int32_t i = 0; i < count; ++i)
     {
-        m3real d = m3Length3(m3Cross3(m3Sub3(b->p[i], b->p[out[0]]), dir)) / spread;
+        float d = m3Length3(m3Cross3(m3Sub3(b->p[i], b->p[out[0]]), dir)) / spread;
         if (d > best)
         {
             best = d;
@@ -213,7 +213,7 @@ static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
     best = -1.0f;
     for (int32_t i = 0; i < count; ++i)
     {
-        m3real d = m3Dot3(n, m3Sub3(b->p[i], b->p[out[0]]));
+        float d = m3Dot3(n, m3Sub3(b->p[i], b->p[out[0]]));
         d = d < 0.0f ? -d : d;
         if (d > best)
         {
@@ -229,10 +229,10 @@ static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
 static void AssignPoint(QhBuilder* b, int32_t point, const int16_t* faces, int32_t faceCount)
 {
     int32_t bestFace = -1;
-    m3real best = b->tolerance;
+    float best = b->tolerance;
     for (int32_t i = 0; i < faceCount; ++i)
     {
-        m3real d = Above(&b->faces[faces[i]], b->p[point]);
+        float d = Above(&b->faces[faces[i]], b->p[point]);
         if (d > best)
         {
             best = d;
@@ -299,13 +299,13 @@ static bool StartHull(QhBuilder* b, int32_t count)
 static int32_t FarthestWaiting(const QhBuilder* b, int32_t* faceOut)
 {
     int32_t best = -1;
-    m3real bestDist = -FLT_MAX;
+    float bestDist = -FLT_MAX;
     for (int32_t f = 0; f < b->faceHigh; ++f)
     {
         const QhFace* face = &b->faces[f];
         for (int32_t q = face->alive ? face->conflict : -1; q >= 0; q = b->nextConflict[q])
         {
-            m3real d = Above(face, b->p[q]);
+            float d = Above(face, b->p[q]);
             if (d > bestDist)
             {
                 bestDist = d;
@@ -428,7 +428,7 @@ static int32_t FindGroup(QhBuilder* b, int32_t f)
 // lowest face as root.
 static void MergeFaces(QhBuilder* b)
 {
-    m3real tol = 2.0f * b->tolerance;
+    float tol = 2.0f * b->tolerance;
     for (int32_t f = 0; f < b->faceHigh; ++f)
     {
         b->group[f] = (int16_t)f;
@@ -624,7 +624,7 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
         offset += (double)normal.x * (double)origin.x + (double)normal.y * (double)origin.y +
                   (double)normal.z * (double)origin.z;
         out->faceNormals[f] = normal;
-        out->faceOffsets[f] = (m3real)offset;
+        out->faceOffsets[f] = (float)offset;
         out->faceVertCounts[f] = (uint8_t)n;
         out->faceVertStart[f] = poly->start[f];
         edges += n;
@@ -659,7 +659,7 @@ static bool InputValid(const m3Vec3* points, int32_t count)
 // point, keeping input order. Returns the kept count.
 static int32_t WeldPoints(QhBuilder* b, int32_t count)
 {
-    m3real radius = M3_QH_WELD * b->tolerance;
+    float radius = M3_QH_WELD * b->tolerance;
     int32_t kept = 0;
     for (int32_t i = 0; i < count; ++i)
     {

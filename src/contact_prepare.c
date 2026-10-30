@@ -154,12 +154,12 @@ static m3Vec3 PointVelocity(const m3World* world, int32_t body, m3Vec3 arm)
 
 // The inverse mass a row along dir through the arms meets; zero for a
 // row that cannot move.
-static m3real RowMass(const m3ContactConstraint* c, m3Vec3 rA, m3Vec3 rB, m3Vec3 dir)
+static float RowMass(const m3ContactConstraint* c, m3Vec3 rA, m3Vec3 rB, m3Vec3 dir)
 {
     m3Vec3 turnA = m3Cross3(rA, dir);
     m3Vec3 turnB = m3Cross3(rB, dir);
-    m3real k = c->invMassA + c->invMassB + m3Dot3(turnA, m3MulMV3(c->invIA, turnA)) +
-               m3Dot3(turnB, m3MulMV3(c->invIB, turnB));
+    float k = c->invMassA + c->invMassB + m3Dot3(turnA, m3MulMV3(c->invIA, turnA)) +
+              m3Dot3(turnB, m3MulMV3(c->invIB, turnB));
     return k > 0.0f ? 1.0f / k : 0.0f;
 }
 
@@ -191,18 +191,18 @@ static void PreparePoints(const m3World* world, m3ContactConstraint* c, const m3
 // the pair is inverted at the scale of its larger diagonal. A singular
 // pair, or one that is not finite even at that scale, gets zero: no
 // tangent rows.
-static void InvertPair(m3real k11, m3real k22, m3real k12, m3ContactConstraint* c)
+static void InvertPair(float k11, float k22, float k12, m3ContactConstraint* c)
 {
-    m3real det = k11 * k22 - k12 * k12;
+    float det = k11 * k22 - k12 * k12;
     if (det >= FLT_MIN && det <= FLT_MAX)
     {
-        m3real inv = 1.0f / det;
+        float inv = 1.0f / det;
         c->frictionK11 = k22 * inv;
         c->frictionK22 = k11 * inv;
         c->frictionK12 = -k12 * inv;
         return;
     }
-    m3real r[3] = {0.0f, 0.0f, 0.0f};
+    float r[3] = {0.0f, 0.0f, 0.0f};
     if (!(det < 0.0f))
     {
         (void)m3InvertPairAtScale(k11, k22, k12, m3MaxF(k11, k22), r);
@@ -225,7 +225,7 @@ static void PrepareCenterRows(m3ContactConstraint* c, const m3Manifold* manifold
         sumA = m3Add3(sumA, c->points[k].rA);
         sumB = m3Add3(sumB, c->points[k].rB);
     }
-    m3real share = 1.0f / (m3real)c->pointCount;
+    float share = 1.0f / (float)c->pointCount;
     c->originA = m3MulSV3(share, sumA);
     c->originB = m3MulSV3(share, sumB);
     for (int32_t k = 0; k < c->pointCount; ++k)
@@ -237,17 +237,17 @@ static void PrepareCenterRows(m3ContactConstraint* c, const m3Manifold* manifold
     m3Vec3 a2 = m3Cross3(c->originA, c->t2);
     m3Vec3 b1 = m3Cross3(c->originB, c->t1);
     m3Vec3 b2 = m3Cross3(c->originB, c->t2);
-    m3real k11 = c->invMassA + c->invMassB + m3Dot3(a1, m3MulMV3(c->invIA, a1)) +
-                 m3Dot3(b1, m3MulMV3(c->invIB, b1));
-    m3real k22 = c->invMassA + c->invMassB + m3Dot3(a2, m3MulMV3(c->invIA, a2)) +
-                 m3Dot3(b2, m3MulMV3(c->invIB, b2));
-    m3real k12 = m3Dot3(a1, m3MulMV3(c->invIA, a2)) + m3Dot3(b1, m3MulMV3(c->invIB, b2));
+    float k11 = c->invMassA + c->invMassB + m3Dot3(a1, m3MulMV3(c->invIA, a1)) +
+                m3Dot3(b1, m3MulMV3(c->invIB, b1));
+    float k22 = c->invMassA + c->invMassB + m3Dot3(a2, m3MulMV3(c->invIA, a2)) +
+                m3Dot3(b2, m3MulMV3(c->invIB, b2));
+    float k12 = m3Dot3(a1, m3MulMV3(c->invIA, a2)) + m3Dot3(b1, m3MulMV3(c->invIB, b2));
     InvertPair(k11, k22, k12, c);
     c->frictionImpulse1 = m3Dot3(manifold->frictionImpulse, c->t1);
     c->frictionImpulse2 = m3Dot3(manifold->frictionImpulse, c->t2);
 
     m3Vec3 spin = m3Add3(m3MulMV3(c->invIA, c->normal), m3MulMV3(c->invIB, c->normal));
-    m3real twistK = m3Dot3(c->normal, spin);
+    float twistK = m3Dot3(c->normal, spin);
     c->twistMass = twistK > 0.0f ? 1.0f / twistK : 0.0f;
     c->twistImpulse = manifold->twistImpulse;
 
@@ -277,7 +277,7 @@ static void HoldWarmStart(m3ContactConstraint* c)
         lever = lever > a ? lever : a;
         lever = lever > b ? lever : b;
     }
-    m3real scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
+    float scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
     if (scale == 1.0f)
     {
         return;
@@ -321,7 +321,7 @@ static void PrepareConstraint(const m3World* world, m3ContactConstraint* c, int3
     HoldWarmStart(c);
 }
 
-int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3real h)
+int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, float h)
 {
     m3Softness soft[2] = {
         m3MakeSoft(world->contactHertz, world->contactDampingRatio, h),

@@ -24,7 +24,7 @@ typedef struct m3ShapeCastContext
     m3Vec3 castPoints[M3_HULL_MAX_VERTS]; // sphere 1, capsule 2,
                                           // box 8, hull up to 24
     int32_t castPointCount;
-    m3real castRadius;
+    float castRadius;
     m3Vec3 translation;
     m3CastResult best;
     int32_t bestShape;
@@ -55,8 +55,8 @@ static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast
     sc->ctx = ctx;
     sc->shape = shape;
     sc->surface.localCenter = (m3Vec3){0.0f, 0.0f, 0.0f};
-    sc->surface.c1 = (m3Vec3){(m3real)(xf.p.x - ctx->base.x), (m3real)(xf.p.y - ctx->base.y),
-                              (m3real)(xf.p.z - ctx->base.z)};
+    sc->surface.c1 = (m3Vec3){(float)(xf.p.x - ctx->base.x), (float)(xf.p.y - ctx->base.y),
+                              (float)(xf.p.z - ctx->base.z)};
     sc->surface.c2 = sc->surface.c1;
     sc->surface.q1 = xf.q;
     sc->surface.q2 = xf.q;
@@ -67,7 +67,7 @@ static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast
     sc->cast.q2 = m3MakeIdentityQuat();
     sc->path.start = m3InvRotateVec3(xf.q, m3Neg3(sc->surface.c1));
     sc->path.end = m3InvRotateVec3(xf.q, m3Sub3(ctx->translation, sc->surface.c1));
-    m3real farthest = 0.0f;
+    float farthest = 0.0f;
     for (int32_t k = 0; k < ctx->castPointCount; ++k)
     {
         farthest = m3MaxF(farthest, m3Length3(ctx->castPoints[k]));
@@ -77,11 +77,11 @@ static void SurfaceCastBegin(m3ShapeCastContext* ctx, int32_t shape, SurfaceCast
 }
 
 // The box the cast covers in the surface's frame up to fraction.
-static void SurfaceCastBox(const SurfaceCast* sc, m3real fraction, m3Vec3* lo, m3Vec3* hi)
+static void SurfaceCastBox(const SurfaceCast* sc, float fraction, m3Vec3* lo, m3Vec3* hi)
 {
     m3Vec3 start = sc->path.start;
     m3Vec3 end = m3Add3(start, m3MulSV3(fraction, m3Sub3(sc->path.end, start)));
-    m3real r = sc->path.reach;
+    float r = sc->path.reach;
     *lo = (m3Vec3){m3MinF(start.x, end.x) - r, m3MinF(start.y, end.y) - r,
                    m3MinF(start.z, end.z) - r};
     *hi = (m3Vec3){m3MaxF(start.x, end.x) + r, m3MaxF(start.y, end.y) + r,
@@ -190,7 +190,7 @@ static void CastVoxels(m3ShapeCastContext* ctx, int32_t shape)
     const m3World* world = ctx->world;
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-    m3real cell = world->voxels.voxelData[slot].cellSize;
+    float cell = world->voxels.voxelData[slot].cellSize;
     SurfaceCast sc;
     SurfaceCastBegin(ctx, shape, &sc);
     m3MeshBvhHits gather;
@@ -254,9 +254,9 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     const m3Transform* xf = &world->bodies.transforms[body];
     m3Vec3 rlc = m3RotateVec3(xf->q, world->bodies.localCenters[body]);
     input.sweepA.localCenter = world->bodies.localCenters[body];
-    input.sweepA.c1 = (m3Vec3){(m3real)(xf->p.x + (double)rlc.x - ctx->base.x),
-                               (m3real)(xf->p.y + (double)rlc.y - ctx->base.y),
-                               (m3real)(xf->p.z + (double)rlc.z - ctx->base.z)};
+    input.sweepA.c1 = (m3Vec3){(float)(xf->p.x + (double)rlc.x - ctx->base.x),
+                               (float)(xf->p.y + (double)rlc.y - ctx->base.y),
+                               (float)(xf->p.z + (double)rlc.z - ctx->base.z)};
     input.sweepA.c2 = input.sweepA.c1;
     input.sweepA.q1 = xf->q;
     input.sweepA.q2 = xf->q;
@@ -312,33 +312,33 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
         return; // filtered out
     }
     m3Vec3 n = world->shapes.shapeGeom[shape].v;
-    m3real offset =
+    float offset =
         world->shapes.shapeGeom[shape].s -
-        (m3real)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
-    const m3real linearSlop = 0.005f;
+        (float)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
+    const float linearSlop = 0.005f;
     // sep below is measured to the cast shape's SKIN (the radius is
     // already subtracted), so the stop target is one slop, full
     // stop. A target of castRadius - slop would count the radius
     // twice and park every cast one radius short of the plane.
-    m3real target = linearSlop;
-    m3real tolerance = 0.25f * linearSlop;
-    m3real rate = -m3Dot3(n, ctx->translation);
+    float target = linearSlop;
+    float tolerance = 0.25f * linearSlop;
+    float rate = -m3Dot3(n, ctx->translation);
     if (!(rate > 0.0f))
     {
         return; // moving away or parallel
     }
-    m3real t = 0.0f;
-    m3real maxFraction = ctx->best.hit ? ctx->best.fraction : 1.0f;
+    float t = 0.0f;
+    float maxFraction = ctx->best.hit ? ctx->best.fraction : 1.0f;
     for (int32_t iter = 0; iter < 25; ++iter)
     {
         // Support of the cast proxy toward the plane at time t.
-        m3real minD = 3.4e38f;
+        float minD = 3.4e38f;
         for (int32_t k = 0; k < ctx->castPointCount; ++k)
         {
             m3Vec3 p = m3Add3(ctx->castPoints[k], m3MulSV3(t, ctx->translation));
             minD = m3MinF(minD, m3Dot3(n, p));
         }
-        m3real sep = minD - offset - ctx->castRadius;
+        float sep = minD - offset - ctx->castRadius;
         if (sep <= 0.0f)
         {
             if (t == 0.0f)
@@ -385,7 +385,7 @@ static bool ShapeCastCallback(int32_t shape, void* userContext)
 }
 
 static m3CastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                                       int32_t pointCount, m3real radius, m3Vec3 translation,
+                                       int32_t pointCount, float radius, m3Vec3 translation,
                                        int32_t ignoreBody, m3QueryFilter filter)
 {
     m3ShapeCastContext ctx;
@@ -424,7 +424,7 @@ static m3CastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base, con
     ctx.bestShape = INT32_MAX;
 
     // Candidates: the swept box padded by radius and point extent.
-    m3real extent = radius;
+    float extent = radius;
     for (int32_t k = 0; k < pointCount; ++k)
     {
         extent = m3MaxF(extent, sqrtf(m3Dot3(points[k], points[k])) + radius);
@@ -467,8 +467,8 @@ static M3_NOINLINE bool WorldCastBoxClosestWorker(const m3World* world, m3Pos3 c
         return false;
     }
     m3ClearCastHit(hitOut);
-    m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
-                rotation.w * rotation.w;
+    float qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
+               rotation.w * rotation.w;
     if (!m3FinitePos3(center) || !m3FiniteV3(halfExtents) || !m3FiniteV3(translation) ||
         !m3FiniteQuat(rotation) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
         !(halfExtents.z > 0.0f) || !(qq > 0.98f) || !(qq < 1.02f))
@@ -550,7 +550,7 @@ bool m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* po
 }
 
 m3CastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                                   int32_t pointCount, m3real radius, m3Vec3 translation,
+                                   int32_t pointCount, float radius, m3Vec3 translation,
                                    int32_t ignoreBody)
 {
     return CastConvexFiltered(worldPtr, base, points, pointCount, radius, translation, ignoreBody,
@@ -558,7 +558,7 @@ m3CastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m
 }
 
 static M3_NOINLINE bool WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center,
-                                                     m3real radius, m3Vec3 translation,
+                                                     float radius, m3Vec3 translation,
                                                      m3QueryFilter filter, m3CastHit* hitOut)
 {
     if (hitOut == NULL)
@@ -572,7 +572,7 @@ static M3_NOINLINE bool WorldCastSphereClosestWorker(const m3World* world, m3Pos
         CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter), hitOut);
 }
 
-bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
+bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, float radius,
                                m3Vec3 translation, m3QueryFilter filter, m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
@@ -582,7 +582,7 @@ bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radiu
 }
 
 static M3_NOINLINE bool WorldCastCapsuleClosestWorker(const m3World* world, m3Pos3 center,
-                                                      m3Vec3 point1, m3Vec3 point2, m3real radius,
+                                                      m3Vec3 point1, m3Vec3 point2, float radius,
                                                       m3Vec3 translation, m3QueryFilter filter,
                                                       m3CastHit* hitOut)
 {
@@ -598,7 +598,7 @@ static M3_NOINLINE bool WorldCastCapsuleClosestWorker(const m3World* world, m3Po
 }
 
 bool m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
-                                m3real radius, m3Vec3 translation, m3QueryFilter filter,
+                                float radius, m3Vec3 translation, m3QueryFilter filter,
                                 m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();

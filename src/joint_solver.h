@@ -33,8 +33,8 @@ typedef struct m3JointConstraint
     m3Vec3 rA; // anchors from the centers of mass, world-rotated at prepare
     m3Vec3 rB;
     m3Vec3 deltaCenter; // center B minus center A at prepare
-    m3real invMassA;
-    m3real invMassB;
+    float invMassA;
+    float invMassB;
     m3Mat3 invIA; // world inverse inertia, fixed at prepare
     m3Mat3 invIB;
     m3Quat frameQA; // joint frames in the world at prepare
@@ -42,22 +42,22 @@ typedef struct m3JointConstraint
     m3Softness softness;   // the constraint rows
     m3Softness springSoft; // the drive spring
     m3Softness steerSoft;  // wheel: the steering drive
-    m3real motorSpeed;
-    m3real maxMotorEffort;
-    m3real lowerLimit;
-    m3real upperLimit;
-    m3real coneAngle;
-    m3real target;  // drive target (angle or translation); gear: the phase drift
+    float motorSpeed;
+    float maxMotorEffort;
+    float lowerLimit;
+    float upperLimit;
+    float coneAngle;
+    float target;   // drive target (angle or translation); gear: the phase drift
     m3Quat targetQ; // rotation drive target
     m3Vec3 offset;  // motor: B's target position in A's frame
     m3Vec3 axis;    // distance: the prepare direction, kept for anchors that meet
     m3Vec3 ropeA;   // pulley: each anchor minus its ground point at prepare
     m3Vec3 ropeB;
-    m3real ratio;      // gear, pulley
-    m3real restLength; // distance, pulley
-    m3real steerTarget;
-    m3real steerBudget; // 0 = unbudgeted
-    uint16_t genModes;  // generic: packed axis modes and the motor axis
+    float ratio;      // gear, pulley
+    float restLength; // distance, pulley
+    float steerTarget;
+    float steerBudget; // 0 = unbudgeted
+    uint16_t genModes; // generic: packed axis modes and the motor axis
     m3Vec3 genLinLower;
     m3Vec3 genLinUpper;
     m3Vec3 genAngLower;
@@ -73,7 +73,7 @@ typedef struct m3JointConstraint
 typedef struct m3JointFrame
 {
     int32_t joint;
-    m3real h;
+    float h;
     const m3Transform* xfA;
     const m3Transform* xfB;
     m3Vec3 rlcA; // world-rotated local centers of mass
@@ -105,8 +105,8 @@ typedef struct m3JointFrames
 typedef struct m3JointPass
 {
     bool biased;
-    m3real h;
-    m3real invH;
+    float h;
+    float invH;
 } m3JointPass;
 
 // A kind's functions. The filter joint never enters the constraint
@@ -132,11 +132,11 @@ extern const m3JointKind m3_gearJointKind;
 extern const m3JointKind m3_pulleyJointKind;
 
 // The step's joint stages, in the order the solver runs them.
-int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h);
+int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, float h);
 void m3WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t count,
                        const m3Vec3* deltaPos, const m3Quat* deltaRot);
 void m3SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count, const m3Vec3* deltaPos,
-                   const m3Quat* deltaRot, m3real h, m3real invH, bool biased);
+                   const m3Quat* deltaRot, float h, float invH, bool biased);
 void m3StoreJointImpulses(m3World* world, m3JointConstraint* joints, int32_t count);
 
 // Shared by the kinds.
@@ -157,10 +157,10 @@ m3Vec3 m3RotationError(const m3JointFrames* f, m3Quat target);
 
 // Both limits of a row whose value is held in [lower, upper]. The upper
 // limit runs the row backward, so both impulses are never negative.
-void m3SolveLimits(const m3JointRow* row, m3real value, m3real lower, m3real upper, m3Softness soft,
-                   m3real* lowerImpulse, m3real* upperImpulse, m3JointBodies* b,
+void m3SolveLimits(const m3JointRow* row, float value, float lower, float upper, m3Softness soft,
+                   float* lowerImpulse, float* upperImpulse, m3JointBodies* b,
                    const m3JointPass* pass);
-void m3WarmStartLimits(const m3JointRow* row, m3real lowerImpulse, m3real upperImpulse,
+void m3WarmStartLimits(const m3JointRow* row, float lowerImpulse, float upperImpulse,
                        m3JointBodies* b);
 
 // A drive's rigid part and a vector error's bias for the 3x3 blocks.
@@ -172,29 +172,29 @@ m3Vec3 m3RotationVector(m3Quat q);
 // The drive on one row: a spring toward the target and a motor toward
 // the speed. With both on they share one effort budget, the spring
 // spending what the motor's impulse leaves.
-void m3SolveDrive(const m3JointRow* row, m3real value, const m3JointConstraint* c, m3JointBodies* b,
-                  const m3JointPass* pass, m3real* spring, m3real* motor);
+void m3SolveDrive(const m3JointRow* row, float value, const m3JointConstraint* c, m3JointBodies* b,
+                  const m3JointPass* pass, float* spring, float* motor);
 
 // The two rows that keep the frame z axes together: the gradients of
 // the relative rotation's x and y parts, which vanish when aligned.
 void m3SolveAlignment(const m3JointFrames* f, m3JointBodies* b, m3Softness soft, bool biased,
-                      m3real* first, m3real* second);
-void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first, m3real second);
+                      float* first, float* second);
+void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, float first, float second);
 
 // The point pin and count more rows of the same joint, at most three,
 // solved as one block with the pin's drive: rows that share a body far
 // from its center of mass undo each other when solved one at a time.
 void m3SolveJointPointWith(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                            const m3JointPass* pass, const m3JointRow* rows, int32_t count,
-                           const m3real* bias, m3real* const* accumulated);
+                           const float* bias, float* const* accumulated);
 // The point block that pins the anchors (impulse).
 void m3SolveJointPoint(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                        const m3JointPass* pass);
 
 // A component of a vector by index.
-m3real* m3Component(m3Vec3* v, int32_t k);
+float* m3Component(m3Vec3* v, int32_t k);
 
 // The stiff softness a joint row gets.
-m3Softness m3StiffJointSoftness(m3real h);
+m3Softness m3StiffJointSoftness(float h);
 
 #endif // MAUL3D_SRC_JOINT_SOLVER_H

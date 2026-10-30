@@ -851,7 +851,7 @@ static m3ShapeId AddMeshFloor(m3World* world)
     {
         for (int32_t ix = 0; ix < NX; ++ix)
         {
-            verts[iz * NX + ix] = (m3Vec3){-4.0f + (m3real)ix, 0.0f, -1.0f + (m3real)iz};
+            verts[iz * NX + ix] = (m3Vec3){-4.0f + (float)ix, 0.0f, -1.0f + (float)iz};
         }
     }
     uint16_t tris[3 * 2 * (NX - 1) * (NZ - 1)];

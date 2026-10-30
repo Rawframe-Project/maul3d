@@ -16,7 +16,7 @@ typedef struct m3DistanceProxy
 {
     const m3Vec3* points;
     int32_t count;
-    m3real radius;
+    float radius;
 } m3DistanceProxy;
 
 typedef struct m3DistanceInput
@@ -32,8 +32,8 @@ typedef struct m3DistanceOutput
 {
     m3Vec3 pointA; // frame A
     m3Vec3 pointB;
-    m3Vec3 normal;   // A toward B (zero on overlap)
-    m3real distance; // zero on overlap
+    m3Vec3 normal;  // A toward B (zero on overlap)
+    float distance; // zero on overlap
     int32_t iterations;
     uint32_t featureA; // bit i set when A's point i is in the final simplex
 } m3DistanceOutput;
@@ -52,11 +52,11 @@ typedef struct m3Sweep
     m3Quat q2;
 } m3Sweep;
 
-m3Transform m3GetSweepTransform(const m3Sweep* sweep, m3real time);
+m3Transform m3GetSweepTransform(const m3Sweep* sweep, float time);
 
 // The fastest the swept rotation turns, in radians per unit of sweep
 // time.
-m3real m3SweepAngularRateBound(const m3Sweep* sweep);
+float m3SweepAngularRateBound(const m3Sweep* sweep);
 
 typedef struct m3TOIInput
 {
@@ -64,7 +64,7 @@ typedef struct m3TOIInput
     m3DistanceProxy proxyB; // the fast shape
     m3Sweep sweepA;
     m3Sweep sweepB;
-    m3real maxFraction;
+    float maxFraction;
 } m3TOIInput;
 
 typedef enum m3TOIState
@@ -79,7 +79,7 @@ typedef enum m3TOIState
 typedef struct m3TOIOutput
 {
     m3TOIState state;
-    m3real fraction;
+    float fraction;
     m3Vec3 normal; // A toward B at the hit (valid on hit only)
 } m3TOIOutput;
 

@@ -36,13 +36,13 @@ int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt)
         // it there this step, and the target is spent.
         if (type == (uint8_t)m3_kinematicBody && world->bodies.bodyHasTarget[i] != 0)
         {
-            m3real servoInvDt = 1.0f / dt;
+            float servoInvDt = 1.0f / dt;
             const m3Transform* now = &world->bodies.transforms[i];
             const m3Transform* want = &world->bodies.bodyTarget[i];
             world->bodies.linearVelocities[i] =
-                (m3Vec3){(m3real)(want->p.x - now->p.x) * servoInvDt,
-                         (m3real)(want->p.y - now->p.y) * servoInvDt,
-                         (m3real)(want->p.z - now->p.z) * servoInvDt};
+                (m3Vec3){(float)(want->p.x - now->p.x) * servoInvDt,
+                         (float)(want->p.y - now->p.y) * servoInvDt,
+                         (float)(want->p.z - now->p.z) * servoInvDt};
             m3Quat dq = m3MulQuat(want->q, (m3Quat){-now->q.x, -now->q.y, -now->q.z, now->q.w});
             if (dq.w < 0.0f)
             {
@@ -58,7 +58,7 @@ int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt)
 }
 
 void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverCount,
-                           const m3Buoyancy* buoy, m3real h)
+                           const m3Buoyancy* buoy, float h)
 {
     // Integrate velocities (fixed body order): gravity, damping.
     for (int32_t m = 0; m < moverCount; ++m)
@@ -139,7 +139,7 @@ void m3CapMoverSpeeds(m3World* world, const int32_t* movers, int32_t moverCount)
 // impulse. A kinematic body, a body with a locked rotation axis or one
 // whose moments leave float range turns at its spin. Returns the new
 // rotation, and stores the new spin.
-static m3Quat TurnPose(m3World* world, int32_t i, uint8_t locks, m3Quat q, m3real h)
+static m3Quat TurnPose(m3World* world, int32_t i, uint8_t locks, m3Quat q, float h)
 {
     m3Vec3 w = world->bodies.angularVelocities[i];
     m3Vec3 moments = world->bodies.principalMoments[i];
@@ -155,7 +155,7 @@ static m3Quat TurnPose(m3World* world, int32_t i, uint8_t locks, m3Quat q, m3rea
 }
 
 void m3IntegratePositions(m3World* world, const int32_t* movers, int32_t moverCount,
-                          m3Vec3* deltaPos, m3Quat* deltaRot, m3real h)
+                          m3Vec3* deltaPos, m3Quat* deltaRot, float h)
 {
     // Integrate positions and accumulate the substep deltas the
     // separation tracking reads.

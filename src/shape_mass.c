@@ -14,24 +14,24 @@
 // Invert a symmetric positive-definite 3x3 via the adjugate, writing its
 // determinant to *detOut. A singular or non-positive matrix returns zero
 // (an unrotatable body).
-static m3Mat3 AdjugateInverse(m3Mat3 m, m3real* detOut)
+static m3Mat3 AdjugateInverse(m3Mat3 m, float* detOut)
 {
-    m3real a = m.cx.x;
-    m3real b = m.cy.x; // = m.cx.y by symmetry
-    m3real c = m.cz.x;
-    m3real d = m.cy.y;
-    m3real e = m.cz.y;
-    m3real f = m.cz.z;
-    m3real co00 = d * f - e * e;
-    m3real co01 = c * e - b * f;
-    m3real co02 = b * e - c * d;
-    m3real det = a * co00 + b * co01 + c * co02;
+    float a = m.cx.x;
+    float b = m.cy.x; // = m.cx.y by symmetry
+    float c = m.cz.x;
+    float d = m.cy.y;
+    float e = m.cz.y;
+    float f = m.cz.z;
+    float co00 = d * f - e * e;
+    float co01 = c * e - b * f;
+    float co02 = b * e - c * d;
+    float det = a * co00 + b * co01 + c * co02;
     *detOut = det;
     if (!(det > 0.0f))
     {
         return m3MakeZeroMat3();
     }
-    m3real inv = 1.0f / det;
+    float inv = 1.0f / det;
     m3Mat3 r;
     r.cx = (m3Vec3){co00 * inv, co01 * inv, co02 * inv};
     r.cy = (m3Vec3){co01 * inv, (a * f - c * c) * inv, (b * c - a * e) * inv};
@@ -52,18 +52,18 @@ static bool FiniteMat3(m3Mat3 m)
 // for that gets zero, as a singular one does.
 static m3Mat3 InvertSymmetric(m3Mat3 m)
 {
-    m3real det;
+    float det;
     m3Mat3 direct = AdjugateInverse(m, &det);
     if (det >= FLT_MIN && det <= FLT_MAX && FiniteMat3(direct))
     {
         return direct;
     }
-    m3real scale = m3MaxF(m.cx.x, m3MaxF(m.cy.y, m.cz.z));
+    float scale = m3MaxF(m.cx.x, m3MaxF(m.cy.y, m.cz.z));
     if (!(scale > 0.0f) || !(scale <= FLT_MAX))
     {
         return m3MakeZeroMat3();
     }
-    m3real k = 1.0f / scale;
+    float k = 1.0f / scale;
     m3Mat3 unit = {m3MulSV3(k, m.cx), m3MulSV3(k, m.cy), m3MulSV3(k, m.cz)};
     m3Mat3 r = AdjugateInverse(unit, &det);
     r = (m3Mat3){m3MulSV3(k, r.cx), m3MulSV3(k, r.cy), m3MulSV3(k, r.cz)};

@@ -24,17 +24,17 @@ static void PrepareGear(m3World* world, m3JointConstraint* c, const m3JointFrame
 {
     int32_t j = f->joint;
     c->ratio = world->joints.jointMotor[j].z;
-    m3real spinA = m3GearSpin(f->xfA->q, world->joints.jointFrameQA[j]);
-    m3real spinB = m3GearSpin(f->xfB->q, world->joints.jointFrameQB[j]);
-    m3real drift = m3WrapPi(spinA - world->joints.jointMotor[j].x) +
-                   c->ratio * m3WrapPi(spinB - world->joints.jointMotor[j].y);
-    m3real best = drift;
+    float spinA = m3GearSpin(f->xfA->q, world->joints.jointFrameQA[j]);
+    float spinB = m3GearSpin(f->xfB->q, world->joints.jointFrameQB[j]);
+    float drift = m3WrapPi(spinA - world->joints.jointMotor[j].x) +
+                  c->ratio * m3WrapPi(spinB - world->joints.jointMotor[j].y);
+    float best = drift;
     for (int32_t turnsA = -1; turnsA <= 1; ++turnsA)
     {
         for (int32_t turnsB = -1; turnsB <= 1; ++turnsB)
         {
-            m3real candidate =
-                drift + 2.0f * M3_PI * (m3real)turnsA + 2.0f * M3_PI * c->ratio * (m3real)turnsB;
+            float candidate =
+                drift + 2.0f * M3_PI * (float)turnsA + 2.0f * M3_PI * c->ratio * (float)turnsB;
             best = fabsf(candidate) < fabsf(best) ? candidate : best;
         }
     }
@@ -62,7 +62,7 @@ static void SolveGear(m3JointConstraint* c, const m3JointPose* pose, m3JointBodi
                       const m3JointPass* pass)
 {
     m3JointRow row = GearRow(c);
-    m3real C = 0.0f;
+    float C = 0.0f;
     if (pass->biased)
     {
         // The drift at prepare plus what each side turned since, taken

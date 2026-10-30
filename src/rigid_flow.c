@@ -149,8 +149,8 @@ static m3Quat MatrixToQuat(const double v[3][3])
     }
     double sign = q[3] < 0.0 ? -1.0 : 1.0;
     double inv = sign / sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-    m3Quat out = {(m3real)(q[0] * inv), (m3real)(q[1] * inv), (m3real)(q[2] * inv),
-                  (m3real)(q[3] * inv)};
+    m3Quat out = {(float)(q[0] * inv), (float)(q[1] * inv), (float)(q[2] * inv),
+                  (float)(q[3] * inv)};
     return out;
 }
 
@@ -180,7 +180,7 @@ void m3PrincipalAxes(const m3Mat3* inertia, m3Vec3* momentsOut, m3Quat* frameOut
     double d[3] = {a[0][0], a[1][1], a[2][2]};
     SortAxes(d, v);
     FixSigns(v);
-    *momentsOut = (m3Vec3){(m3real)d[0], (m3real)d[1], (m3real)d[2]};
+    *momentsOut = (m3Vec3){(float)d[0], (float)d[1], (float)d[2]};
     *frameOut = MatrixToQuat(v);
 }
 
@@ -195,31 +195,31 @@ bool m3FreeRotationApplies(m3Vec3 moments)
 // the world momentum stays and the component along the axis is untouched.
 // The half angle gives the quaternion, and the double-angle forms the
 // cosine and sine for the momentum.
-static void Residual(m3Quat* turn, m3Vec3* L, int32_t axis, m3real inverse, m3real inverseMid,
-                     m3real t)
+static void Residual(m3Quat* turn, m3Vec3* L, int32_t axis, float inverse, float inverseMid,
+                     float t)
 {
-    m3real* l = &L->x;
-    m3real angle = t * l[axis] * (inverse - inverseMid);
+    float* l = &L->x;
+    float angle = t * l[axis] * (inverse - inverseMid);
     m3CosSin half = m3ComputeCosSin(0.5f * angle);
     m3Quat r = {axis == 0 ? half.s : 0.0f, 0.0f, axis == 2 ? half.s : 0.0f, half.c};
     *turn = m3MulQuat(*turn, r);
-    m3real c = half.c * half.c - half.s * half.s;
-    m3real s = 2.0f * half.s * half.c;
+    float c = half.c * half.c - half.s * half.s;
+    float s = 2.0f * half.s * half.c;
     // R(-angle) about e_axis: for the cyclic pair (j, k) after the axis,
     // l_j' = c l_j + s l_k and l_k' = c l_k - s l_j.
     int32_t j = (axis + 1) % 3;
     int32_t k = (axis + 2) % 3;
-    m3real lj = l[j];
-    m3real lk = l[k];
-    m3real nj = c * lj + s * lk;
-    m3real nk = c * lk - s * lj;
+    float lj = l[j];
+    float lk = l[k];
+    float nj = c * lj + s * lk;
+    float nk = c * lk - s * lj;
     // A body's turn repeats every substep, and so would the rounding of
     // its cosine and sine, scaling the pair the same way each time. A
     // first-order correction back to the pair's length, applied as a small
     // delta, leaves only rounding that varies with the momentum.
-    m3real before = lj * lj + lk * lk;
-    m3real after = nj * nj + nk * nk;
-    m3real delta = 0.5f * (before - after) / after;
+    float before = lj * lj + lk * lk;
+    float after = nj * nj + nk * nk;
+    float delta = 0.5f * (before - after) / after;
     if (m3FiniteF(delta))
     {
         nj += delta * nj;
@@ -230,7 +230,7 @@ static void Residual(m3Quat* turn, m3Vec3* L, int32_t axis, m3real inverse, m3re
 }
 
 // The quaternion of a turn by angle about a unit axis.
-static m3Quat AxisTurn(m3Vec3 axis, m3real angle)
+static m3Quat AxisTurn(m3Vec3 axis, float angle)
 {
     m3CosSin half = m3ComputeCosSin(0.5f * angle);
     m3Quat r = {half.s * axis.x, half.s * axis.y, half.s * axis.z, half.c};
@@ -245,15 +245,15 @@ static m3Quat AxisTurn(m3Vec3 axis, m3real angle)
 // the fewest, n, with m <= (n M3_FLOW_PIECE_TURN)^3, each piece cutting the
 // error by the square of their count. The cubes are compared in float,
 // with no cube root, so every platform picks the same count.
-static int32_t PieceCount(m3Vec3 L, m3real invMax, m3real invMid, m3real invMin, m3real h)
+static int32_t PieceCount(m3Vec3 L, float invMax, float invMid, float invMin, float h)
 {
-    m3real length = m3Length3(L);
-    m3real a = h * length * (invMin - invMid);
-    m3real b = h * length * (invMid - invMax);
-    m3real m = m3MaxF(a * a * b, a * b * b);
+    float length = m3Length3(L);
+    float a = h * length * (invMin - invMid);
+    float b = h * length * (invMid - invMax);
+    float m = m3MaxF(a * a * b, a * b * b);
     for (int32_t n = 1; n < M3_FLOW_MAX_PIECES; ++n)
     {
-        m3real reach = (m3real)n * M3_FLOW_PIECE_TURN;
+        float reach = (float)n * M3_FLOW_PIECE_TURN;
         if (!(m > reach * reach * reach))
         {
             return n;
@@ -281,7 +281,7 @@ static m3Vec3 SpinOf(m3Vec3 L, m3Vec3 scaled, m3Quat qp)
     return m3Add3(out, m3RotateVec3(qp, miss));
 }
 
-void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, m3Quat* qOut,
+void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, float h, m3Quat* qOut,
                     m3Vec3* wOut)
 {
     // Only the moments' ratios shape the flow, so it runs on moments
@@ -292,7 +292,7 @@ void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, 
     {
         // Equal moments: the spin is constant, and the body turns about it
         // at its rate. The spin is left bit for bit.
-        m3real rate = m3Length3(w);
+        float rate = m3Length3(w);
         if (rate > 0.0f)
         {
             q = m3NormalizeQuat(m3MulQuat(AxisTurn(m3MulSV3(1.0f / rate, w), h * rate), q));
@@ -301,13 +301,13 @@ void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, 
         *wOut = w;
         return;
     }
-    const m3real invMax = 1.0f;
-    const m3real invMid = 1.0f / scaled.y;
-    const m3real invMin = 1.0f / scaled.z;
+    const float invMax = 1.0f;
+    const float invMid = 1.0f / scaled.y;
+    const float invMin = 1.0f / scaled.z;
     m3Vec3 wp = m3InvRotateVec3(m3NormalizeQuat(m3MulQuat(q, frame)), w);
     m3Vec3 L = {wp.x, scaled.y * wp.y, scaled.z * wp.z};
     int32_t count = PieceCount(L, invMax, invMid, invMin, h);
-    m3real t = h / (m3real)count;
+    float t = h / (float)count;
     // The turns compose into one rotation in the principal frame, which
     // the pose takes once, through the frame: re-basing the pose itself
     // into the principal frame and back would round it every substep, and
@@ -322,7 +322,7 @@ void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, 
     // The Casimir turn: the body turns about its momentum at |L| / I_mid,
     // which leaves the momentum's components where they are. The turn is
     // exact at any angle.
-    m3real length = m3Length3(L);
+    float length = m3Length3(L);
     if (length > 0.0f)
     {
         turn = m3MulQuat(turn, AxisTurn(m3MulSV3(1.0f / length, L), h * length * invMid));

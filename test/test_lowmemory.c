@@ -593,7 +593,7 @@ static void TestStepsNeverAllocate(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     for (int32_t k = 0; k < 17 * 17; ++k)
     {
-        m3Sphere big = {{(m3real)(k % 17) - 0.5f, 0.0f, (m3real)(k / 17) - 0.5f}, 2.3f};
+        m3Sphere big = {{(float)(k % 17) - 0.5f, 0.0f, (float)(k / 17) - 0.5f}, 2.3f};
         NewSphereShape(lattice, ground, &sd, &big);
     }
     m3Sphere small = {{0.0f, 0.0f, 0.0f}, 0.1f};

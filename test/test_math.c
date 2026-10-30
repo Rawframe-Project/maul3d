@@ -13,9 +13,9 @@
 
 #include <stdio.h>
 
-static int NearF(m3real a, m3real b, m3real tol)
+static int NearF(float a, float b, float tol)
 {
-    m3real d = a - b;
+    float d = a - b;
     return (d < 0.0f ? -d : d) <= tol;
 }
 
@@ -24,8 +24,8 @@ static void TestScalarOps(void)
     CHECK(m3MinF(1.0f, 2.0f) == 1.0f && m3MaxF(1.0f, 2.0f) == 2.0f, "pinned min max");
     CHECK(m3ClampF(5.0f, 0.0f, 2.0f) == 2.0f, "clamp upper");
     // Signed zero law: (a < b ? a : b) keeps the second operand.
-    m3real nz = -0.0f;
-    m3real pz = 0.0f;
+    float nz = -0.0f;
+    float pz = 0.0f;
     CHECK(m3MinF(nz, pz) == 0.0f, "min is compare and select, ties keep b");
 }
 
@@ -56,7 +56,7 @@ static void TestTrig(void)
     double maxErr = 0.0;
     for (int32_t i = -4000; i <= 4000; ++i)
     {
-        m3real angle = 0.001f * M3_PI * (m3real)i;
+        float angle = 0.001f * M3_PI * (float)i;
         m3CosSin cs = m3ComputeCosSin(angle);
         double ec = fabs((double)cs.c - cos((double)angle));
         double es = fabs((double)cs.s - sin((double)angle));
@@ -90,7 +90,7 @@ static void TestQuaternions(void)
     {
         r = m3IntegrateRotation(r, (m3Vec3){0.011f, -0.007f, 0.013f});
     }
-    m3real mag2 = r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w;
+    float mag2 = r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w;
     CHECK(NearF(mag2, 1.0f, 2.0e-6f), "1000 integrations stay on the unit sphere");
 
     m3Quat degenerate = {0.0f, 0.0f, 0.0f, 0.0f};

@@ -88,7 +88,7 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
     {
         // Voxel chunk bounds: the eight corners of the chunk box
         // [0, dim * cell]^3 in the body frame, rotated out.
-        m3real extent = (m3real)M3_VOXEL_DIM * world->shapes.shapeGeom[shape].s;
+        float extent = (float)M3_VOXEL_DIM * world->shapes.shapeGeom[shape].s;
         m3Aabb3d box = {{1.0e30, 1.0e30, 1.0e30}, {-1.0e30, -1.0e30, -1.0e30}};
         for (int32_t c = 0; c < 8; ++c)
         {

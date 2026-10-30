@@ -91,7 +91,7 @@ static uint64_t ConfigHash(void)
     uint64_t h = M3_HASH_INIT;
     int32_t version = (int32_t)M3_SNAPSHOT_VERSION;
     int32_t solverRev = M3_SOLVER_REV;
-    int32_t realSize = (int32_t)sizeof(m3real);
+    int32_t realSize = (int32_t)sizeof(float);
     int32_t posSize = (int32_t)sizeof(double);
     const char* fpPolicy = "contract-off;no-fast-math;no-fuse-4wide";
     h = m3Hash64(h, &version, 4);

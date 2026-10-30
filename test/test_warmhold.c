@@ -53,7 +53,7 @@ static void TestHoldAtItsEdges(void)
     CHECK(m3WarmHold(1.0f, &unit, 0.0f, &none, 0.0, edge) == 1.0f,
           "an impulse that reaches the limit exactly is not held");
     double past = nextafter(edge, 2.0 * edge);
-    m3real scale = m3WarmHold(1.0f, &unit, 0.0f, &none, 0.0, past);
+    float scale = m3WarmHold(1.0f, &unit, 0.0f, &none, 0.0, past);
     CHECK(scale < 1.0f, "one just past it is held");
     CHECK((double)scale * 4.0 * past <= (double)M3_WARM_LIMIT * (1.0 + 1.0e-6),
           "to within the limit");

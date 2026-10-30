@@ -43,7 +43,7 @@ static M3_NOINLINE void HostSegment(const m3DebugDraw* draw, m3Pos3 p1, m3Pos3 p
     m3FloatHostLeave(host);
 }
 
-static M3_NOINLINE void HostPoint(const m3DebugDraw* draw, m3Pos3 p, m3real size, uint32_t color)
+static M3_NOINLINE void HostPoint(const m3DebugDraw* draw, m3Pos3 p, float size, uint32_t color)
 {
     m3FloatHost host = m3FloatHostEnter();
     draw->drawPoint(p, size, color, draw->context);
@@ -72,7 +72,7 @@ static void Segment(const m3DrawContext* ctx, m3Pos3 p1, m3Pos3 p2, uint32_t col
     }
 }
 
-static void Point(const m3DrawContext* ctx, m3Pos3 p, m3real size, uint32_t color)
+static void Point(const m3DrawContext* ctx, m3Pos3 p, float size, uint32_t color)
 {
     if (ctx->draw->drawPoint != NULL)
     {
@@ -83,12 +83,12 @@ static void Point(const m3DrawContext* ctx, m3Pos3 p, m3real size, uint32_t colo
 // A circle of fixed segment count around `center`, in the plane
 // spanned by two body-frame axes, transformed out.
 static void Circle(const m3DrawContext* ctx, const m3Transform* xf, m3Vec3 center, m3Vec3 axis1,
-                   m3Vec3 axis2, m3real radius, uint32_t color)
+                   m3Vec3 axis2, float radius, uint32_t color)
 {
     m3Vec3 previous = m3Add3(center, m3MulSV3(radius, axis1));
     for (int32_t k = 1; k <= M3_DRAW_CIRCLE_SEGMENTS; ++k)
     {
-        m3real angle = (m3real)k * (2.0f * M3_PI / (m3real)M3_DRAW_CIRCLE_SEGMENTS);
+        float angle = (float)k * (2.0f * M3_PI / (float)M3_DRAW_CIRCLE_SEGMENTS);
         m3CosSin cs = m3ComputeCosSin(angle);
         m3Vec3 next =
             m3Add3(center, m3Add3(m3MulSV3(radius * cs.c, axis1), m3MulSV3(radius * cs.s, axis2)));
@@ -129,7 +129,7 @@ static void DrawSphere(const m3DrawContext* ctx, const m3Transform* xf, int32_t 
                        uint32_t color)
 {
     m3Vec3 c = ctx->world->shapes.shapeGeom[shape].v;
-    m3real r = ctx->world->shapes.shapeGeom[shape].s;
+    float r = ctx->world->shapes.shapeGeom[shape].s;
     Circle(ctx, xf, c, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Vec3){0.0f, 1.0f, 0.0f}, r, color);
     Circle(ctx, xf, c, (m3Vec3){0.0f, 1.0f, 0.0f}, (m3Vec3){0.0f, 0.0f, 1.0f}, r, color);
     Circle(ctx, xf, c, (m3Vec3){0.0f, 0.0f, 1.0f}, (m3Vec3){1.0f, 0.0f, 0.0f}, r, color);
@@ -141,7 +141,7 @@ static void DrawCapsule(const m3DrawContext* ctx, const m3Transform* xf, int32_t
 {
     m3Vec3 p1 = ctx->world->shapes.shapeGeom[shape].v;
     m3Vec3 p2 = ctx->world->shapes.shapeGeom[shape].v2;
-    m3real r = ctx->world->shapes.shapeGeom[shape].s;
+    float r = ctx->world->shapes.shapeGeom[shape].s;
     m3Vec3 t1;
     m3Vec3 t2;
     m3MakeTangentBasis(m3Normalize3(m3Sub3(p2, p1)), &t1, &t2);
@@ -211,7 +211,7 @@ static void DrawVoxels(const m3DrawContext* ctx, const m3Transform* xf, int32_t 
     const m3World* world = ctx->world;
     int32_t chunk = world->shapes.shapeVoxelIndex[shape];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[chunk];
-    m3real cell = world->voxels.voxelData[chunk].cellSize;
+    float cell = world->voxels.voxelData[chunk].cellSize;
     for (int32_t b = 0; b < surface->boxCount; ++b)
     {
         m3Vec3 lo;
@@ -240,7 +240,7 @@ static void DrawPlane(const m3DrawContext* ctx, const m3Transform* xf, int32_t s
     m3Vec3 t1;
     m3Vec3 t2;
     m3MakeTangentBasis(n, &t1, &t2);
-    const m3real extent = 2.0f;
+    const float extent = 2.0f;
     Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t1))),
             ToWorld(xf, m3Add3(onPlane, m3MulSV3(extent, t1))), color);
     Segment(ctx, ToWorld(xf, m3Add3(onPlane, m3MulSV3(-extent, t2))),
@@ -328,7 +328,7 @@ static void DrawContacts(const m3DrawContext* ctx)
                         xfA->p.y + (double)rlcA.y + (double)anchor.y,
                         xfA->p.z + (double)rlcA.z + (double)anchor.z};
             Point(ctx, p, 4.0f, M3_DRAW_COLOR_CONTACT);
-            m3real scale = 0.1f * manifold->points[k].normalImpulse;
+            float scale = 0.1f * manifold->points[k].normalImpulse;
             if (scale > 0.0f)
             {
                 m3Pos3 tip = {p.x + (double)(manifold->normal.x * scale),
@@ -405,10 +405,10 @@ static void SolidTri(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3 a,
 }
 
 // A unit-lattitude point on the sphere around `center`.
-static m3Vec3 SpherePoint(m3Vec3 center, m3real radius, int32_t ring, int32_t seg)
+static m3Vec3 SpherePoint(m3Vec3 center, float radius, int32_t ring, int32_t seg)
 {
-    m3real phi = (m3real)ring * (M3_PI / (m3real)M3_SOLID_RINGS); // 0..pi
-    m3real theta = (m3real)seg * (2.0f * M3_PI / (m3real)M3_SOLID_SEGMENTS);
+    float phi = (float)ring * (M3_PI / (float)M3_SOLID_RINGS); // 0..pi
+    float theta = (float)seg * (2.0f * M3_PI / (float)M3_SOLID_SEGMENTS);
     m3CosSin cp = m3ComputeCosSin(phi);
     m3CosSin ct = m3ComputeCosSin(theta);
     m3Vec3 dir = {cp.s * ct.c, cp.c, cp.s * ct.s};
@@ -416,7 +416,7 @@ static m3Vec3 SpherePoint(m3Vec3 center, m3real radius, int32_t ring, int32_t se
 }
 
 static void SolidSphere(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3 center,
-                        m3real radius, uint32_t color)
+                        float radius, uint32_t color)
 {
     for (int32_t r = 0; r < M3_SOLID_RINGS; ++r)
     {
@@ -440,11 +440,11 @@ static void SolidSphere(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3
 
 // A capsule cap point: hemisphere around `center`, axis-aligned to
 // the segment direction through the tangent basis.
-static m3Vec3 CapPoint(m3Vec3 center, m3Vec3 axis, m3Vec3 t1, m3Vec3 t2, m3real radius,
-                       int32_t ring, int32_t seg, int32_t rings)
+static m3Vec3 CapPoint(m3Vec3 center, m3Vec3 axis, m3Vec3 t1, m3Vec3 t2, float radius, int32_t ring,
+                       int32_t seg, int32_t rings)
 {
-    m3real phi = (m3real)ring * (0.5f * M3_PI / (m3real)rings); // 0..pi/2
-    m3real theta = (m3real)seg * (2.0f * M3_PI / (m3real)M3_SOLID_SEGMENTS);
+    float phi = (float)ring * (0.5f * M3_PI / (float)rings); // 0..pi/2
+    float theta = (float)seg * (2.0f * M3_PI / (float)M3_SOLID_SEGMENTS);
     m3CosSin cp = m3ComputeCosSin(phi);
     m3CosSin ct = m3ComputeCosSin(theta);
     m3Vec3 dir =
@@ -453,7 +453,7 @@ static m3Vec3 CapPoint(m3Vec3 center, m3Vec3 axis, m3Vec3 t1, m3Vec3 t2, m3real 
 }
 
 static void SolidCapsule(const m3SolidContext* ctx, const m3Transform* xf, m3Vec3 p1, m3Vec3 p2,
-                         m3real radius, uint32_t color)
+                         float radius, uint32_t color)
 {
     m3Vec3 axis = m3Normalize3(m3Sub3(p2, p1));
     m3Vec3 t1;
@@ -463,8 +463,8 @@ static void SolidCapsule(const m3SolidContext* ctx, const m3Transform* xf, m3Vec
     // The cylinder side.
     for (int32_t s = 0; s < M3_SOLID_SEGMENTS; ++s)
     {
-        m3real thetaA = (m3real)s * (2.0f * M3_PI / (m3real)M3_SOLID_SEGMENTS);
-        m3real thetaB = (m3real)(s + 1) * (2.0f * M3_PI / (m3real)M3_SOLID_SEGMENTS);
+        float thetaA = (float)s * (2.0f * M3_PI / (float)M3_SOLID_SEGMENTS);
+        float thetaB = (float)(s + 1) * (2.0f * M3_PI / (float)M3_SOLID_SEGMENTS);
         m3CosSin ca = m3ComputeCosSin(thetaA);
         m3CosSin cb = m3ComputeCosSin(thetaB);
         m3Vec3 ra = m3Add3(m3MulSV3(radius * ca.c, t1), m3MulSV3(radius * ca.s, t2));
@@ -596,7 +596,7 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
     {
         const m3VoxelSurface* surface =
             &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]];
-        m3real cell = world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
+        float cell = world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
         for (int32_t b = 0; b < surface->boxCount; ++b)
         {
             m3Vec3 lo;

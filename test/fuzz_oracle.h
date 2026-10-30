@@ -262,8 +262,8 @@ static inline bool FuzzValuesHold(m3World* world, m3CharacterId hero)
     }
     if (m3Character_IsValid(world, hero))
     {
-        m3real halfHeight = 0.0f;
-        m3real radius = 0.0f;
+        float halfHeight = 0.0f;
+        float radius = 0.0f;
         m3Character_GetStance(world, hero, &halfHeight, &radius);
         // The stand-up veto refuses with m3_errorState and counts no
         // misuse; a value the setter refuses counts one.

@@ -80,7 +80,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
 
         // An unanchored island: remove it from the grid (part of the
         // edit's state transition) and emit the event.
-        m3real cell = chunk->cellSize;
+        float cell = chunk->cellSize;
         m3Vec3 com = {0.0f, 0.0f, 0.0f};
         m3Vec3 comEq = {0.0f, 0.0f, 0.0f}; // unweighted twin (see below)
         int64_t fillSum = 0;
@@ -92,13 +92,13 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             int32_t x = v % M3_VOXEL_DIM;
             int32_t y = (v / M3_VOXEL_DIM) % M3_VOXEL_DIM;
             int32_t z = v / (M3_VOXEL_DIM * M3_VOXEL_DIM);
-            m3real w = (m3real)chunk->fill[v]; // fill-weighted
+            float w = (float)chunk->fill[v]; // fill-weighted
             fillSum += (int64_t)chunk->fill[v];
             chunk->occupancy[v >> 3] &= (uint8_t)~(1u << (v & 7));
             chunk->payload[v] = 0;
             chunk->fill[v] = 0;
-            m3Vec3 center = {((m3real)x + 0.5f) * cell, ((m3real)y + 0.5f) * cell,
-                             ((m3real)z + 0.5f) * cell};
+            m3Vec3 center = {((float)x + 0.5f) * cell, ((float)y + 0.5f) * cell,
+                             ((float)z + 0.5f) * cell};
             com = m3Add3(com, m3MulSV3(w, center));
             comEq = m3Add3(comEq, center);
             lo[0] = x < lo[0] ? (uint8_t)x : lo[0];
@@ -112,7 +112,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         removedAny = true;
         if (fillSum > 0)
         {
-            com = m3MulSV3(1.0f / (m3real)fillSum, com);
+            com = m3MulSV3(1.0f / (float)fillSum, com);
         }
         else
         {
@@ -122,7 +122,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             // center that infects the whole simulation. The equal
             // weight center is the fallback (count >= 1 in
             // this branch by construction).
-            com = m3MulSV3(1.0f / (m3real)count, comEq);
+            com = m3MulSV3(1.0f / (float)count, comEq);
         }
 
         if (world->events.fragmentEventCount >= M3_FRAGMENT_EVENT_CAP)
@@ -157,7 +157,7 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         m3Vec3 r = m3RotateVec3(xf->q, com);
         ev->worldCenter =
             (m3Pos3){xf->p.x + (double)r.x, xf->p.y + (double)r.y, xf->p.z + (double)r.z};
-        ev->mass = ((m3real)fillSum / 255.0f) * cell * cell * cell;
+        ev->mass = ((float)fillSum / 255.0f) * cell * cell * cell;
         for (int32_t k = 0; k < 3; ++k)
         {
             ev->lowerBound[k] = lo[k];
@@ -181,10 +181,10 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
 // inside solid. The out parameters name the exit: a chunk-frame
 // axis normal and the exit plane coordinate along it.
 bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3* outNormal,
-                   m3real* outPlane)
+                   float* outPlane)
 {
     const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
-    m3real cell = chunk->cellSize;
+    float cell = chunk->cellSize;
     int32_t sx = m3CellFromF(localPoint.x / cell, 2.0e9f);
     int32_t sy = m3CellFromF(localPoint.y / cell, 2.0e9f);
     int32_t sz = m3CellFromF(localPoint.z / cell, 2.0e9f);
@@ -240,7 +240,7 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
             if (exit)
             {
                 int32_t axis = n / 2;
-                m3real sign = (n & 1) != 0 ? 1.0f : -1.0f;
+                float sign = (n & 1) != 0 ? 1.0f : -1.0f;
                 *outNormal = (m3Vec3){0.0f, 0.0f, 0.0f};
                 int32_t faceCell = (n & 1) != 0 ? (axis == 0 ? x + 1 : (axis == 1 ? y + 1 : z + 1))
                                                 : (axis == 0 ? x : (axis == 1 ? y : z));
@@ -256,7 +256,7 @@ bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3
                 {
                     outNormal->z = sign;
                 }
-                *outPlane = (m3real)faceCell * cell;
+                *outPlane = (float)faceCell * cell;
                 return true;
             }
             if (nx < 0 || nx >= M3_VOXEL_DIM || ny < 0 || ny >= M3_VOXEL_DIM || nz < 0 ||

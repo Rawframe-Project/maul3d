@@ -129,8 +129,8 @@ static M3_NOINLINE m3Vec3 BodyGetLocalPointWorker(const m3World* world, m3BodyId
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
     const m3Transform* xf = &world->bodies.transforms[index];
-    m3Vec3 d = {(m3real)(worldPoint.x - xf->p.x), (m3real)(worldPoint.y - xf->p.y),
-                (m3real)(worldPoint.z - xf->p.z)};
+    m3Vec3 d = {(float)(worldPoint.x - xf->p.x), (float)(worldPoint.y - xf->p.y),
+                (float)(worldPoint.z - xf->p.z)};
     return m3InvRotateVec3(xf->q, d);
 }
 
@@ -184,8 +184,8 @@ m3Vec3 m3Body_GetLocalVector(const m3World* world, m3BodyId body, m3Vec3 worldVe
 static m3Vec3 PointVelocity(const m3World* world, int32_t index, m3Pos3 worldPoint)
 {
     m3Pos3 com = ToWorld(&world->bodies.transforms[index], world->bodies.localCenters[index]);
-    m3Vec3 r = {(m3real)(worldPoint.x - com.x), (m3real)(worldPoint.y - com.y),
-                (m3real)(worldPoint.z - com.z)};
+    m3Vec3 r = {(float)(worldPoint.x - com.x), (float)(worldPoint.y - com.y),
+                (float)(worldPoint.z - com.z)};
     return m3Add3(world->bodies.linearVelocities[index],
                   m3Cross3(world->bodies.angularVelocities[index], r));
 }

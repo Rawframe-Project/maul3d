@@ -28,7 +28,7 @@ extern "C"
     typedef struct m3Sphere
     {
         m3Vec3 center; // body frame, within 1e4 m
-        m3real radius; // positive, at most 1e4 m
+        float radius;  // positive, at most 1e4 m
     } m3Sphere;
 
     /// Half-space: points p with dot(normal, p) <= offset are solid.
@@ -36,7 +36,7 @@ extern "C"
     typedef struct m3Plane
     {
         m3Vec3 normal; // normalized on create
-        m3real offset;
+        float offset;
     } m3Plane;
 
     typedef struct m3ShapeDef
@@ -122,7 +122,7 @@ extern "C"
     {
         m3Vec3 point1; // body frame, within 1e4 m
         m3Vec3 point2; // body frame, within 1e4 m
-        m3real radius; // positive, at most 1e4 m
+        float radius;  // positive, at most 1e4 m
     } m3Capsule;
 
     /// A capsule: the segment point1..point2 inflated by radius. A
@@ -145,7 +145,7 @@ extern "C"
     {
         m3Vec3 point1; // center of one cap
         m3Vec3 point2; // center of the other
-        m3real radius;
+        float radius;
     } m3Cylinder;
 
     M3_NODISCARD M3_API m3Result m3CreateCylinderShape(m3World* world, m3BodyId body,
@@ -228,7 +228,7 @@ extern "C"
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body,
                                                               const m3ShapeDef* def,
                                                               const float* heights, int32_t nx,
-                                                              int32_t nz, m3real cellSize,
+                                                              int32_t nz, float cellSize,
                                                               m3ShapeId* shapeOut);
 
     /// The NATIVE grid heightfield: the same nx-by-nz grid
@@ -243,7 +243,7 @@ extern "C"
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
                                                           const m3ShapeDef* def,
                                                           const float* heights, int32_t nx,
-                                                          int32_t nz, m3real cellSize,
+                                                          int32_t nz, float cellSize,
                                                           m3ShapeId* shapeOut);
 
     /// A voxel chunk: a dense 16x16x16 grid anchored at the body
@@ -271,7 +271,7 @@ extern "C"
     M3_NODISCARD M3_API m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body,
                                                          const m3ShapeDef* def,
                                                          const uint8_t* voxels,
-                                                         const uint16_t* payload, m3real cellSize,
+                                                         const uint16_t* payload, float cellSize,
                                                          m3ShapeId* shapeOut);
 
     /// Voxel edits: deterministic state transitions, journaled

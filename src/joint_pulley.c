@@ -16,9 +16,9 @@
 // in double first.
 static m3Vec3 RopeFrom(const m3Transform* xf, m3Vec3 center, m3Vec3 arm, m3Pos3 ground)
 {
-    return (m3Vec3){(m3real)(xf->p.x + (double)center.x + (double)arm.x - ground.x),
-                    (m3real)(xf->p.y + (double)center.y + (double)arm.y - ground.y),
-                    (m3real)(xf->p.z + (double)center.z + (double)arm.z - ground.z)};
+    return (m3Vec3){(float)(xf->p.x + (double)center.x + (double)arm.x - ground.x),
+                    (float)(xf->p.y + (double)center.y + (double)arm.y - ground.y),
+                    (float)(xf->p.z + (double)center.z + (double)arm.z - ground.z)};
 }
 
 static void PreparePulley(m3World* world, m3JointConstraint* c, const m3JointFrame* f)
@@ -32,19 +32,19 @@ static void PreparePulley(m3World* world, m3JointConstraint* c, const m3JointFra
 
 // A rope now and its unit direction; a rope that shrank to its ground
 // point keeps +y.
-static m3Vec3 Rope(m3Vec3 rope0, m3Vec3 move, m3Vec3 arm, m3Vec3 arm0, m3real* length)
+static m3Vec3 Rope(m3Vec3 rope0, m3Vec3 move, m3Vec3 arm, m3Vec3 arm0, float* length)
 {
     m3Vec3 rope = m3Add3(rope0, m3Add3(move, m3Sub3(arm, arm0)));
-    m3real length2 = m3Dot3(rope, rope);
+    float length2 = m3Dot3(rope, rope);
     *length = length2 > 1.0e-12f ? sqrtf(length2) : 0.0f;
     return length2 > 1.0e-12f ? m3MulSV3(1.0f / *length, rope) : (m3Vec3){0.0f, 1.0f, 0.0f};
 }
 
 // The rope row, J v = uA . vpA + ratio uB . vpB, and its error.
-static m3JointRow PulleyRow(const m3JointConstraint* c, const m3JointPose* pose, m3real* C)
+static m3JointRow PulleyRow(const m3JointConstraint* c, const m3JointPose* pose, float* C)
 {
-    m3real lengthA;
-    m3real lengthB;
+    float lengthA;
+    float lengthB;
     m3Vec3 uA = Rope(c->ropeA, pose->moveA, pose->armA, c->rA, &lengthA);
     m3Vec3 uB = Rope(c->ropeB, pose->moveB, pose->armB, c->rB, &lengthB);
     *C = lengthA + c->ratio * lengthB - c->restLength;
@@ -55,7 +55,7 @@ static m3JointRow PulleyRow(const m3JointConstraint* c, const m3JointPose* pose,
 
 static void WarmStartPulley(const m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b)
 {
-    m3real C;
+    float C;
     m3JointRow row = PulleyRow(c, pose, &C);
     m3PushRow(&row, b, c->perpImpulse.z);
 }
@@ -63,7 +63,7 @@ static void WarmStartPulley(const m3JointConstraint* c, const m3JointPose* pose,
 static void SolvePulley(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                         const m3JointPass* pass)
 {
-    m3real C;
+    float C;
     m3JointRow row = PulleyRow(c, pose, &C);
     m3SolveRow(&row, b, m3HeldDrive(c->softness, C, pass->biased), &c->perpImpulse.z, -M3_ROW_FREE,
                M3_ROW_FREE);

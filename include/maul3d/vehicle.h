@@ -27,19 +27,19 @@ extern "C"
 
     typedef struct m3WheelDef
     {
-        m3Vec3 anchor;             // suspension attach point, chassis-local
-        m3Vec3 direction;          // suspension direction, chassis-local, near
-                                   // unit (normalized at create); usually down
-        m3real restLength;         // suspension length at zero load
-        m3real travel;             // max compression from rest
-        m3real springHertz;        // spring frequency; keep well under the
-                                   // step rate over two pi (explicit spring)
-        m3real springDampingRatio; // damping ratio
-        m3real radius;             // wheel radius (the cast reaches
-                                   // restLength + radius along direction)
-        bool steerable;            // turns with the steer command
-        bool driven;               // takes the drive force or engine torque
-        m3real brakeShare;         // this wheel's share of brakeForce
+        m3Vec3 anchor;            // suspension attach point, chassis-local
+        m3Vec3 direction;         // suspension direction, chassis-local, near
+                                  // unit (normalized at create); usually down
+        float restLength;         // suspension length at zero load
+        float travel;             // max compression from rest
+        float springHertz;        // spring frequency; keep well under the
+                                  // step rate over two pi (explicit spring)
+        float springDampingRatio; // damping ratio
+        float radius;             // wheel radius (the cast reaches
+                                  // restLength + radius along direction)
+        bool steerable;           // turns with the steer command
+        bool driven;              // takes the drive force or engine torque
+        float brakeShare;         // this wheel's share of brakeForce
     } m3WheelDef;
 
     typedef struct m3VehicleDef
@@ -48,23 +48,23 @@ extern "C"
                             // the vehicle (the cascade rule)
         int32_t wheelCount;
         m3WheelDef wheels[M3_MAX_VEHICLE_WHEELS];
-        m3real maxSteerAngle;     // radians; full steer command turns
-                                  // every steerable wheel this far
-        m3real driveForce;        // newtons per driven wheel at full
-                                  // throttle (the flat force model)
-        m3real brakeForce;        // newtons total at full brake, split
-                                  // by each wheel's brakeShare
-        m3real tireGrip;          // friction circle scale: tangent
-                                  // impulses never exceed grip times
-                                  // the wheel's suspension load
-        m3real leanStabilization; // 0 disables (the default). A
-                                  // positive gain rolls the chassis
-                                  // toward the lean angle the current
-                                  // speed and steer imply, critically
-                                  // damped; the natural frequency is
-                                  // sqrt(gain) rad/s. Meant for
-                                  // two-wheelers, which are inverted
-                                  // pendulums without it.
+        float maxSteerAngle;     // radians; full steer command turns
+                                 // every steerable wheel this far
+        float driveForce;        // newtons per driven wheel at full
+                                 // throttle (the flat force model)
+        float brakeForce;        // newtons total at full brake, split
+                                 // by each wheel's brakeShare
+        float tireGrip;          // friction circle scale: tangent
+                                 // impulses never exceed grip times
+                                 // the wheel's suspension load
+        float leanStabilization; // 0 disables (the default). A
+                                 // positive gain rolls the chassis
+                                 // toward the lean angle the current
+                                 // speed and steer imply, critically
+                                 // damped; the natural frequency is
+                                 // sqrt(gain) rad/s. Meant for
+                                 // two-wheelers, which are inverted
+                                 // pendulums without it.
         M3_ALIGN8 uint64_t userData;
         int32_t internalValue;
     } m3VehicleDef;
@@ -89,8 +89,7 @@ extern "C"
     /// Last step's suspension compression of one wheel, in meters
     /// from rest length (zero when airborne, stale, or out of
     /// range). Frozen while the chassis sleeps, like the chassis.
-    M3_API m3real m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle,
-                                           int32_t wheel);
+    M3_API float m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel);
     /// Whether the wheel's suspension cast found ground last step.
     M3_API bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
@@ -109,15 +108,15 @@ extern "C"
     /// suspends the normal throttle until m3Vehicle_SetCommands is
     /// called again (which disengages it). Drivetrain vehicles
     /// refuse: a gearbox and a skid steer are different machines.
-    M3_API void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, m3real left,
-                                          m3real right, m3real brake);
+    M3_API void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, float left,
+                                          float right, float brake);
 
-    M3_API void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, m3real throttle,
-                                      m3real steer, m3real brake);
+    M3_API void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, float throttle,
+                                      float steer, float brake);
 
     /// Accumulated spin angle of one wheel in radians (rendering
     /// state: hosts spin their wheel meshes with it).
-    M3_API m3real m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
+    M3_API float m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
 #define M3_MAX_DRIVETRAIN_CURVE 8
 #define M3_MAX_DRIVETRAIN_GEARS 6
@@ -140,18 +139,18 @@ extern "C"
     /// gears only and waits for the clutch to close between shifts.
     typedef struct m3DrivetrainDef
     {
-        int32_t curveCount;                          // 2..8 control points
-        m3real curveRpm[M3_MAX_DRIVETRAIN_CURVE];    // strictly ascending,
-                                                     // nonnegative
-        m3real curveTorque[M3_MAX_DRIVETRAIN_CURVE]; // newton meters at
-                                                     // the crank
-        int32_t gearCount;                           // 1..6 forward gears
-        m3real gearRatio[M3_MAX_DRIVETRAIN_GEARS];   // crank turns per
-                                                     // wheel turn
-        m3real reverseRatio;                         // positive magnitude; 0 forbids reverse
-        m3real finalDrive;                           // multiplies every gear
-        m3real shiftUpRpm;                           // auto shift climbs above this
-        m3real shiftDownRpm;                         // auto shift drops below this
+        int32_t curveCount;                         // 2..8 control points
+        float curveRpm[M3_MAX_DRIVETRAIN_CURVE];    // strictly ascending,
+                                                    // nonnegative
+        float curveTorque[M3_MAX_DRIVETRAIN_CURVE]; // newton meters at
+                                                    // the crank
+        int32_t gearCount;                          // 1..6 forward gears
+        float gearRatio[M3_MAX_DRIVETRAIN_GEARS];   // crank turns per
+                                                    // wheel turn
+        float reverseRatio;                         // positive magnitude; 0 forbids reverse
+        float finalDrive;                           // multiplies every gear
+        float shiftUpRpm;                           // auto shift climbs above this
+        float shiftDownRpm;                         // auto shift drops below this
         int32_t clutchSteps; // steps of torque cut per shift, 0..M3_MAX_CLUTCH_STEPS
         bool autoShift;
         /// Differential: 0 open (the equal split), 1 limited
@@ -162,7 +161,7 @@ extern "C"
         /// own per-wheel force. One step of lag is the drivetrain's
         /// own convention (engine speed reads wheels the same way).
         int32_t diffMode;
-        m3real diffCouple;
+        float diffCouple;
         int32_t internalValue;
     } m3DrivetrainDef;
 
@@ -187,7 +186,7 @@ extern "C"
 
     /// Engine speed computed by the last step, idle-floored like the
     /// torque lookup (a tachometer, not raw wheel math).
-    M3_API m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle);
+    M3_API float m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle);
 
     static const m3VehicleId m3_nullVehicleId = {0, 0};
 

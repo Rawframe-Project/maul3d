@@ -78,10 +78,10 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
     m3Transform xfS = m3ShapeWorldTransform(world, hullShape);
     const m3Transform* xf = &xfS;
     m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    m3real offset = world->shapes.shapeGeom[planeShape].s;
+    float offset = world->shapes.shapeGeom[planeShape].s;
 
     int32_t candIndex[M3_HULL_MAX_VERTS];
-    m3real candSep[M3_HULL_MAX_VERTS];
+    float candSep[M3_HULL_MAX_VERTS];
     double candW[M3_HULL_MAX_VERTS][3];
     int32_t candCount = 0;
     for (int32_t v = 0; v < hull->vertexCount; ++v)
@@ -91,10 +91,10 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
         double wy = xf->p.y + (double)r.y;
         double wz = xf->p.z + (double)r.z;
         double sep = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - (double)offset;
-        if ((m3real)sep < M3_SPECULATIVE_DISTANCE)
+        if ((float)sep < M3_SPECULATIVE_DISTANCE)
         {
             candIndex[candCount] = v;
-            candSep[candCount] = (m3real)sep;
+            candSep[candCount] = (float)sep;
             candW[candCount][0] = wx;
             candW[candCount][1] = wy;
             candW[candCount][2] = wz;
@@ -105,9 +105,8 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
     m3Vec3 candP[M3_HULL_MAX_VERTS];
     for (int32_t c = 0; c < candCount; ++c)
     {
-        candP[c] =
-            (m3Vec3){(m3real)(candW[c][0] - candW[0][0]), (m3real)(candW[c][1] - candW[0][1]),
-                     (m3real)(candW[c][2] - candW[0][2])};
+        candP[c] = (m3Vec3){(float)(candW[c][0] - candW[0][0]), (float)(candW[c][1] - candW[0][1]),
+                            (float)(candW[c][2] - candW[0][2])};
     }
     int32_t kept[M3_MANIFOLD_MAX_POINTS];
     int32_t keptCount = m3ReduceContactPoints(candP, candSep, candCount, n, kept);
@@ -151,8 +150,8 @@ static void CollideHullHullPair(m3World* world, m3Manifold* fresh, int32_t shape
     const m3Transform* xfB = &xfBv;
     m3Quat conjA = {-xfA->q.x, -xfA->q.y, -xfA->q.z, xfA->q.w};
     m3Quat qRel = m3MulQuat(conjA, xfB->q);
-    m3Vec3 dp = {(m3real)(xfB->p.x - xfA->p.x), (m3real)(xfB->p.y - xfA->p.y),
-                 (m3real)(xfB->p.z - xfA->p.z)};
+    m3Vec3 dp = {(float)(xfB->p.x - xfA->p.x), (float)(xfB->p.y - xfA->p.y),
+                 (float)(xfB->p.z - xfA->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfA->q, dp);
     *fresh =
         m3CollideHulls(&world->hulls.hullData[world->shapes.shapeHullIndex[shapeA]],
@@ -195,8 +194,8 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
     m3Transform xfS = m3ShapeWorldTransform(world, capShape);
     const m3Transform* xf = &xfS;
     m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    m3real offset = world->shapes.shapeGeom[planeShape].s;
-    m3real radius = world->shapes.shapeGeom[capShape].s;
+    float offset = world->shapes.shapeGeom[planeShape].s;
+    float radius = world->shapes.shapeGeom[capShape].s;
     m3Vec3 caps[2] = {world->shapes.shapeGeom[capShape].v, world->shapes.shapeGeom[capShape].v2};
     int32_t count = 0;
     for (int32_t k = 0; k < 2; ++k)
@@ -206,7 +205,7 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
         double wy = xf->p.y + (double)r.y;
         double wz = xf->p.z + (double)r.z;
         double centerDist = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - (double)offset;
-        m3real sep = (m3real)centerDist - radius;
+        float sep = (float)centerDist - radius;
         if (sep > M3_SPECULATIVE_DISTANCE)
         {
             continue;
@@ -260,8 +259,8 @@ static void CollideHullCapsulePair(m3World* world, m3Manifold* fresh, int32_t sh
     const m3Transform* xfC = &xfCv;
     m3Quat conjH = {-xfH->q.x, -xfH->q.y, -xfH->q.z, xfH->q.w};
     m3Quat qRel = m3MulQuat(conjH, xfC->q);
-    m3Vec3 dp = {(m3real)(xfC->p.x - xfH->p.x), (m3real)(xfC->p.y - xfH->p.y),
-                 (m3real)(xfC->p.z - xfH->p.z)};
+    m3Vec3 dp = {(float)(xfC->p.x - xfH->p.x), (float)(xfC->p.y - xfH->p.y),
+                 (float)(xfC->p.z - xfH->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfH->q, dp);
     m3Vec3 s1 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[capShape].v), pRel);
     m3Vec3 s2 = m3Add3(m3RotateVec3(qRel, world->shapes.shapeGeom[capShape].v2), pRel);
@@ -310,8 +309,8 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
     m3DistanceInput input;
     memset(&input, 0, sizeof(input));
     input.q = m3MulQuat(conjA, xfB->q);
-    m3Vec3 dp = {(m3real)(xfB->p.x - xfA->p.x), (m3real)(xfB->p.y - xfA->p.y),
-                 (m3real)(xfB->p.z - xfA->p.z)};
+    m3Vec3 dp = {(float)(xfB->p.x - xfA->p.x), (float)(xfB->p.y - xfA->p.y),
+                 (float)(xfB->p.z - xfA->p.z)};
     input.p = m3InvRotateVec3(xfA->q, dp);
     m3Vec3 pointsA[2];
     m3Vec3 pointsB[2];
@@ -319,9 +318,9 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
     input.proxyB = m3MakeShapeProxy(world, shapeB, pointsB);
     input.useRadii = false;
     m3DistanceOutput out = m3ShapeDistance(&input);
-    m3real rA = input.proxyA.radius;
-    m3real rB = input.proxyB.radius;
-    m3real sep = out.distance - rA - rB;
+    float rA = input.proxyA.radius;
+    float rB = input.proxyB.radius;
+    float sep = out.distance - rA - rB;
     if (sep <= M3_SPECULATIVE_DISTANCE)
     {
         m3Vec3 nLocal;
@@ -344,10 +343,10 @@ static void CollideConvexGjkPair(m3World* world, m3Manifold* fresh, int32_t shap
             m3Vec3 core = hullIsA ? m3Add3(m3RotateVec3(input.q, round->points[0]), input.p)
                                   : m3InvRotateVec3(input.q, m3Sub3(round->points[0], input.p));
             m3Vec3 nHull; // hull toward sphere, hull frame
-            m3real coreSep;
+            float coreSep;
             m3Vec3 onHull;
             m3DeepPointInHull(hull, core, &nHull, &coreSep, &onHull);
-            m3real rRound = round->radius;
+            float rRound = round->radius;
             sep = coreSep - rRound;
             if (hullIsA)
             {
@@ -441,22 +440,22 @@ static void CollidePlaneSpherePair(m3World* world, m3Manifold* fresh, int32_t sh
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t sphereShape = planeShape == shapeA ? shapeB : shapeA;
     m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    m3real offset = world->shapes.shapeGeom[planeShape].s;
+    float offset = world->shapes.shapeGeom[planeShape].s;
     double cx;
     double cy;
     double cz;
     m3SphereWorldCenter(world, sphereShape, &cx, &cy, &cz);
     double distD = (double)n.x * cx + (double)n.y * cy + (double)n.z * cz - (double)offset;
-    *fresh = m3CollidePlaneSphere(n, (m3real)distD, world->shapes.shapeGeom[sphereShape].s);
+    *fresh = m3CollidePlaneSphere(n, (float)distD, world->shapes.shapeGeom[sphereShape].s);
     if (fresh->pointCount > 0)
     {
         // anchorA: from the plane BODY's origin to the contact
         // point (the sphere's deepest point projected).
         int32_t planeBody = world->shapes.shapeBody[planeShape];
         int32_t ballBody = world->shapes.shapeBody[sphereShape];
-        double px = cx - (double)(fresh->normal.x * (m3real)distD);
-        double py = cy - (double)(fresh->normal.y * (m3real)distD);
-        double pz = cz - (double)(fresh->normal.z * (m3real)distD);
+        double px = cx - (double)(fresh->normal.x * (float)distD);
+        double py = cy - (double)(fresh->normal.y * (float)distD);
+        double pz = cz - (double)(fresh->normal.z * (float)distD);
         fresh->points[0].anchorA = m3AnchorFromCom(world, planeBody, px, py, pz);
         fresh->points[0].anchorB =
             m3Add3(m3AnchorFromCom(world, ballBody, cx, cy, cz), fresh->points[0].anchorB);
@@ -483,7 +482,7 @@ static void CollideSphereSpherePair(m3World* world, m3Manifold* fresh, int32_t s
     double bz;
     m3SphereWorldCenter(world, shapeA, &ax, &ay, &az);
     m3SphereWorldCenter(world, shapeB, &bx, &by, &bz);
-    m3Vec3 d = {(m3real)(bx - ax), (m3real)(by - ay), (m3real)(bz - az)};
+    m3Vec3 d = {(float)(bx - ax), (float)(by - ay), (float)(bz - az)};
     *fresh =
         m3CollideSpheres(d, world->shapes.shapeGeom[shapeA].s, world->shapes.shapeGeom[shapeB].s);
     if (fresh->pointCount > 0)

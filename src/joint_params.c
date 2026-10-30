@@ -106,15 +106,15 @@ void m3JointSetBreakInternal(m3World* world, int32_t j, float maxForce, float ma
 // Reaction magnitudes, the per-type assembly documented on the API:
 // linear rows fold into force, angular rows into torque, and the
 // generic joint reports a conservative sum of its slot map.
-void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3real* outForce,
-                               m3real* outTorque)
+void m3JointReactionMagnitudes(const m3World* world, int32_t j, float invH, float* outForce,
+                               float* outTorque)
 {
     m3Vec3 lin = world->joints.jointImpulse[j];
     m3Vec3 perp = world->joints.jointPerpImpulse[j];
     m3Vec3 lim = world->joints.jointLimitImpulse[j];
     m3Vec3 ang = world->joints.jointAngularImpulse[j];
-    m3real force = m3Length3(lin);
-    m3real torque = 0.0f;
+    float force = m3Length3(lin);
+    float torque = 0.0f;
     switch (world->joints.jointType[j])
     {
     case (uint8_t)m3_parallelJoint:
@@ -303,49 +303,49 @@ void m3Joint_GetBreakLimits(const m3World* world, m3JointId joint, float* maxFor
     }
 }
 
-static M3_NOINLINE m3real JointGetReactionForceWorker(const m3World* world, m3JointId joint)
+static M3_NOINLINE float JointGetReactionForceWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
     {
         return 0.0f;
     }
-    m3real force;
-    m3real torque;
+    float force;
+    float torque;
     m3JointReactionMagnitudes(world, slot, world->lastInvH, &force, &torque);
     return force;
 }
 
-m3real m3Joint_GetReactionForce(const m3World* world, m3JointId joint)
+float m3Joint_GetReactionForce(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetReactionForceWorker(world, joint);
+    float result = JointGetReactionForceWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3real JointGetReactionTorqueWorker(const m3World* world, m3JointId joint)
+static M3_NOINLINE float JointGetReactionTorqueWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
     {
         return 0.0f;
     }
-    m3real force;
-    m3real torque;
+    float force;
+    float torque;
     m3JointReactionMagnitudes(world, slot, world->lastInvH, &force, &torque);
     return torque;
 }
 
-m3real m3Joint_GetReactionTorque(const m3World* world, m3JointId joint)
+float m3Joint_GetReactionTorque(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetReactionTorqueWorker(world, joint);
+    float result = JointGetReactionTorqueWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3real JointGetAngleWorker(const m3World* world, m3JointId joint)
+static M3_NOINLINE float JointGetAngleWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
@@ -364,19 +364,19 @@ static M3_NOINLINE m3real JointGetAngleWorker(const m3World* world, m3JointId jo
                           world->joints.jointFrameQB[slot]);
     m3Quat conjA = {-qA.x, -qA.y, -qA.z, qA.w};
     m3Quat relQ = m3MulQuat(conjA, qB);
-    m3real twist = relQ.w < 0.0f ? m3Atan2(-relQ.z, -relQ.w) : m3Atan2(relQ.z, relQ.w);
+    float twist = relQ.w < 0.0f ? m3Atan2(-relQ.z, -relQ.w) : m3Atan2(relQ.z, relQ.w);
     return 2.0f * twist;
 }
 
-m3real m3Joint_GetAngle(const m3World* world, m3JointId joint)
+float m3Joint_GetAngle(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetAngleWorker(world, joint);
+    float result = JointGetAngleWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3real JointGetTranslationWorker(const m3World* world, m3JointId joint)
+static M3_NOINLINE float JointGetTranslationWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot))
@@ -395,9 +395,9 @@ static M3_NOINLINE m3real JointGetTranslationWorker(const m3World* world, m3Join
     const m3Transform* xfB = &world->bodies.transforms[bodyB];
     m3Vec3 pA = m3RotateVec3(xfA->q, world->joints.jointLocalA[slot]);
     m3Vec3 pB = m3RotateVec3(xfB->q, world->joints.jointLocalB[slot]);
-    m3Vec3 d = {(m3real)(xfB->p.x + (double)pB.x - xfA->p.x - (double)pA.x),
-                (m3real)(xfB->p.y + (double)pB.y - xfA->p.y - (double)pA.y),
-                (m3real)(xfB->p.z + (double)pB.z - xfA->p.z - (double)pA.z)};
+    m3Vec3 d = {(float)(xfB->p.x + (double)pB.x - xfA->p.x - (double)pA.x),
+                (float)(xfB->p.y + (double)pB.y - xfA->p.y - (double)pA.y),
+                (float)(xfB->p.z + (double)pB.z - xfA->p.z - (double)pA.z)};
     m3Quat frameQ = m3MulQuat(xfA->q, world->joints.jointFrameQA[slot]);
     // The slide axis is frame z for the prismatic and frame x for
     // the wheel (whose z is the axle).
@@ -408,10 +408,10 @@ static M3_NOINLINE m3real JointGetTranslationWorker(const m3World* world, m3Join
     return m3Dot3(d, axis);
 }
 
-m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint)
+float m3Joint_GetTranslation(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetTranslationWorker(world, joint);
+    float result = JointGetTranslationWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }
@@ -548,8 +548,8 @@ bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, f
 bool m3MotorJointOffsetsValid(const m3World* world, int32_t slot, m3Vec3 linearOffset,
                               m3Quat angularOffset)
 {
-    m3real q2 = angularOffset.x * angularOffset.x + angularOffset.y * angularOffset.y +
-                angularOffset.z * angularOffset.z + angularOffset.w * angularOffset.w;
+    float q2 = angularOffset.x * angularOffset.x + angularOffset.y * angularOffset.y +
+               angularOffset.z * angularOffset.z + angularOffset.w * angularOffset.w;
     return world->joints.jointType[slot] == (uint8_t)m3_motorJoint && m3LocalV3(linearOffset) &&
            m3FiniteQuat(angularOffset) && q2 >= 0.81f && q2 <= 1.21f;
 }
@@ -826,7 +826,7 @@ bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q)
     {
         return false;
     }
-    m3real len2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    float len2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return len2 >= 0.99f && len2 <= 1.01f;
 }
 

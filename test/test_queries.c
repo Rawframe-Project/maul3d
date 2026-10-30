@@ -956,7 +956,7 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
 // floor meets it where its path does, past more pieces than the 64 the
 // cast and the sweep once tried in storage order. Each floor is 128 m
 // along x; a 0.5 m sphere's path drops 2 m on its way across.
-static m3World* LongFloor(int32_t kind, m3real* topOut)
+static m3World* LongFloor(int32_t kind, float* topOut)
 {
     m3WorldDef wd = m3DefaultWorldDef();
     wd.maximumLinearSpeed = 1.0e4f;
@@ -980,7 +980,7 @@ static m3World* LongFloor(int32_t kind, m3real* topOut)
         {
             for (int32_t x = 0; x < 129; ++x)
             {
-                vertices[z * 129 + x] = (m3Vec3){(m3real)x, 0.0f, (m3real)z};
+                vertices[z * 129 + x] = (m3Vec3){(float)x, 0.0f, (float)z};
             }
         }
         for (int32_t z = 0; z < 4; ++z)
@@ -1020,13 +1020,13 @@ static void TestLongPathsMeetFarPieces(void)
     const char* names[3] = {"grid", "mesh", "voxel"};
     for (int32_t kind = 0; kind < 3; ++kind)
     {
-        m3real top;
+        float top;
         m3World* world = LongFloor(kind, &top);
         // The path drops 2 m. Over the voxel chunk it runs along the
         // diagonal, so its box covers all 128 cubes, and meets a far cube
         // at fraction 0.85.
-        m3real across = kind == 2 ? 120.0f : 0.0f;
-        m3real meet = kind == 2 ? 0.85f : 0.5f;
+        float across = kind == 2 ? 120.0f : 0.0f;
+        float meet = kind == 2 ? 0.85f : 0.5f;
         m3Pos3 start = {0.5, (double)(top + 0.5f + 2.0f * meet), kind == 2 ? 0.5 : 2.5};
         m3Vec3 path = {kind == 2 ? 120.0f : 100.0f, -2.0f, across};
         m3CastHit cast = {0};

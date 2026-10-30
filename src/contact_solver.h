@@ -13,7 +13,7 @@
 #include "solver_math.h"
 #include "world_internal.h"
 
-int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, m3real h);
+int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, float h);
 
 // Colors the prepared constraints. Returns false on a scratch stall.
 bool m3ColorContacts(m3World* world, m3ContactPlan* plan);

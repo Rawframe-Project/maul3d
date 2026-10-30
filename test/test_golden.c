@@ -352,8 +352,8 @@ static m3JointDef HangDef(m3World* world, m3BodyId ground, double x, double y, d
     jd.type = type;
     jd.bodyIdA = ground;
     jd.bodyIdB = body;
-    jd.localAnchorA = (m3Vec3){(m3real)x, 3.0f, 0.0f};
-    jd.localAnchorB = (m3Vec3){0.0f, (m3real)(3.0 - y), (m3real)(0.0 - z)};
+    jd.localAnchorA = (m3Vec3){(float)x, 3.0f, 0.0f};
+    jd.localAnchorB = (m3Vec3){0.0f, (float)(3.0 - y), (float)(0.0 - z)};
     if (bodyOut != NULL)
     {
         *bodyOut = body;

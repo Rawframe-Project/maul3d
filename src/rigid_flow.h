@@ -26,7 +26,7 @@ bool m3FreeRotationApplies(m3Vec3 moments);
 // rigid body, by the splitting of its kinetic energy: the world angular
 // momentum stays, and a body with two equal moments turns exactly. Writes
 // the new rotation and world spin.
-void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, m3real h, m3Quat* qOut,
+void m3FreeRotation(m3Vec3 moments, m3Quat frame, m3Quat q, m3Vec3 w, float h, m3Quat* qOut,
                     m3Vec3* wOut);
 
 #endif // MAUL3D_SRC_RIGID_FLOW_H

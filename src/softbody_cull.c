@@ -17,7 +17,7 @@
 // and the returned radius, holds that geometry. Every other kind returns
 // -1: planes are unbounded, and a hull's face-plane rule can act past
 // its bounds near an acute vertex, so hulls take their own test below.
-m3real m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Vec3* center)
+float m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Vec3* center)
 {
     const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
     if (stype == (uint8_t)m3_sphereShape)
@@ -34,8 +34,7 @@ m3real m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Ve
     m3Vec3 hi;
     if (stype == (uint8_t)m3_voxelShape)
     {
-        m3real side =
-            16.0f * world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
+        float side = 16.0f * world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
         lo = (m3Vec3){0.0f, 0.0f, 0.0f};
         hi = (m3Vec3){side, side, side};
     }
@@ -51,8 +50,8 @@ m3real m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Ve
         const m3HeightFieldData* hf =
             &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         lo = (m3Vec3){0.0f, hf->minHeight, 0.0f};
-        hi = (m3Vec3){(m3real)(hf->nx - 1) * hf->cellSize, hf->maxHeight,
-                      (m3real)(hf->nz - 1) * hf->cellSize};
+        hi = (m3Vec3){(float)(hf->nx - 1) * hf->cellSize, hf->maxHeight,
+                      (float)(hf->nz - 1) * hf->cellSize};
     }
     else
     {
@@ -79,7 +78,7 @@ m3real m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Ve
 // radius, plus the rounding margin above taken on the magnitudes a
 // particle on that threshold brings: the center's offset, the bound and
 // the radius. A culled pair is one the projection leaves alone.
-bool m3SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, m3real bound, m3real radius,
+bool m3SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, float bound, float radius,
                            const double lo[3], const double hi[3])
 {
     m3Vec3 r = m3RotateVec3(xf->q, center);
@@ -108,7 +107,7 @@ bool m3SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, m3real bound, m
 // cull adds a float rotation of the normal, within a few ulps of
 // |d| + sum h_i. No particle in the box is farther than that sum, so the
 // margin is M3_SOFT_REACH_ULPS ulps of |d| + sum h_i + |o_f| + s + radius.
-bool m3SoftHullOutOfReach(const m3World* world, int32_t shape, const m3Transform* xf, m3real radius,
+bool m3SoftHullOutOfReach(const m3World* world, int32_t shape, const m3Transform* xf, float radius,
                           const double lo[3], const double hi[3])
 {
     const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];

@@ -79,7 +79,7 @@ static void DrawSegmentCb(m3Pos3 p1, m3Pos3 p2, uint32_t color, void* context)
     DrawLine3D(FromPos(p1), FromPos(p2), FromHex(color));
 }
 
-static void DrawPointCb(m3Pos3 p, m3real size, uint32_t color, void* context)
+static void DrawPointCb(m3Pos3 p, float size, uint32_t color, void* context)
 {
     // A cube, not a sphere: raylib's DrawSphere tessellates on the
     // CPU per call, and a resting pile emits hundreds of contact
@@ -1219,20 +1219,20 @@ static void SpawnFragments(m3World* world)
         bd.position = ev->worldCenter;
         if (s_blastArmed)
         {
-            m3real dx = (m3real)(ev->worldCenter.x - s_blastAt.x);
-            m3real dy = (m3real)(ev->worldCenter.y - s_blastAt.y);
-            m3real dz = (m3real)(ev->worldCenter.z - s_blastAt.z);
-            m3real d = sqrtf(dx * dx + dy * dy + dz * dz);
-            m3real inv = d > 1e-4f ? 1.0f / d : 0.0f;
-            m3real speed = 7.0f / (1.0f + 0.3f * d);
+            float dx = (float)(ev->worldCenter.x - s_blastAt.x);
+            float dy = (float)(ev->worldCenter.y - s_blastAt.y);
+            float dz = (float)(ev->worldCenter.z - s_blastAt.z);
+            float d = sqrtf(dx * dx + dy * dy + dz * dz);
+            float inv = d > 1e-4f ? 1.0f / d : 0.0f;
+            float speed = 7.0f / (1.0f + 0.3f * d);
             bd.linearVelocity =
                 (m3Vec3){dx * inv * speed, dy * inv * speed + 2.0f, dz * inv * speed};
             bd.angularVelocity = (m3Vec3){dz * inv * 2.0f, 1.0f, -dx * inv * 2.0f};
         }
         m3BodyId body = NewBody(world, &bd);
-        m3Vec3 half = {0.5f * (m3real)(ev->upperBound[0] - ev->lowerBound[0] + 1),
-                       0.5f * (m3real)(ev->upperBound[1] - ev->lowerBound[1] + 1),
-                       0.5f * (m3real)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
+        m3Vec3 half = {0.5f * (float)(ev->upperBound[0] - ev->lowerBound[0] + 1),
+                       0.5f * (float)(ev->upperBound[1] - ev->lowerBound[1] + 1),
+                       0.5f * (float)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
         m3ShapeDef fd = m3DefaultShapeDef();
         fd.friction = 0.6f;
         if (ev->recipeCount > 0 && ev->recipeStart >= 0 && ev->voxelCount <= 32)
@@ -1241,14 +1241,14 @@ static void SpawnFragments(m3World* world)
             // the fragment keeps its true silhouette, where a convex
             // hull would bevel an L into a chipped cube and a single
             // box would make it a slab.
-            fd.density = ev->mass / (m3real)ev->voxelCount;
+            fd.density = ev->mass / (float)ev->voxelCount;
             int32_t made = 0;
             for (int32_t k = 0; k < ev->recipeCount; ++k)
             {
                 uint16_t v = recipe[ev->recipeStart + k];
-                m3real x = (m3real)(v % 16);
-                m3real y = (m3real)((v / 16) % 16);
-                m3real z = (m3real)(v / 256);
+                float x = (float)(v % 16);
+                float y = (float)((v / 16) % 16);
+                float z = (float)(v / 256);
                 m3ShapeDef cell = fd;
                 cell.localPosition =
                     (m3Vec3){x + 0.5f - ev->localCenter.x, y + 0.5f - ev->localCenter.y,

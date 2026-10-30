@@ -109,7 +109,7 @@ bool m3WalkHull(m3Walk* walk, m3HullData* hull)
         Block(walk, &hull->center, (int32_t)sizeof(m3Vec3));
         Block(walk, hull->vertices, hull->vertexCount * (int32_t)sizeof(m3Vec3));
         Block(walk, hull->faceNormals, hull->faceCount * (int32_t)sizeof(m3Vec3));
-        Block(walk, hull->faceOffsets, hull->faceCount * (int32_t)sizeof(m3real));
+        Block(walk, hull->faceOffsets, hull->faceCount * (int32_t)sizeof(float));
         Block(walk, hull->faceVertCounts, hull->faceCount);
         Block(walk, hull->faceVertStart, hull->faceCount * (int32_t)sizeof(uint16_t));
         Block(walk, hull->faceIndices, hull->indexCount);

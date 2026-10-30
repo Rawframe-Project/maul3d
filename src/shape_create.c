@@ -249,10 +249,10 @@ static M3_NOINLINE m3Result CreateCylinderShapeWorker(m3World* world, m3BodyId b
     m3Vec3 t2;
     m3MakeTangentBasis(n, &t1, &t2);
     m3Vec3 points[64];
-    m3real step = 2.0f * M3_PI / (m3real)segments;
+    float step = 2.0f * M3_PI / (float)segments;
     for (int32_t k = 0; k < segments; ++k)
     {
-        m3CosSin cs = m3ComputeCosSin(step * (m3real)k);
+        m3CosSin cs = m3ComputeCosSin(step * (float)k);
         m3Vec3 rim =
             m3Add3(m3MulSV3(cylinder->radius * cs.c, t1), m3MulSV3(cylinder->radius * cs.s, t2));
         points[k] = m3Add3(cylinder->point1, rim);
@@ -456,7 +456,7 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
 static M3_NOINLINE m3Result CreateHeightFieldMeshShapeWorker(m3World* world, m3BodyId body,
                                                              const m3ShapeDef* def,
                                                              const float* heights, int32_t nx,
-                                                             int32_t nz, m3real cellSize,
+                                                             int32_t nz, float cellSize,
                                                              m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
@@ -508,7 +508,7 @@ static M3_NOINLINE m3Result CreateHeightFieldMeshShapeWorker(m3World* world, m3B
         for (int32_t ix = 0; ix < nx; ++ix)
         {
             verts[iz * nx + ix] =
-                (m3Vec3){cellSize * (m3real)ix, heights[iz * nx + ix], cellSize * (m3real)iz};
+                (m3Vec3){cellSize * (float)ix, heights[iz * nx + ix], cellSize * (float)iz};
         }
     }
     int32_t n = 0;
@@ -535,7 +535,7 @@ static M3_NOINLINE m3Result CreateHeightFieldMeshShapeWorker(m3World* world, m3B
 }
 
 m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                      const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                      const float* heights, int32_t nx, int32_t nz, float cellSize,
                                       m3ShapeId* shapeOut)
 {
     uint64_t env = m3FloatEnvEnter();
@@ -548,7 +548,7 @@ m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body, const m3Sha
 static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyId body,
                                                          const m3ShapeDef* def,
                                                          const float* heights, int32_t nx,
-                                                         int32_t nz, m3real cellSize,
+                                                         int32_t nz, float cellSize,
                                                          m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
@@ -621,7 +621,7 @@ static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyI
 }
 
 m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                  const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                  const float* heights, int32_t nx, int32_t nz, float cellSize,
                                   m3ShapeId* shapeOut)
 {
     uint64_t env = m3FloatEnvEnter();
@@ -634,7 +634,7 @@ m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDe
 static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId body,
                                                         const m3ShapeDef* def,
                                                         const uint8_t* voxels,
-                                                        const uint16_t* payload, m3real cellSize,
+                                                        const uint16_t* payload, float cellSize,
                                                         m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
@@ -718,7 +718,7 @@ static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId
 }
 
 m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                 const uint8_t* voxels, const uint16_t* payload, m3real cellSize,
+                                 const uint8_t* voxels, const uint16_t* payload, float cellSize,
                                  m3ShapeId* shapeOut)
 {
     uint64_t env = m3FloatEnvEnter();

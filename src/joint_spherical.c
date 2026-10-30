@@ -33,10 +33,10 @@ static void PrepareSpherical(m3World* world, m3JointConstraint* c, const m3Joint
 
 // The twist row and angle; at a half-turn swing the twist is undefined
 // and the row falls back to B's axis.
-static m3JointRow TwistRow(const m3JointFrames* f, m3real* angle)
+static m3JointRow TwistRow(const m3JointFrames* f, float* angle)
 {
     m3Quat q = f->rel;
-    m3real norm = q.w * q.w + q.z * q.z;
+    float norm = q.w * q.w + q.z * q.z;
     *angle = 2.0f * m3Atan2(q.z, q.w);
     m3Vec3 local = {0.0f, 0.0f, 1.0f};
     if (norm > 1.0e-12f)
@@ -49,12 +49,12 @@ static m3JointRow TwistRow(const m3JointFrames* f, m3real* angle)
 // The swing row, run backward so the cone's impulse is never negative,
 // and the swing angle. Aligned axes leave the swing direction open; the
 // tangent basis picks one deterministically.
-static m3JointRow ConeRow(const m3JointFrames* f, m3real* angle)
+static m3JointRow ConeRow(const m3JointFrames* f, float* angle)
 {
     m3Vec3 zA = m3FrameAxis(f->a, 2);
     m3Vec3 zB = m3FrameAxis(f->b, 2);
     m3Vec3 n = m3Cross3(zA, zB);
-    m3real s = sqrtf(m3Dot3(n, n));
+    float s = sqrtf(m3Dot3(n, n));
     *angle = m3Atan2(s, m3Dot3(zA, zB));
     if (s > 1.0e-6f)
     {
@@ -74,7 +74,7 @@ static void WarmStartSpherical(const m3JointConstraint* c, const m3JointPose* po
     if ((c->flags & ROTATION_ROWS) != 0)
     {
         m3JointFrames f = m3PoseFrames(c, pose);
-        m3real angle;
+        float angle;
         if ((c->flags & M3_JOINT_SPRING) != 0)
         {
             m3PushTurn(b, c->springImpulse);
@@ -107,14 +107,14 @@ static void SolveSpherical(m3JointConstraint* c, const m3JointPose* pose, m3Join
         }
         if ((c->flags & M3_JOINT_LIMIT) != 0)
         {
-            m3real angle;
+            float angle;
             m3JointRow twist = TwistRow(&f, &angle);
             m3SolveLimits(&twist, angle, c->lowerLimit, c->upperLimit, c->softness,
                           &c->limitImpulse.x, &c->limitImpulse.y, b, pass);
         }
         if ((c->flags & M3_JOINT_CONE) != 0)
         {
-            m3real angle;
+            float angle;
             m3JointRow cone = ConeRow(&f, &angle);
             m3RowDrive drive =
                 m3LimitDrive(c->softness, c->coneAngle - angle, pass->invH, pass->biased);

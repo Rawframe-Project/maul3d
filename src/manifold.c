@@ -17,9 +17,9 @@
 
 void m3MakeTangentBasis(m3Vec3 normal, m3Vec3* t1, m3Vec3* t2)
 {
-    m3real ax = m3AbsF(normal.x);
-    m3real ay = m3AbsF(normal.y);
-    m3real az = m3AbsF(normal.z);
+    float ax = m3AbsF(normal.x);
+    float ay = m3AbsF(normal.y);
+    float az = m3AbsF(normal.z);
     m3Vec3 axis;
     if (ax <= ay && ax <= az)
     {
@@ -38,7 +38,7 @@ void m3MakeTangentBasis(m3Vec3 normal, m3Vec3* t1, m3Vec3* t2)
 }
 
 // Twice the signed area of the triangle a, b, c seen along n.
-static m3real TurnAlong(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 n)
+static float TurnAlong(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 n)
 {
     return m3Dot3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)), n);
 }
@@ -46,7 +46,7 @@ static m3real TurnAlong(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 n)
 // Keeping the deepest four points of a large contact patch can leave
 // them all on one side, a support too narrow to rest on; spreading the
 // four out keeps the widest patch the points can span.
-int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, int32_t count,
+int32_t m3ReduceContactPoints(const m3Vec3* points, const float* separations, int32_t count,
                               m3Vec3 normal, int32_t out[M3_MANIFOLD_MAX_POINTS])
 {
     if (count <= M3_MANIFOLD_MAX_POINTS)
@@ -66,12 +66,12 @@ int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, i
     // the patch even when no comparison below picks another; the picks
     // index points, so one outside [0, count) would read past the array.
     int32_t b = a;
-    m3real far = -1.0f;
+    float far = -1.0f;
     for (int32_t i = 0; i < count; ++i)
     {
         m3Vec3 d = m3Sub3(points[i], points[a]);
-        m3real along = m3Dot3(d, normal);
-        m3real flat = m3Dot3(d, d) - along * along;
+        float along = m3Dot3(d, normal);
+        float flat = m3Dot3(d, d) - along * along;
         if (flat > far)
         {
             far = flat;
@@ -79,10 +79,10 @@ int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, i
         }
     }
     int32_t c = a;
-    m3real area = -1.0f;
+    float area = -1.0f;
     for (int32_t i = 0; i < count; ++i)
     {
-        m3real turn = TurnAlong(points[a], points[b], points[i], normal);
+        float turn = TurnAlong(points[a], points[b], points[i], normal);
         turn = turn < 0.0f ? -turn : turn;
         if (turn > area)
         {
@@ -99,10 +99,10 @@ int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, i
         c = t;
     }
     int32_t d = a;
-    m3real outside = 0.0f;
+    float outside = 0.0f;
     for (int32_t i = 0; i < count; ++i)
     {
-        m3real reach = TurnAlong(points[a], points[b], points[i], normal);
+        float reach = TurnAlong(points[a], points[b], points[i], normal);
         reach = m3MinF(reach, TurnAlong(points[b], points[c], points[i], normal));
         reach = m3MinF(reach, TurnAlong(points[c], points[a], points[i], normal));
         if (reach < outside)
@@ -127,13 +127,13 @@ int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, i
     return n;
 }
 
-m3Manifold m3CollideSpheres(m3Vec3 d, m3real radiusA, m3real radiusB)
+m3Manifold m3CollideSpheres(m3Vec3 d, float radiusA, float radiusB)
 {
     m3Manifold manifold;
     memset(&manifold, 0, sizeof(manifold));
 
-    m3real distance = m3Length3(d);
-    m3real separation = distance - radiusA - radiusB;
+    float distance = m3Length3(d);
+    float separation = distance - radiusA - radiusB;
     if (separation > M3_SPECULATIVE_DISTANCE)
     {
         return manifold;
@@ -150,12 +150,12 @@ m3Manifold m3CollideSpheres(m3Vec3 d, m3real radiusA, m3real radiusB)
     return manifold;
 }
 
-m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, m3real dist, m3real radius)
+m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, float dist, float radius)
 {
     m3Manifold manifold;
     memset(&manifold, 0, sizeof(manifold));
 
-    m3real separation = dist - radius;
+    float separation = dist - radius;
     if (separation > M3_SPECULATIVE_DISTANCE)
     {
         return manifold;
@@ -185,7 +185,7 @@ typedef struct PosedHull
     const m3HullData* hull;
     m3Vec3 vertices[M3_HULL_MAX_VERTS];
     m3Vec3 normals[M3_HULL_MAX_FACES];
-    m3real offsets[M3_HULL_MAX_FACES];
+    float offsets[M3_HULL_MAX_FACES];
     m3Vec3 center;
 } PosedHull;
 
@@ -212,7 +212,7 @@ static void KeepHull(PosedHull* out, const m3HullData* hull)
 
 typedef struct FaceAxis
 {
-    m3real separation;
+    float separation;
     int32_t face;
 } FaceAxis;
 
@@ -224,7 +224,7 @@ static FaceAxis BestFace(const PosedHull* ref, const PosedHull* other)
     FaceAxis best = {-FLT_MAX, 0};
     for (int32_t f = 0; f < ref->hull->faceCount; ++f)
     {
-        m3real least = FLT_MAX;
+        float least = FLT_MAX;
         for (int32_t v = 0; v < other->hull->vertexCount && least > best.separation; ++v)
         {
             least = m3MinF(least, m3Dot3(ref->normals[f], other->vertices[v]) - ref->offsets[f]);
@@ -243,7 +243,7 @@ static FaceAxis BestFace(const PosedHull* ref, const PosedHull* other)
 
 typedef struct EdgeAxis
 {
-    m3real separation;
+    float separation;
     int32_t edgeA; // even half-edge slots, one per undirected edge
     int32_t edgeB;
     m3Vec3 axis; // from A toward B
@@ -256,10 +256,10 @@ static bool ArcsCross(m3Vec3 a1, m3Vec3 a2, m3Vec3 b1, m3Vec3 b2)
 {
     m3Vec3 na = m3Cross3(a1, a2);
     m3Vec3 nb = m3Cross3(b1, b2);
-    m3real b1Side = m3Dot3(b1, na);
-    m3real b2Side = m3Dot3(b2, na);
-    m3real a1Side = m3Dot3(a1, nb);
-    m3real a2Side = m3Dot3(a2, nb);
+    float b1Side = m3Dot3(b1, na);
+    float b2Side = m3Dot3(b2, na);
+    float a1Side = m3Dot3(a1, nb);
+    float a2Side = m3Dot3(a2, nb);
     return b1Side * b2Side < 0.0f && a1Side * a2Side < 0.0f && b1Side * a2Side > 0.0f;
 }
 
@@ -288,7 +288,7 @@ static EdgeAxis BestEdges(const PosedHull* a, const PosedHull* b)
             m3Vec3 pA = a->vertices[ha->edges[ia].origin];
             m3Vec3 eA = m3Sub3(a->vertices[ha->edges[ia + 1].origin], pA);
             m3Vec3 axis = m3Cross3(eA, eB);
-            m3real length = m3Length3(axis);
+            float length = m3Length3(axis);
             if (length < 1.0e-6f)
             {
                 continue; // parallel edges give no axis
@@ -300,7 +300,7 @@ static EdgeAxis BestEdges(const PosedHull* a, const PosedHull* b)
             {
                 axis = m3Neg3(axis);
             }
-            m3real separation = m3Dot3(axis, m3Sub3(pB, pA));
+            float separation = m3Dot3(axis, m3Sub3(pB, pA));
             if (separation > best.separation)
             {
                 best = (EdgeAxis){separation, ia, ib, axis};
@@ -318,14 +318,14 @@ static EdgeAxis BestEdges(const PosedHull* a, const PosedHull* b)
 static void ClosestOnSegments(m3Vec3 p, m3Vec3 d, m3Vec3 q, m3Vec3 e, m3Vec3* onP, m3Vec3* onQ)
 {
     m3Vec3 r = m3Sub3(p, q);
-    m3real dd = m3Dot3(d, d);
-    m3real ee = m3Dot3(e, e);
-    m3real de = m3Dot3(d, e);
-    m3real dr = m3Dot3(d, r);
-    m3real er = m3Dot3(e, r);
-    m3real denom = dd * ee - de * de;
-    m3real s = denom > 1.0e-9f ? m3ClampF((de * er - dr * ee) / denom, 0.0f, 1.0f) : 0.0f;
-    m3real t = ee > 1.0e-9f ? m3ClampF((de * s + er) / ee, 0.0f, 1.0f) : 0.0f;
+    float dd = m3Dot3(d, d);
+    float ee = m3Dot3(e, e);
+    float de = m3Dot3(d, e);
+    float dr = m3Dot3(d, r);
+    float er = m3Dot3(e, r);
+    float denom = dd * ee - de * de;
+    float s = denom > 1.0e-9f ? m3ClampF((de * er - dr * ee) / denom, 0.0f, 1.0f) : 0.0f;
+    float t = ee > 1.0e-9f ? m3ClampF((de * s + er) / ee, 0.0f, 1.0f) : 0.0f;
     s = dd > 1.0e-9f ? m3ClampF((de * t - dr) / dd, 0.0f, 1.0f) : 0.0f;
     *onP = m3Add3(p, m3MulSV3(s, d));
     *onQ = m3Add3(q, m3MulSV3(t, e));
@@ -386,22 +386,22 @@ static int32_t ClipIncident(const PosedHull* ref, int32_t refFace, const PosedHu
         m3Vec3 v1 = ref->vertices[loop[e]];
         m3Vec3 v2 = ref->vertices[loop[(e + 1) % n]];
         m3Vec3 side = m3Cross3(m3Normalize3(m3Sub3(v2, v1)), refN); // outward
-        m3real sideOffset = m3Dot3(side, v1);
+        float sideOffset = m3Dot3(side, v1);
         ClipPoint out[M3_HULL_MAX_FACE_INDICES];
         int32_t kept = 0;
         for (int32_t k = 0; k < count; ++k)
         {
             ClipPoint cur = poly[k];
             ClipPoint nxt = poly[(k + 1) % count];
-            m3real dc = m3Dot3(side, cur.p) - sideOffset;
-            m3real dn = m3Dot3(side, nxt.p) - sideOffset;
+            float dc = m3Dot3(side, cur.p) - sideOffset;
+            float dn = m3Dot3(side, nxt.p) - sideOffset;
             if (dc <= 0.0f)
             {
                 out[kept++] = cur;
             }
             if (dc * dn < 0.0f)
             {
-                m3real t = dc / (dc - dn);
+                float t = dc / (dc - dn);
                 out[kept].p = m3Add3(m3MulSV3(1.0f - t, cur.p), m3MulSV3(t, nxt.p));
                 out[kept].id = (uint16_t)(refFlag | M3_ID_CLIPPED | ((uint32_t)(e & 0x3F) << 7) |
                                           (cur.id & 0x7Fu));
@@ -431,12 +431,12 @@ static m3Manifold FaceContact(const PosedHull* a, const PosedHull* b, bool refIs
     int32_t count =
         ClipIncident(ref, refFace, inc, incFace, refIsA ? 0u : (uint16_t)M3_ID_REF_B, poly);
     m3Vec3 points[M3_HULL_MAX_FACE_INDICES];
-    m3real depth[M3_HULL_MAX_FACE_INDICES];
+    float depth[M3_HULL_MAX_FACE_INDICES];
     int32_t which[M3_HULL_MAX_FACE_INDICES];
     int32_t n = 0;
     for (int32_t k = 0; k < count; ++k)
     {
-        m3real sep = m3Dot3(refN, poly[k].p) - ref->offsets[refFace];
+        float sep = m3Dot3(refN, poly[k].p) - ref->offsets[refFace];
         if (sep < M3_SPECULATIVE_DISTANCE)
         {
             points[n] = poly[k].p;
@@ -491,8 +491,8 @@ m3Manifold m3CollideHulls(const m3HullData* hullA, const m3HullData* hullB, m3Qu
     // An edge axis wins only when clearly deeper than both faces, and B's
     // face only when clearly deeper than A's, so a resting pair keeps its
     // features from step to step.
-    const m3real tolerance = 0.1f * 0.005f;
-    m3real faceBest = m3MaxF(faceA.separation, faceB.separation);
+    const float tolerance = 0.1f * 0.005f;
+    float faceBest = m3MaxF(faceA.separation, faceB.separation);
     if (edge.edgeA >= 0 && edge.separation > faceBest + tolerance)
     {
         return EdgeContact(&a, &b, &edge);
@@ -518,8 +518,8 @@ m3Vec3 m3AnchorFromCom(const m3World* world, int32_t body, double px, double py,
 {
     const m3Transform* xf = &world->bodies.transforms[body];
     m3Vec3 rlc = m3RotateVec3(xf->q, world->bodies.localCenters[body]);
-    return (m3Vec3){(m3real)(px - xf->p.x - (double)rlc.x), (m3real)(py - xf->p.y - (double)rlc.y),
-                    (m3real)(pz - xf->p.z - (double)rlc.z)};
+    return (m3Vec3){(float)(px - xf->p.x - (double)rlc.x), (float)(py - xf->p.y - (double)rlc.y),
+                    (float)(pz - xf->p.z - (double)rlc.z)};
 }
 
 // Build the GJK proxy for one shape in its own local frame. Spheres
@@ -567,14 +567,14 @@ m3DistanceProxy m3MakeShapeProxy(const m3World* world, int32_t shape, m3Vec3 scr
 // fact. The projected witness can land off the face polygon in
 // obtuse corners; the normal and depth stay exact and the anchor
 // error is bounded by one face span.
-void m3DeepPointInHull(const m3HullData* hull, m3Vec3 q, m3Vec3* normalOut, m3real* coreSepOut,
+void m3DeepPointInHull(const m3HullData* hull, m3Vec3 q, m3Vec3* normalOut, float* coreSepOut,
                        m3Vec3* onHullOut)
 {
     int32_t best = 0;
-    m3real bestD = -3.4e38f;
+    float bestD = -3.4e38f;
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
-        m3real d = m3Dot3(hull->faceNormals[f], q) - hull->faceOffsets[f];
+        float d = m3Dot3(hull->faceNormals[f], q) - hull->faceOffsets[f];
         if (d > bestD)
         {
             bestD = d;
@@ -598,19 +598,19 @@ void m3DeepPointInHull(const m3HullData* hull, m3Vec3 q, m3Vec3* normalOut, m3re
 // only pre-arms the solver's speculative band and cannot snag.
 // Results in the hull frame: anchorA on the hull, anchorB on the
 // capsule skin, normal hull toward capsule.
-m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3real radius)
+m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, float radius)
 {
-    const m3real linearSlop = 0.005f;
+    const float linearSlop = 0.005f;
     m3Manifold manifold;
     memset(&manifold, 0, sizeof(manifold));
 
     int32_t bestFace = 0;
-    m3real bestFaceSep = -3.4e38f;
+    float bestFaceSep = -3.4e38f;
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
-        m3real d1 = m3Dot3(hull->faceNormals[f], p1) - hull->faceOffsets[f];
-        m3real d2 = m3Dot3(hull->faceNormals[f], p2) - hull->faceOffsets[f];
-        m3real sep = m3MinF(d1, d2);
+        float d1 = m3Dot3(hull->faceNormals[f], p1) - hull->faceOffsets[f];
+        float d2 = m3Dot3(hull->faceNormals[f], p2) - hull->faceOffsets[f];
+        float sep = m3MinF(d1, d2);
         if (sep > bestFaceSep)
         {
             bestFaceSep = sep;
@@ -620,14 +620,14 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
 
     m3Vec3 segDir = m3Sub3(p2, p1);
     m3Vec3 bestEdgeAxis = {0.0f, 1.0f, 0.0f};
-    m3real bestEdgeSep = -3.4e38f;
+    float bestEdgeSep = -3.4e38f;
     int32_t bestEdge = -1;
     for (int32_t e = 0; e < hull->edgeCount; e += 2)
     {
         m3Vec3 a = hull->vertices[hull->edges[e].origin];
         m3Vec3 b = hull->vertices[hull->edges[e + 1].origin];
         m3Vec3 axis = m3Cross3(m3Sub3(b, a), segDir);
-        m3real len2 = m3Dot3(axis, axis);
+        float len2 = m3Dot3(axis, axis);
         if (len2 < 1.0e-10f)
         {
             continue; // parallel: a face axis covers this direction
@@ -637,16 +637,16 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
         {
             axis = m3Neg3(axis); // outward from the hull
         }
-        m3real hullMax = -3.4e38f;
+        float hullMax = -3.4e38f;
         for (int32_t v = 0; v < hull->vertexCount; ++v)
         {
-            m3real proj = m3Dot3(axis, hull->vertices[v]);
+            float proj = m3Dot3(axis, hull->vertices[v]);
             if (proj > hullMax)
             {
                 hullMax = proj;
             }
         }
-        m3real sep = m3MinF(m3Dot3(axis, p1), m3Dot3(axis, p2)) - hullMax;
+        float sep = m3MinF(m3Dot3(axis, p1), m3Dot3(axis, p2)) - hullMax;
         if (sep > bestEdgeSep)
         {
             bestEdgeSep = sep;
@@ -656,7 +656,7 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
     }
 
     int edgeWins = bestEdge >= 0 && bestEdgeSep > bestFaceSep + 0.1f * linearSlop;
-    m3real coreSep = edgeWins ? bestEdgeSep : bestFaceSep;
+    float coreSep = edgeWins ? bestEdgeSep : bestFaceSep;
     if (coreSep - radius > M3_SPECULATIVE_DISTANCE)
     {
         return manifold;
@@ -679,7 +679,7 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
     }
 
     m3Vec3 n = hull->faceNormals[bestFace];
-    m3real off = hull->faceOffsets[bestFace];
+    float off = hull->faceOffsets[bestFace];
     int32_t count = hull->faceVertCounts[bestFace];
     int32_t startIdx = hull->faceVertStart[bestFace];
     m3Vec3 centroid = {0.0f, 0.0f, 0.0f};
@@ -687,10 +687,10 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
     {
         centroid = m3Add3(centroid, hull->vertices[hull->faceIndices[startIdx + k]]);
     }
-    centroid = m3MulSV3(1.0f / (m3real)count, centroid);
+    centroid = m3MulSV3(1.0f / (float)count, centroid);
 
-    m3real t0 = 0.0f;
-    m3real t1 = 1.0f;
+    float t0 = 0.0f;
+    float t1 = 1.0f;
     int emptySlab = 0;
     for (int32_t k = 0; k < count; ++k)
     {
@@ -701,8 +701,8 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
         {
             sideN = m3Neg3(sideN); // inward: keep the face side
         }
-        m3real c0 = m3Dot3(sideN, m3Sub3(p1, a));
-        m3real cd = m3Dot3(sideN, segDir);
+        float c0 = m3Dot3(sideN, m3Sub3(p1, a));
+        float cd = m3Dot3(sideN, segDir);
         if (cd > -1.0e-9f && cd < 1.0e-9f)
         {
             if (c0 < 0.0f)
@@ -712,7 +712,7 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
             }
             continue;
         }
-        m3real tc = -c0 / cd;
+        float tc = -c0 / cd;
         if (cd > 0.0f)
         {
             t0 = m3MaxF(t0, tc);
@@ -726,7 +726,7 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
     {
         // Grazing a corner outside the face slab: one clamped point,
         // the deterministic middle of the crossed-over interval.
-        m3real tm = 0.5f * (t0 + t1);
+        float tm = 0.5f * (t0 + t1);
         tm = m3MaxF(0.0f, m3MinF(1.0f, tm));
         t0 = tm;
         t1 = tm;
@@ -739,10 +739,10 @@ m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3
         {
             break; // degenerate interval: one point only
         }
-        m3real t = k == 0 ? t0 : t1;
+        float t = k == 0 ? t0 : t1;
         m3Vec3 pt = m3Add3(p1, m3MulSV3(t, segDir));
-        m3real d = m3Dot3(n, pt) - off;
-        m3real sepK = d - radius;
+        float d = m3Dot3(n, pt) - off;
+        float sepK = d - radius;
         if (sepK > M3_SPECULATIVE_DISTANCE)
         {
             continue;

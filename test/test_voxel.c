@@ -710,7 +710,7 @@ static void TestEscapeStopsAtWeldedBorder(void)
     m3World* w = world;
     int32_t slot = w->shapes.shapeVoxelIndex[chunkA.index1 - 1];
     m3Vec3 normal = {0.0f, 0.0f, 0.0f};
-    m3real plane = 0.0f;
+    float plane = 0.0f;
     bool found = m3VoxelEscape(w, slot, (m3Vec3){0.5f, 0.5f, 0.5f}, &normal, &plane);
     CHECK(found, "the corner cell has an exit");
     CHECK(normal.x == 0.0f && normal.y == -1.0f && normal.z == 0.0f,

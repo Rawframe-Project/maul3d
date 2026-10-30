@@ -107,8 +107,8 @@ static void WarmStart(Pair* p, const m3ContactConstraint* c)
 // their lever-weighted sum the twist.
 typedef struct Budget
 {
-    m3real normal;
-    m3real twist;
+    float normal;
+    float twist;
 } Budget;
 
 // The normal rows. Rows keep their prepare-time anchors; the anchors
@@ -126,10 +126,10 @@ static Budget NormalRows(const m3World* world, const m3ContactPlan* plan, Pair* 
         m3ConstraintPoint* cp = &c->points[k];
         m3Vec3 turnedA = m3RotateVec3(plan->deltaRot[c->bodyA], cp->rA);
         m3Vec3 turnedB = m3RotateVec3(plan->deltaRot[c->bodyB], cp->rB);
-        m3real s = cp->baseSeparation + m3Dot3(m3Add3(drift, m3Sub3(turnedB, turnedA)), c->normal);
-        m3real target = 0.0f;
-        m3real scale = 1.0f;
-        m3real leak = 0.0f;
+        float s = cp->baseSeparation + m3Dot3(m3Add3(drift, m3Sub3(turnedB, turnedA)), c->normal);
+        float target = 0.0f;
+        float scale = 1.0f;
+        float leak = 0.0f;
         if (s > 0.0f)
         {
             target = s * plan->invH;
@@ -140,9 +140,9 @@ static Budget NormalRows(const m3World* world, const m3ContactPlan* plan, Pair* 
             scale = c->softness.massScale;
             leak = c->softness.impulseScale;
         }
-        m3real vn = m3Dot3(RelativeVelocity(p, cp->rA, cp->rB), c->normal);
-        m3real old = cp->normalImpulse;
-        m3real next = m3MaxF(old + (-cp->normalMass * scale * (vn + target) - leak * old), 0.0f);
+        float vn = m3Dot3(RelativeVelocity(p, cp->rA, cp->rB), c->normal);
+        float old = cp->normalImpulse;
+        float next = m3MaxF(old + (-cp->normalMass * scale * (vn + target) - leak * old), 0.0f);
         cp->normalImpulse = next;
         cp->totalNormalImpulse += next;
         budget.normal += next;
@@ -156,10 +156,10 @@ static Budget NormalRows(const m3World* world, const m3ContactPlan* plan, Pair* 
 // twist budget.
 static void TwistRow(Pair* p, m3ContactConstraint* c, Budget budget)
 {
-    m3real spin = m3Dot3(c->normal, m3Sub3(p->wB, p->wA));
-    m3real bound = c->friction * budget.twist;
-    m3real old = c->twistImpulse;
-    m3real next = old - c->twistMass * spin;
+    float spin = m3Dot3(c->normal, m3Sub3(p->wB, p->wA));
+    float bound = c->friction * budget.twist;
+    float old = c->twistImpulse;
+    float next = old - c->twistMass * spin;
     next = next < -bound ? -bound : (next > bound ? bound : next);
     c->twistImpulse = next;
     Turn(p, c, m3MulSV3(next - old, c->normal));
@@ -172,8 +172,8 @@ static void RollingRow(Pair* p, m3ContactConstraint* c, Budget budget)
 {
     m3Vec3 delta = m3MulSV3(-1.0f, m3Solve3(&c->rollingK, m3Sub3(p->wB, p->wA)));
     m3Vec3 next = m3Add3(c->rollingImpulse, delta);
-    m3real bound = c->rollingResistance * budget.normal;
-    m3real length2 = m3Dot3(next, next);
+    float bound = c->rollingResistance * budget.normal;
+    float length2 = m3Dot3(next, next);
     if (length2 > bound * bound && length2 > 0.0f)
     {
         next = m3MulSV3(bound / sqrtf(length2), next);
@@ -188,16 +188,16 @@ static void RollingRow(Pair* p, m3ContactConstraint* c, Budget budget)
 static void FrictionRows(Pair* p, m3ContactConstraint* c, Budget budget)
 {
     m3Vec3 v = RelativeVelocity(p, c->originA, c->originB);
-    m3real vt1 = m3Dot3(v, c->t1) - c->tangentVelocity1;
-    m3real vt2 = m3Dot3(v, c->t2) - c->tangentVelocity2;
-    m3real f1 = c->frictionImpulse1 - (c->frictionK11 * vt1 + c->frictionK12 * vt2);
-    m3real f2 = c->frictionImpulse2 - (c->frictionK12 * vt1 + c->frictionK22 * vt2);
-    m3real bound = c->friction * budget.normal;
-    m3real length2 = f1 * f1 + f2 * f2;
+    float vt1 = m3Dot3(v, c->t1) - c->tangentVelocity1;
+    float vt2 = m3Dot3(v, c->t2) - c->tangentVelocity2;
+    float f1 = c->frictionImpulse1 - (c->frictionK11 * vt1 + c->frictionK12 * vt2);
+    float f2 = c->frictionImpulse2 - (c->frictionK12 * vt1 + c->frictionK22 * vt2);
+    float bound = c->friction * budget.normal;
+    float length2 = f1 * f1 + f2 * f2;
     if (length2 > bound * bound)
     {
-        m3real length = sqrtf(length2);
-        m3real scale = length > 0.0f ? bound / length : 0.0f;
+        float length = sqrtf(length2);
+        float scale = length > 0.0f ? bound / length : 0.0f;
         f1 *= scale;
         f2 *= scale;
     }
@@ -250,10 +250,10 @@ static void Restitution(m3World* world, m3ContactConstraint* c)
         {
             continue;
         }
-        m3real vn = m3Dot3(RelativeVelocity(&p, cp->rA, cp->rB), c->normal);
-        m3real old = cp->normalImpulse;
-        m3real bounce = m3MaxF(c->restitution * cp->relativeVelocity, -M3_SPEED_LIMIT);
-        m3real next = m3MaxF(old + -cp->normalMass * (vn + bounce), 0.0f);
+        float vn = m3Dot3(RelativeVelocity(&p, cp->rA, cp->rB), c->normal);
+        float old = cp->normalImpulse;
+        float bounce = m3MaxF(c->restitution * cp->relativeVelocity, -M3_SPEED_LIMIT);
+        float next = m3MaxF(old + -cp->normalMass * (vn + bounce), 0.0f);
         cp->normalImpulse = next;
         Push(&p, c, m3MulSV3(next - old, c->normal), cp->rA, cp->rB);
     }

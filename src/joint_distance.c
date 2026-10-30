@@ -20,7 +20,7 @@ static void PrepareDistance(m3World* world, m3JointConstraint* c, const m3JointF
     (void)world;
     (void)f;
     m3Vec3 gap = m3Add3(c->deltaCenter, m3Sub3(c->rB, c->rA));
-    m3real length2 = m3Dot3(gap, gap);
+    float length2 = m3Dot3(gap, gap);
     c->axis =
         length2 > 1.0e-12f ? m3MulSV3(1.0f / sqrtf(length2), gap) : (m3Vec3){0.0f, 1.0f, 0.0f};
     c->restLength = c->coneAngle; // the limit slot's z, as the cone angle loads
@@ -28,9 +28,9 @@ static void PrepareDistance(m3World* world, m3JointConstraint* c, const m3JointF
 
 // The row along the anchor line and the current length. Anchors that
 // meet keep the prepare direction.
-static m3JointRow RopeRow(const m3JointConstraint* c, const m3JointPose* pose, m3real* length)
+static m3JointRow RopeRow(const m3JointConstraint* c, const m3JointPose* pose, float* length)
 {
-    m3real length2 = m3Dot3(pose->gap, pose->gap);
+    float length2 = m3Dot3(pose->gap, pose->gap);
     *length = length2 > 1.0e-12f ? sqrtf(length2) : 0.0f;
     m3Vec3 u = length2 > 1.0e-12f ? m3MulSV3(1.0f / *length, pose->gap) : c->axis;
     return m3LineRow(pose->armA, pose->armB, u);
@@ -38,7 +38,7 @@ static m3JointRow RopeRow(const m3JointConstraint* c, const m3JointPose* pose, m
 
 static void WarmStartDistance(const m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b)
 {
-    m3real length;
+    float length;
     m3JointRow row = RopeRow(c, pose, &length);
     m3PushRow(&row, b, c->springImpulse.x);
     m3WarmStartLimits(&row, c->limitImpulse.x, c->limitImpulse.y, b);
@@ -47,7 +47,7 @@ static void WarmStartDistance(const m3JointConstraint* c, const m3JointPose* pos
 static void SolveDistance(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                           const m3JointPass* pass)
 {
-    m3real length;
+    float length;
     m3JointRow row = RopeRow(c, pose, &length);
     // The spring pulls in the solve pass only: in the relax pass a
     // position spring would act as a full-strength damper.

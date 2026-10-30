@@ -22,8 +22,8 @@
 
 typedef struct m3RayLocalHit
 {
-    m3real fraction; // along the full translation
-    m3Vec3 normal;   // body frame
+    float fraction; // along the full translation
+    m3Vec3 normal;  // body frame
     int hit;
 } m3RayLocalHit;
 
@@ -46,41 +46,41 @@ typedef struct m3RayLocalHit
 // m is the origin's offset from the center and d the translation, both
 // in that plane; the hit's offset from the center is written to offset.
 // maul2d casts at circles in the same form.
-static m3RayLocalHit RayCircle(m3Vec3 m, m3Vec3 d, m3real radius, m3Vec3* offsetOut)
+static m3RayLocalHit RayCircle(m3Vec3 m, m3Vec3 d, float radius, m3Vec3* offsetOut)
 {
     m3RayLocalHit out = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     // The direction scaled by its largest component first, so no square
     // of the translation overflows.
-    m3real scale = m3MaxF(m3AbsF(d.x), m3MaxF(m3AbsF(d.y), m3AbsF(d.z)));
+    float scale = m3MaxF(m3AbsF(d.x), m3MaxF(m3AbsF(d.y), m3AbsF(d.z)));
     if (!(scale > 0.0f))
     {
         return out; // no motion
     }
     m3Vec3 e = m3MulSV3(1.0f / scale, d);
-    m3real length = sqrtf(m3Dot3(e, e));
+    float length = sqrtf(m3Dot3(e, e));
     m3Vec3 u = m3MulSV3(1.0f / length, e);
-    m3real along = m3Dot3(m, u);
+    float along = m3Dot3(m, u);
     if (!(along < 0.0f))
     {
         return out; // moving away
     }
     m3Vec3 q = m3Sub3(m, m3MulSV3(along, u));
-    m3real h2 = radius * radius - m3Dot3(q, q);
+    float h2 = radius * radius - m3Dot3(q, q);
     if (!(h2 >= 0.0f))
     {
         return out; // passing by
     }
-    m3real h = sqrtf(h2);
+    float h = sqrtf(h2);
     // The origin lies outside, so the root is not negative but for
     // rounding.
-    m3real root = m3MaxF(-along - h, 0.0f);
-    m3real t = root / scale / length;
+    float root = m3MaxF(-along - h, 0.0f);
+    float t = root / scale / length;
     if (!(t <= 1.0f))
     {
         return out;
     }
     m3Vec3 offset = m3Sub3(q, m3MulSV3(h, u));
-    m3real n = m3Length3(offset);
+    float n = m3Length3(offset);
     out.fraction = t;
     out.normal = n > 0.0f ? m3MulSV3(1.0f / n, offset) : (m3Vec3){0.0f, 0.0f, 0.0f};
     out.hit = 1;
@@ -90,7 +90,7 @@ static m3RayLocalHit RayCircle(m3Vec3 m, m3Vec3 d, m3real radius, m3Vec3* offset
 
 // Sphere: the ray's circle in the plane through the center and the ray.
 // A ray that starts inside or on the surface has no front-face hit.
-static m3RayLocalHit RaySphere(m3Vec3 o, m3Vec3 d, m3Vec3 center, m3real radius)
+static m3RayLocalHit RaySphere(m3Vec3 o, m3Vec3 d, m3Vec3 center, float radius)
 {
     m3RayLocalHit out = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 m = m3Sub3(o, center);
@@ -105,18 +105,18 @@ static m3RayLocalHit RaySphere(m3Vec3 o, m3Vec3 d, m3Vec3 center, m3real radius)
 // Capsule: the infinite cylinder about the segment plus both cap
 // spheres; smallest valid root wins. The cylinder is the ray's circle in
 // the plane across the axis, kept between the cap planes.
-static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, m3real radius)
+static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, float radius)
 {
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 axis = m3Sub3(p2, p1);
-    m3real axisLen2 = m3Dot3(axis, axis);
+    float axisLen2 = m3Dot3(axis, axis);
 
     // Cylinder part: components perpendicular to the axis.
     if (axisLen2 > 0.0f)
     {
         m3Vec3 m = m3Sub3(o, p1);
-        m3real md = m3Dot3(m, axis);
-        m3real dd = m3Dot3(d, axis);
+        float md = m3Dot3(m, axis);
+        float dd = m3Dot3(d, axis);
         m3Vec3 mPerp = m3Sub3(m, m3MulSV3(md / axisLen2, axis));
         m3Vec3 dPerp = m3Sub3(d, m3MulSV3(dd / axisLen2, axis));
         if (m3Dot3(mPerp, mPerp) > radius * radius)
@@ -124,7 +124,7 @@ static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, m3real
             m3Vec3 offset;
             m3RayLocalHit side = RayCircle(mPerp, dPerp, radius, &offset);
             // Accept only between the cap planes.
-            m3real s = md + side.fraction * dd;
+            float s = md + side.fraction * dd;
             if (side.hit && s >= 0.0f && s <= axisLen2)
             {
                 best = side;
@@ -151,15 +151,15 @@ static m3RayLocalHit RayCapsule(m3Vec3 o, m3Vec3 d, m3Vec3 p1, m3Vec3 p2, m3real
 static m3RayLocalHit RayHull(m3Vec3 o, m3Vec3 d, const m3HullData* hull)
 {
     m3RayLocalHit out = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
-    m3real tEnter = 0.0f;
-    m3real tExit = 1.0f;
+    float tEnter = 0.0f;
+    float tExit = 1.0f;
     m3Vec3 enterNormal = {0.0f, 0.0f, 0.0f};
     int haveEnter = 0;
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
         m3Vec3 n = hull->faceNormals[f];
-        m3real dist = m3Dot3(n, o) - hull->faceOffsets[f];
-        m3real denom = m3Dot3(n, d);
+        float dist = m3Dot3(n, o) - hull->faceOffsets[f];
+        float denom = m3Dot3(n, d);
         if (denom == 0.0f)
         {
             if (dist > 0.0f)
@@ -168,7 +168,7 @@ static m3RayLocalHit RayHull(m3Vec3 o, m3Vec3 d, const m3HullData* hull)
             }
             continue;
         }
-        m3real t = -dist / denom;
+        float t = -dist / denom;
         if (denom < 0.0f)
         {
             // Entering through this plane.
@@ -204,7 +204,7 @@ static m3RayLocalHit RayHull(m3Vec3 o, m3Vec3 d, const m3HullData* hull)
 // front faces only, a ray starting inside reports a miss (the ray
 // contract; ask point-inside for containment). Ascending candidates
 // keep tie winners at the lowest box index.
-static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface, m3real cellSize)
+static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface, float cellSize)
 {
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 end = m3Add3(o, d);
@@ -217,17 +217,17 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
         m3Vec3 lo;
         m3Vec3 hi;
         m3VoxelBoxBounds(surface, cellSize, g, &lo, &hi);
-        m3real tEnter = 0.0f;
-        m3real tExit = 1.0f;
+        float tEnter = 0.0f;
+        float tExit = 1.0f;
         int32_t enterAxis = -1;
-        m3real enterSign = 0.0f;
+        float enterSign = 0.0f;
         bool miss = false;
         for (int32_t k = 0; k < 3 && !miss; ++k)
         {
-            m3real ok = k == 0 ? o.x : (k == 1 ? o.y : o.z);
-            m3real dk = k == 0 ? d.x : (k == 1 ? d.y : d.z);
-            m3real lok = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
-            m3real hik = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
+            float ok = k == 0 ? o.x : (k == 1 ? o.y : o.z);
+            float dk = k == 0 ? d.x : (k == 1 ? d.y : d.z);
+            float lok = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
+            float hik = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
             if (dk == 0.0f)
             {
                 if (ok < lok || ok > hik)
@@ -236,12 +236,12 @@ static m3RayLocalHit RayVoxel(m3Vec3 o, m3Vec3 d, const m3VoxelSurface* surface,
                 }
                 continue;
             }
-            m3real t1 = (lok - ok) / dk;
-            m3real t2 = (hik - ok) / dk;
-            m3real sign = -1.0f;
+            float t1 = (lok - ok) / dk;
+            float t2 = (hik - ok) / dk;
+            float sign = -1.0f;
             if (t1 > t2)
             {
-                m3real tmp = t1;
+                float tmp = t1;
                 t1 = t2;
                 t2 = tmp;
                 sign = 1.0f;
@@ -302,13 +302,13 @@ static m3RayLocalHit RayMesh(m3Vec3 o, m3Vec3 d, const m3MeshData* mesh, const m
         m3Vec3 e1 = m3Sub3(b, a);
         m3Vec3 e2 = m3Sub3(c, a);
         m3Vec3 n = m3Cross3(e1, e2);
-        m3real denom = m3Dot3(n, d);
+        float denom = m3Dot3(n, d);
         if (denom >= 0.0f)
         {
             continue; // back face or parallel
         }
-        m3real dist = m3Dot3(n, m3Sub3(o, a));
-        m3real tHit = dist / -denom; // denom < 0: tHit >= 0 when o is in front
+        float dist = m3Dot3(n, m3Sub3(o, a));
+        float tHit = dist / -denom; // denom < 0: tHit >= 0 when o is in front
         if (tHit < 0.0f || tHit > 1.0f)
         {
             continue;
@@ -342,7 +342,7 @@ static m3RayLocalHit RayHeightField(m3Vec3 o, m3Vec3 d, const m3HeightFieldData*
     // scans its whole span box, which is simple and deterministic.
     m3RayLocalHit best = {0.0f, {0.0f, 0.0f, 0.0f}, 0};
     m3Vec3 end = m3Add3(o, d);
-    m3real inv = 1.0f / hf->cellSize;
+    float inv = 1.0f / hf->cellSize;
     int32_t cx0 = m3CellFromF(floorf(m3MinF(o.x, end.x) * inv), 2.0e9f);
     int32_t cx1 = m3CellFromF(floorf(m3MaxF(o.x, end.x) * inv), -2.0e9f);
     int32_t cz0 = m3CellFromF(floorf(m3MinF(o.z, end.z) * inv), 2.0e9f);
@@ -365,13 +365,13 @@ static m3RayLocalHit RayHeightField(m3Vec3 o, m3Vec3 d, const m3HeightFieldData*
                 m3Vec3 e1 = m3Sub3(b, a);
                 m3Vec3 e2 = m3Sub3(c, a);
                 m3Vec3 n = m3Cross3(e1, e2);
-                m3real denom = m3Dot3(n, d);
+                float denom = m3Dot3(n, d);
                 if (denom >= 0.0f)
                 {
                     continue;
                 }
-                m3real dist = m3Dot3(n, m3Sub3(o, a));
-                m3real tHit = dist / -denom;
+                float dist = m3Dot3(n, m3Sub3(o, a));
+                float tHit = dist / -denom;
                 if (tHit < 0.0f || tHit > 1.0f)
                 {
                     continue;
@@ -431,8 +431,8 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     const m3Transform* xf = &xfS;
 
     // Localize the double origin into the SHAPE frame.
-    m3Vec3 rel = {(m3real)(ctx->origin.x - xf->p.x), (m3real)(ctx->origin.y - xf->p.y),
-                  (m3real)(ctx->origin.z - xf->p.z)};
+    m3Vec3 rel = {(float)(ctx->origin.x - xf->p.x), (float)(ctx->origin.y - xf->p.y),
+                  (float)(ctx->origin.z - xf->p.z)};
     m3Vec3 o = m3InvRotateVec3(xf->q, rel);
     m3Vec3 d = m3InvRotateVec3(xf->q, ctx->translation);
 
@@ -469,11 +469,11 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
     else if (type == (uint8_t)m3_planeShape)
     {
         m3Vec3 n = world->shapes.shapeGeom[shape].v;
-        m3real dist = m3Dot3(n, o) - world->shapes.shapeGeom[shape].s;
-        m3real denom = m3Dot3(n, d);
+        float dist = m3Dot3(n, o) - world->shapes.shapeGeom[shape].s;
+        float denom = m3Dot3(n, d);
         if (dist >= 0.0f && denom < 0.0f)
         {
-            m3real t = -dist / denom;
+            float t = -dist / denom;
             if (t >= 0.0f && t <= 1.0f)
             {
                 local.fraction = t;

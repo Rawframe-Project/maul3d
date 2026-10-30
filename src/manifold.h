@@ -19,9 +19,9 @@
 
 void m3SphereWorldCenter(const m3World* world, int32_t shape, double* cx, double* cy, double* cz);
 m3Vec3 m3AnchorFromCom(const m3World* world, int32_t body, double px, double py, double pz);
-void m3DeepPointInHull(const m3HullData* hull, m3Vec3 q, m3Vec3* normalOut, m3real* coreSepOut,
+void m3DeepPointInHull(const m3HullData* hull, m3Vec3 q, m3Vec3* normalOut, float* coreSepOut,
                        m3Vec3* onHullOut);
-m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, m3real radius);
+m3Manifold m3CollideSegmentHull(const m3HullData* hull, m3Vec3 p1, m3Vec3 p2, float radius);
 void m3CollideMeshConvex(m3World* world, m3Manifold* fresh, int32_t meshShape, int32_t otherShape,
                          int meshIsA);
 void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfShape,
@@ -35,7 +35,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
 // farthest outside that triangle. Ties go to the lower index. Writes the
 // chosen indices in ascending order, each in [0, count), and returns how
 // many.
-int32_t m3ReduceContactPoints(const m3Vec3* points, const m3real* separations, int32_t count,
+int32_t m3ReduceContactPoints(const m3Vec3* points, const float* separations, int32_t count,
                               m3Vec3 normal, int32_t out[M3_MANIFOLD_MAX_POINTS]);
 
 // Deterministic tangent basis: ONE fixed rule (the world axis with the
@@ -57,10 +57,10 @@ m3Manifold m3CollideHulls(const m3HullData* hullA, const m3HullData* hullB, m3Qu
 // Pure collide kernels (world-independent, tested in isolation).
 // Normals point from A to B. d is the center offset B minus A in
 // floats (exact enough near contact).
-m3Manifold m3CollideSpheres(m3Vec3 d, m3real radiusA, m3real radiusB);
+m3Manifold m3CollideSpheres(m3Vec3 d, float radiusA, float radiusB);
 
 // Plane (A) versus sphere (B): dist is the signed distance of the
 // sphere center above the plane, computed in double by the caller.
-m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, m3real dist, m3real radius);
+m3Manifold m3CollidePlaneSphere(m3Vec3 planeNormal, float dist, float radius);
 
 #endif // MAUL3D_SRC_MANIFOLD_H

@@ -60,7 +60,7 @@ static bool ShapeGeomValid(const m3Incoming* inc)
         if (type == (uint8_t)m3_voxelShape)
         {
             // ContentValid has put the index in range and its slot alive.
-            m3real cell;
+            float cell;
             memcpy(&cell,
                    voxelData + (size_t)m3InI32(voxelIndex, s) * sizeof(m3VoxelChunkData) +
                        offsetof(m3VoxelChunkData, cellSize),
@@ -83,7 +83,7 @@ static bool UnitQuat(const uint8_t* block, size_t stride, size_t at, int32_t i)
 {
     m3Quat q;
     memcpy(&q, block + stride * (size_t)i + at, sizeof(q));
-    m3real qq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    float qq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return qq > 0.98f && qq < 1.02f;
 }
 

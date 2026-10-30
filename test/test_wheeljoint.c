@@ -112,7 +112,7 @@ static void TestCartRollsOnFlat(void)
     }
     for (int32_t w = 0; w < CART_WHEELS; ++w)
     {
-        m3real t = m3Joint_GetTranslation(world, cart.joints[w]);
+        float t = m3Joint_GetTranslation(world, cart.joints[w]);
         CHECK(t > -0.11f && t < 0.11f, "the settled suspension sits inside its travel");
     }
     double startX = m3Body_GetPosition(world, cart.chassis).x;

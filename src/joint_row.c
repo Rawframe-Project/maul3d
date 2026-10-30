@@ -23,21 +23,21 @@ m3JointRow m3TurnRow(m3Vec3 axis)
     return row;
 }
 
-m3JointRow m3ScaleRow(m3JointRow row, m3real s)
+m3JointRow m3ScaleRow(m3JointRow row, float s)
 {
     m3JointRow scaled = {m3MulSV3(s, row.linA), m3MulSV3(s, row.angA), m3MulSV3(s, row.linB),
                          m3MulSV3(s, row.angB)};
     return scaled;
 }
 
-m3real m3RowSpeed(const m3JointRow* row, const m3JointBodies* b)
+float m3RowSpeed(const m3JointRow* row, const m3JointBodies* b)
 {
     return m3Dot3(row->linA, b->vA) + m3Dot3(row->angA, b->wA) + m3Dot3(row->linB, b->vB) +
            m3Dot3(row->angB, b->wB);
 }
 
 // J M^-1 J'^T for two rows.
-static m3real Coupling(const m3JointRow* r, const m3JointRow* s, const m3JointBodies* b)
+static float Coupling(const m3JointRow* r, const m3JointRow* s, const m3JointBodies* b)
 {
     return b->mA * m3Dot3(r->linA, s->linA) + m3Dot3(r->angA, m3MulMV3(b->iA, s->angA)) +
            b->mB * m3Dot3(r->linB, s->linB) + m3Dot3(r->angB, m3MulMV3(b->iB, s->angB));
@@ -50,16 +50,16 @@ static double WideCoupling(const m3JointRow* r, const m3JointRow* s, const m3Joi
            (double)b->mB * m3WideDot(r->linB, s->linB) + m3WideForm(&b->iB, r->angB, s->angB);
 }
 
-m3real m3RowMass(const m3JointRow* row, const m3JointBodies* b)
+float m3RowMass(const m3JointRow* row, const m3JointBodies* b)
 {
-    m3real k = Coupling(row, row, b);
+    float k = Coupling(row, row, b);
     return k > 0.0f ? 1.0f / k : 0.0f;
 }
 
 // A row's correction speed, held within the speed limit: an error of any
 // size is pushed out no faster than a body may move, which keeps every
 // solve below finite. A bias within the limit is returned unchanged.
-static m3real CapBias(m3real bias)
+static float CapBias(float bias)
 {
     return m3ClampF(bias, -M3_SPEED_LIMIT, M3_SPEED_LIMIT);
 }
@@ -70,7 +70,7 @@ static m3Vec3 CapBias3(m3Vec3 bias)
     return capped;
 }
 
-void m3PushRow(const m3JointRow* row, m3JointBodies* b, m3real impulse)
+void m3PushRow(const m3JointRow* row, m3JointBodies* b, float impulse)
 {
     b->vA = m3Add3(b->vA, m3MulSV3(b->mA * impulse, row->linA));
     b->wA = m3Add3(b->wA, m3MulMV3(b->iA, m3MulSV3(impulse, row->angA)));
@@ -78,18 +78,18 @@ void m3PushRow(const m3JointRow* row, m3JointBodies* b, m3real impulse)
     b->wB = m3Add3(b->wB, m3MulMV3(b->iB, m3MulSV3(impulse, row->angB)));
 }
 
-m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3real* accumulated,
-                  m3real lo, m3real hi)
+float m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, float* accumulated,
+                 float lo, float hi)
 {
-    m3real mass = m3RowMass(row, b);
+    float mass = m3RowMass(row, b);
     if (mass == 0.0f)
     {
         return 0.0f;
     }
-    m3real old = *accumulated;
-    m3real speed = m3RowSpeed(row, b);
-    m3real next = old - mass * (drive.scale * speed + CapBias(drive.bias)) - drive.leak * old;
-    m3real bound = mass * M3_ROW_SPEED_BOUND;
+    float old = *accumulated;
+    float speed = m3RowSpeed(row, b);
+    float next = old - mass * (drive.scale * speed + CapBias(drive.bias)) - drive.leak * old;
+    float bound = mass * M3_ROW_SPEED_BOUND;
     lo = m3MaxF(lo, -bound);
     hi = m3MinF(hi, bound);
     next = next < lo ? lo : (next > hi ? hi : next);
@@ -98,22 +98,22 @@ m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3r
     return next - old;
 }
 
-void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bias[2],
-                    m3RowDrive drive, m3real* first, m3real* second)
+void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const float bias[2],
+                    m3RowDrive drive, float* first, float* second)
 {
-    m3real k11 = Coupling(&rows[0], &rows[0], b);
-    m3real k12 = Coupling(&rows[0], &rows[1], b);
-    m3real k22 = Coupling(&rows[1], &rows[1], b);
-    m3real det = k11 * k22 - k12 * k12;
-    m3real x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
-    m3real y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
+    float k11 = Coupling(&rows[0], &rows[0], b);
+    float k12 = Coupling(&rows[0], &rows[1], b);
+    float k22 = Coupling(&rows[1], &rows[1], b);
+    float det = k11 * k22 - k12 * k12;
+    float x = drive.scale * m3RowSpeed(&rows[0], b) + CapBias(bias[0]);
+    float y = drive.scale * m3RowSpeed(&rows[1], b) + CapBias(bias[1]);
     // The direct result stands for every ordinary pair, so it keeps its
     // bits; a pair whose float determinant underflows or cancels is solved
     // with its couplings taken in double (m3DirectHolds).
-    m3real solved[2];
+    float solved[2];
     if (m3DirectHolds(det, k11 * k22))
     {
-        m3real inv = 1.0f / det;
+        float inv = 1.0f / det;
         solved[0] = inv * (k22 * x - k12 * y);
         solved[1] = inv * (k11 * y - k12 * x);
     }
@@ -127,13 +127,13 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
         m3SolveRow(&rows[1], b, two, second, -M3_ROW_FREE, M3_ROW_FREE);
         return;
     }
-    m3real dx = -solved[0] - drive.leak * *first;
-    m3real dy = -solved[1] - drive.leak * *second;
+    float dx = -solved[0] - drive.leak * *first;
+    float dy = -solved[1] - drive.leak * *second;
     // Each row's share held within the speed bound at the row's own mass.
-    m3real boundX = M3_ROW_SPEED_BOUND / k11;
-    m3real boundY = M3_ROW_SPEED_BOUND / k22;
-    m3real nextX = *first + dx;
-    m3real nextY = *second + dy;
+    float boundX = M3_ROW_SPEED_BOUND / k11;
+    float boundY = M3_ROW_SPEED_BOUND / k22;
+    float nextX = *first + dx;
+    float nextY = *second + dy;
     if (m3AbsF(nextX) > boundX)
     {
         dx = m3ClampF(nextX, -boundX, boundX) - *first;
@@ -151,14 +151,14 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
 // Keeps an accumulated impulse within a ball: the budget, and the speed
 // bound at the largest mass the block shows along a single axis (k is
 // the block's inverse mass). Returns the applied part.
-static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, m3real budget, const m3Mat3* k)
+static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, float budget, const m3Mat3* k)
 {
-    m3real minInverse = m3MinF(k->cx.x, m3MinF(k->cy.y, k->cz.z));
-    m3real bound = minInverse > 0.0f ? M3_ROW_SPEED_BOUND / minInverse : M3_ROW_FREE;
-    m3real limit = m3MinF(budget, bound);
+    float minInverse = m3MinF(k->cx.x, m3MinF(k->cy.y, k->cz.z));
+    float bound = minInverse > 0.0f ? M3_ROW_SPEED_BOUND / minInverse : M3_ROW_FREE;
+    float limit = m3MinF(budget, bound);
     m3Vec3 old = *accumulated;
     m3Vec3 next = m3Add3(old, impulse);
-    m3real length2 = m3Dot3(next, next);
+    float length2 = m3Dot3(next, next);
     if (length2 > limit * limit)
     {
         next = m3MulSV3(limit / sqrtf(length2), next);
@@ -225,7 +225,7 @@ static void WideResponse(const m3JointRow* r, const m3JointBodies* b, double out
 {
     const m3Vec3 parts[4] = {r->linA, r->angA, r->linB, r->angB};
     const m3Mat3* inertia[2] = {&b->iA, &b->iB};
-    const m3real masses[2] = {b->mA, b->mB};
+    const float masses[2] = {b->mA, b->mB};
     for (int32_t body = 0; body < 2; ++body)
     {
         m3Vec3 lin = parts[2 * body];
@@ -276,19 +276,19 @@ static void BuildBlockWide(const m3JointRow* rows, int32_t count, const m3JointB
 // Clamps each row's accumulated impulse by the solved step x and pushes
 // what changed as one velocity change, from the responses M^-1 J^T
 // already built for K.
-static void PushBlock(const m3JointRow* response, const bool* linear, const m3real* diagonal,
+static void PushBlock(const m3JointRow* response, const bool* linear, const float* diagonal,
                       const double* x, int32_t count, m3JointBodies* b, m3RowDrive drive,
-                      m3real* const* accumulated)
+                      float* const* accumulated)
 {
     m3JointRow change = {
         {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
     for (int32_t i = 0; i < count; ++i)
     {
-        m3real old = *accumulated[i];
-        m3real bound = M3_ROW_SPEED_BOUND / diagonal[i];
-        m3real next = m3ClampF(old - (m3real)x[i] - drive.leak * old, -bound, bound);
+        float old = *accumulated[i];
+        float bound = M3_ROW_SPEED_BOUND / diagonal[i];
+        float next = m3ClampF(old - (float)x[i] - drive.leak * old, -bound, bound);
         *accumulated[i] = next;
-        m3real applied = next - old;
+        float applied = next - old;
         const m3JointRow* w = &response[i];
         if (linear[i])
         {
@@ -309,8 +309,8 @@ static bool IsZero3(m3Vec3 v)
     return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
 }
 
-void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const m3real* bias,
-                     m3RowDrive drive, m3real* const* accumulated)
+void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const float* bias,
+                     m3RowDrive drive, float* const* accumulated)
 {
     // K and the responses M^-1 J^T are built in float, like every other
     // row's mass, and factored in double. A turn row has no linear part,
@@ -332,7 +332,7 @@ void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, co
         for (int32_t j = 0; j <= i; ++j)
         {
             const m3JointRow* w = &response[j];
-            m3real turn = m3Dot3(r->angA, w->angA) + m3Dot3(r->angB, w->angB);
+            float turn = m3Dot3(r->angA, w->angA) + m3Dot3(r->angB, w->angB);
             if (linear[i] && linear[j])
             {
                 turn = m3Dot3(r->linA, w->linA) + m3Dot3(r->angA, w->angA) +
@@ -340,17 +340,17 @@ void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, co
             }
             k[i][j] = (double)turn;
         }
-        m3real speed = m3Dot3(r->angA, b->wA) + m3Dot3(r->angB, b->wB);
+        float speed = m3Dot3(r->angA, b->wA) + m3Dot3(r->angB, b->wB);
         if (linear[i])
         {
             speed = m3RowSpeed(r, b);
         }
         x[i] = (double)(drive.scale * speed + CapBias(bias[i]));
     }
-    m3real diagonal[M3_BLOCK_ROWS];
+    float diagonal[M3_BLOCK_ROWS];
     for (int32_t i = 0; i < count; ++i)
     {
-        diagonal[i] = (m3real)k[i][i];
+        diagonal[i] = (float)k[i][i];
     }
     // A float K holds about seven digits: a pivot that cancels below 1e-4
     // of its diagonal has too few left, so K is built again in double,
@@ -383,7 +383,7 @@ void m3PushPoint(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 impulse)
 
 // K = (mA + mB) I - [rA] IA [rA] - [rB] IB [rB], column by column.
 void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, m3RowDrive drive,
-                       m3Vec3* accumulated, m3real budget)
+                       m3Vec3* accumulated, float budget)
 {
     m3Mat3 k;
     const m3Vec3 basis[3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
@@ -418,7 +418,7 @@ void m3PushTurn(m3JointBodies* b, m3Vec3 impulse)
 }
 
 void m3SolveTurnBlock(m3JointBodies* b, m3Vec3 bias, m3RowDrive drive, m3Vec3* accumulated,
-                      m3real budget)
+                      float budget)
 {
     m3Mat3 k = {m3Add3(b->iA.cx, b->iB.cx), m3Add3(b->iA.cy, b->iB.cy), m3Add3(b->iA.cz, b->iB.cz)};
     m3Vec3 rhs = m3Add3(m3MulSV3(drive.scale, m3Sub3(b->wB, b->wA)), CapBias3(bias));
@@ -426,24 +426,24 @@ void m3SolveTurnBlock(m3JointBodies* b, m3Vec3 bias, m3RowDrive drive, m3Vec3* a
     m3PushTurn(b, WithinBall(accumulated, impulse, budget, &k));
 }
 
-m3RowDrive m3RigidDrive(m3real bias)
+m3RowDrive m3RigidDrive(float bias)
 {
     m3RowDrive drive = {bias, 1.0f, 0.0f};
     return drive;
 }
 
-m3RowDrive m3SpringDrive(m3Softness soft, m3real C)
+m3RowDrive m3SpringDrive(m3Softness soft, float C)
 {
     m3RowDrive drive = {soft.massScale * soft.biasRate * C, soft.massScale, soft.impulseScale};
     return drive;
 }
 
-m3RowDrive m3HeldDrive(m3Softness soft, m3real C, bool biased)
+m3RowDrive m3HeldDrive(m3Softness soft, float C, bool biased)
 {
     return biased ? m3SpringDrive(soft, C) : m3RigidDrive(0.0f);
 }
 
-m3RowDrive m3LimitDrive(m3Softness soft, m3real C, m3real invH, bool biased)
+m3RowDrive m3LimitDrive(m3Softness soft, float C, float invH, bool biased)
 {
     return C > 0.0f ? m3RigidDrive(C * invH) : m3HeldDrive(soft, C, biased);
 }

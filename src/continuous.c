@@ -31,7 +31,7 @@ typedef struct Sweeper
     int32_t shape;
     m3Pos3 base; // the fast body's start: the sweep frame's origin
     m3Sweep sweep;
-    m3real fraction; // the earliest impact so far
+    float fraction; // the earliest impact so far
 } Sweeper;
 
 // A body's sweep over the step, relative to base so the kernels see small
@@ -41,12 +41,12 @@ static m3Sweep RelativeSweep(const m3World* world, int32_t body, const m3Pos3* c
 {
     m3Sweep sweep;
     sweep.localCenter = world->bodies.localCenters[body];
-    sweep.c1 = (m3Vec3){(m3real)(com0[body].x - base.x), (m3real)(com0[body].y - base.y),
-                        (m3real)(com0[body].z - base.z)};
+    sweep.c1 = (m3Vec3){(float)(com0[body].x - base.x), (float)(com0[body].y - base.y),
+                        (float)(com0[body].z - base.z)};
     m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[body].q, world->bodies.localCenters[body]);
-    sweep.c2 = (m3Vec3){(m3real)(world->bodies.transforms[body].p.x + (double)rlc.x - base.x),
-                        (m3real)(world->bodies.transforms[body].p.y + (double)rlc.y - base.y),
-                        (m3real)(world->bodies.transforms[body].p.z + (double)rlc.z - base.z)};
+    sweep.c2 = (m3Vec3){(float)(world->bodies.transforms[body].p.x + (double)rlc.x - base.x),
+                        (float)(world->bodies.transforms[body].p.y + (double)rlc.y - base.y),
+                        (float)(world->bodies.transforms[body].p.z + (double)rlc.z - base.z)};
     sweep.q1 = rot0[body];
     sweep.q2 = world->bodies.transforms[body].q;
     return sweep;
@@ -73,11 +73,11 @@ static m3SurfacePath SweptPathIn(const Sweeper* sw, int32_t target)
     m3Pos3 start = sw->com0[sw->body];
     m3Vec3 rlc = m3RotateVec3(xfF->q, world->bodies.localCenters[sw->body]);
     m3Vec3 c1 =
-        m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(start.x - xfT->p.x), (m3real)(start.y - xfT->p.y),
-                                         (m3real)(start.z - xfT->p.z)});
-    m3Vec3 c2 = m3InvRotateVec3(xfT->q, (m3Vec3){(m3real)(xfF->p.x + (double)rlc.x - xfT->p.x),
-                                                 (m3real)(xfF->p.y + (double)rlc.y - xfT->p.y),
-                                                 (m3real)(xfF->p.z + (double)rlc.z - xfT->p.z)});
+        m3InvRotateVec3(xfT->q, (m3Vec3){(float)(start.x - xfT->p.x), (float)(start.y - xfT->p.y),
+                                         (float)(start.z - xfT->p.z)});
+    m3Vec3 c2 = m3InvRotateVec3(xfT->q, (m3Vec3){(float)(xfF->p.x + (double)rlc.x - xfT->p.x),
+                                                 (float)(xfF->p.y + (double)rlc.y - xfT->p.y),
+                                                 (float)(xfF->p.z + (double)rlc.z - xfT->p.z)});
     return (m3SurfacePath){c1, c2, world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN,
                            sw->fraction};
 }
@@ -87,7 +87,7 @@ static void PathBox(const m3SurfacePath* path, m3Vec3* lo, m3Vec3* hi)
 {
     m3Vec3 c1 = path->start;
     m3Vec3 c2 = m3Add3(c1, m3MulSV3(path->until, m3Sub3(path->end, c1)));
-    m3real pad = path->reach;
+    float pad = path->reach;
     *lo = (m3Vec3){m3MinF(c1.x, c2.x) - pad, m3MinF(c1.y, c2.y) - pad, m3MinF(c1.z, c2.z) - pad};
     *hi = (m3Vec3){m3MaxF(c1.x, c2.x) + pad, m3MaxF(c1.y, c2.y) + pad, m3MaxF(c1.z, c2.z) + pad};
 }
@@ -151,7 +151,7 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     m3World* world = sw->world;
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-    m3real cell = world->voxels.voxelData[slot].cellSize;
+    float cell = world->voxels.voxelData[slot].cellSize;
     SurfaceSweep ss;
     SurfaceSweepBegin(sw, body, &ss);
     m3MeshBvhHits gather;
@@ -281,34 +281,34 @@ static bool SweepCallback(int32_t shape, void* context)
 static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 {
     m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    m3real offset =
+    float offset =
         world->shapes.shapeGeom[planeShape].s -
-        (m3real)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
+        (float)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, sw->shape, scratch);
-    const m3real linearSlop = 0.005f;
-    m3real target = m3MaxF(linearSlop, proxy.radius - linearSlop);
-    m3real tolerance = 0.25f * linearSlop;
+    const float linearSlop = 0.005f;
+    float target = m3MaxF(linearSlop, proxy.radius - linearSlop);
+    float tolerance = 0.25f * linearSlop;
     // The gap closes no faster than the travel plus the fastest turn of
     // the farthest point.
-    m3real rate = m3Length3(m3Sub3(sw->sweep.c2, sw->sweep.c1)) +
-                  m3SweepAngularRateBound(&sw->sweep) * world->bodies.maxExtents[sw->body];
+    float rate = m3Length3(m3Sub3(sw->sweep.c2, sw->sweep.c1)) +
+                 m3SweepAngularRateBound(&sw->sweep) * world->bodies.maxExtents[sw->body];
     if (!(rate > 0.0f))
     {
         return;
     }
-    m3real t = 0.0f;
+    float t = 0.0f;
     for (int32_t iteration = 0; iteration < 25; ++iteration)
     {
         m3Transform xf = m3GetSweepTransform(&sw->sweep, t);
-        m3real lowest = FLT_MAX;
+        float lowest = FLT_MAX;
         for (int32_t k = 0; k < proxy.count; ++k)
         {
             m3Vec3 r = m3RotateVec3(xf.q, proxy.points[k]);
-            lowest = m3MinF(lowest, n.x * ((m3real)xf.p.x + r.x) + n.y * ((m3real)xf.p.y + r.y) +
-                                        n.z * ((m3real)xf.p.z + r.z));
+            lowest = m3MinF(lowest, n.x * ((float)xf.p.x + r.x) + n.y * ((float)xf.p.y + r.y) +
+                                        n.z * ((float)xf.p.z + r.z));
         }
-        m3real gap = lowest - offset;
+        float gap = lowest - offset;
         if (gap <= 0.0f)
         {
             return; // started behind or overlapped: the contacts own it
@@ -333,8 +333,8 @@ static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 // of its center of mass plus the arc its farthest point can sweep.
 static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
 {
-    m3real motion = m3Length3(m3Sub3(sweep->c2, sweep->c1)) +
-                    m3SweepAngularRateBound(sweep) * world->bodies.maxExtents[body];
+    float motion = m3Length3(m3Sub3(sweep->c2, sweep->c1)) +
+                   m3SweepAngularRateBound(sweep) * world->bodies.maxExtents[body];
     return motion > 0.5f * world->bodies.minExtents[body];
 }
 

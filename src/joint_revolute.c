@@ -35,7 +35,7 @@ static void SolveRevolute(m3JointConstraint* c, const m3JointPose* pose, m3Joint
     m3JointFrames f = m3PoseFrames(c, pose);
     m3JointRow spin = m3TurnRow(m3FrameAxis(f.a, 2));
     bool angled = (c->flags & (M3_JOINT_SPRING | M3_JOINT_LIMIT)) != 0;
-    m3real angle = angled ? 2.0f * m3Atan2(f.rel.z, f.rel.w) : 0.0f;
+    float angle = angled ? 2.0f * m3Atan2(f.rel.z, f.rel.w) : 0.0f;
     m3SolveDrive(&spin, angle, c, b, pass, &c->springImpulse.x, &c->perpImpulse.z);
     if ((c->flags & M3_JOINT_LIMIT) != 0)
     {
@@ -45,8 +45,8 @@ static void SolveRevolute(m3JointConstraint* c, const m3JointPose* pose, m3Joint
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
     const m3JointRow rows[2] = {m3TurnRow(m3RelativeGradient(&f, 0)),
                                 m3TurnRow(m3RelativeGradient(&f, 1))};
-    const m3real bias[2] = {unit.bias * f.rel.x, unit.bias * f.rel.y};
-    m3real* const accumulated[2] = {&c->perpImpulse.x, &c->perpImpulse.y};
+    const float bias[2] = {unit.bias * f.rel.x, unit.bias * f.rel.y};
+    float* const accumulated[2] = {&c->perpImpulse.x, &c->perpImpulse.y};
     m3SolveJointPointWith(c, pose, b, pass, rows, 2, bias, accumulated);
 }
 

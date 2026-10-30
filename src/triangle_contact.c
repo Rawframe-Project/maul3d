@@ -31,11 +31,11 @@ static m3TriPoint ClosestPointOnTriangle(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 q)
 {
     const m3Vec3 v[3] = {a, b, c};
     m3Vec3 n = m3Cross3(m3Sub3(b, a), m3Sub3(c, a));
-    m3real nn = m3Dot3(n, n);
+    float nn = m3Dot3(n, n);
     if (nn > 0.0f)
     {
         // Barycentric weights of q's projection, times |n|^2.
-        m3real w[3];
+        float w[3];
         for (int32_t i = 0; i < 3; ++i)
         {
             w[i] = m3Dot3(n, m3Cross3(m3Sub3(v[(i + 1) % 3], q), m3Sub3(v[(i + 2) % 3], q)));
@@ -48,13 +48,13 @@ static m3TriPoint ClosestPointOnTriangle(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 q)
         }
     }
     m3TriPoint best = {a, 1};
-    m3real bestD = FLT_MAX;
+    float bestD = FLT_MAX;
     for (int32_t i = 0; i < 3; ++i)
     {
         int32_t j = (i + 1) % 3;
         m3Vec3 e = m3Sub3(v[j], v[i]);
-        m3real ee = m3Dot3(e, e);
-        m3real t = ee > 0.0f ? m3ClampF(m3Dot3(m3Sub3(q, v[i]), e) / ee, 0.0f, 1.0f) : 0.0f;
+        float ee = m3Dot3(e, e);
+        float t = ee > 0.0f ? m3ClampF(m3Dot3(m3Sub3(q, v[i]), e) / ee, 0.0f, 1.0f) : 0.0f;
         m3Vec3 p = m3Add3(v[i], m3MulSV3(t, e));
         m3Vec3 d = m3Sub3(q, p);
         if (m3Dot3(d, d) < bestD)
@@ -67,7 +67,7 @@ static m3TriPoint ClosestPointOnTriangle(m3Vec3 a, m3Vec3 b, m3Vec3 c, m3Vec3 q)
     return best;
 }
 
-void m3CollideSphereTriangle(m3TriManifold* out, m3Vec3 center, m3real radius, const m3Vec3 tri[3])
+void m3CollideSphereTriangle(m3TriManifold* out, m3Vec3 center, float radius, const m3Vec3 tri[3])
 {
     out->pointCount = 0;
     m3Vec3 triN = m3Cross3(m3Sub3(tri[1], tri[0]), m3Sub3(tri[2], tri[0]));
@@ -77,13 +77,13 @@ void m3CollideSphereTriangle(m3TriManifold* out, m3Vec3 center, m3real radius, c
     }
     m3TriPoint closest = ClosestPointOnTriangle(tri[0], tri[1], tri[2], center);
     m3Vec3 d = m3Sub3(center, closest.point);
-    m3real dist2 = m3Dot3(d, d);
-    m3real reach = radius + M3_SPECULATIVE_DISTANCE;
+    float dist2 = m3Dot3(d, d);
+    float reach = radius + M3_SPECULATIVE_DISTANCE;
     if (dist2 > reach * reach)
     {
         return;
     }
-    m3real dist = sqrtf(dist2);
+    float dist = sqrtf(dist2);
     m3Vec3 normal = dist2 > 1000.0f * FLT_MIN ? m3MulSV3(1.0f / dist, d) : m3Normalize3(triN);
     out->normal = normal;
     out->triNormal = m3Normalize3(triN);
@@ -104,8 +104,8 @@ static bool ClipSegmentToPrism(m3Vec3 segment[2], const m3Vec3 tri[3], m3Vec3 fa
     {
         m3Vec3 v1 = tri[i];
         m3Vec3 side = m3Cross3(m3Normalize3(m3Sub3(tri[(i + 1) % 3], v1)), faceNormal); // outward
-        m3real d1 = m3Dot3(side, m3Sub3(segment[0], v1));
-        m3real d2 = m3Dot3(side, m3Sub3(segment[1], v1));
+        float d1 = m3Dot3(side, m3Sub3(segment[0], v1));
+        float d2 = m3Dot3(side, m3Sub3(segment[1], v1));
         if (d1 > 0.0f && d2 > 0.0f)
         {
             return false;
@@ -121,15 +121,15 @@ static bool ClipSegmentToPrism(m3Vec3 segment[2], const m3Vec3 tri[3], m3Vec3 fa
 }
 
 // Closest points of segments p + s d and q + t e, s and t in [0, 1].
-static void SegmentFractions(m3Vec3 p, m3Vec3 d, m3Vec3 q, m3Vec3 e, m3real* s, m3real* t)
+static void SegmentFractions(m3Vec3 p, m3Vec3 d, m3Vec3 q, m3Vec3 e, float* s, float* t)
 {
     m3Vec3 r = m3Sub3(p, q);
-    m3real dd = m3Dot3(d, d);
-    m3real ee = m3Dot3(e, e);
-    m3real de = m3Dot3(d, e);
-    m3real dr = m3Dot3(d, r);
-    m3real er = m3Dot3(e, r);
-    m3real denom = dd * ee - de * de;
+    float dd = m3Dot3(d, d);
+    float ee = m3Dot3(e, e);
+    float de = m3Dot3(d, e);
+    float dr = m3Dot3(d, r);
+    float er = m3Dot3(e, r);
+    float denom = dd * ee - de * de;
     *s = denom > 1.0e-9f ? m3ClampF((de * er - dr * ee) / denom, 0.0f, 1.0f) : 0.0f;
     *t = ee > 1.0e-9f ? m3ClampF((de * *s + er) / ee, 0.0f, 1.0f) : 0.0f;
     *s = dd > 1.0e-9f ? m3ClampF((de * *t - dr) / dd, 0.0f, 1.0f) : 0.0f;
@@ -139,18 +139,18 @@ typedef struct SegTriClosest
 {
     m3Vec3 onSegment;
     m3TriPoint onTriangle;
-    m3real distance; // zero when the segment pierces the triangle
+    float distance; // zero when the segment pierces the triangle
 } SegTriClosest;
 
 // The closest points of segment c1-c2 and the triangle: the segment's
 // crossing of the face when it pierces it, else the best of its two ends
 // against the triangle and the segment against each edge.
 static SegTriClosest ClosestSegmentTriangle(m3Vec3 c1, m3Vec3 c2, const m3Vec3 tri[3], m3Vec3 triN,
-                                            m3real triOff)
+                                            float triOff)
 {
     SegTriClosest best;
-    m3real h1 = m3Dot3(triN, c1) - triOff;
-    m3real h2 = m3Dot3(triN, c2) - triOff;
+    float h1 = m3Dot3(triN, c1) - triOff;
+    float h2 = m3Dot3(triN, c2) - triOff;
     if (h1 * h2 < 0.0f)
     {
         m3Vec3 cross = m3Add3(c1, m3MulSV3(h1 / (h1 - h2), m3Sub3(c2, c1)));
@@ -165,7 +165,7 @@ static SegTriClosest ClosestSegmentTriangle(m3Vec3 c1, m3Vec3 c2, const m3Vec3 t
     for (int32_t k = 0; k < 2; ++k)
     {
         m3TriPoint on = ClosestPointOnTriangle(tri[0], tri[1], tri[2], ends[k]);
-        m3real d = m3Length3(m3Sub3(ends[k], on.point));
+        float d = m3Length3(m3Sub3(ends[k], on.point));
         if (d < best.distance)
         {
             best = (SegTriClosest){ends[k], on, d};
@@ -175,12 +175,12 @@ static SegTriClosest ClosestSegmentTriangle(m3Vec3 c1, m3Vec3 c2, const m3Vec3 t
     {
         int32_t j = (i + 1) % 3;
         m3Vec3 e = m3Sub3(tri[j], tri[i]);
-        m3real s;
-        m3real t;
+        float s;
+        float t;
         SegmentFractions(c1, m3Sub3(c2, c1), tri[i], e, &s, &t);
         m3Vec3 onSeg = m3Add3(c1, m3MulSV3(s, m3Sub3(c2, c1)));
         m3Vec3 onTri = m3Add3(tri[i], m3MulSV3(t, e));
-        m3real d = m3Length3(m3Sub3(onSeg, onTri));
+        float d = m3Length3(m3Sub3(onSeg, onTri));
         if (d < best.distance)
         {
             int32_t feature = t <= 0.0f ? 1 << i : (t >= 1.0f ? 1 << j : (1 << i) | (1 << j));
@@ -193,8 +193,8 @@ static SegTriClosest ClosestSegmentTriangle(m3Vec3 c1, m3Vec3 c2, const m3Vec3 t
 // Two contact points at the ends of the capsule core clipped to the
 // triangle's prism, each resting on the face. False when the clip leaves
 // nothing.
-static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real radius,
-                               const m3Vec3 tri[3], m3Vec3 triN, m3real triOff)
+static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, float radius,
+                               const m3Vec3 tri[3], m3Vec3 triN, float triOff)
 {
     m3Vec3 segment[2] = {c1, c2};
     if (!ClipSegmentToPrism(segment, tri, triN))
@@ -204,10 +204,10 @@ static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real 
     out->normal = triN;
     out->feature = 7;
     out->pointCount = 2;
-    m3real least = FLT_MAX;
+    float least = FLT_MAX;
     for (int32_t k = 0; k < 2; ++k)
     {
-        m3real height = m3Dot3(triN, segment[k]) - triOff;
+        float height = m3Dot3(triN, segment[k]) - triOff;
         out->separation[k] = height - radius;
         out->point[k] = m3Sub3(segment[k], m3MulSV3(0.5f * (radius + height), triN));
         out->localId[k] = (uint16_t)k;
@@ -220,9 +220,9 @@ static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real 
 // One point between the capsule core and a triangle feature along axis,
 // the direction from the triangle toward the core.
 static void CapsulePointContact(m3TriManifold* out, m3Vec3 onCore, m3Vec3 onTri, int32_t feature,
-                                m3Vec3 axis, m3real radius)
+                                m3Vec3 axis, float radius)
 {
-    m3real separation = m3Dot3(axis, m3Sub3(onCore, onTri));
+    float separation = m3Dot3(axis, m3Sub3(onCore, onTri));
     out->normal = axis;
     out->feature = feature;
     out->pointCount = 1;
@@ -238,12 +238,12 @@ static void CapsulePointContact(m3TriManifold* out, m3Vec3 onCore, m3Vec3 onTri,
 // other approach takes one point. Piercing, the separating axis test
 // between the face normal and the triangle edges crossed with the core
 // picks a face contact unless an edge axis is clearly shallower.
-void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real radius,
+void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, float radius,
                               const m3Vec3 tri[3])
 {
     out->pointCount = 0;
     m3Vec3 triN = m3Normalize3(m3Cross3(m3Sub3(tri[1], tri[0]), m3Sub3(tri[2], tri[0])));
-    m3real triOff = m3Dot3(triN, tri[0]);
+    float triOff = m3Dot3(triN, tri[0]);
     out->triNormal = triN;
     if (m3Dot3(triN, m3MulSV3(0.5f, m3Add3(c1, c2))) - triOff < 0.0f)
     {
@@ -268,24 +268,24 @@ void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real r
     }
     // Piercing: the face axis is the shallower core end's height; each
     // edge axis runs from the triangle's center outward.
-    m3real faceSep = m3MinF(m3Dot3(triN, c1), m3Dot3(triN, c2)) - triOff;
+    float faceSep = m3MinF(m3Dot3(triN, c1), m3Dot3(triN, c2)) - triOff;
     m3Vec3 center = m3MulSV3(1.0f / 3.0f, m3Add3(tri[0], m3Add3(tri[1], tri[2])));
     m3Vec3 dir = m3Sub3(c2, c1);
     int32_t bestEdge = -1;
-    m3real bestSep = -FLT_MAX;
+    float bestSep = -FLT_MAX;
     m3Vec3 bestAxis = triN;
     for (int32_t i = 0; i < 3; ++i)
     {
         m3Vec3 e = m3Sub3(tri[(i + 1) % 3], tri[i]);
         m3Vec3 axis = m3Cross3(e, dir);
-        m3real length = m3Length3(axis);
+        float length = m3Length3(axis);
         if (length < 0.005f * m3Length3(e) * m3Length3(dir))
         {
             continue; // nearly parallel: the face axis covers it
         }
         axis = m3MulSV3(1.0f / length, axis);
         axis = m3Dot3(axis, m3Sub3(tri[i], center)) < 0.0f ? m3Neg3(axis) : axis;
-        m3real sep = m3MinF(m3Dot3(axis, c1), m3Dot3(axis, c2)) - m3Dot3(axis, tri[i]);
+        float sep = m3MinF(m3Dot3(axis, c1), m3Dot3(axis, c2)) - m3Dot3(axis, tri[i]);
         if (sep > bestSep)
         {
             bestSep = sep;
@@ -297,7 +297,7 @@ void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real r
     {
         return;
     }
-    const m3real tolerance = 0.005f;
+    const float tolerance = 0.005f;
     if ((bestEdge < 0 || bestSep <= faceSep + tolerance) &&
         CapsuleFaceContact(out, c1, c2, radius, tri, triN, triOff))
     {
@@ -306,8 +306,8 @@ void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real r
     if (bestEdge >= 0)
     {
         m3Vec3 e = m3Sub3(tri[(bestEdge + 1) % 3], tri[bestEdge]);
-        m3real s;
-        m3real t;
+        float s;
+        float t;
         SegmentFractions(c1, dir, tri[bestEdge], e, &s, &t);
         int32_t feature = (1 << bestEdge) | (1 << ((bestEdge + 1) % 3));
         CapsulePointContact(out, m3Add3(c1, m3MulSV3(s, dir)),
@@ -320,13 +320,13 @@ void m3CollideCapsuleTriangle(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, m3real r
 typedef struct m3MeshClipVertex
 {
     m3Vec3 position;
-    m3real separation; // height over the reference plane
+    float separation; // height over the reference plane
 } m3MeshClipVertex;
 
 typedef struct ClipPlane
 {
     m3Vec3 normal; // outward: points with positive height are cut away
-    m3real offset;
+    float offset;
 } ClipPlane;
 
 // Clips a polygon to one plane (Sutherland and Hodgman), keeping each
@@ -340,8 +340,8 @@ static int32_t ClipToPlane(m3MeshClipVertex* out, const m3MeshClipVertex* in, in
     {
         m3MeshClipVertex cur = in[k];
         m3MeshClipVertex nxt = in[(k + 1) % count];
-        m3real dc = m3Dot3(plane.normal, cur.position) - plane.offset;
-        m3real dn = m3Dot3(plane.normal, nxt.position) - plane.offset;
+        float dc = m3Dot3(plane.normal, cur.position) - plane.offset;
+        float dn = m3Dot3(plane.normal, nxt.position) - plane.offset;
         if (n + 2 > M3_MESH_CLIP_CAP)
         {
             return 0;
@@ -365,7 +365,7 @@ static int32_t ClipToPlane(m3MeshClipVertex* out, const m3MeshClipVertex* in, in
 static void KeepClipPoints(m3TriManifold* out, const m3MeshClipVertex* points, int32_t count)
 {
     m3Vec3 position[M3_MESH_CLIP_CAP];
-    m3real separation[M3_MESH_CLIP_CAP];
+    float separation[M3_MESH_CLIP_CAP];
     int32_t n = 0;
     for (int32_t c = 0; c < count; ++c)
     {
@@ -393,7 +393,7 @@ typedef struct TriFrame
 {
     const m3Vec3* v;
     m3Vec3 normal;
-    m3real offset;
+    float offset;
     m3Vec3 center;
     m3Vec3 edge[3];
     m3Vec3 out[3];
@@ -416,7 +416,7 @@ static TriFrame MakeTriFrame(const m3Vec3 tri[3])
 
 typedef struct HullTriEdge
 {
-    m3real separation;
+    float separation;
     int32_t triEdge;
     int32_t hullEdge; // even half-edge slot
     m3Vec3 axis;      // from the triangle toward the hull
@@ -431,8 +431,8 @@ typedef struct HullTriEdge
 // the Minkowski face the two edges make, so it also orients the axis.
 static bool TriEdgeArcCrossing(const TriFrame* t, int32_t i, m3Vec3 a, m3Vec3 b, m3Vec3* crossing)
 {
-    m3real sa = m3Dot3(a, t->edge[i]);
-    m3real sb = m3Dot3(b, t->edge[i]);
+    float sa = m3Dot3(a, t->edge[i]);
+    float sb = m3Dot3(b, t->edge[i]);
     if (!(sa * sb < 0.0f))
     {
         return false;
@@ -458,14 +458,14 @@ static HullTriEdge BestHullTriEdge(const TriFrame* t, const m3HullData* hull)
                 continue;
             }
             m3Vec3 axis = m3Cross3(t->edge[i], he);
-            m3real length = m3Length3(axis);
+            float length = m3Length3(axis);
             if (length < 0.005f * m3Length3(t->edge[i]) * m3Length3(he))
             {
                 continue; // nearly parallel: a face axis covers it
             }
             axis = m3MulSV3(1.0f / length, axis);
             axis = m3Dot3(axis, crossing) < 0.0f ? m3Neg3(axis) : axis;
-            m3real separation = m3Dot3(axis, m3Sub3(hp, t->v[i]));
+            float separation = m3Dot3(axis, m3Sub3(hp, t->v[i]));
             if (separation > best.separation)
             {
                 best = (HullTriEdge){separation, i, e, axis};
@@ -556,12 +556,12 @@ static void HullEdgeContact(m3TriManifold* out, const m3HullData* hull, const Tr
     m3Vec3 hp = hull->vertices[hull->edges[edge->hullEdge].origin];
     m3Vec3 he = m3Sub3(hull->vertices[hull->edges[edge->hullEdge + 1].origin], hp);
     int32_t i = edge->triEdge;
-    m3real s;
-    m3real u;
+    float s;
+    float u;
     SegmentFractions(t->v[i], t->edge[i], hp, he, &s, &u);
     m3Vec3 onTri = m3Add3(t->v[i], m3MulSV3(s, t->edge[i]));
     m3Vec3 onHull = m3Add3(hp, m3MulSV3(u, he));
-    m3real separation = m3Dot3(edge->axis, m3Sub3(onHull, onTri));
+    float separation = m3Dot3(edge->axis, m3Sub3(onHull, onTri));
     out->pointCount = 1;
     out->normal = edge->axis;
     out->feature = (1 << i) | (1 << ((i + 1) % 3));
@@ -603,23 +603,23 @@ static void HullWitnessContact(m3TriManifold* out, const m3HullData* hull, const
 void m3CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, const m3Vec3 tri[3])
 {
     out->pointCount = 0;
-    const m3real tolerance = 0.005f;
+    const float tolerance = 0.005f;
     TriFrame t = MakeTriFrame(tri);
     out->triNormal = t.normal;
     if (m3Dot3(t.normal, hull->center) - t.offset < -tolerance)
     {
         return; // back side cull
     }
-    m3real triSep = FLT_MAX;
+    float triSep = FLT_MAX;
     for (int32_t v = 0; v < hull->vertexCount; ++v)
     {
         triSep = m3MinF(triSep, m3Dot3(t.normal, hull->vertices[v]) - t.offset);
     }
     int32_t hullFace = 0;
-    m3real hullSep = -FLT_MAX;
+    float hullSep = -FLT_MAX;
     for (int32_t f = 0; f < hull->faceCount && triSep <= M3_SPECULATIVE_DISTANCE; ++f)
     {
-        m3real least = FLT_MAX;
+        float least = FLT_MAX;
         for (int32_t k = 0; k < 3; ++k)
         {
             least = m3MinF(least, m3Dot3(hull->faceNormals[f], tri[k]) - hull->faceOffsets[f]);
@@ -656,7 +656,7 @@ void m3CollideHullTriangle(m3TriManifold* out, const m3HullData* hull, const m3V
         HullWitnessContact(out, hull, tri);
         return;
     }
-    m3real least = FLT_MAX;
+    float least = FLT_MAX;
     for (int32_t k = 0; k < out->pointCount; ++k)
     {
         least = m3MinF(least, out->separation[k]);

@@ -16,16 +16,16 @@ void m3DestroyVehicleInternal(m3World* world, int32_t slot);
 
 void m3VehicleApplySuspension(m3World* world, float dt);
 
-void m3VehicleCommandsInternal(m3World* world, int32_t slot, m3real throttle, m3real steer,
-                               m3real brake);
+void m3VehicleCommandsInternal(m3World* world, int32_t slot, float throttle, float steer,
+                               float brake);
 
-void m3VehicleTankCommandsInternal(m3World* world, int32_t slot, m3real left, m3real right,
-                                   m3real brake);
+void m3VehicleTankCommandsInternal(m3World* world, int32_t slot, float left, float right,
+                                   float brake);
 
 // Skid-steer commands the public call and replay accept: finite, on a
 // vehicle with no drivetrain.
-bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, m3real left, m3real right,
-                                m3real brake);
+bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, float left, float right,
+                                float brake);
 
 // The bounds a wheel and a drivetrain must keep, at create, set, replay
 // and restore.

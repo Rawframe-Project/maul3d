@@ -22,8 +22,8 @@ typedef struct m3JointBodies
     m3Vec3 wA;
     m3Vec3 vB;
     m3Vec3 wB;
-    m3real mA;
-    m3real mB;
+    float mA;
+    float mB;
     m3Mat3 iA; // world inverse inertia
     m3Mat3 iB;
 } m3JointBodies;
@@ -40,9 +40,9 @@ typedef struct m3JointRow
 //   -mass (scale J v + bias) - leak accumulated.
 typedef struct m3RowDrive
 {
-    m3real bias;
-    m3real scale;
-    m3real leak;
+    float bias;
+    float scale;
+    float leak;
 } m3RowDrive;
 
 // No bound on an accumulated impulse.
@@ -63,25 +63,25 @@ m3JointRow m3LineRow(m3Vec3 leverA, m3Vec3 armB, m3Vec3 u);
 // B's spin minus A's about axis.
 m3JointRow m3TurnRow(m3Vec3 axis);
 
-m3JointRow m3ScaleRow(m3JointRow row, m3real s);
+m3JointRow m3ScaleRow(m3JointRow row, float s);
 
-m3real m3RowSpeed(const m3JointRow* row, const m3JointBodies* b);
+float m3RowSpeed(const m3JointRow* row, const m3JointBodies* b);
 
 // The row's effective mass, zero when the row cannot move.
-m3real m3RowMass(const m3JointRow* row, const m3JointBodies* b);
+float m3RowMass(const m3JointRow* row, const m3JointBodies* b);
 
-void m3PushRow(const m3JointRow* row, m3JointBodies* b, m3real impulse);
+void m3PushRow(const m3JointRow* row, m3JointBodies* b, float impulse);
 
 // Solves one row with its accumulated impulse held in [lo, hi] and
 // within M3_ROW_SPEED_BOUND. Returns the impulse applied.
-m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3real* accumulated,
-                  m3real lo, m3real hi);
+float m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, float* accumulated,
+                 float lo, float hi);
 
 // Solves two coupled rows, both driven with the same scale and leak and
 // each with its own bias. A singular pair falls back to the rows one at
 // a time.
-void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bias[2],
-                    m3RowDrive drive, m3real* first, m3real* second);
+void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const float bias[2],
+                    m3RowDrive drive, float* first, float* second);
 
 // The most rows m3SolveRowBlock takes.
 #define M3_BLOCK_ROWS 6
@@ -90,28 +90,28 @@ void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bia
 // the same scale and leak and each with its own bias, each accumulated
 // impulse held within M3_ROW_SPEED_BOUND. The couplings are factored in
 // double. A singular block falls back to the rows one at a time.
-void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const m3real* bias,
-                     m3RowDrive drive, m3real* const* accumulated);
+void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const float* bias,
+                     m3RowDrive drive, float* const* accumulated);
 
 // The three rows that pin B's anchor to A's, solved as one block, with
 // the accumulated impulse held within a ball of radius budget.
 void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, m3RowDrive drive,
-                       m3Vec3* accumulated, m3real budget);
+                       m3Vec3* accumulated, float budget);
 void m3PushPoint(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 impulse);
 
 // The three rows that lock B's rotation to A's, solved as one block,
 // with the accumulated impulse held within a ball of radius budget.
 void m3SolveTurnBlock(m3JointBodies* b, m3Vec3 bias, m3RowDrive drive, m3Vec3* accumulated,
-                      m3real budget);
+                      float budget);
 void m3PushTurn(m3JointBodies* b, m3Vec3 impulse);
 
 // Drives. A rigid row meets bias exactly; a held row pulls its error C
 // out through the softness while biased and is rigid while relaxing; a
 // spring pulls in every pass; a limit is speculative while open
 // (C > 0), held while violated.
-m3RowDrive m3RigidDrive(m3real bias);
-m3RowDrive m3SpringDrive(m3Softness soft, m3real C);
-m3RowDrive m3HeldDrive(m3Softness soft, m3real C, bool biased);
-m3RowDrive m3LimitDrive(m3Softness soft, m3real C, m3real invH, bool biased);
+m3RowDrive m3RigidDrive(float bias);
+m3RowDrive m3SpringDrive(m3Softness soft, float C);
+m3RowDrive m3HeldDrive(m3Softness soft, float C, bool biased);
+m3RowDrive m3LimitDrive(m3Softness soft, float C, float invH, bool biased);
 
 #endif // MAUL3D_SRC_JOINT_ROW_H

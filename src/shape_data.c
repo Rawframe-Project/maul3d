@@ -47,7 +47,7 @@ static int32_t OppositeVertex(const m3MeshData* mesh, const int32_t* start, cons
 // among the few triangles around its first vertex.
 void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
 {
-    const m3real tol = 0.005f;
+    const float tol = 0.005f;
     int32_t vertexCount = mesh->vertexCount;
     int32_t triCount = mesh->triangleCount;
     int32_t* start = scratch;
@@ -73,7 +73,7 @@ void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
         m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
         m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
         m3Vec3 n = m3Normalize3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)));
-        m3real off = m3Dot3(n, a);
+        float off = m3Dot3(n, a);
         mesh->edgeFlags[t] = 0;
         for (int32_t k = 0; k < 3; ++k)
         {
@@ -150,7 +150,7 @@ void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf)
 // gives an empty range.
 static void CellRange(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, int32_t cells[4])
 {
-    m3real inv = 1.0f / hf->cellSize;
+    float inv = 1.0f / hf->cellSize;
     int32_t cx0 = m3CellFromF(floorf(lo.x * inv), 2.0e9f);
     int32_t cx1 = m3CellFromF(floorf(hi.x * inv), -2.0e9f);
     int32_t cz0 = m3CellFromF(floorf(lo.z * inv), 2.0e9f);
@@ -189,14 +189,14 @@ static void PathStretchBox(const m3SurfacePath* path, double t0, double t1, m3Ve
     const double s[3] = {(double)path->start.x, (double)path->start.y, (double)path->start.z};
     const double e[3] = {(double)path->end.x, (double)path->end.y, (double)path->end.z};
     double r = (double)path->reach;
-    m3real l[3];
-    m3real h[3];
+    float l[3];
+    float h[3];
     for (int32_t k = 0; k < 3; ++k)
     {
         double a = s[k] + t0 * (e[k] - s[k]);
         double b = s[k] + t1 * (e[k] - s[k]);
-        l[k] = (m3real)((a < b ? a : b) - r);
-        h[k] = (m3real)((a < b ? b : a) + r);
+        l[k] = (float)((a < b ? a : b) - r);
+        h[k] = (float)((a < b ? b : a) + r);
     }
     *lo = (m3Vec3){l[0], l[1], l[2]};
     *hi = (m3Vec3){h[0], h[1], h[2]};

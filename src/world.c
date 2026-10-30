@@ -125,7 +125,7 @@ m3Result m3WindCheck(m3Vec3 direction, float speed, float gustHertz, float gustS
     {
         return result;
     }
-    m3real len2 = m3Dot3(direction, direction);
+    float len2 = m3Dot3(direction, direction);
     return m3CheckValid(speed == 0.0f || (len2 >= 0.99f && len2 <= 1.01f));
 }
 

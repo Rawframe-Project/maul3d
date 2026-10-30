@@ -33,7 +33,7 @@ static const m3JointKind* const s_kinds[] = {
     [m3_gearJoint] = &m3_gearJointKind,           [m3_pulleyJoint] = &m3_pulleyJointKind,
 };
 
-m3Softness m3StiffJointSoftness(m3real h)
+m3Softness m3StiffJointSoftness(float h)
 {
     return m3MakeSoft(M3_JOINT_HERTZ, M3_JOINT_DAMPING_RATIO, h);
 }
@@ -43,13 +43,13 @@ static bool AwakeDynamic(const m3World* world, int32_t body)
     return world->bodies.types[body] == (uint8_t)m3_dynamicBody && world->bodies.awake[body] != 0;
 }
 
-static m3real DynamicMass(const m3World* world, int32_t body)
+static float DynamicMass(const m3World* world, int32_t body)
 {
     return world->bodies.types[body] == (uint8_t)m3_dynamicBody ? world->bodies.invMass[body]
                                                                 : 0.0f;
 }
 
-static void PrepareCommon(const m3World* world, m3JointConstraint* c, int32_t j, m3real h,
+static void PrepareCommon(const m3World* world, m3JointConstraint* c, int32_t j, float h,
                           m3JointFrame* frame)
 {
     const m3Joints* joints = &world->joints;
@@ -67,9 +67,9 @@ static void PrepareCommon(const m3World* world, m3JointConstraint* c, int32_t j,
         m3RotateVec3(xfB->q, m3Sub3(joints->jointLocalB[j], world->bodies.localCenters[c->bodyB]));
     m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[c->bodyA]);
     m3Vec3 rlcB = m3RotateVec3(xfB->q, world->bodies.localCenters[c->bodyB]);
-    c->deltaCenter = (m3Vec3){(m3real)(xfB->p.x + (double)rlcB.x - xfA->p.x - (double)rlcA.x),
-                              (m3real)(xfB->p.y + (double)rlcB.y - xfA->p.y - (double)rlcA.y),
-                              (m3real)(xfB->p.z + (double)rlcB.z - xfA->p.z - (double)rlcA.z)};
+    c->deltaCenter = (m3Vec3){(float)(xfB->p.x + (double)rlcB.x - xfA->p.x - (double)rlcA.x),
+                              (float)(xfB->p.y + (double)rlcB.y - xfA->p.y - (double)rlcA.y),
+                              (float)(xfB->p.z + (double)rlcB.z - xfA->p.z - (double)rlcA.z)};
     c->invMassA = DynamicMass(world, c->bodyA);
     c->invMassB = DynamicMass(world, c->bodyB);
     c->invIA = m3WorldInvInertia(world, c->bodyA);
@@ -115,7 +115,7 @@ static void HoldWarmStart(m3JointConstraint* c)
         sum *= ratio > 1.0 ? ratio : 1.0;
     }
     double lever = 2.0 * (m3NormL1(c->rA) + m3NormL1(c->rB)) + m3NormL1(c->deltaCenter);
-    m3real scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
+    float scale = m3WarmHold(c->invMassA, &c->invIA, c->invMassB, &c->invIB, lever, sum);
     if (scale == 1.0f)
     {
         return;
@@ -126,7 +126,7 @@ static void HoldWarmStart(m3JointConstraint* c)
     }
 }
 
-int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, m3real h)
+int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, float h)
 {
     int32_t count = 0;
     for (int32_t j = 0; j < world->joints.jointPool.maxIndex; ++j)
@@ -207,7 +207,7 @@ void m3WarmStartJoints(m3World* world, m3JointConstraint* joints, int32_t count,
 }
 
 void m3SolveJoints(m3World* world, m3JointConstraint* joints, int32_t count, const m3Vec3* deltaPos,
-                   const m3Quat* deltaRot, m3real h, m3real invH, bool biased)
+                   const m3Quat* deltaRot, float h, float invH, bool biased)
 {
     m3JointPass pass = {biased, h, invH};
     for (int32_t i = 0; i < count; ++i)
@@ -278,7 +278,7 @@ m3Vec3 m3RotationVector(m3Quat q)
         q = (m3Quat){-q.x, -q.y, -q.z, -q.w};
     }
     m3Vec3 v = {q.x, q.y, q.z};
-    m3real length = sqrtf(m3Dot3(v, v));
+    float length = sqrtf(m3Dot3(v, v));
     return length < 1.0e-9f ? m3MulSV3(2.0f, v) : m3MulSV3(2.0f * m3Atan2(length, q.w) / length, v);
 }
 
@@ -290,8 +290,8 @@ m3Vec3 m3RotationError(const m3JointFrames* f, m3Quat target)
     return m3RotateVec3(f->a, m3RotationVector(m3MulQuat(f->rel, conjT)));
 }
 
-void m3SolveLimits(const m3JointRow* row, m3real value, m3real lower, m3real upper, m3Softness soft,
-                   m3real* lowerImpulse, m3real* upperImpulse, m3JointBodies* b,
+void m3SolveLimits(const m3JointRow* row, float value, float lower, float upper, m3Softness soft,
+                   float* lowerImpulse, float* upperImpulse, m3JointBodies* b,
                    const m3JointPass* pass)
 {
     m3RowDrive low = m3LimitDrive(soft, value - lower, pass->invH, pass->biased);
@@ -301,7 +301,7 @@ void m3SolveLimits(const m3JointRow* row, m3real value, m3real lower, m3real upp
     m3SolveRow(&back, b, high, upperImpulse, 0.0f, M3_ROW_FREE);
 }
 
-void m3WarmStartLimits(const m3JointRow* row, m3real lowerImpulse, m3real upperImpulse,
+void m3WarmStartLimits(const m3JointRow* row, float lowerImpulse, float upperImpulse,
                        m3JointBodies* b)
 {
     m3PushRow(row, b, lowerImpulse - upperImpulse);
@@ -312,19 +312,19 @@ m3Vec3 m3BlockBias(m3RowDrive unit, m3Vec3 C)
     return m3MulSV3(unit.bias, C);
 }
 
-m3real* m3Component(m3Vec3* v, int32_t k)
+float* m3Component(m3Vec3* v, int32_t k)
 {
     return k == 0 ? &v->x : (k == 1 ? &v->y : &v->z);
 }
 
-void m3SolveDrive(const m3JointRow* row, m3real value, const m3JointConstraint* c, m3JointBodies* b,
-                  const m3JointPass* pass, m3real* spring, m3real* motor)
+void m3SolveDrive(const m3JointRow* row, float value, const m3JointConstraint* c, m3JointBodies* b,
+                  const m3JointPass* pass, float* spring, float* motor)
 {
     bool motorOn = (c->flags & M3_JOINT_MOTOR) != 0;
-    m3real budget = c->maxMotorEffort * pass->h;
+    float budget = c->maxMotorEffort * pass->h;
     if ((c->flags & M3_JOINT_SPRING) != 0)
     {
-        m3real room = motorOn ? m3MaxF(budget - m3AbsF(*motor), 0.0f) : M3_ROW_FREE;
+        float room = motorOn ? m3MaxF(budget - m3AbsF(*motor), 0.0f) : M3_ROW_FREE;
         m3SolveRow(row, b, m3SpringDrive(c->springSoft, value - c->target), spring, -room, room);
     }
     if (motorOn)
@@ -334,15 +334,15 @@ void m3SolveDrive(const m3JointRow* row, m3real value, const m3JointConstraint* 
 }
 
 void m3SolveAlignment(const m3JointFrames* f, m3JointBodies* b, m3Softness soft, bool biased,
-                      m3real* first, m3real* second)
+                      float* first, float* second)
 {
     m3JointRow rows[2] = {m3TurnRow(m3RelativeGradient(f, 0)), m3TurnRow(m3RelativeGradient(f, 1))};
     m3RowDrive unit = m3HeldDrive(soft, 1.0f, biased);
-    m3real bias[2] = {unit.bias * f->rel.x, unit.bias * f->rel.y};
+    float bias[2] = {unit.bias * f->rel.x, unit.bias * f->rel.y};
     m3SolveRowPair(rows, b, bias, unit, first, second);
 }
 
-void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first, m3real second)
+void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, float first, float second)
 {
     m3JointRow x = m3TurnRow(m3RelativeGradient(f, 0));
     m3JointRow y = m3TurnRow(m3RelativeGradient(f, 1));
@@ -352,13 +352,13 @@ void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first
 
 void m3SolveJointPointWith(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                            const m3JointPass* pass, const m3JointRow* rows, int32_t count,
-                           const m3real* bias, m3real* const* accumulated)
+                           const float* bias, float* const* accumulated)
 {
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
     m3Vec3 pointBias = m3BlockBias(unit, pose->gap);
     m3JointRow all[M3_BLOCK_ROWS];
-    m3real allBias[M3_BLOCK_ROWS];
-    m3real* allAccumulated[M3_BLOCK_ROWS];
+    float allBias[M3_BLOCK_ROWS];
+    float* allAccumulated[M3_BLOCK_ROWS];
     for (int32_t i = 0; i < count; ++i)
     {
         all[i] = rows[i];
@@ -366,8 +366,8 @@ void m3SolveJointPointWith(m3JointConstraint* c, const m3JointPose* pose, m3Join
         allAccumulated[i] = accumulated[i];
     }
     const m3Vec3 axes[3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
-    const m3real biases[3] = {pointBias.x, pointBias.y, pointBias.z};
-    m3real* const slots[3] = {&c->impulse.x, &c->impulse.y, &c->impulse.z};
+    const float biases[3] = {pointBias.x, pointBias.y, pointBias.z};
+    float* const slots[3] = {&c->impulse.x, &c->impulse.y, &c->impulse.z};
     for (int32_t k = 0; k < 3; ++k)
     {
         all[count + k] = m3LineRow(pose->armA, pose->armB, axes[k]);

@@ -79,7 +79,7 @@ static void SinkSegment(m3Pos3 p1, m3Pos3 p2, uint32_t color, void* context)
     SinkFold(sink, &color, sizeof(color));
 }
 
-static void SinkPoint(m3Pos3 p, m3real size, uint32_t color, void* context)
+static void SinkPoint(m3Pos3 p, float size, uint32_t color, void* context)
 {
     DrawSink* sink = (DrawSink*)context;
     sink->points += 1;

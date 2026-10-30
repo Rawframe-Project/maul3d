@@ -394,18 +394,17 @@ static void TestTreeReferee(void)
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){RefRange(-6.0, 6.0), RefRange(0.5, 6.0), RefRange(-6.0, 6.0)};
-        bd.linearVelocity =
-            (m3Vec3){(m3real)RefRange(-3.0, 3.0), 0.0f, (m3real)RefRange(-3.0, 3.0)};
+        bd.linearVelocity = (m3Vec3){(float)RefRange(-3.0, 3.0), 0.0f, (float)RefRange(-3.0, 3.0)};
         bodies[i] = NewBody(world, &bd);
         if ((i & 3) == 3)
         {
             NewBoxShape(world, bodies[i], &sd,
-                        (m3Vec3){(m3real)RefRange(0.2, 0.7), (m3real)RefRange(0.2, 0.7),
-                                 (m3real)RefRange(0.2, 0.7)});
+                        (m3Vec3){(float)RefRange(0.2, 0.7), (float)RefRange(0.2, 0.7),
+                                 (float)RefRange(0.2, 0.7)});
         }
         else
         {
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RefRange(0.2, 0.9)};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (float)RefRange(0.2, 0.9)};
             NewSphereShape(world, bodies[i], &sd, &ball);
         }
     }

@@ -245,7 +245,7 @@ int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
     return (int32_t)world->vehicles.vehDtGear[slot];
 }
 
-static M3_NOINLINE m3real VehicleGetEngineRpmWorker(const m3World* world, m3VehicleId vehicle)
+static M3_NOINLINE float VehicleGetEngineRpmWorker(const m3World* world, m3VehicleId vehicle)
 {
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
@@ -260,10 +260,10 @@ static M3_NOINLINE m3real VehicleGetEngineRpmWorker(const m3World* world, m3Vehi
     return world->vehicles.vehDtRpm[slot];
 }
 
-m3real m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
+float m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = VehicleGetEngineRpmWorker(world, vehicle);
+    float result = VehicleGetEngineRpmWorker(world, vehicle);
     m3FloatEnvLeave(env);
     return result;
 }

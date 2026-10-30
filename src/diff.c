@@ -12,9 +12,9 @@
 
 #include <string.h>
 
-static m3real DiffTotal(const m3BodyDiff* d)
+static float DiffTotal(const m3BodyDiff* d)
 {
-    m3real presence = (d->onlyInA || d->onlyInB) ? 1.0e30f : 0.0f;
+    float presence = (d->onlyInA || d->onlyInB) ? 1.0e30f : 0.0f;
     return presence + d->positionError + d->rotationError + d->velocityError;
 }
 
@@ -22,8 +22,8 @@ static int DiffCompare(const void* pa, const void* pb)
 {
     const m3BodyDiff* a = (const m3BodyDiff*)pa;
     const m3BodyDiff* b = (const m3BodyDiff*)pb;
-    m3real ta = DiffTotal(a);
-    m3real tb = DiffTotal(b);
+    float ta = DiffTotal(a);
+    float tb = DiffTotal(b);
     if (ta > tb)
     {
         return -1;
@@ -95,12 +95,12 @@ static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3Wor
             KeepWorst(out, capacity, &written, &d);
             continue;
         }
-        m3Vec3 dp = {(m3real)(a->bodies.transforms[i].p.x - b->bodies.transforms[i].p.x),
-                     (m3real)(a->bodies.transforms[i].p.y - b->bodies.transforms[i].p.y),
-                     (m3real)(a->bodies.transforms[i].p.z - b->bodies.transforms[i].p.z)};
+        m3Vec3 dp = {(float)(a->bodies.transforms[i].p.x - b->bodies.transforms[i].p.x),
+                     (float)(a->bodies.transforms[i].p.y - b->bodies.transforms[i].p.y),
+                     (float)(a->bodies.transforms[i].p.z - b->bodies.transforms[i].p.z)};
         m3Quat qa = a->bodies.transforms[i].q;
         m3Quat qb = b->bodies.transforms[i].q;
-        m3real qdot = qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w;
+        float qdot = qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w;
         m3Vec3 dv = m3Sub3(a->bodies.linearVelocities[i], b->bodies.linearVelocities[i]);
         m3Vec3 dw = m3Sub3(a->bodies.angularVelocities[i], b->bodies.angularVelocities[i]);
         d.positionError = m3Length3(dp);

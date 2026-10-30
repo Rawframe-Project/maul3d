@@ -29,7 +29,7 @@ int32_t m3MeshBvhScratchBytes(int32_t count)
     return count * (3 * (int32_t)sizeof(m3Vec3) + (int32_t)sizeof(uint16_t));
 }
 
-static m3real CentroidAxis(const BvhScratch* scratch, uint16_t tri, int32_t axis)
+static float CentroidAxis(const BvhScratch* scratch, uint16_t tri, int32_t axis)
 {
     const m3Vec3* c = &scratch->centroid[tri];
     return axis == 0 ? c->x : (axis == 1 ? c->y : c->z);
@@ -53,8 +53,8 @@ static void SortByAxis(BvhScratch* scratch, uint16_t* order, int32_t s, int32_t 
     int32_t w = 0;
     while (a < mid && b < e)
     {
-        m3real ka = CentroidAxis(scratch, order[a], axis);
-        m3real kb = CentroidAxis(scratch, order[b], axis);
+        float ka = CentroidAxis(scratch, order[a], axis);
+        float kb = CentroidAxis(scratch, order[b], axis);
         if (ka < kb || (ka == kb && order[a] < order[b]))
         {
             scratch->tmp[w++] = order[a++];
@@ -78,7 +78,7 @@ static void SortByAxis(BvhScratch* scratch, uint16_t* order, int32_t s, int32_t 
 // A coordinate on the 16-bit grid, clamped to it. A NaN, from bounds or a
 // query far outside any real range, parks at the low edge instead of
 // reaching the cast; every other value lands where the plain clamp put it.
-static uint16_t QuantClamp(m3real q)
+static uint16_t QuantClamp(float q)
 {
     return (uint16_t)(q > 0.0f ? (q < 65535.0f ? q : 65535.0f) : 0.0f);
 }
@@ -113,12 +113,12 @@ static int32_t BuildRange(m3MeshBvh* bvh, BvhScratch* scratch, int32_t s, int32_
     // low corner, ceil on the high, clamped to the grid.
     for (int32_t k = 0; k < 3; ++k)
     {
-        m3real l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
-        m3real h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
-        m3real rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
-        m3real sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
-        m3real ql = floorf((l - rl) * sc);
-        m3real qh = ceilf((h - rl) * sc);
+        float l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
+        float h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
+        float rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
+        float sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
+        float ql = floorf((l - rl) * sc);
+        float qh = ceilf((h - rl) * sc);
         node->qlo[k] = QuantClamp(ql);
         node->qhi[k] = QuantClamp(qh);
     }
@@ -381,10 +381,10 @@ void m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, m3MeshBvhHits* 
     BoxQuery query;
     for (int32_t k = 0; k < 3; ++k)
     {
-        m3real l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
-        m3real h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
-        m3real rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
-        m3real sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
+        float l = k == 0 ? lo.x : (k == 1 ? lo.y : lo.z);
+        float h = k == 0 ? hi.x : (k == 1 ? hi.y : hi.z);
+        float rl = k == 0 ? bvh->rootLo.x : (k == 1 ? bvh->rootLo.y : bvh->rootLo.z);
+        float sc = k == 0 ? bvh->quantScale.x : (k == 1 ? bvh->quantScale.y : bvh->quantScale.z);
         query.qlo[k] = QuantClamp(floorf((l - rl) * sc));
         query.qhi[k] = QuantClamp(ceilf((h - rl) * sc));
     }
