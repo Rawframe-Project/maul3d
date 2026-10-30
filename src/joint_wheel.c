@@ -75,15 +75,12 @@ static void WarmStartWheel(const m3JointConstraint* c, const m3JointPose* pose, 
     m3PushRow(&r.across[1], b, c->impulse.y);
 }
 
-// With steering on: the alignment's y part stays locked; the twist about
-// the strut, 2 atan2(x, w) of the relative rotation whatever the axle's
-// spin, is driven softly toward the steer angle.
-static void SolveSteering(m3JointConstraint* c, const m3JointFrames* f, m3JointBodies* b,
-                          const m3JointPass* pass)
+// With steering on: the twist about the strut, 2 atan2(x, w) of the
+// relative rotation whatever the axle's spin, is driven softly toward the
+// steer angle, and the alignment's y lock joins the strut block.
+static void SolveSteer(m3JointConstraint* c, const m3JointFrames* f, m3JointBodies* b,
+                       const m3JointPass* pass)
 {
-    m3JointRow lock = m3TurnRow(m3RelativeGradient(f, 1));
-    m3SolveRow(&lock, b, m3HeldDrive(c->softness, f->rel.y, pass->biased), &c->perpImpulse.y,
-               -M3_ROW_FREE, M3_ROW_FREE);
     m3JointRow steer = m3TurnRow(m3FrameAxis(f->a, 0));
     m3real twist = 2.0f * m3Atan2(f->rel.x, f->rel.w);
     m3real budget = c->steerBudget > 0.0f ? c->steerBudget * pass->h : M3_ROW_FREE;
@@ -111,19 +108,34 @@ static void SolveWheel(m3JointConstraint* c, const m3JointPose* pose, m3JointBod
         m3SolveLimits(&r.strut, travel, c->lowerLimit, c->upperLimit, c->softness,
                       &c->limitImpulse.x, &c->limitImpulse.y, b, pass);
     }
-    if ((c->flags & M3_JOINT_STEER) == 0)
+    // The axle's alignment, or with steering its one lock, and the two rows
+    // across the strut share the wheel, solved as one block: a strut far
+    // from the wheel's center couples them almost fully.
+    bool steering = (c->flags & M3_JOINT_STEER) != 0;
+    if (steering)
     {
-        m3SolveAlignment(&r.frames, b, c->softness, pass->biased, &c->perpImpulse.x,
-                         &c->perpImpulse.y);
-    }
-    else
-    {
-        SolveSteering(c, &r.frames, b, pass);
+        SolveSteer(c, &r.frames, b, pass);
     }
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
-    m3real bias[2] = {unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1)),
-                      unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 2))};
-    m3SolveRowPair(r.across, b, bias, unit, &c->impulse.x, &c->impulse.y);
+    m3JointRow rows[4];
+    m3real bias[4];
+    m3real* accumulated[4];
+    int32_t count = 0;
+    for (int32_t k = steering ? 1 : 0; k < 2; ++k)
+    {
+        rows[count] = m3TurnRow(m3RelativeGradient(&r.frames, k));
+        bias[count] = unit.bias * (k == 0 ? r.frames.rel.x : r.frames.rel.y);
+        accumulated[count] = k == 0 ? &c->perpImpulse.x : &c->perpImpulse.y;
+        ++count;
+    }
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        rows[count] = r.across[k];
+        bias[count] = unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1 + k));
+        accumulated[count] = k == 0 ? &c->impulse.x : &c->impulse.y;
+        ++count;
+    }
+    m3SolveRowBlock(rows, count, b, bias, unit, accumulated);
 }
 
 const m3JointKind m3_wheelJointKind = {PrepareWheel, WarmStartWheel, SolveWheel};

@@ -181,6 +181,12 @@ void m3SolveAlignment(const m3JointFrames* f, m3JointBodies* b, m3Softness soft,
                       m3real* first, m3real* second);
 void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first, m3real second);
 
+// The point pin and count more rows of the same joint, at most three,
+// solved as one block with the pin's drive: rows that share a body far
+// from its center of mass undo each other when solved one at a time.
+void m3SolveJointPointWith(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
+                           const m3JointPass* pass, const m3JointRow* rows, int32_t count,
+                           const m3real* bias, m3real* const* accumulated);
 // The point block that pins the anchors (impulse).
 void m3SolveJointPoint(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                        const m3JointPass* pass);

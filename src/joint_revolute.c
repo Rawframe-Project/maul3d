@@ -42,8 +42,12 @@ static void SolveRevolute(m3JointConstraint* c, const m3JointPose* pose, m3Joint
         m3SolveLimits(&spin, angle, c->lowerLimit, c->upperLimit, c->softness, &c->limitImpulse.x,
                       &c->limitImpulse.y, b, pass);
     }
-    m3SolveAlignment(&f, b, c->softness, pass->biased, &c->perpImpulse.x, &c->perpImpulse.y);
-    m3SolveJointPoint(c, pose, b, pass);
+    m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
+    const m3JointRow rows[2] = {m3TurnRow(m3RelativeGradient(&f, 0)),
+                                m3TurnRow(m3RelativeGradient(&f, 1))};
+    const m3real bias[2] = {unit.bias * f.rel.x, unit.bias * f.rel.y};
+    m3real* const accumulated[2] = {&c->perpImpulse.x, &c->perpImpulse.y};
+    m3SolveJointPointWith(c, pose, b, pass, rows, 2, bias, accumulated);
 }
 
 const m3JointKind m3_revoluteJointKind = {PrepareRevolute, WarmStartRevolute, SolveRevolute};
