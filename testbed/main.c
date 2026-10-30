@@ -1429,14 +1429,28 @@ static void RecordVerify(void)
         snprintf(s_recordStatus, sizeof(s_recordStatus), "no recording on disk");
         return;
     }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    // A 64-bit size: ftell's long is 32 bits on Windows and 32-bit Linux.
+#if defined(_WIN32)
+    _fseeki64(f, 0, SEEK_END);
+    int64_t size = _ftelli64(f);
+    _fseeki64(f, 0, SEEK_SET);
+#else
+    fseeko(f, 0, SEEK_END);
+    int64_t size = (int64_t)ftello(f);
+    fseeko(f, 0, SEEK_SET);
+#endif
+    if (size <= 0 || (uint64_t)size > (uint64_t)SIZE_MAX)
+    {
+        fclose(f);
+        snprintf(s_recordStatus, sizeof(s_recordStatus),
+                 size <= 0 ? "recording unreadable" : "recording too large for this build");
+        return;
+    }
     uint8_t* blob = (uint8_t*)malloc((size_t)size);
-    size_t got = fread(blob, 1, (size_t)size, f);
+    size_t got = blob != NULL ? fread(blob, 1, (size_t)size, f) : 0;
     fclose(f);
     m3ReplayView view;
-    if (got != (size_t)size || !DecodeReplay(blob, (int64_t)size, &view))
+    if (got != (size_t)size || !DecodeReplay(blob, size, &view))
     {
         free(blob);
         snprintf(s_recordStatus, sizeof(s_recordStatus), "decode refused");

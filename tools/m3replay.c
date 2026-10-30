@@ -14,6 +14,12 @@
 // 32 bits, so they refuse a tape of INT32_MAX steps or more; info and
 // verify read any tape the library does.
 
+// ftello and fseeko under strict C, with a 64-bit off_t on 32-bit glibc.
+#if !defined(_WIN32)
+#define _FILE_OFFSET_BITS 64
+#define _POSIX_C_SOURCE   200809L
+#endif
+
 #include "maul3d/joint.h"
 #include "maul3d/replay.h"
 #include "maul3d/shape.h"
@@ -261,30 +267,72 @@ static int Record(const char* path)
     return 0;
 }
 
+// fseek with a 64-bit offset. Never fseek or ftell: their long is 32
+// bits on Windows and on 32-bit Linux, which cannot reach past 2 GiB.
+static bool SeekTo(FILE* f, int64_t offset, int whence)
+{
+#if defined(_WIN32)
+    return _fseeki64(f, offset, whence) == 0;
+#else
+    return fseeko(f, (off_t)offset, whence) == 0;
+#endif
+}
+
+// The file's size in bytes, or -1.
+static int64_t FileSize(FILE* f)
+{
+    if (!SeekTo(f, 0, SEEK_END))
+    {
+        return -1;
+    }
+#if defined(_WIN32)
+    int64_t size = _ftelli64(f);
+#else
+    int64_t size = (int64_t)ftello(f);
+#endif
+    return SeekTo(f, 0, SEEK_SET) ? size : -1;
+}
+
+// Whether a block of this many bytes can be allocated in this build.
+static bool FitsBuild(int64_t bytes)
+{
+#if SIZE_MAX < INT64_MAX
+    return bytes <= (int64_t)SIZE_MAX;
+#else
+    (void)bytes;
+    return true;
+#endif
+}
+
+// Reads a whole file. On failure it says why on stderr and returns NULL.
 static uint8_t* ReadAll(const char* path, int64_t* outBytes)
 {
     FILE* f = fopen(path, "rb");
     if (f == NULL)
     {
+        fprintf(stderr, "m3replay: cannot open %s\n", path);
         return NULL;
     }
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (len <= 0)
+    int64_t size = FileSize(f);
+    if (size <= 0 || !FitsBuild(size))
     {
         fclose(f);
+        fprintf(stderr, "m3replay: %s %s\n", path,
+                size < 0    ? "cannot be sized"
+                : size == 0 ? "is empty"
+                            : "is too large for this build");
         return NULL;
     }
-    uint8_t* data = (uint8_t*)malloc((size_t)len);
-    if (data == NULL || fread(data, 1, (size_t)len, f) != (size_t)len)
+    uint8_t* data = (uint8_t*)malloc((size_t)size);
+    if (data == NULL || fread(data, 1, (size_t)size, f) != (size_t)size)
     {
         fclose(f);
         free(data);
+        fprintf(stderr, "m3replay: cannot read %s\n", path);
         return NULL;
     }
     fclose(f);
-    *outBytes = (int64_t)len;
+    *outBytes = size;
     return data;
 }
 
@@ -293,9 +341,14 @@ static int Info(const char* path)
     int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !DecodeReplay(data, bytes, &view))
+    if (data == NULL)
+    {
+        return 1;
+    }
+    if (!DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
+        free(data);
         return 1;
     }
     printf(
@@ -313,9 +366,14 @@ static int Verify(const char* path)
     int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !DecodeReplay(data, bytes, &view))
+    if (data == NULL)
+    {
+        return 1;
+    }
+    if (!DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
+        free(data);
         return 1;
     }
     m3WorldDef def = DemoDef();
@@ -520,9 +578,14 @@ static int Seek(const char* path, int32_t stepN)
     int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !DecodeReplay(data, bytes, &view))
+    if (data == NULL)
+    {
+        return 1;
+    }
+    if (!DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
+        free(data);
         return 1;
     }
     Scrub s;
@@ -552,9 +615,14 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
     int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
-    if (data == NULL || !DecodeReplay(data, bytes, &view))
+    if (data == NULL)
+    {
+        return 1;
+    }
+    if (!DecodeReplay(data, bytes, &view))
     {
         fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
+        free(data);
         return 1;
     }
     Scrub s;
@@ -683,7 +751,12 @@ static int Diff(const char* pathA, const char* pathB)
     if (dataA == NULL || dataB == NULL || !DecodeReplay(dataA, bytesA, &va) ||
         !DecodeReplay(dataB, bytesB, &vb))
     {
-        fprintf(stderr, "m3replay: diff needs two valid replay containers\n");
+        if (dataA != NULL && dataB != NULL)
+        {
+            fprintf(stderr, "m3replay: diff needs two valid replay containers\n");
+        }
+        free(dataA);
+        free(dataB);
         return 1;
     }
     int rc = DiffViews(&va, &vb);
@@ -846,6 +919,64 @@ static int SelfTest(void)
     return 1;
 }
 
+// The CI gate for file sizing: a sparse file of 5 GiB, past INT32_MAX
+// and UINT32_MAX, sizes whole, and a 32-bit build refuses to read it
+// as too large. NTFS fills the gap of a sparse write with zeros, so on
+// Windows the file is 1 KiB and only the sizing path runs.
+static int SizeTest(void)
+{
+    const char* path = "m3replay-sizetest.bin";
+#if defined(_WIN32)
+    const int64_t size = 1024;
+#else
+    const int64_t size = (int64_t)5 << 30;
+#endif
+    FILE* f = fopen(path, "wb");
+    if (f == NULL || !SeekTo(f, size - 1, SEEK_SET) || fputc(0, f) == EOF)
+    {
+        fprintf(stderr, "sizetest: cannot write %s\n", path);
+        if (f != NULL)
+        {
+            fclose(f);
+        }
+        remove(path);
+        return 1;
+    }
+    fclose(f);
+    int failures = 0;
+    f = fopen(path, "rb");
+    int64_t sized = f != NULL ? FileSize(f) : -1;
+    if (f != NULL)
+    {
+        fclose(f);
+    }
+    if (sized != size)
+    {
+        fprintf(stderr, "sizetest: sized %lld bytes, wrote %lld\n", (long long)sized,
+                (long long)size);
+        failures += 1;
+    }
+    if (!FitsBuild(size))
+    {
+        int64_t bytes = 0;
+        uint8_t* data = ReadAll(path, &bytes);
+        if (data != NULL)
+        {
+            fprintf(stderr, "sizetest: a file past SIZE_MAX was read\n");
+            free(data);
+            failures += 1;
+        }
+    }
+    remove(path);
+    if (failures == 0)
+    {
+        printf("m3replay sizetest: a %lld-byte file sized whole%s\n", (long long)size,
+               FitsBuild(size) ? "" : ", and refused as too large");
+        return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char** argv)
 {
     if (argc == 3 && strcmp(argv[1], "record") == 0)
@@ -880,8 +1011,12 @@ int main(int argc, char** argv)
     {
         return DiffTest();
     }
+    if (argc == 2 && strcmp(argv[1], "sizetest") == 0)
+    {
+        return SizeTest();
+    }
     fprintf(stderr, "usage: m3replay record|info|verify <file.m3j> | seek <file> <N> | play "
-                    "<file> <A> <B> | diff <a> <b> | selftest | difftest\n"
+                    "<file> <A> <B> | diff <a> <b> | selftest | difftest | sizetest\n"
                     "seek, play and diff index steps in 32 bits and refuse a tape of "
                     "INT32_MAX steps or more\n");
     return 1;
