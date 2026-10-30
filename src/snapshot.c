@@ -98,7 +98,7 @@ static uint64_t ConfigHash(void)
     h = m3Hash64(h, &solverRev, 4);
     h = m3Hash64(h, &realSize, 4);
     h = m3Hash64(h, &posSize, 4);
-    h = m3Hash64(h, fpPolicy, (int32_t)strlen(fpPolicy));
+    h = m3Hash64(h, fpPolicy, (int64_t)strlen(fpPolicy));
     return h;
 }
 
