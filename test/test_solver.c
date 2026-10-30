@@ -726,7 +726,7 @@ static void TestQuickHullRockRests(void)
     m3Vec3 v = m3Body_GetLinearVelocity(world, rock);
     CHECK(v.x * v.x + v.y * v.y + v.z * v.z < 0.01f, "the rock has come to rest");
 
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the session recorded");
     uint64_t h1 = m3World_Hash(world);
 

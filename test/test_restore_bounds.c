@@ -532,7 +532,7 @@ static void TestRopeRangeOnRestore(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -607,7 +607,7 @@ static void TestGearDriftWrapsAnyAngle(void)
 
 // The snapshot with the case's value at its limit restores, the one with
 // the next value past it is refused, and the world is left as it was.
-static void CheckCase(const Scene* s, const uint8_t* clean, uint8_t* edited, int32_t size,
+static void CheckCase(const Scene* s, const uint8_t* clean, uint8_t* edited, int64_t size,
                       uint64_t hash, const Case* k)
 {
     m3World* world = s->world;
@@ -638,7 +638,7 @@ static void TestBoundsAtTheirEdges(void)
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
           "the scene builds");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -674,7 +674,7 @@ static void TestGroundNormalLength(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -706,7 +706,7 @@ static void TestFarRestValuesAreRefused(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -772,7 +772,7 @@ static void TestStepHoldsWithinTheLimit(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
     if (snap == NULL)
@@ -857,7 +857,7 @@ static void TestTargetReach(void)
 {
     Scene s = Build();
     m3World* world = s.world;
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
@@ -911,7 +911,7 @@ static void TestBodyMassLimit(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.0f};
     m3ShapeId ball = NewSphereShape(world, heavy, &sd, &sphere);
     CHECK(m3Shape_IsValid(world, ball), "the body builds below the mass limit");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
     if (snap == NULL)
@@ -943,7 +943,7 @@ static void TestTypeChangeMass(void)
     m3Body_SetType(world, ball, m3_kinematicBody);
     CHECK(m3Body_GetMass(world, ball) == 0.0f, "a body turned kinematic has no mass");
     Scene twin = Build();
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(twin.world, snap, size),
           "its world restores in a second world");

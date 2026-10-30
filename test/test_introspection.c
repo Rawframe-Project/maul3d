@@ -147,13 +147,13 @@ static void TestNamesAndHooks(void)
     uint64_t before = m3World_Hash(world);
     m3Body_SetName(world, hero, "renamed");
     CHECK(m3World_Hash(world) == before, "a name is never a hash input");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the naming session records");
     m3World* twin = BuildYard();
     CHECK(ReplayJournal(twin, journal, bytes), "the naming session replays");
     CHECK(strcmp(m3Body_GetName(twin, hero), "renamed") == 0, "the replayed name lands");
     m3DestroyWorld(twin);
-    int32_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
+    int64_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(snapBytes > 0, "the named snapshot fits");
     m3Body_SetName(world, hero, "clobbered");
     CHECK(Restore(world, snap, snapBytes), "the restore lands");

@@ -26,7 +26,8 @@ void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts
     }
     if (world->recorder.journalCursor + 8 + bytes > world->recorder.journalCapacity)
     {
-        // Loud overflow: latch, stop recording, End reports -1.
+        // Loud overflow: latch and stop recording; the stop then
+        // returns m3_errorCapacity.
         world->recorder.journalOverflow = 1;
         world->recorder.journalActive = 0;
         return;
@@ -241,14 +242,16 @@ void m3JournalExplosionDef(m3ExplosionDef* out, const m3ExplosionDef* def)
     out->internalValue = def->internalValue;
 }
 
-m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
+m3Result m3World_StartJournal(m3World* world, void* buffer, int64_t capacity)
 {
     if (m3WorldBusy(world))
     {
         return m3Refuse(world, m3_errorBusy);
     }
-    // The buffer holds at least the tape's header, which is written now.
-    if (world == NULL || buffer == NULL || capacity < M3_JOURNAL_HEADER_BYTES)
+    // The buffer holds at least the tape's header, which is written now,
+    // and no more than this target's memory can.
+    if (world == NULL || buffer == NULL || capacity < M3_JOURNAL_HEADER_BYTES ||
+        !m3SizeFitsMemory(capacity))
     {
         return m3Refuse(world, m3_errorInvalid);
     }
@@ -267,7 +270,7 @@ m3Result m3World_StartJournal(m3World* world, void* buffer, int32_t capacity)
     return m3_success;
 }
 
-m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
+m3Result m3World_StopJournal(m3World* world, int64_t* bytesOut)
 {
     // A stop made from the world's own callback writes nothing: the call in
     // progress may have written bytesOut. Every other failure clears it.
@@ -290,7 +293,7 @@ m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
     {
         return m3Refuse(world, m3_errorState);
     }
-    int32_t bytes = world->recorder.journalCursor;
+    int64_t bytes = world->recorder.journalCursor;
     world->recorder.journalBuffer = NULL;
     world->recorder.journalCapacity = 0;
     world->recorder.journalCursor = 0;

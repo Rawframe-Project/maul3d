@@ -15,6 +15,6 @@
 // snapshot, prefix its state blocks and hullCursor where its hull content
 // starts; the links check has made every list and index safe to follow.
 m3Result m3SnapshotMassesFit(m3World* world, const uint8_t* raw, const uint8_t* prefix,
-                             int32_t hullCursor);
+                             int64_t hullCursor);
 
 #endif // MAUL3D_SRC_SNAPSHOT_MASS_H

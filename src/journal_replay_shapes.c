@@ -371,8 +371,7 @@ bool m3ReplayCreateHeightFieldGrid(m3World* world, const m3ReplayRecord* r)
     float mn;
     float mx;
     if (m3HeightFieldSamplesCheck(head.nx, head.nz, head.cellSize, sampleBytes, &mn, &mx) !=
-            m3_success ||
-        !m3SnapshotTakesHeightField(world, head.nx, head.nz))
+        m3_success)
     {
         return false;
     }

@@ -67,43 +67,43 @@ static m3JointId NewJoint(m3World* world, const m3JointDef* def)
 
 // The snapshot, journal and container calls as the tool tests them: the
 // bytes written (-1 or 0 on a refusal) or whether the call succeeded.
-static int32_t Snapshot(const m3World* world, void* buffer, int32_t capacity)
+static int64_t Snapshot(const m3World* world, void* buffer, int64_t capacity)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     return m3World_Snapshot(world, buffer, capacity, &bytes) == m3_success ? bytes : -1;
 }
 
-static bool Restore(m3World* world, const void* data, int32_t size)
+static bool Restore(m3World* world, const void* data, int64_t size)
 {
     return m3World_Restore(world, data, size) == m3_success;
 }
 
-static bool StartJournal(m3World* world, void* buffer, int32_t capacity)
+static bool StartJournal(m3World* world, void* buffer, int64_t capacity)
 {
     return m3World_StartJournal(world, buffer, capacity) == m3_success;
 }
 
-static int32_t StopJournal(m3World* world)
+static int64_t StopJournal(m3World* world)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     return m3World_StopJournal(world, &bytes) == m3_success ? bytes : -1;
 }
 
-static bool ReplayJournal(m3World* world, const void* data, int32_t size)
+static bool ReplayJournal(m3World* world, const void* data, int64_t size)
 {
     return m3World_ReplayJournal(world, data, size) == m3_success;
 }
 
-static int32_t EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
-                            int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity)
+static int64_t EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void* journal,
+                            int64_t journalBytes, uint64_t finalHash, void* out, int64_t capacity)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     m3Result result = m3EncodeReplay(snapshot, snapshotBytes, journal, journalBytes, finalHash, out,
                                      capacity, &bytes);
     return result == m3_success ? bytes : 0;
 }
 
-static bool DecodeReplay(const void* data, int32_t bytes, m3ReplayView* view)
+static bool DecodeReplay(const void* data, int64_t bytes, m3ReplayView* view)
 {
     return m3DecodeReplay(data, bytes, view) == m3_success;
 }
@@ -209,7 +209,7 @@ static int Record(const char* path)
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
 
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     if (snap == NULL || Snapshot(world, snap, snapBytes) != snapBytes)
     {
@@ -225,7 +225,7 @@ static int Record(const char* path)
         return 1;
     }
     DemoSession(world, 300);
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     if (journalBytes < 0)
     {
         fprintf(stderr, "m3replay: journal overflowed\n");
@@ -233,9 +233,9 @@ static int Record(const char* path)
     }
     uint64_t finalHash = m3World_Hash(world);
 
-    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
+    int64_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
+    int64_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     if (wrote != need)
     {
         fprintf(stderr, "m3replay: encode failed\n");
@@ -248,7 +248,7 @@ static int Record(const char* path)
         return 1;
     }
     fclose(f);
-    printf("m3replay: recorded %s (%d bytes, hash %016llx)\n", path, wrote,
+    printf("m3replay: recorded %s (%lld bytes, hash %016llx)\n", path, (long long)wrote,
            (unsigned long long)finalHash);
     free(blob);
     free(journal);
@@ -257,7 +257,7 @@ static int Record(const char* path)
     return 0;
 }
 
-static uint8_t* ReadAll(const char* path, int32_t* outBytes)
+static uint8_t* ReadAll(const char* path, int64_t* outBytes)
 {
     FILE* f = fopen(path, "rb");
     if (f == NULL)
@@ -280,13 +280,13 @@ static uint8_t* ReadAll(const char* path, int32_t* outBytes)
         return NULL;
     }
     fclose(f);
-    *outBytes = (int32_t)len;
+    *outBytes = (int64_t)len;
     return data;
 }
 
 static int Info(const char* path)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
@@ -294,17 +294,19 @@ static int Info(const char* path)
         fprintf(stderr, "m3replay: %s is not a valid replay container\n", path);
         return 1;
     }
-    printf("m3replay: %s\n  snapshot %d bytes\n  journal  %d bytes\n  ops      %d\n  steps    "
-           "%d\n  hash     %016llx\n",
-           path, view.snapshotBytes, view.journalBytes, view.info.opCount, view.info.stepCount,
-           (unsigned long long)view.finalHash);
+    printf(
+        "m3replay: %s\n  snapshot %lld bytes\n  journal  %lld bytes\n  ops      %lld\n  steps    "
+        "%lld\n  hash     %016llx\n",
+        path, (long long)view.snapshotBytes, (long long)view.journalBytes,
+        (long long)view.info.opCount, (long long)view.info.stepCount,
+        (unsigned long long)view.finalHash);
     free(data);
     return 0;
 }
 
 static int Verify(const char* path)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
@@ -325,8 +327,8 @@ static int Verify(const char* path)
         return 1;
     }
     uint64_t hash = m3World_Hash(world);
-    printf("m3replay: replayed %d ops / %d steps, hash %016llx, recorded %016llx: %s\n",
-           view.info.opCount, view.info.stepCount, (unsigned long long)hash,
+    printf("m3replay: replayed %lld ops / %lld steps, hash %016llx, recorded %016llx: %s\n",
+           (long long)view.info.opCount, (long long)view.info.stepCount, (unsigned long long)hash,
            (unsigned long long)view.finalHash, hash == view.finalHash ? "MATCH" : "DIVERGED");
     m3DestroyWorld(world);
     free(data);
@@ -353,12 +355,12 @@ static int Verify(const char* path)
 typedef struct Scrub
 {
     const uint8_t* journal;
-    int32_t journalBytes;
+    int64_t journalBytes;
     uint8_t* segment; // the prefix, then one segment's records
     int32_t stepCount;
-    int32_t* stepEnds; // byte offset just PAST step i's record
+    int64_t* stepEnds; // byte offset just PAST step i's record
     uint8_t** keys;    // keyframe snapshots, one per interval mark
-    int32_t* keySizes; // per-key bytes: snapshots are count-derived
+    int64_t* keySizes; // per-key bytes: snapshots are count-derived
                        // (meshes and hulls) so the size
                        // GROWS with the world and is never one
                        // number for a whole session
@@ -369,8 +371,8 @@ typedef struct Scrub
 // Walk the framing once, recording where each step's segment ends.
 static bool ScrubIndex(Scrub* s)
 {
-    s->stepEnds = (int32_t*)malloc(sizeof(int32_t) * (size_t)(s->stepCount + 1));
-    int32_t cursor = M3_SCRUB_PREFIX;
+    s->stepEnds = (int64_t*)malloc(sizeof(int64_t) * (size_t)(s->stepCount + 1));
+    int64_t cursor = M3_SCRUB_PREFIX;
     int32_t step = 0;
     while (cursor < s->journalBytes)
     {
@@ -392,8 +394,8 @@ static bool ScrubIndex(Scrub* s)
 // that record, into the scrub world.
 static bool ReplaySegment(Scrub* s, int32_t i)
 {
-    int32_t from = i == 0 ? M3_SCRUB_PREFIX : s->stepEnds[i - 1];
-    int32_t to = s->stepEnds[i];
+    int64_t from = i == 0 ? M3_SCRUB_PREFIX : s->stepEnds[i - 1];
+    int64_t to = s->stepEnds[i];
     memcpy(s->segment + M3_SCRUB_PREFIX, s->journal + from, (size_t)(to - from));
     return ReplayJournal(s->world, s->segment, M3_SCRUB_PREFIX + to - from);
 }
@@ -402,7 +404,11 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
 {
     s->journal = (const uint8_t*)view->journal;
     s->journalBytes = view->journalBytes;
-    s->stepCount = view->info.stepCount;
+    if (view->info.stepCount >= INT32_MAX)
+    {
+        return false; // more steps than the scrubber indexes
+    }
+    s->stepCount = (int32_t)view->info.stepCount;
     s->segment = (uint8_t*)malloc((size_t)view->journalBytes);
     if (s->segment == NULL || !ScrubIndex(s))
     {
@@ -417,7 +423,7 @@ static bool ScrubBuild(Scrub* s, const m3ReplayView* view)
     }
     s->keyCount = s->stepCount / M3_SCRUB_INTERVAL + 1;
     s->keys = (uint8_t**)calloc((size_t)s->keyCount, sizeof(uint8_t*));
-    s->keySizes = (int32_t*)calloc((size_t)s->keyCount, sizeof(int32_t));
+    s->keySizes = (int64_t*)calloc((size_t)s->keyCount, sizeof(int64_t));
     // Key 0 is the pre-step world (creates land inside segment 0).
     s->keySizes[0] = m3World_GetSnapshotSize(s->world);
     s->keys[0] = (uint8_t*)malloc((size_t)s->keySizes[0]);
@@ -482,7 +488,7 @@ static bool PrefixHash(const m3ReplayView* view, const Scrub* s, int32_t stepN, 
     {
         return false;
     }
-    int32_t bytes = stepN == 0 ? 0 : s->stepEnds[stepN - 1];
+    int64_t bytes = stepN == 0 ? 0 : s->stepEnds[stepN - 1];
     if (bytes > 0 && !ReplayJournal(world, view->journal, bytes))
     {
         return false;
@@ -507,7 +513,7 @@ static void ScrubFree(Scrub* s)
 
 static int Seek(const char* path, int32_t stepN)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
@@ -539,7 +545,7 @@ static int Seek(const char* path, int32_t stepN)
 
 static int Play(const char* path, int32_t fromStep, int32_t toStep)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     uint8_t* data = ReadAll(path, &bytes);
     m3ReplayView view;
     if (data == NULL || !DecodeReplay(data, bytes, &view))
@@ -559,7 +565,7 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
         printf("step %4d hash %016llx\n", i, (unsigned long long)m3World_Hash(s.world));
         if (i < s.stepCount)
         {
-            int32_t from = i == 0 ? 0 : s.stepEnds[i - 1];
+            int64_t from = i == 0 ? 0 : s.stepEnds[i - 1];
             ReplayJournal(s.world, s.journal + from, s.stepEnds[i] - from);
         }
     }
@@ -570,20 +576,20 @@ static int Play(const char* path, int32_t fromStep, int32_t toStep)
 
 // Record a demo session (optionally with the injected desync)
 // into a malloc'd container.
-static uint8_t* RecordBlob(int32_t steps, int32_t injectStep, int32_t* outBytes)
+static uint8_t* RecordBlob(int32_t steps, int32_t injectStep, int64_t* outBytes)
 {
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
     StartJournal(world, journal, journalCap);
     DemoSessionEx(world, steps, injectStep);
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
-    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
+    int64_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
     EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);
@@ -664,8 +670,8 @@ static int DiffViews(const m3ReplayView* va, const m3ReplayView* vb)
 
 static int Diff(const char* pathA, const char* pathB)
 {
-    int32_t bytesA = 0;
-    int32_t bytesB = 0;
+    int64_t bytesA = 0;
+    int64_t bytesB = 0;
     uint8_t* dataA = ReadAll(pathA, &bytesA);
     uint8_t* dataB = ReadAll(pathB, &bytesB);
     m3ReplayView va;
@@ -687,9 +693,9 @@ static int Diff(const char* pathA, const char* pathB)
 // body reported first.
 static int DiffTest(void)
 {
-    int32_t bytesA;
-    int32_t bytesB;
-    int32_t bytesC;
+    int64_t bytesA;
+    int64_t bytesB;
+    int64_t bytesC;
     uint8_t* a = RecordBlob(300, -1, &bytesA);
     uint8_t* b = RecordBlob(300, -1, &bytesB);
     uint8_t* c = RecordBlob(300, 150, &bytesC);
@@ -777,16 +783,16 @@ static int SelfTest(void)
 {
     m3WorldDef def = DemoDef();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     int32_t journalCap = 4 * 1024 * 1024;
     uint8_t* journal = (uint8_t*)malloc((size_t)journalCap);
     StartJournal(world, journal, journalCap);
     DemoSession(world, 300);
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     uint64_t finalHash = m3World_Hash(world);
-    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
+    int64_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
     EncodeReplay(snap, snapBytes, journal, journalBytes, finalHash, blob, need);
     m3DestroyWorld(world);

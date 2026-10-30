@@ -126,9 +126,9 @@ int main(void)
         return 1;
     }
 
-    int32_t snapCapacity = m3World_GetSnapshotSize(online.world);
+    int64_t snapCapacity = m3World_GetSnapshotSize(online.world);
     uint8_t* confirmedSnap = (uint8_t*)malloc((size_t)snapCapacity);
-    int32_t snapBytes = 0;
+    int64_t snapBytes = 0;
     if (confirmedSnap == NULL ||
         m3World_Snapshot(online.world, confirmedSnap, snapCapacity, &snapBytes) != m3_success)
     {

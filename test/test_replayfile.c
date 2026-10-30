@@ -29,12 +29,12 @@ static m3WorldDef Def(void)
 }
 
 // Record a small session; returns malloc'd container + its size.
-static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* outOps,
-                              int32_t* outSteps)
+static uint8_t* RecordSession(int64_t* outBytes, uint64_t* outHash, int64_t* outOps,
+                              int64_t* outSteps)
 {
     m3WorldDef def = Def();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
 
@@ -58,15 +58,15 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
         }
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     uint64_t final = m3World_Hash(world);
 
     // 4 creates + 1 impulse + 90 steps = 95 records.
     *outOps = 95;
     *outSteps = 90;
-    int32_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
+    int64_t need = m3GetEncodedReplaySize(snapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need);
+    int64_t wrote = EncodeReplay(snap, snapBytes, journal, journalBytes, final, blob, need);
     CHECK(wrote == need, "the encode fills its own quoted size");
     *outBytes = wrote;
     *outHash = final;
@@ -77,10 +77,10 @@ static uint8_t* RecordSession(int32_t* outBytes, uint64_t* outHash, int32_t* out
 
 static void TestRoundTrip(void)
 {
-    int32_t bytes;
+    int64_t bytes;
     uint64_t recorded;
-    int32_t ops;
-    int32_t steps;
+    int64_t ops;
+    int64_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
 
     m3ReplayView view;
@@ -100,10 +100,10 @@ static void TestRoundTrip(void)
 
 static void TestRefusals(void)
 {
-    int32_t bytes;
+    int64_t bytes;
     uint64_t recorded;
-    int32_t ops;
-    int32_t steps;
+    int64_t ops;
+    int64_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     m3ReplayView view;
 
@@ -154,10 +154,10 @@ static void TestRefusals(void)
 
 static void TestSmallCapacity(void)
 {
-    int32_t bytes;
+    int64_t bytes;
     uint64_t recorded;
-    int32_t ops;
-    int32_t steps;
+    int64_t ops;
+    int64_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     m3ReplayView view;
     CHECK(DecodeReplay(blob, bytes, &view), "decode for the capacity test");
@@ -174,15 +174,15 @@ static void TestSmallCapacity(void)
 // owner, leaves it as it was.
 static void TestSizeOutputsOnFailure(void)
 {
-    int32_t bytes;
+    int64_t bytes;
     uint64_t recorded;
-    int32_t ops;
-    int32_t steps;
+    int64_t ops;
+    int64_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     m3ReplayView view;
     CHECK(DecodeReplay(blob, bytes, &view), "decode for the size output test");
     uint8_t* out = (uint8_t*)malloc((size_t)bytes);
-    int32_t written = 1234;
+    int64_t written = 1234;
     CHECK(m3EncodeReplay(view.snapshot, view.snapshotBytes, view.journal, view.journalBytes,
                          view.finalHash, out, bytes - 1, &written) == m3_errorCapacity &&
               written == 1234,
@@ -221,7 +221,7 @@ static bool VetoAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void*
 typedef struct BusyStop
 {
     m3World* world;
-    int32_t bytes;
+    int64_t bytes;
     m3Result result;
     int calls;
 } BusyStop;
@@ -265,7 +265,7 @@ static void TestBusyStopKeepsSize(void)
     CHECK(stop.result == m3_errorBusy && stop.bytes == 1234,
           "a stop from the world's own callback is refused busy and keeps the size");
     m3World_SetPreSolveCallback(world, NULL, NULL);
-    int32_t bytes = 99;
+    int64_t bytes = 99;
     CHECK(m3World_StopJournal(world, &bytes) == m3_success && bytes > 16,
           "the journal it left running stops after the step");
     m3DestroyWorld(world);
@@ -275,7 +275,7 @@ static void TestPreSolveReplay(void)
 {
     m3WorldDef def = Def();
     m3World* world = NewWorld(&def);
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     Snapshot(world, snap, snapBytes);
     static uint8_t journal[262144];
@@ -298,7 +298,7 @@ static void TestPreSolveReplay(void)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     uint64_t recorded = m3World_Hash(world);
     CHECK(calls > 0, "the callback actually ran");
     CHECK(m3Body_GetPosition(world, faller).y < -1.0,
@@ -322,10 +322,10 @@ static void TestFuzz(void)
     // fresh world (the atomic-replay guarantee backs out partial
     // application). The sanitizer cell turns any slip into a
     // failure.
-    int32_t bytes;
+    int64_t bytes;
     uint64_t recorded;
-    int32_t ops;
-    int32_t steps;
+    int64_t ops;
+    int64_t steps;
     uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
     uint8_t* mutant = (uint8_t*)malloc((size_t)bytes);
     // The container is snapshot-dominated, so pure-random offsets
@@ -346,7 +346,7 @@ static void TestFuzz(void)
         int32_t where;
         if (t % 2 == 0)
         {
-            int32_t zone = 32 + (bytes - journalStart);
+            int64_t zone = 32 + (bytes - journalStart);
             int32_t pick = (int32_t)(rng % (uint32_t)zone);
             where = pick < 32 ? pick : journalStart + (pick - 32);
         }
@@ -379,6 +379,79 @@ static void TestFuzz(void)
     free(blob);
 }
 
+// Sizes are 64-bit with no cap of their own. A world with more mesh slots
+// than the old 2 GiB cap let in creates; a caller's capacity past
+// INT32_MAX takes a snapshot and a tape, of which only what they need is
+// written; the container's sizes add up past INT32_MAX and its header
+// fields are read whole. On a 32-bit target a size past SIZE_MAX is a
+// caller's bug, refused before any pointer is formed.
+static void TestSizesPastInt32(void)
+{
+    m3WorldDef wide = m3DefaultWorldDef();
+    wide.meshCapacity = 2000; // the old cap refused 1,639 and up
+    m3World* world = NULL;
+    CHECK(m3CreateWorld(&wide, &world) == m3_success,
+          "a world whose meshes could pass 2 GiB at their largest creates");
+    m3DestroyWorld(world);
+
+    m3WorldDef def = Def();
+    world = NewWorld(&def);
+    int64_t size = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    int64_t written = 0;
+    CHECK(snap != NULL &&
+              m3World_Snapshot(world, snap, (int64_t)INT32_MAX + 1, &written) == m3_success &&
+              written == size,
+          "a capacity past INT32_MAX takes the snapshot, which writes its own size");
+    static uint8_t tape[4096];
+    CHECK(m3World_StartJournal(world, tape, (int64_t)INT32_MAX + 1) == m3_success,
+          "a journal capacity past INT32_MAX starts");
+    m3BodyDef bd = m3DefaultBodyDef();
+    NewBody(world, &bd);
+    int64_t tapeBytes = StopJournal(world);
+    CHECK(tapeBytes > 16 && tapeBytes < (int64_t)sizeof(tape), "and records into the real buffer");
+
+    int64_t big = (int64_t)3 * 1024 * 1024 * 1024;
+    CHECK(m3GetEncodedReplaySize(big, big) == 56 + 2 * big,
+          "the container's size adds past INT32_MAX");
+    CHECK(m3GetEncodedReplaySize(INT64_MAX - 40, 16) == 0, "and refuses a sum past INT64_MAX");
+
+    int64_t bytes = 0;
+    uint64_t recorded = 0;
+    int64_t ops = 0;
+    int64_t steps = 0;
+    uint8_t* blob = RecordSession(&bytes, &recorded, &ops, &steps);
+    int64_t claimed = 0;
+    memcpy(&claimed, blob + 24, sizeof(claimed));
+    int64_t lying = claimed + ((int64_t)1 << 32); // the same low half
+    memcpy(blob + 24, &lying, sizeof(lying));
+    m3ReplayView view;
+    CHECK(m3DecodeReplay(blob, bytes, &view) == m3_errorFormat,
+          "a snapshot size off by 2^32 is read whole and refused");
+    free(blob);
+
+#if SIZE_MAX < INT64_MAX
+    int64_t past = (int64_t)SIZE_MAX + 1;
+    uint64_t misuse = m3World_GetCounters(world).misuse;
+    CHECK(m3World_Restore(world, snap, past) == m3_errorInvalid &&
+              m3World_StartJournal(world, tape, past) == m3_errorInvalid &&
+              m3World_ReplayJournal(world, tape, past) == m3_errorInvalid,
+          "a size past SIZE_MAX is refused as invalid");
+    CHECK(m3World_GetCounters(world).misuse == misuse + 3u, "each counting one misuse");
+    m3JournalInfo info;
+    int64_t encoded = 77;
+    CHECK(m3DescribeJournal(tape, past, &info) == m3_errorInvalid &&
+              m3DecodeReplay(tape, past, &view) == m3_errorInvalid &&
+              m3EncodeReplay(snap, past, tape, tapeBytes, 0u, tape, past, &encoded) ==
+                  m3_errorInvalid &&
+              m3EncodeReplay(snap, size, tape, past, 0u, tape, past, &encoded) == m3_errorInvalid &&
+              encoded == 77,
+          "and so is one handed to the container calls, which leave bytesOut as it was");
+#endif
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestPreSolveReplay();
@@ -388,6 +461,7 @@ int main(void)
     TestSizeOutputsOnFailure();
     TestBusyStopKeepsSize();
     TestFuzz();
+    TestSizesPastInt32();
     if (s_failures == 0)
     {
         printf("test_replayfile: all green\n");

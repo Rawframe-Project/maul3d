@@ -57,7 +57,7 @@ static void TestWindStreamsTheFlag(void)
             m3SoftBody_PinParticle(world, flag, r * 6); // the mast column
         }
         m3World_SetWind(world, (m3Vec3){1.0f, 0.0f, 0.0f}, 6.0f, 0.8f, 0.5f);
-        int32_t snapBytes = 0;
+        int64_t snapBytes = 0;
         for (int32_t i = 0; i < 240; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);

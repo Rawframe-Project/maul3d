@@ -100,10 +100,10 @@ static m3World* Scene(void)
 // Whether a snapshot of world restores into a fresh twin.
 static bool Restores(const m3World* world)
 {
-    int32_t capacity = m3World_GetSnapshotSize(world);
+    int64_t capacity = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
     m3World* twin = NewWorld(&s_worldDef);
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     bool ok = snap != NULL && twin != NULL &&
               m3World_Snapshot(world, snap, capacity, &bytes) == m3_success &&
               m3World_Restore(twin, snap, bytes) == m3_success;
@@ -181,13 +181,13 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
 {
     static uint8_t tape[65536];
     m3World* world = Scene();
-    int32_t capacity = m3World_GetSnapshotSize(world);
+    int64_t capacity = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
-    int32_t snapBytes = 0;
+    int64_t snapBytes = 0;
     bool ok = snap != NULL && m3World_Snapshot(world, snap, capacity, &snapBytes) == m3_success &&
               StartJournal(world, tape, (int32_t)sizeof(tape)) &&
               target->build(world, target->base) == m3_success;
-    int32_t tapeBytes = StopJournal(world);
+    int64_t tapeBytes = StopJournal(world);
     // The records follow the tape's 16-byte state prefix.
     int32_t last = -1;
     for (int32_t at = 16; ok && at + 8 <= tapeBytes;)
@@ -567,9 +567,9 @@ static void ProbeWorlds(void)
                 continue;
             }
             m3World* twin = NULL;
-            int32_t capacity = m3World_GetSnapshotSize(world);
+            int64_t capacity = m3World_GetSnapshotSize(world);
             uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
-            int32_t bytes = 0;
+            int64_t bytes = 0;
             bool ok = snap != NULL && m3CreateWorld(&def, &twin) == m3_success &&
                       m3World_Snapshot(world, snap, capacity, &bytes) == m3_success &&
                       m3World_Restore(twin, snap, bytes) == m3_success;

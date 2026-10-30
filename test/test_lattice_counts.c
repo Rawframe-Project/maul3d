@@ -55,7 +55,7 @@ static void TestPublicCreate(void)
 
 // Replaces the one occurrence of from's bytes in the journal's records
 // with to's.
-static bool Patch(int32_t bytes, int32_t from, int32_t to)
+static bool Patch(int64_t bytes, int32_t from, int32_t to)
 {
     int32_t at = -1;
     for (int32_t i = TAPE_HEADER_BYTES; i + 4 <= bytes; ++i)
@@ -84,7 +84,7 @@ static void TestReplay(void)
     for (size_t i = 0; i < sizeof(s_wide) / sizeof(s_wide[0]); ++i)
     {
         m3World* world = NewSoftWorld();
-        int32_t snapshotBytes = m3World_GetSnapshotSize(world);
+        int64_t snapshotBytes = m3World_GetSnapshotSize(world);
         uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
         CHECK(snapshot != NULL, "the snapshot buffer");
         Snapshot(world, snapshot, snapshotBytes);
@@ -94,7 +94,7 @@ static void TestReplay(void)
         def.countY = recorded[1];
         def.countZ = recorded[2];
         CHECK(m3SoftBody_IsValid(world, NewSoftBody(world, &def)), "the lattice builds");
-        int32_t bytes = StopJournal(world);
+        int64_t bytes = StopJournal(world);
         m3DestroyWorld(world);
 
         world = NewSoftWorld();

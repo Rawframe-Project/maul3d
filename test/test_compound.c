@@ -265,7 +265,7 @@ static void TestGrandMesh(void)
                                         (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
     CHECK(found && fabs(hit.point.y) < 0.5, "a mid-terrain ray lands on the surface");
 
-    int32_t snapBytes = m3World_GetSnapshotSize(world);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the grand snapshot writes");
     uint64_t mid = m3World_Hash(world);

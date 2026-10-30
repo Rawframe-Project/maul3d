@@ -825,7 +825,7 @@ static bool ReplaysCone(float angle)
     m3SphericalJoint_SetConeAngle(world, shoulder, 0.6f);
     m3SphericalJoint_EnableCone(world, shoulder, true);
     StepN(world, 30);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     const float recorded = 0.6f;
     int32_t patched = 0;
     for (int32_t i = 16; i + 4 <= bytes; ++i) // past the tape's 16-byte header
@@ -1341,7 +1341,7 @@ static void TestGenericAsSlider(void)
     CHECK(p.x * p.x + p.z * p.z < 0.001, "the perpendicular locks hold the rail line");
 
     // The new generic state rides the rollback like everything else.
-    int32_t bytes = m3World_GetSnapshotSize(world);
+    int64_t bytes = m3World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)bytes);
     CHECK(Snapshot(world, snap, bytes) == bytes, "the generic snapshot writes");
     for (int32_t i = 0; i < 60; ++i)

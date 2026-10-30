@@ -1007,8 +1007,8 @@ typedef struct m3Recorder
 
     // Journal cursor over a caller-owned buffer.
     uint8_t* journalBuffer;
-    int32_t journalCapacity;
-    int32_t journalCursor;
+    int64_t journalCapacity;
+    int64_t journalCursor;
     int32_t journalActive;
     int32_t journalOverflow;
 } m3Recorder;

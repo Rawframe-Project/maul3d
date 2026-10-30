@@ -68,8 +68,8 @@ int main(int argc, char** argv)
            phases[1], phases[2]);
 
     BenchRollback rollback = BenchRollback5k(steps, NowMs);
-    printf("M3_BENCH scale5k.rollback bytes=%d snapshotMs=%.2f restoreMs=%.2f\n", rollback.bytes,
-           rollback.snapshotMs, rollback.restoreMs);
+    printf("M3_BENCH scale5k.rollback bytes=%lld snapshotMs=%.2f restoreMs=%.2f\n",
+           (long long)rollback.bytes, rollback.snapshotMs, rollback.restoreMs);
 
     BenchSmoke10k(steps / 2, NowMs, &ms);
     Report("smoke10k", steps / 2, ms);

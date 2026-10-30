@@ -102,27 +102,26 @@ static uint64_t ConfigHash(void)
     return h;
 }
 
-static M3_NOINLINE int32_t WorldSnapshotSizeWorker(const m3World* world)
+static M3_NOINLINE int64_t WorldSnapshotSizeWorker(const m3World* world)
 {
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
         return -1;
     }
-    int64_t size = m3SnapshotBytes(world);
-    return m3SnapshotWithinBound(size) ? (int32_t)size : -1;
+    return m3SnapshotBytes(world);
 }
 
-int32_t m3World_GetSnapshotSize(const m3World* world)
+int64_t m3World_GetSnapshotSize(const m3World* world)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldSnapshotSizeWorker(world);
+    int64_t result = WorldSnapshotSizeWorker(world);
     m3FloatEnvLeave(env);
     return result;
 }
 
 static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buffer,
-                                                int32_t capacity, int32_t* bytesOut)
+                                                int64_t capacity, int64_t* bytesOut)
 {
     if (bytesOut != NULL)
     {
@@ -133,7 +132,7 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
         return m3Refuse(world, m3_errorInvalid);
     }
     int64_t size = m3SnapshotBytes(world);
-    if ((int64_t)capacity < size)
+    if (capacity < size)
     {
         // A buffer sized with m3World_GetSnapshotSize always fits, so a short
         // one is the caller's bug as well as a capacity refusal.
@@ -151,11 +150,11 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
     uint8_t* bytes = (uint8_t*)buffer;
     WriteHeader(bytes, &header);
     m3WalkOut(world, bytes + M3_SNAPSHOT_HEADER_BYTES, m3_walkWrite, 1);
-    *bytesOut = (int32_t)size; // at most capacity
+    *bytesOut = size; // at most capacity
     return m3_success;
 }
 
-m3Result m3World_Snapshot(const m3World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
+m3Result m3World_Snapshot(const m3World* world, void* buffer, int64_t capacity, int64_t* bytesOut)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result = WorldSnapshotWorker(world, buffer, capacity, bytesOut);
@@ -228,7 +227,7 @@ static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
 // Each tail parser walks its section of the buffer from cursor and
 // returns where it ends, or -1 when a count is out of range or a section
 // runs past the buffer.
-static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t size, int32_t cursor)
+static int64_t MeshTailEnd(const m3World* world, const uint8_t* raw, int64_t size, int64_t cursor)
 {
     for (int32_t m = 0; m < world->meshes.meshCapacity; ++m)
     {
@@ -254,7 +253,7 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             int64_t content = (int64_t)vc * (int64_t)sizeof(m3Vec3) + 6LL * tc + (int64_t)tc + 4 +
                               (int64_t)(M3_MAX_MESH_MATERIALS * sizeof(m3MeshSurfaceMaterial)) +
                               (int64_t)tc;
-            if ((int64_t)size - cursor < content)
+            if (size - cursor < content)
             {
                 return -1;
             }
@@ -262,13 +261,13 @@ static int32_t MeshTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             {
                 return -1;
             }
-            cursor += (int32_t)content;
+            cursor += content;
         }
     }
     return cursor;
 }
 
-static int32_t HullTailEnd(const m3World* world, const uint8_t* raw, int32_t size, int32_t cursor)
+static int64_t HullTailEnd(const m3World* world, const uint8_t* raw, int64_t size, int64_t cursor)
 {
     // The hull tail: same pre-validation, four counts per
     // slot, content only where vertices exist.
@@ -299,7 +298,7 @@ static int32_t HullTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
                               (int64_t)vc * (int64_t)sizeof(m3Vec3) +
                               (int64_t)fc * ((int64_t)sizeof(m3Vec3) + 4 + 1 + 2) + (int64_t)ic +
                               (int64_t)ec * (int64_t)sizeof(m3HullHalfEdge);
-            if ((int64_t)size - cursor < content)
+            if (size - cursor < content)
             {
                 return -1;
             }
@@ -311,14 +310,14 @@ static int32_t HullTailEnd(const m3World* world, const uint8_t* raw, int32_t siz
             {
                 return -1;
             }
-            cursor += (int32_t)content;
+            cursor += content;
         }
     }
     return cursor;
 }
 
-static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int32_t size,
-                                  int32_t cursor)
+static int64_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int64_t size,
+                                  int64_t cursor)
 {
     // The heightfield tail: three count words per slot,
     // samples only where a grid lives.
@@ -349,7 +348,7 @@ static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int3
             continue;
         }
         int64_t content = 8 + (int64_t)hnx * hnz * 4; // min/max + samples
-        if ((int64_t)size - cursor < content)
+        if (size - cursor < content)
         {
             return -1;
         }
@@ -366,12 +365,12 @@ static int32_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int3
         {
             return -1;
         }
-        cursor += (int32_t)content;
+        cursor += content;
     }
     return cursor;
 }
 
-static bool TailFits(const m3World* world, const uint8_t* raw, int32_t size, int32_t cursor)
+static bool TailFits(const m3World* world, const uint8_t* raw, int64_t size, int64_t cursor)
 {
     cursor = MeshTailEnd(world, raw, size, cursor);
     cursor = cursor < 0 ? -1 : HullTailEnd(world, raw, size, cursor);
@@ -481,7 +480,7 @@ static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
 
 // Fills the stage from a buffer whose every byte has been checked, so a
 // false return means only that the allocator refused.
-static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int32_t fixed,
+static bool PrepareRestore(m3World* world, const uint8_t* raw, int64_t size, int64_t fixed,
                            m3RestoreStage* stage)
 {
     m3Heap* heap = &world->heap;
@@ -505,7 +504,7 @@ static bool PrepareRestore(m3World* world, const uint8_t* raw, int32_t size, int
             return false;
         }
     }
-    stage->hullCursor = (int32_t)walk.cursor; // within size
+    stage->hullCursor = walk.cursor;
     walk.cursor = HullTailEnd(world, raw, size, stage->hullCursor);
     for (int32_t h = 0; h < shapeCap; ++h)
     {
@@ -628,7 +627,7 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
     }
 }
 
-m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3RestoreStage* stage)
+m3Result m3RestorePrepare(m3World* world, const void* data, int64_t size, m3RestoreStage* stage)
 {
     memset(stage, 0, sizeof(*stage));
     if (data == NULL)
@@ -656,15 +655,13 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     // Every byte is checked before any lands, so a refusal is atomic: the
     // fixed prefix against its table entries (indices and cursors in
     // range, flags that are flags, finite floats), then the variable
-    // tail parsed straight from the buffer. The restored state is the
-    // size read, so a snapshot within the bound keeps the world within it.
-    int64_t prefixEnd =
+    // tail parsed straight from the buffer.
+    int64_t fixed =
         (int64_t)M3_SNAPSHOT_HEADER_BYTES + m3WalkBlocks(world, NULL, NULL, m3_walkMeasure, 0);
-    if ((int64_t)size < prefixEnd || !m3SnapshotWithinBound(size))
+    if (size < fixed)
     {
         return m3_errorFormat;
     }
-    int32_t fixed = (int32_t)prefixEnd; // at most size
     const uint8_t* raw = (const uint8_t*)data;
     if (!m3StateValidate(world, raw + M3_SNAPSHOT_HEADER_BYTES) ||
         !TailFits(world, raw, size, fixed) || !VoxelSurfacesFit(world, raw))
@@ -693,7 +690,7 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int32_t size, m3Rest
     return m3_success;
 }
 
-static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data, int32_t size)
+static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data, int64_t size)
 {
     if (m3WorldBusy(world))
     {
@@ -702,8 +699,9 @@ static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data,
     // A snapshot is untrusted data: bytes that fail a check, a short or
     // truncated buffer included, are refused with m3_errorFormat, bytes
     // another release or build wrote with m3_errorVersion, and neither
-    // counts misuse. Only arguments a correct program never passes do.
-    if (world == NULL || size < 0 || (data == NULL && size > 0))
+    // counts misuse. Only arguments a correct program never passes do,
+    // a size no buffer of this target can have included.
+    if (world == NULL || size < 0 || !m3SizeFitsMemory(size) || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);
     }
@@ -717,7 +715,7 @@ static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data,
     return m3_success;
 }
 
-m3Result m3World_Restore(m3World* world, const void* data, int32_t size)
+m3Result m3World_Restore(m3World* world, const void* data, int64_t size)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result = WorldRestoreWorker(world, data, size);

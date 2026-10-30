@@ -137,10 +137,9 @@ extern "C"
     /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
     /// (m3_errorVersion), and the rest of the def must hold
     /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
-    /// maul3d/base.h, a shape, pair or voxel capacity included). A def whose world could snapshot
-    /// to more than M3_MAX_SNAPSHOT_BYTES, with every mesh and hull slot's content at its largest,
-    /// is refused with m3_errorCapacity before anything is allocated, and so is one whose step
-    /// scratch, sized at its capacities, would pass 2 GiB; the allocator may refuse too
+    /// maul3d/base.h, a shape, pair or voxel capacity included). A def whose step
+    /// scratch, sized at its capacities, would pass 2 GiB is refused with m3_errorCapacity
+    /// before anything is allocated; the allocator may refuse too
     /// (m3_errorCapacity), and then nothing is left allocated. The world takes the scratch
     /// a step needs here, about 918 bytes per pair of pairCapacity, 126 per body and 416 per
     /// joint on a 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
@@ -313,14 +312,16 @@ extern "C"
     /// extents are not stored; restore rebuilds them from each body's
     /// type and shapes. A world restore accepts steps, queries and
     /// snapshots like one the API built.
-    /// Snapshot writes m3World_GetSnapshotSize bytes, never more than
-    /// M3_MAX_SNAPSHOT_BYTES, and sets *bytesOut; a smaller buffer
-    /// returns m3_errorCapacity. Any failure, a null world's included,
-    /// leaves *bytesOut zero.
-    M3_API int32_t m3World_GetSnapshotSize(const m3World* world);
+    /// Snapshot writes m3World_GetSnapshotSize bytes and sets *bytesOut;
+    /// a smaller buffer returns m3_errorCapacity. Any failure, a null
+    /// world's included, leaves *bytesOut zero. Sizes are 64-bit and
+    /// have no cap of their own: a world that fits memory snapshots. On a
+    /// 32-bit target Restore refuses a size past SIZE_MAX with
+    /// m3_errorInvalid before it forms a pointer.
+    M3_API int64_t m3World_GetSnapshotSize(const m3World* world);
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
-                                                  int32_t capacity, int32_t* bytesOut);
-    M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int32_t size);
+                                                  int64_t capacity, int64_t* bytesOut);
+    M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int64_t size);
 
     /// Contact events: begin fires on the step two shapes
     /// first touch, end fires on the step they separate. Derived from
@@ -734,7 +735,7 @@ extern "C"
         int32_t treeHeight;
         int32_t scratchPeak;     // step scratch high water, bytes
         int32_t scratchCapacity; // step scratch reserve, bytes
-        int32_t snapshotBytes;   // exact m3World_Snapshot size now
+        int64_t snapshotBytes;   // exact m3World_Snapshot size now
         int64_t allocCalls;      // process-global persistent allocs
         int64_t freeCalls;
         uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
@@ -813,9 +814,11 @@ extern "C"
     /// and never holds a def's padding, so the same calls write the same bytes anywhere. It starts
     /// with the 16-byte state prefix, written when the journal starts, so the buffer holds at least
     /// 16 bytes and a session of no op is those 16. Only the release that wrote a tape replays it.
+    /// Sizes are 64-bit; on a 32-bit target Start refuses a capacity, and Replay a size, past
+    /// SIZE_MAX with m3_errorInvalid.
     M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
-                                                      int32_t capacity);
-    M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);
+                                                      int64_t capacity);
+    M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int64_t* bytesOut);
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal the world is restored to its pre-call state; a
     /// half-applied session is impossible. Returns m3_errorVersion for a
@@ -831,7 +834,7 @@ extern "C"
     /// mesh, shape and voxel capacities. A tape that fits a tight allocator without that
     /// headroom is refused with m3_errorCapacity before any op runs.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
-                                                       int32_t size);
+                                                       int64_t size);
 
 #ifdef __cplusplus
 }

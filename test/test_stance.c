@@ -128,7 +128,7 @@ static void TestDuckWalkStand(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = StopJournal(world);
+            int64_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the tunnel run records");
             m3World* replayed = TunnelWorld();
             CHECK(ReplayJournal(replayed, journal, bytes), "the tunnel run replays");

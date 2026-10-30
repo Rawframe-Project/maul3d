@@ -295,7 +295,7 @@ static void TestReplayHoldsTheOwnership(void)
         m3ShapeId otherShape = NewSphereShape(world, other, &sd, &ball);
         m3ShapeId capsule = CapsuleOf(world, cd.position);
         m3BodyId body = m3Shape_GetBody(world, capsule);
-        int32_t size = m3World_GetSnapshotSize(world);
+        int64_t size = m3World_GetSnapshotSize(world);
         uint8_t* start = (uint8_t*)malloc((size_t)size);
         CHECK(start != NULL && Snapshot(world, start, size) == size, "the start is saved");
 
@@ -312,7 +312,7 @@ static void TestReplayHoldsTheOwnership(void)
         {
             m3Body_SetType(world, other, m3_dynamicBody);
         }
-        int32_t bytes = StopJournal(world);
+        int64_t bytes = StopJournal(world);
         // The record's payload starts with the id: retarget it.
         const void* from = kind == 0 ? (const void*)&otherShape : (const void*)&other;
         const void* to = kind == 0 ? (const void*)&capsule : (const void*)&body;

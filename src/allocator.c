@@ -71,11 +71,16 @@ static M3_NOINLINE void HostFree(m3Heap* heap, void* memory, size_t bytes)
 // Every block starts with a header of M3_ALLOC_ALIGNMENT bytes holding
 // the full size the allocator was asked for, so the block the caller
 // sees keeps the alignment and the free hands back the same size.
-void* m3AllocZeroed(m3Heap* heap, int32_t bytes)
+void* m3AllocZeroed(m3Heap* heap, int64_t bytes)
 {
     if (bytes <= 0)
     {
         M3_ASSERT(false);
+        return NULL;
+    }
+    if ((uint64_t)bytes > (uint64_t)(SIZE_MAX - M3_ALLOC_ALIGNMENT))
+    {
+        heap->refusedCalls += 1; // no memory of this target holds it
         return NULL;
     }
     size_t total = (size_t)bytes + M3_ALLOC_ALIGNMENT;
@@ -97,7 +102,7 @@ void* m3AllocArray(m3Heap* heap, int64_t count, int64_t elementBytes)
     {
         return NULL;
     }
-    return m3AllocZeroed(heap, (int32_t)(count * elementBytes));
+    return m3AllocZeroed(heap, count * elementBytes);
 }
 
 void m3Free(m3Heap* heap, void* memory)

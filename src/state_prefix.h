@@ -22,8 +22,8 @@
 #define M3_JOURNAL_VERSION       6u          // 6: the spherical cone record
 #define M3_JOURNAL_HEADER_BYTES  16
 #define M3_REPLAY_MAGIC          0x5052334Du // "M3RP"
-#define M3_REPLAY_VERSION        3u          // 3: the state prefix
-#define M3_REPLAY_HEADER_BYTES   40
+#define M3_REPLAY_VERSION        4u          // 4: 64-bit sizes and counts
+#define M3_REPLAY_HEADER_BYTES   56
 
 // The 16 bytes every state format starts with, the snapshot's, the
 // journal tape's and the replay container's alike, in the layout maul2d
@@ -47,7 +47,7 @@ m3StatePrefix m3MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t 
 // m3_errorVersion, since only the release that wrote them reads them; a
 // header size that is not this format's, or bytes too short to hold it,
 // is m3_errorInvalid. Counts nothing: the bytes are untrusted.
-m3Result m3CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uint32_t formatVersion,
+m3Result m3CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes);
 
 #endif // MAUL3D_SRC_STATE_PREFIX_H

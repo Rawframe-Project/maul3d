@@ -321,7 +321,7 @@ static void TestSoftPushAndKickWindow(void)
     // blast is strong to make the push visible over half a second.
     def.impulsePerArea = 50.0f;
     m3World_Explode(world, &def);
-    int32_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
+    int64_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(snapBytes > 0, "the kick-window snapshot fits");
     for (int32_t i = 0; i < 30; ++i)
     {
@@ -398,7 +398,7 @@ static void TestHostileTape(void)
     def.position = (m3Pos3){0.0, 0.0, 0.0};
     def.impulsePerArea = 2.0f;
     m3World_Explode(world, &def);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes == 16 + 8 + (int32_t)sizeof(m3ExplosionDef),
           "one blast op is the prefix, its header and the def");
     m3DestroyWorld(world);

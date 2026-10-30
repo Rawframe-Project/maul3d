@@ -98,8 +98,8 @@ void M3World3D::set_body_velocity(int64_t body, godot::Vector3 velocity)
 godot::PackedByteArray M3World3D::snapshot() const
 {
     godot::PackedByteArray out;
-    int32_t size = m3World_GetSnapshotSize(world_);
-    int32_t written = 0;
+    int64_t size = m3World_GetSnapshotSize(world_);
+    int64_t written = 0;
     out.resize(size);
     if (m3World_Snapshot(world_, out.ptrw(), size, &written) != m3_success)
     {
@@ -110,7 +110,7 @@ godot::PackedByteArray M3World3D::snapshot() const
 
 bool M3World3D::restore(const godot::PackedByteArray& data)
 {
-    return m3World_Restore(world_, data.ptr(), (int32_t)data.size()) == m3_success;
+    return m3World_Restore(world_, data.ptr(), (int64_t)data.size()) == m3_success;
 }
 
 godot::String M3World3D::world_hash() const

@@ -160,21 +160,18 @@ the limit its create or setter keeps (see "Magnitude limits"). A
 world restore accepts steps, queries and snapshots like one the API
 built.
 
-**A snapshot's size is bounded.** A world's snapshot never passes
-`M3_MAX_SNAPSHOT_BYTES`, the 2 GiB an `int32_t` byte count names
-(maul3d's journal never embeds a snapshot, so a snapshot may take the
-whole range). Most of a snapshot is sized by the capacities: about
-1.9 KB per shape slot, 13 KB per voxel slot and 100 KB per soft body
-slot. Mesh, hull and height field content adds to it. `m3CreateWorld`
-counts every mesh slot's content at its largest (about 1.3 MB) and every
-shape slot's hull at its largest (about 5.8 KB), and refuses a def
-whose world could pass the bound with `m3_errorCapacity` before it
-allocates anything: near 278,000 shape slots, or 1,638 mesh slots, with
-nothing else. A native grid height field takes up to 260 KB, counted
-when it is created: `m3CreateHeightFieldGridShape` refuses samples
-that would carry the snapshot past the bound with `m3_errorCapacity`,
-and a replayed grid the same way with `m3_errorFormat`, each leaving
-the world as it was. `m3World_GetSnapshotSize` gives a world's exact size.
+**A snapshot's size is 64-bit.** Snapshot, journal and replay
+container sizes are `int64_t` and have no cap of their own: a world that
+fits memory snapshots. Most of a snapshot is sized by the capacities:
+about 1.9 KB per shape slot, 13 KB per voxel slot and 100 KB per soft
+body slot. Mesh, hull and height field content adds to it: up to about
+1.3 MB per mesh, 5.8 KB per hull and 260 KB per native grid height
+field. `m3World_GetSnapshotSize` gives a world's exact size. On a 32-bit
+target, where `size_t` is 32 bits, `m3World_Restore`,
+`m3World_StartJournal`, `m3World_ReplayJournal` and the container calls
+refuse a size past `SIZE_MAX` with `m3_errorInvalid` before they form a
+pointer, and a snapshot that does not fit memory fails its allocation
+with `m3_errorCapacity`.
 
 The header starts with the 16-byte state prefix maul2d shares, which
 carries the writer's ABI version and the format's own number

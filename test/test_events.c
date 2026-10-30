@@ -394,9 +394,9 @@ static void TestColdPairAndReusedSlot(void)
     gd.position = (m3Pos3){50.0, 0.0, 0.0};
     m3ShapeId newer = NewSphereShape(world, NewBody(world, &gd), &sd, &sphere);
     CHECK(newer.index1 == x.index1, "a static shape far away takes the freed slot");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
           "the world snapshots after the destroy");
     m3World* twin = NewWorld(&def);
@@ -482,9 +482,9 @@ static void TestForgetAfterThePairsChange(void)
     CHECK(m3DestroyShape(world, balls[0]) == m3_success, "the first ball's shape is destroyed");
     CHECK(m3DestroyShape(world, balls[1]) == m3_success, "and the second, on the same index");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
           "the world snapshots after the step");
     m3World* twin = PlaneWorld(NULL);
@@ -528,9 +528,9 @@ static void TestSleepInAReusedSlot(void)
     CHECK(newer.index1 == x.index1, "a sphere on the floor takes the freed slot");
     m3Body_SetAwake(world, sleeper, false);
     CHECK(!m3Body_IsAwake(world, sleeper), "and is put to sleep before any step");
-    int32_t size = m3World_GetSnapshotSize(world);
+    int64_t size = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
           "the world snapshots after the sleep");
     m3World* twin = PlaneWorld(NULL);

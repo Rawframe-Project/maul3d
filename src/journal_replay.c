@@ -697,10 +697,10 @@ static const ReplayCommand s_commands[m3_opCount] = {
 // the first refusal: m3_errorCapacity when the op that failed was
 // refused memory, m3_errorFormat otherwise. Partial application is
 // possible here; m3World_ReplayJournal below makes the whole call atomic.
-static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
+static m3Result ReplayApply(m3World* world, const void* data, int64_t size)
 {
     const uint8_t* stream = (const uint8_t*)data;
-    int32_t cursor = 0;
+    int64_t cursor = 0;
     while (cursor < size)
     {
         if (size - cursor < 8)
@@ -731,7 +731,7 @@ static m3Result ReplayApply(m3World* world, const void* data, int32_t size)
     return cursor == size ? m3_success : m3_errorFormat;
 }
 
-static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void* data, int32_t size)
+static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void* data, int64_t size)
 {
     if (m3WorldBusy(world))
     {
@@ -739,8 +739,9 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
     }
     // A tape is untrusted data like a snapshot: a damaged or truncated one
     // is refused with m3_errorFormat, one another release wrote with
-    // m3_errorVersion, and neither counts misuse.
-    if (world == NULL || size < 0 || (data == NULL && size > 0))
+    // m3_errorVersion, and neither counts misuse. A size no buffer of this
+    // target can have is the caller's bug.
+    if (world == NULL || size < 0 || !m3SizeFitsMemory(size) || (data == NULL && size > 0))
     {
         return m3Refuse(world, m3_errorInvalid);
     }
@@ -759,15 +760,13 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
     // restore of it prepared, backs out any partial application on
     // refusal without taking memory, so a damaged tape or an op the
     // allocator turns down can never leave a half-built world behind.
-    int64_t snapBytes = m3SnapshotBytes(world);
-    M3_ASSERT(m3SnapshotWithinBound(snapBytes));
-    int32_t snapSize = (int32_t)snapBytes; // within the bound
+    int64_t snapSize = m3SnapshotBytes(world);
     uint8_t* snap = (uint8_t*)m3AllocZeroed(&world->heap, snapSize);
     if (snap == NULL)
     {
         return m3_errorCapacity; // no memory for the guarantee means no replay
     }
-    int32_t written = 0;
+    int64_t written = 0;
     m3RestoreStage backOut;
     if (m3World_Snapshot(world, snap, snapSize, &written) != m3_success || written != snapSize ||
         m3RestorePrepare(world, snap, snapSize, &backOut) != m3_success)
@@ -790,7 +789,7 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
     return applied;
 }
 
-m3Result m3World_ReplayJournal(m3World* world, const void* data, int32_t size)
+m3Result m3World_ReplayJournal(m3World* world, const void* data, int64_t size)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result = WorldReplayJournalWorker(world, data, size);

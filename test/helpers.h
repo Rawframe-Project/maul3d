@@ -188,49 +188,49 @@ static inline void DestroyWaterVolume(m3World* world, m3WaterVolumeId volume)
     (void)m3DestroyWaterVolume(world, volume);
 }
 
-static inline int32_t Snapshot(const m3World* world, void* buffer, int32_t capacity)
+static inline int64_t Snapshot(const m3World* world, void* buffer, int64_t capacity)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     return m3World_Snapshot(world, buffer, capacity, &bytes) == m3_success ? bytes : -1;
 }
 
-static inline bool Restore(m3World* world, const void* data, int32_t size)
+static inline bool Restore(m3World* world, const void* data, int64_t size)
 {
     return m3World_Restore(world, data, size) == m3_success;
 }
 
-static inline bool StartJournal(m3World* world, void* buffer, int32_t capacity)
+static inline bool StartJournal(m3World* world, void* buffer, int64_t capacity)
 {
     return m3World_StartJournal(world, buffer, capacity) == m3_success;
 }
 
-static inline int32_t StopJournal(m3World* world)
+static inline int64_t StopJournal(m3World* world)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     return m3World_StopJournal(world, &bytes) == m3_success ? bytes : -1;
 }
 
-static inline bool ReplayJournal(m3World* world, const void* data, int32_t size)
+static inline bool ReplayJournal(m3World* world, const void* data, int64_t size)
 {
     return m3World_ReplayJournal(world, data, size) == m3_success;
 }
 
-static inline bool DescribeJournal(const void* journal, int32_t bytes, m3JournalInfo* info)
+static inline bool DescribeJournal(const void* journal, int64_t bytes, m3JournalInfo* info)
 {
     return m3DescribeJournal(journal, bytes, info) == m3_success;
 }
 
-static inline int32_t EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void* journal,
-                                   int32_t journalBytes, uint64_t finalHash, void* out,
-                                   int32_t capacity)
+static inline int64_t EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void* journal,
+                                   int64_t journalBytes, uint64_t finalHash, void* out,
+                                   int64_t capacity)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     m3Result result = m3EncodeReplay(snapshot, snapshotBytes, journal, journalBytes, finalHash, out,
                                      capacity, &bytes);
     return result == m3_success ? bytes : 0;
 }
 
-static inline bool DecodeReplay(const void* data, int32_t bytes, m3ReplayView* view)
+static inline bool DecodeReplay(const void* data, int64_t bytes, m3ReplayView* view)
 {
     return m3DecodeReplay(data, bytes, view) == m3_success;
 }

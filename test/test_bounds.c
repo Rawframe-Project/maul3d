@@ -946,7 +946,7 @@ typedef struct Site
 static uint8_t s_journal[1 << 20];
 
 // Replaces the one occurrence of from's bytes in the journal with to's.
-static bool Patch(int32_t bytes, float from, float to, int32_t width)
+static bool Patch(int64_t bytes, float from, float to, int32_t width)
 {
     uint8_t a[8];
     uint8_t b[8];
@@ -982,7 +982,7 @@ static bool Patch(int32_t bytes, float from, float to, int32_t width)
     return true;
 }
 
-static bool ReplaysOnto(const uint8_t* snapshot, int32_t snapshotBytes, int32_t journalBytes)
+static bool ReplaysOnto(const uint8_t* snapshot, int64_t snapshotBytes, int64_t journalBytes)
 {
     m3WorldDef def = SceneDef();
     m3World* world = NewWorld(&def);
@@ -1028,7 +1028,7 @@ static void CheckSite(const Site* site)
     m3DestroyWorld(s.world);
 
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
+    int64_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     StartJournal(s.world, s_journal, (int32_t)sizeof(s_journal));
@@ -1037,7 +1037,7 @@ static void CheckSite(const Site* site)
         site->prepare(&s, site->ok);
     }
     site->apply(&s, site->ok);
-    int32_t journalBytes = StopJournal(s.world);
+    int64_t journalBytes = StopJournal(s.world);
     m3DestroyWorld(s.world);
     snprintf(what, sizeof(what), "%s: the journal replays as recorded", site->name);
     CHECK(ReplaysOnto(snapshot, snapshotBytes, journalBytes), what);
@@ -1286,13 +1286,13 @@ static void CheckReplayState(const char* name, StateFunction* call, StateFunctio
     char what[192];
     Scene s;
     BuildScene(&s);
-    int32_t snapshotBytes = m3World_GetSnapshotSize(s.world);
+    int64_t snapshotBytes = m3World_GetSnapshotSize(s.world);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
     Snapshot(s.world, snapshot, snapshotBytes);
     uint64_t misuse = Misuse(s.world);
     StartJournal(s.world, s_journal, (int32_t)sizeof(s_journal));
     call(&s);
-    int32_t journalBytes = StopJournal(s.world);
+    int64_t journalBytes = StopJournal(s.world);
     snprintf(what, sizeof(what), "%s: the call is accepted", name);
     CHECK(Misuse(s.world) == misuse, what);
     m3DestroyWorld(s.world);

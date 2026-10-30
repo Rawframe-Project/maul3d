@@ -355,7 +355,7 @@ static void TestRestoreRefusesBrokenStructures(void)
     CHECK(scene.world->bodies.types[scene.ground] == (uint8_t)m3_staticBody, "the ground");
     CHECK(scene.world->contacts.pairCount >= 2, "the scene has pairs to reorder");
 
-    int32_t size = m3World_GetSnapshotSize(scene.world);
+    int64_t size = m3World_GetSnapshotSize(scene.world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* broken = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && broken != NULL, "snapshot buffers");
@@ -437,7 +437,7 @@ static void TestRestoreAcceptsWhatTheEngineWrites(void)
         FuzzStep(world, 4);
         CHECK(world->contacts.pairCount > 0, "the scene has pairs");
         s_engineCases[c].call(world, &scene);
-        int32_t size = m3World_GetSnapshotSize(world);
+        int64_t size = m3World_GetSnapshotSize(world);
         uint8_t* bytes = (uint8_t*)malloc((size_t)size);
         CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "snapshot taken");
         uint64_t hash = m3World_Hash(world);

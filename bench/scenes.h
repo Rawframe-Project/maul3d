@@ -40,7 +40,7 @@ uint64_t BenchCityblock(int32_t totalSteps, BenchClock* clock, double phaseMs[3]
 
 typedef struct BenchRollback
 {
-    int32_t bytes;
+    int64_t bytes;
     double snapshotMs;
     double restoreMs;
     bool restoreExact; // the restored world hashes as the snapshotted one

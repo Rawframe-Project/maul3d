@@ -395,7 +395,7 @@ static void TestClothFollowsBeam(void)
         m3SoftBody_AnchorParticle(world, cloth, 63, beam);
 
         m3Body_SetLinearVelocity(world, beam, (m3Vec3){0.8f, 0.0f, 0.0f});
-        int32_t snapBytes = 0;
+        int64_t snapBytes = 0;
         for (int32_t i = 0; i < 150; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -513,7 +513,7 @@ static void TestTetBodies(void)
         hashes[run] = m3World_Hash(world);
         if (recording)
         {
-            int32_t bytes = StopJournal(world);
+            int64_t bytes = StopJournal(world);
             CHECK(bytes > 0, "the jelly session records");
             m3WorldDef fresh = wd;
             m3World* replayed = NewWorld(&fresh);
@@ -671,7 +671,7 @@ static void TestRestoreKeepsPoolCursors(void)
     sb.countY = 2;
     sb.countZ = 2;
     m3SoftBodyId first = NewSoftBody(world, &sb);
-    int32_t bytes = Snapshot(world, snap, (int32_t)sizeof(snap));
+    int64_t bytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(bytes > 0, "the snapshot fits");
     DestroySoftBody(world, first);
     CHECK(Restore(world, snap, bytes), "the restore lands");
