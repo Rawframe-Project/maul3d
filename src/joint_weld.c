@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The fixed joint: a shared point and a locked relative rotation, both
+// The weld joint: a shared point and a locked relative rotation, both
 // held at the pose the joint was created in.
 //
 // Slots: the rotation lock (angularImpulse) and the point block
@@ -12,21 +12,21 @@
 
 static const m3Quat s_identity = {0.0f, 0.0f, 0.0f, 1.0f};
 
-static void PrepareFixed(m3World* world, m3JointConstraint* c, const m3JointFrame* f)
+static void PrepareWeld(m3World* world, m3JointConstraint* c, const m3JointFrame* f)
 {
     (void)world; // the frames from the common setup are all it needs
     (void)c;
     (void)f;
 }
 
-static void WarmStartFixed(const m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b)
+static void WarmStartWeld(const m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b)
 {
     m3PushTurn(b, c->angularImpulse);
     m3PushPoint(pose->armA, pose->armB, b, c->impulse);
 }
 
-static void SolveFixed(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
-                       const m3JointPass* pass)
+static void SolveWeld(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
+                      const m3JointPass* pass)
 {
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
     m3Vec3 error = {0.0f, 0.0f, 0.0f};
@@ -39,4 +39,4 @@ static void SolveFixed(m3JointConstraint* c, const m3JointPose* pose, m3JointBod
     m3SolveJointPoint(c, pose, b, pass);
 }
 
-const m3JointKind m3_fixedJointKind = {PrepareFixed, WarmStartFixed, SolveFixed};
+const m3JointKind m3_weldJointKind = {PrepareWeld, WarmStartWeld, SolveWeld};

@@ -662,7 +662,7 @@ static void TestDistanceSpringAndLength(void)
           "a hinge def's spring reads back");
     jd.springHertz = 0.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a def spring at 0 Hz refuses");
-    jd.type = m3_fixedJoint;
+    jd.type = m3_weldJoint;
     jd.springHertz = 4.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a weld refuses a def spring");
     m3DestroyWorld(world);

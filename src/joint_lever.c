@@ -18,7 +18,7 @@
 bool m3JointHasBlocks(uint8_t type)
 {
     return type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_revoluteJoint ||
-           type == (uint8_t)m3_prismaticJoint || type == (uint8_t)m3_fixedJoint ||
+           type == (uint8_t)m3_prismaticJoint || type == (uint8_t)m3_weldJoint ||
            type == (uint8_t)m3_wheelJoint || type == (uint8_t)m3_motorJoint;
 }
 

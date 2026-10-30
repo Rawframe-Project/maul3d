@@ -144,7 +144,7 @@ static void TestBrokenAxleDeterministic(void)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
         }
-        m3Joint_SetBreakThresholds(world, cart.joints[1], 0.0f, 25.0f);
+        m3Joint_SetBreakLimits(world, cart.joints[1], 0.0f, 25.0f);
         DriveCart(world, &cart, -30.0f, 90.0f);
         int64_t snapBytes = 0;
         int32_t breakStep = -1;

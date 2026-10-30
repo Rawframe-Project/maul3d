@@ -348,7 +348,7 @@ static void InitJointFrames(m3World* world, int32_t index, const m3JointDef* def
     j->jointFrameQB[index] = identity;
     switch (def->type)
     {
-    case m3_fixedJoint:
+    case m3_weldJoint:
     case m3_motorJoint:
     {
         const m3Transform* xfA = &world->bodies.transforms[j->jointBodyA[index]];

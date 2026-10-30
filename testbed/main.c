@@ -926,7 +926,7 @@ static tbScene SceneTower(void)
     jd.minLength = 0.0f;
     jd.maxLength = 8.4f;
     m3JointId rope = NewJoint(scene.world, &jd);
-    m3Joint_SetBreakThresholds(scene.world, rope, 2200.0f, 0.0f);
+    m3Joint_SetBreakLimits(scene.world, rope, 2200.0f, 0.0f);
     return scene;
 }
 
@@ -1045,7 +1045,7 @@ static tbScene SceneJointCart(void)
         // never snaps an axle (the first tuning had them inverted
         // and the cart shed wheels pulling away); rubble impacts
         // spike the collinearity torque past it.
-        m3Joint_SetBreakThresholds(scene.world, scene.axles[w], 0.0f, 240.0f);
+        m3Joint_SetBreakLimits(scene.world, scene.axles[w], 0.0f, 240.0f);
     }
     return scene;
 }

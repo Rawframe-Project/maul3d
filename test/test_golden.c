@@ -444,7 +444,7 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3JointDef hold = HangDef(world, ground, 32.0, 2.3, 0.0, m3_sphericalJoint, &holder);
     NewJoint(world, &hold);
     m3JointDef weld = m3DefaultJointDef();
-    weld.type = m3_fixedJoint;
+    weld.type = m3_weldJoint;
     weld.bodyIdA = holder;
     weld.bodyIdB = JointBox(world, 32.5, 2.3, 0.0);
     weld.localAnchorA = (m3Vec3){0.25f, 0.0f, 0.0f};
@@ -959,7 +959,7 @@ static void TourJointsAndSoft(const Tour* t)
     m3SphericalJoint_SetConeAngle(t->world, t->shoulder, 0.6f);
     m3SphericalJoint_EnableCone(t->world, t->shoulder, true);
     m3Joint_EnableConnectedCollision(t->world, t->spare, true);
-    m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
+    m3Joint_SetBreakLimits(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);
     m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate);
     m3SoftBody_AnchorToSoft(t->world, t->rope, 3, t->tet, 2);

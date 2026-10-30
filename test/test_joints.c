@@ -981,7 +981,7 @@ static void TestWeldActsAsOneBody(void)
         NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
 
         m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_fixedJoint;
+        jd.type = m3_weldJoint;
         jd.bodyIdA = a;
         jd.bodyIdB = b;
         jd.localAnchorA = (m3Vec3){0.45f, 0.0f, 0.0f};
@@ -1458,7 +1458,7 @@ static void TestHeavyBodyWelds(void)
         sd.density = densities[i];
         NewBoxShape(world, cube, &sd, (m3Vec3){halves[i], halves[i], halves[i]});
         m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_fixedJoint;
+        jd.type = m3_weldJoint;
         jd.bodyIdA = ground;
         jd.bodyIdB = cube;
         jd.localAnchorA = (m3Vec3){-halves[i], halves[i], 0.0f};

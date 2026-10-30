@@ -239,8 +239,8 @@ bool m3Joint_IsConnectedCollisionEnabled(const m3World* world, m3JointId joint)
     return ResolveJoint(world, joint, &slot) && world->joints.jointConnectedCollision[slot] != 0;
 }
 
-static M3_NOINLINE void JointSetBreakThresholdsWorker(m3World* world, m3JointId joint,
-                                                      float maxForce, float maxTorque)
+static M3_NOINLINE void JointSetBreakLimitsWorker(m3World* world, m3JointId joint, float maxForce,
+                                                  float maxTorque)
 {
     if (m3WorldBusy(world))
     {
@@ -269,14 +269,41 @@ static M3_NOINLINE void JointSetBreakThresholdsWorker(m3World* world, m3JointId 
     m3JointSetBreakInternal(world, slot, maxForce, maxTorque);
 }
 
-void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce, float maxTorque)
+void m3Joint_SetBreakLimits(m3World* world, m3JointId joint, float maxForce, float maxTorque)
 {
     uint64_t env = m3FloatEnvEnter();
-    JointSetBreakThresholdsWorker(world, joint, maxForce, maxTorque);
+    JointSetBreakLimitsWorker(world, joint, maxForce, maxTorque);
     m3FloatEnvLeave(env);
 }
 
-static M3_NOINLINE m3real JointGetConstraintForceWorker(const m3World* world, m3JointId joint)
+void m3Joint_GetBreakLimits(const m3World* world, m3JointId joint, float* maxForceOut,
+                            float* maxTorqueOut)
+{
+    if (maxForceOut != NULL)
+    {
+        *maxForceOut = 0.0f;
+    }
+    if (maxTorqueOut != NULL)
+    {
+        *maxTorqueOut = 0.0f;
+    }
+    int32_t slot;
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return;
+    }
+    m3Vec3 limits = world->joints.jointBreak[slot];
+    if (maxForceOut != NULL)
+    {
+        *maxForceOut = limits.x;
+    }
+    if (maxTorqueOut != NULL)
+    {
+        *maxTorqueOut = limits.y;
+    }
+}
+
+static M3_NOINLINE m3real JointGetReactionForceWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
@@ -289,15 +316,15 @@ static M3_NOINLINE m3real JointGetConstraintForceWorker(const m3World* world, m3
     return force;
 }
 
-m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint)
+m3real m3Joint_GetReactionForce(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetConstraintForceWorker(world, joint);
+    m3real result = JointGetReactionForceWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3real JointGetConstraintTorqueWorker(const m3World* world, m3JointId joint)
+static M3_NOINLINE m3real JointGetReactionTorqueWorker(const m3World* world, m3JointId joint)
 {
     int32_t slot;
     if (!ResolveJoint(world, joint, &slot) || world->lastInvH == 0.0f)
@@ -310,10 +337,10 @@ static M3_NOINLINE m3real JointGetConstraintTorqueWorker(const m3World* world, m
     return torque;
 }
 
-m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint)
+m3real m3Joint_GetReactionTorque(const m3World* world, m3JointId joint)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = JointGetConstraintTorqueWorker(world, joint);
+    m3real result = JointGetReactionTorqueWorker(world, joint);
     m3FloatEnvLeave(env);
     return result;
 }

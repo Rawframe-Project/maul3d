@@ -85,6 +85,7 @@ stored floats read back as they are, with no arithmetic:
     m3Character_GetStance
     m3DistanceJoint_GetLength
     m3DistanceJoint_GetLengthRange
+    m3Joint_GetBreakLimits
     m3Joint_GetLimits
     m3Joint_GetMaxMotorEffort
     m3Joint_GetMotorSpeed

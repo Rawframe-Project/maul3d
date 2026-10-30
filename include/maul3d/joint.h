@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Joints: the seven joint types, their defs, limits, motors,
-// springs, constraint force readback and breaking.
+// springs, reaction force readback and breaking.
 
 #ifndef MAUL3D_JOINT_H
 #define MAUL3D_JOINT_H
@@ -19,7 +19,7 @@ extern "C"
         m3_sphericalJoint = 0, // ball: pins two body-frame points together
         m3_revoluteJoint = 1,  // hinge: one rotation axis, limits, motor
         m3_prismaticJoint = 2, // slider: one translation axis, limits, motor
-        m3_fixedJoint = 3,     // weld: full 6-DOF lock at the create pose
+        m3_weldJoint = 3,      // full 6-DOF lock at the create pose
         m3_distanceJoint = 4,  // rope/rod: anchor distance in [minLength, maxLength]
         m3_genericJoint = 5,   // 6-DOF: per-axis lock/free/limit + one motor
         m3_wheelJoint = 6,
@@ -106,7 +106,7 @@ extern "C"
         /// Distance joints hold the anchor distance in [minLength,
         /// maxLength] below and take neither a limit nor a motor:
         /// enableLimit and enableMotor refuse them. Their optional spring
-        /// pulls toward length, below. Fixed joints ignore axes
+        /// pulls toward length, below. Weld joints ignore axes
         /// and limits entirely: they weld the create-time pose.
         /// Jointed bodies do not collide with each other unless this
         /// is set (the classic chain-fight guard).
@@ -186,7 +186,7 @@ extern "C"
     /// Create a joint between two distinct bodies of the same world
     /// (at least one dynamic). Returns m3_errorInvalid for a bad def,
     /// m3_errorLimit for a value past a bound in maul3d/base.h or for a
-    /// spherical, revolute, prismatic, fixed, wheel or motor joint whose
+    /// spherical, revolute, prismatic, weld, wheel or motor joint whose
     /// bodies' lever ratio would pass M3_JOINT_LEVER_LIMIT,
     /// m3_errorStale for a stale body and m3_errorCapacity for an
     /// exhausted pool; *jointOut is the null id on any failure.
@@ -300,8 +300,13 @@ extern "C"
     /// step, the joint destroys itself and emits the joint break
     /// event (see world.h). Zero disables a cap; both zero (the
     /// default) means unbreakable.
-    M3_API void m3Joint_SetBreakThresholds(m3World* world, m3JointId joint, float maxForce,
-                                           float maxTorque);
+    M3_API void m3Joint_SetBreakLimits(m3World* world, m3JointId joint, float maxForce,
+                                       float maxTorque);
+    /// The break limits m3Joint_SetBreakLimits sets, 0 for a cap that is
+    /// off. A stale id reads zeros and counts one misuse; a null world
+    /// reads zeros. Either output may be null.
+    M3_API void m3Joint_GetBreakLimits(const m3World* world, m3JointId joint, float* maxForceOut,
+                                       float* maxTorqueOut);
 
     /// Reaction readback: MAGNITUDES of the last step's
     /// constraint reactions, assembled per type from the stored
@@ -309,8 +314,8 @@ extern "C"
     /// torque; the generic joint reports a conservative sum). Reads
     /// 0 before the first step after a restore (documented
     /// transient).
-    M3_API m3real m3Joint_GetConstraintForce(const m3World* world, m3JointId joint);
-    M3_API m3real m3Joint_GetConstraintTorque(const m3World* world, m3JointId joint);
+    M3_API m3real m3Joint_GetReactionForce(const m3World* world, m3JointId joint);
+    M3_API m3real m3Joint_GetReactionTorque(const m3World* world, m3JointId joint);
 
     /// Geometry reads: the revolute twist angle about the hinge
     /// (radians) and the prismatic translation along the slide axis
