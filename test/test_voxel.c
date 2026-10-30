@@ -576,12 +576,12 @@ static void TestFractureBridge(void)
         CHECK(count == 1, "the stranded span is exactly one island");
         CHECK(events[0].voxelCount == 8, "the island is the hand-counted eight voxels");
         CHECK(events[0].chunkShapeId.index1 == bridge.index1, "the event names its chunk");
-        CHECK(events[0].boundsLo[0] == 4 && events[0].boundsHi[0] == 11 &&
-                  events[0].boundsLo[1] == 8 && events[0].boundsHi[1] == 8,
+        CHECK(events[0].lowerBound[0] == 4 && events[0].upperBound[0] == 11 &&
+                  events[0].lowerBound[1] == 8 && events[0].upperBound[1] == 8,
               "the island bounds are analytic");
         CHECK(events[0].mass > 7.99f && events[0].mass < 8.01f, "unit cells weigh eight");
-        CHECK(events[0].comChunk.x > 7.99f && events[0].comChunk.x < 8.01f &&
-                  events[0].comChunk.y > 8.49f && events[0].comChunk.y < 8.51f,
+        CHECK(events[0].localCenter.x > 7.99f && events[0].localCenter.x < 8.01f &&
+                  events[0].localCenter.y > 8.49f && events[0].localCenter.y < 8.51f,
               "the island center of mass is analytic");
         CHECK(events[0].recipeStart >= 0 && events[0].recipeCount == 8, "the recipe fits");
         const uint16_t* recipe = m3World_GetFragmentEvents(world).recipe;
@@ -654,7 +654,7 @@ static void TestFractureTwoIslands(void)
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 2, "both arms strand in one edit");
     CHECK(events[0].voxelCount == 2 && events[1].voxelCount == 2, "each arm is two voxels");
-    CHECK(events[0].boundsLo[0] == 6 && events[1].boundsLo[0] == 9,
+    CHECK(events[0].lowerBound[0] == 6 && events[1].lowerBound[0] == 9,
           "events arrive in canonical seed order: the lower island first");
     m3DestroyWorld(world);
 }
@@ -1013,7 +1013,7 @@ static void TestFillWeightsFragments(void)
     // Mass: (255 + 85) / 255 cells = 4/3 of a unit cell.
     CHECK(events[0].mass > 1.32f && events[0].mass < 1.34f, "the fragment weighs its fills");
     // Weighted COM: (3 * 9.5 + 1 * 10.5) / 4 = 9.75 along x.
-    CHECK(events[0].comChunk.x > 9.74f && events[0].comChunk.x < 9.76f,
+    CHECK(events[0].localCenter.x > 9.74f && events[0].localCenter.x < 9.76f,
           "the center of mass leans toward the full voxel");
     m3DestroyWorld(world);
 }
@@ -1354,7 +1354,7 @@ static void TestFractureStorms(void)
     m3World* wp2 = world2;
     CHECK(wp2->voxels.voxelData[wp2->shapes.shapeVoxelIndex[cloud.index1 - 1]].filledCount == 0,
           "EVERY stud left the grid: the removal never truncates");
-    CHECK(events[0].voxelCount == 1 && events[0].boundsLo[1] == 2,
+    CHECK(events[0].voxelCount == 1 && events[0].lowerBound[1] == 2,
           "the first event is the lowest canonical seed");
     m3DestroyWorld(world2);
 }

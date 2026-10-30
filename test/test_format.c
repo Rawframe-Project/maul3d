@@ -202,8 +202,8 @@ static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
     m3Vehicle_SetDrivetrain(world, car, &dt);
 
     m3WaterVolumeDef waterModel = m3DefaultWaterVolumeDef();
-    waterModel.lo = (m3Pos3){20.0, 0.0, 0.0};
-    waterModel.hi = (m3Pos3){24.0, 2.0, 4.0};
+    waterModel.bounds.lowerBound = (m3Pos3){20.0, 0.0, 0.0};
+    waterModel.bounds.upperBound = (m3Pos3){24.0, 2.0, 4.0};
     m3WaterVolumeDef wv;
     PADDED(m3WaterVolumeDef, wv, waterModel, fill);
     s_paint(fill);

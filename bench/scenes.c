@@ -302,11 +302,11 @@ static void SpawnFragment(m3World* world, const m3FragmentEvent* ev, const uint1
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
-    bd.position = ev->comWorld;
+    bd.position = ev->worldCenter;
     m3BodyId body = NewBody(world, &bd);
-    m3Vec3 half = {0.5f * (m3real)(ev->boundsHi[0] - ev->boundsLo[0] + 1),
-                   0.5f * (m3real)(ev->boundsHi[1] - ev->boundsLo[1] + 1),
-                   0.5f * (m3real)(ev->boundsHi[2] - ev->boundsLo[2] + 1)};
+    m3Vec3 half = {0.5f * (m3real)(ev->upperBound[0] - ev->lowerBound[0] + 1),
+                   0.5f * (m3real)(ev->upperBound[1] - ev->lowerBound[1] + 1),
+                   0.5f * (m3real)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
     m3ShapeDef fd = m3DefaultShapeDef();
     fd.friction = 0.6f;
     fd.density = ev->mass / (8.0f * half.x * half.y * half.z);
@@ -322,9 +322,9 @@ static void SpawnFragment(m3World* world, const m3FragmentEvent* ev, const uint1
             m3real z = (m3real)(v / 256);
             for (int32_t c = 0; c < 8; ++c)
             {
-                cloud[points++] = (m3Vec3){x + ((c & 1) != 0 ? 1.0f : 0.0f) - ev->comChunk.x,
-                                           y + ((c & 2) != 0 ? 1.0f : 0.0f) - ev->comChunk.y,
-                                           z + ((c & 4) != 0 ? 1.0f : 0.0f) - ev->comChunk.z};
+                cloud[points++] = (m3Vec3){x + ((c & 1) != 0 ? 1.0f : 0.0f) - ev->localCenter.x,
+                                           y + ((c & 2) != 0 ? 1.0f : 0.0f) - ev->localCenter.y,
+                                           z + ((c & 4) != 0 ? 1.0f : 0.0f) - ev->localCenter.z};
             }
         }
         if (m3Shape_IsValid(world, NewHullShape(world, body, &fd, cloud, points)))

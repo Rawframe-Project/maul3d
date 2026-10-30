@@ -171,7 +171,7 @@ static void TestVoxelCarveCoupling(void)
         if (eventCount == 1)
         {
             CHECK(events[0].voxelCount == 6, "the island is the six cells above the bite");
-            CHECK(events[0].boundsLo[1] == 10 && events[0].boundsHi[1] == 15,
+            CHECK(events[0].lowerBound[1] == 10 && events[0].upperBound[1] == 15,
                   "the island spans y 10 through 15");
         }
         hashes[run] = m3World_Hash(world);
@@ -283,8 +283,8 @@ static void TestTreeHistoryChangesNothing(void)
         const m3FragmentEvent* y = &b.fragmentEvents[i];
         sameEvents = x->chunkShapeId.index1 == y->chunkShapeId.index1 &&
                      x->voxelCount == y->voxelCount && x->recipeStart == y->recipeStart &&
-                     memcmp(x->boundsLo, y->boundsLo, 3) == 0 &&
-                     memcmp(x->boundsHi, y->boundsHi, 3) == 0;
+                     memcmp(x->lowerBound, y->lowerBound, 3) == 0 &&
+                     memcmp(x->upperBound, y->upperBound, 3) == 0;
     }
     CHECK(sameEvents, "the fragment events come in the same order");
     m3DestroyWorld(rebuilt);

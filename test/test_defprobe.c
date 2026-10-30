@@ -523,8 +523,8 @@ static void ProbeWater(void)
         FIELD(m3WaterVolumeDef, angularDrag, 'f'), FIELD(m3WaterVolumeDef, flow.x, 'f'),
     };
     m3WaterVolumeDef wd = m3DefaultWaterVolumeDef();
-    wd.lo = (m3Pos3){-5.0, 0.0, -5.0};
-    wd.hi = (m3Pos3){5.0, 2.0, 5.0};
+    wd.bounds.lowerBound = (m3Pos3){-5.0, 0.0, -5.0};
+    wd.bounds.upperBound = (m3Pos3){5.0, 2.0, 5.0};
     Target target = {"m3WaterVolumeDef", &wd, sizeof(wd), BuildWater, true};
     Probe(&target, fields, COUNT(fields));
 }

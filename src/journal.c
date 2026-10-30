@@ -141,8 +141,8 @@ void m3JournalVehicleDef(m3VehicleDef* out, const m3VehicleDef* def)
 void m3JournalWaterVolumeDef(m3WaterVolumeDef* out, const m3WaterVolumeDef* def)
 {
     memset(out, 0, sizeof(*out));
-    out->lo = def->lo;
-    out->hi = def->hi;
+    out->lo = def->bounds.lowerBound;
+    out->hi = def->bounds.upperBound;
     out->density = def->density;
     out->linearDrag = def->linearDrag;
     out->angularDrag = def->angularDrag;

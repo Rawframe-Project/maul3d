@@ -30,8 +30,8 @@ static m3World* Pool(m3WaterVolumeId* outWater, float flowX)
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
     NewPlaneShape(world, ground, &sd, &floor);
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
-    wdf.lo = (m3Pos3){-10.0, 0.0, -10.0};
-    wdf.hi = (m3Pos3){10.0, 4.0, 10.0};
+    wdf.bounds.lowerBound = (m3Pos3){-10.0, 0.0, -10.0};
+    wdf.bounds.upperBound = (m3Pos3){10.0, 4.0, 10.0};
     wdf.flow = (m3Vec3){flowX, 0.0f, 0.0f};
     m3WaterVolumeId water = NewWaterVolume(world, &wdf);
     if (outWater != NULL)
@@ -111,8 +111,8 @@ static void TestTideWakesSleepers(void)
     }
     CHECK(!m3Body_IsAwake(world, crate), "the crate sleeps on the dry floor");
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
-    wdf.lo = (m3Pos3){-5.0, 0.0, -5.0};
-    wdf.hi = (m3Pos3){5.0, 3.0, 5.0};
+    wdf.bounds.lowerBound = (m3Pos3){-5.0, 0.0, -5.0};
+    wdf.bounds.upperBound = (m3Pos3){5.0, 3.0, 5.0};
     m3WaterVolumeId tide = NewWaterVolume(world, &wdf);
     CHECK(m3Body_IsAwake(world, crate), "the incoming tide wakes the sleeper");
     for (int32_t i = 0; i < 420; ++i)
@@ -137,13 +137,13 @@ static void TestWaterWalls(void)
     m3World* world = NewWorld(&wd);
     uint64_t before = m3World_Hash(world);
     m3WaterVolumeDef def = m3DefaultWaterVolumeDef();
-    def.hi = def.lo; // empty box
+    def.bounds.upperBound = def.bounds.lowerBound; // empty box
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "an empty box refuses");
     def = m3DefaultWaterVolumeDef();
     def.density = -5.0f;
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "negative density refuses");
     def = m3DefaultWaterVolumeDef();
-    def.lo.x = (double)NAN;
+    def.bounds.lowerBound.x = (double)NAN;
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "a NaN corner refuses");
     def = m3DefaultWaterVolumeDef();
     def.linearDrag = -1.0f;
@@ -154,13 +154,13 @@ static void TestWaterWalls(void)
     def = m3DefaultWaterVolumeDef();
     for (int32_t k = 0; k < 8; ++k)
     {
-        def.lo = (m3Pos3){(double)k * 3.0, 0.0, 0.0};
-        def.hi = (m3Pos3){(double)k * 3.0 + 2.0, 2.0, 2.0};
+        def.bounds.lowerBound = (m3Pos3){(double)k * 3.0, 0.0, 0.0};
+        def.bounds.upperBound = (m3Pos3){(double)k * 3.0 + 2.0, 2.0, 2.0};
         ids[k] = NewWaterVolume(world, &def);
         CHECK(m3WaterVolume_IsValid(world, ids[k]), "eight volumes fit");
     }
-    def.lo = (m3Pos3){30.0, 0.0, 0.0};
-    def.hi = (m3Pos3){32.0, 2.0, 2.0};
+    def.bounds.lowerBound = (m3Pos3){30.0, 0.0, 0.0};
+    def.bounds.upperBound = (m3Pos3){32.0, 2.0, 2.0};
     CHECK(!m3WaterVolume_IsValid(world, NewWaterVolume(world, &def)), "the ninth refuses");
     DestroyWaterVolume(world, ids[3]);
     CHECK(!m3WaterVolume_IsValid(world, ids[3]), "a destroyed volume goes stale");
@@ -191,8 +191,8 @@ static void TestSoftBuoyancy(void)
         if (pass == 1)
         {
             m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
-            wdf.lo = (m3Pos3){-8.0, 0.0, -8.0};
-            wdf.hi = (m3Pos3){8.0, 4.0, 8.0};
+            wdf.bounds.lowerBound = (m3Pos3){-8.0, 0.0, -8.0};
+            wdf.bounds.upperBound = (m3Pos3){8.0, 4.0, 8.0};
             wdf.density = 1500.0f;
             wdf.flow = (m3Vec3){0.8f, 0.0f, 0.0f};
             NewWaterVolume(world, &wdf);
@@ -235,8 +235,8 @@ static void TestSoftDragNeverOvershoots(void)
     m3WorldDef wd = m3DefaultWorldDef();
     m3World* world = NewWorld(&wd);
     m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
-    wdf.lo = (m3Pos3){-8.0, -8.0, -8.0};
-    wdf.hi = (m3Pos3){8.0, 8.0, 8.0};
+    wdf.bounds.lowerBound = (m3Pos3){-8.0, -8.0, -8.0};
+    wdf.bounds.upperBound = (m3Pos3){8.0, 8.0, 8.0};
     wdf.flow = (m3Vec3){0.5f, 0.0f, 0.0f};
     wdf.linearDrag = 2.5e30f;
     NewWaterVolume(world, &wdf);
