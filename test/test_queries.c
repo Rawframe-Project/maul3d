@@ -346,7 +346,7 @@ static void TestPointAndOverlaps(void)
 
     // Overlaps: the AABB box catches the box, the sphere probes reach.
     m3ShapeId found[8];
-    int32_t n = m3World_OverlapAabb(world, (m3Pos3){4.0, 1.0, -1.0}, (m3Pos3){6.0, 3.0, 1.0}, found,
+    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{4.0, 1.0, -1.0}, {6.0, 3.0, 1.0}}, found,
                                     8, m3DefaultQueryFilter());
     CHECK(n == 1 && found[0].index1 == boxShape.index1, "the AABB overlap finds the box");
     n = m3World_OverlapSphere(world, (m3Pos3){5.0, 4.5, 0.0}, 1.6f, found, 8,
@@ -583,10 +583,10 @@ static void TestOverlapAndInsideFamilies(void)
     n = m3World_OverlapSphere(world, (m3Pos3){0.0, 0.2, 0.0}, 0.4f, found, 8,
                               m3DefaultQueryFilter());
     CHECK(n == 1 && found[0].index1 == floorShape.index1, "the sphere reaches the plane");
-    n = m3World_OverlapAabb(world, (m3Pos3){-1.0, -0.5, -1.0}, (m3Pos3){1.0, 0.5, 1.0}, found, 8,
+    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, -0.5, -1.0}, {1.0, 0.5, 1.0}}, found, 8,
                             m3DefaultQueryFilter());
     CHECK(n == 1 && found[0].index1 == floorShape.index1, "the AABB straddles the plane");
-    n = m3World_OverlapAabb(world, (m3Pos3){-1.0, 2.0, -1.0}, (m3Pos3){1.0, 3.0, 1.0}, found, 8,
+    n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 2.0, -1.0}, {1.0, 3.0, 1.0}}, found, 8,
                             m3DefaultQueryFilter());
     CHECK(n == 0, "an AABB above the plane is clear");
 
@@ -748,8 +748,8 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
         NewSphereShape(world, NewBody(world, &bd), &sd, &sphere);
     }
     static m3ShapeId all[BALLS + 8];
-    int32_t n = m3World_OverlapAabb(world, (m3Pos3){-1.0, 0.5, -1.0}, (m3Pos3){21.0, 1.5, 16.0},
-                                    all, BALLS + 8, m3DefaultQueryFilter());
+    int32_t n = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}}, all,
+                                    BALLS + 8, m3DefaultQueryFilter());
     bool ascending = true;
     for (int32_t i = 1; i < n; ++i)
     {
@@ -758,8 +758,8 @@ static void TestOverlapBeyondTwoHundredFiftySix(void)
     CHECK(n == BALLS && ascending, "all 300 overlaps come back in ascending order");
 
     m3ShapeId low[10];
-    int32_t k = m3World_OverlapAabb(world, (m3Pos3){-1.0, 0.5, -1.0}, (m3Pos3){21.0, 1.5, 16.0},
-                                    low, 10, m3DefaultQueryFilter());
+    int32_t k = m3World_OverlapAabb(world, (m3WorldAabb){{-1.0, 0.5, -1.0}, {21.0, 1.5, 16.0}}, low,
+                                    10, m3DefaultQueryFilter());
     CHECK(k == 10 && low[0].index1 == all[0].index1 && low[9].index1 == all[9].index1,
           "a short array keeps the lowest slots");
 

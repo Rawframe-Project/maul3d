@@ -30,6 +30,14 @@ extern "C"
     /// library's, since its answer decides contacts.
     typedef struct m3World m3World;
 
+    /// A box in world space, its corners 64-bit positions: what a body or
+    /// shape covers, and the region a box query looks in.
+    typedef struct m3WorldAabb
+    {
+        m3Pos3 lowerBound;
+        m3Pos3 upperBound;
+    } m3WorldAabb;
+
     /// The task interface: the HOST owns the threads, the
     /// library only describes work. enqueueTask receives a task
     /// function, the item count, and a minimum grain; the host splits
@@ -595,8 +603,8 @@ extern "C"
 
     /// Shapes whose tight bounds overlap the box, in ascending shape
     /// index order. Returns the count written.
-    M3_API int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi,
-                                       m3ShapeId* shapes, int32_t capacity, m3QueryFilter filter);
+    M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3ShapeId* shapes,
+                                       int32_t capacity, m3QueryFilter filter);
 
     /// Shapes within reach of the sphere (exact per family), in
     /// ascending shape index order. Returns the count written.

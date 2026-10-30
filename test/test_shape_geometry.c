@@ -363,7 +363,7 @@ static void TestParticlesStayWithinTheLimit(void)
 // restores.
 static bool StaysFinite(m3World* world, m3ShapeId shape, m3Pos3 origin, m3Vec3 ray)
 {
-    m3AabbResult box = m3Shape_GetAabb(world, shape);
+    m3WorldAabb box = m3Shape_GetAabb(world, shape);
     const double c[6] = {box.lowerBound.x, box.lowerBound.y, box.lowerBound.z,
                          box.upperBound.x, box.upperBound.y, box.upperBound.z};
     bool finite = true;

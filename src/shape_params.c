@@ -569,10 +569,10 @@ bool m3Shape_IsSensor(const m3World* world, m3ShapeId shape)
     return ResolveShape(world, shape, &slot) && world->shapes.shapeSensor[slot] != 0;
 }
 
-static M3_NOINLINE m3AabbResult ShapeGetAabbWorker(const m3World* world, m3ShapeId shape)
+static M3_NOINLINE m3WorldAabb ShapeGetAabbWorker(const m3World* world, m3ShapeId shape)
 {
     int32_t slot;
-    m3AabbResult result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    m3WorldAabb result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
     if (ResolveShape(world, shape, &slot))
     {
         double lo[3];
@@ -584,10 +584,10 @@ static M3_NOINLINE m3AabbResult ShapeGetAabbWorker(const m3World* world, m3Shape
     return result;
 }
 
-m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
+m3WorldAabb m3Shape_GetAabb(const m3World* world, m3ShapeId shape)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3AabbResult result = ShapeGetAabbWorker(world, shape);
+    m3WorldAabb result = ShapeGetAabbWorker(world, shape);
     m3FloatEnvLeave(env);
     return result;
 }

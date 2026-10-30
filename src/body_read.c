@@ -275,10 +275,10 @@ bool m3Body_IsBulletEnabled(const m3World* world, m3BodyId body)
     return m3ResolveBody(world, body, &index) && world->bodies.bulletFlags[index] != 0;
 }
 
-static M3_NOINLINE m3AabbResult BodyComputeAabbWorker(const m3World* world, m3BodyId body)
+static M3_NOINLINE m3WorldAabb BodyComputeAabbWorker(const m3World* world, m3BodyId body)
 {
     int32_t index;
-    m3AabbResult result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    m3WorldAabb result = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
     if (!m3ResolveBody(world, body, &index))
     {
         return result;
@@ -321,10 +321,10 @@ static M3_NOINLINE m3AabbResult BodyComputeAabbWorker(const m3World* world, m3Bo
     return result;
 }
 
-m3AabbResult m3Body_ComputeAabb(const m3World* world, m3BodyId body)
+m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3AabbResult result = BodyComputeAabbWorker(world, body);
+    m3WorldAabb result = BodyComputeAabbWorker(world, body);
     m3FloatEnvLeave(env);
     return result;
 }

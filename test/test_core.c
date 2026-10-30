@@ -157,7 +157,7 @@ static void TestEveryRefusalHasAReason(void)
                                      (m3Vec3){0.0f, -4.0f, 0.0f}, m3DefaultQueryFilter())
                .hit,
           "a NaN sphere radius casts nothing");
-    CHECK(m3World_OverlapAabb(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Pos3){(double)INFINITY, 1.0, 1.0},
+    CHECK(m3World_OverlapAabb(world, (m3WorldAabb){{0.0, 0.0, 0.0}, {(double)INFINITY, 1.0, 1.0}},
                               found, 4, m3DefaultQueryFilter()) == 0,
           "an infinite box overlaps nothing");
     CHECK(m3World_OverlapSphere(world, (m3Pos3){0.0, (double)NAN, 0.0}, 1.0f, found, 4,

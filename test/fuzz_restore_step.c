@@ -76,7 +76,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         m3Pos3 lo = {-50.0, -50.0, -50.0};
         m3Pos3 hi = {50.0, 50.0, 50.0};
         m3ShapeId hits[16];
-        (void)m3World_OverlapAabb(world, lo, hi, hits, 16, m3DefaultQueryFilter());
+        (void)m3World_OverlapAabb(world, (m3WorldAabb){lo, hi}, hits, 16, m3DefaultQueryFilter());
         // What the step made from an accepted world, restore accepts in
         // turn: the bounds restore keeps are ones the step keeps.
         int32_t bytes = 0;
