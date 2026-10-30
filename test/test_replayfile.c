@@ -439,9 +439,14 @@ static void TestSizesPastInt32(void)
           "a size past SIZE_MAX is refused as invalid");
     CHECK(m3World_GetCounters(world).misuse == misuse + 3u, "each counting one misuse");
     m3JournalInfo info;
+    int64_t encoded = 77;
     CHECK(m3DescribeJournal(tape, past, &info) == m3_errorInvalid &&
-              m3DecodeReplay(tape, past, &view) == m3_errorInvalid,
-          "and so is one handed to the container calls");
+              m3DecodeReplay(tape, past, &view) == m3_errorInvalid &&
+              m3EncodeReplay(snap, past, tape, tapeBytes, 0u, tape, past, &encoded) ==
+                  m3_errorInvalid &&
+              m3EncodeReplay(snap, size, tape, past, 0u, tape, past, &encoded) == m3_errorInvalid &&
+              encoded == 77,
+          "and so is one handed to the container calls, which leave bytesOut as it was");
 #endif
     free(snap);
     m3DestroyWorld(world);

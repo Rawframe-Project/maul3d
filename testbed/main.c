@@ -1363,7 +1363,7 @@ static bool UiStepper(tbUi* ui, const char* label, int32_t* value, int32_t lo, i
 #define TB_JOURNAL_BYTES (4 * 1024 * 1024)
 static uint8_t s_journal[TB_JOURNAL_BYTES];
 static uint8_t* s_recordSnap = NULL;
-static int32_t s_recordSnapBytes = 0;
+static int64_t s_recordSnapBytes = 0;
 static bool s_recording = false;
 static char s_recordStatus[96] = "idle";
 static m3WorldDef s_recordDef; // the probe recipe for verify
@@ -1388,7 +1388,7 @@ static void RecordSave(m3World* world)
     {
         return;
     }
-    int32_t journalBytes = StopJournal(world);
+    int64_t journalBytes = StopJournal(world);
     s_recording = false;
     if (journalBytes <= 0)
     {
@@ -1396,9 +1396,9 @@ static void RecordSave(m3World* world)
         return;
     }
     uint64_t final = m3World_Hash(world);
-    int32_t need = m3GetEncodedReplaySize(s_recordSnapBytes, journalBytes);
+    int64_t need = m3GetEncodedReplaySize(s_recordSnapBytes, journalBytes);
     uint8_t* blob = (uint8_t*)malloc((size_t)need);
-    int32_t wrote =
+    int64_t wrote =
         EncodeReplay(s_recordSnap, s_recordSnapBytes, s_journal, journalBytes, final, blob, need);
     if (wrote != need)
     {
@@ -1411,7 +1411,8 @@ static void RecordSave(m3World* world)
     {
         fwrite(blob, 1, (size_t)wrote, f);
         fclose(f);
-        snprintf(s_recordStatus, sizeof(s_recordStatus), "saved %d KB", wrote / 1024);
+        snprintf(s_recordStatus, sizeof(s_recordStatus), "saved %lld KB",
+                 (long long)(wrote / 1024));
     }
     else
     {
@@ -1435,7 +1436,7 @@ static void RecordVerify(void)
     size_t got = fread(blob, 1, (size_t)size, f);
     fclose(f);
     m3ReplayView view;
-    if (got != (size_t)size || !DecodeReplay(blob, (int32_t)size, &view))
+    if (got != (size_t)size || !DecodeReplay(blob, (int64_t)size, &view))
     {
         free(blob);
         snprintf(s_recordStatus, sizeof(s_recordStatus), "decode refused");
@@ -1478,7 +1479,7 @@ int main(void)
     int32_t vetoFlash = 0;
     bool reverseGear = false;
 
-    int32_t snapBytes = m3World_GetSnapshotSize(scene.world);
+    int64_t snapBytes = m3World_GetSnapshotSize(scene.world);
     enum
     {
         RING = 64
@@ -2097,8 +2098,8 @@ int main(void)
                                tc.treeHeight),
                     (Color){170, 190, 220, 255});
             UiLabel(&ui,
-                    TextFormat("scratch %dk/%dk snap %dk", tc.scratchPeak / 1024,
-                               tc.scratchCapacity / 1024, tc.snapshotBytes / 1024),
+                    TextFormat("scratch %dk/%dk snap %lldk", tc.scratchPeak / 1024,
+                               tc.scratchCapacity / 1024, (long long)(tc.snapshotBytes / 1024)),
                     (Color){170, 190, 220, 255});
             UiLabel(&ui,
                     TextFormat("pairs %.2f contact %.2f solve %.2f", (double)tp.broadphase,

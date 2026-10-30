@@ -52,9 +52,9 @@ int main(void)
         return 1;
     }
 
-    int32_t capacity = m3World_GetSnapshotSize(world);
+    int64_t capacity = m3World_GetSnapshotSize(world);
     void* snap = malloc((size_t)capacity);
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     Require(m3World_Snapshot(world, snap, capacity, &bytes), "snapshot");
     uint64_t before = m3World_Hash(world);
     for (int i = 0; i < 60; ++i)
