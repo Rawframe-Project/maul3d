@@ -676,8 +676,9 @@ static Cast AddVehicles(m3World* world, double ox, double oz)
     CHECK(m3Vehicle_IsValid(world, cast.car) && m3Character_IsValid(world, cast.hero) &&
               m3SoftBody_IsValid(world, cast.flag),
           "the car, the character and the cloth create");
-    m3SoftBody_PinParticle(world, cast.flag, 0);
-    m3SoftBody_PinParticle(world, cast.flag, 7);
+    CHECK(m3SoftBody_PinParticle(world, cast.flag, 0) == m3_success &&
+              m3SoftBody_PinParticle(world, cast.flag, 7) == m3_success,
+          "the flag pins");
     m3SoftBodyDef jelly = m3DefaultSoftBodyDef();
     jelly.position = (m3Pos3){-14.0 + ox, 1.0, -10.0 + oz};
     jelly.countX = 4;
@@ -962,9 +963,10 @@ static void TourJointsAndSoft(const Tour* t)
     m3SphericalJoint_EnableCone(t->world, t->shoulder, true);
     m3Joint_EnableConnectedCollision(t->world, t->spare, true);
     m3Joint_SetBreakLimits(t->world, t->spare, 1.0e6f, 1.0e6f);
-    m3SoftBody_PinParticle(t->world, t->rope, 0);
-    m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate);
-    m3SoftBody_AnchorToSoft(t->world, t->rope, 3, t->tet, 2);
+    CHECK(m3SoftBody_PinParticle(t->world, t->rope, 0) == m3_success &&
+              m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate) == m3_success &&
+              m3SoftBody_AnchorToSoft(t->world, t->rope, 3, t->tet, 2) == m3_success,
+          "the tour pins and anchors the rope");
 }
 
 static void TourActors(const Tour* t)

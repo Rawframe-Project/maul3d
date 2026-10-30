@@ -601,7 +601,10 @@ construction, under the same four gates as everything else.
   `m3SoftBody_AnchorParticle` captures it in a BODY's frame: it
   rides the body, the lattice's pull lands on the body at the
   anchor, and a dead body releases its anchors silently. Cloth
-  hangs from beams and follows them when they move.
+  hangs from beams and follows them when they move. Both return an
+  `m3Result`: an anchor past a full table of
+  `M3_MAX_SOFTBODY_ANCHORS` is `m3_errorLimit`, which counts no
+  misuse, and `m3SoftBody_AnchorToSoft` shares that table.
 - Soft-versus-soft and self-collision are NOT in this version
   (documented out, the bullet-versus-bullet precedent); particle
   counts cap at 512 and anchors at 32 per body.

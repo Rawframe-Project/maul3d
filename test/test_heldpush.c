@@ -179,7 +179,7 @@ static Held AnchorPush(float mass)
     sd.radius = 0.1f;
     sd.gravityScale = 0.0f;
     m3SoftBodyId soft = NewSoftBody(world, &sd);
-    m3SoftBody_AnchorParticle(world, soft, 0, box);
+    CHECK(m3SoftBody_AnchorParticle(world, soft, 0, box) == m3_success, "the lattice anchors");
     m3Body_SetTransform(world, box, (m3Pos3){1.0e14, 3.0e13, 0.0}, s_identity);
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     Held held = HeldOf(world, box);
@@ -445,7 +445,7 @@ static void TestOrdinarySceneRetakesNothing(void)
     sd.spacing = 0.2f;
     sd.radius = 0.08f;
     m3SoftBodyId jelly = NewSoftBody(world, &sd);
-    m3SoftBody_AnchorParticle(world, jelly, 0, crate);
+    CHECK(m3SoftBody_AnchorParticle(world, jelly, 0, crate) == m3_success, "the jelly anchors");
     m3CharacterDef cd = m3DefaultCharacterDef();
     cd.position = (m3Pos3){-2.0, 2.0, 0.0};
     m3CharacterId walker = NewCharacter(world, &cd);

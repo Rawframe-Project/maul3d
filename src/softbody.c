@@ -647,19 +647,21 @@ bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody)
     return m3SoftBodySlot(world, softBody) >= 0;
 }
 
-static M3_NOINLINE void SoftBodyPinParticleWorker(m3World* world, m3SoftBodyId softBody,
-                                                  int32_t particle)
+static M3_NOINLINE m3Result SoftBodyPinParticleWorker(m3World* world, m3SoftBodyId softBody,
+                                                      int32_t particle)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = m3SoftBodySlot(world, softBody);
-    if (slot < 0 || particle < 0 || particle >= world->softBodies.softParticleCount[slot])
+    if (slot < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale or out of range: a documented no-op
+        return m3Refuse(world, m3MissingId(softBody.index1));
+    }
+    if (particle < 0 || particle >= world->softBodies.softParticleCount[slot])
+    {
+        return m3Refuse(world, m3_errorInvalid); // out of range
     }
     if (world->recorder.journalActive != 0)
     {
@@ -670,13 +672,15 @@ static M3_NOINLINE void SoftBodyPinParticleWorker(m3World* world, m3SoftBodyId s
         m3JournalRecord(world, m3_opSoftBodyPin, &record, (int32_t)sizeof(record));
     }
     m3SoftBodyPinInternal(world, slot, particle);
+    return m3_success;
 }
 
-void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
+m3Result m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle)
 {
     uint64_t env = m3FloatEnvEnter();
-    SoftBodyPinParticleWorker(world, softBody, particle);
+    m3Result result = SoftBodyPinParticleWorker(world, softBody, particle);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 void m3SoftBodyPinInternal(m3World* world, int32_t slot, int32_t particle)
@@ -724,24 +728,29 @@ void m3SoftBodyAnchorSoftInternal(m3World* world, int32_t slotA, int32_t particl
     world->softBodies.softSoftCount[slotA] = a + 1;
 }
 
-static M3_NOINLINE void SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBodyId softBodyA,
-                                                   int32_t particleA, m3SoftBodyId softBodyB,
-                                                   int32_t particleB)
+static M3_NOINLINE m3Result SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBodyId softBodyA,
+                                                       int32_t particleA, m3SoftBodyId softBodyB,
+                                                       int32_t particleB)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slotA = m3SoftBodySlot(world, softBodyA);
     int32_t slotB = m3SoftBodySlot(world, softBodyB);
-    if (slotA < 0 || slotB < 0 || slotA == slotB || particleA < 0 || particleB < 0 ||
-        particleA >= world->softBodies.softParticleCount[slotA] ||
-        particleB >= world->softBodies.softParticleCount[slotB] ||
-        world->softBodies.softSoftCount[slotA < slotB ? slotA : slotB] >= M3_MAX_SOFTBODY_ANCHORS)
+    if (slotA < 0 || slotB < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale, self-pin, out of range, or full: quiet no-op
+        return m3Refuse(world, m3MissingId(slotA < 0 ? softBodyA.index1 : softBodyB.index1));
+    }
+    if (slotA == slotB || particleA < 0 || particleB < 0 ||
+        particleA >= world->softBodies.softParticleCount[slotA] ||
+        particleB >= world->softBodies.softParticleCount[slotB])
+    {
+        return m3Refuse(world, m3_errorInvalid); // a self-pin or out of range
+    }
+    if (world->softBodies.softSoftCount[slotA < slotB ? slotA : slotB] >= M3_MAX_SOFTBODY_ANCHORS)
+    {
+        return m3_errorLimit; // a full table: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -754,32 +763,38 @@ static M3_NOINLINE void SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBodyId 
         m3JournalRecord(world, m3_opSoftBodyAnchorSoft, &record, (int32_t)sizeof(record));
     }
     m3SoftBodyAnchorSoftInternal(world, slotA, particleA, slotB, particleB);
+    return m3_success;
 }
 
-void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
-                             m3SoftBodyId softBodyB, int32_t particleB)
+m3Result m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
+                                 m3SoftBodyId softBodyB, int32_t particleB)
 {
     uint64_t env = m3FloatEnvEnter();
-    SoftBodyAnchorToSoftWorker(world, softBodyA, particleA, softBodyB, particleB);
+    m3Result result = SoftBodyAnchorToSoftWorker(world, softBodyA, particleA, softBodyB, particleB);
     m3FloatEnvLeave(env);
+    return result;
 }
 
-static M3_NOINLINE void SoftBodyAnchorParticleWorker(m3World* world, m3SoftBodyId softBody,
-                                                     int32_t particle, m3BodyId body)
+static M3_NOINLINE m3Result SoftBodyAnchorParticleWorker(m3World* world, m3SoftBodyId softBody,
+                                                         int32_t particle, m3BodyId body)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
     int32_t slot = m3SoftBodySlot(world, softBody);
     int32_t bodyIndex = m3BodySlot(world, body);
-    if (slot < 0 || bodyIndex < 0 || particle < 0 ||
-        particle >= world->softBodies.softParticleCount[slot] ||
-        world->softBodies.softAnchorCount[slot] >= M3_MAX_SOFTBODY_ANCHORS)
+    if (slot < 0 || bodyIndex < 0)
     {
-        m3Refuse(world, m3_errorInvalid);
-        return; // stale, out of range, or a full table: quiet no-op
+        return m3Refuse(world, m3MissingId(slot < 0 ? softBody.index1 : body.index1));
+    }
+    if (particle < 0 || particle >= world->softBodies.softParticleCount[slot])
+    {
+        return m3Refuse(world, m3_errorInvalid); // out of range
+    }
+    if (world->softBodies.softAnchorCount[slot] >= M3_MAX_SOFTBODY_ANCHORS)
+    {
+        return m3_errorLimit; // a full table: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -791,14 +806,16 @@ static M3_NOINLINE void SoftBodyAnchorParticleWorker(m3World* world, m3SoftBodyI
         m3JournalRecord(world, m3_opSoftBodyAnchor, &record, (int32_t)sizeof(record));
     }
     m3SoftBodyAnchorInternal(world, slot, particle, bodyIndex);
+    return m3_success;
 }
 
-void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
-                               m3BodyId body)
+m3Result m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
+                                   m3BodyId body)
 {
     uint64_t env = m3FloatEnvEnter();
-    SoftBodyAnchorParticleWorker(world, softBody, particle, body);
+    m3Result result = SoftBodyAnchorParticleWorker(world, softBody, particle, body);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)

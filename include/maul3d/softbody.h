@@ -99,11 +99,13 @@ extern "C"
     M3_API bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody);
 
     /// Pins one particle in place (inverse mass zero): how a rope
-    /// hangs and a flag flies. Journaled; a stale id or an
-    /// out-of-range particle changes nothing and counts one misuse.
-    /// Particle index is
+    /// hangs and a flag flies. Journaled. Returns m3_success, or
+    /// m3_errorStale for a stale id, m3_errorInvalid for the null id or
+    /// an out-of-range particle and m3_errorBusy inside a step
+    /// callback, which change nothing and count one misuse. Particle index is
     /// x + countX * (y + countY * z).
-    M3_API void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle);
+    M3_NODISCARD M3_API m3Result m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody,
+                                                        int32_t particle);
 
     /// Anchors one particle to a body at the particle's CURRENT
     /// position, expressed in the body's frame: the particle rides
@@ -111,20 +113,30 @@ extern "C"
     /// the body as an impulse at the anchor, so the coupling is two-way. Cloth
     /// hangs from beams and jelly rides trucks through this.
     /// Anchoring to a static body is a moving pin; the anchor
-    /// RELEASES silently if its body dies. Journaled; a stale id,
-    /// an out-of-range particle or a full anchor table
-    /// (M3_MAX_SOFTBODY_ANCHORS per soft body) changes nothing and
-    /// counts one misuse.
-    M3_API void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
-                                          m3BodyId body);
+    /// RELEASES silently if its body dies. Journaled. Returns
+    /// m3_success; m3_errorLimit for a full anchor table
+    /// (M3_MAX_SOFTBODY_ANCHORS per soft body), which changes nothing
+    /// and counts no misuse; m3_errorStale for a stale id,
+    /// m3_errorInvalid for the null id or an out-of-range particle and
+    /// m3_errorBusy inside a step callback, which change nothing and
+    /// count one misuse.
+    M3_NODISCARD M3_API m3Result m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody,
+                                                           int32_t particle, m3BodyId body);
 
     /// Pin a particle of one lattice to a particle of ANOTHER
     /// lattice: a position equality split by inverse mass,
     /// solved each substep after soft-vs-soft contact. Released
     /// silently when EITHER lattice dies. Journaled; the pin lives
-    /// in the lower slot's table (one canonical home per pair).
-    M3_API void m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
-                                        m3SoftBodyId softBodyB, int32_t particleB);
+    /// in the lower slot's table (one canonical home per pair), which
+    /// holds M3_MAX_SOFTBODY_ANCHORS. Returns m3_success; m3_errorLimit
+    /// for a full table, which changes nothing and counts no misuse;
+    /// m3_errorStale for a stale id, m3_errorInvalid for the null id,
+    /// the same lattice twice or an out-of-range particle and
+    /// m3_errorBusy inside a step callback, which change nothing and
+    /// count one misuse.
+    M3_NODISCARD M3_API m3Result m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA,
+                                                         int32_t particleA, m3SoftBodyId softBodyB,
+                                                         int32_t particleB);
 
     M3_API int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody);
     M3_API m3Pos3 m3SoftBody_GetParticlePosition(const m3World* world, m3SoftBodyId softBody,

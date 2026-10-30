@@ -111,10 +111,11 @@ static void TestRopeDrapesOverCloth(void)
     cd.radius = 0.1f;
     cd.position = (m3Pos3){0.0, 2.0, 0.0};
     m3SoftBodyId cloth = NewSoftBody(world, &cd);
-    m3SoftBody_PinParticle(world, cloth, 0);
-    m3SoftBody_PinParticle(world, cloth, 7);
-    m3SoftBody_PinParticle(world, cloth, 56);
-    m3SoftBody_PinParticle(world, cloth, 63);
+    CHECK(m3SoftBody_PinParticle(world, cloth, 0) == m3_success &&
+              m3SoftBody_PinParticle(world, cloth, 7) == m3_success &&
+              m3SoftBody_PinParticle(world, cloth, 56) == m3_success &&
+              m3SoftBody_PinParticle(world, cloth, 63) == m3_success,
+          "the cloth's corners pin");
 
     m3SoftBodyDef rd = m3DefaultSoftBodyDef();
     rd.countX = 10;
@@ -160,8 +161,9 @@ static void TestRopeBridge(void)
     m3SoftBodyId east = NewSoftBody(world, &cd);
     for (int32_t c = 0; c < 25; c += 4)
     {
-        m3SoftBody_PinParticle(world, west, c);
-        m3SoftBody_PinParticle(world, east, c);
+        CHECK(m3SoftBody_PinParticle(world, west, c) == m3_success &&
+                  m3SoftBody_PinParticle(world, east, c) == m3_success,
+              "the cloths pin");
     }
 
     m3SoftBodyDef rd = m3DefaultSoftBodyDef();
@@ -174,8 +176,9 @@ static void TestRopeBridge(void)
     rd.position = (m3Pos3){-1.1, 2.05, 0.0};
     m3SoftBodyId rope = NewSoftBody(world, &rd);
     // Tie the rope's ends to the inner edges of the two cloths.
-    m3SoftBody_AnchorToSoft(world, rope, 0, west, 12);
-    m3SoftBody_AnchorToSoft(world, rope, 8, east, 10);
+    CHECK(m3SoftBody_AnchorToSoft(world, rope, 0, west, 12) == m3_success &&
+              m3SoftBody_AnchorToSoft(world, rope, 8, east, 10) == m3_success,
+          "the rope ties to both cloths");
 
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -204,11 +207,50 @@ static void TestRopeBridge(void)
     m3DestroyWorld(world);
 }
 
+// The soft-to-soft table holds M3_MAX_SOFTBODY_ANCHORS pins in the lower
+// slot: one more is m3_errorLimit and counts no misuse, and a hostile pin
+// is m3_errorInvalid and counts one.
+static void TestSoftAnchorTableLimit(void)
+{
+    m3World* world = PlaneWorld();
+    m3SoftBodyDef sd = m3DefaultSoftBodyDef();
+    sd.countX = 8;
+    sd.countY = 1;
+    sd.countZ = 5;
+    sd.position = (m3Pos3){-2.0, 2.0, 0.0};
+    m3SoftBodyId west = NewSoftBody(world, &sd);
+    sd.position = (m3Pos3){2.0, 2.0, 0.0};
+    m3SoftBodyId east = NewSoftBody(world, &sd);
+    for (int32_t a = 0; a < M3_MAX_SOFTBODY_ANCHORS; ++a)
+    {
+        CHECK_ACCEPTS(
+            world,
+            CHECK(m3SoftBody_AnchorToSoft(world, east, a, west, a) == m3_success, "a pin fits"),
+            "a pin that fits counts no misuse");
+    }
+    uint64_t hash = m3World_Hash(world);
+    CHECK_ACCEPTS(world,
+                  CHECK(m3SoftBody_AnchorToSoft(world, west, 39, east, 39) == m3_errorLimit,
+                        "a pin past the full table is m3_errorLimit"),
+                  "a pin past the full table counts no misuse");
+    CHECK(m3World_Hash(world) == hash, "the refused pin changes nothing");
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorToSoft(world, west, 0, west, 1) == m3_errorInvalid,
+                        "a pin to the same lattice is m3_errorInvalid"),
+                  "a pin to the same lattice counts one misuse");
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorToSoft(world, west, 40, east, 0) == m3_errorInvalid,
+                        "an out-of-range particle is m3_errorInvalid"),
+                  "an out-of-range particle counts one misuse");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestJelliesRefuseToMerge();
     TestRopeDrapesOverCloth();
     TestRopeBridge();
+    TestSoftAnchorTableLimit();
     if (s_failures == 0)
     {
         printf("test_softsoft: all green\n");
