@@ -23,13 +23,6 @@ extern "C"
 
     /// Per-axis motion locks. A locked axis holds still: its velocity is
     /// zeroed every substep, so contacts cannot bank motion on it.
-    /// World-space bounds, double precision.
-    typedef struct m3AabbResult
-    {
-        m3Pos3 lowerBound;
-        m3Pos3 upperBound;
-    } m3AabbResult;
-
     typedef struct m3MotionLocks
     {
         bool linearX;
@@ -125,7 +118,7 @@ extern "C"
     M3_API void m3Body_SetAngularDamping(m3World* world, m3BodyId body, float damping);
     M3_API void m3Body_EnableBullet(m3World* world, m3BodyId body, bool flag);
     M3_API void m3Body_SetUserData(m3World* world, m3BodyId body, uint64_t userData);
-    M3_API m3AabbResult m3Body_ComputeAabb(const m3World* world, m3BodyId body);
+    M3_API m3WorldAabb m3Body_ComputeAabb(const m3World* world, m3BodyId body);
     M3_API int32_t m3Body_GetShapes(const m3World* world, m3BodyId body, m3ShapeId* ids,
                                     int32_t capacity);
     M3_API int32_t m3Body_GetJoints(const m3World* world, m3BodyId body, m3JointId* ids,

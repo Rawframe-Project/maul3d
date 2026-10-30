@@ -268,7 +268,7 @@ static void TestReadback(void)
               m3Body_GetLinearDamping(world, body) == 0.25f &&
               m3Body_GetAngularDamping(world, body) == 0.75f && m3Body_IsBulletEnabled(world, body),
           "def settings read back");
-    m3AabbResult bounds = m3Body_ComputeAabb(world, body);
+    m3WorldAabb bounds = m3Body_ComputeAabb(world, body);
     CHECK(bounds.lowerBound.x <= 0.5 && bounds.upperBound.x >= 1.5 && bounds.lowerBound.y <= 1.5,
           "the body bounds hold its box");
     m3ShapeId shapes[4];
@@ -286,7 +286,7 @@ static void TestReadback(void)
     CHECK(m3Shape_GetUserData(world, box) == 42u && m3Shape_IsSensor(world, sensor) &&
               !m3Shape_IsSensor(world, box),
           "shape settings read back");
-    m3AabbResult sb = m3Shape_GetAabb(world, sensor);
+    m3WorldAabb sb = m3Shape_GetAabb(world, sensor);
     CHECK(sb.lowerBound.y <= 1.75 && sb.upperBound.y >= 2.25, "the sensor bounds hold it");
 
     CHECK(m3Joint_GetType(world, joint) == m3_sphericalJoint, "joint type");

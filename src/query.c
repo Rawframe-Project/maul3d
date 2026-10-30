@@ -517,10 +517,12 @@ static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3Shap
     return m3SelectionFinish(&ctx->selection);
 }
 
-static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3Pos3 lo, m3Pos3 hi,
+static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3WorldAabb box,
                                                   m3ShapeId* shapes, int32_t capacity,
                                                   m3QueryFilter filter)
 {
+    m3Pos3 lo = box.lowerBound;
+    m3Pos3 hi = box.upperBound;
     if (world == NULL || shapes == NULL || capacity <= 0 || !m3FinitePos3(lo) ||
         !m3FinitePos3(hi) || hi.x < lo.x || hi.y < lo.y || hi.z < lo.z)
     {
@@ -541,11 +543,11 @@ static M3_NOINLINE int32_t WorldOverlapAabbWorker(const m3World* world, m3Pos3 l
     return OverlapGather(world, &ctx, shapes, capacity);
 }
 
-int32_t m3World_OverlapAabb(const m3World* world, m3Pos3 lo, m3Pos3 hi, m3ShapeId* shapes,
+int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3ShapeId* shapes,
                             int32_t capacity, m3QueryFilter filter)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldOverlapAabbWorker(world, lo, hi, shapes, capacity, filter);
+    int32_t result = WorldOverlapAabbWorker(world, box, shapes, capacity, filter);
     m3FloatEnvLeave(env);
     return result;
 }

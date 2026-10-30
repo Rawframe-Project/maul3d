@@ -337,7 +337,7 @@ extern "C"
     /// Journaled. Thread class: writer.
     M3_API void m3Shape_SetUserData(m3World* world, m3ShapeId shape, uint64_t userData);
     M3_API bool m3Shape_IsSensor(const m3World* world, m3ShapeId shape);
-    M3_API m3AabbResult m3Shape_GetAabb(const m3World* world, m3ShapeId shape);
+    M3_API m3WorldAabb m3Shape_GetAabb(const m3World* world, m3ShapeId shape);
     /// Who touches this shape now: fills up to capacity
     /// entries and returns the count written. See m3ContactData.
     M3_API int32_t m3Shape_GetContactData(const m3World* world, m3ShapeId shape, m3ContactData* out,
