@@ -477,7 +477,7 @@ static const m3StateArray s_state[] = {
     M3_STATE_ARRAY(contacts.sleepingPairKeys, uint64_t, pair, 0),
     M3_STATE_ARRAY(contacts.pairsByHigh, int32_t, pair, 0),
     M3_STATE_ARRAY(contacts.highStarts, int32_t, shape, 0),
-    M3_STATE_ARRAY(contacts.frozenDead, uint8_t, shape, 0),
+    M3_STATE_ARRAY(contacts.frozenDeadBefore, int32_t, shape, 0),
     M3_STATE_ARRAY(contacts.stepVetoKeys, uint64_t, pair, 0),
     M3_STATE_ARRAY(contacts.replayVetoKeys, uint64_t, pair, 0),
     M3_STATE_ARRAY(contacts.stashPairKeys, uint64_t, pair, 0),

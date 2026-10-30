@@ -408,7 +408,8 @@ static void ForgetPairMemory(m3World* world)
     world->contacts.pairIndexFresh = 0;
     if (world->contacts.frozenDeadCount > 0)
     {
-        memset(world->contacts.frozenDead, 0, (size_t)world->shapes.shapeCapacity);
+        memset(world->contacts.frozenDeadBefore, 0,
+               (size_t)world->shapes.shapeCapacity * sizeof(int32_t));
         world->contacts.frozenDeadCount = 0;
     }
 }

@@ -693,11 +693,37 @@ void m3ForgetShapePairs(m3World* world, int32_t shape)
     {
         memset(&contacts->manifolds[contacts->pairsByHigh[k]], 0, sizeof(m3Manifold));
     }
-    if (contacts->frozenDead[shape] == 0)
+    if (contacts->sleepingPairCount > contacts->frozenDeadBefore[shape])
     {
-        contacts->frozenDead[shape] = 1;
-        contacts->frozenDeadCount += 1;
+        contacts->frozenDeadCount += contacts->frozenDeadBefore[shape] == 0 ? 1 : 0;
+        contacts->frozenDeadBefore[shape] = contacts->sleepingPairCount;
     }
+}
+
+// Drops the frozen keys that destroyed shapes left, before the buffer is
+// sorted: each sits below its slot's mark, while the keys a slot's next
+// shape filed since sit above it.
+static void DropDeadFrozenKeys(m3World* world)
+{
+    m3Contacts* contacts = &world->contacts;
+    if (contacts->frozenDeadCount == 0)
+    {
+        return;
+    }
+    int32_t w = 0;
+    for (int32_t k = 0; k < contacts->sleepingPairCount; ++k)
+    {
+        uint64_t key = contacts->sleepingPairKeys[k];
+        if (k < contacts->frozenDeadBefore[(int32_t)(key >> 32)] ||
+            k < contacts->frozenDeadBefore[(int32_t)(key & 0xFFFFFFFFu)])
+        {
+            continue;
+        }
+        contacts->sleepingPairKeys[w++] = key;
+    }
+    contacts->sleepingPairCount = w;
+    memset(contacts->frozenDeadBefore, 0, (size_t)world->shapes.shapeCapacity * sizeof(int32_t));
+    contacts->frozenDeadCount = 0;
 }
 
 void m3UpdatePairs(m3World* world)
@@ -705,6 +731,7 @@ void m3UpdatePairs(m3World* world)
     // Once a step, not after every move: a full walk per insert would
     // make large debug scenes quadratic.
     M3_ASSERT(m3TreeValidate(&world->broadphase.tree));
+    DropDeadFrozenKeys(world);
     if (world->contacts.pairsFullQuery != 0)
     {
         // A restore invalidated the buffer: rebuild it as the pure
@@ -856,7 +883,6 @@ void m3UpdatePairs(m3World* world)
             int32_t i = (int32_t)(key >> 32);
             int32_t j = (int32_t)(key & 0xFFFFFFFFu);
             if (world->shapes.shapePool.alive[i] == 0 || world->shapes.shapePool.alive[j] == 0 ||
-                world->contacts.frozenDead[i] != 0 || world->contacts.frozenDead[j] != 0 ||
                 PairHot(world, i, j))
             {
                 continue;
@@ -865,11 +891,6 @@ void m3UpdatePairs(m3World* world)
             PushPair(world, key);
         }
         world->contacts.sleepingPairCount = w;
-    }
-    if (world->contacts.frozenDeadCount > 0)
-    {
-        memset(world->contacts.frozenDead, 0, (size_t)world->shapes.shapeCapacity);
-        world->contacts.frozenDeadCount = 0;
     }
 
     // One sort restores the canonical ascending order. Keys are

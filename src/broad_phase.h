@@ -21,7 +21,8 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body);
 
 // A destroyed shape's pairs die with it: the manifold of each pair it is
 // in becomes a pair that never touched, and the next pair update drops
-// its keys from the frozen buffer. Its slot's next shape then starts with
+// the keys it left in the frozen buffer, not those its slot's next shape
+// files there before that update. Its slot's next shape then starts with
 // no touch, no warm-start impulse and no end event of the dead shape's.
 // It costs the shape's own pairs, and once after each change of the pair
 // list, a pass over the pairs and the shape slots.

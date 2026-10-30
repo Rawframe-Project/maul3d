@@ -501,6 +501,52 @@ static void TestForgetAfterThePairsChange(void)
     m3DestroyWorld(world);
 }
 
+// A ball asleep on the floor is destroyed and a sphere that takes its
+// slot is put to sleep before any step. The frozen buffer then holds the
+// dead ball's floor pair and the new shape's own, under one slot: the
+// next pair update must drop the first and keep the second, as a twin
+// restored after the sleep rebuilds only the second.
+static void TestSleepInAReusedSlot(void)
+{
+    m3World* world = PlaneWorld(NULL);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.5, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3BodyId ball = NewBody(world, &bd);
+    m3ShapeId x = NewSphereShape(world, ball, &sd, &sphere);
+    for (int32_t i = 0; i < 600 && m3Body_IsAwake(world, ball); ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m3Body_IsAwake(world, ball), "the ball falls asleep on the floor");
+    CHECK(m3DestroyShape(world, x) == m3_success, "the sleeping ball's shape is destroyed");
+    bd.position = (m3Pos3){3.0, 0.5, 0.0};
+    m3BodyId sleeper = NewBody(world, &bd);
+    m3ShapeId newer = NewSphereShape(world, sleeper, &sd, &sphere);
+    CHECK(newer.index1 == x.index1, "a sphere on the floor takes the freed slot");
+    m3Body_SetAwake(world, sleeper, false);
+    CHECK(!m3Body_IsAwake(world, sleeper), "and is put to sleep before any step");
+    int32_t size = m3World_GetSnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    int32_t written = 0;
+    CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
+          "the world snapshots after the sleep");
+    m3World* twin = PlaneWorld(NULL);
+    CHECK(m3World_Restore(twin, snap, written) == m3_success, "a twin restores it");
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(twin, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3World_Hash(world) == m3World_Hash(twin),
+          "the sleeping sphere keeps its floor pair, as the restored twin does");
+    free(snap);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHitEvents();
@@ -512,6 +558,7 @@ int main(void)
     TestColdPairAndReusedSlot();
     TestForgetBothHalvesOfAShape();
     TestForgetAfterThePairsChange();
+    TestSleepInAReusedSlot();
     if (s_failures == 0)
     {
         printf("test_events: all green\n");

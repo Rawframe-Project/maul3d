@@ -738,10 +738,13 @@ typedef struct m3Contacts
     int32_t* pairsByHigh;
     int32_t* highStarts;
     uint8_t pairIndexFresh;
-    // Shape slots destroyed since the last pair update: the frozen
-    // buffer's merge drops their keys, which a slot's next shape must
-    // not inherit. Never state: a restore clears it.
-    uint8_t* frozenDead;
+    // Shape slots destroyed since the last pair update. The frozen buffer
+    // only grows between updates, so the keys a slot's dead shape left
+    // there are the ones below the buffer's length at its destroy,
+    // frozenDeadBefore[s]; later ones are the slot's next shape's. The
+    // next update drops the dead ones. Zero for a slot with none, and
+    // frozenDeadCount counts the others. Never state: a restore clears it.
+    int32_t* frozenDeadBefore;
     int32_t frozenDeadCount;
 } m3Contacts;
 
