@@ -21,7 +21,7 @@ typedef struct m3ProxyOverlapContext
     m3Pos3 base;
     const m3Vec3* points; // base-relative query cloud, <= 64
     int32_t pointCount;
-    m3real radius;
+    float radius;
     double lo[3];
     double hi[3];
     m3ShapeSelection selection;
@@ -31,8 +31,8 @@ typedef struct m3ProxyOverlapContext
 // GJK between the localized query cloud and an arbitrary point set
 // (a shape core, a voxel merged box, a mesh triangle), radii applied
 // analytically like the whole distance family.
-static int ProxyCloudReach(const m3Vec3* cloud, int32_t cloudCount, m3real cloudRadius,
-                           const m3Vec3* target, int32_t targetCount, m3real targetRadius)
+static int ProxyCloudReach(const m3Vec3* cloud, int32_t cloudCount, float cloudRadius,
+                           const m3Vec3* target, int32_t targetCount, float targetRadius)
 {
     m3DistanceInput input;
     memset(&input, 0, sizeof(input));
@@ -65,18 +65,18 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     m3Vec3 local[64];
     for (int32_t k = 0; k < ctx->pointCount; ++k)
     {
-        m3Vec3 w = {(m3real)(ctx->base.x + (double)ctx->points[k].x - xf.p.x),
-                    (m3real)(ctx->base.y + (double)ctx->points[k].y - xf.p.y),
-                    (m3real)(ctx->base.z + (double)ctx->points[k].z - xf.p.z)};
+        m3Vec3 w = {(float)(ctx->base.x + (double)ctx->points[k].x - xf.p.x),
+                    (float)(ctx->base.y + (double)ctx->points[k].y - xf.p.y),
+                    (float)(ctx->base.z + (double)ctx->points[k].z - xf.p.z)};
         local[k] = m3InvRotateVec3(xf.q, w);
     }
     if (type == (uint8_t)m3_planeShape)
     {
-        m3real best = 0.0f;
+        float best = 0.0f;
         for (int32_t k = 0; k < ctx->pointCount; ++k)
         {
-            m3real d = m3Dot3(world->shapes.shapeGeom[shape].v, local[k]) -
-                       world->shapes.shapeGeom[shape].s;
+            float d = m3Dot3(world->shapes.shapeGeom[shape].v, local[k]) -
+                      world->shapes.shapeGeom[shape].s;
             if (k == 0 || d < best)
             {
                 best = d;
@@ -88,7 +88,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
     {
         int32_t slot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-        m3real cell = world->voxels.voxelData[slot].cellSize;
+        float cell = world->voxels.voxelData[slot].cellSize;
         m3Vec3 blo = local[0];
         m3Vec3 bhi = local[0];
         for (int32_t k = 1; k < ctx->pointCount; ++k)
@@ -229,9 +229,9 @@ static int32_t ProxyOverlapGather(const m3World* world, m3ProxyOverlapContext* c
 }
 
 static M3_NOINLINE int32_t WorldOverlapHullWorker(const m3World* world, m3Pos3 base,
-                                                  const m3Vec3* points, int32_t count,
-                                                  m3real radius, m3QueryFilter filter,
-                                                  m3ShapeId* idsOut, int32_t capacity)
+                                                  const m3Vec3* points, int32_t count, float radius,
+                                                  m3QueryFilter filter, m3ShapeId* idsOut,
+                                                  int32_t capacity)
 {
     if (world == NULL || points == NULL || count < 1 || count > 64 ||
         !m3ListOutputValid(idsOut, capacity) || !m3FinitePos3(base) || !m3FiniteF(radius) ||
@@ -281,8 +281,7 @@ static M3_NOINLINE int32_t WorldOverlapHullWorker(const m3World* world, m3Pos3 b
 }
 
 int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* points, int32_t count,
-                            m3real radius, m3QueryFilter filter, m3ShapeId* idsOut,
-                            int32_t capacity)
+                            float radius, m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
     int32_t result =
@@ -292,7 +291,7 @@ int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* poi
 }
 
 static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos3 p1, m3Pos3 p2,
-                                                     m3real radius, m3QueryFilter filter,
+                                                     float radius, m3QueryFilter filter,
                                                      m3ShapeId* idsOut, int32_t capacity)
 {
     if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
@@ -300,11 +299,11 @@ static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos
         return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
-                     {(m3real)(p2.x - p1.x), (m3real)(p2.y - p1.y), (m3real)(p2.z - p1.z)}};
+                     {(float)(p2.x - p1.x), (float)(p2.y - p1.y), (float)(p2.z - p1.z)}};
     return m3World_OverlapHull(world, p1, pts, 2, radius, filter, idsOut, capacity);
 }
 
-int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
+int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, float radius,
                                m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();

@@ -156,25 +156,25 @@ static int PointInShape(const m3World* world, int32_t shape, m3Pos3 point)
     m3Transform xfS7 = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS7;
     m3Vec3 local =
-        m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(point.x - xf->p.x), (m3real)(point.y - xf->p.y),
-                                        (m3real)(point.z - xf->p.z)});
+        m3InvRotateVec3(xf->q, (m3Vec3){(float)(point.x - xf->p.x), (float)(point.y - xf->p.y),
+                                        (float)(point.z - xf->p.z)});
     uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_sphereShape)
     {
         m3Vec3 d = m3Sub3(local, world->shapes.shapeGeom[shape].v);
-        m3real r = world->shapes.shapeGeom[shape].s;
+        float r = world->shapes.shapeGeom[shape].s;
         return m3Dot3(d, d) <= r * r;
     }
     if (type == (uint8_t)m3_capsuleShape)
     {
         m3Vec3 p1 = world->shapes.shapeGeom[shape].v;
         m3Vec3 axis = m3Sub3(world->shapes.shapeGeom[shape].v2, p1);
-        m3real len2 = m3Dot3(axis, axis);
-        m3real t = len2 > 0.0f ? m3Dot3(m3Sub3(local, p1), axis) / len2 : 0.0f;
+        float len2 = m3Dot3(axis, axis);
+        float t = len2 > 0.0f ? m3Dot3(m3Sub3(local, p1), axis) / len2 : 0.0f;
         t = m3MaxF(0.0f, m3MinF(1.0f, t));
         m3Vec3 closest = m3Add3(p1, m3MulSV3(t, axis));
         m3Vec3 d = m3Sub3(local, closest);
-        m3real r = world->shapes.shapeGeom[shape].s;
+        float r = world->shapes.shapeGeom[shape].s;
         return m3Dot3(d, d) <= r * r;
     }
     if (type == (uint8_t)m3_hullShape)
@@ -208,10 +208,10 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     m3Transform xfS = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS;
     m3Vec3 local =
-        m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(point.x - xf->p.x), (m3real)(point.y - xf->p.y),
-                                        (m3real)(point.z - xf->p.z)});
+        m3InvRotateVec3(xf->q, (m3Vec3){(float)(point.x - xf->p.x), (float)(point.y - xf->p.y),
+                                        (float)(point.z - xf->p.z)});
     int32_t slot = world->shapes.shapeVoxelIndex[shape];
-    m3real cell = world->voxels.voxelData[slot].cellSize;
+    float cell = world->voxels.voxelData[slot].cellSize;
     int32_t x = m3CellFromF(local.x / cell, 2.0e9f);
     int32_t y = m3CellFromF(local.y / cell, 2.0e9f);
     int32_t z = m3CellFromF(local.z / cell, 2.0e9f);
@@ -320,24 +320,24 @@ typedef struct m3OverlapContext
 {
     const m3World* world;
     m3Pos3 center;
-    m3real radius; // < 0 = pure AABB gather
+    float radius; // < 0 = pure AABB gather
     double lo[3];
     double hi[3];
     m3ShapeSelection selection;
     m3QueryFilter filter;
 } m3OverlapContext;
 
-static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center, m3real radius)
+static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center, float radius)
 {
     uint8_t type = world->shapes.shapeType[shape];
     if (type == (uint8_t)m3_planeShape)
     {
         m3Transform xfS3 = m3ShapeWorldTransform(world, shape);
         const m3Transform* xf = &xfS3;
-        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
-                                                       (m3real)(center.y - xf->p.y),
-                                                       (m3real)(center.z - xf->p.z)});
-        m3real d =
+        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(float)(center.x - xf->p.x),
+                                                       (float)(center.y - xf->p.y),
+                                                       (float)(center.z - xf->p.z)});
+        float d =
             m3Dot3(world->shapes.shapeGeom[shape].v, local) - world->shapes.shapeGeom[shape].s;
         return d <= radius;
     }
@@ -347,12 +347,12 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         // (boxes are axis-aligned in the chunk frame).
         m3Transform xfS4 = m3ShapeWorldTransform(world, shape);
         const m3Transform* xf = &xfS4;
-        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
-                                                       (m3real)(center.y - xf->p.y),
-                                                       (m3real)(center.z - xf->p.z)});
+        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(float)(center.x - xf->p.x),
+                                                       (float)(center.y - xf->p.y),
+                                                       (float)(center.z - xf->p.z)});
         int32_t slot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-        m3real cell = world->voxels.voxelData[slot].cellSize;
+        float cell = world->voxels.voxelData[slot].cellSize;
         m3MeshBvhHits gather;
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
         m3Vec3 bhi = {local.x + radius, local.y + radius, local.z + radius};
@@ -378,9 +378,9 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         // mesh recipe over the cell gather.
         m3Transform xfS6 = m3ShapeWorldTransform(world, shape);
         const m3Transform* xfH = &xfS6;
-        m3Vec3 localH = m3InvRotateVec3(xfH->q, (m3Vec3){(m3real)(center.x - xfH->p.x),
-                                                         (m3real)(center.y - xfH->p.y),
-                                                         (m3real)(center.z - xfH->p.z)});
+        m3Vec3 localH = m3InvRotateVec3(xfH->q, (m3Vec3){(float)(center.x - xfH->p.x),
+                                                         (float)(center.y - xfH->p.y),
+                                                         (float)(center.z - xfH->p.z)});
         const m3HeightFieldData* hf =
             &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]];
         m3Vec3 hfTris[512][3];
@@ -394,7 +394,7 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
             m3Vec3 d0 = m3Sub3(localH, hfTris[t][0]);
             m3Vec3 d1 = m3Sub3(localH, hfTris[t][1]);
             m3Vec3 d2 = m3Sub3(localH, hfTris[t][2]);
-            m3real r2 = radius * radius;
+            float r2 = radius * radius;
             if (m3Dot3(d0, d0) <= r2 || m3Dot3(d1, d1) <= r2 || m3Dot3(d2, d2) <= r2)
             {
                 return 1;
@@ -407,9 +407,9 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
         // Distance to any triangle within reach (bounded scan).
         m3Transform xfS5 = m3ShapeWorldTransform(world, shape);
         const m3Transform* xf = &xfS5;
-        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x),
-                                                       (m3real)(center.y - xf->p.y),
-                                                       (m3real)(center.z - xf->p.z)});
+        m3Vec3 local = m3InvRotateVec3(xf->q, (m3Vec3){(float)(center.x - xf->p.x),
+                                                       (float)(center.y - xf->p.y),
+                                                       (float)(center.z - xf->p.z)});
         const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
         m3MeshBvhHits gather;
         m3Vec3 blo = {local.x - radius, local.y - radius, local.z - radius};
@@ -427,7 +427,7 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
             m3Vec3 d0 = m3Sub3(local, a);
             m3Vec3 d1 = m3Sub3(local, b);
             m3Vec3 d2 = m3Sub3(local, c);
-            m3real r2 = (radius + 0.0f) * (radius + 0.0f);
+            float r2 = (radius + 0.0f) * (radius + 0.0f);
             if (m3Dot3(d0, d0) <= r2 || m3Dot3(d1, d1) <= r2 || m3Dot3(d2, d2) <= r2)
             {
                 return 1;
@@ -442,8 +442,8 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
     m3Transform xfS8 = m3ShapeWorldTransform(world, shape);
     const m3Transform* xf = &xfS8;
     m3Vec3 local =
-        m3InvRotateVec3(xf->q, (m3Vec3){(m3real)(center.x - xf->p.x), (m3real)(center.y - xf->p.y),
-                                        (m3real)(center.z - xf->p.z)});
+        m3InvRotateVec3(xf->q, (m3Vec3){(float)(center.x - xf->p.x), (float)(center.y - xf->p.y),
+                                        (float)(center.z - xf->p.z)});
     m3Vec3 point = local;
     m3DistanceInput input;
     memset(&input, 0, sizeof(input));
@@ -554,7 +554,7 @@ int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter
 }
 
 static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3 center,
-                                                    m3real radius, m3QueryFilter filter,
+                                                    float radius, m3QueryFilter filter,
                                                     m3ShapeId* idsOut, int32_t capacity)
 {
     if (world == NULL || !m3ListOutputValid(idsOut, capacity) || !m3FiniteF(radius) ||
@@ -577,7 +577,7 @@ static M3_NOINLINE int32_t WorldOverlapSphereWorker(const m3World* world, m3Pos3
     return OverlapGather(world, &ctx, idsOut, capacity);
 }
 
-int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius,
+int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, float radius,
                               m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();

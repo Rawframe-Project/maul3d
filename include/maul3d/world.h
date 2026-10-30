@@ -177,9 +177,9 @@ extern "C"
     typedef struct m3WaterVolumeDef
     {
         m3WorldAabb bounds;    // upper above lower on every axis, each within 1e15 m
-        m3real density;        // kg/m3; 1000 is water, > 0 and at most 1e6
-        m3real linearDrag;     // per-second rate toward the flow, >= 0
-        m3real angularDrag;    // per-second spin damping, >= 0
+        float density;         // kg/m3; 1000 is water, > 0 and at most 1e6
+        float linearDrag;      // per-second rate toward the flow, >= 0
+        float angularDrag;     // per-second spin damping, >= 0
         m3Vec3 flow;           // current velocity, world frame, within 1e5 m/s
         int32_t internalValue; // from m3DefaultWaterVolumeDef
     } m3WaterVolumeDef;
@@ -351,9 +351,9 @@ extern "C"
     {
         m3ShapeId shapeIdA;
         m3ShapeId shapeIdB;
-        m3Pos3 point;         // approximate contact point, world space
-        m3Vec3 normal;        // from shape A to shape B
-        m3real approachSpeed; // relative normal speed at impact, > 0
+        m3Pos3 point;        // approximate contact point, world space
+        m3Vec3 normal;       // from shape A to shape B
+        float approachSpeed; // relative normal speed at impact, > 0
     } m3ContactHitEvent;
 
     /// The contact streams of the LAST step, in canonical deterministic
@@ -429,7 +429,7 @@ extern "C"
         int32_t recipeCount;
         m3Vec3 localCenter;    /// island center of mass, chunk frame
         m3Pos3 worldCenter;    /// the same point in world space at emit time
-        m3real mass;           /// at density one (cell volume times count)
+        float mass;            /// at density one (cell volume times count)
         uint8_t lowerBound[3]; /// island voxel bounds, inclusive
         uint8_t upperBound[3];
     } m3FragmentEvent;
@@ -522,9 +522,9 @@ extern "C"
     typedef struct m3CastHit
     {
         m3ShapeId shapeId;
-        m3Pos3 point;    // the world hit point
-        m3Vec3 normal;   // the world surface normal; zero on initial overlap
-        m3real fraction; // the hit is origin + fraction * translation
+        m3Pos3 point;   // the world hit point
+        m3Vec3 normal;  // the world surface normal; zero on initial overlap
+        float fraction; // the hit is origin + fraction * translation
     } m3CastHit;
 
     /// The mover toolkit: pure queries and a pure plane
@@ -535,8 +535,8 @@ extern "C"
     typedef struct m3MoverPlane
     {
         m3ShapeId shapeId;
-        m3Vec3 normal;     // from the shape toward the mover
-        m3real separation; // gap along the normal; negative = overlap
+        m3Vec3 normal;    // from the shape toward the mover
+        float separation; // gap along the normal; negative = overlap
     } m3MoverPlane;
 
 /// Planes past this count take no part in the solve.
@@ -551,8 +551,8 @@ extern "C"
     /// Cast the mover capsule along a translation; the closest
     /// blocking hit (sensors are invisible to movers), with the
     /// closest casts' contract below.
-    M3_API bool m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
-                                  m3real radius, m3Vec3 translation, m3CastHit* hitOut);
+    M3_API bool m3World_CastMover(const m3World* world, m3Pos3 center, float halfHeight,
+                                  float radius, m3Vec3 translation, m3CastHit* hitOut);
 
     /// Collect contact planes for the mover at rest: every shape
     /// within `skin` of the capsule contributes one plane, the lowest
@@ -565,8 +565,8 @@ extern "C"
     /// writes only its entries and leaves the rest of the array as it
     /// was. A list call only reads, so none is refused as busy. Pass the
     /// smaller of the two to m3SolveMover.
-    M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, m3real halfHeight,
-                                        m3real radius, m3real skin, m3MoverPlane* planesOut,
+    M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, float halfHeight,
+                                        float radius, float skin, m3MoverPlane* planesOut,
                                         int32_t capacity);
 
     /// The closest translation to the wish that no plane blocks, and
@@ -617,11 +617,11 @@ extern "C"
     M3_API bool m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
                                         int32_t count, m3Vec3 translation, m3QueryFilter filter,
                                         m3CastHit* hitOut);
-    M3_API bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
+    M3_API bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, float radius,
                                           m3Vec3 translation, m3QueryFilter filter,
                                           m3CastHit* hitOut);
     M3_API bool m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1,
-                                           m3Vec3 point2, m3real radius, m3Vec3 translation,
+                                           m3Vec3 point2, float radius, m3Vec3 translation,
                                            m3QueryFilter filter, m3CastHit* hitOut);
 
     /// The first shape (lowest index) whose volume contains the
@@ -640,7 +640,7 @@ extern "C"
                                        m3ShapeId* idsOut, int32_t capacity);
 
     /// Shapes within reach of the sphere (exact per family).
-    M3_API int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, m3real radius,
+    M3_API int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, float radius,
                                          m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity);
 
     /// The exact overlap family: capsule, oriented box, and
@@ -649,14 +649,14 @@ extern "C"
     /// and voxel/mesh handled per family), ascending shape index,
     /// filtered, read-only. Clouds carry base-relative points (the
     /// cast convention), at most 64 of them.
-    M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, m3real radius,
+    M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, float radius,
                                           m3QueryFilter filter, m3ShapeId* idsOut,
                                           int32_t capacity);
     M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                       m3Quat rotation, m3QueryFilter filter, m3ShapeId* idsOut,
                                       int32_t capacity);
     M3_API int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* points,
-                                       int32_t count, m3real radius, m3QueryFilter filter,
+                                       int32_t count, float radius, m3QueryFilter filter,
                                        m3ShapeId* idsOut, int32_t capacity);
 
     /// Explosion definition: one journaled call pushes every

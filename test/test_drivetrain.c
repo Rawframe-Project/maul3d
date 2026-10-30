@@ -133,10 +133,10 @@ static void TestAutoShiftSprintTwins(void)
         m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f);
         int32_t lastGear = m3Vehicle_GetGear(world, car);
         int32_t shifts = 0;
-        m3real rpmBefore = 0.0f;
+        float rpmBefore = 0.0f;
         for (int32_t i = 0; i < 1500; ++i)
         {
-            m3real rpmPrev = m3Vehicle_GetEngineRpm(world, car);
+            float rpmPrev = m3Vehicle_GetEngineRpm(world, car);
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
             int32_t gear = m3Vehicle_GetGear(world, car);
             if (run == 0)
@@ -199,7 +199,7 @@ static void TestNeutralAndReverse(void)
     m3DestroyWorld(world);
 }
 
-static double DiffYaw(int32_t mode, m3real couple, uint64_t* outHash)
+static double DiffYaw(int32_t mode, float couple, uint64_t* outHash)
 {
     // Same car, same throttle, same steer; only the differential
     // changes. The coupling resists the inner/outer wheel speed
@@ -327,7 +327,7 @@ static void TestTankSteer(void)
 
 // A two-wheeler: narrow box, one wheel at each end, the front one
 // steerable. The lean gain is the experiment variable.
-static m3VehicleId MakeBike(m3World* world, m3Pos3 at, m3real leanGain, m3BodyId* outChassis)
+static m3VehicleId MakeBike(m3World* world, m3Pos3 at, float leanGain, m3BodyId* outChassis)
 {
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;

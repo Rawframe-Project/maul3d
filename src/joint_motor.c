@@ -30,7 +30,7 @@ static void WarmStartMotor(const m3JointConstraint* c, const m3JointPose* pose, 
 }
 
 // A budget of zero means none.
-static m3real Budget(m3real effort, m3real h)
+static float Budget(float effort, float h)
 {
     return effort > 0.0f ? effort * h : M3_ROW_FREE;
 }

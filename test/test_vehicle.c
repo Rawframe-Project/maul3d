@@ -108,10 +108,10 @@ static void TestSteerCircle(void)
     }
     m3Vec3 v = m3Body_GetLinearVelocity(world, chassis);
     m3Vec3 w = m3Body_GetAngularVelocity(world, chassis);
-    m3real speed = sqrtf(v.x * v.x + v.z * v.z);
+    float speed = sqrtf(v.x * v.x + v.z * v.z);
     CHECK(speed > 1.0f, "the circling car keeps real speed");
     CHECK(fabsf(w.y) > 0.3f, "the steer turns the car");
-    m3real radius = speed / fabsf(w.y);
+    float radius = speed / fabsf(w.y);
     CHECK(radius > 1.4f && radius < 5.0f, "the turning radius sits near Ackermann");
     m3DestroyWorld(world);
 }

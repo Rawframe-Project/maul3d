@@ -27,7 +27,7 @@
 // values are bit-identical: no real grid nears two billion cells.
 // nanPark picks which way a poisoned bound falls so lo/hi ranges
 // come out EMPTY, never huge.
-static inline int32_t m3CellFromF(m3real f, m3real nanPark)
+static inline int32_t m3CellFromF(float f, float nanPark)
 {
     f = f != f ? nanPark : f;
     f = f < -2.0e9f ? -2.0e9f : (f > 2.0e9f ? 2.0e9f : f);
@@ -104,7 +104,7 @@ typedef struct m3HullData
     m3Mat3 unitInertiaCom; // at density one, about the centroid
     m3Vec3 vertices[M3_HULL_MAX_VERTS];
     m3Vec3 faceNormals[M3_HULL_MAX_FACES];
-    m3real faceOffsets[M3_HULL_MAX_FACES];
+    float faceOffsets[M3_HULL_MAX_FACES];
     uint8_t faceVertCounts[M3_HULL_MAX_FACES];
     uint16_t faceVertStart[M3_HULL_MAX_FACES]; // offsets reach 372
     uint8_t faceIndices[M3_HULL_MAX_FACE_INDICES];
@@ -184,12 +184,12 @@ void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf);
 static inline void m3HeightFieldCellTris(const m3HeightFieldData* hf, int32_t cx, int32_t cz,
                                          m3Vec3 out[2][3])
 {
-    m3real cs = hf->cellSize;
-    m3Vec3 a = {(m3real)cx * cs, hf->heights[cz * hf->nx + cx], (m3real)cz * cs};
-    m3Vec3 b = {(m3real)(cx + 1) * cs, hf->heights[cz * hf->nx + cx + 1], (m3real)cz * cs};
-    m3Vec3 c = {(m3real)(cx + 1) * cs, hf->heights[(cz + 1) * hf->nx + cx + 1],
-                (m3real)(cz + 1) * cs};
-    m3Vec3 d = {(m3real)cx * cs, hf->heights[(cz + 1) * hf->nx + cx], (m3real)(cz + 1) * cs};
+    float cs = hf->cellSize;
+    m3Vec3 a = {(float)cx * cs, hf->heights[cz * hf->nx + cx], (float)cz * cs};
+    m3Vec3 b = {(float)(cx + 1) * cs, hf->heights[cz * hf->nx + cx + 1], (float)cz * cs};
+    m3Vec3 c = {(float)(cx + 1) * cs, hf->heights[(cz + 1) * hf->nx + cx + 1],
+                (float)(cz + 1) * cs};
+    m3Vec3 d = {(float)cx * cs, hf->heights[(cz + 1) * hf->nx + cx], (float)(cz + 1) * cs};
     if ((cx + cz) % 2 == 0)
     {
         out[0][0] = a;
@@ -244,8 +244,8 @@ typedef struct m3SurfacePath
 {
     m3Vec3 start;
     m3Vec3 end;
-    m3real reach;
-    m3real until;
+    float reach;
+    float until;
 } m3SurfacePath;
 
 // Narrows t0..t1 to where the coordinate s + t d lies within lo..hi.
@@ -421,7 +421,7 @@ void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratch, const m3Vec3* los, const m3
 
 typedef struct m3VoxelChunkData
 {
-    m3real cellSize;
+    float cellSize;
     int32_t filledCount;
     uint8_t occupancy[M3_VOXEL_COUNT / 8];
     uint16_t payload[M3_VOXEL_COUNT];
@@ -451,7 +451,7 @@ typedef struct m3VoxelSurface
 
 bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
-                    m3real cellSize);
+                    float cellSize);
 // Whether a grid's surface merges into no more boxes than the world's
 // voxel trees hold (voxelBoxLimit). A grid that does not is never
 // landed, so every surface fits its tree.
@@ -463,9 +463,9 @@ bool m3VoxelTreeReserve(m3World* world, int32_t slot);
 // Rebuilds slot's surface from its grid, which fits, the tree into the
 // slot's storage: allocates nothing, so it never fails.
 void m3VoxelSurfaceBuild(m3World* world, int32_t slot);
-void m3VoxelBoxBounds(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3Vec3* lo,
+void m3VoxelBoxBounds(const m3VoxelSurface* surface, float cellSize, int32_t box, m3Vec3* lo,
                       m3Vec3* hi);
-void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box, m3HullData* out);
+void m3VoxelBoxHull(const m3VoxelSurface* surface, float cellSize, int32_t box, m3HullData* out);
 
 // Geometry is one padding-free 32-byte record per shape, interpreted
 // by type: sphere {v=center, s=radius}, plane {v=normal, s=offset},
@@ -474,9 +474,9 @@ void m3VoxelBoxHull(const m3VoxelSurface* surface, m3real cellSize, int32_t box,
 typedef struct m3ShapeGeom
 {
     m3Vec3 v;  // sphere center | plane normal | box half extents | capsule p1
-    m3real s;  // radius | offset | unused | radius
+    float s;   // radius | offset | unused | radius
     m3Vec3 v2; // capsule p2
-    m3real s2; // reserved
+    float s2;  // reserved
 } m3ShapeGeom;
 
 _Static_assert(sizeof(m3ShapeGeom) == 32, "shape geom must be padding-free");
@@ -489,8 +489,8 @@ typedef struct m3ManifoldPoint
 {
     m3Vec3 anchorA;
     m3Vec3 anchorB;
-    m3real separation; // negative = penetration, positive = speculative
-    m3real normalImpulse;
+    float separation; // negative = penetration, positive = speculative
+    float normalImpulse;
     uint16_t id;    // feature id (spheres have exactly one feature: 0)
     uint16_t flags; // bit 0: persisted (impulses carried this rebuild)
 } m3ManifoldPoint;
@@ -510,7 +510,7 @@ typedef struct m3Manifold
     // WORLD frame so the next step's tangent basis re-projects it.
     // The rolling row warm-starts every substep from here too.
     m3Vec3 frictionImpulse;
-    m3real twistImpulse;
+    float twistImpulse;
     m3Vec3 rollingImpulse;
     m3ManifoldPoint points[M3_MANIFOLD_MAX_POINTS];
 } m3Manifold;
@@ -528,7 +528,7 @@ typedef struct m3Bodies
     m3Transform* transforms;
     m3Vec3* linearVelocities;
     m3Vec3* angularVelocities;
-    m3real* invMass;
+    float* invMass;
     m3Mat3* invInertiaLocal; // inverse inertia about the COM, body frame
     m3Mat3* inertiaLocal;    // forward tensor about the COM, body frame
     // The principal moments, largest first, and the rotation from the
@@ -536,9 +536,9 @@ typedef struct m3Bodies
     m3Vec3* principalMoments;
     m3Quat* principalFrames;
     m3Vec3* localCenters; // center of mass in the body frame
-    m3real* gravityScales;
-    m3real* linearDamping;
-    m3real* angularDamping;
+    float* gravityScales;
+    float* linearDamping;
+    float* angularDamping;
     uint8_t* types;
     uint8_t* awake;       // 0 = sleeping (dynamic bodies only), frozen solid
     float* sleepTimes;    // seconds below the sleep threshold
@@ -812,16 +812,16 @@ typedef struct m3Characters
     int32_t characterCapacity;
     m3IdPool charPool;
     int32_t* charBody; // the internal kinematic body slot
-    m3real* charRadius;
-    m3real* charHalfHeight;
-    m3real* charCosSlope;
-    m3real* charSnap;
-    m3real* charSkin;
-    m3real* charStepHeight;
+    float* charRadius;
+    float* charHalfHeight;
+    float* charCosSlope;
+    float* charSnap;
+    float* charSkin;
+    float* charStepHeight;
     uint8_t* charGrounded;
     m3Vec3* charGroundNormal;
-    m3real* charMass;        // kilograms; scales push impulses
-    m3real* charPushMax;     // heaviest pushable body / mass ratio
+    float* charMass;         // kilograms; scales push impulses
+    float* charPushMax;      // heaviest pushable body / mass ratio
     int32_t* charGroundBody; // body slot under our feet, -1 none
     uint32_t* charGroundGen; // that body's generation when recorded
 } m3Characters;
@@ -839,57 +839,57 @@ typedef struct m3Vehicles
     int32_t* vehChassis;     // chassis body slot, -1 free
     uint32_t* vehChassisGen; // its generation at create
     int32_t* vehWheelCount;
-    m3real* vehMaxSteer;
-    m3real* vehDriveForce;
-    m3real* vehBrakeForce;
+    float* vehMaxSteer;
+    float* vehDriveForce;
+    float* vehBrakeForce;
     uint64_t* vehUserData;
     m3Vec3* vehWheelAnchor;
     m3Vec3* vehWheelDir;
-    m3real* vehWheelRest;
-    m3real* vehWheelTravel;
-    m3real* vehWheelHertz;
-    m3real* vehWheelZeta;
-    m3real* vehWheelRadius;
+    float* vehWheelRest;
+    float* vehWheelTravel;
+    float* vehWheelHertz;
+    float* vehWheelZeta;
+    float* vehWheelRadius;
     uint8_t* vehWheelFlags; // bit0 steerable, bit1 driven
-    m3real* vehWheelBrake;
+    float* vehWheelBrake;
     // Tank mode: per-side throttles; mode 0 = the normal
     // single-throttle path.
     uint8_t* vehTrackMode;
-    m3real* vehTrackLeft;
-    m3real* vehTrackRight;
-    m3real* vehLeanGain;
-    m3real* vehWheelCompression; // last step's suspension state
+    float* vehTrackLeft;
+    float* vehTrackRight;
+    float* vehLeanGain;
+    float* vehWheelCompression; // last step's suspension state
     uint8_t* vehWheelContact;
-    m3real* vehTireGrip; // friction circle scale
-    m3real* vehThrottle; // command state, journaled
-    m3real* vehSteer;
-    m3real* vehBrake;
-    m3real* vehWheelSpin; // accumulated spin angle, render state
+    float* vehTireGrip; // friction circle scale
+    float* vehThrottle; // command state, journaled
+    float* vehSteer;
+    float* vehBrake;
+    float* vehWheelSpin; // accumulated spin angle, render state
     // The drivetrain: per-vehicle engine curve and gearbox.
     // Def fields land by journaled op; gear, clutch countdown, and
     // last engine speed are simulation state (snapshot always,
     // hashed only when a drivetrain is attached).
     uint8_t* vehDtActive;
     int32_t* vehDtCurveCount;
-    m3real* vehDtCurveRpm;    // capacity * M3_MAX_DRIVETRAIN_CURVE
-    m3real* vehDtCurveTorque; // capacity * M3_MAX_DRIVETRAIN_CURVE
+    float* vehDtCurveRpm;    // capacity * M3_MAX_DRIVETRAIN_CURVE
+    float* vehDtCurveTorque; // capacity * M3_MAX_DRIVETRAIN_CURVE
     int32_t* vehDtGearCount;
-    m3real* vehDtGearRatio; // capacity * M3_MAX_DRIVETRAIN_GEARS
-    m3real* vehDtReverse;
-    m3real* vehDtFinal;
-    int32_t* vehDtDiffMode;  // 0 open, 1 limited, 2 locked
-    m3real* vehDtDiffCouple; // newtons per m/s of wheel disparity
-    m3real* vehWheelLon;     // per wheel: last step's contact speed
-                             // (cap * M3_MAX_VEHICLE_WHEELS); feeds
-                             // the diff coupling, hashed only when a
-                             // nonzero diff mode is attached
-    m3real* vehDtShiftUp;
-    m3real* vehDtShiftDown;
+    float* vehDtGearRatio; // capacity * M3_MAX_DRIVETRAIN_GEARS
+    float* vehDtReverse;
+    float* vehDtFinal;
+    int32_t* vehDtDiffMode; // 0 open, 1 limited, 2 locked
+    float* vehDtDiffCouple; // newtons per m/s of wheel disparity
+    float* vehWheelLon;     // per wheel: last step's contact speed
+                            // (cap * M3_MAX_VEHICLE_WHEELS); feeds
+                            // the diff coupling, hashed only when a
+                            // nonzero diff mode is attached
+    float* vehDtShiftUp;
+    float* vehDtShiftDown;
     int32_t* vehDtClutchSteps;
     uint8_t* vehDtAutoShift;
     int8_t* vehDtGear;    // -1 reverse, 0 neutral, 1..gearCount
     int32_t* vehDtClutch; // torque-cut countdown, steps
-    m3real* vehDtRpm;     // engine speed from the last pass
+    float* vehDtRpm;      // engine speed from the last pass
 } m3Vehicles;
 
 // Soft bodies: XPBD particle lattices in fixed-size blocks per slot.
@@ -903,25 +903,25 @@ typedef struct m3SoftBodies
     m3IdPool softPool;
     int32_t* softParticleCount;
     int32_t* softEdgeCount;
-    m3real* softCompliance;
-    m3real* softRadius;
-    m3real* softGravityScale;
+    float* softCompliance;
+    float* softRadius;
+    float* softGravityScale;
     uint64_t* softUserData;
-    m3Pos3* softPos;     // cap * M3_MAX_SOFTBODY_PARTICLES
-    m3Pos3* softPrev;    // cap * M3_MAX_SOFTBODY_PARTICLES
-    m3real* softInvMass; // cap * M3_MAX_SOFTBODY_PARTICLES
+    m3Pos3* softPos;    // cap * M3_MAX_SOFTBODY_PARTICLES
+    m3Pos3* softPrev;   // cap * M3_MAX_SOFTBODY_PARTICLES
+    float* softInvMass; // cap * M3_MAX_SOFTBODY_PARTICLES
     // Bend tethers: edges from softBendStart[slot] onward
     // solve with softBendCompliance[slot] instead of the stretch
     // compliance.
     int32_t* softBendStart;
-    m3real* softBendCompliance;
+    float* softBendCompliance;
     // Pressure: lattice dims + the create volume + target
     // multiplier; all folded off-default.
     uint16_t* softDimX;
     uint16_t* softDimY;
     uint16_t* softDimZ;
-    m3real* softRestVolume;
-    m3real* softPressure;
+    float* softRestVolume;
+    float* softPressure;
     // Tet volumes: four particle ids and a rest 6-volume per
     // tet, slot-strided like edges; count 0 = a lattice body.
     int32_t* softTetCount;
@@ -929,18 +929,18 @@ typedef struct m3SoftBodies
     uint16_t* softTetB;
     uint16_t* softTetC;
     uint16_t* softTetD;
-    m3real* softTetRestV6;
+    float* softTetRestV6;
     // Bind-pose tether: the create positions and the clamp
     // radius; radius 0 = off and the bind block stays canonical
     // zeros.
     m3Pos3* softBindPos;
-    m3real* softMaxDeviation;
+    float* softMaxDeviation;
     m3Vec3* softKick;    // pending explosion velocity kicks:
                          // integrated once next step, then zeroed,
                          // hashed only when nonzero (additive rule)
     uint16_t* softEdgeA; // cap * M3_MAX_SOFTBODY_EDGES
     uint16_t* softEdgeB;
-    m3real* softEdgeRest;
+    float* softEdgeRest;
     int32_t* softAnchorCount;    // per slot
     int32_t* softAnchorParticle; // cap * M3_MAX_SOFTBODY_ANCHORS
     int32_t* softAnchorBody;
@@ -1054,7 +1054,7 @@ typedef struct m3World
     void* preSolveContext;
     // Per-step scratch, never snapshotted.
     m3Stack scratch;
-    m3real lastInvH; // last step's substep invH: readback scale,
+    float lastInvH; // last step's substep invH: readback scale,
     // Observer tail: profile and step statistics. NEVER
     // snapshot blocks, NEVER hash inputs; the walker and the hash
     // enumerate arrays explicitly and skip this region by design.

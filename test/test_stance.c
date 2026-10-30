@@ -98,16 +98,16 @@ static void TestDuckWalkStand(void)
                 }
                 if (i == 121)
                 {
-                    m3real hh;
-                    m3real r;
+                    float hh;
+                    float r;
                     m3Character_GetStance(world, hero, &hh, &r);
                     CHECK(hh == 0.2f && r == 0.4f, "the duck applies");
                     CHECK(m3Character_IsGrounded(world, hero), "the crouch keeps its feet");
                 }
                 if (i == 241)
                 {
-                    m3real hh;
-                    m3real r;
+                    float hh;
+                    float r;
                     m3Character_GetStance(world, hero, &hh, &r);
                     CHECK(hh == 0.2f, "the pressed stand is REFUSED, stance holds");
                     double x = m3Character_GetPosition(world, hero).x;
@@ -115,8 +115,8 @@ static void TestDuckWalkStand(void)
                 }
                 if (i == 461)
                 {
-                    m3real hh;
-                    m3real r;
+                    float hh;
+                    float r;
                     m3Character_GetStance(world, hero, &hh, &r);
                     CHECK(hh == 0.5f, "past the edge the stand applies");
                     CHECK(m3Character_GetPosition(world, hero).x > 6.5, "genuinely past the slab");
@@ -191,8 +191,8 @@ static void TestSlotRefusesWidth(void)
     }
     CHECK(m3Character_IsGrounded(world, hero), "the character lands inside the slot");
     CHECK(!SetStance(world, hero, 0.5f, 0.6f), "widening inside the slot refuses");
-    m3real hh;
-    m3real r;
+    float hh;
+    float r;
     m3Character_GetStance(world, hero, &hh, &r);
     CHECK(r == 0.4f, "the refused widening left the radius alone");
     CHECK(SetStance(world, hero, 0.5f, 0.3f), "narrowing inside the slot applies");
@@ -212,8 +212,8 @@ static void TestHostileWall(void)
     CHECK(!SetStance(world, hero, 0.5f, -0.4f), "a negative radius bounces");
     CHECK(!SetStance(world, hero, 0.01f, 0.4f), "a sub-minimum height bounces");
     CHECK(!SetStance(world, hero, 0.5f, 40.0f), "an absurd radius bounces");
-    m3real hh;
-    m3real r;
+    float hh;
+    float r;
     m3Character_GetStance(world, hero, &hh, &r);
     CHECK(hh == 0.5f && r == 0.4f, "four hostile calls changed nothing");
     m3CharacterId stale = {99, 7};

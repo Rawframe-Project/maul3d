@@ -40,9 +40,9 @@ static double RandRange(uint64_t* state, double lo, double hi)
 // Clang choose differently.
 static m3Vec3 RandVec3(uint64_t* state, double lo, double hi)
 {
-    m3real x = (m3real)RandRange(state, lo, hi);
-    m3real y = (m3real)RandRange(state, lo, hi);
-    m3real z = (m3real)RandRange(state, lo, hi);
+    float x = (float)RandRange(state, lo, hi);
+    float y = (float)RandRange(state, lo, hi);
+    float z = (float)RandRange(state, lo, hi);
     return (m3Vec3){x, y, z};
 }
 
@@ -166,8 +166,8 @@ static m3World* SceneMeshGrand(void)
             // The engine's own cosine and sine: the platform's sinf and
             // cosf differ in the last bits (Windows x64 against the rest),
             // which would move the terrain and so the pinned hash.
-            m3real ripple = m3ComputeCosSin(0.31f * (float)x).s;
-            m3real swell = m3ComputeCosSin(0.23f * (float)z).c;
+            float ripple = m3ComputeCosSin(0.31f * (float)x).s;
+            float swell = m3ComputeCosSin(0.23f * (float)z).c;
             float h = 0.2f * ripple + 0.2f * swell;
             verts[z * GG + x] = (m3Vec3){0.5f * (float)x, h, 0.5f * (float)z};
         }
@@ -304,9 +304,9 @@ static void SpawnFragment(m3World* world, const m3FragmentEvent* ev, const uint1
     bd.type = m3_dynamicBody;
     bd.position = ev->worldCenter;
     m3BodyId body = NewBody(world, &bd);
-    m3Vec3 half = {0.5f * (m3real)(ev->upperBound[0] - ev->lowerBound[0] + 1),
-                   0.5f * (m3real)(ev->upperBound[1] - ev->lowerBound[1] + 1),
-                   0.5f * (m3real)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
+    m3Vec3 half = {0.5f * (float)(ev->upperBound[0] - ev->lowerBound[0] + 1),
+                   0.5f * (float)(ev->upperBound[1] - ev->lowerBound[1] + 1),
+                   0.5f * (float)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
     m3ShapeDef fd = m3DefaultShapeDef();
     fd.friction = 0.6f;
     fd.density = ev->mass / (8.0f * half.x * half.y * half.z);
@@ -317,9 +317,9 @@ static void SpawnFragment(m3World* world, const m3FragmentEvent* ev, const uint1
         for (int32_t k = 0; k < ev->recipeCount; ++k)
         {
             uint16_t v = recipe[ev->recipeStart + k];
-            m3real x = (m3real)(v % 16);
-            m3real y = (m3real)((v / 16) % 16);
-            m3real z = (m3real)(v / 256);
+            float x = (float)(v % 16);
+            float y = (float)((v / 16) % 16);
+            float z = (float)(v / 256);
             for (int32_t c = 0; c < 8; ++c)
             {
                 cloud[points++] = (m3Vec3){x + ((c & 1) != 0 ? 1.0f : 0.0f) - ev->localCenter.x,
@@ -421,7 +421,7 @@ static m3World* SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
         int32_t family = k % 4;
         if (family == 0)
         {
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.45)};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.2, 0.45)};
             NewSphereShape(world, body, &sd, &ball);
         }
         else if (family == 1)
@@ -431,7 +431,7 @@ static m3World* SceneCityblock(m3ShapeId* outTowers, int32_t* outTowerCount)
         else if (family == 2)
         {
             m3Capsule capsule = {
-                {-0.25f, 0.0f, 0.0f}, {0.25f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.25)};
+                {-0.25f, 0.0f, 0.0f}, {0.25f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.12, 0.25)};
             NewCapsuleShape(world, body, &sd, &capsule);
         }
         else
@@ -843,7 +843,7 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
         m3BodyId body = NewBody(sea, &bd);
         if (k % 3 == 0)
         {
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.4)};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.2, 0.4)};
             NewSphereShape(sea, body, &sd, &ball);
         }
         else if (k % 3 == 1)
@@ -853,7 +853,7 @@ uint64_t BenchSmoke10k(int32_t steps, BenchClock* clock, double* ms)
         else
         {
             m3Capsule c = {
-                {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.2)};
+                {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.12, 0.2)};
             NewCapsuleShape(sea, body, &sd, &c);
         }
     }
@@ -892,13 +892,13 @@ uint64_t BenchSoftfield(int32_t steps, BenchClock* clock, double* ms)
         m3BodyId body = NewBody(field, &bd);
         if (k % 3 == 0)
         {
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.3, 1.0)};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.3, 1.0)};
             NewSphereShape(field, body, &sd, &ball);
         }
         else if (k % 3 == 1)
         {
             m3Capsule c = {
-                {-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.5)};
+                {-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.2, 0.5)};
             NewCapsuleShape(field, body, &sd, &c);
         }
         else

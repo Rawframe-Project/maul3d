@@ -18,7 +18,7 @@
 
 // A dynamic body B on a static A: inverse mass invMass, an isotropic
 // inverse inertia invInertia, and a moving start.
-static m3JointBodies Bodies(m3real invMass, m3real invInertia)
+static m3JointBodies Bodies(float invMass, float invInertia)
 {
     m3JointBodies b = {
         {0.0f, 0.0f, 0.0f},
@@ -39,10 +39,10 @@ static m3JointBodies Bodies(m3real invMass, m3real invInertia)
 typedef struct Case
 {
     const char* name;
-    m3real invMass;
-    m3real invInertia;
-    m3real arm;
-    m3real degrees;
+    float invMass;
+    float invInertia;
+    float arm;
+    float degrees;
 } Case;
 
 // How far a float impulse lies from the exact one, relative to it.
@@ -61,7 +61,7 @@ static double Miss(const double* got, const double* exact, int32_t n)
 static void CheckCase(const Case* c)
 {
     char what[128];
-    m3real angle = c->degrees * M3_PI / 180.0f;
+    float angle = c->degrees * M3_PI / 180.0f;
     m3Vec3 armB = {c->arm * cosf(angle), -c->arm * sinf(angle), 0.0f};
     m3Vec3 none = {0.0f, 0.0f, 0.0f};
     double m = (double)c->invMass;
@@ -102,9 +102,9 @@ static void CheckCase(const Case* c)
     {
         pair[k] = -((speed[k] - across * q[k]) / m + across * q[k] / (m + i * q2));
     }
-    const m3real bias[2] = {0.0f, 0.0f};
-    m3real first = 0.0f;
-    m3real second = 0.0f;
+    const float bias[2] = {0.0f, 0.0f};
+    float first = 0.0f;
+    float second = 0.0f;
     m3SolveRowPair(rows, &b, bias, m3RigidDrive(0.0f), &first, &second);
     double gotPair[2] = {(double)first, (double)second};
     snprintf(what, sizeof(what), "%s: the row pair takes the exact impulse", c->name);
@@ -115,9 +115,9 @@ static void CheckCase(const Case* c)
     const m3JointRow pin[3] = {m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f}),
                                m3LineRow(none, armB, (m3Vec3){0.0f, 1.0f, 0.0f}),
                                m3LineRow(none, armB, (m3Vec3){0.0f, 0.0f, 1.0f})};
-    const m3real still[3] = {0.0f, 0.0f, 0.0f};
-    m3real slots[3] = {0.0f, 0.0f, 0.0f};
-    m3real* const into[3] = {&slots[0], &slots[1], &slots[2]};
+    const float still[3] = {0.0f, 0.0f, 0.0f};
+    float slots[3] = {0.0f, 0.0f, 0.0f};
+    float* const into[3] = {&slots[0], &slots[1], &slots[2]};
     m3SolveRowBlock(pin, 3, &b, still, m3RigidDrive(0.0f), into);
     double gotBlock[3] = {(double)slots[0], (double)slots[1], (double)slots[2]};
     snprintf(what, sizeof(what), "%s: the block takes the exact impulse", c->name);
@@ -153,14 +153,14 @@ static void TestSingularBlockFallsBack(void)
     const m3JointRow rows[3] = {m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f}),
                                 m3LineRow(none, armB, (m3Vec3){0.0f, 1.0f, 0.0f}),
                                 m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f})};
-    const m3real bias[3] = {0.1f, -0.2f, 0.3f};
+    const float bias[3] = {0.1f, -0.2f, 0.3f};
     m3RowDrive drive = {0.0f, 1.0f, 0.0f};
     m3JointBodies block = Bodies(1.0f / 65.45f, 1.0f / 1.636f);
-    m3real slots[3] = {0.0f, 0.0f, 0.0f};
-    m3real* const into[3] = {&slots[0], &slots[1], &slots[2]};
+    float slots[3] = {0.0f, 0.0f, 0.0f};
+    float* const into[3] = {&slots[0], &slots[1], &slots[2]};
     m3SolveRowBlock(rows, 3, &block, bias, drive, into);
     m3JointBodies one = Bodies(1.0f / 65.45f, 1.0f / 1.636f);
-    m3real each[3] = {0.0f, 0.0f, 0.0f};
+    float each[3] = {0.0f, 0.0f, 0.0f};
     for (int32_t k = 0; k < 3; ++k)
     {
         m3RowDrive own = {bias[k], 1.0f, 0.0f};

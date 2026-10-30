@@ -822,7 +822,7 @@ static void TestThinTriangles(void)
         // to vertex 1.
         {{{0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}}, {0, 0, 1}, {1.0, 0.05, 0.0}},
     };
-    m3real r = 0.1f;
+    float r = 0.1f;
     for (int32_t i = 0; i < (int32_t)(sizeof(cases) / sizeof(cases[0])); ++i)
     {
         m3WorldDef def = m3DefaultWorldDef();

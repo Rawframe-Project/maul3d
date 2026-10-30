@@ -55,7 +55,7 @@ static void SolvePrismatic(m3JointConstraint* c, const m3JointPose* pose, m3Join
                            const m3JointPass* pass)
 {
     SlideRows r = BuildRows(c, pose);
-    m3real travel = m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 2));
+    float travel = m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 2));
     m3SolveDrive(&r.along, travel, c, b, pass, &c->springImpulse.x, &c->perpImpulse.z);
     if ((c->flags & M3_JOINT_LIMIT) != 0)
     {
@@ -72,11 +72,11 @@ static void SolvePrismatic(m3JointConstraint* c, const m3JointPose* pose, m3Join
     const m3JointRow rows[5] = {m3TurnRow((m3Vec3){1.0f, 0.0f, 0.0f}),
                                 m3TurnRow((m3Vec3){0.0f, 1.0f, 0.0f}),
                                 m3TurnRow((m3Vec3){0.0f, 0.0f, 1.0f}), r.across[0], r.across[1]};
-    const m3real bias[5] = {turnBias.x, turnBias.y, turnBias.z,
-                            unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0)),
-                            unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1))};
-    m3real* const accumulated[5] = {&c->angularImpulse.x, &c->angularImpulse.y,
-                                    &c->angularImpulse.z, &c->perpImpulse.x, &c->perpImpulse.y};
+    const float bias[5] = {turnBias.x, turnBias.y, turnBias.z,
+                           unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0)),
+                           unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1))};
+    float* const accumulated[5] = {&c->angularImpulse.x, &c->angularImpulse.y, &c->angularImpulse.z,
+                                   &c->perpImpulse.x, &c->perpImpulse.y};
     m3SolveRowBlock(rows, 5, b, bias, unit, accumulated);
 }
 

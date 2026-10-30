@@ -78,8 +78,8 @@ void m3JointSetBreakInternal(m3World* world, int32_t j, float maxForce, float ma
 // Reaction magnitudes from the stored warm rows, the break law's
 // input and the readback's source (per-type assembly, documented
 // on the public API).
-void m3JointReactionMagnitudes(const m3World* world, int32_t j, m3real invH, m3real* outForce,
-                               m3real* outTorque);
+void m3JointReactionMagnitudes(const m3World* world, int32_t j, float invH, float* outForce,
+                               float* outTorque);
 
 void m3JointSetSpringInternal(m3World* world, int32_t j, int32_t enable, float hertz, float zeta);
 
@@ -101,11 +101,11 @@ bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q);
 // own gear frame, twisted about that frame's z (the gear axis).
 // Shared by the create bake and the solver's drift measurement so
 // the two can never disagree.
-static inline m3real m3GearSpin(m3Quat q, m3Quat frame)
+static inline float m3GearSpin(m3Quat q, m3Quat frame)
 {
     m3Quat conjF = {-frame.x, -frame.y, -frame.z, frame.w};
     m3Quat inFrame = m3MulQuat(conjF, m3MulQuat(q, frame));
-    m3real twist =
+    float twist =
         inFrame.w < 0.0f ? m3Atan2(-inFrame.z, -inFrame.w) : m3Atan2(inFrame.z, inFrame.w);
     return 2.0f * twist;
 }
@@ -117,9 +117,9 @@ static inline m3real m3GearSpin(m3Quat q, m3Quat frame)
 // three half turns it takes the one step it always did, so every angle a
 // gear reaches keeps its bits. An angle too large to carry a phase lands
 // on the seam.
-static inline m3real m3WrapPi(m3real a)
+static inline float m3WrapPi(float a)
 {
-    const m3real turn = 2.0f * M3_PI;
+    const float turn = 2.0f * M3_PI;
     if (a > 3.0f * M3_PI || a < -3.0f * M3_PI)
     {
         a -= turn * floorf((a + M3_PI) / turn);

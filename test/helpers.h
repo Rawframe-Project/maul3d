@@ -98,7 +98,7 @@ static inline m3ShapeId NewMeshShape(m3World* world, m3BodyId body, const m3Shap
 
 static inline m3ShapeId NewHeightFieldMeshShape(m3World* world, m3BodyId body,
                                                 const m3ShapeDef* def, const float* heights,
-                                                int32_t nx, int32_t nz, m3real cellSize)
+                                                int32_t nx, int32_t nz, float cellSize)
 {
     m3ShapeId id = m3_nullShapeId;
     (void)m3CreateHeightFieldMeshShape(world, body, def, heights, nx, nz, cellSize, &id);
@@ -107,7 +107,7 @@ static inline m3ShapeId NewHeightFieldMeshShape(m3World* world, m3BodyId body,
 
 static inline m3ShapeId NewHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                             const float* heights, int32_t nx, int32_t nz,
-                                            m3real cellSize)
+                                            float cellSize)
 {
     m3ShapeId id = m3_nullShapeId;
     (void)m3CreateHeightFieldShape(world, body, def, heights, nx, nz, cellSize, &id);
@@ -116,7 +116,7 @@ static inline m3ShapeId NewHeightFieldShape(m3World* world, m3BodyId body, const
 
 static inline m3ShapeId NewVoxelChunkShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                            const uint8_t* voxels, const uint16_t* payload,
-                                           m3real cellSize)
+                                           float cellSize)
 {
     m3ShapeId id = m3_nullShapeId;
     (void)m3CreateVoxelChunkShape(world, body, def, voxels, payload, cellSize, &id);
@@ -235,8 +235,8 @@ static inline bool DecodeReplay(const void* data, int64_t bytes, m3ReplayView* v
     return m3DecodeReplay(data, bytes, view) == m3_success;
 }
 
-static inline bool SetStance(m3World* world, m3CharacterId character, m3real halfHeight,
-                             m3real radius)
+static inline bool SetStance(m3World* world, m3CharacterId character, float halfHeight,
+                             float radius)
 {
     return m3Character_SetStance(world, character, halfHeight, radius) == m3_success;
 }

@@ -24,7 +24,7 @@
 // Projected area of a convex shape onto a plane facing `direction`
 // (a unit vector in the shape's local frame): a blast's impulse scales
 // with the area the shape shows to the front.
-static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 direction)
+static float ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 direction)
 {
     uint8_t type = world->shapes.shapeType[shape];
     const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
@@ -35,7 +35,7 @@ static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dir
     if (type == (uint8_t)m3_capsuleShape)
     {
         m3Vec3 axis = m3Sub3(geom->v2, geom->v);
-        m3real projected = m3Length3(m3Cross3(axis, direction));
+        float projected = m3Length3(m3Cross3(axis, direction));
         return M3_PI * geom->s * geom->s + 2.0f * geom->s * projected;
     }
     if (type == (uint8_t)m3_hullShape)
@@ -43,7 +43,7 @@ static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dir
         // Fan every face from its first vertex and keep the facing
         // triangles; half the summed cross products is the area.
         const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
-        m3real area = 0.0f;
+        float area = 0.0f;
         for (int32_t f = 0; f < hull->faceCount; ++f)
         {
             int32_t start = (int32_t)hull->faceVertStart[f];
@@ -53,7 +53,7 @@ static m3real ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dir
             {
                 m3Vec3 p2 = hull->vertices[hull->faceIndices[start + k - 1]];
                 m3Vec3 p3 = hull->vertices[hull->faceIndices[start + k]];
-                m3real a = m3Dot3(m3Cross3(m3Sub3(p2, p1), m3Sub3(p3, p1)), direction);
+                float a = m3Dot3(m3Cross3(m3Sub3(p2, p1), m3Sub3(p3, p1)), direction);
                 area += a > 0.0f ? a : 0.0f;
             }
         }
@@ -87,9 +87,9 @@ static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
     if (def->voxelCarve > 0.0f)
     {
         m3Transform vxf = m3ShapeWorldTransform(world, shape);
-        m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(m3real)(def->position.x - vxf.p.x),
-                                                        (m3real)(def->position.y - vxf.p.y),
-                                                        (m3real)(def->position.z - vxf.p.z)});
+        m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(float)(def->position.x - vxf.p.x),
+                                                        (float)(def->position.y - vxf.p.y),
+                                                        (float)(def->position.z - vxf.p.z)});
         // A carve whose surface would pass the box limit leaves the chunk
         // as it was and is counted; the blast's impulses go on.
         (void)m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
@@ -115,9 +115,9 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
     // Work in the shape's local frame so distance and direction stay
     // precise far from the origin.
     m3Transform xf = m3ShapeWorldTransform(world, shape);
-    m3Vec3 local = m3InvRotateVec3(xf.q, (m3Vec3){(m3real)(def->position.x - xf.p.x),
-                                                  (m3real)(def->position.y - xf.p.y),
-                                                  (m3real)(def->position.z - xf.p.z)});
+    m3Vec3 local = m3InvRotateVec3(xf.q, (m3Vec3){(float)(def->position.x - xf.p.x),
+                                                  (float)(def->position.y - xf.p.y),
+                                                  (float)(def->position.z - xf.p.z)});
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, shape, scratch);
     m3Vec3 point = local;
@@ -131,7 +131,7 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
     input.p = (m3Vec3){0.0f, 0.0f, 0.0f};
     input.useRadii = false;
     m3DistanceOutput out = m3ShapeDistance(&input);
-    m3real surface = out.distance - proxy.radius;
+    float surface = out.distance - proxy.radius;
     if (surface > def->radius + def->falloff)
     {
         return;
@@ -155,13 +155,13 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
         direction = m3Dot3(d, d) > 1e-10f ? m3Normalize3(d) : (m3Vec3){1.0f, 0.0f, 0.0f};
         contact = centroid;
     }
-    m3real scale = 1.0f;
+    float scale = 1.0f;
     if (surface > def->radius && def->falloff > 0.0f)
     {
         scale = (def->radius + def->falloff - surface) / def->falloff;
         scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
     }
-    m3real magnitude = def->impulsePerArea * ShapeProjectedArea(world, shape, direction) * scale;
+    float magnitude = def->impulsePerArea * ShapeProjectedArea(world, shape, direction) * scale;
     if (magnitude != 0.0f)
     {
         m3Vec3 impulse = m3MulSV3(magnitude, m3RotateVec3(xf.q, direction));
@@ -235,8 +235,8 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
             }
             int32_t count = world->softBodies.softParticleCount[slot];
             int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
-            m3real pr = world->softBodies.softRadius[slot];
-            m3real area = M3_PI * pr * pr;
+            float pr = world->softBodies.softRadius[slot];
+            float area = M3_PI * pr * pr;
             for (int32_t i = 0; i < count; ++i)
             {
                 int32_t k = base + i;
@@ -244,24 +244,24 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
                 {
                     continue;
                 }
-                m3Vec3 d = {(m3real)(world->softBodies.softPos[k].x - def->position.x),
-                            (m3real)(world->softBodies.softPos[k].y - def->position.y),
-                            (m3real)(world->softBodies.softPos[k].z - def->position.z)};
-                m3real dist = m3Length3(d);
-                m3real surface = dist - pr;
+                m3Vec3 d = {(float)(world->softBodies.softPos[k].x - def->position.x),
+                            (float)(world->softBodies.softPos[k].y - def->position.y),
+                            (float)(world->softBodies.softPos[k].z - def->position.z)};
+                float dist = m3Length3(d);
+                float surface = dist - pr;
                 if (surface > def->radius + def->falloff)
                 {
                     continue;
                 }
                 m3Vec3 direction =
                     dist > 1e-6f ? m3MulSV3(1.0f / dist, d) : (m3Vec3){1.0f, 0.0f, 0.0f};
-                m3real scale = 1.0f;
+                float scale = 1.0f;
                 if (surface > def->radius && def->falloff > 0.0f)
                 {
                     scale = (def->radius + def->falloff - surface) / def->falloff;
                     scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
                 }
-                m3real magnitude = def->impulsePerArea * def->softPush * area * scale;
+                float magnitude = def->impulsePerArea * def->softPush * area * scale;
                 world->softBodies.softKick[k] = m3CapSpeed(
                     m3Add3(world->softBodies.softKick[k],
                            m3MulSV3(magnitude * world->softBodies.softInvMass[k], direction)),

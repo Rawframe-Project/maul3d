@@ -8,7 +8,7 @@
 
 #include "world_internal.h"
 
-int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, m3real radius);
+int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center, float radius);
 
 // Fracture: after a clearing edit, flood fill the chunk in
 // canonical order; islands with no voxel in the y = 0 base layer
@@ -41,6 +41,6 @@ bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y,
                             uint8_t fill);
 
 bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3* outNormal,
-                   m3real* outPlane);
+                   float* outPlane);
 
 #endif // MAUL3D_SRC_VOXEL_H

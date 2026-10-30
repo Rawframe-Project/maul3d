@@ -25,27 +25,27 @@ extern "C"
 
     typedef struct m3CharacterDef
     {
-        m3Pos3 position;         // the capsule CENTER at spawn, within 1e15 m
-        m3real radius;           // positive, at most 1e4 m
-        m3real halfHeight;       // segment half length, at most 1e4 m
-                                 // (total height = 2 * (halfHeight +
-                                 // radius))
-        m3real maxSlopeAngle;    // radians from horizontal; steeper
-                                 // ground never counts as walkable
-        m3real snapDistance;     // how far down a grounded character
-                                 // reaches to stay glued on descents
-        m3real skin;             // the standing gap casts preserve
-        m3real stepHeight;       // the tallest riser a walking
-                                 // character mounts in one move
-        m3real mass;             // kilograms, 1e-6 to 1e20; a blocked
-                                 // move pushes dynamic bodies with
-                                 // impulse = mass * blocked
-                                 // displacement, which leaves them
-                                 // within 1e5 m/s and rad/s
-        m3real pushMaxMassRatio; // the heaviest body a push moves,
-                                 // as a multiple of mass; heavier
-                                 // bodies are walls (zero: never
-                                 // push); at most 1e4
+        m3Pos3 position;        // the capsule CENTER at spawn, within 1e15 m
+        float radius;           // positive, at most 1e4 m
+        float halfHeight;       // segment half length, at most 1e4 m
+                                // (total height = 2 * (halfHeight +
+                                // radius))
+        float maxSlopeAngle;    // radians from horizontal; steeper
+                                // ground never counts as walkable
+        float snapDistance;     // how far down a grounded character
+                                // reaches to stay glued on descents
+        float skin;             // the standing gap casts preserve
+        float stepHeight;       // the tallest riser a walking
+                                // character mounts in one move
+        float mass;             // kilograms, 1e-6 to 1e20; a blocked
+                                // move pushes dynamic bodies with
+                                // impulse = mass * blocked
+                                // displacement, which leaves them
+                                // within 1e5 m/s and rad/s
+        float pushMaxMassRatio; // the heaviest body a push moves,
+                                // as a multiple of mass; heavier
+                                // bodies are walls (zero: never
+                                // push); at most 1e4
         M3_ALIGN8 uint64_t userData;
         int32_t internalValue;
     } m3CharacterDef;
@@ -102,10 +102,10 @@ extern "C"
     /// so twins and replays refuse together. Stance is state:
     /// snapshotted, hashed, rolled back like everything else.
     M3_NODISCARD M3_API m3Result m3Character_SetStance(m3World* world, m3CharacterId character,
-                                                       m3real halfHeight, m3real radius);
+                                                       float halfHeight, float radius);
     /// Read the live stance (zeros on a stale id).
     M3_API void m3Character_GetStance(const m3World* world, m3CharacterId character,
-                                      m3real* halfHeightOut, m3real* radiusOut);
+                                      float* halfHeightOut, float* radiusOut);
 
     static const m3CharacterId m3_nullCharacterId = {0, 0};
 

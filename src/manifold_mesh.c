@@ -112,7 +112,7 @@ typedef struct MeshProbe
     m3Vec3 pRel;
     m3Vec3 s1; // sphere center, or capsule core ends
     m3Vec3 s2;
-    m3real radius;
+    float radius;
     const m3HullData* hull;
     m3Quat qHull; // mesh frame to hull frame
     m3Vec3 pHull;
@@ -136,8 +136,8 @@ static MeshProbe MakeMeshProbe(const m3World* world, const m3Transform* xfM, int
     m3Quat conjM = {-xfM->q.x, -xfM->q.y, -xfM->q.z, xfM->q.w};
     probe.type = world->shapes.shapeType[otherShape];
     probe.qRel = m3MulQuat(conjM, xfO.q);
-    m3Vec3 dp = {(m3real)(xfO.p.x - xfM->p.x), (m3real)(xfO.p.y - xfM->p.y),
-                 (m3real)(xfO.p.z - xfM->p.z)};
+    m3Vec3 dp = {(float)(xfO.p.x - xfM->p.x), (float)(xfO.p.y - xfM->p.y),
+                 (float)(xfO.p.z - xfM->p.z)};
     probe.pRel = m3InvRotateVec3(xfM->q, dp);
     probe.radius = world->shapes.shapeGeom[otherShape].s;
     probe.lo = (m3Vec3){FLT_MAX, FLT_MAX, FLT_MAX};
@@ -210,7 +210,7 @@ static bool TrustedContact(const m3TriManifold* local)
     {
         return false;
     }
-    m3real deepest = FLT_MAX;
+    float deepest = FLT_MAX;
     for (int32_t k = 0; k < local->pointCount; ++k)
     {
         deepest = m3MinF(deepest, local->separation[k]);
@@ -246,7 +246,7 @@ static void SortWaiting(m3MeshCandidate* waiting, int32_t count)
 static int32_t WeldTriangles(const m3MeshData* mesh, const m3MeshBvhHits* gather,
                              const MeshProbe* probe, m3MeshCandidate* accepted)
 {
-    m3real reach = probe->radius + M3_SPECULATIVE_DISTANCE;
+    float reach = probe->radius + M3_SPECULATIVE_DISTANCE;
     m3MeshCandidate waiting[M3_MESH_CANDIDATE_CAP];
     int32_t acceptedCount = 0;
     int32_t waitingCount = 0;
@@ -313,12 +313,12 @@ static void EmitMeshManifold(m3World* world, m3Manifold* fresh, const m3MeshData
                              int32_t meshShape, int32_t otherShape, int meshIsA)
 {
     int32_t rep = 0;
-    m3real deepest = FLT_MAX;
+    float deepest = FLT_MAX;
     for (int32_t k = 0; k < count; ++k)
     {
         for (int32_t p = 0; p < accepted[k].local.pointCount; ++p)
         {
-            m3real sep = accepted[k].local.separation[p];
+            float sep = accepted[k].local.separation[p];
             if (sep < deepest || (sep == deepest && accepted[k].triIndex < accepted[rep].triIndex))
             {
                 deepest = sep;
@@ -332,7 +332,7 @@ static void EmitMeshManifold(m3World* world, m3Manifold* fresh, const m3MeshData
         POINT_CAP = 2 * M3_MESH_CANDIDATE_CAP
     };
     m3Vec3 point[POINT_CAP];
-    m3real sep[POINT_CAP];
+    float sep[POINT_CAP];
     uint16_t id[POINT_CAP];
     uint16_t material[POINT_CAP];
     int32_t n = 0;
@@ -379,7 +379,7 @@ static void EmitMeshManifold(m3World* world, m3Manifold* fresh, const m3MeshData
         double px = xfM->p.x + (double)pw.x;
         double py = xfM->p.y + (double)pw.y;
         double pz = xfM->p.z + (double)pw.z;
-        m3real half = 0.5f * sep[c];
+        float half = 0.5f * sep[c];
         m3Vec3 onMesh =
             m3AnchorFromCom(world, meshBody, px - (double)(nWorld.x * half),
                             py - (double)(nWorld.y * half), pz - (double)(nWorld.z * half));
@@ -405,7 +405,7 @@ static void CollideMeshCore(m3World* world, m3Manifold* fresh, const m3MeshData*
 {
     m3Transform xfM = m3ShapeWorldTransform(world, meshShape);
     MeshProbe probe = MakeMeshProbe(world, &xfM, otherShape);
-    m3real reach = probe.radius + M3_SPECULATIVE_DISTANCE;
+    float reach = probe.radius + M3_SPECULATIVE_DISTANCE;
     m3MeshBvhHits gather;
     if (bvh != NULL)
     {
@@ -474,8 +474,8 @@ static void HeightFieldWindow(const m3HeightFieldData* hf, int32_t cx0, int32_t 
         {
             int32_t gx = cx0 + x;
             int32_t gz = cz0 + z;
-            verts[z * wx + x] = (m3Vec3){(m3real)gx * hf->cellSize, hf->heights[gz * hf->nx + gx],
-                                         (m3real)gz * hf->cellSize};
+            verts[z * wx + x] = (m3Vec3){(float)gx * hf->cellSize, hf->heights[gz * hf->nx + gx],
+                                         (float)gz * hf->cellSize};
         }
     }
     int32_t tw = 0;
@@ -525,14 +525,14 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
     m3Transform xfOv = m3ShapeWorldTransform(world, otherShape);
     m3Quat conjH = {-xfHv.q.x, -xfHv.q.y, -xfHv.q.z, xfHv.q.w};
     m3Quat qRel = m3MulQuat(conjH, xfOv.q);
-    m3Vec3 dp = {(m3real)(xfOv.p.x - xfHv.p.x), (m3real)(xfOv.p.y - xfHv.p.y),
-                 (m3real)(xfOv.p.z - xfHv.p.z)};
+    m3Vec3 dp = {(float)(xfOv.p.x - xfHv.p.x), (float)(xfOv.p.y - xfHv.p.y),
+                 (float)(xfOv.p.z - xfHv.p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfHv.q, dp);
 
     // The convex's bounds in the heightfield frame (the core's own
     // recipe, repeated here only to pick the window).
     uint8_t otherType = world->shapes.shapeType[otherShape];
-    m3real radius = world->shapes.shapeGeom[otherShape].s;
+    float radius = world->shapes.shapeGeom[otherShape].s;
     m3Vec3 boundLo;
     m3Vec3 boundHi;
     if (otherType == (uint8_t)m3_hullShape)
@@ -569,9 +569,9 @@ void m3CollideHeightFieldConvex(m3World* world, m3Manifold* fresh, int32_t hfSha
         boundHi.y = m3MaxF(c1.y, c2.y);
         boundHi.z = m3MaxF(c1.z, c2.z);
     }
-    m3real reach = radius + M3_SPECULATIVE_DISTANCE;
+    float reach = radius + M3_SPECULATIVE_DISTANCE;
 
-    m3real inv = 1.0f / hf->cellSize;
+    float inv = 1.0f / hf->cellSize;
     int32_t cx0 = m3CellFromF(floorf((boundLo.x - reach) * inv), 2.0e9f) - 1; // the halo cell
     int32_t cx1 = m3CellFromF(floorf((boundHi.x + reach) * inv), -2.0e9f) + 1;
     int32_t cz0 = m3CellFromF(floorf((boundLo.z - reach) * inv), 2.0e9f) - 1;
@@ -613,7 +613,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
     int32_t slot = world->shapes.shapeVoxelIndex[voxelShape];
     const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
-    m3real cell = chunk->cellSize;
+    float cell = chunk->cellSize;
     int32_t voxelBody = world->shapes.shapeBody[voxelShape];
     int32_t otherBody = world->shapes.shapeBody[otherShape];
     m3Transform xfVv = m3ShapeWorldTransform(world, voxelShape);
@@ -624,11 +624,11 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
 
     m3Quat conjV = {-xfV->q.x, -xfV->q.y, -xfV->q.z, xfV->q.w};
     m3Quat qRel = m3MulQuat(conjV, xfO->q);
-    m3Vec3 dp = {(m3real)(xfO->p.x - xfV->p.x), (m3real)(xfO->p.y - xfV->p.y),
-                 (m3real)(xfO->p.z - xfV->p.z)};
+    m3Vec3 dp = {(float)(xfO->p.x - xfV->p.x), (float)(xfO->p.y - xfV->p.y),
+                 (float)(xfO->p.z - xfV->p.z)};
     m3Vec3 pRel = m3InvRotateVec3(xfV->q, dp);
 
-    m3real radius = world->shapes.shapeGeom[otherShape].s;
+    float radius = world->shapes.shapeGeom[otherShape].s;
     m3Vec3 s1 = {0.0f, 0.0f, 0.0f};
     m3Vec3 s2 = {0.0f, 0.0f, 0.0f};
     m3Vec3 boundLo;
@@ -670,7 +670,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
         boundHi.y = m3MaxF(s1.y, s2.y);
         boundHi.z = m3MaxF(s1.z, s2.z);
     }
-    m3real reach = radius + M3_SPECULATIVE_DISTANCE;
+    float reach = radius + M3_SPECULATIVE_DISTANCE;
 
     // Interior depenetration: when the OTHER shape's center
     // is inside the solid, the surface candidates are meaningless
@@ -693,15 +693,15 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
             center = m3MulSV3(0.5f, m3Add3(s1, s2));
         }
         m3Vec3 escapeNormal;
-        m3real escapePlane;
+        float escapePlane;
         if (m3VoxelEscape(world, slot, center, &escapeNormal, &escapePlane))
         {
-            m3real along = m3Dot3(escapeNormal, center);
-            m3real plane = escapePlane *
-                           (escapeNormal.x + escapeNormal.y + escapeNormal.z > 0.0f ? 1.0f : -1.0f);
-            m3real depth = plane - along; // distance from center to the
-                                          // exit plane along the normal
-            m3real maxStep = 2.0f * cell;
+            float along = m3Dot3(escapeNormal, center);
+            float plane = escapePlane *
+                          (escapeNormal.x + escapeNormal.y + escapeNormal.z > 0.0f ? 1.0f : -1.0f);
+            float depth = plane - along; // distance from center to the
+                                         // exit plane along the normal
+            float maxStep = 2.0f * cell;
             depth = m3MinF(depth, maxStep);
             m3Manifold escape;
             memset(&escape, 0, sizeof(escape));
@@ -740,7 +740,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
 
     m3Manifold best;
     memset(&best, 0, sizeof(best));
-    m3real bestScore = 3.4e38f;
+    float bestScore = 3.4e38f;
     for (int32_t box = m3MeshBvhFirstHit(&gather); box >= 0; box = m3MeshBvhNextHit(&gather, box))
     {
         m3Manifold local;
@@ -753,7 +753,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
         m3Vec3 boxHi;
         m3VoxelBoxBounds(surface, cell, box, &boxLo, &boxHi);
         {
-            m3real ext = (m3real)M3_VOXEL_DIM * cell;
+            float ext = (float)M3_VOXEL_DIM * cell;
             uint8_t covered = surface->boxCovered[box];
             if ((covered & 1u) != 0)
             {
@@ -787,11 +787,11 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
             m3Vec3 closest = {m3ClampF(s1.x, lo.x, hi.x), m3ClampF(s1.y, lo.y, hi.y),
                               m3ClampF(s1.z, lo.z, hi.z)};
             m3Vec3 d = m3Sub3(s1, closest);
-            m3real d2 = m3Dot3(d, d);
+            float d2 = m3Dot3(d, d);
             if (d2 > 0.0f)
             {
-                m3real dist = sqrtf(d2);
-                m3real sep = dist - radius;
+                float dist = sqrtf(d2);
+                float sep = dist - radius;
                 if (sep <= M3_SPECULATIVE_DISTANCE)
                 {
                     m3Vec3 n = m3MulSV3(1.0f / dist, d);
@@ -808,8 +808,8 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
                 // Center inside the box: the least-deep face is the
                 // exact minimum translation (axis-aligned, so it is
                 // a six-way comparison, not an iteration).
-                m3real depth[6] = {s1.x - lo.x, hi.x - s1.x, s1.y - lo.y,
-                                   hi.y - s1.y, s1.z - lo.z, hi.z - s1.z};
+                float depth[6] = {s1.x - lo.x, hi.x - s1.x, s1.y - lo.y,
+                                  hi.y - s1.y, s1.z - lo.z, hi.z - s1.z};
                 int32_t face = 0;
                 for (int32_t k = 1; k < 6; ++k)
                 {
@@ -847,7 +847,7 @@ void m3CollideVoxelConvex(m3World* world, m3Manifold* fresh, int32_t voxelShape,
         {
             continue;
         }
-        m3real score = 3.4e38f;
+        float score = 3.4e38f;
         for (int32_t k = 0; k < local.pointCount; ++k)
         {
             score = m3MinF(score, local.points[k].separation);

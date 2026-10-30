@@ -15,24 +15,24 @@
 // sqrt(3))) moves the argument into [-tan(pi/12), tan(pi/12)], where the
 // odd Taylor series through t^11 is accurate to below 3e-9. The octant and
 // quadrant then follow from the signs and the larger component.
-static M3_NOINLINE m3real Atan2Worker(m3real y, m3real x)
+static M3_NOINLINE float Atan2Worker(float y, float x)
 {
     // (0, 0) returns 0 instead of NaN: the sim path is NaN-free by contract.
     if (x == 0.0f && y == 0.0f)
     {
         return 0.0f;
     }
-    m3real ax = m3AbsF(x);
-    m3real ay = m3AbsF(y);
-    m3real a = m3MinF(ay, ax) / m3MaxF(ay, ax);
-    m3real base = 0.0f;
+    float ax = m3AbsF(x);
+    float ay = m3AbsF(y);
+    float a = m3MinF(ay, ax) / m3MaxF(ay, ax);
+    float base = 0.0f;
     if (a > 0.2679492f)
     {
         a = (1.7320508f * a - 1.0f) / (a + 1.7320508f);
         base = 0.5235988f;
     }
-    m3real t2 = a * a;
-    m3real r =
+    float t2 = a * a;
+    float r =
         base +
         a * (1.0f +
              t2 * (-0.33333334f +
@@ -52,10 +52,10 @@ static M3_NOINLINE m3real Atan2Worker(m3real y, m3real x)
     return r;
 }
 
-m3real m3Atan2(m3real y, m3real x)
+float m3Atan2(float y, float x)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3real result = Atan2Worker(y, x);
+    float result = Atan2Worker(y, x);
     m3FloatEnvLeave(env);
     return result;
 }
@@ -67,21 +67,20 @@ m3real m3Atan2(m3real y, m3real x)
 // cosine through r^8 are accurate to well below float resolution
 // (truncation under 3e-8), and the quadrant maps the pair back. The pair
 // is then normalized so c*c + s*s is one to float rounding.
-static M3_NOINLINE m3CosSin ComputeCosSinWorker(m3real radians)
+static M3_NOINLINE m3CosSin ComputeCosSinWorker(float radians)
 {
-    const m3real halfPiHigh = 1.5707964f;    // pi/2 rounded to float
-    const m3real halfPiLow = -4.371139e-08f; // pi/2 - halfPiHigh
-    m3real x = m3UnwindAngle(radians);
-    m3real k = floorf(x * 0.63661975f + 0.5f);
-    m3real r = (x - k * halfPiHigh) - k * halfPiLow;
-    m3real r2 = r * r;
-    m3real s =
-        r * (1.0f + r2 * (-0.16666667f +
-                          r2 * (0.008333334f + r2 * (-0.0001984127f + r2 * 2.7557319e-06f))));
-    m3real c =
+    const float halfPiHigh = 1.5707964f;    // pi/2 rounded to float
+    const float halfPiLow = -4.371139e-08f; // pi/2 - halfPiHigh
+    float x = m3UnwindAngle(radians);
+    float k = floorf(x * 0.63661975f + 0.5f);
+    float r = (x - k * halfPiHigh) - k * halfPiLow;
+    float r2 = r * r;
+    float s = r * (1.0f + r2 * (-0.16666667f +
+                                r2 * (0.008333334f + r2 * (-0.0001984127f + r2 * 2.7557319e-06f))));
+    float c =
         1.0f + r2 * (-0.5f + r2 * (0.041666668f + r2 * (-0.0013888889f + r2 * 2.4801588e-05f)));
-    m3real cosine;
-    m3real sine;
+    float cosine;
+    float sine;
     // k is in [-2, 2] for a finite angle; a NaN one picks quadrant zero
     // instead of reaching the cast.
     switch ((k == k ? (int32_t)k : 0) & 3)
@@ -103,13 +102,13 @@ static M3_NOINLINE m3CosSin ComputeCosSinWorker(m3real radians)
         sine = -c;
         break;
     }
-    m3real mag = sqrtf(sine * sine + cosine * cosine);
-    m3real invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
+    float mag = sqrtf(sine * sine + cosine * cosine);
+    float invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
     m3CosSin cs = {cosine * invMag, sine * invMag};
     return cs;
 }
 
-m3CosSin m3ComputeCosSin(m3real radians)
+m3CosSin m3ComputeCosSin(float radians)
 {
     uint64_t env = m3FloatEnvEnter();
     m3CosSin result = ComputeCosSinWorker(radians);

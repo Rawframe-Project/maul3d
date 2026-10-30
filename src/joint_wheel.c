@@ -82,8 +82,8 @@ static void SolveSteer(m3JointConstraint* c, const m3JointFrames* f, m3JointBodi
                        const m3JointPass* pass)
 {
     m3JointRow steer = m3TurnRow(m3FrameAxis(f->a, 0));
-    m3real twist = 2.0f * m3Atan2(f->rel.x, f->rel.w);
-    m3real budget = c->steerBudget > 0.0f ? c->steerBudget * pass->h : M3_ROW_FREE;
+    float twist = 2.0f * m3Atan2(f->rel.x, f->rel.w);
+    float budget = c->steerBudget > 0.0f ? c->steerBudget * pass->h : M3_ROW_FREE;
     m3SolveRow(&steer, b, m3SpringDrive(c->steerSoft, twist - c->steerTarget), &c->springImpulse.y,
                -budget, budget);
 }
@@ -92,7 +92,7 @@ static void SolveWheel(m3JointConstraint* c, const m3JointPose* pose, m3JointBod
                        const m3JointPass* pass)
 {
     WheelRows r = BuildRows(c, pose);
-    m3real travel = m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0));
+    float travel = m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0));
     if ((c->flags & M3_JOINT_SPRING) != 0)
     {
         m3SolveRow(&r.strut, b, m3SpringDrive(c->springSoft, travel - c->target),
@@ -100,7 +100,7 @@ static void SolveWheel(m3JointConstraint* c, const m3JointPose* pose, m3JointBod
     }
     if ((c->flags & M3_JOINT_MOTOR) != 0)
     {
-        m3real budget = c->maxMotorEffort * pass->h;
+        float budget = c->maxMotorEffort * pass->h;
         m3SolveRow(&r.spin, b, m3RigidDrive(-c->motorSpeed), &c->perpImpulse.z, -budget, budget);
     }
     if ((c->flags & M3_JOINT_LIMIT) != 0)
@@ -118,8 +118,8 @@ static void SolveWheel(m3JointConstraint* c, const m3JointPose* pose, m3JointBod
     }
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
     m3JointRow rows[4];
-    m3real bias[4];
-    m3real* accumulated[4];
+    float bias[4];
+    float* accumulated[4];
     int32_t count = 0;
     for (int32_t k = steering ? 1 : 0; k < 2; ++k)
     {

@@ -30,15 +30,15 @@ extern "C"
 
     typedef struct m3SoftBodyDef
     {
-        m3Pos3 position;     // lattice minimum corner
-        int32_t countX;      // particles per axis, each >= 1; the
-        int32_t countY;      // product must fit
-        int32_t countZ;      // M3_MAX_SOFTBODY_PARTICLES
-        m3real spacing;      // rest distance between lattice neighbors, at most 1e4
-        m3real particleMass; // per particle, kilograms
-        m3real compliance;   // XPBD compliance; zero = rigid rods
-        m3real radius;       // particle collision radius
-        m3real gravityScale;
+        m3Pos3 position;    // lattice minimum corner
+        int32_t countX;     // particles per axis, each >= 1; the
+        int32_t countY;     // product must fit
+        int32_t countZ;     // M3_MAX_SOFTBODY_PARTICLES
+        float spacing;      // rest distance between lattice neighbors, at most 1e4
+        float particleMass; // per particle, kilograms
+        float compliance;   // XPBD compliance; zero = rigid rods
+        float radius;       // particle collision radius
+        float gravityScale;
         M3_ALIGN8 uint64_t userData;
         /// Bend resistance: XPBD compliance of the SECOND
         /// NEIGHBOR tethers laid along each lattice axis (three
@@ -47,19 +47,19 @@ extern "C"
         /// adds no tethers;
         /// smaller positive values bend stiffer. Full Cosserat
         /// twist stays out by design: positions carry no frames.
-        m3real bendCompliance;
+        float bendCompliance;
         /// Internal pressure: a target volume multiplier for
         /// CLOSED lattices (every axis count >= 2). Zero (default)
         /// is off; 1 holds the create
         /// volume, 2 inflates toward double, and no more than
         /// M3_SOFTBODY_PRESSURE_LIMIT is taken. One global volume
         /// constraint over the surface, solved beside the edges.
-        m3real pressure;
+        float pressure;
         /// Bind-pose tether: every particle clamps to this
         /// radius around its CREATE position each substep. Zero
         /// (default) is off. The cheap skinned-vertex limit: cloth
         /// on a character cannot explode past its bind pose.
-        m3real maxDeviation;
+        float maxDeviation;
         int32_t internalValue;
     } m3SoftBodyDef;
 

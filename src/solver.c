@@ -62,12 +62,12 @@ static void AdvanceWind(m3World* world, float dt)
         if (world->windPhase > 2.0f * M3_PI)
         {
             world->windPhase -=
-                2.0f * M3_PI * (m3real)m3CellFromF(world->windPhase / (2.0f * M3_PI), 0.0f);
+                2.0f * M3_PI * (float)m3CellFromF(world->windPhase / (2.0f * M3_PI), 0.0f);
         }
     }
 }
 
-static void BreakJoints(m3World* world, m3real invH)
+static void BreakJoints(m3World* world, float invH)
 {
     // Joint breakage: reactions over threshold destroy the
     // joint and emit the break event, serially in ascending joint
@@ -81,14 +81,14 @@ static void BreakJoints(m3World* world, m3real invH)
             {
                 continue;
             }
-            m3real maxForce = world->joints.jointBreak[j].x;
-            m3real maxTorque = world->joints.jointBreak[j].y;
+            float maxForce = world->joints.jointBreak[j].x;
+            float maxTorque = world->joints.jointBreak[j].y;
             if (maxForce == 0.0f && maxTorque == 0.0f)
             {
                 continue;
             }
-            m3real force;
-            m3real torque;
+            float force;
+            float torque;
             m3JointReactionMagnitudes(world, j, invH, &force, &torque);
             if ((maxForce > 0.0f && force > maxForce) || (maxTorque > 0.0f && torque > maxTorque))
             {
@@ -146,8 +146,8 @@ typedef struct m3StepScratch
     int32_t* movers;
     int32_t moverCount;
     m3Buoyancy buoy;
-    m3real h;
-    m3real invH;
+    float h;
+    float invH;
 } m3StepScratch;
 
 // Copies the previous pairs and manifolds aside before the pair scan
@@ -218,7 +218,7 @@ static bool BeginStep(m3World* world, m3StepScratch* s)
 // which the world's sizing rules out.
 static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t substeps)
 {
-    s->h = dt / (m3real)substeps;
+    s->h = dt / (float)substeps;
     s->invH = s->h > 0.0f ? 1.0f / s->h : 0.0f;
     s->contacts.count = m3PrepareContacts(world, s->contacts.constraints, s->h);
     s->contacts.deltaPos = s->deltaPos;

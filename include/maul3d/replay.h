@@ -90,12 +90,12 @@ extern "C"
     /// index ascending on ties).
     typedef struct m3BodyDiff
     {
-        m3BodyId bodyId;      /// the id under world A's numbering
-        m3real positionError; /// |pA - pB|, meters
-        m3real rotationError; /// 1 - |dot(qA, qB)|, unitless
-        m3real velocityError; /// |vA - vB| + |wA - wB|
-        bool onlyInA;         /// alive in A, missing in B
-        bool onlyInB;         /// alive in B, missing in A
+        m3BodyId bodyId;     /// the id under world A's numbering
+        float positionError; /// |pA - pB|, meters
+        float rotationError; /// 1 - |dot(qA, qB)|, unitless
+        float velocityError; /// |vA - vB| + |wA - wB|
+        bool onlyInA;        /// alive in A, missing in B
+        bool onlyInB;        /// alive in B, missing in A
     } m3BodyDiff;
 
     /// Compare every body slot of two worlds (same capacities

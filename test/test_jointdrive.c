@@ -141,8 +141,8 @@ static void TestReadbackBand(void)
     jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
     m3JointId rope = NewJoint(world, &jd);
     StepN(world, 180);
-    m3real force = m3Joint_GetReactionForce(world, rope);
-    m3real torque = m3Joint_GetReactionTorque(world, rope);
+    float force = m3Joint_GetReactionForce(world, rope);
+    float torque = m3Joint_GetReactionTorque(world, rope);
     CHECK(force > 8.0f && force < 12.0f, "the rope carries the m*g band");
     CHECK(torque < 2.0f, "a ball joint carries no torque worth naming");
     m3DestroyWorld(world);

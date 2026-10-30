@@ -20,7 +20,7 @@ bool m3CharacterMoveValid(m3Vec3 translation);
 
 void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation);
 
-m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius);
+m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, float halfHeight, float radius);
 
 // Re-evaluate grounding in place (no displacement): the voxel edit
 // path calls this so a carved floor drops its tenants the same

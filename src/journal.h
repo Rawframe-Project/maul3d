@@ -164,8 +164,8 @@ typedef struct m3OpCharacterMove
 typedef struct m3OpCharacterStance
 {
     m3CharacterId id;
-    m3real halfHeight;
-    m3real radius;
+    float halfHeight;
+    float radius;
 } m3OpCharacterStance;
 
 typedef struct m3OpCreateBody
@@ -197,7 +197,7 @@ typedef struct m3OpCreateVoxelChunkShape
     m3ShapeDef def;
     m3BodyId body;
     m3ShapeId expected;
-    m3real cellSize;
+    float cellSize;
 } m3OpCreateVoxelChunkShape;
 
 typedef struct m3OpCreateWaterVolume
@@ -395,9 +395,9 @@ typedef struct m3OpStep
 typedef struct m3OpVehicleCommands
 {
     m3VehicleId id;
-    m3real throttle;
-    m3real steer;
-    m3real brake;
+    float throttle;
+    float steer;
+    float brake;
 } m3OpVehicleCommands;
 
 typedef struct m3OpVehicleDrivetrain
@@ -415,9 +415,9 @@ typedef struct m3OpVehicleGear
 typedef struct m3OpVehicleTankCommands
 {
     m3VehicleId id;
-    m3real left;
-    m3real right;
-    m3real brake;
+    float left;
+    float right;
+    float brake;
 } m3OpVehicleTankCommands;
 
 typedef struct m3OpVoxelClear

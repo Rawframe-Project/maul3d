@@ -28,8 +28,8 @@ static double RandD(uint64_t* state, double lo, double hi)
 
 static m3Quat RandQuat(uint64_t* state)
 {
-    m3Quat q = {(m3real)RandD(state, -1.0, 1.0), (m3real)RandD(state, -1.0, 1.0),
-                (m3real)RandD(state, -1.0, 1.0), (m3real)RandD(state, -1.0, 1.0)};
+    m3Quat q = {(float)RandD(state, -1.0, 1.0), (float)RandD(state, -1.0, 1.0),
+                (float)RandD(state, -1.0, 1.0), (float)RandD(state, -1.0, 1.0)};
     return m3NormalizeQuat(q);
 }
 
@@ -374,27 +374,27 @@ static void TestPrismaticJacobianFiniteDifference(void)
     for (int32_t round = 0; round < 20; ++round)
     {
         // Random poses near the origin, random anchors, random axis.
-        m3Vec3 pA = {(m3real)RandD(&state, -1.0, 1.0), (m3real)RandD(&state, -1.0, 1.0),
-                     (m3real)RandD(&state, -1.0, 1.0)};
-        m3Vec3 pB = {(m3real)RandD(&state, -1.0, 1.0), (m3real)RandD(&state, -1.0, 1.0),
-                     (m3real)RandD(&state, -1.0, 1.0)};
+        m3Vec3 pA = {(float)RandD(&state, -1.0, 1.0), (float)RandD(&state, -1.0, 1.0),
+                     (float)RandD(&state, -1.0, 1.0)};
+        m3Vec3 pB = {(float)RandD(&state, -1.0, 1.0), (float)RandD(&state, -1.0, 1.0),
+                     (float)RandD(&state, -1.0, 1.0)};
         m3Quat qA = RandQuat(&state);
         m3Quat qB = RandQuat(&state);
-        m3Vec3 laA = {(m3real)RandD(&state, -0.5, 0.5), (m3real)RandD(&state, -0.5, 0.5),
-                      (m3real)RandD(&state, -0.5, 0.5)};
-        m3Vec3 laB = {(m3real)RandD(&state, -0.5, 0.5), (m3real)RandD(&state, -0.5, 0.5),
-                      (m3real)RandD(&state, -0.5, 0.5)};
-        m3Vec3 axisLocal = m3Normalize3((m3Vec3){(m3real)RandD(&state, -1.0, 1.0),
-                                                 (m3real)RandD(&state, -1.0, 1.0),
-                                                 (m3real)RandD(&state, -1.0, 1.0)});
-        m3Vec3 vA = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
-        m3Vec3 vB = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
-        m3Vec3 wA = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
-        m3Vec3 wB = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
+        m3Vec3 laA = {(float)RandD(&state, -0.5, 0.5), (float)RandD(&state, -0.5, 0.5),
+                      (float)RandD(&state, -0.5, 0.5)};
+        m3Vec3 laB = {(float)RandD(&state, -0.5, 0.5), (float)RandD(&state, -0.5, 0.5),
+                      (float)RandD(&state, -0.5, 0.5)};
+        m3Vec3 axisLocal =
+            m3Normalize3((m3Vec3){(float)RandD(&state, -1.0, 1.0), (float)RandD(&state, -1.0, 1.0),
+                                  (float)RandD(&state, -1.0, 1.0)});
+        m3Vec3 vA = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
+        m3Vec3 vB = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
+        m3Vec3 wA = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
+        m3Vec3 wB = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
 
         // C rows as a function of the pose.
         // rA = rot(qA, laA), rB = rot(qB, laB),
@@ -421,14 +421,14 @@ static void TestPrismaticJacobianFiniteDifference(void)
         // drowns in float cancellation; central kills the O(h) term
         // and h = 1e-3 keeps the round-off noise two decades down.
         const double h = 1.0e-3;
-        m3Vec3 pAp = m3Add3(pA, m3MulSV3((m3real)h, vA));
-        m3Vec3 pBp = m3Add3(pB, m3MulSV3((m3real)h, vB));
-        m3Quat qAp = m3IntegrateRotation(qA, m3MulSV3((m3real)h, wA));
-        m3Quat qBp = m3IntegrateRotation(qB, m3MulSV3((m3real)h, wB));
-        m3Vec3 pAm = m3Sub3(pA, m3MulSV3((m3real)h, vA));
-        m3Vec3 pBm = m3Sub3(pB, m3MulSV3((m3real)h, vB));
-        m3Quat qAm = m3IntegrateRotation(qA, m3MulSV3(-(m3real)h, wA));
-        m3Quat qBm = m3IntegrateRotation(qB, m3MulSV3(-(m3real)h, wB));
+        m3Vec3 pAp = m3Add3(pA, m3MulSV3((float)h, vA));
+        m3Vec3 pBp = m3Add3(pB, m3MulSV3((float)h, vB));
+        m3Quat qAp = m3IntegrateRotation(qA, m3MulSV3((float)h, wA));
+        m3Quat qBp = m3IntegrateRotation(qB, m3MulSV3((float)h, wB));
+        m3Vec3 pAm = m3Sub3(pA, m3MulSV3((float)h, vA));
+        m3Vec3 pBm = m3Sub3(pB, m3MulSV3((float)h, vB));
+        m3Quat qAm = m3IntegrateRotation(qA, m3MulSV3(-(float)h, wA));
+        m3Quat qBm = m3IntegrateRotation(qB, m3MulSV3(-(float)h, wB));
 
         m3Vec3 rAp = m3RotateVec3(qAp, laA);
         m3Vec3 rBp = m3RotateVec3(qBp, laB);
@@ -538,7 +538,7 @@ static void TestSliderGravityAlongRail(void)
     StepN(world, 60); // one second
     m3Vec3 v = m3Body_GetLinearVelocity(world, car);
     // v = g sin(30) t along the axis = 5 m/s; components (4.33, -2.5).
-    m3real speed = sqrtf(m3Dot3(v, v));
+    float speed = sqrtf(m3Dot3(v, v));
     CHECK(speed > 4.7f && speed < 5.3f, "the car obeys g sin(theta) on the rail");
     CHECK(v.x > 4.0f && v.y < -2.2f, "the velocity points down the rail");
     m3DestroyWorld(world);
@@ -574,18 +574,18 @@ static void TestTwistJacobianFiniteDifference(void)
     {
         m3Quat qA = RandQuat(&state);
         // qB = qA composed with a bounded random rotation.
-        m3Vec3 rot = {(m3real)RandD(&state, -0.8, 0.8), (m3real)RandD(&state, -0.8, 0.8),
-                      (m3real)RandD(&state, -0.8, 0.8)};
+        m3Vec3 rot = {(float)RandD(&state, -0.8, 0.8), (float)RandD(&state, -0.8, 0.8),
+                      (float)RandD(&state, -0.8, 0.8)};
         m3Quat qB = m3IntegrateRotation(qA, rot);
-        m3Vec3 wA = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
-        m3Vec3 wB = {(m3real)RandD(&state, -2.0, 2.0), (m3real)RandD(&state, -2.0, 2.0),
-                     (m3real)RandD(&state, -2.0, 2.0)};
+        m3Vec3 wA = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
+        m3Vec3 wB = {(float)RandD(&state, -2.0, 2.0), (float)RandD(&state, -2.0, 2.0),
+                     (float)RandD(&state, -2.0, 2.0)};
 
         m3Vec3 coneAxis = m3RotateVec3(qA, (m3Vec3){0.0f, 0.0f, 1.0f});
         m3Vec3 twistAxis = m3RotateVec3(qB, (m3Vec3){0.0f, 0.0f, 1.0f});
         m3Vec3 swing = m3Cross3(coneAxis, twistAxis);
-        m3real len2 = m3Dot3(swing, swing);
+        float len2 = m3Dot3(swing, swing);
         if (len2 < 1.0e-6f)
         {
             continue; // aligned pose: the axis is arbitrary, skip
@@ -593,7 +593,7 @@ static void TestTwistJacobianFiniteDifference(void)
         swing = m3MulSV3(1.0f / sqrtf(len2), swing);
         m3Quat conjA = {-qA.x, -qA.y, -qA.z, qA.w};
         m3Quat relQ = m3NormalizeQuat(m3MulQuat(conjA, qB));
-        m3real denom = relQ.z * relQ.z + relQ.w * relQ.w;
+        float denom = relQ.z * relQ.z + relQ.w * relQ.w;
         if (denom < 1.0e-6f)
         {
             continue; // near the swing singularity
@@ -606,10 +606,10 @@ static void TestTwistJacobianFiniteDifference(void)
         double analyticSwing = (double)m3Dot3(m3Sub3(wB, wA), swing);
 
         const double h = 1.0e-3;
-        m3Quat qAp = m3IntegrateRotation(qA, m3MulSV3((m3real)h, wA));
-        m3Quat qBp = m3IntegrateRotation(qB, m3MulSV3((m3real)h, wB));
-        m3Quat qAm = m3IntegrateRotation(qA, m3MulSV3(-(m3real)h, wA));
-        m3Quat qBm = m3IntegrateRotation(qB, m3MulSV3(-(m3real)h, wB));
+        m3Quat qAp = m3IntegrateRotation(qA, m3MulSV3((float)h, wA));
+        m3Quat qBp = m3IntegrateRotation(qB, m3MulSV3((float)h, wB));
+        m3Quat qAm = m3IntegrateRotation(qA, m3MulSV3(-(float)h, wA));
+        m3Quat qBm = m3IntegrateRotation(qB, m3MulSV3(-(float)h, wB));
         m3Quat cAp = {-qAp.x, -qAp.y, -qAp.z, qAp.w};
         m3Quat cAm = {-qAm.x, -qAm.y, -qAm.z, qAm.w};
         m3Quat relP = m3NormalizeQuat(m3MulQuat(cAp, qBp));

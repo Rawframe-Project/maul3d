@@ -92,17 +92,17 @@ extern "C"
         /// revolute they are angles (radians) and a torque cap, for
         /// the prismatic translations (meters) and a force cap.
         bool enableLimit;
-        m3real lowerLimit;
-        m3real upperLimit;
+        float lowerLimit;
+        float upperLimit;
         bool enableMotor;
-        m3real motorSpeed;     // rad/s or m/s by joint type, within 1e5
-        m3real maxMotorEffort; // non-negative, at most 1e20
+        float motorSpeed;     // rad/s or m/s by joint type, within 1e5
+        float maxMotorEffort; // non-negative, at most 1e20
         /// Spherical only: the swing cone (the shoulder). Every other
         /// type refuses enableCone. enableLimit doubles as the twist
         /// range for the spherical, using lowerLimit and upperLimit as
         /// twist angles.
         bool enableCone;
-        m3real coneAngle; // radians from the A frame's z-axis
+        float coneAngle; // radians from the A frame's z-axis
         /// Distance joints hold the anchor distance in [minLength,
         /// maxLength] below and take neither a limit nor a motor:
         /// enableLimit and enableMotor refuse them. Their optional spring
@@ -141,38 +141,38 @@ extern "C"
         uint8_t genericLinear[3];
         uint8_t genericAngular[3];
         uint8_t genericMotorAxis;
-        m3real genericLinearLower[3];
-        m3real genericLinearUpper[3];
-        m3real genericAngularLower[3];
-        m3real genericAngularUpper[3];
+        float genericLinearLower[3];
+        float genericLinearUpper[3];
+        float genericAngularLower[3];
+        float genericAngularUpper[3];
         /// Gear and pulley: the coupling ratio (gear: any
         /// nonzero within 1e4, sign picks the mesh; pulley: > 0 and at
         /// most 1e4) and the pulley's two fixed WORLD anchor points,
         /// within 1e15 m.
-        m3real ratio;
+        float ratio;
         m3Pos3 groundAnchorA;
         m3Pos3 groundAnchorB;
         /// The motor joint's force and torque budgets, each in
         /// [0, 1e20], 0 for no cap. Other types ignore them.
-        m3real maxForce;
-        m3real maxTorque;
+        float maxForce;
+        float maxTorque;
         /// The distance joint's range, 0 <= minLength <= maxLength meters:
         /// a rod is minLength == maxLength, a rope a range. Other types
         /// ignore them.
-        m3real minLength;
-        m3real maxLength;
+        float minLength;
+        float maxLength;
         /// The distance joint's spring rest length in meters, finite and
         /// not negative. It need not lie within the range: the range holds
         /// whatever the spring pulls toward. Other types ignore it.
-        m3real length;
+        float length;
         /// The spring, on the types that take one (revolute, prismatic,
         /// spherical, wheel, motor and distance joints): springHertz in
         /// [0, 1e5] and positive when enableSpring is set, the damping
         /// ratio in [0, 1e4]. Every other type refuses enableSpring and
         /// ignores the values.
         bool enableSpring;
-        m3real springHertz;
-        m3real springDampingRatio;
+        float springHertz;
+        float springDampingRatio;
         int32_t internalValue;
     } m3JointDef;
 
@@ -312,16 +312,16 @@ extern "C"
     /// torque; the generic joint reports a conservative sum). Reads
     /// 0 before the first step after a restore (documented
     /// transient).
-    M3_API m3real m3Joint_GetReactionForce(const m3World* world, m3JointId joint);
-    M3_API m3real m3Joint_GetReactionTorque(const m3World* world, m3JointId joint);
+    M3_API float m3Joint_GetReactionForce(const m3World* world, m3JointId joint);
+    M3_API float m3Joint_GetReactionTorque(const m3World* world, m3JointId joint);
 
     /// Geometry reads: the angle about the hinge of a revolute joint,
     /// or a wheel joint's spin about its axle (radians), and the
     /// translation along a prismatic joint's slide axis or a wheel
     /// joint's suspension axis (meters). Any other type, or a stale
     /// id, reads 0 and counts one misuse.
-    M3_API m3real m3Joint_GetAngle(const m3World* world, m3JointId joint);
-    M3_API m3real m3Joint_GetTranslation(const m3World* world, m3JointId joint);
+    M3_API float m3Joint_GetAngle(const m3World* world, m3JointId joint);
+    M3_API float m3Joint_GetTranslation(const m3World* world, m3JointId joint);
 
     /// Position drive: a soft constraint with the given frequency and
     /// damping ratio pulls the joint toward its target. Revolute drives

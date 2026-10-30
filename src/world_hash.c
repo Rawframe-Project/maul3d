@@ -143,12 +143,12 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
             // Gravity scale and damping fold off their defaults, keyed
             // by slot and field: the step reads them every substep.
             h = HashKey(h, i, M3_HASH_KEY_BODY_MOTION);
-            h = m3Hash64(h, &world->bodies.gravityScales[i], (int64_t)sizeof(m3real));
-            h = m3Hash64(h, &world->bodies.linearDamping[i], (int64_t)sizeof(m3real));
-            h = m3Hash64(h, &world->bodies.angularDamping[i], (int64_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.gravityScales[i], (int64_t)sizeof(float));
+            h = m3Hash64(h, &world->bodies.linearDamping[i], (int64_t)sizeof(float));
+            h = m3Hash64(h, &world->bodies.angularDamping[i], (int64_t)sizeof(float));
         }
         h = m3Hash64(h, &world->bodies.angularVelocities[i], (int64_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->bodies.invMass[i], (int64_t)sizeof(m3real));
+        h = m3Hash64(h, &world->bodies.invMass[i], (int64_t)sizeof(float));
         h = m3Hash64(h, &world->bodies.invInertiaLocal[i], (int64_t)sizeof(m3Mat3));
         h = m3Hash64(h, &world->bodies.localCenters[i], (int64_t)sizeof(m3Vec3));
         h = m3Hash64(h, &world->bodies.types[i], 1);

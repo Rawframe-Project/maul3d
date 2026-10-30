@@ -16,9 +16,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static int NearF(m3real a, m3real b, m3real tol)
+static int NearF(float a, float b, float tol)
 {
-    m3real d = a - b;
+    float d = a - b;
     return (d < 0.0f ? -d : d) <= tol;
 }
 
@@ -31,9 +31,9 @@ static uint32_t NextU32(void)
     z = (z ^ (z >> 13)) * 0xC2B2AE35u;
     return z ^ (z >> 16);
 }
-static m3real NextF(m3real lo, m3real hi)
+static float NextF(float lo, float hi)
 {
-    return lo + (hi - lo) * ((m3real)(NextU32() >> 8) * (1.0f / 16777216.0f));
+    return lo + (hi - lo) * ((float)(NextU32() >> 8) * (1.0f / 16777216.0f));
 }
 
 static void TestAnalytic(void)
@@ -112,17 +112,17 @@ static void TestOracle(void)
             // The oracle: project both point sets on the normal; the
             // gap between the sets must equal the reported distance.
             m3Vec3 n = out.normal;
-            m3real maxA = -3.4e38f;
+            float maxA = -3.4e38f;
             for (int32_t v = 0; v < boxData.vertexCount; ++v)
             {
-                m3real d = m3Dot3(n, boxData.vertices[v]);
+                float d = m3Dot3(n, boxData.vertices[v]);
                 maxA = d > maxA ? d : maxA;
             }
-            m3real minB = 3.4e38f;
+            float minB = 3.4e38f;
             for (int32_t v = 0; v < boxData.vertexCount; ++v)
             {
                 m3Vec3 w = m3Add3(m3RotateVec3(q, boxData.vertices[v]), p);
-                m3real d = m3Dot3(n, w);
+                float d = m3Dot3(n, w);
                 minB = d < minB ? d : minB;
             }
             CHECK(minB - maxA > -1.0e-3f, "the normal truly separates the sets");

@@ -217,13 +217,13 @@ static void TestHostileShapeDefs(void)
           "a coincident cloud refuses");
     for (int32_t i = 0; i < 8; ++i)
     {
-        cloud[i] = (m3Vec3){(m3real)i * 0.1f, 0.0f, 0.0f};
+        cloud[i] = (m3Vec3){(float)i * 0.1f, 0.0f, 0.0f};
     }
     CHECK(!m3Shape_IsValid(world, NewHullShape(world, body, &sd, cloud, 8)),
           "a collinear cloud refuses");
     for (int32_t i = 0; i < 8; ++i)
     {
-        cloud[i] = (m3Vec3){(m3real)(i % 4) * 0.2f, (m3real)(i / 4) * 0.2f, 0.0f};
+        cloud[i] = (m3Vec3){(float)(i % 4) * 0.2f, (float)(i / 4) * 0.2f, 0.0f};
     }
     CHECK(!m3Shape_IsValid(world, NewHullShape(world, body, &sd, cloud, 8)),
           "a coplanar cloud refuses");

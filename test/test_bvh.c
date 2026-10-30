@@ -215,12 +215,12 @@ static void TestRefereeGather(void)
 
 // A random path over the 32 m mesh or grid: up to 40 m long, with a
 // reach from 5 cm to 2 m, counted up to a random fraction or all of it.
-static m3SurfacePath RandomPath(m3real span)
+static m3SurfacePath RandomPath(float span)
 {
     m3Vec3 start = {RandRange(-4.0f, span + 4.0f), RandRange(-2.0f, 2.0f),
                     RandRange(-4.0f, span + 4.0f)};
     m3Vec3 step = {RandRange(-40.0f, 40.0f), RandRange(-3.0f, 3.0f), RandRange(-40.0f, 40.0f)};
-    m3real until = (NextRand() & 1u) != 0 ? 1.0f : RandRange(0.0f, 1.0f);
+    float until = (NextRand() & 1u) != 0 ? 1.0f : RandRange(0.0f, 1.0f);
     return (m3SurfacePath){start, m3Add3(start, step), RandRange(0.05f, 2.0f), until};
 }
 

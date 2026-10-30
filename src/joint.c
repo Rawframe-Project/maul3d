@@ -38,14 +38,14 @@ m3JointDef m3DefaultJointDef(void)
 // (deterministic: Shepperd's branch on the largest diagonal).
 static m3Quat QuatFromBasis(m3Vec3 t1, m3Vec3 t2, m3Vec3 axis)
 {
-    m3real m00 = t1.x, m01 = t2.x, m02 = axis.x;
-    m3real m10 = t1.y, m11 = t2.y, m12 = axis.y;
-    m3real m20 = t1.z, m21 = t2.z, m22 = axis.z;
+    float m00 = t1.x, m01 = t2.x, m02 = axis.x;
+    float m10 = t1.y, m11 = t2.y, m12 = axis.y;
+    float m20 = t1.z, m21 = t2.z, m22 = axis.z;
     m3Quat q;
-    m3real trace = m00 + m11 + m22;
+    float trace = m00 + m11 + m22;
     if (trace > 0.0f)
     {
-        m3real s = sqrtf(trace + 1.0f) * 2.0f;
+        float s = sqrtf(trace + 1.0f) * 2.0f;
         q.w = 0.25f * s;
         q.x = (m21 - m12) / s;
         q.y = (m02 - m20) / s;
@@ -53,7 +53,7 @@ static m3Quat QuatFromBasis(m3Vec3 t1, m3Vec3 t2, m3Vec3 axis)
     }
     else if (m00 > m11 && m00 > m22)
     {
-        m3real s = sqrtf(1.0f + m00 - m11 - m22) * 2.0f;
+        float s = sqrtf(1.0f + m00 - m11 - m22) * 2.0f;
         q.w = (m21 - m12) / s;
         q.x = 0.25f * s;
         q.y = (m01 + m10) / s;
@@ -61,7 +61,7 @@ static m3Quat QuatFromBasis(m3Vec3 t1, m3Vec3 t2, m3Vec3 axis)
     }
     else if (m11 > m22)
     {
-        m3real s = sqrtf(1.0f + m11 - m00 - m22) * 2.0f;
+        float s = sqrtf(1.0f + m11 - m00 - m22) * 2.0f;
         q.w = (m02 - m20) / s;
         q.x = (m01 + m10) / s;
         q.y = 0.25f * s;
@@ -69,7 +69,7 @@ static m3Quat QuatFromBasis(m3Vec3 t1, m3Vec3 t2, m3Vec3 axis)
     }
     else
     {
-        m3real s = sqrtf(1.0f + m22 - m00 - m11) * 2.0f;
+        float s = sqrtf(1.0f + m22 - m00 - m11) * 2.0f;
         q.w = (m10 - m01) / s;
         q.x = (m02 + m20) / s;
         q.y = (m12 + m21) / s;
@@ -102,8 +102,8 @@ int32_t m3JointSlot(const m3World* world, m3JointId jointId)
 // taken, so a refused geometry leaks nothing.
 typedef struct JointBake
 {
-    m3real pulleyLen1;
-    m3real pulleyLen2;
+    float pulleyLen1;
+    float pulleyLen2;
     m3Quat wheelQA;
     m3Quat wheelQB;
 } JointBake;
@@ -136,12 +136,12 @@ static m3Result BakePulley(const m3World* world, const m3JointDef* def, int32_t 
     const m3Transform* xfB = &world->bodies.transforms[bodyB];
     m3Vec3 aA = m3RotateVec3(xfA->q, def->localAnchorA);
     m3Vec3 aB = m3RotateVec3(xfB->q, def->localAnchorB);
-    m3Vec3 u1 = {(m3real)(xfA->p.x + (double)aA.x - def->groundAnchorA.x),
-                 (m3real)(xfA->p.y + (double)aA.y - def->groundAnchorA.y),
-                 (m3real)(xfA->p.z + (double)aA.z - def->groundAnchorA.z)};
-    m3Vec3 u2 = {(m3real)(xfB->p.x + (double)aB.x - def->groundAnchorB.x),
-                 (m3real)(xfB->p.y + (double)aB.y - def->groundAnchorB.y),
-                 (m3real)(xfB->p.z + (double)aB.z - def->groundAnchorB.z)};
+    m3Vec3 u1 = {(float)(xfA->p.x + (double)aA.x - def->groundAnchorA.x),
+                 (float)(xfA->p.y + (double)aA.y - def->groundAnchorA.y),
+                 (float)(xfA->p.z + (double)aA.z - def->groundAnchorA.z)};
+    m3Vec3 u2 = {(float)(xfB->p.x + (double)aB.x - def->groundAnchorB.x),
+                 (float)(xfB->p.y + (double)aB.y - def->groundAnchorB.y),
+                 (float)(xfB->p.z + (double)aB.z - def->groundAnchorB.z)};
     bake->pulleyLen1 = m3Length3(u1);
     bake->pulleyLen2 = m3Length3(u2);
     return m3CheckValid(m3FiniteF(bake->pulleyLen1) && m3FiniteF(bake->pulleyLen2) &&
@@ -160,7 +160,7 @@ static bool BakeWheel(const m3World* world, const m3JointDef* def, int32_t bodyA
     m3Vec3 axleWorld = m3RotateVec3(xfB->q, m3Normalize3(def->localAxisB));
     m3Quat conjA = {-xfA->q.x, -xfA->q.y, -xfA->q.z, xfA->q.w};
     m3Vec3 axleA = m3RotateVec3(conjA, axleWorld);
-    m3real skew = m3Dot3(axleA, susp);
+    float skew = m3Dot3(axleA, susp);
     if (skew > 0.1f || skew < -0.1f)
     {
         return false;
@@ -382,9 +382,9 @@ static m3Vec3 ServoCreateGap(const m3World* world, const m3JointDef* def, int32_
     const m3Transform* xfB = &world->bodies.transforms[bodyB];
     m3Vec3 aA = m3RotateVec3(xfA->q, def->localAnchorA);
     m3Vec3 aB = m3RotateVec3(xfB->q, def->localAnchorB);
-    m3Vec3 gap = {(m3real)(xfB->p.x + (double)aB.x - xfA->p.x - (double)aA.x),
-                  (m3real)(xfB->p.y + (double)aB.y - xfA->p.y - (double)aA.y),
-                  (m3real)(xfB->p.z + (double)aB.z - xfA->p.z - (double)aA.z)};
+    m3Vec3 gap = {(float)(xfB->p.x + (double)aB.x - xfA->p.x - (double)aA.x),
+                  (float)(xfB->p.y + (double)aB.y - xfA->p.y - (double)aA.y),
+                  (float)(xfB->p.z + (double)aB.z - xfA->p.z - (double)aA.z)};
     m3Quat conjA = {-xfA->q.x, -xfA->q.y, -xfA->q.z, xfA->q.w};
     return m3RotateVec3(conjA, gap);
 }

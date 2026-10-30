@@ -22,7 +22,7 @@ extern "C"
     typedef struct m3DebugDraw
     {
         void (*drawSegment)(m3Pos3 p1, m3Pos3 p2, uint32_t color, void* context);
-        void (*drawPoint)(m3Pos3 p, m3real size, uint32_t color, void* context);
+        void (*drawPoint)(m3Pos3 p, float size, uint32_t color, void* context);
         void (*drawTriangle)(m3Pos3 a, m3Pos3 b, m3Pos3 c, uint32_t color, void* context);
         void* context;
         bool drawShapes;      // wireframes, through drawSegment

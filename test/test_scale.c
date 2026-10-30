@@ -196,20 +196,20 @@ static m3ShapeId BuildMiniBlock(m3World* world)
         int32_t f = k % 4;
         if (f == 0)
         {
-            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.2, 0.4)};
+            m3Sphere ball = {{0.0f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.2, 0.4)};
             NewSphereShape(world, body, &bs, &ball);
         }
         else if (f == 1)
         {
             NewBoxShape(world, body, &bs,
-                        (m3Vec3){(m3real)RandRange(&rng, 0.15, 0.35),
-                                 (m3real)RandRange(&rng, 0.15, 0.35),
-                                 (m3real)RandRange(&rng, 0.15, 0.35)});
+                        (m3Vec3){(float)RandRange(&rng, 0.15, 0.35),
+                                 (float)RandRange(&rng, 0.15, 0.35),
+                                 (float)RandRange(&rng, 0.15, 0.35)});
         }
         else if (f == 2)
         {
             m3Capsule c = {
-                {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (m3real)RandRange(&rng, 0.12, 0.2)};
+                {-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, (float)RandRange(&rng, 0.12, 0.2)};
             NewCapsuleShape(world, body, &bs, &c);
         }
         else
@@ -217,9 +217,9 @@ static m3ShapeId BuildMiniBlock(m3World* world)
             m3Vec3 cl[8];
             for (int32_t c = 0; c < 8; ++c)
             {
-                cl[c] = (m3Vec3){(m3real)RandRange(&rng, -0.25, 0.25),
-                                 (m3real)RandRange(&rng, -0.25, 0.25),
-                                 (m3real)RandRange(&rng, -0.25, 0.25)};
+                cl[c] = (m3Vec3){(float)RandRange(&rng, -0.25, 0.25),
+                                 (float)RandRange(&rng, -0.25, 0.25),
+                                 (float)RandRange(&rng, -0.25, 0.25)};
             }
             if (!m3Shape_IsValid(world, NewHullShape(world, body, &bs, cl, 8)))
             {

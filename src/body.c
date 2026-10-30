@@ -39,8 +39,8 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
     // Input checks live here because replay hands this function raw journal
     // bytes: nothing non-finite reaches state, a rotation far from unit is
     // a corrupted def, and a type byte outside the enum never mints a body.
-    m3real qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
-                def->rotation.z * def->rotation.z + def->rotation.w * def->rotation.w;
+    float qq = def->rotation.x * def->rotation.x + def->rotation.y * def->rotation.y +
+               def->rotation.z * def->rotation.z + def->rotation.w * def->rotation.w;
     m3Result result = m3CheckValid((def->type == m3_staticBody || def->type == m3_kinematicBody ||
                                     def->type == m3_dynamicBody) &&
                                    m3FiniteQuat(def->rotation) && m3FiniteF(def->linearDamping) &&
@@ -169,7 +169,7 @@ void m3DestroyBodyInternal(m3World* world, int32_t index)
 bool m3PoseValid(m3Transform pose)
 {
     m3Quat q = pose.q;
-    m3real qq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    float qq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return m3BoundedPos3(pose.p) && m3FiniteQuat(q) && qq > 0.98f && qq < 1.02f;
 }
 

@@ -63,9 +63,9 @@ void m3ApplyAngularImpulseInternal(m3World* world, int32_t index, m3Vec3 impulse
 static m3Vec3 ForceArm(const m3World* world, int32_t index, m3Pos3 point)
 {
     m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[index].q, world->bodies.localCenters[index]);
-    return (m3Vec3){(m3real)(point.x - world->bodies.transforms[index].p.x) - rlc.x,
-                    (m3real)(point.y - world->bodies.transforms[index].p.y) - rlc.y,
-                    (m3real)(point.z - world->bodies.transforms[index].p.z) - rlc.z};
+    return (m3Vec3){(float)(point.x - world->bodies.transforms[index].p.x) - rlc.x,
+                    (float)(point.y - world->bodies.transforms[index].p.y) - rlc.y,
+                    (float)(point.z - world->bodies.transforms[index].p.z) - rlc.z};
 }
 
 // Whether a force or impulse may land: on a dynamic body with mass, the

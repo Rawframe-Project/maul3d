@@ -48,7 +48,7 @@ int32_t m3SoftBodySlot(const m3World* world, m3SoftBodyId softId)
     return index;
 }
 
-static void AddEdge(m3World* world, int32_t slot, int32_t a, int32_t b, m3real rest)
+static void AddEdge(m3World* world, int32_t slot, int32_t a, int32_t b, float rest)
 {
     int32_t e = world->softBodies.softEdgeCount[slot];
     if (e >= M3_MAX_SOFTBODY_EDGES)
@@ -104,9 +104,9 @@ static m3Pos3 ParticleAt(const m3SoftBodyDef* def, m3Vec3 offset)
 // the def's position, which every other particle lies between.
 static m3Pos3 LatticeFarCorner(const m3SoftBodyDef* def)
 {
-    return ParticleAt(def, (m3Vec3){(m3real)(def->countX - 1) * def->spacing,
-                                    (m3real)(def->countY - 1) * def->spacing,
-                                    (m3real)(def->countZ - 1) * def->spacing});
+    return ParticleAt(def, (m3Vec3){(float)(def->countX - 1) * def->spacing,
+                                    (float)(def->countY - 1) * def->spacing,
+                                    (float)(def->countZ - 1) * def->spacing});
 }
 
 // Every field check lives here, where the public door and replay both
@@ -164,7 +164,7 @@ static void InitSoftSlot(m3World* world, int32_t slot, const m3SoftBodyDef* def,
     sb->softMaxDeviation[slot] = def->maxDeviation;
 }
 
-static void SeedParticle(m3World* world, int32_t k, m3Pos3 p, m3real invMass)
+static void SeedParticle(m3World* world, int32_t k, m3Pos3 p, float invMass)
 {
     world->softBodies.softPos[k] = p;
     world->softBodies.softPrev[k] = p;
@@ -176,9 +176,9 @@ static void SeedParticle(m3World* world, int32_t k, m3Pos3 p, m3real invMass)
 // Structural edges along the axes, then face diagonals, in one fixed
 // nested order.
 static void AddLatticeEdges(m3World* world, int32_t slot, int32_t nx, int32_t ny, int32_t nz,
-                            m3real s)
+                            float s)
 {
-    m3real d = s * 1.41421356237f;
+    float d = s * 1.41421356237f;
     int32_t layer = nx * ny;
     for (int32_t z = 0; z < nz; ++z)
     {
@@ -225,9 +225,9 @@ static void AddLatticeEdges(m3World* world, int32_t slot, int32_t nx, int32_t ny
 // Second-neighbor bend tethers along each axis, after every structural
 // edge so one boundary index splits the two compliances.
 static void AddBendTethers(m3World* world, int32_t slot, int32_t nx, int32_t ny, int32_t nz,
-                           m3real s)
+                           float s)
 {
-    m3real s2 = 2.0f * s;
+    float s2 = 2.0f * s;
     for (int32_t z = 0; z < nz; ++z)
     {
         for (int32_t y = 0; y < ny; ++y)
@@ -275,9 +275,9 @@ int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
     sb->softDimZ[slot] = (uint16_t)nz;
     sb->softPressure[slot] = def->pressure;
     // The create lattice is a perfect grid: the rest volume is the closed box.
-    sb->softRestVolume[slot] = (m3real)(nx - 1) * (m3real)(ny - 1) * (m3real)(nz - 1) *
-                               def->spacing * def->spacing * def->spacing;
-    m3real invMass = 1.0f / def->particleMass;
+    sb->softRestVolume[slot] = (float)(nx - 1) * (float)(ny - 1) * (float)(nz - 1) * def->spacing *
+                               def->spacing * def->spacing;
+    float invMass = 1.0f / def->particleMass;
     for (int32_t z = 0; z < nz; ++z)
     {
         for (int32_t y = 0; y < ny; ++y)
@@ -285,8 +285,8 @@ int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def)
             for (int32_t x = 0; x < nx; ++x)
             {
                 m3Pos3 p =
-                    ParticleAt(def, (m3Vec3){(m3real)x * def->spacing, (m3real)y * def->spacing,
-                                             (m3real)z * def->spacing});
+                    ParticleAt(def, (m3Vec3){(float)x * def->spacing, (float)y * def->spacing,
+                                             (float)z * def->spacing});
                 SeedParticle(world, slot * M3_MAX_SOFTBODY_PARTICLES + x + nx * (y + ny * z), p,
                              invMass);
             }
@@ -386,7 +386,7 @@ static int32_t TetEdgeSeen(const uint16_t* ea, const uint16_t* eb, int32_t count
     return 0;
 }
 
-static m3real TetVolume6(const m3Vec3* points, const uint16_t* tet)
+static float TetVolume6(const m3Vec3* points, const uint16_t* tet)
 {
     m3Vec3 e1 = m3Sub3(points[tet[1]], points[tet[0]]);
     m3Vec3 e2 = m3Sub3(points[tet[2]], points[tet[0]]);
@@ -493,7 +493,7 @@ int32_t m3CreateTetSoftBodyInternal(m3World* world, const m3SoftBodyDef* def, co
     sb->softDimZ[slot] = 0;
     sb->softRestVolume[slot] = 0.0f;
     sb->softPressure[slot] = 0.0f;
-    m3real invMass = 1.0f / def->particleMass;
+    float invMass = 1.0f / def->particleMass;
     for (int32_t i = 0; i < pointCount; ++i)
     {
         SeedParticle(world, slot * M3_MAX_SOFTBODY_PARTICLES + i, ParticleAt(def, points[i]),
@@ -692,9 +692,9 @@ void m3SoftBodyAnchorInternal(m3World* world, int32_t slot, int32_t particle, in
     int32_t ak = slot * M3_MAX_SOFTBODY_ANCHORS + a;
     int32_t k = slot * M3_MAX_SOFTBODY_PARTICLES + particle;
     const m3Transform* bxf = &world->bodies.transforms[body];
-    m3Vec3 rel = {(m3real)(world->softBodies.softPos[k].x - bxf->p.x),
-                  (m3real)(world->softBodies.softPos[k].y - bxf->p.y),
-                  (m3real)(world->softBodies.softPos[k].z - bxf->p.z)};
+    m3Vec3 rel = {(float)(world->softBodies.softPos[k].x - bxf->p.x),
+                  (float)(world->softBodies.softPos[k].y - bxf->p.y),
+                  (float)(world->softBodies.softPos[k].z - bxf->p.z)};
     world->softBodies.softAnchorParticle[ak] = particle;
     world->softBodies.softAnchorBody[ak] = body;
     world->softBodies.softAnchorGen[ak] = world->bodies.bodyPool.generations[body];

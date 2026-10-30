@@ -104,7 +104,7 @@ m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom)
                             m3CheckValid(restZero));
     case m3_planeShape:
     {
-        m3real n2 = m3Dot3(geom->v, geom->v);
+        float n2 = m3Dot3(geom->v, geom->v);
         m3Pos3 offset = {(double)geom->s, 0.0, 0.0};
         return m3BothChecks(m3CheckValid(n2 >= 1.0f - 1.0e-5f && n2 <= 1.0f + 1.0e-5f && restZero),
                             m3CheckPosition(offset));

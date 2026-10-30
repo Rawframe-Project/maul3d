@@ -156,11 +156,11 @@ void m3DestroyCharacterInternal(m3World* world, int32_t slot)
 // the truth a walker cares about. The ray starts inside our own
 // capsule, and the ray contract (start-inside misses) filters self
 // for free.
-static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, m3real reach,
+static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, float reach,
                           m3CastResult* outHit)
 {
-    m3real depth = world->characters.charHalfHeight[slot] + world->characters.charRadius[slot] +
-                   reach + world->characters.charSkin[slot];
+    float depth = world->characters.charHalfHeight[slot] + world->characters.charRadius[slot] +
+                  reach + world->characters.charSkin[slot];
     m3CastResult hit = m3RayClosestInternal(world, center, (m3Vec3){0.0f, -depth, 0.0f});
     if (hit.hit && hit.normal.y >= world->characters.charCosSlope[slot])
     {
@@ -206,16 +206,16 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
     int32_t body = world->characters.charBody[slot];
     m3Pos3 pos = world->bodies.transforms[body].p;
     m3Vec3 remaining = translation;
-    m3real skin = world->characters.charSkin[slot];
-    m3real cosSlope = world->characters.charCosSlope[slot];
-    m3real stepHeight = world->characters.charStepHeight[slot];
+    float skin = world->characters.charSkin[slot];
+    float cosSlope = world->characters.charCosSlope[slot];
+    float stepHeight = world->characters.charStepHeight[slot];
     int wasDescending = translation.y < 0.0f;
     int wasGrounded = world->characters.charGrounded[slot] != 0;
     ClearGround(world, slot);
 
     for (int32_t iteration = 0; iteration < M3_CHARACTER_SLIDE_ITERATIONS; ++iteration)
     {
-        m3real len2 = m3Dot3(remaining, remaining);
+        float len2 = m3Dot3(remaining, remaining);
         if (len2 < 1.0e-10f)
         {
             break;
@@ -237,19 +237,19 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
             (remaining.x != 0.0f || remaining.z != 0.0f))
         {
             m3CastResult up = CharacterCast(world, slot, pos, (m3Vec3){0.0f, stepHeight, 0.0f});
-            m3real lift = up.hit ? m3MaxF(up.fraction * stepHeight - skin, 0.0f) : stepHeight;
+            float lift = up.hit ? m3MaxF(up.fraction * stepHeight - skin, 0.0f) : stepHeight;
             m3Pos3 lifted = {pos.x, pos.y + (double)lift, pos.z};
             m3Vec3 horizontal = {remaining.x, 0.0f, remaining.z};
-            m3real hLen2 = m3Dot3(horizontal, horizontal);
+            float hLen2 = m3Dot3(horizontal, horizontal);
             m3CastResult fwd = CharacterCast(world, slot, lifted, horizontal);
-            m3real hLen = sqrtf(hLen2);
-            m3real go = fwd.hit ? m3MaxF(fwd.fraction * hLen - skin, 0.0f) : hLen;
+            float hLen = sqrtf(hLen2);
+            float go = fwd.hit ? m3MaxF(fwd.fraction * hLen - skin, 0.0f) : hLen;
             if (go > skin)
             {
-                m3real invH = hLen > 0.0f ? 1.0f / hLen : 0.0f;
+                float invH = hLen > 0.0f ? 1.0f / hLen : 0.0f;
                 m3Pos3 advanced = {lifted.x + (double)(horizontal.x * invH * go), lifted.y,
                                    lifted.z + (double)(horizontal.z * invH * go)};
-                m3real reach = lift + stepHeight;
+                float reach = lift + stepHeight;
                 m3CastResult land =
                     CharacterCast(world, slot, advanced, (m3Vec3){0.0f, -reach, 0.0f});
                 m3CastResult floorHit = {0};
@@ -266,10 +266,10 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
                 // The probe start stays strictly inside our capsule,
                 // so the ray's start-inside contract still filters
                 // self. And the net rise must fit one step height.
-                m3real probeAhead = 0.5f * world->characters.charRadius[slot];
+                float probeAhead = 0.5f * world->characters.charRadius[slot];
                 m3Pos3 probe = {advanced.x + (double)(horizontal.x * invH * probeAhead), advanced.y,
                                 advanced.z + (double)(horizontal.z * invH * probeAhead)};
-                m3real drop = land.hit ? m3MaxF(land.fraction * reach - skin, 0.0f) : 0.0f;
+                float drop = land.hit ? m3MaxF(land.fraction * reach - skin, 0.0f) : 0.0f;
                 double landedY = advanced.y - (double)drop;
                 if (land.hit && WalkableBelow(world, slot, probe, reach, &floorHit) &&
                     landedY - pos.y <= (double)(stepHeight + skin))
@@ -278,7 +278,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
                     RecordGround(world, slot, &floorHit);
                     // The horizontal budget is spent; vertical intent
                     // (host gravity) dissolves into the landing.
-                    m3real spent = hLen > 0.0f ? go * invH : 1.0f;
+                    float spent = hLen > 0.0f ? go * invH : 1.0f;
                     remaining = m3MulSV3(1.0f - spent, horizontal);
                     continue;
                 }
@@ -289,13 +289,13 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         // overlapped and report zero forever). The skin retreat is
         // NOT lost: it returns to the slide budget, or a hundred
         // grounded ticks would each quietly eat a skin of distance.
-        m3real len = sqrtf(len2);
-        m3real advance = hit.fraction * len - skin;
+        float len = sqrtf(len2);
+        float advance = hit.fraction * len - skin;
         if (advance < 0.0f)
         {
             advance = 0.0f;
         }
-        m3real inv = 1.0f / len;
+        float inv = 1.0f / len;
         pos.x += (double)(remaining.x * inv * advance);
         pos.y += (double)(remaining.y * inv * advance);
         pos.z += (double)(remaining.z * inv * advance);
@@ -314,8 +314,8 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
         {
             int32_t hitShape = hit.shapeId.index1 - 1;
             int32_t hitBody = world->shapes.shapeBody[hitShape];
-            m3real blocked = len - advance;
-            m3real into = -m3Dot3(remaining, n) * inv;
+            float blocked = len - advance;
+            float into = -m3Dot3(remaining, n) * inv;
             if (world->bodies.types[hitBody] == (uint8_t)m3_dynamicBody && n.y < cosSlope &&
                 world->bodies.invMass[hitBody] > 0.0f &&
                 world->characters.charPushMax[slot] > 0.0f &&
@@ -325,11 +325,10 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
             {
                 m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[hitBody].q,
                                           world->bodies.localCenters[hitBody]);
-                m3Vec3 arm = {(m3real)(hit.point.x - world->bodies.transforms[hitBody].p.x) - rlc.x,
-                              (m3real)(hit.point.y - world->bodies.transforms[hitBody].p.y) - rlc.y,
-                              (m3real)(hit.point.z - world->bodies.transforms[hitBody].p.z) -
-                                  rlc.z};
-                m3real mass = world->characters.charMass[slot];
+                m3Vec3 arm = {(float)(hit.point.x - world->bodies.transforms[hitBody].p.x) - rlc.x,
+                              (float)(hit.point.y - world->bodies.transforms[hitBody].p.y) - rlc.y,
+                              (float)(hit.point.z - world->bodies.transforms[hitBody].p.z) - rlc.z};
+                float mass = world->characters.charMass[slot];
                 m3PushHeld(world, hitBody, -mass * blocked * into, n, arm);
                 world->bodies.awake[hitBody] = 1;
                 world->bodies.sleepTimes[hitBody] = 0.0f;
@@ -361,7 +360,7 @@ void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation)
             (down.normal.y >= cosSlope ||
              WalkableBelow(world, slot, pos, world->characters.charSnap[slot], &floorHit)))
         {
-            m3real drop = down.fraction * world->characters.charSnap[slot] - skin;
+            float drop = down.fraction * world->characters.charSnap[slot] - skin;
             if (drop > 0.0f)
             {
                 pos.y -= (double)drop;
@@ -453,11 +452,11 @@ void m3CharacterCarryRiders(m3World* world, const m3Pos3* com0, const m3Quat* ro
             continue; // the floor did not move this step
         }
         m3Pos3 p0 = world->bodies.transforms[world->characters.charBody[slot]].p;
-        m3Vec3 rel = {(m3real)(p0.x - old.x), (m3real)(p0.y - old.y), (m3real)(p0.z - old.z)};
+        m3Vec3 rel = {(float)(p0.x - old.x), (float)(p0.y - old.y), (float)(p0.z - old.z)};
         m3Vec3 out = m3RotateVec3(now->q, m3InvRotateVec3(rot0[under], rel));
-        m3Vec3 carry = {(m3real)(now->p.x + (double)out.x - p0.x),
-                        (m3real)(now->p.y + (double)out.y - p0.y),
-                        (m3real)(now->p.z + (double)out.z - p0.z)};
+        m3Vec3 carry = {(float)(now->p.x + (double)out.x - p0.x),
+                        (float)(now->p.y + (double)out.y - p0.y),
+                        (float)(now->p.z + (double)out.z - p0.z)};
         m3CharacterMoveInternal(world, slot, carry);
         // A pure sideways carry ends the slide with no floor
         // contact and Move's snap only serves descents; the rider
@@ -654,7 +653,7 @@ m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character
 // refuses just like a pressing ceiling); the cast reaches one skin
 // upward so the standing gap survives the change. Shrinks skip the
 // veto by law: removing volume cannot create contact.
-m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeight, m3real radius)
+m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, float halfHeight, float radius)
 {
     m3Result size = m3BothChecks(m3CheckRange(halfHeight, M3_MIN_STANCE, M3_STANCE_LIMIT),
                                  m3CheckRange(radius, M3_MIN_STANCE, M3_STANCE_LIMIT));
@@ -674,9 +673,9 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
         M3_ASSERT(false);
         return m3_errorState;
     }
-    m3real oldHh = world->characters.charHalfHeight[slot];
-    m3real oldR = world->characters.charRadius[slot];
-    m3real rise = (halfHeight + radius) - (oldHh + oldR); // feet anchor
+    float oldHh = world->characters.charHalfHeight[slot];
+    float oldR = world->characters.charRadius[slot];
+    float rise = (halfHeight + radius) - (oldHh + oldR); // feet anchor
     m3Pos3 newCenter = world->bodies.transforms[body].p;
     newCenter.y += (double)rise;
     int grows = halfHeight > oldHh || radius > oldR;
@@ -705,7 +704,7 @@ m3Result m3CharacterStanceInternal(m3World* world, int32_t slot, m3real halfHeig
 }
 
 static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3CharacterId character,
-                                                     m3real halfHeight, m3real radius)
+                                                     float halfHeight, float radius)
 {
     if (m3WorldBusy(world))
     {
@@ -737,8 +736,8 @@ static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3Character
     return m3_success;
 }
 
-m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real halfHeight,
-                               m3real radius)
+m3Result m3Character_SetStance(m3World* world, m3CharacterId character, float halfHeight,
+                               float radius)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result = CharacterSetStanceWorker(world, character, halfHeight, radius);
@@ -746,8 +745,8 @@ m3Result m3Character_SetStance(m3World* world, m3CharacterId character, m3real h
     return result;
 }
 
-void m3Character_GetStance(const m3World* world, m3CharacterId character, m3real* halfHeightOut,
-                           m3real* radiusOut)
+void m3Character_GetStance(const m3World* world, m3CharacterId character, float* halfHeightOut,
+                           float* radiusOut)
 {
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)

@@ -29,8 +29,8 @@
 static m3Vec3 ClosestOnSegment(m3Vec3 p, m3Vec3 a, m3Vec3 b)
 {
     m3Vec3 ab = m3Sub3(b, a);
-    m3real t = m3Dot3(m3Sub3(p, a), ab);
-    m3real len2 = m3Dot3(ab, ab);
+    float t = m3Dot3(m3Sub3(p, a), ab);
+    float len2 = m3Dot3(ab, ab);
     if (t <= 0.0f)
     {
         return a;
@@ -44,16 +44,16 @@ static m3Vec3 ClosestOnSegment(m3Vec3 p, m3Vec3 a, m3Vec3 b)
 
 // The nearest to p of the closest points on edges ab, bc and ca; a tie
 // keeps the earlier edge.
-static m3Vec3 ClosestOnEdges(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c, m3real* len2Out)
+static m3Vec3 ClosestOnEdges(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c, float* len2Out)
 {
     m3Vec3 ends[3][2] = {{a, b}, {b, c}, {c, a}};
     m3Vec3 best = a;
-    m3real bestLen2 = 0.0f;
+    float bestLen2 = 0.0f;
     for (int32_t e = 0; e < 3; ++e)
     {
         m3Vec3 q = ClosestOnSegment(p, ends[e][0], ends[e][1]);
         m3Vec3 d = m3Sub3(p, q);
-        m3real len2 = m3Dot3(d, d);
+        float len2 = m3Dot3(d, d);
         if (e == 0 || len2 < bestLen2)
         {
             best = q;
@@ -80,49 +80,49 @@ static m3Vec3 ClosestOnTriangle(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c)
     m3Vec3 ab = m3Sub3(b, a);
     m3Vec3 ac = m3Sub3(c, a);
     m3Vec3 ap = m3Sub3(p, a);
-    m3real d1 = m3Dot3(ab, ap);
-    m3real d2 = m3Dot3(ac, ap);
+    float d1 = m3Dot3(ab, ap);
+    float d2 = m3Dot3(ac, ap);
     if (d1 <= 0.0f && d2 <= 0.0f)
     {
         return a;
     }
     m3Vec3 bp = m3Sub3(p, b);
-    m3real d3 = m3Dot3(ab, bp);
-    m3real d4 = m3Dot3(ac, bp);
+    float d3 = m3Dot3(ab, bp);
+    float d4 = m3Dot3(ac, bp);
     if (d3 >= 0.0f && d4 <= d3)
     {
         return b;
     }
-    m3real vc = d1 * d4 - d3 * d2;
+    float vc = d1 * d4 - d3 * d2;
     if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f && d1 - d3 > 0.0f)
     {
-        m3real v = d1 / (d1 - d3);
+        float v = d1 / (d1 - d3);
         return m3Add3(a, m3MulSV3(v, ab));
     }
     m3Vec3 cp = m3Sub3(p, c);
-    m3real d5 = m3Dot3(ab, cp);
-    m3real d6 = m3Dot3(ac, cp);
+    float d5 = m3Dot3(ab, cp);
+    float d6 = m3Dot3(ac, cp);
     if (d6 >= 0.0f && d5 <= d6)
     {
         return c;
     }
-    m3real vb = d5 * d2 - d1 * d6;
+    float vb = d5 * d2 - d1 * d6;
     if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f && d2 - d6 > 0.0f)
     {
-        m3real w = d2 / (d2 - d6);
+        float w = d2 / (d2 - d6);
         return m3Add3(a, m3MulSV3(w, ac));
     }
-    m3real va = d3 * d6 - d5 * d4;
+    float va = d3 * d6 - d5 * d4;
     if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f && (d4 - d3) + (d5 - d6) > 0.0f)
     {
-        m3real w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
         return m3Add3(b, m3MulSV3(w, m3Sub3(c, b)));
     }
-    m3real edgeLen2;
+    float edgeLen2;
     m3Vec3 edge = ClosestOnEdges(p, a, b, c, &edgeLen2);
-    m3real denom = 1.0f / (va + vb + vc);
-    m3real v = vb * denom;
-    m3real w = vc * denom;
+    float denom = 1.0f / (va + vb + vc);
+    float v = vb * denom;
+    float w = vc * denom;
     if (v >= 0.0f && w >= 0.0f && v + w <= 1.0f)
     {
         m3Vec3 inside = m3Add3(a, m3Add3(m3MulSV3(v, ab), m3MulSV3(w, ac)));
@@ -139,8 +139,8 @@ static m3Vec3 ClosestOnTriangle(m3Vec3 p, m3Vec3 a, m3Vec3 b, m3Vec3 c)
 // depth, then the PBD friction rule against the shape's friction:
 // tangential motion this substep dies when it is smaller than
 // mu times the correction, and shrinks by that budget otherwise.
-static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3real mu, int32_t body,
-                        m3real invH)
+static void SoftProject(m3World* world, int32_t k, m3Vec3 n, float depth, float mu, int32_t body,
+                        float invH)
 {
     world->softBodies.softPos[k].x += (double)(depth * n.x);
     world->softBodies.softPos[k].y += (double)(depth * n.y);
@@ -156,13 +156,13 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     if (body >= 0 && world->bodies.types[body] == (uint8_t)m3_dynamicBody &&
         world->bodies.invMass[body] > 0.0f && world->softBodies.softInvMass[k] > 0.0f)
     {
-        m3real mp = 1.0f / world->softBodies.softInvMass[k];
+        float mp = 1.0f / world->softBodies.softInvMass[k];
         m3Vec3 rlc =
             m3RotateVec3(world->bodies.transforms[body].q, world->bodies.localCenters[body]);
         m3Vec3 arm = {
-            (m3real)(world->softBodies.softPos[k].x - world->bodies.transforms[body].p.x) - rlc.x,
-            (m3real)(world->softBodies.softPos[k].y - world->bodies.transforms[body].p.y) - rlc.y,
-            (m3real)(world->softBodies.softPos[k].z - world->bodies.transforms[body].p.z) - rlc.z};
+            (float)(world->softBodies.softPos[k].x - world->bodies.transforms[body].p.x) - rlc.x,
+            (float)(world->softBodies.softPos[k].y - world->bodies.transforms[body].p.y) - rlc.y,
+            (float)(world->softBodies.softPos[k].z - world->bodies.transforms[body].p.z) - rlc.z};
         // The step's last velocity write, so it keeps the speed limit.
         m3PushHeld(world, body, -depth * invH * mp, n, arm);
         world->bodies.awake[body] = 1;
@@ -172,17 +172,17 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
     {
         return;
     }
-    m3Vec3 move = {(m3real)(world->softBodies.softPos[k].x - world->softBodies.softPrev[k].x),
-                   (m3real)(world->softBodies.softPos[k].y - world->softBodies.softPrev[k].y),
-                   (m3real)(world->softBodies.softPos[k].z - world->softBodies.softPrev[k].z)};
+    m3Vec3 move = {(float)(world->softBodies.softPos[k].x - world->softBodies.softPrev[k].x),
+                   (float)(world->softBodies.softPos[k].y - world->softBodies.softPrev[k].y),
+                   (float)(world->softBodies.softPos[k].z - world->softBodies.softPrev[k].z)};
     m3Vec3 tang = m3Sub3(move, m3MulSV3(m3Dot3(move, n), n));
-    m3real tl = sqrtf(m3Dot3(tang, tang));
+    float tl = sqrtf(m3Dot3(tang, tang));
     if (tl < 1.0e-9f)
     {
         return;
     }
-    m3real budget = mu * depth;
-    m3real scale = tl <= budget ? 1.0f : budget / tl;
+    float budget = mu * depth;
+    float scale = tl <= budget ? 1.0f : budget / tl;
     world->softBodies.softPos[k].x -= (double)(tang.x * scale);
     world->softBodies.softPos[k].y -= (double)(tang.y * scale);
     world->softBodies.softPos[k].z -= (double)(tang.z * scale);
@@ -192,20 +192,20 @@ static void SoftProject(m3World* world, int32_t k, m3Vec3 n, m3real depth, m3rea
 // One particle against one shape, in the shape body's local frame. xf is
 // the shape's world transform, which nothing in the pass moves.
 static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_t stype,
-                                int32_t body, const m3Transform* xf, m3real radius, m3real invH)
+                                int32_t body, const m3Transform* xf, float radius, float invH)
 {
-    m3real mu = world->shapes.shapeFriction[shape];
+    float mu = world->shapes.shapeFriction[shape];
 
     if (stype == (uint8_t)m3_planeShape)
     {
         m3Vec3 n = m3RotateVec3(xf->q, world->shapes.shapeGeom[shape].v);
-        m3real offset =
+        float offset =
             world->shapes.shapeGeom[shape].s +
-            (m3real)((double)n.x * xf->p.x + (double)n.y * xf->p.y + (double)n.z * xf->p.z);
-        m3real dist = (m3real)((double)n.x * world->softBodies.softPos[k].x +
-                               (double)n.y * world->softBodies.softPos[k].y +
-                               (double)n.z * world->softBodies.softPos[k].z) -
-                      offset - radius;
+            (float)((double)n.x * xf->p.x + (double)n.y * xf->p.y + (double)n.z * xf->p.z);
+        float dist = (float)((double)n.x * world->softBodies.softPos[k].x +
+                             (double)n.y * world->softBodies.softPos[k].y +
+                             (double)n.z * world->softBodies.softPos[k].z) -
+                     offset - radius;
         if (dist < 0.0f)
         {
             SoftProject(world, k, n, -dist, mu, body, invH);
@@ -214,16 +214,16 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
     }
 
     // Localize the particle into the body frame.
-    m3Vec3 rel = {(m3real)(world->softBodies.softPos[k].x - xf->p.x),
-                  (m3real)(world->softBodies.softPos[k].y - xf->p.y),
-                  (m3real)(world->softBodies.softPos[k].z - xf->p.z)};
+    m3Vec3 rel = {(float)(world->softBodies.softPos[k].x - xf->p.x),
+                  (float)(world->softBodies.softPos[k].y - xf->p.y),
+                  (float)(world->softBodies.softPos[k].z - xf->p.z)};
     m3Vec3 lp = m3InvRotateVec3(xf->q, rel);
 
     if (stype == (uint8_t)m3_sphereShape)
     {
         m3Vec3 d = m3Sub3(lp, world->shapes.shapeGeom[shape].v);
-        m3real len = sqrtf(m3Dot3(d, d));
-        m3real gap = len - world->shapes.shapeGeom[shape].s - radius;
+        float len = sqrtf(m3Dot3(d, d));
+        float gap = len - world->shapes.shapeGeom[shape].s - radius;
         if (gap < 0.0f && len > 1.0e-9f)
         {
             m3Vec3 n = m3RotateVec3(xf->q, m3MulSV3(1.0f / len, d));
@@ -235,12 +235,12 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
     {
         m3Vec3 a = world->shapes.shapeGeom[shape].v;
         m3Vec3 ab = m3Sub3(world->shapes.shapeGeom[shape].v2, a);
-        m3real t = m3Dot3(m3Sub3(lp, a), ab) / m3MaxF(m3Dot3(ab, ab), 1.0e-12f);
+        float t = m3Dot3(m3Sub3(lp, a), ab) / m3MaxF(m3Dot3(ab, ab), 1.0e-12f);
         t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
         m3Vec3 c = m3Add3(a, m3MulSV3(t, ab));
         m3Vec3 d = m3Sub3(lp, c);
-        m3real len = sqrtf(m3Dot3(d, d));
-        m3real gap = len - world->shapes.shapeGeom[shape].s - radius;
+        float len = sqrtf(m3Dot3(d, d));
+        float gap = len - world->shapes.shapeGeom[shape].s - radius;
         if (gap < 0.0f && len > 1.0e-9f)
         {
             m3Vec3 n = m3RotateVec3(xf->q, m3MulSV3(1.0f / len, d));
@@ -256,11 +256,11 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         // least penetrated face. Edge and vertex regions round
         // slightly toward the face answer: documented.
         const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[shape]];
-        m3real best = -3.4e38f;
+        float best = -3.4e38f;
         int32_t bestFace = -1;
         for (int32_t f = 0; f < hull->faceCount; ++f)
         {
-            m3real sd = m3Dot3(hull->faceNormals[f], lp) - hull->faceOffsets[f];
+            float sd = m3Dot3(hull->faceNormals[f], lp) - hull->faceOffsets[f];
             if (sd > best)
             {
                 best = sd;
@@ -269,7 +269,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         }
         if (bestFace >= 0)
         {
-            m3real gap = best - world->shapes.shapeGeom[shape].s - radius;
+            float gap = best - world->shapes.shapeGeom[shape].s - radius;
             if (gap < 0.0f)
             {
                 m3Vec3 n = m3RotateVec3(xf->q, hull->faceNormals[bestFace]);
@@ -282,7 +282,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
     {
         int32_t vslot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelChunkData* chunk = &world->voxels.voxelData[vslot];
-        m3real cell = chunk->cellSize;
+        float cell = chunk->cellSize;
         int32_t cx = m3CellFromF(floorf(lp.x / cell), 2.0e9f);
         int32_t cy = m3CellFromF(floorf(lp.y / cell), 2.0e9f);
         int32_t cz = m3CellFromF(floorf(lp.z / cell), 2.0e9f);
@@ -291,10 +291,10 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         {
             // Deep inside filled voxels: the escape kernel owns it.
             m3Vec3 ln;
-            m3real plane;
+            float plane;
             if (m3VoxelEscape(world, vslot, lp, &ln, &plane))
             {
-                m3real depth = plane - m3Dot3(ln, lp) + radius;
+                float depth = plane - m3Dot3(ln, lp) + radius;
                 if (depth > 0.0f)
                 {
                     // The escape depth is unbounded (a moving chunk
@@ -306,7 +306,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
                     // is a SPEED, capped by contactPushMaxSpeed. The
                     // particle obeys the same knob and walks out
                     // over a few substeps instead of detonating.
-                    m3real maxPush = world->contactPushMaxSpeed / invH;
+                    float maxPush = world->contactPushMaxSpeed / invH;
                     depth = depth > maxPush ? maxPush : depth;
                     SoftProject(world, k, m3RotateVec3(xf->q, ln), depth, mu, body, invH);
                 }
@@ -332,16 +332,16 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
                         lp.y < blo.y ? blo.y : (lp.y > bhi.y ? bhi.y : lp.y),
                         lp.z < blo.z ? blo.z : (lp.z > bhi.z ? bhi.z : lp.z)};
             m3Vec3 d = m3Sub3(lp, c);
-            m3real len2 = m3Dot3(d, d);
+            float len2 = m3Dot3(d, d);
             if (len2 > 1.0e-12f && len2 < radius * radius)
             {
-                m3real len = sqrtf(len2);
+                float len = sqrtf(len2);
                 m3Vec3 n = m3RotateVec3(xf->q, m3MulSV3(1.0f / len, d));
                 SoftProject(world, k, n, radius - len, mu, body, invH);
                 // Re-localize after the push for the next box.
-                m3Vec3 rel2 = {(m3real)(world->softBodies.softPos[k].x - xf->p.x),
-                               (m3real)(world->softBodies.softPos[k].y - xf->p.y),
-                               (m3real)(world->softBodies.softPos[k].z - xf->p.z)};
+                m3Vec3 rel2 = {(float)(world->softBodies.softPos[k].x - xf->p.x),
+                               (float)(world->softBodies.softPos[k].y - xf->p.y),
+                               (float)(world->softBodies.softPos[k].z - xf->p.z)};
                 lp = m3InvRotateVec3(xf->q, rel2);
             }
         }
@@ -361,15 +361,15 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         {
             m3Vec3 cp = ClosestOnTriangle(lp, hfTris[t][0], hfTris[t][1], hfTris[t][2]);
             m3Vec3 d = m3Sub3(lp, cp);
-            m3real len2 = m3Dot3(d, d);
+            float len2 = m3Dot3(d, d);
             if (len2 > 1.0e-12f && len2 < radius * radius)
             {
-                m3real len = sqrtf(len2);
+                float len = sqrtf(len2);
                 m3Vec3 n = m3RotateVec3(xf->q, m3MulSV3(1.0f / len, d));
                 SoftProject(world, k, n, radius - len, mu, body, invH);
-                m3Vec3 rel2 = {(m3real)(world->softBodies.softPos[k].x - xf->p.x),
-                               (m3real)(world->softBodies.softPos[k].y - xf->p.y),
-                               (m3real)(world->softBodies.softPos[k].z - xf->p.z)};
+                m3Vec3 rel2 = {(float)(world->softBodies.softPos[k].x - xf->p.x),
+                               (float)(world->softBodies.softPos[k].y - xf->p.y),
+                               (float)(world->softBodies.softPos[k].z - xf->p.z)};
                 lp = m3InvRotateVec3(xf->q, rel2);
             }
         }
@@ -393,15 +393,15 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
             m3Vec3 cc = mesh->vertices[mesh->indices[3 * tri + 2]];
             m3Vec3 cp = ClosestOnTriangle(lp, a, bb2, cc);
             m3Vec3 d = m3Sub3(lp, cp);
-            m3real len2 = m3Dot3(d, d);
+            float len2 = m3Dot3(d, d);
             if (len2 > 1.0e-12f && len2 < radius * radius)
             {
-                m3real len = sqrtf(len2);
+                float len = sqrtf(len2);
                 m3Vec3 n = m3RotateVec3(xf->q, m3MulSV3(1.0f / len, d));
                 SoftProject(world, k, n, radius - len, mu, body, invH);
-                m3Vec3 rel2 = {(m3real)(world->softBodies.softPos[k].x - xf->p.x),
-                               (m3real)(world->softBodies.softPos[k].y - xf->p.y),
-                               (m3real)(world->softBodies.softPos[k].z - xf->p.z)};
+                m3Vec3 rel2 = {(float)(world->softBodies.softPos[k].x - xf->p.x),
+                               (float)(world->softBodies.softPos[k].y - xf->p.y),
+                               (float)(world->softBodies.softPos[k].z - xf->p.z)};
                 lp = m3InvRotateVec3(xf->q, rel2);
             }
         }
@@ -413,11 +413,11 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
 // family through the shared local kernels, ascending shape order,
 // friction from the touched shape (the PBD tangential rule). Planes stay
 // world-frame; everything else works in body space.
-static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3real invH)
+static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, float invH)
 {
     int32_t base = slot * M3_MAX_SOFTBODY_PARTICLES;
     int32_t count = world->softBodies.softParticleCount[slot];
-    m3real radius = world->softBodies.softRadius[slot];
+    float radius = world->softBodies.softRadius[slot];
     // The box of every particle the loop moves, grown by each
     // projection, so a shape is culled only when no particle can
     // reach it from where it is now.
@@ -446,7 +446,7 @@ static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3r
         // a body, so the shape's transform holds for the loop.
         m3Transform xf = m3ShapeWorldTransform(world, sShape);
         m3Vec3 center;
-        m3real bound = m3SoftShapeBound(world, sShape, stype, &center);
+        float bound = m3SoftShapeBound(world, sShape, stype, &center);
         if (world->softBodies.softCullOff == 0 &&
             ((bound >= 0.0f && m3SoftShapeOutOfReach(&xf, center, bound, radius, plo, phi)) ||
              (stype == (uint8_t)m3_hullShape &&
@@ -472,7 +472,7 @@ static void SoftCollideWorld(m3World* world, int32_t slot, int32_t maxShape, m3r
 // local origin (the first particle: double-safe far from zero).
 // dV/da for triangle (a, b, c) is cross(b, c) / 6; the division by
 // six is folded once at the call site.
-static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3Pos3 origin)
+static float SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3Pos3 origin)
 {
     int32_t nx = world->softBodies.softDimX[slot];
     int32_t ny = world->softBodies.softDimY[slot];
@@ -483,7 +483,7 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
     {
         grads[i] = (m3Vec3){0.0f, 0.0f, 0.0f};
     }
-    m3real volume6 = 0.0f;
+    float volume6 = 0.0f;
     for (int32_t face = 0; face < 6; ++face)
     {
         int32_t nu = face < 2 ? ny : nx;
@@ -531,17 +531,17 @@ static m3real SoftSurfaceVolume6(m3World* world, int32_t slot, m3Vec3* grads, m3
                 for (int32_t t = 0; t < 2; ++t)
                 {
                     m3Vec3 pa = {
-                        (m3real)(world->softBodies.softPos[base + tris[t][0]].x - origin.x),
-                        (m3real)(world->softBodies.softPos[base + tris[t][0]].y - origin.y),
-                        (m3real)(world->softBodies.softPos[base + tris[t][0]].z - origin.z)};
+                        (float)(world->softBodies.softPos[base + tris[t][0]].x - origin.x),
+                        (float)(world->softBodies.softPos[base + tris[t][0]].y - origin.y),
+                        (float)(world->softBodies.softPos[base + tris[t][0]].z - origin.z)};
                     m3Vec3 pb = {
-                        (m3real)(world->softBodies.softPos[base + tris[t][1]].x - origin.x),
-                        (m3real)(world->softBodies.softPos[base + tris[t][1]].y - origin.y),
-                        (m3real)(world->softBodies.softPos[base + tris[t][1]].z - origin.z)};
+                        (float)(world->softBodies.softPos[base + tris[t][1]].x - origin.x),
+                        (float)(world->softBodies.softPos[base + tris[t][1]].y - origin.y),
+                        (float)(world->softBodies.softPos[base + tris[t][1]].z - origin.z)};
                     m3Vec3 pc = {
-                        (m3real)(world->softBodies.softPos[base + tris[t][2]].x - origin.x),
-                        (m3real)(world->softBodies.softPos[base + tris[t][2]].y - origin.y),
-                        (m3real)(world->softBodies.softPos[base + tris[t][2]].z - origin.z)};
+                        (float)(world->softBodies.softPos[base + tris[t][2]].x - origin.x),
+                        (float)(world->softBodies.softPos[base + tris[t][2]].y - origin.y),
+                        (float)(world->softBodies.softPos[base + tris[t][2]].z - origin.z)};
                     volume6 += m3Dot3(pa, m3Cross3(pb, pc));
                     grads[tris[t][0]] = m3Add3(grads[tris[t][0]], m3Cross3(pb, pc));
                     grads[tris[t][1]] = m3Add3(grads[tris[t][1]], m3Cross3(pc, pa));
@@ -581,8 +581,8 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
     {
         return;
     }
-    m3real h = dt / (m3real)substeps;
-    m3real invH = h > 0.0f ? 1.0f / h : 0.0f;
+    float h = dt / (float)substeps;
+    float invH = h > 0.0f ? 1.0f / h : 0.0f;
     int32_t maxShape = world->shapes.shapePool.maxIndex;
 
     for (int32_t sub = 0; sub < substeps; ++sub)
@@ -625,10 +625,10 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             // velocity, gusted by the accumulated phase. Soft-only
             // by design (rigid bodies already have the force API).
             m3Vec3 windVel = {0.0f, 0.0f, 0.0f};
-            m3real windDrag = 0.0f;
+            float windDrag = 0.0f;
             if (world->windSpeed > 0.0f)
             {
-                m3real gust = 1.0f + world->windGustScale * m3ComputeCosSin(world->windPhase).s;
+                float gust = 1.0f + world->windGustScale * m3ComputeCosSin(world->windPhase).s;
                 windVel = m3MulSV3(world->windSpeed * gust, world->windDir);
                 windDrag = 0.5f; // documented fixed coefficient
             }
@@ -645,11 +645,11 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     continue;
                 }
                 m3Vec3 v = {
-                    (m3real)(world->softBodies.softPos[k].x - world->softBodies.softPrev[k].x) *
+                    (float)(world->softBodies.softPos[k].x - world->softBodies.softPrev[k].x) *
                         invH,
-                    (m3real)(world->softBodies.softPos[k].y - world->softBodies.softPrev[k].y) *
+                    (float)(world->softBodies.softPos[k].y - world->softBodies.softPrev[k].y) *
                         invH,
-                    (m3real)(world->softBodies.softPos[k].z - world->softBodies.softPrev[k].z) *
+                    (float)(world->softBodies.softPos[k].z - world->softBodies.softPrev[k].z) *
                         invH};
                 v = m3Add3(v, m3MulSV3(h, g));
                 m3Vec3 kick = world->softBodies.softKick[k];
@@ -705,34 +705,34 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             }
 
             // One Gauss-Seidel sweep over the edges, fixed order.
-            m3real alpha = world->softBodies.softCompliance[slot] * invH * invH;
-            m3real bendAlpha = world->softBodies.softBendCompliance[slot] * invH * invH;
+            float alpha = world->softBodies.softCompliance[slot] * invH * invH;
+            float bendAlpha = world->softBodies.softBendCompliance[slot] * invH * invH;
             int32_t bendStart = world->softBodies.softBendStart[slot];
             int32_t edges = world->softBodies.softEdgeCount[slot];
             int32_t ebase = slot * M3_MAX_SOFTBODY_EDGES;
             for (int32_t e = 0; e < edges; ++e)
             {
-                m3real alphaE = e >= bendStart ? bendAlpha : alpha;
+                float alphaE = e >= bendStart ? bendAlpha : alpha;
                 int32_t ka = base + (int32_t)world->softBodies.softEdgeA[ebase + e];
                 int32_t kb = base + (int32_t)world->softBodies.softEdgeB[ebase + e];
-                m3real wa = world->softBodies.softInvMass[ka];
-                m3real wb = world->softBodies.softInvMass[kb];
-                m3real wSum = wa + wb;
+                float wa = world->softBodies.softInvMass[ka];
+                float wb = world->softBodies.softInvMass[kb];
+                float wSum = wa + wb;
                 if (wSum == 0.0f)
                 {
                     continue;
                 }
                 m3Vec3 diff = {
-                    (m3real)(world->softBodies.softPos[ka].x - world->softBodies.softPos[kb].x),
-                    (m3real)(world->softBodies.softPos[ka].y - world->softBodies.softPos[kb].y),
-                    (m3real)(world->softBodies.softPos[ka].z - world->softBodies.softPos[kb].z)};
-                m3real len = sqrtf(m3Dot3(diff, diff));
+                    (float)(world->softBodies.softPos[ka].x - world->softBodies.softPos[kb].x),
+                    (float)(world->softBodies.softPos[ka].y - world->softBodies.softPos[kb].y),
+                    (float)(world->softBodies.softPos[ka].z - world->softBodies.softPos[kb].z)};
+                float len = sqrtf(m3Dot3(diff, diff));
                 if (len < 1.0e-9f)
                 {
                     continue; // coincident: no gradient, no correction
                 }
-                m3real c = len - world->softBodies.softEdgeRest[ebase + e];
-                m3real scale = -c / ((wSum + alphaE) * len);
+                float c = len - world->softBodies.softEdgeRest[ebase + e];
+                float scale = -c / ((wSum + alphaE) * len);
                 world->softBodies.softPos[ka].x += (double)(wa * scale * diff.x);
                 world->softBodies.softPos[ka].y += (double)(wa * scale * diff.y);
                 world->softBodies.softPos[ka].z += (double)(wa * scale * diff.z);
@@ -747,7 +747,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             // the volumes are promises; documented order).
             if (world->softBodies.softMaxDeviation[slot] > 0.0f)
             {
-                m3real maxDev = world->softBodies.softMaxDeviation[slot];
+                float maxDev = world->softBodies.softMaxDeviation[slot];
                 for (int32_t i = 0; i < count; ++i)
                 {
                     int32_t k2 = base + i;
@@ -755,16 +755,16 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     {
                         continue;
                     }
-                    m3Vec3 off = {(m3real)(world->softBodies.softPos[k2].x -
-                                           world->softBodies.softBindPos[k2].x),
-                                  (m3real)(world->softBodies.softPos[k2].y -
-                                           world->softBodies.softBindPos[k2].y),
-                                  (m3real)(world->softBodies.softPos[k2].z -
-                                           world->softBodies.softBindPos[k2].z)};
-                    m3real len2 = m3Dot3(off, off);
+                    m3Vec3 off = {(float)(world->softBodies.softPos[k2].x -
+                                          world->softBodies.softBindPos[k2].x),
+                                  (float)(world->softBodies.softPos[k2].y -
+                                          world->softBodies.softBindPos[k2].y),
+                                  (float)(world->softBodies.softPos[k2].z -
+                                          world->softBodies.softBindPos[k2].z)};
+                    float len2 = m3Dot3(off, off);
                     if (len2 > maxDev * maxDev)
                     {
-                        m3real scale = maxDev / sqrtf(len2);
+                        float scale = maxDev / sqrtf(len2);
                         world->softBodies.softPos[k2].x =
                             world->softBodies.softBindPos[k2].x + (double)(off.x * scale);
                         world->softBodies.softPos[k2].y =
@@ -786,25 +786,25 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 int32_t ic = base + (int32_t)world->softBodies.softTetC[tk];
                 int32_t id2 = base + (int32_t)world->softBodies.softTetD[tk];
                 m3Pos3 o = world->softBodies.softPos[ia];
-                m3Vec3 pb2 = {(m3real)(world->softBodies.softPos[ib].x - o.x),
-                              (m3real)(world->softBodies.softPos[ib].y - o.y),
-                              (m3real)(world->softBodies.softPos[ib].z - o.z)};
-                m3Vec3 pc2 = {(m3real)(world->softBodies.softPos[ic].x - o.x),
-                              (m3real)(world->softBodies.softPos[ic].y - o.y),
-                              (m3real)(world->softBodies.softPos[ic].z - o.z)};
-                m3Vec3 pd2 = {(m3real)(world->softBodies.softPos[id2].x - o.x),
-                              (m3real)(world->softBodies.softPos[id2].y - o.y),
-                              (m3real)(world->softBodies.softPos[id2].z - o.z)};
-                m3real v6 = m3Dot3(pb2, m3Cross3(pc2, pd2));
-                m3real c6 = v6 - world->softBodies.softTetRestV6[tk];
+                m3Vec3 pb2 = {(float)(world->softBodies.softPos[ib].x - o.x),
+                              (float)(world->softBodies.softPos[ib].y - o.y),
+                              (float)(world->softBodies.softPos[ib].z - o.z)};
+                m3Vec3 pc2 = {(float)(world->softBodies.softPos[ic].x - o.x),
+                              (float)(world->softBodies.softPos[ic].y - o.y),
+                              (float)(world->softBodies.softPos[ic].z - o.z)};
+                m3Vec3 pd2 = {(float)(world->softBodies.softPos[id2].x - o.x),
+                              (float)(world->softBodies.softPos[id2].y - o.y),
+                              (float)(world->softBodies.softPos[id2].z - o.z)};
+                float v6 = m3Dot3(pb2, m3Cross3(pc2, pd2));
+                float c6 = v6 - world->softBodies.softTetRestV6[tk];
                 m3Vec3 gb = m3Cross3(pc2, pd2);
                 m3Vec3 gc = m3Cross3(pd2, pb2);
                 m3Vec3 gd = m3Cross3(pb2, pc2);
                 m3Vec3 ga = m3Neg3(m3Add3(gb, m3Add3(gc, gd)));
-                m3real wa = world->softBodies.softInvMass[ia];
-                m3real wb = world->softBodies.softInvMass[ib];
-                m3real wc = world->softBodies.softInvMass[ic];
-                m3real wd = world->softBodies.softInvMass[id2];
+                float wa = world->softBodies.softInvMass[ia];
+                float wb = world->softBodies.softInvMass[ib];
+                float wc = world->softBodies.softInvMass[ic];
+                float wd = world->softBodies.softInvMass[id2];
                 int32_t la = ia - base;
                 int32_t lb = ib - base;
                 int32_t lc = ic - base;
@@ -825,11 +825,11 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 {
                     wd = 0.0f;
                 }
-                m3real denom = wa * m3Dot3(ga, ga) + wb * m3Dot3(gb, gb) + wc * m3Dot3(gc, gc) +
-                               wd * m3Dot3(gd, gd);
+                float denom = wa * m3Dot3(ga, ga) + wb * m3Dot3(gb, gb) + wc * m3Dot3(gc, gc) +
+                              wd * m3Dot3(gd, gd);
                 if (denom > 1.0e-9f)
                 {
-                    m3real lambda = -c6 / denom;
+                    float lambda = -c6 / denom;
                     m3Vec3 dp;
                     dp = m3MulSV3(lambda * wa, ga);
                     world->softBodies.softPos[ia].x += (double)dp.x;
@@ -858,10 +858,10 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
             {
                 m3Vec3 grads[M3_MAX_SOFTBODY_PARTICLES];
                 m3Pos3 origin = world->softBodies.softPos[base];
-                m3real vol6 = SoftSurfaceVolume6(world, slot, grads, origin);
-                m3real c6 = vol6 - 6.0f * world->softBodies.softRestVolume[slot] *
-                                       world->softBodies.softPressure[slot];
-                m3real denom = 0.0f;
+                float vol6 = SoftSurfaceVolume6(world, slot, grads, origin);
+                float c6 = vol6 - 6.0f * world->softBodies.softRestVolume[slot] *
+                                      world->softBodies.softPressure[slot];
+                float denom = 0.0f;
                 for (int32_t i = 0; i < count; ++i)
                 {
                     int pinned = world->softBodies.softInvMass[base + i] == 0.0f ||
@@ -874,7 +874,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 }
                 if (denom > 1.0e-9f)
                 {
-                    m3real lambda = -c6 / denom;
+                    float lambda = -c6 / denom;
                     for (int32_t i = 0; i < count; ++i)
                     {
                         int pinned = world->softBodies.softInvMass[base + i] == 0.0f ||
@@ -912,15 +912,15 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 m3Vec3 wl = m3RotateVec3(bxf->q, world->softBodies.softAnchorLocal[ak]);
                 m3Pos3 target = {bxf->p.x + (double)wl.x, bxf->p.y + (double)wl.y,
                                  bxf->p.z + (double)wl.z};
-                m3Vec3 wish = {(m3real)(world->softBodies.softPos[k].x - target.x),
-                               (m3real)(world->softBodies.softPos[k].y - target.y),
-                               (m3real)(world->softBodies.softPos[k].z - target.z)};
+                m3Vec3 wish = {(float)(world->softBodies.softPos[k].x - target.x),
+                               (float)(world->softBodies.softPos[k].y - target.y),
+                               (float)(world->softBodies.softPos[k].z - target.z)};
                 world->softBodies.softPos[k] = target;
                 world->softBodies.softPrev[k] = target;
                 if (world->bodies.types[body] == (uint8_t)m3_dynamicBody &&
                     world->bodies.invMass[body] > 0.0f && world->softBodies.softInvMass[k] > 0.0f)
                 {
-                    m3real mp = 1.0f / world->softBodies.softInvMass[k];
+                    float mp = 1.0f / world->softBodies.softInvMass[k];
                     m3Vec3 rlc = m3RotateVec3(bxf->q, world->bodies.localCenters[body]);
                     m3Vec3 arm = m3Sub3(wl, rlc);
                     m3PushHeld(world, body, mp * invH, wish, arm);

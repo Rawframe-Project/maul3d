@@ -39,9 +39,9 @@ static void SolveWeld(m3JointConstraint* c, const m3JointPose* pose, m3JointBodi
     const m3JointRow rows[3] = {m3TurnRow((m3Vec3){1.0f, 0.0f, 0.0f}),
                                 m3TurnRow((m3Vec3){0.0f, 1.0f, 0.0f}),
                                 m3TurnRow((m3Vec3){0.0f, 0.0f, 1.0f})};
-    const m3real bias[3] = {turnBias.x, turnBias.y, turnBias.z};
-    m3real* const accumulated[3] = {&c->angularImpulse.x, &c->angularImpulse.y,
-                                    &c->angularImpulse.z};
+    const float bias[3] = {turnBias.x, turnBias.y, turnBias.z};
+    float* const accumulated[3] = {&c->angularImpulse.x, &c->angularImpulse.y,
+                                   &c->angularImpulse.z};
     m3SolveJointPointWith(c, pose, b, pass, rows, 3, bias, accumulated);
 }
 

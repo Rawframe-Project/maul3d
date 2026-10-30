@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Deterministic 3D math. World positions are 64-bit (m3Pos3) and
-// everything local is 32-bit (m3real). Every operation is plain IEEE
+// everything local is a 32-bit float. Every operation is plain IEEE
 // arithmetic under -ffp-contract=off, so the bits agree on every
 // platform; the transcendentals are the engine's own.
 
@@ -18,13 +18,11 @@ extern "C"
 {
 #endif
 
-    typedef float m3real;
-
 #define M3_PI 3.14159265358979323846f
 
     typedef struct m3Vec3
     {
-        m3real x, y, z;
+        float x, y, z;
     } m3Vec3;
 
     /// World-space position, double precision (large-world support and
@@ -37,7 +35,7 @@ extern "C"
     /// Rotation quaternion, x y z vector part, w scalar part.
     typedef struct m3Quat
     {
-        m3real x, y, z, w;
+        float x, y, z, w;
     } m3Quat;
 
     typedef struct m3Transform
@@ -54,7 +52,7 @@ extern "C"
 
     typedef struct m3CosSin
     {
-        m3real c, s;
+        float c, s;
     } m3CosSin;
 
     /// Column-major matrix times vector: cx*v.x + cy*v.y + cz*v.z.
@@ -80,23 +78,23 @@ extern "C"
     /// on every platform. MSVC x64 lowers the ternary through MINSS
     /// which matches. It is spelled out rather than assumed because
     /// some arm64 compilers lower min and max differently.
-    static inline m3real m3MinF(m3real a, m3real b)
+    static inline float m3MinF(float a, float b)
     {
         return a < b ? a : b;
     }
 
     /// Pinned maximum: exactly (a > b ? a : b), in this operand order.
-    static inline m3real m3MaxF(m3real a, m3real b)
+    static inline float m3MaxF(float a, float b)
     {
         return a > b ? a : b;
     }
 
-    static inline m3real m3ClampF(m3real a, m3real lo, m3real hi)
+    static inline float m3ClampF(float a, float lo, float hi)
     {
         return m3MaxF(lo, m3MinF(a, hi));
     }
 
-    static inline m3real m3AbsF(m3real a)
+    static inline float m3AbsF(float a)
     {
         return a < 0.0f ? -a : a;
     }
@@ -113,7 +111,7 @@ extern "C"
         return result;
     }
 
-    static inline m3Vec3 m3MulSV3(m3real s, m3Vec3 v)
+    static inline m3Vec3 m3MulSV3(float s, m3Vec3 v)
     {
         m3Vec3 result = {s * v.x, s * v.y, s * v.z};
         return result;
@@ -125,7 +123,7 @@ extern "C"
         return result;
     }
 
-    static inline m3real m3Dot3(m3Vec3 a, m3Vec3 b)
+    static inline float m3Dot3(m3Vec3 a, m3Vec3 b)
     {
         return a.x * b.x + a.y * b.y + a.z * b.z;
     }
@@ -136,12 +134,12 @@ extern "C"
         return result;
     }
 
-    static inline m3real m3LengthSquared3(m3Vec3 v)
+    static inline float m3LengthSquared3(m3Vec3 v)
     {
         return v.x * v.x + v.y * v.y + v.z * v.z;
     }
 
-    static inline m3real m3Length3(m3Vec3 v)
+    static inline float m3Length3(m3Vec3 v)
     {
         // sqrtf is IEEE correctly rounded, the one libm call the bit
         // law allows on the hot path.
@@ -153,20 +151,20 @@ extern "C"
     /// never depends on the caller.
     static inline m3Vec3 m3Normalize3(m3Vec3 v)
     {
-        m3real length = m3Length3(v);
+        float length = m3Length3(v);
         if (length < 1.19209290e-7f)
         {
             m3Vec3 result = {0.0f, 1.0f, 0.0f};
             return result;
         }
-        m3real inv = 1.0f / length;
+        float inv = 1.0f / length;
         m3Vec3 result = {inv * v.x, inv * v.y, inv * v.z};
         return result;
     }
 
     /// Convert any angle into the range [-pi, pi]. remainderf is IEEE
     /// exact (like sqrt), so this is deterministic.
-    static inline m3real m3UnwindAngle(m3real radians)
+    static inline float m3UnwindAngle(float radians)
     {
         return remainderf(radians, 2.0f * M3_PI);
     }
@@ -190,12 +188,12 @@ extern "C"
     /// Normalize with a fixed degenerate fallback of identity.
     static inline m3Quat m3NormalizeQuat(m3Quat q)
     {
-        m3real mag = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+        float mag = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
         if (mag < 1.19209290e-7f)
         {
             return m3MakeIdentityQuat();
         }
-        m3real inv = 1.0f / mag;
+        float inv = 1.0f / mag;
         m3Quat result = {inv * q.x, inv * q.y, inv * q.z, inv * q.w};
         return result;
     }
@@ -222,9 +220,9 @@ extern "C"
     /// 3D numeric contract: drift never accumulates.
     static inline m3Quat m3IntegrateRotation(m3Quat q, m3Vec3 deltaRotation)
     {
-        m3real ax = 0.5f * deltaRotation.x;
-        m3real ay = 0.5f * deltaRotation.y;
-        m3real az = 0.5f * deltaRotation.z;
+        float ax = 0.5f * deltaRotation.x;
+        float ay = 0.5f * deltaRotation.y;
+        float az = 0.5f * deltaRotation.z;
         m3Quat qd;
         qd.w = -(ax * q.x + ay * q.y + az * q.z);
         qd.x = ax * q.w + ay * q.z - az * q.y;
@@ -238,8 +236,8 @@ extern "C"
     /// split pi/2, then Taylor series) and atan2 (a pi/6 argument shift,
     /// then the Taylor series): hand rolled because platform libm
     /// implementations disagree in the last bits.
-    M3_API m3CosSin m3ComputeCosSin(m3real radians);
-    M3_API m3real m3Atan2(m3real y, m3real x);
+    M3_API m3CosSin m3ComputeCosSin(float radians);
+    M3_API float m3Atan2(float y, float x);
 
 #ifdef __cplusplus
 }

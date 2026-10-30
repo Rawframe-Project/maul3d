@@ -17,9 +17,9 @@
 void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents)
 {
     memset(out, 0, sizeof(*out));
-    m3real hx = halfExtents.x;
-    m3real hy = halfExtents.y;
-    m3real hz = halfExtents.z;
+    float hx = halfExtents.x;
+    float hy = halfExtents.y;
+    float hz = halfExtents.z;
 
     // Canonical vertex order (fixed forever: the snapshot and the SAT
     // feature ids will lean on it).
@@ -32,7 +32,7 @@ void m3BuildBoxHull(m3HullData* out, m3Vec3 halfExtents)
         {1.0f, 0.0f, 0.0f},  {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
         {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f},  {0.0f, 0.0f, -1.0f},
     };
-    const m3real offsets[6] = {hx, hx, hy, hy, hz, hz};
+    const float offsets[6] = {hx, hx, hy, hy, hz, hz};
     const uint8_t loops[6][4] = {
         {1, 2, 6, 5}, // +x
         {0, 4, 7, 3}, // -x
@@ -146,7 +146,7 @@ bool m3HullBuildHalfEdges(m3HullData* hull)
     {
         c = m3Add3(c, hull->vertices[v]);
     }
-    hull->center = m3MulSV3(1.0f / (m3real)hull->vertexCount, c);
+    hull->center = m3MulSV3(1.0f / (float)hull->vertexCount, c);
     return true;
 }
 
@@ -158,9 +158,9 @@ bool m3HullBuildHalfEdges(m3HullData* hull)
 bool m3HullMassProperties(m3HullData* hull)
 {
     m3Vec3 o = hull->vertices[0];
-    m3real det6 = 0.0f;
+    float det6 = 0.0f;
     m3Vec3 first = {0.0f, 0.0f, 0.0f};
-    m3real c[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; // xx yy zz xy xz yz
+    float c[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; // xx yy zz xy xz yz
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
         const uint8_t* loop = &hull->faceIndices[hull->faceVertStart[f]];
@@ -169,7 +169,7 @@ bool m3HullMassProperties(m3HullData* hull)
         {
             m3Vec3 bv = m3Sub3(hull->vertices[loop[k]], o);
             m3Vec3 cv = m3Sub3(hull->vertices[loop[k + 1]], o);
-            m3real det = m3Dot3(a, m3Cross3(bv, cv));
+            float det = m3Dot3(a, m3Cross3(bv, cv));
             m3Vec3 s = m3Add3(a, m3Add3(bv, cv));
             det6 += det;
             first = m3Add3(first, m3MulSV3(det, s));
@@ -190,14 +190,14 @@ bool m3HullMassProperties(m3HullData* hull)
     {
         return false;
     }
-    m3real mass = det6 / 6.0f;
+    float mass = det6 / 6.0f;
     m3Vec3 com = m3MulSV3(0.25f / det6, first);
     for (int32_t k = 0; k < 6; ++k)
     {
         c[k] /= 120.0f;
     }
     // The inertia is trace(C) E - C about o, then shifted to the centroid.
-    m3real cc = m3Dot3(com, com);
+    float cc = m3Dot3(com, com);
     m3Mat3 inertia;
     inertia.cx = (m3Vec3){c[1] + c[2] - mass * (cc - com.x * com.x), -c[3] + mass * com.x * com.y,
                           -c[4] + mass * com.x * com.z};
@@ -248,11 +248,11 @@ static bool IsItsOwnBox(const m3HullData* hull)
 
 // The distance a vertex may sit off a plane: a share of the hull's
 // extent plus the rounding of its largest coordinate.
-static m3real PlaneSlack(const m3HullData* hull)
+static float PlaneSlack(const m3HullData* hull)
 {
     m3Vec3 lo = hull->vertices[0];
     m3Vec3 hi = hull->vertices[0];
-    m3real far = 0.0f;
+    float far = 0.0f;
     for (int32_t v = 0; v < hull->vertexCount; ++v)
     {
         m3Vec3 p = hull->vertices[v];
@@ -260,7 +260,7 @@ static m3real PlaneSlack(const m3HullData* hull)
         hi = (m3Vec3){m3MaxF(hi.x, p.x), m3MaxF(hi.y, p.y), m3MaxF(hi.z, p.z)};
         far = m3MaxF(far, m3MaxF(m3AbsF(p.x), m3MaxF(m3AbsF(p.y), m3AbsF(p.z))));
     }
-    m3real extent = m3MaxF(hi.x - lo.x, m3MaxF(hi.y - lo.y, hi.z - lo.z));
+    float extent = m3MaxF(hi.x - lo.x, m3MaxF(hi.y - lo.y, hi.z - lo.z));
     return M3_HULL_PLANE_TOLERANCE * extent + M3_HULL_ROUNDING_TOLERANCE * FLT_EPSILON * far;
 }
 
@@ -268,12 +268,12 @@ static m3real PlaneSlack(const m3HullData* hull)
 // has every vertex of the hull on or below it, within the tolerances.
 static bool PlanesHold(const m3HullData* hull)
 {
-    m3real slack = PlaneSlack(hull);
+    float slack = PlaneSlack(hull);
     for (int32_t f = 0; f < hull->faceCount; ++f)
     {
         m3Vec3 n = hull->faceNormals[f];
-        m3real offset = hull->faceOffsets[f];
-        m3real length = m3Length3(n);
+        float offset = hull->faceOffsets[f];
+        float length = m3Length3(n);
         if (!(length >= 1.0f - M3_HULL_NORMAL_TOLERANCE &&
               length <= 1.0f + M3_HULL_NORMAL_TOLERANCE) ||
             !m3FiniteF(offset))

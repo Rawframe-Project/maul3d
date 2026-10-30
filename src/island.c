@@ -172,7 +172,7 @@ void m3IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0, cons
                        float dt)
 {
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
-    m3real invDt = dt > 0.0f ? 1.0f / dt : 0.0f;
+    float invDt = dt > 0.0f ? 1.0f / dt : 0.0f;
     for (int32_t i = 0; i < maxBody; ++i)
     {
         if (world->bodies.bodyPool.alive[i] == 0 ||
@@ -182,19 +182,19 @@ void m3IslandSleepPass(m3World* world, int32_t* parent, const m3Pos3* com0, cons
         }
         m3Vec3 v = world->bodies.linearVelocities[i];
         m3Vec3 w = world->bodies.angularVelocities[i];
-        m3real velocity = sqrtf(m3Dot3(v, v)) + sqrtf(m3Dot3(w, w)) * world->bodies.maxExtents[i];
+        float velocity = sqrtf(m3Dot3(v, v)) + sqrtf(m3Dot3(w, w)) * world->bodies.maxExtents[i];
         // Position correction counts too: bias pushes move bodies that
         // report zero velocity.
         m3Vec3 rlc = m3RotateVec3(world->bodies.transforms[i].q, world->bodies.localCenters[i]);
-        m3Vec3 dc = {(m3real)(world->bodies.transforms[i].p.x + (double)rlc.x - com0[i].x),
-                     (m3real)(world->bodies.transforms[i].p.y + (double)rlc.y - com0[i].y),
-                     (m3real)(world->bodies.transforms[i].p.z + (double)rlc.z - com0[i].z)};
+        m3Vec3 dc = {(float)(world->bodies.transforms[i].p.x + (double)rlc.x - com0[i].x),
+                     (float)(world->bodies.transforms[i].p.y + (double)rlc.y - com0[i].y),
+                     (float)(world->bodies.transforms[i].p.z + (double)rlc.z - com0[i].z)};
         m3Quat q0 = rot0[i];
         m3Quat dq = m3MulQuat(world->bodies.transforms[i].q, (m3Quat){-q0.x, -q0.y, -q0.z, q0.w});
-        m3real motion = sqrtf(m3Dot3(dc, dc)) + 2.0f *
-                                                    sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) *
-                                                    world->bodies.maxExtents[i];
-        m3real sleepVelocity = m3MaxF(velocity, 0.5f * invDt * motion);
+        float motion = sqrtf(m3Dot3(dc, dc)) + 2.0f *
+                                                   sqrtf(dq.x * dq.x + dq.y * dq.y + dq.z * dq.z) *
+                                                   world->bodies.maxExtents[i];
+        float sleepVelocity = m3MaxF(velocity, 0.5f * invDt * motion);
         if (world->bodies.bodyCanSleep[i] == 0)
         {
             sleepVelocity = 3.4e38f; // never below any threshold

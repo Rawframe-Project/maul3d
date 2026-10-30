@@ -17,7 +17,7 @@
 int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt);
 
 void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverCount,
-                           const m3Buoyancy* buoy, m3real h);
+                           const m3Buoyancy* buoy, float h);
 
 // Holds every dynamic mover's velocities within M3_SPEED_LIMIT; a
 // velocity already within it is left bit for bit.
@@ -26,6 +26,6 @@ void m3CapMoverSpeeds(m3World* world, const int32_t* movers, int32_t moverCount)
 // Advances the poses and the drift accumulators the solver measures
 // separations with.
 void m3IntegratePositions(m3World* world, const int32_t* movers, int32_t moverCount,
-                          m3Vec3* deltaPos, m3Quat* deltaRot, m3real h);
+                          m3Vec3* deltaPos, m3Quat* deltaRot, float h);
 
 #endif // MAUL3D_SRC_INTEGRATE_H

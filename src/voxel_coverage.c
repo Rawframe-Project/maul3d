@@ -29,7 +29,7 @@ void m3VoxelRebuildLinks(m3World* world)
         {
             continue; // the welding contract wants grid alignment
         }
-        double extentA = (double)((m3real)M3_VOXEL_DIM * world->voxels.voxelData[a].cellSize);
+        double extentA = (double)((float)M3_VOXEL_DIM * world->voxels.voxelData[a].cellSize);
         for (int32_t b = 0; b < maxSlot; ++b)
         {
             if (b == a || world->voxels.voxelPool.alive[b] == 0 ||

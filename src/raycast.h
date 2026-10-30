@@ -15,7 +15,7 @@ typedef struct m3CastResult
     m3ShapeId shapeId; // null when hit is false
     m3Pos3 point;
     m3Vec3 normal;
-    m3real fraction;
+    float fraction;
     bool hit;
 } m3CastResult;
 

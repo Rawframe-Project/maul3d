@@ -17,16 +17,16 @@
 //   impulseScale = 1 / (1 + a)   (the lambda term on the accumulated part)
 // and a solve adds -m massScale (J v + biasRate C) - impulseScale
 // accumulated. Zero hertz is a rigid row with no position feedback.
-m3Softness m3MakeSoft(m3real hertz, m3real zeta, m3real h)
+m3Softness m3MakeSoft(float hertz, float zeta, float h)
 {
     if (hertz == 0.0f)
     {
         return (m3Softness){0.0f, 0.0f, 0.0f};
     }
-    m3real omega = 2.0f * M3_PI * hertz;
-    m3real a1 = 2.0f * zeta + h * omega;
-    m3real a2 = h * omega * a1;
-    m3real a3 = 1.0f / (1.0f + a2);
+    float omega = 2.0f * M3_PI * hertz;
+    float a1 = 2.0f * zeta + h * omega;
+    float a2 = h * omega * a1;
+    float a3 = 1.0f / (1.0f + a2);
     return (m3Softness){omega / a1, a2 * a3, a3};
 }
 
@@ -61,7 +61,7 @@ double m3NormL1(m3Vec3 v)
 // within lever make in a body's velocity or spin: each component of an
 // inverse inertia times a vector is at most three times its largest
 // entry times the vector's largest component.
-static double WarmReach(m3real invMass, const m3Mat3* invI, double lever, double sum)
+static double WarmReach(float invMass, const m3Mat3* invI, double lever, double sum)
 {
     double big = 0.0;
     const m3Vec3* cols[3] = {&invI->cx, &invI->cy, &invI->cz};
@@ -73,8 +73,8 @@ static double WarmReach(m3real invMass, const m3Mat3* invI, double lever, double
     return ((double)invMass + 3.0 * big * (lever + 1.0)) * sum;
 }
 
-m3real m3WarmHold(m3real invMassA, const m3Mat3* invIA, m3real invMassB, const m3Mat3* invIB,
-                  double lever, double sum)
+float m3WarmHold(float invMassA, const m3Mat3* invIA, float invMassB, const m3Mat3* invIB,
+                 double lever, double sum)
 {
     double reach =
         MaxD(WarmReach(invMassA, invIA, lever, sum), WarmReach(invMassB, invIB, lever, sum));
@@ -90,7 +90,7 @@ m3real m3WarmHold(m3real invMassA, const m3Mat3* invIA, m3real invMassB, const m
     }
     // Rounded down to a float, so a held impulse lands within the limits
     // and one past them by a hair is held too.
-    m3real held = (m3real)scale;
+    float held = (float)scale;
     if ((double)held > scale)
     {
         uint32_t bits;
@@ -102,16 +102,16 @@ m3real m3WarmHold(m3real invMassA, const m3Mat3* invIA, m3real invMassB, const m
 }
 
 // Cramer's rule, with its determinant.
-static m3Vec3 Cramer(const m3Mat3* J, m3Vec3 b, m3real* detOut)
+static m3Vec3 Cramer(const m3Mat3* J, m3Vec3 b, float* detOut)
 {
     m3Vec3 cxy = m3Cross3(J->cy, J->cz);
-    m3real det = m3Dot3(J->cx, cxy);
+    float det = m3Dot3(J->cx, cxy);
     *detOut = det;
     if (det == 0.0f)
     {
         return (m3Vec3){0.0f, 0.0f, 0.0f};
     }
-    m3real inv = 1.0f / det;
+    float inv = 1.0f / det;
     m3Vec3 x;
     x.x = inv * m3Dot3(b, cxy);
     x.y = inv * m3Dot3(J->cx, m3Cross3(b, J->cz));
@@ -119,7 +119,7 @@ static m3Vec3 Cramer(const m3Mat3* J, m3Vec3 b, m3real* detOut)
     return x;
 }
 
-m3Vec3 m3Solve3AtScale(const m3Mat3* J, m3Vec3 b, m3real scale)
+m3Vec3 m3Solve3AtScale(const m3Mat3* J, m3Vec3 b, float scale)
 {
     m3Vec3 zero = {0.0f, 0.0f, 0.0f};
     if (!(scale > 0.0f) || !(scale <= FLT_MAX))
@@ -134,7 +134,7 @@ m3Vec3 m3Solve3AtScale(const m3Mat3* J, m3Vec3 b, m3real scale)
         units[c]->y /= scale;
         units[c]->z /= scale;
     }
-    m3real det;
+    float det;
     m3Vec3 x = Cramer(&unit, b, &det);
     x = (m3Vec3){x.x / scale, x.y / scale, x.z / scale};
     return m3FiniteV3(x) ? x : zero;
@@ -149,14 +149,14 @@ m3Vec3 m3Solve3AtScale(const m3Mat3* J, m3Vec3 b, m3real scale)
 // solve tells it from a singular J.
 m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b)
 {
-    m3real det;
+    float det;
     m3Vec3 x = Cramer(J, b, &det);
-    m3real size = m3AbsF(det);
+    float size = m3AbsF(det);
     if (size >= FLT_MIN && size <= FLT_MAX)
     {
         return x;
     }
-    m3real scale = 0.0f;
+    float scale = 0.0f;
     const m3Vec3* cols[3] = {&J->cx, &J->cy, &J->cz};
     for (int32_t c = 0; c < 3; ++c)
     {
@@ -168,12 +168,12 @@ m3Vec3 m3Solve3(const m3Mat3* J, m3Vec3 b)
 
 bool m3Solve3Direct(const m3Mat3* J, m3Vec3 b, m3Vec3* x)
 {
-    m3real det;
+    float det;
     *x = Cramer(J, b, &det);
     return m3DirectHolds(det, J->cx.x * J->cy.y * J->cz.z);
 }
 
-bool m3DirectHolds(m3real det, m3real diag)
+bool m3DirectHolds(float det, float diag)
 {
     return det >= FLT_MIN && det <= FLT_MAX && det >= 0x1p-12f * diag;
 }
@@ -253,29 +253,29 @@ m3Vec3 m3Solve3Wide(const double k[9], m3Vec3 b)
     {
         return zero;
     }
-    m3Vec3 x = {(m3real)(WideDot3(rhs, yz) / det), (m3real)(WideDot3(k, ry) / det),
-                (m3real)(WideDot3(k, xr) / det)};
+    m3Vec3 x = {(float)(WideDot3(rhs, yz) / det), (float)(WideDot3(k, ry) / det),
+                (float)(WideDot3(k, xr) / det)};
     return m3FiniteV3(x) ? x : zero;
 }
 
-bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3real out[3])
+bool m3InvertPairAtScale(float k11, float k22, float k12, float scale, float out[3])
 {
     if (!(scale > 0.0f) || !(scale <= FLT_MAX))
     {
         return false;
     }
-    m3real a = k11 / scale;
-    m3real b = k22 / scale;
-    m3real d = k12 / scale;
-    m3real det = a * b - d * d;
+    float a = k11 / scale;
+    float b = k22 / scale;
+    float d = k12 / scale;
+    float det = a * b - d * d;
     if (!(det > 0.0f))
     {
         return false;
     }
-    m3real inv = 1.0f / det;
-    m3real r11 = b * inv / scale;
-    m3real r22 = a * inv / scale;
-    m3real r12 = -d * inv / scale;
+    float inv = 1.0f / det;
+    float r11 = b * inv / scale;
+    float r22 = a * inv / scale;
+    float r12 = -d * inv / scale;
     if (!m3FiniteF(r11) || !m3FiniteF(r22) || !m3FiniteF(r12))
     {
         return false;
@@ -286,15 +286,15 @@ bool m3InvertPairAtScale(m3real k11, m3real k22, m3real k12, m3real scale, m3rea
     return true;
 }
 
-bool m3SolvePairWide(double k11, double k22, double k12, m3real x, m3real y, m3real out[2])
+bool m3SolvePairWide(double k11, double k22, double k12, float x, float y, float out[2])
 {
     double det = k11 * k22 - k12 * k12;
     if (!(det > 0.0))
     {
         return false;
     }
-    m3real s1 = (m3real)((k22 * (double)x - k12 * (double)y) / det);
-    m3real s2 = (m3real)((k11 * (double)y - k12 * (double)x) / det);
+    float s1 = (float)((k22 * (double)x - k12 * (double)y) / det);
+    float s2 = (float)((k11 * (double)y - k12 * (double)x) / det);
     if (!m3FiniteF(s1) || !m3FiniteF(s2))
     {
         return false;
@@ -315,21 +315,21 @@ static m3Vec3 HeldSum(m3Vec3 v, double dx, double dy, double dz)
     double cap = (double)M3_SPEED_LIMIT;
     if (x * x + y * y + z * z <= cap * cap)
     {
-        return (m3Vec3){(m3real)x, (m3real)y, (m3real)z};
+        return (m3Vec3){(float)x, (float)y, (float)z};
     }
     double ax = x < 0.0 ? -x : x;
     double ay = y < 0.0 ? -y : y;
     double az = z < 0.0 ? -z : z;
     double big = ax > ay ? ax : ay;
     big = big > az ? big : az;
-    m3Vec3 unit = {(m3real)(x / big), (m3real)(y / big), (m3real)(z / big)};
+    m3Vec3 unit = {(float)(x / big), (float)(y / big), (float)(z / big)};
     return m3CapSpeed(m3MulSV3(M3_SPEED_LIMIT, unit), M3_SPEED_LIMIT);
 }
 
-void m3PushHeld(m3World* world, int32_t index, m3real scale, m3Vec3 dir, m3Vec3 arm)
+void m3PushHeld(m3World* world, int32_t index, float scale, m3Vec3 dir, m3Vec3 arm)
 {
     m3Mat3 invI = m3WorldInvInertia(world, index);
-    m3real invMass = world->bodies.invMass[index];
+    float invMass = world->bodies.invMass[index];
     m3Vec3 impulse = m3MulSV3(scale, dir);
     m3Vec3 v = m3Add3(world->bodies.linearVelocities[index], m3MulSV3(invMass, impulse));
     m3Vec3 w =

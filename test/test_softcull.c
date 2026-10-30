@@ -50,7 +50,7 @@ static m3World* SceneWorld(bool cullOff)
 
 // One particle of radius r, at rest at p, with gravity off in the scene:
 // it stays where it is put until a shape projects it.
-static void AddProbe(m3World* world, Probe* probe, m3Pos3 p, m3real r)
+static void AddProbe(m3World* world, Probe* probe, m3Pos3 p, float r)
 {
     if (probe->count == MAX_PROBES)
     {
@@ -113,7 +113,7 @@ static void SphereScene(m3World* world, Probe* probe)
     m3Sphere sphere = {{0.3f, 0.0f, 0.2f}, 0.7f};
     NewSphereShape(world, StaticBody(world, p, q), &sd, &sphere);
     m3Pos3 c = WorldPoint(p, q, sphere.center);
-    m3real r = 0.05f;
+    float r = 0.05f;
     // Spread over the sphere so no two probes touch: each takes its own
     // direction and an ulp offset in turn.
     enum
@@ -137,7 +137,7 @@ static void CapsuleScene(m3World* world, Probe* probe)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Capsule capsule = {{-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, 0.3f};
     NewCapsuleShape(world, StaticBody(world, p, q), &sd, &capsule);
-    m3real r = 0.04f;
+    float r = 0.04f;
     // Around the segment at three stations, each probe at its own angle,
     // and past both ends.
     for (int32_t at = 0; at < 3; ++at)
@@ -178,7 +178,7 @@ static void VoxelScene(m3World* world, Probe* probe)
     }
     m3ShapeDef sd = m3DefaultShapeDef();
     NewVoxelChunkShape(world, StaticBody(world, p, q), &sd, voxels, NULL, 0.5f);
-    m3real r = 0.06f;
+    float r = 0.06f;
     // Off the block's +x, +y and +z faces on a grid of spots 0.15 apart,
     // each spot its own ulp offset; and one inside a filled cell near the
     // surface, where the escape kernel acts.
@@ -203,7 +203,7 @@ static void MeshScene(m3World* world, Probe* probe)
     static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
     m3ShapeDef sd = m3DefaultShapeDef();
     NewMeshShape(world, StaticBody(world, p, q), &sd, quad, 4, tris, 2);
-    m3real r = 0.05f;
+    float r = 0.05f;
     // Above and below the faces on a grid 0.15 apart, over the diagonal
     // between the triangles, past an edge and past a corner.
     for (int32_t i = 0; i < 13; ++i)
@@ -308,7 +308,7 @@ static void HeightFieldScene(m3World* world, Probe* probe)
                                       0.5f, 0.5f, 0.9f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
     m3ShapeDef sd = m3DefaultShapeDef();
     NewHeightFieldShape(world, StaticBody(world, p, q), &sd, heights, 4, 4, 1.0f);
-    m3real r = 0.05f;
+    float r = 0.05f;
     // Over the flat first row on a line 0.15 apart, over the raised
     // sample's slopes, and off the far edge.
     for (int32_t i = 0; i < 13; ++i)
@@ -346,7 +346,7 @@ static void CapsuleTipScene(m3World* world, Probe* probe)
     // magnitude as a capsule placed in a body usually does.
     m3Capsule capsule = {{2.5f, -1.5f, 1.0f}, {3.5f, -1.5f, 1.0f}, 0.3f};
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3real r = 0.04f;
+    float r = 0.04f;
     for (int32_t i = 0; i < TIGHT_PROBES; ++i)
     {
         m3Pos3 p = {-20.0 + 6.0 * i, 6.0, -9.0};
@@ -367,7 +367,7 @@ static void VoxelCornerScene(m3World* world, Probe* probe)
     voxels[0] = 1;
     voxels[M3_VOXEL_COUNT - 1] = 1;
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3real r = 0.06f;
+    float r = 0.06f;
     for (int32_t i = 0; i < TIGHT_PROBES; ++i)
     {
         m3Pos3 p = {-100.0 + 16.0 * i, -30.0, 20.0};
@@ -389,7 +389,7 @@ static void HeightFieldCornerScene(m3World* world, Probe* probe)
     static const float heights[16] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                       0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 3.0f};
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3real r = 0.05f;
+    float r = 0.05f;
     for (int32_t i = 0; i < TIGHT_PROBES; ++i)
     {
         m3Pos3 p = {30.0 + 6.0 * i, -12.0, -40.0};
@@ -403,7 +403,7 @@ static void HeightFieldCornerScene(m3World* world, Probe* probe)
 }
 
 // A box's projection threshold: its convex radius s plus the particle's.
-static double BoxThreshold(const m3World* world, m3ShapeId box, m3real r)
+static double BoxThreshold(const m3World* world, m3ShapeId box, float r)
 {
     return (double)world->shapes.shapeGeom[box.index1 - 1].s + (double)r;
 }
@@ -411,7 +411,7 @@ static double BoxThreshold(const m3World* world, m3ShapeId box, m3real r)
 // Probes off a box's faces at s + r and a few ulps either side, at the
 // face's middle and toward its edges and corners, each spot its own.
 static void BoxProbes(m3World* world, Probe* probe, m3Pos3 p, m3Quat q, m3ShapeId box, m3Vec3 half,
-                      m3real r)
+                      float r)
 {
     double t = BoxThreshold(world, box, r);
     for (int32_t i = 0; i < 13; ++i)
@@ -460,7 +460,7 @@ static void SpikeScene(m3World* world, Probe* probe)
         {0.0f, 0.0f, 0.0f}, {0.4f, 0.0f, 0.0f}, {0.0f, 0.4f, 0.0f}, {0.05f, 0.05f, 3.0f}};
     m3ShapeDef sd = m3DefaultShapeDef();
     NewHullShape(world, StaticBody(world, p, q), &sd, spike, 4);
-    m3real r = 0.05f;
+    float r = 0.05f;
     for (int32_t i = 0; i < 24; ++i)
     {
         float reach = 0.02f + 0.03f * (float)i;

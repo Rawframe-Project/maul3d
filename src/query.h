@@ -12,7 +12,7 @@
 bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def);
 
 m3CastResult m3CastConvexClosestEx(const m3World* world, m3Pos3 base, const m3Vec3* points,
-                                   int32_t pointCount, m3real radius, m3Vec3 translation,
+                                   int32_t pointCount, float radius, m3Vec3 translation,
                                    int32_t ignoreBody);
 
 // A bounded selection of the lowest shape ids, kept as a max-heap while

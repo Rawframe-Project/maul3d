@@ -587,7 +587,7 @@ static void TestRopeRangeOnRestore(void)
 // with a spin of 1e30 hung the step.
 static void TestGearDriftWrapsAnyAngle(void)
 {
-    const m3real seam = 2.0f * M3_PI;
+    const float seam = 2.0f * M3_PI;
     CHECK(m3WrapPi(0.5f) == 0.5f && m3WrapPi(M3_PI) == M3_PI, "an angle in range keeps its bits");
     CHECK(m3WrapPi(M3_PI + 0.5f) == (M3_PI + 0.5f) - seam &&
               m3WrapPi(-M3_PI - 0.5f) == (-M3_PI - 0.5f) + seam,
@@ -595,11 +595,11 @@ static void TestGearDriftWrapsAnyAngle(void)
     CHECK(fabsf(m3WrapPi(7.0f * M3_PI + 0.25f) - (-M3_PI + 0.25f)) < 1.0e-5f &&
               fabsf(m3WrapPi(-100.0f) - (-100.0f + 32.0f * M3_PI)) < 1.0e-4f,
           "several turns come off at once");
-    const m3real huge[4] = {1.0e8f, -1.0e8f, 1.0e30f, -3.0e38f};
+    const float huge[4] = {1.0e8f, -1.0e8f, 1.0e30f, -3.0e38f};
     bool inRange = true;
     for (int32_t i = 0; i < 4; ++i)
     {
-        m3real a = m3WrapPi(huge[i]);
+        float a = m3WrapPi(huge[i]);
         inRange = inRange && a >= -M3_PI && a <= M3_PI;
     }
     CHECK(inRange, "an angle too large to carry a phase still wraps into range");
