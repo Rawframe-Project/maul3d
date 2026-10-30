@@ -330,15 +330,15 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
             h = m3Hash64(h, &world->softBodies.softTetCount[i], 4);
             int32_t tbase = i * M3_MAX_SOFTBODY_TETS;
             h = m3Hash64(h, &world->softBodies.softTetA[tbase],
-                         2 * world->softBodies.softTetCount[i]);
+                         2 * (int64_t)world->softBodies.softTetCount[i]);
             h = m3Hash64(h, &world->softBodies.softTetB[tbase],
-                         2 * world->softBodies.softTetCount[i]);
+                         2 * (int64_t)world->softBodies.softTetCount[i]);
             h = m3Hash64(h, &world->softBodies.softTetC[tbase],
-                         2 * world->softBodies.softTetCount[i]);
+                         2 * (int64_t)world->softBodies.softTetCount[i]);
             h = m3Hash64(h, &world->softBodies.softTetD[tbase],
-                         2 * world->softBodies.softTetCount[i]);
+                         2 * (int64_t)world->softBodies.softTetCount[i]);
             h = m3Hash64(h, &world->softBodies.softTetRestV6[tbase],
-                         4 * world->softBodies.softTetCount[i]);
+                         4 * (int64_t)world->softBodies.softTetCount[i]);
         }
         h = m3Hash64(h, &world->softBodies.softRadius[i], 4);
         h = m3Hash64(h, &world->softBodies.softGravityScale[i], 4);
