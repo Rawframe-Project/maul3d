@@ -92,8 +92,57 @@ static void WarmStartGeneric(const m3JointConstraint* c, const m3JointPose* pose
     }
 }
 
-static void SolveLinearAxes(m3JointConstraint* c, const m3JointPose* pose, const m3JointFrames* f,
+// The locked axes, whatever subset of the six, solved as one block: a
+// slide row per locked linear axis and a turn row per locked angular one.
+// Solved one after another, rows that share a body far from its center
+// undo each other's work. One locked axis is a single row.
+static void SolveLockedAxes(m3JointConstraint* c, const m3JointPose* pose, const m3JointFrames* f,
                             m3JointBodies* b, const m3JointPass* pass)
+{
+    m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
+    bool turns = false;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        turns = turns || AngularMode(c, k) == MODE_LOCKED;
+    }
+    m3Vec3 error = turns ? m3RotationError(f, s_identity) : (m3Vec3){0.0f, 0.0f, 0.0f};
+    m3JointRow rows[M3_BLOCK_ROWS];
+    m3real bias[M3_BLOCK_ROWS];
+    m3real* accumulated[M3_BLOCK_ROWS];
+    int32_t count = 0;
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        if (LinearMode(c, k) == MODE_LOCKED)
+        {
+            m3Vec3 axis = m3FrameAxis(f->a, k);
+            rows[count] = m3SlideRow(pose, axis);
+            bias[count] = unit.bias * m3Dot3(axis, pose->gap);
+            accumulated[count++] = m3Component(&c->impulse, k);
+        }
+    }
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        if (AngularMode(c, k) == MODE_LOCKED)
+        {
+            m3Vec3 axis = m3FrameAxis(f->a, k);
+            rows[count] = m3TurnRow(axis);
+            bias[count] = unit.bias * m3Dot3(axis, error);
+            accumulated[count++] = m3Component(&c->angularImpulse, k);
+        }
+    }
+    if (count == 1)
+    {
+        m3RowDrive one = {bias[0], unit.scale, unit.leak};
+        m3SolveRow(&rows[0], b, one, accumulated[0], -M3_ROW_FREE, M3_ROW_FREE);
+    }
+    else if (count > 1)
+    {
+        m3SolveRowBlock(rows, count, b, bias, unit, accumulated);
+    }
+}
+
+static void SolveLinearLimits(m3JointConstraint* c, const m3JointPose* pose, const m3JointFrames* f,
+                              m3JointBodies* b, const m3JointPass* pass)
 {
     for (int32_t k = 0; k < 3; ++k)
     {
@@ -101,12 +150,7 @@ static void SolveLinearAxes(m3JointConstraint* c, const m3JointPose* pose, const
         m3Vec3 axis = m3FrameAxis(f->a, k);
         m3JointRow row = m3SlideRow(pose, axis);
         m3real coord = m3Dot3(axis, pose->gap);
-        if (mode == MODE_LOCKED)
-        {
-            m3SolveRow(&row, b, m3HeldDrive(c->softness, coord, pass->biased),
-                       m3Component(&c->impulse, k), -M3_ROW_FREE, M3_ROW_FREE);
-        }
-        else if (mode == MODE_LIMITED)
+        if (mode == MODE_LIMITED)
         {
             m3SolveLimits(&row, coord, *m3Component(&c->genLinLower, k),
                           *m3Component(&c->genLinUpper, k), c->softness,
@@ -118,10 +162,9 @@ static void SolveLinearAxes(m3JointConstraint* c, const m3JointPose* pose, const
 // A limited angular axis measures its angle as 2 atan2 of its part of
 // the relative rotation; the joint contract keeps that well posed (the
 // other two axes both locked or both free).
-static void SolveAngularAxes(m3JointConstraint* c, const m3JointFrames* f, m3JointBodies* b,
-                             const m3JointPass* pass)
+static void SolveAngularLimits(m3JointConstraint* c, const m3JointFrames* f, m3JointBodies* b,
+                               const m3JointPass* pass)
 {
-    m3Vec3 error = m3RotationError(f, s_identity);
     m3Quat rel = f->rel;
     m3Vec3 part = {rel.x, rel.y, rel.z};
     for (int32_t k = 0; k < 3; ++k)
@@ -129,12 +172,7 @@ static void SolveAngularAxes(m3JointConstraint* c, const m3JointFrames* f, m3Joi
         uint32_t mode = AngularMode(c, k);
         m3Vec3 axis = m3FrameAxis(f->a, k);
         m3JointRow row = m3TurnRow(axis);
-        if (mode == MODE_LOCKED)
-        {
-            m3SolveRow(&row, b, m3HeldDrive(c->softness, m3Dot3(axis, error), pass->biased),
-                       m3Component(&c->angularImpulse, k), -M3_ROW_FREE, M3_ROW_FREE);
-        }
-        else if (mode == MODE_LIMITED)
+        if (mode == MODE_LIMITED)
         {
             m3real angle = 2.0f * m3Atan2(*m3Component(&part, k), rel.w);
             m3SolveLimits(&row, angle, *m3Component(&c->genAngLower, k),
@@ -148,8 +186,9 @@ static void SolveGeneric(m3JointConstraint* c, const m3JointPose* pose, m3JointB
                          const m3JointPass* pass)
 {
     m3JointFrames f = m3PoseFrames(c, pose);
-    SolveLinearAxes(c, pose, &f, b, pass);
-    SolveAngularAxes(c, &f, b, pass);
+    SolveLockedAxes(c, pose, &f, b, pass);
+    SolveLinearLimits(c, pose, &f, b, pass);
+    SolveAngularLimits(c, &f, b, pass);
     m3JointRow motor;
     if (MotorRow(c, pose, &f, &motor))
     {
