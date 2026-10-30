@@ -459,7 +459,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                              xf->p.z + (double)anchorR.z};
             m3Vec3 dir = m3RotateVec3(xf->q, world->vehicles.vehWheelDir[k]);
             m3real reach = world->vehicles.vehWheelRest[k] + world->vehicles.vehWheelRadius[k];
-            m3RayCastResult hit = m3RayClosestExcept(world, anchor, m3MulSV3(reach, dir), chassis);
+            m3CastResult hit = m3RayClosestExcept(world, anchor, m3MulSV3(reach, dir), chassis);
             if (!hit.hit)
             {
                 world->vehicles.vehWheelCompression[k] = 0.0f;

@@ -1610,8 +1610,9 @@ int main(void)
         m3Pos3 rayOrigin = {pick.position.x, pick.position.y, pick.position.z};
         m3Vec3 rayDir = {pick.direction.x * 120.0f, pick.direction.y * 120.0f,
                          pick.direction.z * 120.0f};
-        m3RayCastResult look =
-            m3World_CastRayClosest(scene.world, rayOrigin, rayDir, m3DefaultQueryFilter());
+        m3CastHit look = {0};
+        bool lookHit =
+            m3World_CastRayClosest(scene.world, rayOrigin, rayDir, m3DefaultQueryFilter(), &look);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !mouseInPanel)
         {
@@ -1644,7 +1645,7 @@ int main(void)
                 }
             }
         }
-        else if (IsKeyPressed(KEY_E) && look.hit && m3Shape_IsValid(scene.world, scene.chunk) &&
+        else if (IsKeyPressed(KEY_E) && lookHit && m3Shape_IsValid(scene.world, scene.chunk) &&
                  look.shapeId.index1 == scene.chunk.index1)
         {
             int32_t cx = (int32_t)floor(look.point.x + 8.0);
@@ -1659,7 +1660,7 @@ int main(void)
                 SpawnFragments(scene.world);
             }
         }
-        if (IsKeyPressed(KEY_X) && look.hit && !mouseInPanel)
+        if (IsKeyPressed(KEY_X) && lookHit && !mouseInPanel)
         {
             // One call does the demolition: shove every
             // convex body by facing area, carve any chunk in range,
@@ -1676,7 +1677,7 @@ int main(void)
             SpawnFragments(scene.world);
             s_blastArmed = false;
         }
-        if (IsKeyPressed(KEY_B) && look.hit && !mouseInPanel)
+        if (IsKeyPressed(KEY_B) && lookHit && !mouseInPanel)
         {
             m3BodyDef bd = m3DefaultBodyDef();
             bd.type = m3_dynamicBody;
@@ -2011,7 +2012,7 @@ int main(void)
                 DrawSphere(hub, 0.3f, on ? (Color){90, 96, 104, 255} : (Color){150, 150, 160, 255});
             }
         }
-        if (look.hit && !mouseInPanel)
+        if (lookHit && !mouseInPanel)
         {
             DrawSphere(FromPos(look.point), 0.09f, (Color){255, 240, 120, 255});
         }

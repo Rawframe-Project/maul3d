@@ -145,17 +145,20 @@ static void TestQueryFilters(void)
 
     m3Pos3 origin = {0.0, 1.0, -3.0};
     m3Vec3 dir = {0.0f, 0.0f, 8.0f};
-    m3RayCastResult any = m3World_CastRayClosest(world, origin, dir, m3DefaultQueryFilter());
-    CHECK(any.hit && any.point.z < 1.0, "the unfiltered ray stops at the player");
+    m3CastHit any = {0};
+    bool anyHit = m3World_CastRayClosest(world, origin, dir, m3DefaultQueryFilter(), &any);
+    CHECK(anyHit && any.point.z < 1.0, "the unfiltered ray stops at the player");
     m3QueryFilter debrisOnly = m3DefaultQueryFilter();
     debrisOnly.maskBits = CAT_DEBRIS;
-    m3RayCastResult through = m3World_CastRayClosest(world, origin, dir, debrisOnly);
-    CHECK(through.hit && through.point.z > 2.0, "the filtered ray skips the player");
+    m3CastHit through = {0};
+    bool throughHit = m3World_CastRayClosest(world, origin, dir, debrisOnly, &through);
+    CHECK(throughHit && through.point.z > 2.0, "the filtered ray skips the player");
 
-    m3RayCastResult cast = m3World_CastSphereClosest(world, origin, 0.2f, dir, debrisOnly);
-    CHECK(cast.hit && cast.point.z > 2.0, "the filtered sphere cast agrees");
+    m3CastHit cast = {0};
+    bool castHit = m3World_CastSphereClosest(world, origin, 0.2f, dir, debrisOnly, &cast);
+    CHECK(castHit && cast.point.z > 2.0, "the filtered sphere cast agrees");
 
-    m3RayHit hits[8];
+    m3CastHit hits[8];
     int32_t n = m3World_CastRayAll(world, origin, dir, hits, 8, debrisOnly);
     for (int32_t k = 0; k < n; ++k)
     {

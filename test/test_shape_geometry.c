@@ -371,8 +371,9 @@ static bool StaysFinite(m3World* world, m3ShapeId shape, m3Pos3 origin, m3Vec3 r
     {
         finite = finite && c[k] - c[k] == 0.0;
     }
-    m3RayCastResult hit = m3World_CastRayClosest(world, origin, ray, m3DefaultQueryFilter());
-    finite = finite && hit.hit && hit.point.x - hit.point.x == 0.0 &&
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, origin, ray, m3DefaultQueryFilter(), &hit);
+    finite = finite && found && hit.point.x - hit.point.x == 0.0 &&
              hit.point.y - hit.point.y == 0.0 && hit.point.z - hit.point.z == 0.0 &&
              isfinite(hit.fraction) && fabsf(m3Dot3(hit.normal, hit.normal) - 1.0f) <= 1.0e-3f;
     int32_t size = m3World_GetSnapshotSize(world);

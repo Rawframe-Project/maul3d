@@ -21,28 +21,31 @@
 // or hashes. Hosts compose them into their own movers; the engine
 // keeps its kinematic controller as the built-in path.
 
-static M3_NOINLINE m3RayCastResult WorldCastMoverWorker(const m3World* world, m3Pos3 center,
-                                                        m3real halfHeight, m3real radius,
-                                                        m3Vec3 translation)
+static M3_NOINLINE bool WorldCastMoverWorker(const m3World* world, m3Pos3 center, m3real halfHeight,
+                                             m3real radius, m3Vec3 translation, m3CastHit* hitOut)
 {
-    m3RayCastResult miss;
-    memset(&miss, 0, sizeof(miss));
-    miss.fraction = 1.0f;
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
     if (world == NULL || !m3FinitePos3(center) || !m3FiniteF(halfHeight) || halfHeight < 0.0f ||
         !m3FiniteF(radius) || !(radius > 0.0f) || !m3FiniteV3(translation))
     {
         m3Refuse(world, m3_errorInvalid);
-        return miss;
+        return false;
     }
     m3Vec3 points[2] = {{0.0f, halfHeight, 0.0f}, {0.0f, -halfHeight, 0.0f}};
-    return m3CastConvexClosestEx(world, center, points, 2, radius, translation, -1);
+    return m3TakeCastHit(m3CastConvexClosestEx(world, center, points, 2, radius, translation, -1),
+                         hitOut);
 }
 
-m3RayCastResult m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
-                                  m3real radius, m3Vec3 translation)
+bool m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight, m3real radius,
+                       m3Vec3 translation, m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result = WorldCastMoverWorker(world, center, halfHeight, radius, translation);
+    bool result = WorldCastMoverWorker(world, center, halfHeight, radius, translation, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }

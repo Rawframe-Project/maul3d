@@ -240,9 +240,10 @@ static void WriteOwnedSeed(const char* dir, uint8_t* tape)
         Fail("the owned seed's build");
     }
     m3ShapeId sphere;
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){-2.0, 4.0, -2.0}, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
-    if (m3Body_GetShapes(world, scene.ball, &sphere, 1) != 1 || !hit.hit ||
+    m3CastHit hit = {0};
+    bool landed = m3World_CastRayClosest(world, (m3Pos3){-2.0, 4.0, -2.0},
+                                         (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    if (m3Body_GetShapes(world, scene.ball, &sphere, 1) != 1 || !landed ||
         m3World_StartJournal(world, calls, TAPE_BYTES - buildBytes) != m3_success)
     {
         Fail("the owned seed's targets");

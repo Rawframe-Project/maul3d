@@ -121,37 +121,117 @@ static void TestRayHitsEveryFamily(void)
           "the query mesh builds");
 
     // Sphere: from the origin along +x, entry at x = 9, fraction 0.45.
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit, "the sphere ray hits");
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                        m3DefaultQueryFilter(), &hit);
+    CHECK(found, "the sphere ray hits");
     CHECK(hit.fraction > 0.449f && hit.fraction < 0.451f, "sphere entry fraction");
     CHECK(hit.normal.x < -0.99f, "sphere entry normal faces the ray");
     CHECK(hit.point.x > 8.99 && hit.point.x < 9.01, "sphere entry point");
 
     // Box: entry at x = 9, fraction (9 - 0) / 20.
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 10.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction > 0.449f && hit.fraction < 0.451f, "box entry fraction");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 10.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction > 0.449f && hit.fraction < 0.451f, "box entry fraction");
     CHECK(hit.normal.x < -0.99f, "box entry normal");
 
     // Capsule side: entry at x = 9.5.
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 20.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction > 0.474f && hit.fraction < 0.476f, "capsule side fraction");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 20.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction > 0.474f && hit.fraction < 0.476f, "capsule side fraction");
 
     // Mesh: straight down onto the quad at (10, 30, 0).
-    hit = m3World_CastRayClosest(world, (m3Pos3){10.0, 35.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction > 0.499f && hit.fraction < 0.501f, "mesh hit fraction");
+    found = m3World_CastRayClosest(world, (m3Pos3){10.0, 35.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction > 0.499f && hit.fraction < 0.501f, "mesh hit fraction");
     CHECK(hit.normal.y > 0.99f, "mesh hit normal is up");
 
     // A miss stays a miss.
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 50.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "empty space misses");
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){0.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a zero ray misses by contract");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 50.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "empty space misses");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){0.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a zero ray misses by contract");
+    m3DestroyWorld(world);
+}
+
+// The closest casts' contract: each clears hitOut first. A hit fills it and
+// returns true; a miss returns false and leaves zeros; a NaN translation
+// does too and counts one misuse; a null hitOut misses and counts one.
+// Each cast aims at a box below it, away from it, with no hitOut, and
+// along a NaN.
+static void TestCastHitContract(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId box = NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){2.0f, 0.5f, 2.0f});
+    m3Pos3 above = {0.0, 3.0, 0.0};
+    m3Vec3 down = {0.0f, -5.0f, 0.0f};
+    m3Vec3 up = {0.0f, 5.0f, 0.0f};
+    m3Vec3 cube = {0.2f, 0.2f, 0.2f};
+    m3Quat still = m3MakeIdentityQuat();
+    static const m3Vec3 cloud[2] = {{-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}};
+    m3QueryFilter all = m3DefaultQueryFilter();
+    for (int32_t cast = 0; cast < 6; ++cast)
+    {
+        for (int32_t aim = 0; aim < 4; ++aim)
+        {
+            m3Vec3 t = aim == 1 ? up : (aim == 3 ? (m3Vec3){0.0f, NAN, 0.0f} : down);
+            // A stale hit the cast must not leave behind.
+            m3CastHit hit = {{77u, 5u}, {1.0, 2.0, 3.0}, {4.0f, 5.0f, 6.0f}, 0.25f};
+            const m3CastHit zero = {0};
+            m3CastHit* out = aim == 2 ? NULL : &hit;
+            uint64_t misuse = m3World_GetCounters(world).misuse;
+            bool found = false;
+            switch (cast)
+            {
+            case 0:
+                found = m3World_CastRayClosest(world, above, t, all, out);
+                break;
+            case 1:
+                found = m3World_CastSphereClosest(world, above, 0.2f, t, all, out);
+                break;
+            case 2:
+                found =
+                    m3World_CastCapsuleClosest(world, above, cloud[0], cloud[1], 0.1f, t, all, out);
+                break;
+            case 3:
+                found = m3World_CastBoxClosest(world, above, cube, still, t, all, out);
+                break;
+            case 4:
+                found = m3World_CastHullClosest(world, above, cloud, 2, t, all, out);
+                break;
+            default:
+                found = m3World_CastMover(world, above, 0.3f, 0.2f, t, out);
+                break;
+            }
+            uint64_t counted = m3World_GetCounters(world).misuse - misuse;
+            bool ok = false;
+            if (aim == 0)
+            {
+                ok = found && hit.shapeId.index1 == box.index1 && hit.fraction > 0.0f &&
+                     hit.fraction < 1.0f && counted == 0u;
+            }
+            else if (aim == 1 || aim == 3)
+            {
+                ok = !found && memcmp(&hit, &zero, sizeof(hit)) == 0 &&
+                     counted == (aim == 3 ? 1u : 0u);
+            }
+            else
+            {
+                ok = !found && counted == 1u;
+            }
+            if (!ok)
+            {
+                printf("  cast %d, aim %d: found %d, misuse %d\n", (int)cast, (int)aim, found,
+                       (int)counted);
+            }
+            CHECK(ok, "a hit fills hitOut, a miss or a refusal zeroes it, a null one counts");
+        }
+    }
     m3DestroyWorld(world);
 }
 
@@ -175,12 +255,13 @@ static void TestRayClosestOfMany(void)
     m3BodyId farBody = NewBody(world, &bd);
     m3ShapeId farShape = NewSphereShape(world, farBody, &sd, &s1);
 
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == nearShape.index1, "the nearer sphere wins");
-    hit = m3World_CastRayClosest(world, (m3Pos3){20.0, 0.0, 0.0}, (m3Vec3){-20.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == farShape.index1,
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                        m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == nearShape.index1, "the nearer sphere wins");
+    found = m3World_CastRayClosest(world, (m3Pos3){20.0, 0.0, 0.0}, (m3Vec3){-20.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == farShape.index1,
           "from the other side the other sphere wins");
 
     // The infinite plane through the dedicated pass.
@@ -188,9 +269,9 @@ static void TestRayClosestOfMany(void)
     m3BodyId ground = NewBody(world, &gd);
     m3Plane floor = {{0.0f, 1.0f, 0.0f}, -2.0f};
     NewPlaneShape(world, ground, &sd, &floor);
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 3.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction > 0.499f && hit.fraction < 0.501f, "the plane pass hits");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 3.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction > 0.499f && hit.fraction < 0.501f, "the plane pass hits");
     m3DestroyWorld(world);
 }
 
@@ -212,29 +293,31 @@ static void TestShapeCasts(void)
     // Cast a 0.5-radius sphere from the origin: the box face sits at
     // x = 9.5, the sphere surface leads by 0.5, so centers touch at
     // x = 9.0: fraction 9/20 = 0.45 (minus the slop skin).
-    m3RayCastResult hit = m3World_CastSphereClosest(
-        world, (m3Pos3){0.0, 0.0, 0.0}, 0.5f, (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit, "the sphere cast hits");
+    m3CastHit hit = {0};
+    bool found =
+        m3World_CastSphereClosest(world, (m3Pos3){0.0, 0.0, 0.0}, 0.5f, (m3Vec3){20.0f, 0.0f, 0.0f},
+                                  m3DefaultQueryFilter(), &hit);
+    CHECK(found, "the sphere cast hits");
     CHECK(hit.fraction > 0.44f && hit.fraction < 0.4505f, "the cast fraction counts both skins");
     CHECK(hit.normal.x < -0.99f, "the cast normal faces the caster");
 
     // A capsule cast: the lower cap leads; the analytic touch uses
     // the cap's forward surface exactly like the sphere.
-    hit = m3World_CastCapsuleClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){0.0f, -0.5f, 0.0f},
-                                     (m3Vec3){0.0f, 0.5f, 0.0f}, 0.3f, (m3Vec3){20.0f, 0.0f, 0.0f},
-                                     m3DefaultQueryFilter());
-    CHECK(hit.hit, "the capsule cast hits");
+    found = m3World_CastCapsuleClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){0.0f, -0.5f, 0.0f},
+                                       (m3Vec3){0.0f, 0.5f, 0.0f}, 0.3f,
+                                       (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found, "the capsule cast hits");
     CHECK(hit.fraction > 0.45f && hit.fraction < 0.4605f, "the capsule fraction is analytic");
 
     // Start overlapped: the documented contract is a hit at zero.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){9.6, 0.0, 0.0}, 0.5f,
-                                    (m3Vec3){5.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction == 0.0f, "a start-overlapped cast hits at zero");
+    found = m3World_CastSphereClosest(world, (m3Pos3){9.6, 0.0, 0.0}, 0.5f,
+                                      (m3Vec3){5.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction == 0.0f, "a start-overlapped cast hits at zero");
 
     // A cast that misses stays a miss.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){0.0, 10.0, 0.0}, 0.5f,
-                                    (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a clear cast misses");
+    found = m3World_CastSphereClosest(world, (m3Pos3){0.0, 10.0, 0.0}, 0.5f,
+                                      (m3Vec3){20.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a clear cast misses");
     m3DestroyWorld(world);
 }
 
@@ -254,24 +337,25 @@ static void TestRayStartInsideContract(void)
     m3BodyId a = NewBody(world, &bd);
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 1.0f};
     NewSphereShape(world, a, &sd, &ball);
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a ray starting inside a sphere misses it");
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){0.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
+                                        m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a ray starting inside a sphere misses it");
 
     bd.position = (m3Pos3){10.0, 0.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
     NewBoxShape(world, b, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
-    hit = m3World_CastRayClosest(world, (m3Pos3){10.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a ray starting inside a hull misses it");
+    found = m3World_CastRayClosest(world, (m3Pos3){10.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a ray starting inside a hull misses it");
 
     bd.position = (m3Pos3){20.0, 0.0, 0.0};
     m3BodyId c = NewBody(world, &bd);
     m3Capsule capsule = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.5f};
     NewCapsuleShape(world, c, &sd, &capsule);
-    hit = m3World_CastRayClosest(world, (m3Pos3){20.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a ray starting inside a capsule misses it");
+    found = m3World_CastRayClosest(world, (m3Pos3){20.0, 0.0, 0.0}, (m3Vec3){5.0f, 0.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a ray starting inside a capsule misses it");
     m3DestroyWorld(world);
 }
 
@@ -300,7 +384,7 @@ static void TestMultiHitSorted(void)
     NewSphereShape(world, midBody, &sd, &s1);
 
     // A ray sloping down through both spheres into the floor.
-    m3RayHit hits[8];
+    m3CastHit hits[8];
     int32_t n = m3World_CastRayAll(world, (m3Pos3){0.0, 6.0, 0.0}, (m3Vec3){16.0f, -8.0f, 0.0f},
                                    hits, 8, m3DefaultQueryFilter());
     CHECK(n == 3, "three hits along the ray");
@@ -309,7 +393,7 @@ static void TestMultiHitSorted(void)
     CHECK(hits[2].normal.y > 0.99f, "the last hit is the floor");
 
     // Capacity two: the FAR hit drops.
-    m3RayHit two[2];
+    m3CastHit two[2];
     int32_t n2 = m3World_CastRayAll(world, (m3Pos3){0.0, 6.0, 0.0}, (m3Vec3){16.0f, -8.0f, 0.0f},
                                     two, 2, m3DefaultQueryFilter());
     CHECK(n2 == 2, "capacity caps the count");
@@ -507,32 +591,34 @@ static void TestCastsAgainstMeshAndPlane(void)
 
     // A sphere cast straight down onto the mesh quad at y = 1:
     // center stops at 1.3, so fraction = (3 - 1.3) / 3.
-    m3RayCastResult hit = m3World_CastSphereClosest(
-        world, (m3Pos3){4.0, 4.0, 0.0}, 0.3f, (m3Vec3){0.0f, -3.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == meshShape.index1, "the sphere cast hits the mesh");
+    m3CastHit hit = {0};
+    bool found =
+        m3World_CastSphereClosest(world, (m3Pos3){4.0, 4.0, 0.0}, 0.3f, (m3Vec3){0.0f, -3.0f, 0.0f},
+                                  m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == meshShape.index1, "the sphere cast hits the mesh");
     CHECK(hit.fraction > 0.895f && hit.fraction < 0.905f, "the mesh cast fraction is analytic");
 
     // The same cast far from the quad falls through to the plane at
     // y = 0: fraction = (4 - 0.3) / 8.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){-6.0, 4.0, 0.0}, 0.3f,
-                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == floorShape.index1, "the sphere cast hits the plane");
+    found = m3World_CastSphereClosest(world, (m3Pos3){-6.0, 4.0, 0.0}, 0.3f,
+                                      (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == floorShape.index1, "the sphere cast hits the plane");
     CHECK(hit.fraction > 0.455f && hit.fraction < 0.4635f, "the plane cast fraction is analytic");
 
     // A capsule cast onto the plane, and one starting overlapped.
-    hit = m3World_CastCapsuleClosest(world, (m3Pos3){-6.0, 2.0, 4.0}, (m3Vec3){0.0f, -0.4f, 0.0f},
-                                     (m3Vec3){0.0f, 0.4f, 0.0f}, 0.2f, (m3Vec3){0.0f, -4.0f, 0.0f},
-                                     m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == floorShape.index1, "the capsule cast hits the plane");
+    found = m3World_CastCapsuleClosest(world, (m3Pos3){-6.0, 2.0, 4.0}, (m3Vec3){0.0f, -0.4f, 0.0f},
+                                       (m3Vec3){0.0f, 0.4f, 0.0f}, 0.2f,
+                                       (m3Vec3){0.0f, -4.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == floorShape.index1, "the capsule cast hits the plane");
     CHECK(hit.fraction > 0.34f && hit.fraction < 0.36f, "the capsule fraction is analytic");
-    hit = m3World_CastSphereClosest(world, (m3Pos3){-6.0, 0.1, 0.0}, 0.3f,
-                                    (m3Vec3){0.0f, -1.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction == 0.0f, "a cast born inside the plane reports zero");
+    found = m3World_CastSphereClosest(world, (m3Pos3){-6.0, 0.1, 0.0}, 0.3f,
+                                      (m3Vec3){0.0f, -1.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction == 0.0f, "a cast born inside the plane reports zero");
 
     // A cast that misses everything reports the miss.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){0.0, 50.0, 0.0}, 0.3f,
-                                    (m3Vec3){1.0f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a cast into open air misses");
+    found = m3World_CastSphereClosest(world, (m3Pos3){0.0, 50.0, 0.0}, 0.3f,
+                                      (m3Vec3){1.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a cast into open air misses");
 
     m3DestroyWorld(world);
 }
@@ -652,10 +738,11 @@ static void TestGenericCasts(void)
     // leads, contact when center reaches 0.5: fraction = 3.5 / 8
     // within the conservative-advance slop band.
     m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
-    m3RayCastResult hit =
+    m3CastHit hit = {0};
+    bool found =
         m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f}, identity,
-                               (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == floorShape.index1, "the box cast hits the plane");
+                               (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == floorShape.index1, "the box cast hits the plane");
     CHECK(hit.fraction > 0.430f && hit.fraction < 0.440f, "the aligned fraction is analytic");
 
     // The same box yawed 45 degrees about z: a corner leads, the
@@ -664,9 +751,10 @@ static void TestGenericCasts(void)
     float s45 = 0.3826834f; // sin(pi/8)
     float c45 = 0.9238795f; // cos(pi/8)
     m3Quat yaw45 = {0.0f, 0.0f, s45, c45};
-    hit = m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f}, yaw45,
-                                 (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit, "the rotated box cast hits");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f}, yaw45,
+                               (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found, "the rotated box cast hits");
     CHECK(hit.fraction > 0.404f && hit.fraction < 0.412f,
           "the rotated fraction shows the leading corner");
 
@@ -678,45 +766,49 @@ static void TestGenericCasts(void)
     m3ShapeId crate = NewBoxShape(world, crateBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
     m3Vec3 tetra[4] = {
         {0.0f, -0.4f, 0.0f}, {0.3f, 0.4f, 0.0f}, {-0.3f, 0.4f, 0.3f}, {-0.3f, 0.4f, -0.3f}};
-    hit = m3World_CastHullClosest(world, (m3Pos3){5.0, 6.0, 0.0}, tetra, 4,
-                                  (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == crate.index1, "the hull cast hits the crate");
+    found = m3World_CastHullClosest(world, (m3Pos3){5.0, 6.0, 0.0}, tetra, 4,
+                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == crate.index1, "the hull cast hits the crate");
     // Crate top at y = 2, lowest cloud point 0.4 below base:
     // fraction = (6 - 0.4 - 2) / 8 within the slop band.
     CHECK(hit.fraction > 0.443f && hit.fraction < 0.452f, "the hull fraction is analytic");
 
     // Start-overlapped and hostile contracts.
-    hit = m3World_CastBoxClosest(world, (m3Pos3){0.0, 0.2, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
-                                 identity, (m3Vec3){0.0f, -1.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction == 0.0f, "a box born inside the plane reports zero");
-    hit = m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.0f, 0.5f},
-                                 identity, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a flat box misses by contract");
-    hit = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, tetra, 1,
-                                  (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a one-point cloud misses by contract (that is a ray)");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){0.0, 0.2, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f}, identity,
+                               (m3Vec3){0.0f, -1.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction == 0.0f, "a box born inside the plane reports zero");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.0f, 0.5f}, identity,
+                               (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a flat box misses by contract");
+    found = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, tetra, 1,
+                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a one-point cloud misses by contract (that is a ray)");
     m3Vec3 poisoned[4] = {tetra[0], tetra[1], {NAN, 0.0f, 0.0f}, tetra[3]};
     uint64_t misuse = m3World_GetCounters(world).misuse;
-    hit = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, poisoned, 4,
-                                  (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit && m3World_GetCounters(world).misuse == misuse + 1,
+    found = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, poisoned, 4,
+                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found && m3World_GetCounters(world).misuse == misuse + 1,
           "a cloud with a non-finite point misses and counts one misuse");
-    hit = m3World_CastBoxClosest(world, (m3Pos3){40.0, 4.0, 40.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
-                                 identity, (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a cast into open air misses");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){40.0, 4.0, 40.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
+                               identity, (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a cast into open air misses");
     // The float budget under stress: a finite translation whose
     // square overflows float would mint NaN inside the kernels, so
     // every cast path refuses it with a clean miss.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){0.0, 4.0, 0.0}, 0.5f,
-                                    (m3Vec3){1.0e30f, 0.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a planetary sphere cast misses by contract");
-    hit = m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
-                                 identity, (m3Vec3){0.0f, -1.0e30f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a planetary box cast misses by contract");
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.0f, -1.0e30f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a planetary ray misses by contract");
-    m3RayHit all[4];
+    found = m3World_CastSphereClosest(world, (m3Pos3){0.0, 4.0, 0.0}, 0.5f,
+                                      (m3Vec3){1.0e30f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a planetary sphere cast misses by contract");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.5f, 0.5f, 0.5f}, identity,
+                               (m3Vec3){0.0f, -1.0e30f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a planetary box cast misses by contract");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.0f, -1.0e30f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a planetary ray misses by contract");
+    m3CastHit all[4];
     CHECK(m3World_CastRayAll(world, (m3Pos3){0.0, 4.0, 0.0}, (m3Vec3){0.0f, -1.0e30f, 0.0f}, all, 4,
                              m3DefaultQueryFilter()) == 0,
           "a planetary all-hits ray reports nothing");
@@ -855,12 +947,13 @@ static void TestLongPathsMeetFarPieces(void)
         m3real meet = kind == 2 ? 0.85f : 0.5f;
         m3Pos3 start = {0.5, (double)(top + 0.5f + 2.0f * meet), kind == 2 ? 0.5 : 2.5};
         m3Vec3 path = {kind == 2 ? 120.0f : 100.0f, -2.0f, across};
-        m3RayCastResult cast =
-            m3World_CastSphereClosest(world, start, 0.5f, path, m3DefaultQueryFilter());
-        printf("long cast over the %s: hit %d fraction %g\n", names[kind], (int)cast.hit,
+        m3CastHit cast = {0};
+        bool castHit =
+            m3World_CastSphereClosest(world, start, 0.5f, path, m3DefaultQueryFilter(), &cast);
+        printf("long cast over the %s: hit %d fraction %g\n", names[kind], (int)castHit,
                (double)cast.fraction);
         // The time of impact stops within its 5 mm tolerance of the floor.
-        CHECK(cast.hit && fabsf(cast.fraction - meet) < 5.0e-3f && cast.normal.y > 0.99f,
+        CHECK(castHit && fabsf(cast.fraction - meet) < 5.0e-3f && cast.normal.y > 0.99f,
               "a long shallow cast meets the floor where its path does");
 
         m3BodyDef bd = m3DefaultBodyDef();
@@ -906,9 +999,11 @@ static void TestFarRaysKeepTheirNormal(void)
         for (double d = 10.0; d <= 1.0e17; d *= 10.0)
         {
             m3Pos3 origin = {d, 0.3, shape == 0 ? 0.0 : 10.0};
-            m3RayCastResult hit = m3World_CastRayClosest(
-                world, origin, (m3Vec3){(float)(-2.0 * d), 0.0f, 0.0f}, m3DefaultQueryFilter());
-            hits = hits && hit.hit && isfinite(hit.point.x) && isfinite(hit.fraction);
+            m3CastHit hit = {0};
+            bool found =
+                m3World_CastRayClosest(world, origin, (m3Vec3){(float)(-2.0 * d), 0.0f, 0.0f},
+                                       m3DefaultQueryFilter(), &hit);
+            hits = hits && found && isfinite(hit.point.x) && isfinite(hit.fraction);
             worstNormal = fmax(worstNormal, fabs((double)hit.normal.x - across) +
                                                 fabs((double)hit.normal.y - 0.3) +
                                                 fabs((double)hit.normal.z));
@@ -962,9 +1057,9 @@ static void TestDiagonalFarRaysKeepTheirNormal(void)
                              z - d * u[2] + 0.3 * w[2]};
             m3Vec3 path = {(float)(2.0 * d * u[0]), (float)(2.0 * d * u[1]),
                            (float)(2.0 * d * u[2])};
-            m3RayCastResult hit =
-                m3World_CastRayClosest(world, origin, path, m3DefaultQueryFilter());
-            hits = hits && hit.hit && isfinite(hit.fraction);
+            m3CastHit hit = {0};
+            bool found = m3World_CastRayClosest(world, origin, path, m3DefaultQueryFilter(), &hit);
+            hits = hits && found && isfinite(hit.fraction);
             const float n[3] = {hit.normal.x, hit.normal.y, hit.normal.z};
             double error = 0.0;
             for (int32_t k = 0; k < 3; ++k)
@@ -988,6 +1083,7 @@ int main(void)
     TestContactEvents();
     TestRayHitsEveryFamily();
     TestRayClosestOfMany();
+    TestCastHitContract();
     TestShapeCasts();
     TestRayStartInsideContract();
     TestMultiHitSorted();

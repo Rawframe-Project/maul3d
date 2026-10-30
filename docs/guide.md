@@ -291,6 +291,11 @@ the pointer).
   ray). Any translation component beyond 1e18 misses by contract:
   past that, the kernels' float arithmetic would overflow (the
   caster's float budget).
+- Every closest cast, the mover cast included, clears its
+  `m3CastHit` at `hitOut` first, then returns `true` and writes the
+  hit there, or returns `false` and leaves it zeroed, on a miss as
+  on a refused input, so no earlier hit survives. `m3World_CastRayAll`
+  fills an array of the same `m3CastHit`.
 - `m3World_TestPoint` treats planes as solid half-spaces and
   meshes as open surfaces (a point is never "inside" a mesh).
 - Overlap queries (`m3World_OverlapAabb`, `m3World_OverlapSphere`)
