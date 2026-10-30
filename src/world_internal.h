@@ -729,6 +729,23 @@ typedef struct m3Contacts
     // Pairs a step found and had no room for, cumulative. A counter,
     // not state: never hashed or snapshotted.
     uint64_t pairsDropped;
+    // How a destroy finds its shape's pairs without a full scan. The
+    // pairs where the shape is the lower slot are one run of the sorted
+    // keys; the others are indexed here by their higher slot: slot s's
+    // pair indices are pairsByHigh[highStarts[s]] up to the next slot's
+    // start. Derived from the keys and built by the first destroy after
+    // they change (pairIndexFresh); never state.
+    int32_t* pairsByHigh;
+    int32_t* highStarts;
+    uint8_t pairIndexFresh;
+    // Shape slots destroyed since the last pair update. The frozen buffer
+    // only grows between updates, so the keys a slot's dead shape left
+    // there are the ones below the buffer's length at its destroy,
+    // frozenDeadBefore[s]; later ones are the slot's next shape's. The
+    // next update drops the dead ones. Zero for a slot with none, and
+    // frozenDeadCount counts the others. Never state: a restore clears it.
+    int32_t* frozenDeadBefore;
+    int32_t frozenDeadCount;
 } m3Contacts;
 
 // Joints: SoA arenas, all persistent snapshot state, and the per-body

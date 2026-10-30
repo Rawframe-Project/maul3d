@@ -138,6 +138,22 @@ static void PairsOutOfOrder(const Scene* scene, uint8_t* snap)
     memcpy(At(world, snap, FIELD(contacts.pairKeys), sizeof(uint64_t), 1), &first, 8);
 }
 
+// The first pair made touching, with one contact point, and its two
+// shapes made sensors: the broad phase never pairs two sensors, so no
+// world holds such a pair.
+static void TouchingPairOfSensors(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    uint64_t key = world->contacts.pairKeys[0];
+    uint8_t* manifold = At(world, snap, FIELD(contacts.manifolds), sizeof(m3Manifold), 0);
+    if (GetI32(manifold + offsetof(m3Manifold, pointCount)) == 0)
+    {
+        PutI32(manifold + offsetof(m3Manifold, pointCount), 1);
+    }
+    *At(world, snap, FIELD(shapes.shapeSensor), 1, (int32_t)(key >> 32)) = 1;
+    *At(world, snap, FIELD(shapes.shapeSensor), 1, (int32_t)(key & 0xFFFFFFFFu)) = 1;
+}
+
 static void WorldWithoutStiffness(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -306,6 +322,7 @@ static const Case s_cases[] = {
     {"a tree leaf inside out", LeafInsideOut},
     {"a proxy on another shape's leaf", ProxyOnAnotherLeaf},
     {"contact pairs out of order", PairsOutOfOrder},
+    {"a touching pair of two sensors", TouchingPairOfSensors},
     {"a world with no contact stiffness", WorldWithoutStiffness},
     {"a lock bit no setter writes", LockBitUnknown},
     {"a ball below the mass floor", BallBelowMassFloor},
