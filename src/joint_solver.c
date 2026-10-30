@@ -350,6 +350,33 @@ void m3WarmStartAlignment(const m3JointFrames* f, m3JointBodies* b, m3real first
     m3PushRow(&y, b, second);
 }
 
+void m3SolveJointPointWith(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
+                           const m3JointPass* pass, const m3JointRow* rows, int32_t count,
+                           const m3real* bias, m3real* const* accumulated)
+{
+    m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
+    m3Vec3 pointBias = m3BlockBias(unit, pose->gap);
+    m3JointRow all[M3_BLOCK_ROWS];
+    m3real allBias[M3_BLOCK_ROWS];
+    m3real* allAccumulated[M3_BLOCK_ROWS];
+    for (int32_t i = 0; i < count; ++i)
+    {
+        all[i] = rows[i];
+        allBias[i] = bias[i];
+        allAccumulated[i] = accumulated[i];
+    }
+    const m3Vec3 axes[3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    const m3real biases[3] = {pointBias.x, pointBias.y, pointBias.z};
+    m3real* const slots[3] = {&c->impulse.x, &c->impulse.y, &c->impulse.z};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        all[count + k] = m3LineRow(pose->armA, pose->armB, axes[k]);
+        allBias[count + k] = biases[k];
+        allAccumulated[count + k] = slots[k];
+    }
+    m3SolveRowBlock(all, count + 3, b, allBias, unit, allAccumulated);
+}
+
 void m3SolveJointPoint(m3JointConstraint* c, const m3JointPose* pose, m3JointBodies* b,
                        const m3JointPass* pass)
 {

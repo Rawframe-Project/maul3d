@@ -2,12 +2,13 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Joint row solves at the edges of float: one pass of the point block,
-// and of a coupled row pair, takes the impulse the exact system asks for,
-// for a body whose mass rounds away in the float entries (65 kg with a
-// moment of 1.6 kg m^2 on a 1000 m arm off the axes, mass * arm^2 /
-// inertia 4e7) and for one so heavy that the float determinant
+// of a coupled row pair and of a row block takes the impulse the exact
+// system asks for, for a body whose mass rounds away in the float entries
+// (65 kg with a moment of 1.6 kg m^2 on a 1000 m arm off the axes, mass *
+// arm^2 / inertia 4e7) and for one so heavy that the float determinant
 // underflows. The exact impulse comes from the systems' closed forms in
-// double, where nothing cancels. White box.
+// double, where nothing cancels. A row block with a dependent row falls
+// back to its rows one at a time. White box.
 
 #include "joint_row.h"
 #include "test_harness.h"
@@ -108,6 +109,19 @@ static void CheckCase(const Case* c)
     double gotPair[2] = {(double)first, (double)second};
     snprintf(what, sizeof(what), "%s: the row pair takes the exact impulse", c->name);
     CHECK(Miss(gotPair, pair, 2) < 1.0e-4, what);
+
+    // The same point pin as three rows of one block.
+    b = Bodies(c->invMass, c->invInertia);
+    const m3JointRow pin[3] = {m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f}),
+                               m3LineRow(none, armB, (m3Vec3){0.0f, 1.0f, 0.0f}),
+                               m3LineRow(none, armB, (m3Vec3){0.0f, 0.0f, 1.0f})};
+    const m3real still[3] = {0.0f, 0.0f, 0.0f};
+    m3real slots[3] = {0.0f, 0.0f, 0.0f};
+    m3real* const into[3] = {&slots[0], &slots[1], &slots[2]};
+    m3SolveRowBlock(pin, 3, &b, still, m3RigidDrive(0.0f), into);
+    double gotBlock[3] = {(double)slots[0], (double)slots[1], (double)slots[2]};
+    snprintf(what, sizeof(what), "%s: the block takes the exact impulse", c->name);
+    CHECK(Miss(gotBlock, point, 3) < 1.0e-4, what);
 }
 
 static void TestRowSolvesExact(void)
@@ -129,9 +143,39 @@ static void TestRowSolvesExact(void)
     }
 }
 
+// A block with a dependent row has no unique impulse. It takes the rows
+// one at a time, as the solver did before blocks, and lands where they
+// do.
+static void TestSingularBlockFallsBack(void)
+{
+    m3Vec3 none = {0.0f, 0.0f, 0.0f};
+    m3Vec3 armB = {0.5f, -0.25f, 0.0f};
+    const m3JointRow rows[3] = {m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f}),
+                                m3LineRow(none, armB, (m3Vec3){0.0f, 1.0f, 0.0f}),
+                                m3LineRow(none, armB, (m3Vec3){1.0f, 0.0f, 0.0f})};
+    const m3real bias[3] = {0.1f, -0.2f, 0.3f};
+    m3RowDrive drive = {0.0f, 1.0f, 0.0f};
+    m3JointBodies block = Bodies(1.0f / 65.45f, 1.0f / 1.636f);
+    m3real slots[3] = {0.0f, 0.0f, 0.0f};
+    m3real* const into[3] = {&slots[0], &slots[1], &slots[2]};
+    m3SolveRowBlock(rows, 3, &block, bias, drive, into);
+    m3JointBodies one = Bodies(1.0f / 65.45f, 1.0f / 1.636f);
+    m3real each[3] = {0.0f, 0.0f, 0.0f};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        m3RowDrive own = {bias[k], 1.0f, 0.0f};
+        (void)m3SolveRow(&rows[k], &one, own, &each[k], -M3_ROW_FREE, M3_ROW_FREE);
+    }
+    CHECK(slots[0] == each[0] && slots[1] == each[1] && slots[2] == each[2] &&
+              block.vB.x == one.vB.x && block.vB.y == one.vB.y && block.vB.z == one.vB.z &&
+              block.wB.z == one.wB.z,
+          "a block with a dependent row takes its rows one at a time");
+}
+
 int main(void)
 {
     TestRowSolvesExact();
+    TestSingularBlockFallsBack();
     if (s_failures == 0)
     {
         printf("test_rowsolve: all checks passed\n");
