@@ -62,13 +62,22 @@ static void SolvePrismatic(m3JointConstraint* c, const m3JointPose* pose, m3Join
         m3SolveLimits(&r.along, travel, c->lowerLimit, c->upperLimit, c->softness,
                       &c->limitImpulse.x, &c->limitImpulse.y, b, pass);
     }
+    // The rotation lock and the two rows across the slide share B, and an
+    // anchor far from B's center couples them almost fully: solved one
+    // after the other, each undid most of the other's work.
     m3RowDrive unit = m3HeldDrive(c->softness, 1.0f, pass->biased);
     m3Vec3 error =
         pass->biased ? m3RotationError(&r.frames, s_identity) : (m3Vec3){0.0f, 0.0f, 0.0f};
-    m3SolveTurnBlock(b, m3BlockBias(unit, error), unit, &c->angularImpulse, M3_ROW_FREE);
-    m3real bias[2] = {unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0)),
-                      unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1))};
-    m3SolveRowPair(r.across, b, bias, unit, &c->perpImpulse.x, &c->perpImpulse.y);
+    m3Vec3 turnBias = m3BlockBias(unit, error);
+    const m3JointRow rows[5] = {m3TurnRow((m3Vec3){1.0f, 0.0f, 0.0f}),
+                                m3TurnRow((m3Vec3){0.0f, 1.0f, 0.0f}),
+                                m3TurnRow((m3Vec3){0.0f, 0.0f, 1.0f}), r.across[0], r.across[1]};
+    const m3real bias[5] = {turnBias.x, turnBias.y, turnBias.z,
+                            unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 0)),
+                            unit.bias * m3Dot3(pose->gap, m3FrameAxis(r.frames.a, 1))};
+    m3real* const accumulated[5] = {&c->angularImpulse.x, &c->angularImpulse.y,
+                                    &c->angularImpulse.z, &c->perpImpulse.x, &c->perpImpulse.y};
+    m3SolveRowBlock(rows, 5, b, bias, unit, accumulated);
 }
 
 const m3JointKind m3_prismaticJointKind = {PreparePrismatic, WarmStartPrismatic, SolvePrismatic};
