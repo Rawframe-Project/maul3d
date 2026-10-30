@@ -518,7 +518,7 @@ static M3_NOINLINE m3Result DestroyCharacterWorker(m3World* world, m3CharacterId
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(character.index1));
+        return m3Refuse(world, m3MissingId(world, character.index1));
     }
     if (world->recorder.journalActive != 0)
     {
@@ -554,7 +554,7 @@ static M3_NOINLINE void CharacterMoveWorker(m3World* world, m3CharacterId charac
     {
         // A stale id or a hostile move (non-finite, or past the caster's
         // float budget) changes nothing, never journals and counts once.
-        m3Refuse(world, slot < 0 ? m3MissingId(character.index1) : m3_errorInvalid);
+        m3Refuse(world, slot < 0 ? m3MissingId(world, character.index1) : m3_errorInvalid);
         return;
     }
     if (world->recorder.journalActive != 0)
@@ -599,7 +599,7 @@ bool m3Character_IsGrounded(const m3World* world, m3CharacterId character)
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(character.index1));
+        m3Refuse(world, m3MissingId(world, character.index1));
         return false;
     }
     return world->characters.charGrounded[slot] != 0;
@@ -630,7 +630,7 @@ m3BodyId m3Character_GetGroundBody(const m3World* world, m3CharacterId character
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(character.index1));
+        m3Refuse(world, m3MissingId(world, character.index1));
         return m3_nullBodyId;
     }
     if (world->characters.charGrounded[slot] == 0)
@@ -713,7 +713,7 @@ static M3_NOINLINE m3Result CharacterSetStanceWorker(m3World* world, m3Character
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(character.index1));
+        return m3Refuse(world, m3MissingId(world, character.index1));
     }
     m3Result result = m3CharacterStanceInternal(world, slot, halfHeight, radius);
     if (result == m3_errorInvalid || result == m3_errorLimit)
@@ -751,7 +751,7 @@ void m3Character_GetStance(const m3World* world, m3CharacterId character, float*
     int32_t slot = m3CharacterSlot(world, character);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(character.index1));
+        m3Refuse(world, m3MissingId(world, character.index1));
     }
     if (halfHeightOut != NULL)
     {

@@ -167,7 +167,7 @@ static M3_NOINLINE m3Result DestroyWaterVolumeWorker(m3World* world, m3WaterVolu
     int32_t slot = WaterSlot(world, volume);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(volume.index1));
+        return m3Refuse(world, m3MissingId(world, volume.index1));
     }
     if (world->recorder.journalActive != 0)
     {

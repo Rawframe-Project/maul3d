@@ -596,14 +596,10 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
 // Public entries: validate, journal, apply (the command pattern).
 static m3Result ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* shapeOut)
 {
-    if (world == NULL)
-    {
-        return m3_errorInvalid;
-    }
     int32_t shape = m3ShapeSlot(world, id);
     if (shape < 0)
     {
-        return m3Refuse(world, m3MissingId(id.index1));
+        return m3Refuse(world, m3MissingId(world, id.index1));
     }
     if (world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
     {

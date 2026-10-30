@@ -30,10 +30,11 @@ void m3WorldLeave(const m3World* world);
 bool m3WorldBusy(const m3World* world);
 
 // The status for an id that names no live object: m3_errorInvalid for
-// the null id, m3_errorStale for any other.
-static inline m3Result m3MissingId(uint32_t index1)
+// the null id or a NULL world, which names no object at all,
+// m3_errorStale for any other.
+static inline m3Result m3MissingId(const m3World* world, uint32_t index1)
 {
-    return index1 == 0 ? m3_errorInvalid : m3_errorStale;
+    return world == NULL || index1 == 0 ? m3_errorInvalid : m3_errorStale;
 }
 
 // The status of a public create whose internal refused: an invalid def,

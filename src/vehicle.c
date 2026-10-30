@@ -806,7 +806,7 @@ static M3_NOINLINE m3Result DestroyVehicleWorker(m3World* world, m3VehicleId veh
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(vehicle.index1));
+        return m3Refuse(world, m3MissingId(world, vehicle.index1));
     }
     if (world->recorder.journalActive != 0)
     {

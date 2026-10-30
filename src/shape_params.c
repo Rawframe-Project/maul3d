@@ -199,7 +199,7 @@ static M3_NOINLINE m3Result ShapeSetDensityWorker(m3World* world, m3ShapeId shap
     int32_t slot = m3ShapeSlot(world, shape);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(shape.index1));
+        return m3Refuse(world, m3MissingId(world, shape.index1));
     }
     m3Result result = m3CheckPositive(density, M3_DENSITY_LIMIT);
     if (result != m3_success)
