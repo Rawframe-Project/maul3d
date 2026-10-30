@@ -365,8 +365,8 @@ static bool WheelsValid(const VehicleFields* f, int32_t v)
         wheel.direction = InV3(f->dir, k);
         wheel.restLength = m3InF32(f->rest, k);
         wheel.travel = m3InF32(f->travel, k);
-        wheel.hertz = m3InF32(f->hertz, k);
-        wheel.zeta = m3InF32(f->zeta, k);
+        wheel.springHertz = m3InF32(f->hertz, k);
+        wheel.springDampingRatio = m3InF32(f->zeta, k);
         wheel.radius = m3InF32(f->radius, k);
         wheel.brakeShare = m3InF32(f->brakeShare, k);
         if (m3WheelDefCheck(&wheel) != m3_success ||

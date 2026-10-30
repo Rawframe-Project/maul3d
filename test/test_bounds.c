@@ -710,14 +710,14 @@ static void WheelRadius(Scene* s, float v)
 static void WheelHertz(Scene* s, float v)
 {
     m3VehicleDef vd = CarDef(s);
-    vd.wheels[0].hertz = v;
+    vd.wheels[0].springHertz = v;
     NewVehicle(s->world, &vd);
 }
 
 static void WheelRatio(Scene* s, float v)
 {
     m3VehicleDef vd = CarDef(s);
-    vd.wheels[0].zeta = v;
+    vd.wheels[0].springDampingRatio = v;
     NewVehicle(s->world, &vd);
 }
 

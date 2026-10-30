@@ -456,7 +456,7 @@ A vehicle (`m3CreateVehicle`) is the classic raycast car: the
 chassis is a normal dynamic body you create and shape; wheels are
 NOT bodies. Each wheel is a suspension ray cast from a
 chassis-local anchor (the chassis never blocks its own rays), a
-spring and damper impulse scaled by hertz, zeta, and a per-wheel
+spring and damper impulse scaled by springHertz, springDampingRatio, and a per-wheel
 share of the chassis mass, and a tire working in the contact
 plane. All wheel impulses land at the top of the step, before the
 solver, from the same pass-start velocities.

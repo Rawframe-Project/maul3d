@@ -471,8 +471,8 @@ static void ProbeVehicles(void)
         FIELD(m3VehicleDef, wheels[0].direction.y, 'f'),
         FIELD(m3VehicleDef, wheels[0].restLength, 'f'),
         FIELD(m3VehicleDef, wheels[0].travel, 'f'),
-        FIELD(m3VehicleDef, wheels[0].hertz, 'f'),
-        FIELD(m3VehicleDef, wheels[0].zeta, 'f'),
+        FIELD(m3VehicleDef, wheels[0].springHertz, 'f'),
+        FIELD(m3VehicleDef, wheels[0].springDampingRatio, 'f'),
         FIELD(m3VehicleDef, wheels[0].radius, 'f'),
         FIELD(m3VehicleDef, wheels[0].brakeShare, 'f'),
     };
