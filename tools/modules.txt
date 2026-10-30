@@ -29,7 +29,7 @@ integrate: body_state rigid_flow solver_math water world_internal
 island: broad_phase world_internal
 joint: body_state fpenv joint_lever joint_solver journal manifold misuse world_internal
 joint_distance: joint_solver solver_math world_internal
-joint_fixed: joint_solver world_internal
+joint_weld: joint_solver world_internal
 joint_gear: joint joint_solver world_internal
 joint_generic: joint_solver world_internal
 joint_lever: world_internal

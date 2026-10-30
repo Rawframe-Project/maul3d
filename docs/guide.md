@@ -420,7 +420,7 @@ new math:
 - `m3_revoluteJoint`: hinge; angle limits and a motor
   (`motorSpeed`, `maxMotorTorque`).
 - `m3_prismaticJoint`: slider; translation limits and a motor.
-- `m3_fixedJoint`: weld. The relative pose at create time IS the
+- `m3_weldJoint`: the relative pose at create time IS the
   weld pose (axes and limits are ignored by contract).
 - `m3_distanceJoint`: rope or rod along the anchor axis, held
   within `minLength` and `maxLength`. Equal lengths make a rod.
@@ -720,7 +720,7 @@ frames, so twist stiffness is deliberately out. Pressure
 (`pressure`): closed lattices (every axis count at least 2) hold
 a target volume multiple through one global constraint over their
 surface; 2 inflates a cube toward double volume. Tet bodies
-(`m3CreateSoftBodyTet`): explicit points and tetrahedra, each tet
+(`m3CreateTetSoftBody`): explicit points and tetrahedra, each tet
 holding its create volume rigidly (the incompressible jelly);
 edges come from tet edges; flat or inverted tets refuse. The bind
 tether (`maxDeviation`): every particle clamps to a radius around
@@ -732,9 +732,9 @@ both sides by construction.
 
 ## The native heightfield
 
-m3CreateHeightFieldGridShape stores an nx-by-nz grid (2..255 per
+m3CreateHeightFieldShape stores an nx-by-nz grid (2..255 per
 axis) as raw samples, four bytes each: the low-memory terrain path
-beside meshes (the mesh-backed m3CreateHeightFieldShape remains
+beside meshes (the mesh-backed m3CreateHeightFieldMeshShape remains
 for small chunks). Cells split into two triangles on coordinate
 parity; contacts run the same welded triangle pipeline as meshes
 over a 16-cell contact window with a halo (bodies wider than the
@@ -821,9 +821,9 @@ rotation) joints; `m3RevoluteJoint_SetTargetAngle`,
 `m3Joint_SetTargetTranslation` and
 `m3SphericalJoint_SetTargetRotation` move the goal. The rotation target lives in the JOINT FRAMES
 (frame z is the create-time local axis). Reaction readback:
-`m3Joint_GetConstraintForce/GetConstraintTorque` return last-step
+`m3Joint_GetReactionForce` and `m3Joint_GetReactionTorque` return last-step
 magnitudes assembled per type; they read 0 until the first step
-after a restore. Breakage: `m3Joint_SetBreakThresholds` arms
+after a restore. Breakage: `m3Joint_SetBreakLimits` arms
 force/torque caps (zero = off); an over-threshold reaction
 destroys the joint at the end of the step and emits the break
 event. Breakage is an in-step deterministic transition on
@@ -1097,7 +1097,7 @@ broadphase picks the new box up the same step machinery that
 tracks every mover.
 
 The overlap family joins the sphere: m3World_OverlapCapsule, an
-oriented m3World_OverlapBox, and m3World_OverlapHullPoints (a
+oriented m3World_OverlapBox, and m3World_OverlapHull (a
 base plus up to 64 base-relative points and an optional radius,
 the cast convention). All answer EXACTLY per family: convex
 candidates through the GJK core, planes by minimum point
@@ -1245,7 +1245,7 @@ past what real scenes use. Vectors are bounded per component.
 | Wheel radius | at least `M3_MIN_WHEEL_RADIUS`, 1e-3 m | vehicle wheels |
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
 | Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
-| Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, fixed, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
+| Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields |
 | Capacities | `M3_MAX_SHAPE_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
 
@@ -1266,7 +1266,7 @@ arm turns it: the joint's lever ratio is their mass times the squared
 arm over that moment, summed as the turn each gives over the inverse
 masses together, so a static or kinematic body adds nothing. A joint
 that solves a point block or a pair of held rows, the spherical,
-revolute, prismatic, fixed, wheel and motor joints, keeps it within
+revolute, prismatic, weld, wheel and motor joints, keeps it within
 1e10. Past about 5e11 those blocks, solved one after another, undo
 each other, and the joint lets its body go or flings it, though each
 value is within the limits above: a 1.8e4 m rod 0.5 mm thick at

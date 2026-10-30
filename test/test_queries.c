@@ -971,7 +971,7 @@ static m3World* LongFloor(int32_t kind, m3real* topOut)
     *topOut = 0.0f;
     if (kind == 0)
     {
-        NewHeightFieldGridShape(world, ground, &sd, flat, 129, 5, 1.0f);
+        NewHeightFieldShape(world, ground, &sd, flat, 129, 5, 1.0f);
     }
     else if (kind == 1)
     {
@@ -1200,8 +1200,8 @@ static int32_t ListBox(const ListScene* sc, void* out, int32_t capacity)
 static int32_t ListHull(const ListScene* sc, void* out, int32_t capacity)
 {
     static const m3Vec3 ends[2] = {{-1.5f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f}};
-    return m3World_OverlapHullPoints(sc->world, (m3Pos3){0.0, 0.5, 0.0}, ends, 2, 0.6f,
-                                     m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
+    return m3World_OverlapHull(sc->world, (m3Pos3){0.0, 0.5, 0.0}, ends, 2, 0.6f,
+                               m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
 }
 
 static int32_t ListRay(const ListScene* sc, void* out, int32_t capacity)
@@ -1291,7 +1291,7 @@ static void TestListOutputs(void)
         {ListSphere, "OverlapSphere"},
         {ListCapsule, "OverlapCapsule"},
         {ListBox, "OverlapBox"},
-        {ListHull, "OverlapHullPoints"},
+        {ListHull, "OverlapHull"},
         {ListRay, "CastRayAll"},
         {ListMover, "CollideMover"},
         {ListBodyContacts, "Body_GetContactData"},

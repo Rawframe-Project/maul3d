@@ -50,7 +50,7 @@ static m3World* MakeMeshWorld(m3ShapeId* meshShapeOut)
             heights[z * 32 + x] = 0.25f * (float)((x * 7 + z * 13) % 5) - 0.5f;
         }
     }
-    m3ShapeId meshShape = NewHeightFieldShape(world, ground, &sd, heights, 32, 32, 1.0f);
+    m3ShapeId meshShape = NewHeightFieldMeshShape(world, ground, &sd, heights, 32, 32, 1.0f);
     if (meshShapeOut != NULL)
     {
         *meshShapeOut = meshShape;
@@ -334,7 +334,7 @@ static void TestRefereeHeightFieldPath(void)
     {
         heights[i] = 0.25f * (float)((i * 7 + (i / 33) * 13) % 5) - 0.5f;
     }
-    m3ShapeId grid = NewHeightFieldGridShape(world, ground, &sd, heights, 33, 33, 1.0f);
+    m3ShapeId grid = NewHeightFieldShape(world, ground, &sd, heights, 33, 33, 1.0f);
     const m3HeightFieldData* hf =
         &world->heightFields.hfData[world->shapes.shapeHfIndex[grid.index1 - 1]];
     static Seen seen;

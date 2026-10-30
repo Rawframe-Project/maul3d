@@ -463,7 +463,7 @@ static M3_NOINLINE m3MoverMove SolveMoverWorker(m3Vec3 wish, const m3MoverPlane*
         m3Refuse(NULL, m3_errorInvalid);
         return move;
     }
-    count = count < M3_MOVER_PLANES ? count : M3_MOVER_PLANES;
+    count = count < M3_MAX_MOVER_PLANES ? count : M3_MAX_MOVER_PLANES;
     MoverCandidate best = {wish, -FLT_MAX, 0};
     int32_t set[3] = {0, 0, 0};
     Consider(wish, planes, count, set, 0, &best);
@@ -508,9 +508,9 @@ static M3_NOINLINE m3Vec3 ClipMoverVelocityWorker(m3Vec3 velocity, const m3Mover
     {
         return velocity;
     }
-    m3MoverPlane touching[M3_MOVER_PLANES];
+    m3MoverPlane touching[M3_MAX_MOVER_PLANES];
     int32_t n = 0;
-    for (int32_t i = 0; i < count && i < M3_MOVER_PLANES; ++i)
+    for (int32_t i = 0; i < count && i < M3_MAX_MOVER_PLANES; ++i)
     {
         if ((pressed & (1u << i)) != 0)
         {

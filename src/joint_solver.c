@@ -26,7 +26,7 @@ static const m3JointKind s_filterJointKind = {NULL, NULL, NULL};
 
 static const m3JointKind* const s_kinds[] = {
     [m3_sphericalJoint] = &m3_sphericalJointKind, [m3_revoluteJoint] = &m3_revoluteJointKind,
-    [m3_prismaticJoint] = &m3_prismaticJointKind, [m3_fixedJoint] = &m3_fixedJointKind,
+    [m3_prismaticJoint] = &m3_prismaticJointKind, [m3_weldJoint] = &m3_weldJointKind,
     [m3_distanceJoint] = &m3_distanceJointKind,   [m3_genericJoint] = &m3_genericJointKind,
     [m3_wheelJoint] = &m3_wheelJointKind,         [m3_filterJoint] = &s_filterJointKind,
     [m3_parallelJoint] = &m3_parallelJointKind,   [m3_motorJoint] = &m3_motorJointKind,

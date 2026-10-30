@@ -757,7 +757,7 @@ static void TestRestoreRefusesBadHeightFieldContent(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     static const float heights[9] = {0.125f, 0.25f,  0.375f, 0.5f,  0.625f,
                                      0.75f,  0.875f, 1.0f,   1.125f};
-    NewHeightFieldGridShape(world, NewBody(world, &bd), &sd, heights, 3, 3, 1.0f);
+    NewHeightFieldShape(world, NewBody(world, &bd), &sd, heights, 3, 3, 1.0f);
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){1.0, 2.0, 1.0};
     NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
@@ -914,7 +914,7 @@ static void TestShapeDefsRefuseAsInvalid(void)
     CHECK(m3CreateHullShape(world, ground, &sd, tri, 3, &shape) == m3_errorInvalid,
           "a hull with a NaN density refuses as invalid input too");
     static const float heights[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    CHECK(m3CreateHeightFieldGridShape(world, ground, &sd, heights, 2, 2, 1.0f, &shape) ==
+    CHECK(m3CreateHeightFieldShape(world, ground, &sd, heights, 2, 2, 1.0f, &shape) ==
               m3_errorInvalid,
           "a height field with a NaN density refuses as invalid input as well");
     sd = m3DefaultShapeDef();
@@ -1378,14 +1378,14 @@ static void TestBoundsRefuseAsLimit(void)
 
     static float heights[(M3_MAX_HEIGHTFIELD_SIZE + 1) * 2];
     CHECK_REFUSES(world,
-                  result = m3CreateHeightFieldGridShape(
+                  result = m3CreateHeightFieldShape(
                       world, ground, &sd, heights, M3_MAX_HEIGHTFIELD_SIZE + 1, 2, 1.0f, &shapeOut),
                   "a grid past its size misuses");
     CHECK(result == m3_errorLimit, "a grid past M3_MAX_HEIGHTFIELD_SIZE is refused as limit");
     CHECK_REFUSES(world,
-                  result = m3CreateHeightFieldShape(world, ground, &sd, heights,
-                                                    M3_MAX_HEIGHTFIELD_MESH_SIZE + 1, 2, 1.0f,
-                                                    &shapeOut),
+                  result = m3CreateHeightFieldMeshShape(world, ground, &sd, heights,
+                                                        M3_MAX_HEIGHTFIELD_MESH_SIZE + 1, 2, 1.0f,
+                                                        &shapeOut),
                   "a mesh height field past its size misuses");
     CHECK(result == m3_errorLimit,
           "a mesh height field past M3_MAX_HEIGHTFIELD_MESH_SIZE is refused as limit");

@@ -325,7 +325,7 @@ static void AddTerrain(m3World* world)
         float dz = (float)(i / 9 - 4);
         heights[i] = 0.05f * (dx * dx + dz * dz);
     }
-    NewHeightFieldShape(world, bowl, &sd, heights, 9, 9, 1.0f);
+    NewHeightFieldMeshShape(world, bowl, &sd, heights, 9, 9, 1.0f);
 
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
     NewSphereShape(world, AddBody(world, m3_dynamicBody, 7.5, 2.5, -6.0), &sd, &ball);
@@ -444,7 +444,7 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3JointDef hold = HangDef(world, ground, 32.0, 2.3, 0.0, m3_sphericalJoint, &holder);
     NewJoint(world, &hold);
     m3JointDef weld = m3DefaultJointDef();
-    weld.type = m3_fixedJoint;
+    weld.type = m3_weldJoint;
     weld.bodyIdA = holder;
     weld.bodyIdB = JointBox(world, 32.5, 2.3, 0.0);
     weld.localAnchorA = (m3Vec3){0.25f, 0.0f, 0.0f};
@@ -688,8 +688,8 @@ static Cast AddVehicles(m3World* world, double ox, double oz)
     NewSoftBody(world, &jelly);
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){-30.0 + ox, 0.0, 10.0 + oz};
-    pool.hi = (m3Pos3){-20.0 + ox, 4.0, 20.0 + oz};
+    pool.bounds.lowerBound = (m3Pos3){-30.0 + ox, 0.0, 10.0 + oz};
+    pool.bounds.upperBound = (m3Pos3){-20.0 + ox, 4.0, 20.0 + oz};
     pool.flow = (m3Vec3){0.5f, 0.0f, 0.0f};
     NewWaterVolume(world, &pool);
     for (int32_t i = 0; i < 3; ++i)
@@ -808,8 +808,8 @@ static void TourCreate(Tour* t)
                            quad, 2);
     static float bumps[4 * 4] = {0.0f, 0.1f, 0.1f, 0.0f, 0.1f, 0.3f, 0.2f, 0.1f,
                                  0.1f, 0.2f, 0.3f, 0.1f, 0.0f, 0.1f, 0.1f, 0.0f};
-    NewHeightFieldGridShape(world, AddBody(world, m3_staticBody, 58.0, 0.0, -2.0), &sd, bumps, 4, 4,
-                            1.0f);
+    NewHeightFieldShape(world, AddBody(world, m3_staticBody, 58.0, 0.0, -2.0), &sd, bumps, 4, 4,
+                        1.0f);
 
     m3BodyId tankBody = AddBody(world, m3_dynamicBody, 40.0, 1.0, 60.0);
     NewBoxShape(world, tankBody, &sd, (m3Vec3){1.0f, 0.25f, 0.5f});
@@ -831,7 +831,7 @@ static void TourCreate(Tour* t)
     static const m3Vec3 points[4] = {
         {0.0f, 0.0f, 0.0f}, {0.6f, 0.0f, 0.0f}, {0.0f, 0.6f, 0.0f}, {0.0f, 0.0f, 0.6f}};
     static const uint16_t tets[4] = {0, 1, 2, 3};
-    t->tet = NewSoftBodyTet(world, &jelly, points, 4, tets, 1);
+    t->tet = NewTetSoftBody(world, &jelly, points, 4, tets, 1);
     m3SoftBodyDef rope = m3DefaultSoftBodyDef();
     rope.position = (m3Pos3){65.0, 3.0, 0.0};
     rope.countX = 6;
@@ -848,8 +848,8 @@ static void TourCreate(Tour* t)
     t->guest = NewCharacter(world, &cd);
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){62.0, 0.0, -3.0};
-    pool.hi = (m3Pos3){68.0, 1.5, 3.0};
+    pool.bounds.lowerBound = (m3Pos3){62.0, 0.0, -3.0};
+    pool.bounds.upperBound = (m3Pos3){68.0, 1.5, 3.0};
     t->tide = NewWaterVolume(world, &pool);
 
     m3JointDef jd = m3DefaultJointDef();
@@ -959,7 +959,7 @@ static void TourJointsAndSoft(const Tour* t)
     m3SphericalJoint_SetConeAngle(t->world, t->shoulder, 0.6f);
     m3SphericalJoint_EnableCone(t->world, t->shoulder, true);
     m3Joint_EnableConnectedCollision(t->world, t->spare, true);
-    m3Joint_SetBreakThresholds(t->world, t->spare, 1.0e6f, 1.0e6f);
+    m3Joint_SetBreakLimits(t->world, t->spare, 1.0e6f, 1.0e6f);
     m3SoftBody_PinParticle(t->world, t->rope, 0);
     m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate);
     m3SoftBody_AnchorToSoft(t->world, t->rope, 3, t->tet, 2);

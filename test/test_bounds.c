@@ -893,7 +893,7 @@ static void WaterDensity(Scene* s, float v)
 static void WaterCorner(Scene* s, float v)
 {
     m3WaterVolumeDef def = m3DefaultWaterVolumeDef();
-    def.hi = (m3Pos3){1.0, 1.0, (double)v};
+    def.bounds.upperBound = (m3Pos3){1.0, 1.0, (double)v};
     NewWaterVolume(s->world, &def);
 }
 

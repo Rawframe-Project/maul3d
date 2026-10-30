@@ -151,17 +151,17 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
                                   // still describe the island, loudly
             ev->recipeCount = 0;
         }
-        ev->comChunk = com;
+        ev->localCenter = com;
         int32_t body = world->shapes.shapeBody[shape];
         const m3Transform* xf = &world->bodies.transforms[body];
         m3Vec3 r = m3RotateVec3(xf->q, com);
-        ev->comWorld =
+        ev->worldCenter =
             (m3Pos3){xf->p.x + (double)r.x, xf->p.y + (double)r.y, xf->p.z + (double)r.z};
         ev->mass = ((m3real)fillSum / 255.0f) * cell * cell * cell;
         for (int32_t k = 0; k < 3; ++k)
         {
-            ev->boundsLo[k] = lo[k];
-            ev->boundsHi[k] = hi[k];
+            ev->lowerBound[k] = lo[k];
+            ev->upperBound[k] = hi[k];
         }
         world->events.fragmentEventCount += 1;
     }
