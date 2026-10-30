@@ -283,11 +283,13 @@ m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    if (world->recorder.journalActive == 0)
+    // An overflow stops the recording but leaves the journal to stop, so
+    // the stop can report it.
+    bool overflow = world->recorder.journalOverflow != 0;
+    if (world->recorder.journalActive == 0 && !overflow)
     {
         return m3Refuse(world, m3_errorState);
     }
-    bool overflow = world->recorder.journalOverflow != 0;
     int32_t bytes = world->recorder.journalCursor;
     world->recorder.journalBuffer = NULL;
     world->recorder.journalCapacity = 0;
