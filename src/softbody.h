@@ -12,7 +12,7 @@ int32_t m3SoftBodySlot(const m3World* world, m3SoftBodyId softId);
 
 int32_t m3CreateSoftBodyInternal(m3World* world, const m3SoftBodyDef* def);
 
-int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
+int32_t m3CreateTetSoftBodyInternal(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
                                     int32_t pointCount, const uint16_t* tets, int32_t tetCount);
 
 void m3DestroySoftBodyInternal(m3World* world, int32_t slot);

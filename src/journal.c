@@ -112,8 +112,8 @@ static void JournalWheelDef(m3WheelDef* out, const m3WheelDef* def)
     out->direction = def->direction;
     out->restLength = def->restLength;
     out->travel = def->travel;
-    out->hertz = def->hertz;
-    out->zeta = def->zeta;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->radius = def->radius;
     out->steerable = def->steerable;
     out->driven = def->driven;
@@ -141,8 +141,8 @@ void m3JournalVehicleDef(m3VehicleDef* out, const m3VehicleDef* def)
 void m3JournalWaterVolumeDef(m3WaterVolumeDef* out, const m3WaterVolumeDef* def)
 {
     memset(out, 0, sizeof(*out));
-    out->lo = def->lo;
-    out->hi = def->hi;
+    out->bounds.lowerBound = def->bounds.lowerBound;
+    out->bounds.upperBound = def->bounds.upperBound;
     out->density = def->density;
     out->linearDrag = def->linearDrag;
     out->angularDrag = def->angularDrag;

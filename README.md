@@ -69,9 +69,9 @@ What the family shares:
   runs on your task system; the engine starts no threads, and serial
   and threaded runs give identical results.
 - **Seven joint types**: spherical (with cone and twist limits),
-  revolute, prismatic, fixed, distance, a generic six-degree-of-freedom
+  revolute, prismatic, weld, distance, a generic six-degree-of-freedom
   joint and a wheel joint, with limits, motors, springs with position
-  targets, constraint force readback, and breaking with events.
+  targets, reaction force readback, and breaking with events.
 - **Vehicles**: a raycast car with suspension, tire friction circles
   and a drivetrain (torque curve, gearbox with automatic shifting,
   clutch), skid-steer tank commands, or rigid wheel-joint carts.

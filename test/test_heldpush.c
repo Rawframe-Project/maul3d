@@ -330,7 +330,7 @@ static void TestSuspensionHold(void)
     vd.wheels[0].restLength = 1.0f;
     vd.wheels[0].travel = 1.0f;
     vd.wheels[0].radius = 0.5f;
-    vd.wheels[0].hertz = 1.0e5f;
+    vd.wheels[0].springHertz = 1.0e5f;
     vd.tireGrip = 0.01f;
     m3VehicleId vehicle = NewVehicle(world, &vd);
     m3Body_SetLinearVelocity(world, chassis, (m3Vec3){0.0f, -9.9e4f, 1.4e4f});
@@ -382,7 +382,7 @@ static void TestWheelPush(void)
     vd.wheels[0].travel = 1.0e-3f;
     vd.wheels[0].radius = 1.0e-3f;
     vd.wheels[0].driven = true;
-    vd.wheels[0].hertz = 1.0e5f;
+    vd.wheels[0].springHertz = 1.0e5f;
     vd.tireGrip = 1.0e4f;
     m3VehicleId vehicle = NewVehicle(world, &vd);
     m3DrivetrainDef dd = m3DefaultDrivetrainDef();

@@ -122,7 +122,7 @@ typedef struct m3JointKind
 extern const m3JointKind m3_sphericalJointKind;
 extern const m3JointKind m3_revoluteJointKind;
 extern const m3JointKind m3_prismaticJointKind;
-extern const m3JointKind m3_fixedJointKind;
+extern const m3JointKind m3_weldJointKind;
 extern const m3JointKind m3_distanceJointKind;
 extern const m3JointKind m3_genericJointKind;
 extern const m3JointKind m3_wheelJointKind;

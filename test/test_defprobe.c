@@ -471,8 +471,8 @@ static void ProbeVehicles(void)
         FIELD(m3VehicleDef, wheels[0].direction.y, 'f'),
         FIELD(m3VehicleDef, wheels[0].restLength, 'f'),
         FIELD(m3VehicleDef, wheels[0].travel, 'f'),
-        FIELD(m3VehicleDef, wheels[0].hertz, 'f'),
-        FIELD(m3VehicleDef, wheels[0].zeta, 'f'),
+        FIELD(m3VehicleDef, wheels[0].springHertz, 'f'),
+        FIELD(m3VehicleDef, wheels[0].springDampingRatio, 'f'),
         FIELD(m3VehicleDef, wheels[0].radius, 'f'),
         FIELD(m3VehicleDef, wheels[0].brakeShare, 'f'),
     };
@@ -518,13 +518,16 @@ static void ProbeSoftBodies(void)
 static void ProbeWater(void)
 {
     static const Field fields[] = {
-        FIELD(m3WaterVolumeDef, lo.y, 'd'),        FIELD(m3WaterVolumeDef, hi.y, 'd'),
-        FIELD(m3WaterVolumeDef, density, 'f'),     FIELD(m3WaterVolumeDef, linearDrag, 'f'),
-        FIELD(m3WaterVolumeDef, angularDrag, 'f'), FIELD(m3WaterVolumeDef, flow.x, 'f'),
+        FIELD(m3WaterVolumeDef, bounds.lowerBound.y, 'd'),
+        FIELD(m3WaterVolumeDef, bounds.upperBound.y, 'd'),
+        FIELD(m3WaterVolumeDef, density, 'f'),
+        FIELD(m3WaterVolumeDef, linearDrag, 'f'),
+        FIELD(m3WaterVolumeDef, angularDrag, 'f'),
+        FIELD(m3WaterVolumeDef, flow.x, 'f'),
     };
     m3WaterVolumeDef wd = m3DefaultWaterVolumeDef();
-    wd.lo = (m3Pos3){-5.0, 0.0, -5.0};
-    wd.hi = (m3Pos3){5.0, 2.0, 5.0};
+    wd.bounds.lowerBound = (m3Pos3){-5.0, 0.0, -5.0};
+    wd.bounds.upperBound = (m3Pos3){5.0, 2.0, 5.0};
     Target target = {"m3WaterVolumeDef", &wd, sizeof(wd), BuildWater, true};
     Probe(&target, fields, COUNT(fields));
 }

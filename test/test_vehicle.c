@@ -390,8 +390,8 @@ static void TestHeightfieldDrive(void)
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
     m3ShapeDef sd = m3DefaultShapeDef();
-    CHECK(m3Shape_IsValid(
-              world, NewHeightFieldShape(world, NewBody(world, &gd), &sd, heights, 32, 32, 0.5f)),
+    CHECK(m3Shape_IsValid(world, NewHeightFieldMeshShape(world, NewBody(world, &gd), &sd, heights,
+                                                         32, 32, 0.5f)),
           "the terrain creates");
 
     m3BodyId chassis;
@@ -597,7 +597,7 @@ static void TestVehicleContracts(void)
     float bad;
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
-    vd.wheels[3].hertz = bad;
+    vd.wheels[3].springHertz = bad;
     CHECK(!m3Vehicle_IsValid(world, NewVehicle(world, &vd)), "a NaN hertz refuses");
 
     // A static chassis refuses (vehicles spring against dynamics).

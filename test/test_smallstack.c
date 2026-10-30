@@ -126,7 +126,7 @@ static uint64_t Settle(int32_t floor, Pool* pool)
         {
             heights[i] = 0.05f * (float)((i * 7) % 5);
         }
-        shape = NewHeightFieldGridShape(world, ground, &sd, heights, 17, 17, 1.0f);
+        shape = NewHeightFieldShape(world, ground, &sd, heights, 17, 17, 1.0f);
     }
     else
     {

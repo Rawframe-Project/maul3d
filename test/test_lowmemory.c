@@ -499,7 +499,7 @@ static m3World* BusyWorld(Budget* budget)
     {
         heights[i] = 0.05f * (float)((i * 7) % 5);
     }
-    (void)NewHeightFieldGridShape(world, ground, &sd, heights, 17, 17, 1.0f);
+    (void)NewHeightFieldShape(world, ground, &sd, heights, 17, 17, 1.0f);
     gd.position = (m3Pos3){-10.0, 0.0, 0.0};
     m3ShapeId floor = m3_nullShapeId;
     (void)CreateFloor(world, NewBody(world, &gd), &floor);
@@ -541,8 +541,8 @@ static m3World* BusyWorld(Budget* budget)
     chd.position = (m3Pos3){-12.0, 1.0, 0.0};
     (void)NewCharacter(world, &chd);
     m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
-    water.lo = (m3Pos3){0.0, -1.0, 0.0};
-    water.hi = (m3Pos3){4.0, 0.5, 4.0};
+    water.bounds.lowerBound = (m3Pos3){0.0, -1.0, 0.0};
+    water.bounds.upperBound = (m3Pos3){4.0, 0.5, 4.0};
     (void)NewWaterVolume(world, &water);
     return world;
 }

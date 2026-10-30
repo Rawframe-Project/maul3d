@@ -90,7 +90,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/integrate.c
     src/joint.c
     src/joint_distance.c
-    src/joint_fixed.c
+    src/joint_weld.c
     src/joint_gear.c
     src/joint_generic.c
     src/joint_lever.c

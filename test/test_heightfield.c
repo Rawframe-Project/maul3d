@@ -39,7 +39,7 @@ static void TestCreateAndWalls(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     static float hills[16 * 16];
     FillHills(hills, 16, 16);
-    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, hills, 16, 16, 0.5f);
+    m3ShapeId terrain = NewHeightFieldShape(world, ground, &sd, hills, 16, 16, 0.5f);
     CHECK(m3Shape_IsValid(world, terrain), "the native grid lands");
 
     m3BodyDef dd = m3DefaultBodyDef();
@@ -47,17 +47,16 @@ static void TestCreateAndWalls(void)
     dd.position = (m3Pos3){0.0, 5.0, 0.0};
     m3BodyId mover = NewBody(world, &dd);
     uint64_t before = m3World_Hash(world);
-    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, mover, &sd, hills, 16, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, mover, &sd, hills, 16, 16, 0.5f)),
           "a dynamic body refuses terrain");
-    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, ground, &sd, hills, 1, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, hills, 1, 16, 0.5f)),
           "a one-column grid refuses");
-    CHECK(!m3Shape_IsValid(world, NewHeightFieldGridShape(world, ground, &sd, hills, 16, 16, 0.0f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, hills, 16, 16, 0.0f)),
           "a zero cell refuses");
     static float poisoned[16 * 16];
     FillHills(poisoned, 16, 16);
     poisoned[40] = NAN;
-    CHECK(!m3Shape_IsValid(world,
-                           NewHeightFieldGridShape(world, ground, &sd, poisoned, 16, 16, 0.5f)),
+    CHECK(!m3Shape_IsValid(world, NewHeightFieldShape(world, ground, &sd, poisoned, 16, 16, 0.5f)),
           "a NaN sample refuses");
     CHECK(m3World_Hash(world) == before, "refused terrain moved no bits");
     DestroyBody(world, mover);
@@ -81,7 +80,7 @@ static void TestContacts(void)
     m3BodyId ground = NewBody(world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     static float flat[33 * 33]; // zeros: a flat 16m field
-    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, flat, 33, 33, 0.5f);
+    m3ShapeId terrain = NewHeightFieldShape(world, ground, &sd, flat, 33, 33, 0.5f);
     CHECK(m3Shape_IsValid(world, terrain), "the flat field lands");
 
     m3BodyDef bd = m3DefaultBodyDef();
@@ -130,7 +129,7 @@ static void TestContacts(void)
             ramp[z * 33 + x] = 0.3f * (float)x;
         }
     }
-    CHECK(m3Shape_IsValid(hill, NewHeightFieldGridShape(hill, ground2, &sd, ramp, 33, 33, 0.5f)),
+    CHECK(m3Shape_IsValid(hill, NewHeightFieldShape(hill, ground2, &sd, ramp, 33, 33, 0.5f)),
           "the ramp lands");
     m3BodyDef rb = m3DefaultBodyDef();
     rb.type = m3_dynamicBody;
@@ -165,7 +164,7 @@ static void TestRayAndOverlap(void)
             ramp[z * 17 + x] = 0.2f * (float)x;
         }
     }
-    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, ramp, 17, 17, 0.5f);
+    m3ShapeId terrain = NewHeightFieldShape(world, ground, &sd, ramp, 17, 17, 0.5f);
     CHECK(m3Shape_IsValid(world, terrain), "the ray ramp lands");
 
     // Straight down INSIDE a cell (a ray exactly on a shared corner
@@ -214,7 +213,7 @@ static m3World* RaisedGrid(void)
         heights[i] = 2.0f;
     }
     m3ShapeDef sd = m3DefaultShapeDef();
-    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, heights, 64, 64, 1.0f);
+    m3ShapeId terrain = NewHeightFieldShape(world, ground, &sd, heights, 64, 64, 1.0f);
     CHECK(m3Shape_IsValid(world, terrain), "the raised grid lands");
     return world;
 }

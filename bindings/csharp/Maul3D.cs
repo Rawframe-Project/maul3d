@@ -78,7 +78,7 @@ namespace Maul3D
 
     public enum JointType : int
     {
-        Spherical = 0, Revolute = 1, Prismatic = 2, Fixed = 3, Distance = 4,
+        Spherical = 0, Revolute = 1, Prismatic = 2, Weld = 3, Distance = 4,
         Generic = 5, Wheel = 6, Filter = 7, Parallel = 8, Motor = 9,
         Gear = 10, Pulley = 11
     }

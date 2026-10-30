@@ -363,8 +363,8 @@ static tbScene SceneBlastyard(void)
     // The flooded quarter: a basin beside the keep, debris
     // that floats, and a current that ferries it along.
     m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
-    water.lo = (m3Pos3){8.0, 0.0, -6.0};
-    water.hi = (m3Pos3){20.0, 2.5, 6.0};
+    water.bounds.lowerBound = (m3Pos3){8.0, 0.0, -6.0};
+    water.bounds.upperBound = (m3Pos3){20.0, 2.5, 6.0};
     water.flow = (m3Vec3){0.0f, 0.0f, 0.6f};
     NewWaterVolume(scene.world, &water);
     for (int32_t k = 0; k < 6; ++k)
@@ -926,7 +926,7 @@ static tbScene SceneTower(void)
     jd.minLength = 0.0f;
     jd.maxLength = 8.4f;
     m3JointId rope = NewJoint(scene.world, &jd);
-    m3Joint_SetBreakThresholds(scene.world, rope, 2200.0f, 0.0f);
+    m3Joint_SetBreakLimits(scene.world, rope, 2200.0f, 0.0f);
     return scene;
 }
 
@@ -1045,7 +1045,7 @@ static tbScene SceneJointCart(void)
         // never snaps an axle (the first tuning had them inverted
         // and the cart shed wheels pulling away); rubble impacts
         // spike the collinearity torque past it.
-        m3Joint_SetBreakThresholds(scene.world, scene.axles[w], 0.0f, 240.0f);
+        m3Joint_SetBreakLimits(scene.world, scene.axles[w], 0.0f, 240.0f);
     }
     return scene;
 }
@@ -1155,7 +1155,7 @@ static tbScene SceneMeadow(void)
     m3BodyId ground = NewBody(scene.world, &gd);
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.7f;
-    NewHeightFieldShape(scene.world, ground, &sd, heights, 24, 24, 1.0f);
+    NewHeightFieldMeshShape(scene.world, ground, &sd, heights, 24, 24, 1.0f);
 
     m3ShapeDef hd = m3DefaultShapeDef();
     hd.friction = 0.5f;
@@ -1216,12 +1216,12 @@ static void SpawnFragments(m3World* world)
         const m3FragmentEvent* ev = &fragments.fragmentEvents[e];
         m3BodyDef bd = m3DefaultBodyDef();
         bd.type = m3_dynamicBody;
-        bd.position = ev->comWorld;
+        bd.position = ev->worldCenter;
         if (s_blastArmed)
         {
-            m3real dx = (m3real)(ev->comWorld.x - s_blastAt.x);
-            m3real dy = (m3real)(ev->comWorld.y - s_blastAt.y);
-            m3real dz = (m3real)(ev->comWorld.z - s_blastAt.z);
+            m3real dx = (m3real)(ev->worldCenter.x - s_blastAt.x);
+            m3real dy = (m3real)(ev->worldCenter.y - s_blastAt.y);
+            m3real dz = (m3real)(ev->worldCenter.z - s_blastAt.z);
             m3real d = sqrtf(dx * dx + dy * dy + dz * dz);
             m3real inv = d > 1e-4f ? 1.0f / d : 0.0f;
             m3real speed = 7.0f / (1.0f + 0.3f * d);
@@ -1230,9 +1230,9 @@ static void SpawnFragments(m3World* world)
             bd.angularVelocity = (m3Vec3){dz * inv * 2.0f, 1.0f, -dx * inv * 2.0f};
         }
         m3BodyId body = NewBody(world, &bd);
-        m3Vec3 half = {0.5f * (m3real)(ev->boundsHi[0] - ev->boundsLo[0] + 1),
-                       0.5f * (m3real)(ev->boundsHi[1] - ev->boundsLo[1] + 1),
-                       0.5f * (m3real)(ev->boundsHi[2] - ev->boundsLo[2] + 1)};
+        m3Vec3 half = {0.5f * (m3real)(ev->upperBound[0] - ev->lowerBound[0] + 1),
+                       0.5f * (m3real)(ev->upperBound[1] - ev->lowerBound[1] + 1),
+                       0.5f * (m3real)(ev->upperBound[2] - ev->lowerBound[2] + 1)};
         m3ShapeDef fd = m3DefaultShapeDef();
         fd.friction = 0.6f;
         if (ev->recipeCount > 0 && ev->recipeStart >= 0 && ev->voxelCount <= 32)
@@ -1250,8 +1250,9 @@ static void SpawnFragments(m3World* world)
                 m3real y = (m3real)((v / 16) % 16);
                 m3real z = (m3real)(v / 256);
                 m3ShapeDef cell = fd;
-                cell.localPosition = (m3Vec3){x + 0.5f - ev->comChunk.x, y + 0.5f - ev->comChunk.y,
-                                              z + 0.5f - ev->comChunk.z};
+                cell.localPosition =
+                    (m3Vec3){x + 0.5f - ev->localCenter.x, y + 0.5f - ev->localCenter.y,
+                             z + 0.5f - ev->localCenter.z};
                 if (m3Shape_IsValid(world,
                                     NewBoxShape(world, body, &cell, (m3Vec3){0.5f, 0.5f, 0.5f})))
                 {
