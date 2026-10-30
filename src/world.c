@@ -295,7 +295,7 @@ static M3_NOINLINE m3Result CreateWorldWorker(const m3WorldDef* def, m3World** w
     *worldOut = NULL;
     // Before any solver kernel runs, refuse a CPU that cannot run the
     // binary's backend: a typed refusal beats an illegal-instruction trap.
-    if (m3CheckCpu(NULL) == 0)
+    if (!m3CheckCpu(NULL))
     {
         return m3_errorUnsupported;
     }
