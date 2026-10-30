@@ -185,7 +185,7 @@ static void TestCastHitContract(void)
             m3CastHit hit = {{77u, 5u}, {1.0, 2.0, 3.0}, {4.0f, 5.0f, 6.0f}, 0.25f};
             const m3CastHit zero = {0};
             m3CastHit* out = aim == 2 ? NULL : &hit;
-            uint64_t misuse = m3World_GetCounters(world).misuse;
+            uint64_t misuse = m3World_GetCounters(world).misuseCount;
             bool found = false;
             switch (cast)
             {
@@ -209,7 +209,7 @@ static void TestCastHitContract(void)
                 found = m3World_CastMover(world, above, 0.3f, 0.2f, t, out);
                 break;
             }
-            uint64_t counted = m3World_GetCounters(world).misuse - misuse;
+            uint64_t counted = m3World_GetCounters(world).misuseCount - misuse;
             bool ok = false;
             if (aim == 0)
             {
@@ -869,10 +869,10 @@ static void TestGenericCasts(void)
                                     (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
     CHECK(!found, "a one-point cloud misses by contract (that is a ray)");
     m3Vec3 poisoned[4] = {tetra[0], tetra[1], {NAN, 0.0f, 0.0f}, tetra[3]};
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     found = m3World_CastHullClosest(world, (m3Pos3){0.0, 4.0, 0.0}, poisoned, 4,
                                     (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
-    CHECK(!found && m3World_GetCounters(world).misuse == misuse + 1,
+    CHECK(!found && m3World_GetCounters(world).misuseCount == misuse + 1,
           "a cloud with a non-finite point misses and counts one misuse");
     found =
         m3World_CastBoxClosest(world, (m3Pos3){40.0, 4.0, 40.0}, (m3Vec3){0.5f, 0.5f, 0.5f},
@@ -1316,16 +1316,17 @@ static void TestListOutputs(void)
     } one[1];
     for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)
     {
-        uint64_t misuse = m3World_GetCounters(sc.world).misuse;
+        uint64_t misuse = m3World_GetCounters(sc.world).misuseCount;
         int32_t total = calls[c].call(&sc, NULL, 0);
-        bool measured = total >= 2 && m3World_GetCounters(sc.world).misuse == misuse;
+        bool measured = total >= 2 && m3World_GetCounters(sc.world).misuseCount == misuse;
         int32_t shortTotal = calls[c].call(&sc, one, 1);
-        bool counted = shortTotal == total && m3World_GetCounters(sc.world).misuse == misuse;
+        bool counted = shortTotal == total && m3World_GetCounters(sc.world).misuseCount == misuse;
         int32_t refusedNull = calls[c].call(&sc, NULL, 3);
-        bool nullRefused = refusedNull == 0 && m3World_GetCounters(sc.world).misuse == misuse + 1u;
+        bool nullRefused =
+            refusedNull == 0 && m3World_GetCounters(sc.world).misuseCount == misuse + 1u;
         int32_t refusedNegative = calls[c].call(&sc, one, -1);
         bool negativeRefused =
-            refusedNegative == 0 && m3World_GetCounters(sc.world).misuse == misuse + 2u;
+            refusedNegative == 0 && m3World_GetCounters(sc.world).misuseCount == misuse + 2u;
         if (!measured || !counted || !nullRefused || !negativeRefused)
         {
             printf("  %s: total %d, short %d, NULL %d, negative %d\n", calls[c].name, (int)total,

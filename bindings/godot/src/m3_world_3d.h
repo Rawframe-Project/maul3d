@@ -39,15 +39,15 @@ class M3World3D : public godot::Node3D
     bool restore(const godot::PackedByteArray& data);
     godot::String world_hash() const; // hex, for desync checks
 
-    void set_substeps(int substeps);
-    int get_substeps() const;
+    void set_substep_count(int substepCount);
+    int get_substep_count() const;
 
   protected:
     static void _bind_methods();
 
   private:
     m3World* world_ = nullptr;
-    int substeps_ = 4;
+    int substepCount_ = 4;
 };
 
 } // namespace maul3d_godot

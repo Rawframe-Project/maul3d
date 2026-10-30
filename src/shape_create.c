@@ -296,12 +296,12 @@ static M3_NOINLINE m3Result CreateHullShapeWorker(m3World* world, m3BodyId body,
                                        // reaches QuickHull's arithmetic
     }
     m3HullData data;
-    int64_t refused = world->heap.refusedCalls;
+    int64_t refused = world->heap.refusedCount;
     if (!m3ComputeHull(&world->heap, points, count, &data))
     {
         // QuickHull's work blocks refused, or a degenerate cloud: null id.
         return m3Refuse(world,
-                        world->heap.refusedCalls != refused ? m3_errorCapacity : m3_errorInvalid);
+                        world->heap.refusedCount != refused ? m3_errorCapacity : m3_errorInvalid);
     }
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));

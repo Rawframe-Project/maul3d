@@ -42,7 +42,7 @@ void M3World3D::_physics_process(double delta)
 {
     if (world_ != nullptr)
     {
-        (void)m3World_Step(world_, (float)delta, substeps_);
+        (void)m3World_Step(world_, (float)delta, substepCount_);
     }
 }
 
@@ -118,14 +118,14 @@ godot::String M3World3D::world_hash() const
     return godot::String::num_uint64(m3World_Hash(world_), 16);
 }
 
-void M3World3D::set_substeps(int substeps)
+void M3World3D::set_substep_count(int substepCount)
 {
-    substeps_ = substeps < 1 ? 1 : substeps;
+    substepCount_ = substepCount < 1 ? 1 : substepCount;
 }
 
-int M3World3D::get_substeps() const
+int M3World3D::get_substep_count() const
 {
-    return substeps_;
+    return substepCount_;
 }
 
 void M3World3D::_bind_methods()
@@ -142,11 +142,12 @@ void M3World3D::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("snapshot"), &M3World3D::snapshot);
     godot::ClassDB::bind_method(godot::D_METHOD("restore", "data"), &M3World3D::restore);
     godot::ClassDB::bind_method(godot::D_METHOD("world_hash"), &M3World3D::world_hash);
-    godot::ClassDB::bind_method(godot::D_METHOD("set_substeps", "substeps"),
-                                &M3World3D::set_substeps);
-    godot::ClassDB::bind_method(godot::D_METHOD("get_substeps"), &M3World3D::get_substeps);
-    ADD_PROPERTY(godot::PropertyInfo(godot::Variant::INT, "substeps"), "set_substeps",
-                 "get_substeps");
+    godot::ClassDB::bind_method(godot::D_METHOD("set_substep_count", "substep_count"),
+                                &M3World3D::set_substep_count);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_substep_count"),
+                                &M3World3D::get_substep_count);
+    ADD_PROPERTY(godot::PropertyInfo(godot::Variant::INT, "substep_count"), "set_substep_count",
+                 "get_substep_count");
 }
 
 } // namespace maul3d_godot

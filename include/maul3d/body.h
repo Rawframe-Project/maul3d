@@ -95,7 +95,7 @@ extern "C"
     /// ascending slot order and return the total.
     M3_API m3Transform m3Body_GetTransform(const m3World* world, m3BodyId body);
     M3_API float m3Body_GetMass(const m3World* world, m3BodyId body);
-    M3_API m3Mat3 m3Body_GetRotationalInertia(const m3World* world, m3BodyId body);
+    M3_API m3Mat3 m3Body_GetCentralInertia(const m3World* world, m3BodyId body);
     M3_API m3Vec3 m3Body_GetLocalCenter(const m3World* world, m3BodyId body);
     M3_API m3Pos3 m3Body_GetWorldCenterOfMass(const m3World* world, m3BodyId body);
     M3_API m3Pos3 m3Body_GetWorldPoint(const m3World* world, m3BodyId body, m3Vec3 localPoint);

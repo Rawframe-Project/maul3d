@@ -36,7 +36,7 @@ static void TestPublicCreate(void)
     for (size_t i = 0; i < sizeof(s_wide) / sizeof(s_wide[0]); ++i)
     {
         m3World* world = NewSoftWorld();
-        uint64_t misuse = m3World_GetCounters(world).misuse;
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
         uint64_t hash = m3World_Hash(world);
         m3SoftBodyDef def = m3DefaultSoftBodyDef();
         def.countX = s_wide[i][0];
@@ -44,7 +44,7 @@ static void TestPublicCreate(void)
         def.countZ = s_wide[i][2];
         m3SoftBodyId id = m3_nullSoftBodyId;
         CHECK(m3CreateSoftBody(world, &def, &id) != m3_success, "the wide lattice refuses");
-        CHECK(m3World_GetCounters(world).misuse == misuse + 1, "the refusal counts once");
+        CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "the refusal counts once");
         CHECK(m3World_Hash(world) == hash, "the refusal changes nothing");
         m3DestroyWorld(world);
     }

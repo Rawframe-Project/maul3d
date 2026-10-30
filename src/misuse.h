@@ -11,7 +11,7 @@
 
 #include <string.h>
 
-// Counts a caller's bug against a world in m3Counters.misuse: an invalid
+// Counts a caller's bug against a world in m3Counters.misuseCount: an invalid
 // argument, one past a published bound, a stale id, or a call the world
 // does not allow now. A full pool, a refusing allocator, a CPU, an ABI
 // mismatch and malformed stored bytes are not bugs and count nothing.

@@ -283,7 +283,7 @@ extern "C"
     /// shape indexes, and the shapes of each pair it drops get no
     /// contact that step and pass through each other.
     /// m3Counters.pairsDropped counts the drops.
-    M3_NODISCARD M3_API m3Result m3World_Step(m3World* world, float dt, int32_t substeps);
+    M3_NODISCARD M3_API m3Result m3World_Step(m3World* world, float dt, int32_t substepCount);
 
     /// Snapshot and rollback, first-class from day one. The format is
     /// portable and versioned: field blocks in little-endian order, laid
@@ -748,9 +748,9 @@ extern "C"
         int32_t scratchPeak;     // step scratch high water, bytes
         int32_t scratchCapacity; // step scratch reserve, bytes
         int64_t snapshotBytes;   // exact m3World_Snapshot size now
-        int64_t allocCalls;      // blocks the world took from its allocator, cumulative
-        int64_t freeCalls;       // blocks it gave back, cumulative
-        uint64_t misuse;         // stale-id, wrong-kind or bad-argument refusals, cumulative
+        int64_t allocCount;      // blocks the world took from its allocator, cumulative
+        int64_t freeCount;       // blocks it gave back, cumulative
+        uint64_t misuseCount;    // stale-id, wrong-kind or bad-argument refusals, cumulative
         // Voxel edits and explosion carves refused because the chunk's
         // surface would merge into more boxes than its tree holds,
         // cumulative; each changed nothing and journaled nothing. A
@@ -769,7 +769,7 @@ extern "C"
         // still left the body within the speed limit. A counter, not
         // state: it is not hashed or snapshotted, and a restore or a
         // replay's back-out leaves it as it is.
-        uint64_t heldPushRetakes;
+        uint64_t heldPushRetakeCount;
     } m3Counters;
 
     M3_API m3Counters m3World_GetCounters(const m3World* world);

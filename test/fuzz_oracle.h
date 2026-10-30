@@ -36,7 +36,7 @@
 
 static inline uint64_t FuzzMisuse(const m3World* world)
 {
-    return m3World_GetCounters(world).misuse;
+    return m3World_GetCounters(world).misuseCount;
 }
 
 static inline void FuzzWorldValues(m3World* world)

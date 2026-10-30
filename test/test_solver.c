@@ -544,7 +544,7 @@ static void TestSymmetricTopKeepsEnergy(void)
         spin[axis] = 7.0710678f;
         spin[across1] = 7.0710678f;
         m3Body_SetAngularVelocity(world, body, (m3Vec3){spin[0], spin[1], spin[2]});
-        m3Mat3 inertia = m3Body_GetRotationalInertia(world, body);
+        m3Mat3 inertia = m3Body_GetCentralInertia(world, body);
         const double moments[3] = {(double)inertia.cx.x, (double)inertia.cy.y,
                                    (double)inertia.cz.z};
         const double rate = 7.0710678 * (moments[axis] - moments[across1]) / moments[across1];

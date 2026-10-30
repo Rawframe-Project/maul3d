@@ -224,7 +224,7 @@ static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
     m3BodyId referenceBody;
     m3World* reference = CreateWorld(&plenty, slabNotFloor, true, &referenceBody);
     uint64_t hash = m3World_Hash(world);
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     bool refusedWhole = true;
     int32_t refusals = 0;
     m3ShapeId shape = m3_nullShapeId;
@@ -239,7 +239,7 @@ static void SweepCreate(bool slabNotFloor, m3Pos3 over, const char* refusedMsg,
             refusals += 1;
             refusedWhole = refusedWhole && result == m3_errorCapacity &&
                            m3World_Hash(world) == hash &&
-                           m3World_GetCounters(world).misuse == misuse;
+                           m3World_GetCounters(world).misuseCount == misuse;
         }
     }
     CHECK(refusals > 0 && refusedWhole, refusedMsg);
@@ -267,7 +267,7 @@ static void SweepHullCreate(void)
     m3BodyId body = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     uint64_t hash = m3World_Hash(world);
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     bool refusedWhole = true;
     int32_t refusals = 0;
     m3ShapeId shape = m3_nullShapeId;
@@ -282,7 +282,7 @@ static void SweepHullCreate(void)
             refusals += 1;
             refusedWhole = refusedWhole && result == m3_errorCapacity &&
                            m3World_Hash(world) == hash &&
-                           m3World_GetCounters(world).misuse == misuse;
+                           m3World_GetCounters(world).misuseCount == misuse;
         }
     }
     CHECK(refusals > 0 && refusedWhole,
@@ -358,7 +358,7 @@ static void TestVoxelEditsUnderBudget(void)
             m3VoxelChunkShape_SetVoxel(world, slab, 3, 1, 3, 1);
             m3VoxelChunkShape_SetVoxel(world, slab, 3, 2, 3, 1);
             uint64_t hash = m3World_Hash(world);
-            uint64_t misuse = m3World_GetCounters(world).misuse;
+            uint64_t misuse = m3World_GetCounters(world).misuseCount;
             CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the journal starts");
             budget.left = n;
             VoxelEdit(world, slab, edit);
@@ -367,9 +367,9 @@ static void TestVoxelEditsUnderBudget(void)
             bool refused = m3World_Hash(world) == hash;
             landed += refused ? 0 : 1;
             // A refused edit journals nothing past the tape's 16-byte prefix.
-            whole =
-                whole && (refused ? journaled == 16 && m3World_GetCounters(world).misuse == misuse
-                                  : RayStrikes(world, kOverSlab, slab));
+            whole = whole &&
+                    (refused ? journaled == 16 && m3World_GetCounters(world).misuseCount == misuse
+                             : RayStrikes(world, kOverSlab, slab));
             m3DestroyWorld(world);
         }
         printf("M3_LOWMEM_VOXEL %s: %s, landed at %d of 8 budgets\n", names[edit],

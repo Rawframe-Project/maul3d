@@ -133,11 +133,11 @@ static void TestJournalOverflowIsLoud(void)
     {
         NewBody(world, &bd); // each op needs more than 64 bytes
     }
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     int64_t bytes = 77;
     CHECK(m3World_StopJournal(world, &bytes) == m3_errorCapacity && bytes == 0,
           "the stop reports the overflow as m3_errorCapacity and zeroes bytesOut");
-    CHECK(m3World_GetCounters(world).misuse == misuse, "a full journal buffer is no misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse, "a full journal buffer is no misuse");
     CHECK(m3World_StopJournal(world, &bytes) == m3_errorState,
           "the overflowed journal is stopped: a second stop has none to stop");
     uint8_t roomy[4096];
@@ -943,7 +943,7 @@ static void TestUntrustedDataCountsNoMisuse(void)
     int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 16 + 8, "the journal holds a step after its prefix");
     CHECK(Restore(world, snap, size), "the clean snapshot restores");
-    uint64_t before = m3World_GetCounters(world).misuse;
+    uint64_t before = m3World_GetCounters(world).misuseCount;
     uint64_t hash = m3World_Hash(world);
 
     CHECK(m3World_Restore(world, snap, size - 1) == m3_errorFormat,
@@ -965,17 +965,17 @@ static void TestUntrustedDataCountsNoMisuse(void)
     memcpy(snap + 8, &format, 4);
     CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorFormat,
           "a tape one byte short is refused");
-    CHECK(m3World_GetCounters(world).misuse == before, "and none of it counts as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == before, "and none of it counts as misuse");
     CHECK(m3World_Hash(world) == hash, "nor changes the world");
 
     CHECK(m3World_Restore(world, NULL, size) == m3_errorInvalid, "a null snapshot is refused");
     CHECK(m3World_ReplayJournal(world, NULL, tapeBytes) == m3_errorInvalid,
           "a null tape is refused");
-    CHECK(m3World_GetCounters(world).misuse == before + 2, "and those two count");
+    CHECK(m3World_GetCounters(world).misuseCount == before + 2, "and those two count");
     CHECK(m3World_ReplayJournal(world, NULL, 0) == m3_errorFormat,
           "no bytes are not a tape: it starts with its prefix");
     CHECK(m3World_ReplayJournal(world, tape, 16) == m3_success, "a tape of no op replays nothing");
-    CHECK(m3World_GetCounters(world).misuse == before + 2, "and neither counts");
+    CHECK(m3World_GetCounters(world).misuseCount == before + 2, "and neither counts");
     free(snap);
     m3DestroyWorld(world);
 }
@@ -1009,7 +1009,7 @@ static void TestOtherReleasesAreRefused(void)
           "the container is encoded");
     CHECK(Restore(world, snap, snapBytes), "the snapshot restores");
     uint64_t hash = m3World_Hash(world);
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     // Each magic is its name in file order, as a hex dump reads it.
     CHECK(memcmp(snap, "M3SN", 4) == 0 && memcmp(tape, "M3JN", 4) == 0 &&
               memcmp(box, "M3RP", 4) == 0,
@@ -1085,7 +1085,7 @@ static void TestOtherReleasesAreRefused(void)
         }
     }
     CHECK(m3World_Hash(world) == hash, "no refusal changed the world");
-    CHECK(m3World_GetCounters(world).misuse == misuse, "and none counted as misuse");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse, "and none counted as misuse");
 
     CHECK(Restore(world, snap, snapBytes), "the snapshot as written still restores");
     CHECK(ReplayJournal(world, tape, tapeBytes), "the tape as written still replays");
@@ -1170,10 +1170,10 @@ static bool TapeRefused(m3World* world, const uint8_t* snap, int64_t snapBytes, 
     {
         m3Body_SetType(world, makeDynamic, m3_dynamicBody);
     }
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     uint64_t hash = m3World_Hash(world);
     return m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorFormat &&
-           m3World_GetCounters(world).misuse == misuse && m3World_Hash(world) == hash;
+           m3World_GetCounters(world).misuseCount == misuse && m3World_Hash(world) == hash;
 }
 
 // Replay builds shapes through the same walls as the public creates: a
@@ -1274,11 +1274,11 @@ static void TestWritersRefuseWhileBusy(void)
     NewSphereShape(world, probe.body, &presolve, &ball);
     m3World_SetPreSolveCallback(world, BusyPreSolve, &probe);
 
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(probe.calls > 0, "the pre-solve callback ran");
     CHECK(probe.refused == 3 * probe.calls, "every status writer it called was refused");
-    CHECK(m3World_GetCounters(world).misuse == misuse + 4u * (uint64_t)probe.calls,
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 4u * (uint64_t)probe.calls,
           "and every writer it called counted once");
     CHECK(m3Body_IsValid(world, probe.body) && m3World_GetCounters(world).bodyCount == 2,
           "nothing was created or destroyed under the step");

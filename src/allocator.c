@@ -80,19 +80,19 @@ void* m3AllocZeroed(m3Heap* heap, int64_t bytes)
     }
     if ((uint64_t)bytes > (uint64_t)(SIZE_MAX - M3_ALLOC_ALIGNMENT))
     {
-        heap->refusedCalls += 1; // no memory of this target holds it
+        heap->refusedCount += 1; // no memory of this target holds it
         return NULL;
     }
     size_t total = (size_t)bytes + M3_ALLOC_ALIGNMENT;
     uint8_t* block = (uint8_t*)HostAlloc(heap, total);
     if (block == NULL)
     {
-        heap->refusedCalls += 1;
+        heap->refusedCount += 1;
         return NULL;
     }
     memset(block, 0, total);
     memcpy(block, &total, sizeof(total));
-    heap->allocCalls += 1;
+    heap->allocCount += 1;
     return block + M3_ALLOC_ALIGNMENT;
 }
 
@@ -114,7 +114,7 @@ void m3Free(m3Heap* heap, void* memory)
     uint8_t* block = (uint8_t*)memory - M3_ALLOC_ALIGNMENT;
     size_t total;
     memcpy(&total, block, sizeof(total));
-    heap->freeCalls += 1;
+    heap->freeCount += 1;
     HostFree(heap, block, total);
 }
 

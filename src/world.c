@@ -717,11 +717,11 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.scratchCapacity = world->scratch.capacity;
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
     counters.pairsDropped = world->contacts.pairsDropped;
-    counters.heldPushRetakes = world->heldPushRetakes;
+    counters.heldPushRetakeCount = world->heldPushRetakeCount;
     counters.snapshotBytes = m3World_GetSnapshotSize(world);
-    counters.allocCalls = world->heap.allocCalls;
-    counters.freeCalls = world->heap.freeCalls;
-    counters.misuse = m3MisuseCount(world);
+    counters.allocCount = world->heap.allocCount;
+    counters.freeCount = world->heap.freeCount;
+    counters.misuseCount = m3MisuseCount(world);
     return counters;
 }
 

@@ -721,7 +721,7 @@ static void TestShoulderConeAtRunTime(void)
     m3SphericalJoint_EnableCone(world, shoulder, false);
     StepN(world, 480);
     CHECK(ArmDroop(world, arm, &len) > 0.95, "switched off, it lets the arm fall again");
-    CHECK(m3World_GetCounters(world).misuse == 0, "no call was refused");
+    CHECK(m3World_GetCounters(world).misuseCount == 0, "no call was refused");
     m3DestroyWorld(world);
 }
 
@@ -742,21 +742,21 @@ static void TestConeCalls(void)
           "an angle is taken with the cone off");
     m3SphericalJoint_EnableCone(world, shoulder, true);
     CHECK(m3SphericalJoint_IsConeEnabled(world, shoulder), "the cone switches on");
-    CHECK(m3World_GetCounters(world).misuse == 0, "and nothing was refused");
+    CHECK(m3World_GetCounters(world).misuseCount == 0, "and nothing was refused");
 
     static const float bad[] = {-0.1f, NAN, INFINITY, -INFINITY};
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); ++i)
     {
-        uint64_t misuse = m3World_GetCounters(world).misuse;
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
         m3SphericalJoint_SetConeAngle(world, shoulder, bad[i]);
-        CHECK(m3World_GetCounters(world).misuse == misuse + 1u &&
+        CHECK(m3World_GetCounters(world).misuseCount == misuse + 1u &&
                   m3SphericalJoint_GetConeAngle(world, shoulder) == 0.4f,
               "a negative or non-finite angle is refused and changes nothing");
     }
     m3SphericalJoint_EnableCone(world, shoulder, false);
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3SphericalJoint_SetConeAngle(world, shoulder, -0.1f);
-    CHECK(m3World_GetCounters(world).misuse == misuse + 1u, "with the cone off too");
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 1u, "with the cone off too");
 
     // The body sleeps; a cone call wakes it.
     m3Body_SetAwake(world, arm, false);
@@ -781,13 +781,15 @@ static void TestConeCalls(void)
     CHECK(m3Joint_IsValid(world, ball) && m3SphericalJoint_GetConeAngle(world, ball) == -0.5f,
           "a def leaves a negative angle with its cone off");
     m3SphericalJoint_EnableCone(world, ball, true);
-    CHECK(!m3SphericalJoint_IsConeEnabled(world, ball) && m3World_GetCounters(world).misuse == 1u,
+    CHECK(!m3SphericalJoint_IsConeEnabled(world, ball) &&
+              m3World_GetCounters(world).misuseCount == 1u,
           "the switch refuses to turn the cone on over it");
     m3SphericalJoint_EnableCone(world, ball, false);
-    CHECK(m3World_GetCounters(world).misuse == 1u, "switching it off again is taken");
+    CHECK(m3World_GetCounters(world).misuseCount == 1u, "switching it off again is taken");
     m3SphericalJoint_SetConeAngle(world, ball, 0.2f);
     m3SphericalJoint_EnableCone(world, ball, true);
-    CHECK(m3SphericalJoint_IsConeEnabled(world, ball) && m3World_GetCounters(world).misuse == 1u,
+    CHECK(m3SphericalJoint_IsConeEnabled(world, ball) &&
+              m3World_GetCounters(world).misuseCount == 1u,
           "once moved, the cone switches on");
 
     // Every other type refuses the four calls, and a stale id too.
@@ -799,12 +801,12 @@ static void TestConeCalls(void)
     m3JointId others[2] = {hinge, gone};
     for (int32_t i = 0; i < 2; ++i)
     {
-        misuse = m3World_GetCounters(world).misuse;
+        misuse = m3World_GetCounters(world).misuseCount;
         m3SphericalJoint_EnableCone(world, others[i], true);
         m3SphericalJoint_SetConeAngle(world, others[i], 0.3f);
         bool on = m3SphericalJoint_IsConeEnabled(world, others[i]);
         float angle = m3SphericalJoint_GetConeAngle(world, others[i]);
-        CHECK(!on && angle == 0.0f && m3World_GetCounters(world).misuse == misuse + 4u,
+        CHECK(!on && angle == 0.0f && m3World_GetCounters(world).misuseCount == misuse + 4u,
               "a hinge or a stale id refuses each cone call, and the getters read false and zero");
     }
     CHECK(!m3Joint_IsLimitEnabled(world, hinge) && !m3Joint_IsMotorEnabled(world, hinge),
@@ -1224,9 +1226,9 @@ static void TestGenericAsSpherical(void)
     NewSphereShape(world, bob, &sd, &ball);
     m3JointDef jd = GenericBase(anchor, bob);
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
-    uint64_t misuse = m3World_GetCounters(world).misuse;
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic ball creates");
-    CHECK(m3World_GetCounters(world).misuse == misuse,
+    CHECK(m3World_GetCounters(world).misuseCount == misuse,
           "and a valid def is never counted as misuse");
     double maxSpeed2 = 0.0;
     double maxPinDrift2 = 0.0;

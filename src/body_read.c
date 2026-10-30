@@ -44,17 +44,17 @@ float m3Body_GetMass(const m3World* world, m3BodyId body)
     return result;
 }
 
-static M3_NOINLINE m3Mat3 BodyGetRotationalInertiaWorker(const m3World* world, m3BodyId body)
+static M3_NOINLINE m3Mat3 BodyGetCentralInertiaWorker(const m3World* world, m3BodyId body)
 {
     int32_t index;
     return m3ResolveBody(world, body, &index) ? world->bodies.inertiaLocal[index]
                                               : m3MakeZeroMat3();
 }
 
-m3Mat3 m3Body_GetRotationalInertia(const m3World* world, m3BodyId body)
+m3Mat3 m3Body_GetCentralInertia(const m3World* world, m3BodyId body)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3Mat3 result = BodyGetRotationalInertiaWorker(world, body);
+    m3Mat3 result = BodyGetCentralInertiaWorker(world, body);
     m3FloatEnvLeave(env);
     return result;
 }

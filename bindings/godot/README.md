@@ -12,7 +12,7 @@ from GDScript:
 - `set_body_velocity(body, velocity)`
 - `snapshot() -> PackedByteArray` / `restore(data) -> bool`
 - `world_hash() -> String` (hex; compare across peers for desync)
-- `substeps` property (default 4)
+- `substep_count` property (default 4)
 
 Body ids are the engine's 8-byte generation-tagged handles packed
 into an int: opaque, stable across snapshot restore, never a

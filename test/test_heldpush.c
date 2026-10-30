@@ -9,7 +9,7 @@
 // m3PushHeld takes it again in double. The body leaves held at the speed
 // limit, finite, 1e5 m/s and 1e5 rad/s in length, and in the direction
 // the same push takes at a lighter mass, where nothing overflows; each
-// retake counts in m3Counters.heldPushRetakes, which stays at zero for
+// retake counts in m3Counters.heldPushRetakeCount, which stays at zero for
 // the lighter push and for an ordinary scene that walks, drapes and
 // drives. Then a
 // blast's push and its soft kick, a bounce and a suspension, whose holds
@@ -75,7 +75,7 @@ typedef struct Held
 static Held HeldOf(const m3World* world, m3BodyId body)
 {
     Held held = {m3Body_GetLinearVelocity(world, body), m3Body_GetAngularVelocity(world, body),
-                 m3World_GetCounters(world).heldPushRetakes};
+                 m3World_GetCounters(world).heldPushRetakeCount};
     return held;
 }
 
@@ -410,10 +410,11 @@ static void TestWheelPush(void)
     CHECK(Finite(v) && Length(v) <= 1.0e5 * 1.0001,
           "the wheel's push leaves the chip finite within the limit");
     CHECK(Finite(w) && Length(w) <= 1.0e5 * 1.0001, "and its spin as well");
-    uint64_t retakes = m3World_GetCounters(world).heldPushRetakes;
+    uint64_t retakes = m3World_GetCounters(world).heldPushRetakeCount;
     CHECK(retakes > 0, "the wheel's push is taken again and counted");
     CHECK(m3World_Restore(world, before, size) == m3_success, "the world restores");
-    CHECK(m3World_GetCounters(world).heldPushRetakes == retakes, "and the count is left as it is");
+    CHECK(m3World_GetCounters(world).heldPushRetakeCount == retakes,
+          "and the count is left as it is");
     free(before);
     m3DestroyWorld(world);
 }
@@ -476,7 +477,7 @@ static void TestOrdinarySceneRetakesNothing(void)
     }
     CHECK(m3Body_GetPosition(world, crate).x > crateStart.x + 0.1, "the walker moves the crate");
     CHECK(grounded, "the car's wheels reach the ground");
-    CHECK(m3World_GetCounters(world).heldPushRetakes == 0, "no push is taken again");
+    CHECK(m3World_GetCounters(world).heldPushRetakeCount == 0, "no push is taken again");
     m3DestroyWorld(world);
 }
 

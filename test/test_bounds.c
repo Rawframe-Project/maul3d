@@ -164,7 +164,7 @@ static bool SceneComplete(const Scene* s)
 
 static uint64_t Misuse(const m3World* world)
 {
-    return m3World_GetCounters(world).misuse;
+    return m3World_GetCounters(world).misuseCount;
 }
 
 static const m3Quat s_identity = {0.0f, 0.0f, 0.0f, 1.0f};
