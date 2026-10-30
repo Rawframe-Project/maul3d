@@ -13,6 +13,7 @@
 
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
+#include "maul3d/softbody.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -436,6 +437,85 @@ static void TestStaleRuntimeSetters(void)
     CHECK(hashes[0] == hashes[1], "the stale barrage changes nothing");
 }
 
+// A NULL world names no object, so a status call given one with a live
+// id is m3_errorInvalid, never m3_errorStale.
+static void TestNullWorldIsInvalid(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.softBodyCapacity = 1;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId ball = NewBody(world, &bd);
+    bd.type = m3_kinematicBody;
+    m3BodyId lift = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId shape = NewSphereShape(world, ball, &sd, &sphere);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_distanceJoint;
+    jd.bodyIdA = ground;
+    jd.bodyIdB = ball;
+    m3JointId joint = NewJoint(world, &jd);
+    m3SoftBodyDef sbd = m3DefaultSoftBodyDef();
+    sbd.position = (m3Pos3){4.0, 2.0, 0.0};
+    m3SoftBodyId soft = NewSoftBody(world, &sbd);
+    m3WaterVolumeDef wd = m3DefaultWaterVolumeDef();
+    wd.bounds.lowerBound = (m3Pos3){20.0, 0.0, 0.0};
+    wd.bounds.upperBound = (m3Pos3){24.0, 2.0, 4.0};
+    m3WaterVolumeId water = NewWaterVolume(world, &wd);
+    CHECK(m3Shape_IsValid(world, shape) && m3Joint_IsValid(world, joint) &&
+              m3SoftBody_IsValid(world, soft) && m3WaterVolume_IsValid(world, water),
+          "the scene builds");
+
+    m3ShapeId newShape = m3_nullShapeId;
+    m3JointId newJoint = m3_nullJointId;
+    m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
+    CHECK(m3CreateSphereShape(NULL, ball, &sd, &sphere, &newShape) == m3_errorInvalid,
+          "a shape create on a NULL world is m3_errorInvalid");
+    CHECK(m3CreateJoint(NULL, &jd, &newJoint) == m3_errorInvalid,
+          "a joint create on a NULL world is m3_errorInvalid");
+    CHECK(m3Body_SetType(NULL, ball, m3_staticBody) == m3_errorInvalid,
+          "a type change on a NULL world is m3_errorInvalid");
+    CHECK(m3Body_SetTargetTransform(NULL, lift, (m3Pos3){1.0, 0.0, 0.0}, identity) ==
+              m3_errorInvalid,
+          "a servo target on a NULL world is m3_errorInvalid");
+    CHECK(m3Shape_SetDensity(NULL, shape, 2.0f) == m3_errorInvalid,
+          "a density on a NULL world is m3_errorInvalid");
+    CHECK(m3Shape_SetSphere(NULL, shape, &sphere) == m3_errorInvalid,
+          "a reshape on a NULL world is m3_errorInvalid");
+    CHECK(m3SoftBody_PinParticle(NULL, soft, 0) == m3_errorInvalid,
+          "a pin on a NULL world is m3_errorInvalid");
+    CHECK(m3SoftBody_AnchorParticle(NULL, soft, 0, ball) == m3_errorInvalid,
+          "an anchor on a NULL world is m3_errorInvalid");
+    CHECK(m3SoftBody_AnchorToSoft(NULL, soft, 0, soft, 1) == m3_errorInvalid,
+          "a soft-to-soft anchor on a NULL world is m3_errorInvalid");
+    m3SoftBodyId newSoft = m3_nullSoftBodyId;
+    CHECK(m3CreateSoftBody(NULL, &sbd, &newSoft) == m3_errorInvalid,
+          "a soft body create on a NULL world is m3_errorInvalid");
+    static const m3Vec3 tetPoints[4] = {
+        {0.0f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, {0.0f, 0.2f, 0.0f}, {0.0f, 0.0f, 0.2f}};
+    static const uint16_t tet[4] = {0, 1, 2, 3};
+    CHECK(m3CreateTetSoftBody(NULL, &sbd, tetPoints, 4, tet, 1, &newSoft) == m3_errorInvalid,
+          "a tet soft body create on a NULL world is m3_errorInvalid");
+    CHECK(m3DestroyShape(NULL, shape) == m3_errorInvalid,
+          "a shape destroy on a NULL world is m3_errorInvalid");
+    CHECK(m3DestroyJoint(NULL, joint) == m3_errorInvalid,
+          "a joint destroy on a NULL world is m3_errorInvalid");
+    CHECK(m3DestroySoftBody(NULL, soft) == m3_errorInvalid,
+          "a soft body destroy on a NULL world is m3_errorInvalid");
+    CHECK(m3DestroyWaterVolume(NULL, water) == m3_errorInvalid,
+          "a water destroy on a NULL world is m3_errorInvalid");
+    CHECK(m3DestroyBody(NULL, ball) == m3_errorInvalid,
+          "a body destroy on a NULL world is m3_errorInvalid");
+    CHECK(m3Shape_IsValid(world, shape) && m3Joint_IsValid(world, joint) &&
+              m3SoftBody_IsValid(world, soft) && m3WaterVolume_IsValid(world, water),
+          "and the live world is left as it was");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestStaleIdsEverywhere();
@@ -445,6 +525,7 @@ int main(void)
     TestGenerationChurn();
     TestReplayWrongSizePayloads();
     TestStaleRuntimeSetters();
+    TestNullWorldIsInvalid();
     if (s_failures == 0)
     {
         printf("test_sequences: all green\n");

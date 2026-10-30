@@ -235,7 +235,7 @@ int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle)
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(vehicle.index1));
+        m3Refuse(world, m3MissingId(world, vehicle.index1));
         return 0;
     }
     if (world->vehicles.vehDtActive[slot] == 0)
@@ -250,7 +250,7 @@ static M3_NOINLINE float VehicleGetEngineRpmWorker(const m3World* world, m3Vehic
     int32_t slot = m3VehicleSlot(world, vehicle);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(vehicle.index1));
+        m3Refuse(world, m3MissingId(world, vehicle.index1));
         return 0.0f;
     }
     if (world->vehicles.vehDtActive[slot] == 0)

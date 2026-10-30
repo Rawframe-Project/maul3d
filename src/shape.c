@@ -646,7 +646,7 @@ static m3Result SetShapeGeomPublic(m3World* world, m3ShapeId shapeId, uint8_t ty
     int32_t slot = m3ShapeSlot(world, shapeId);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(shapeId.index1));
+        return m3Refuse(world, m3MissingId(world, shapeId.index1));
     }
     m3Result result = m3ShapeSwapCheck(world, slot, type, geom);
     if (result != m3_success)
@@ -755,7 +755,7 @@ static M3_NOINLINE m3Result DestroyShapeWorker(m3World* world, m3ShapeId shape)
     int32_t index = m3ShapeSlot(world, shape);
     if (index < 0)
     {
-        return m3Refuse(world, m3MissingId(shape.index1));
+        return m3Refuse(world, m3MissingId(world, shape.index1));
     }
     if (m3CharacterOwnsBody(world, world->shapes.shapeBody[index]))
     {

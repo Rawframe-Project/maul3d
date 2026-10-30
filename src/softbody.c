@@ -624,7 +624,7 @@ static M3_NOINLINE m3Result DestroySoftBodyWorker(m3World* world, m3SoftBodyId s
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(softBody.index1));
+        return m3Refuse(world, m3MissingId(world, softBody.index1));
     }
     if (world->recorder.journalActive != 0)
     {
@@ -657,7 +657,7 @@ static M3_NOINLINE m3Result SoftBodyPinParticleWorker(m3World* world, m3SoftBody
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0)
     {
-        return m3Refuse(world, m3MissingId(softBody.index1));
+        return m3Refuse(world, m3MissingId(world, softBody.index1));
     }
     if (particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
@@ -740,7 +740,7 @@ static M3_NOINLINE m3Result SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBod
     int32_t slotB = m3SoftBodySlot(world, softBodyB);
     if (slotA < 0 || slotB < 0)
     {
-        return m3Refuse(world, m3MissingId(slotA < 0 ? softBodyA.index1 : softBodyB.index1));
+        return m3Refuse(world, m3MissingId(world, slotA < 0 ? softBodyA.index1 : softBodyB.index1));
     }
     if (slotA == slotB || particleA < 0 || particleB < 0 ||
         particleA >= world->softBodies.softParticleCount[slotA] ||
@@ -786,7 +786,7 @@ static M3_NOINLINE m3Result SoftBodyAnchorParticleWorker(m3World* world, m3SoftB
     int32_t bodyIndex = m3BodySlot(world, body);
     if (slot < 0 || bodyIndex < 0)
     {
-        return m3Refuse(world, m3MissingId(slot < 0 ? softBody.index1 : body.index1));
+        return m3Refuse(world, m3MissingId(world, slot < 0 ? softBody.index1 : body.index1));
     }
     if (particle < 0 || particle >= world->softBodies.softParticleCount[slot])
     {
@@ -823,7 +823,7 @@ int32_t m3SoftBody_GetParticleCount(const m3World* world, m3SoftBodyId softBody)
     int32_t slot = m3SoftBodySlot(world, softBody);
     if (slot < 0)
     {
-        m3Refuse(world, m3MissingId(softBody.index1));
+        m3Refuse(world, m3MissingId(world, softBody.index1));
         return 0;
     }
     return world->softBodies.softParticleCount[slot];

@@ -424,7 +424,7 @@ static M3_NOINLINE m3Result DestroyBodyWorker(m3World* world, m3BodyId body)
     int32_t index = m3BodySlot(world, body);
     if (index < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     if (m3CharacterOwnsBody(world, index))
     {
@@ -574,7 +574,7 @@ static M3_NOINLINE m3Result BodySetTargetTransformWorker(m3World* world, m3BodyI
     int32_t index = m3BodySlot(world, body);
     if (index < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     m3Transform pose = {position, rotation};
     if (world->bodies.types[index] != (uint8_t)m3_kinematicBody || !m3PoseValid(pose))
@@ -614,7 +614,7 @@ static M3_NOINLINE m3Result BodySetTypeWorker(m3World* world, m3BodyId body, m3B
     int32_t index = m3BodySlot(world, body);
     if (index < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     m3Result result = m3TypeChangeCheck(world, index, (int32_t)type);
     if (result == m3_errorInvalid)

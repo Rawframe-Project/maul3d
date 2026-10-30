@@ -25,7 +25,7 @@ static m3Result ShapeTarget(const m3World* world, m3BodyId body, const m3ShapeDe
     *bodyIndex = m3BodySlot(world, body);
     if (*bodyIndex < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     if (def == NULL || def->internalValue != M3_SHAPE_COOKIE)
     {
@@ -99,7 +99,7 @@ static M3_NOINLINE m3Result CreateSphereShapeWorker(m3World* world, m3BodyId bod
     int32_t bodyIndex = m3BodySlot(world, body);
     if (bodyIndex < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     return CreateShapeCommon(world, body, def, (uint8_t)m3_sphereShape, &geom, shapeOut);
 }
@@ -135,7 +135,7 @@ static M3_NOINLINE m3Result CreatePlaneShapeWorker(m3World* world, m3BodyId body
     int32_t bodyIndex = m3BodySlot(world, body);
     if (bodyIndex < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     if (world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
@@ -489,7 +489,7 @@ static M3_NOINLINE m3Result CreateHeightFieldMeshShapeWorker(m3World* world, m3B
     }
     if (m3BodySlot(world, body) < 0)
     {
-        return m3Refuse(world, m3MissingId(body.index1));
+        return m3Refuse(world, m3MissingId(world, body.index1));
     }
     // Triangulate the grid (CCW seen from +y) and reuse the mesh
     // path whole: welding, journaling, snapshotting all come free.

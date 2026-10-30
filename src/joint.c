@@ -631,7 +631,8 @@ static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* 
     int32_t bodyB = m3BodySlot(world, def->bodyIdB);
     if (bodyA < 0 || bodyB < 0)
     {
-        return m3Refuse(world, m3MissingId(bodyA < 0 ? def->bodyIdA.index1 : def->bodyIdB.index1));
+        return m3Refuse(world,
+                        m3MissingId(world, bodyA < 0 ? def->bodyIdA.index1 : def->bodyIdB.index1));
     }
     int32_t index = m3CreateJointInternal(world, def, bodyA, bodyB);
     if (index < 0)
@@ -668,7 +669,7 @@ static M3_NOINLINE m3Result DestroyJointWorker(m3World* world, m3JointId joint)
     int32_t index = m3JointSlot(world, joint);
     if (index < 0)
     {
-        return m3Refuse(world, m3MissingId(joint.index1));
+        return m3Refuse(world, m3MissingId(world, joint.index1));
     }
     if (world->recorder.journalActive != 0)
     {
