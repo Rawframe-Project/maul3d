@@ -154,10 +154,10 @@ extern "C"
     /// Journaled; sleeping islands stay asleep until disturbed.
     M3_API void m3World_SetGravity(m3World* world, m3Vec3 gravity);
 
-    /// Rebuild the broadphase tree top-down into a balanced shape
-    ///. Bulk shape creation grows the tree one insertion at
-    /// a time and can leave it lopsided; call this once after
-    /// building a level and queries walk a balanced tree instead.
+    /// Rebuild the broadphase tree top down, balanced. Bulk shape
+    /// creation grows the tree one insertion at a time and can leave it
+    /// lopsided; call this once after building a level and queries walk
+    /// a balanced tree instead.
     /// Deterministic and journaled: the rebuilt shape is a pure
     /// function of the live shapes, so twins and replays agree.
     /// Returns m3_errorCapacity, with the tree unchanged and nothing
@@ -251,9 +251,9 @@ extern "C"
     /// randomness exists anywhere in it. speed zero disables.
     /// direction must be near-unit when speed is nonzero; speed is
     /// within 1e5 m/s, gustHertz within 1e5 and gustScale within 1e4,
-    /// each non-negative, on the call and on replay alike. Rigid
-    /// bodies are not wind-blown in v1 (documented: the force API
-    /// already serves them); journaled.
+    /// each non-negative, on the call and on replay alike. The wind
+    /// blows soft particles only; push rigid bodies with forces.
+    /// Journaled.
     M3_API void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                                 float gustScale);
 
@@ -596,7 +596,7 @@ extern "C"
     /// normal (the documented start-inside contract; rays instead
     /// MISS shapes they start inside, front faces only).
     /// Generic convex casts: a box (with orientation) or a
-    /// caller point cloud (2..24 points, base-relative) swept along
+    /// caller point cloud (2 to M3_MAX_CAST_POINTS points, base-relative) swept along
     /// a translation, skinless. Same contracts as every cast: the
     /// earliest touch in [0, 1], start-overlapped reports fraction
     /// zero with a zero normal, hostile inputs miss. A single point
@@ -734,9 +734,9 @@ extern "C"
         int32_t scratchPeak;     // step scratch high water, bytes
         int32_t scratchCapacity; // step scratch reserve, bytes
         int64_t snapshotBytes;   // exact m3World_Snapshot size now
-        int64_t allocCalls;      // process-global persistent allocs
-        int64_t freeCalls;
-        uint64_t misuse; // stale-id, wrong-kind or bad-argument refusals, cumulative
+        int64_t allocCalls;      // blocks the world took from its allocator, cumulative
+        int64_t freeCalls;       // blocks it gave back, cumulative
+        uint64_t misuse;         // stale-id, wrong-kind or bad-argument refusals, cumulative
         // Voxel edits and explosion carves refused because the chunk's
         // surface would merge into more boxes than its tree holds,
         // cumulative; each changed nothing and journaled nothing. A

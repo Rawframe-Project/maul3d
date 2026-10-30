@@ -99,8 +99,9 @@ extern "C"
     M3_API bool m3SoftBody_IsValid(const m3World* world, m3SoftBodyId softBody);
 
     /// Pins one particle in place (inverse mass zero): how a rope
-    /// hangs and a flag flies. Journaled; out-of-range or stale
-    /// pins are quiet no-ops. Particle index is
+    /// hangs and a flag flies. Journaled; a stale id or an
+    /// out-of-range particle changes nothing and counts one misuse.
+    /// Particle index is
     /// x + countX * (y + countY * z).
     M3_API void m3SoftBody_PinParticle(m3World* world, m3SoftBodyId softBody, int32_t particle);
 
@@ -110,9 +111,10 @@ extern "C"
     /// the body as an impulse at the anchor, so the coupling is two-way. Cloth
     /// hangs from beams and jelly rides trucks through this.
     /// Anchoring to a static body is a moving pin; the anchor
-    /// RELEASES silently if its body dies. Journaled; stale ids,
-    /// out-of-range particles, and a full anchor table (32 per
-    /// soft body) are quiet no-ops.
+    /// RELEASES silently if its body dies. Journaled; a stale id,
+    /// an out-of-range particle or a full anchor table
+    /// (M3_MAX_SOFTBODY_ANCHORS per soft body) changes nothing and
+    /// counts one misuse.
     M3_API void m3SoftBody_AnchorParticle(m3World* world, m3SoftBodyId softBody, int32_t particle,
                                           m3BodyId body);
 
