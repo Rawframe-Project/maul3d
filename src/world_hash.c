@@ -18,7 +18,7 @@
 static uint64_t HashWorldHeader(const m3World* world, uint64_t h)
 {
     h = m3Hash64(h, &world->stepCount, 8);
-    h = m3Hash64(h, &world->gravity, (int32_t)sizeof(m3Vec3));
+    h = m3Hash64(h, &world->gravity, (int64_t)sizeof(m3Vec3));
     if (world->contactHertz != M3_CONTACT_HERTZ_DEFAULT ||
         world->contactDampingRatio != M3_CONTACT_DAMPING_RATIO_DEFAULT ||
         world->contactPushMaxSpeed != M3_CONTACT_PUSH_MAX_SPEED_DEFAULT ||
@@ -46,7 +46,7 @@ static uint64_t HashWorldHeader(const m3World* world, uint64_t h)
     {
         // Wind folds only when it blows (additive rule), phase
         // included: the gust wave is trajectory-shaping state.
-        h = m3Hash64(h, &world->windDir, (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->windDir, (int64_t)sizeof(m3Vec3));
         h = m3Hash64(h, &world->windSpeed, 4);
         h = m3Hash64(h, &world->windGustHertz, 4);
         h = m3Hash64(h, &world->windGustScale, 4);
@@ -80,7 +80,7 @@ static uint64_t HashPool(uint64_t h, const m3IdPool* pool, int32_t which)
     h = HashKey(h, which, M3_HASH_KEY_POOL_IDS);
     h = m3Hash64(h, &pool->maxIndex, 4);
     h = m3Hash64(h, pool->alive, pool->maxIndex);
-    h = m3Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint32_t));
+    h = m3Hash64(h, pool->generations, (int64_t)pool->maxIndex * (int64_t)sizeof(uint32_t));
     h = m3Hash64(h, &pool->freeCount, 4);
     for (int32_t k = 0; k < pool->freeCount; ++k)
     {
@@ -114,16 +114,16 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
         {
             continue;
         }
-        h = m3Hash64(h, &world->bodies.transforms[i], (int32_t)sizeof(m3Transform));
-        h = m3Hash64(h, &world->bodies.linearVelocities[i], (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->bodies.transforms[i], (int64_t)sizeof(m3Transform));
+        h = m3Hash64(h, &world->bodies.linearVelocities[i], (int64_t)sizeof(m3Vec3));
         if (world->bodies.bodyForce[i].x != 0.0f || world->bodies.bodyForce[i].y != 0.0f ||
             world->bodies.bodyForce[i].z != 0.0f || world->bodies.bodyTorque[i].x != 0.0f ||
             world->bodies.bodyTorque[i].y != 0.0f || world->bodies.bodyTorque[i].z != 0.0f)
         {
             // Pending host forces fold only when present (a mid-step
             // snapshot must carry them).
-            h = m3Hash64(h, &world->bodies.bodyForce[i], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->bodies.bodyTorque[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->bodies.bodyForce[i], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->bodies.bodyTorque[i], (int64_t)sizeof(m3Vec3));
         }
         if (world->bodies.bodyEnabled[i] == 0 || world->bodies.bodyLocks[i] != 0 ||
             world->bodies.bodySleepThreshold[i] != M3_SLEEP_VELOCITY_DEFAULT ||
@@ -135,7 +135,7 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
             h = m3Hash64(h, &world->bodies.bodySleepThreshold[i], 4);
             h = m3Hash64(h, &world->bodies.bodyCanSleep[i], 1);
             h = m3Hash64(h, &world->bodies.bodyHasTarget[i], 1);
-            h = m3Hash64(h, &world->bodies.bodyTarget[i], (int32_t)sizeof(m3Transform));
+            h = m3Hash64(h, &world->bodies.bodyTarget[i], (int64_t)sizeof(m3Transform));
         }
         if (world->bodies.gravityScales[i] != 1.0f || world->bodies.linearDamping[i] != 0.0f ||
             world->bodies.angularDamping[i] != 0.0f)
@@ -143,14 +143,14 @@ static uint64_t HashBodies(const m3World* world, uint64_t h)
             // Gravity scale and damping fold off their defaults, keyed
             // by slot and field: the step reads them every substep.
             h = HashKey(h, i, M3_HASH_KEY_BODY_MOTION);
-            h = m3Hash64(h, &world->bodies.gravityScales[i], (int32_t)sizeof(m3real));
-            h = m3Hash64(h, &world->bodies.linearDamping[i], (int32_t)sizeof(m3real));
-            h = m3Hash64(h, &world->bodies.angularDamping[i], (int32_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.gravityScales[i], (int64_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.linearDamping[i], (int64_t)sizeof(m3real));
+            h = m3Hash64(h, &world->bodies.angularDamping[i], (int64_t)sizeof(m3real));
         }
-        h = m3Hash64(h, &world->bodies.angularVelocities[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->bodies.invMass[i], (int32_t)sizeof(m3real));
-        h = m3Hash64(h, &world->bodies.invInertiaLocal[i], (int32_t)sizeof(m3Mat3));
-        h = m3Hash64(h, &world->bodies.localCenters[i], (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->bodies.angularVelocities[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->bodies.invMass[i], (int64_t)sizeof(m3real));
+        h = m3Hash64(h, &world->bodies.invInertiaLocal[i], (int64_t)sizeof(m3Mat3));
+        h = m3Hash64(h, &world->bodies.localCenters[i], (int64_t)sizeof(m3Vec3));
         h = m3Hash64(h, &world->bodies.types[i], 1);
         h = m3Hash64(h, &world->bodies.bulletFlags[i], 1);
         h = m3Hash64(h, &world->bodies.awake[i], 1);
@@ -172,7 +172,7 @@ static uint64_t HashShapes(const m3World* world, uint64_t h)
         }
         h = m3Hash64(h, &world->shapes.shapeBody[i], 4);
         h = m3Hash64(h, &world->shapes.shapeType[i], 1);
-        h = m3Hash64(h, &world->shapes.shapeGeom[i], (int32_t)sizeof(m3ShapeGeom));
+        h = m3Hash64(h, &world->shapes.shapeGeom[i], (int64_t)sizeof(m3ShapeGeom));
         h = m3Hash64(h, &world->shapes.shapeDensity[i], 4);
         h = m3Hash64(h, &world->shapes.shapeFriction[i], 4);
         h = m3Hash64(h, &world->shapes.shapeRestitution[i], 4);
@@ -187,14 +187,14 @@ static uint64_t HashShapes(const m3World* world, uint64_t h)
             world->shapes.shapeSurfaceVel[i].y != 0.0f ||
             world->shapes.shapeSurfaceVel[i].z != 0.0f)
         {
-            h = m3Hash64(h, &world->shapes.shapeSurfaceVel[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->shapes.shapeSurfaceVel[i], (int64_t)sizeof(m3Vec3));
         }
         if (world->shapes.shapeHasOffset[i] != 0)
         {
             // Compound offsets fold off-identity (additive rule,
             // tenth use).
-            h = m3Hash64(h, &world->shapes.shapeLocalPos[i], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->shapes.shapeLocalRot[i], (int32_t)sizeof(m3Quat));
+            h = m3Hash64(h, &world->shapes.shapeLocalPos[i], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->shapes.shapeLocalRot[i], (int64_t)sizeof(m3Quat));
         }
         if (world->shapes.shapeRollingResistance[i] != 0.0f)
         {
@@ -249,7 +249,7 @@ static uint64_t HashCharacters(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->characters.charSkin[i], 4);
         h = m3Hash64(h, &world->characters.charStepHeight[i], 4);
         h = m3Hash64(h, &world->characters.charGrounded[i], 1);
-        h = m3Hash64(h, &world->characters.charGroundNormal[i], (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->characters.charGroundNormal[i], (int64_t)sizeof(m3Vec3));
         h = m3Hash64(h, &world->characters.charMass[i], 4);
         h = m3Hash64(h, &world->characters.charPushMax[i], 4);
         h = m3Hash64(h, &world->characters.charGroundBody[i], 4);
@@ -276,7 +276,7 @@ static uint64_t HashSoftLinks(const m3World* world, uint64_t h, int32_t i)
         h = m3Hash64(h, &world->softBodies.softAnchorParticle[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorBody[k], 4);
         h = m3Hash64(h, &world->softBodies.softAnchorGen[k], 4);
-        h = m3Hash64(h, &world->softBodies.softAnchorLocal[k], (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->softBodies.softAnchorLocal[k], (int64_t)sizeof(m3Vec3));
     }
     // Soft-to-soft anchors fold off-empty (additive rule).
     int32_t sc = world->softBodies.softSoftCount[i];
@@ -322,7 +322,7 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
             // bind positions join only then (dead weight otherwise).
             h = m3Hash64(h, &world->softBodies.softMaxDeviation[i], 4);
             h = m3Hash64(h, &world->softBodies.softBindPos[i * M3_MAX_SOFTBODY_PARTICLES],
-                         world->softBodies.softParticleCount[i] * (int32_t)sizeof(m3Pos3));
+                         world->softBodies.softParticleCount[i] * (int64_t)sizeof(m3Pos3));
         }
         if (world->softBodies.softTetCount[i] > 0)
         {
@@ -346,8 +346,8 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
         for (int32_t p = 0; p < pc; ++p)
         {
             int32_t k = i * M3_MAX_SOFTBODY_PARTICLES + p;
-            h = m3Hash64(h, &world->softBodies.softPos[k], (int32_t)sizeof(m3Pos3));
-            h = m3Hash64(h, &world->softBodies.softPrev[k], (int32_t)sizeof(m3Pos3));
+            h = m3Hash64(h, &world->softBodies.softPos[k], (int64_t)sizeof(m3Pos3));
+            h = m3Hash64(h, &world->softBodies.softPrev[k], (int64_t)sizeof(m3Pos3));
             h = m3Hash64(h, &world->softBodies.softInvMass[k], 4);
             if (world->softBodies.softKick[k].x != 0.0f ||
                 world->softBodies.softKick[k].y != 0.0f || world->softBodies.softKick[k].z != 0.0f)
@@ -355,7 +355,7 @@ static uint64_t HashSoftBodies(const m3World* world, uint64_t h)
                 // Pending kicks fold only while they exist:
                 // the window between a blast and its next step is
                 // real rollback state, everything else is silence.
-                h = m3Hash64(h, &world->softBodies.softKick[k], (int32_t)sizeof(m3Vec3));
+                h = m3Hash64(h, &world->softBodies.softKick[k], (int64_t)sizeof(m3Vec3));
             }
         }
         h = HashSoftLinks(world, h, i);
@@ -432,8 +432,8 @@ static uint64_t HashVehicles(const m3World* world, uint64_t h)
         for (int32_t w = 0; w < world->vehicles.vehWheelCount[i]; ++w)
         {
             int32_t k = i * M3_MAX_VEHICLE_WHEELS + w;
-            h = m3Hash64(h, &world->vehicles.vehWheelAnchor[k], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->vehicles.vehWheelDir[k], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->vehicles.vehWheelAnchor[k], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->vehicles.vehWheelDir[k], (int64_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->vehicles.vehWheelRest[k], 4);
             h = m3Hash64(h, &world->vehicles.vehWheelTravel[k], 4);
             h = m3Hash64(h, &world->vehicles.vehWheelHertz[k], 4);
@@ -470,11 +470,11 @@ static uint64_t HashVoxels(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->voxels.voxelData[i].cellSize, 4);
         h = m3Hash64(h, &world->voxels.voxelData[i].filledCount, 4);
         h = m3Hash64(h, world->voxels.voxelData[i].occupancy,
-                     (int32_t)sizeof(world->voxels.voxelData[i].occupancy));
+                     (int64_t)sizeof(world->voxels.voxelData[i].occupancy));
         h = m3Hash64(h, world->voxels.voxelData[i].payload,
-                     (int32_t)sizeof(world->voxels.voxelData[i].payload));
+                     (int64_t)sizeof(world->voxels.voxelData[i].payload));
         h = m3Hash64(h, world->voxels.voxelData[i].fill,
-                     (int32_t)sizeof(world->voxels.voxelData[i].fill));
+                     (int64_t)sizeof(world->voxels.voxelData[i].fill));
     }
     return h;
 }
@@ -494,7 +494,7 @@ static uint64_t HashMeshMaterials(const m3World* world, uint64_t h)
         h = HashKey(h, m, M3_HASH_KEY_MESH_PAINT);
         h = m3Hash64(h, &mesh->materialCount, 4);
         h = m3Hash64(h, mesh->materials,
-                     mesh->materialCount * (int32_t)sizeof(m3MeshSurfaceMaterial));
+                     mesh->materialCount * (int64_t)sizeof(m3MeshSurfaceMaterial));
         h = m3Hash64(h, mesh->triMaterials, mesh->triangleCount);
     }
     return h;
@@ -514,14 +514,14 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->joints.jointType[i], 1);
         h = m3Hash64(h, &world->joints.jointBodyA[i], 4);
         h = m3Hash64(h, &world->joints.jointBodyB[i], 4);
-        h = m3Hash64(h, &world->joints.jointLocalA[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->joints.jointLocalB[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->joints.jointImpulse[i], (int32_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointLocalA[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointLocalB[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointImpulse[i], (int64_t)sizeof(m3Vec3));
         if (world->joints.jointBreak[i].x != 0.0f || world->joints.jointBreak[i].y != 0.0f)
         {
             // Break thresholds fold off-default (additive rule,
             // eighth use).
-            h = m3Hash64(h, &world->joints.jointBreak[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointBreak[i], (int64_t)sizeof(m3Vec3));
         }
         if ((world->joints.jointFlags[i] & M3_JOINT_SPRING) != 0 ||
             world->joints.jointTargetScalar[i] != 0.0f || world->joints.jointTargetQ[i].x != 0.0f ||
@@ -533,16 +533,16 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
         {
             // Drive springs fold off-default (additive rule, ninth
             // use). The impulse joins: it is dynamics state.
-            h = m3Hash64(h, &world->joints.jointSpring[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointSpring[i], (int64_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->joints.jointTargetScalar[i], 4);
-            h = m3Hash64(h, &world->joints.jointTargetQ[i], (int32_t)sizeof(m3Quat));
-            h = m3Hash64(h, &world->joints.jointSpringImpulse[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointTargetQ[i], (int64_t)sizeof(m3Quat));
+            h = m3Hash64(h, &world->joints.jointSpringImpulse[i], (int64_t)sizeof(m3Vec3));
         }
-        h = m3Hash64(h, &world->joints.jointPerpImpulse[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->joints.jointLimitImpulse[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->joints.jointAngularImpulse[i], (int32_t)sizeof(m3Vec3));
-        h = m3Hash64(h, &world->joints.jointFrameQA[i], (int32_t)sizeof(m3Quat));
-        h = m3Hash64(h, &world->joints.jointFrameQB[i], (int32_t)sizeof(m3Quat));
+        h = m3Hash64(h, &world->joints.jointPerpImpulse[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointLimitImpulse[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointAngularImpulse[i], (int64_t)sizeof(m3Vec3));
+        h = m3Hash64(h, &world->joints.jointFrameQA[i], (int64_t)sizeof(m3Quat));
+        h = m3Hash64(h, &world->joints.jointFrameQB[i], (int64_t)sizeof(m3Quat));
         h = m3Hash64(h, &world->joints.jointFlags[i], 1);
         const m3Vec3* limits = &world->joints.jointLimits[i];
         const m3Vec3* motor = &world->joints.jointMotor[i];
@@ -554,24 +554,24 @@ static uint64_t HashJoints(const m3World* world, uint64_t h)
             // flag fold off-default, keyed by slot and field: the step
             // reads them.
             h = HashKey(h, i, M3_HASH_KEY_JOINT_ROWS);
-            h = m3Hash64(h, limits, (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, motor, (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, limits, (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, motor, (int64_t)sizeof(m3Vec3));
             h = m3Hash64(h, &world->joints.jointConnectedCollision[i], 1);
         }
         if (world->joints.jointType[i] == (uint8_t)m3_genericJoint)
         {
             // The generic joint's fields fold only for that type.
             h = m3Hash64(h, &world->joints.jointGenericModes[i], 2);
-            h = m3Hash64(h, &world->joints.jointGenLinLower[i], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->joints.jointGenLinUpper[i], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->joints.jointGenAngLower[i], (int32_t)sizeof(m3Vec3));
-            h = m3Hash64(h, &world->joints.jointGenAngUpper[i], (int32_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointGenLinLower[i], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointGenLinUpper[i], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointGenAngLower[i], (int64_t)sizeof(m3Vec3));
+            h = m3Hash64(h, &world->joints.jointGenAngUpper[i], (int64_t)sizeof(m3Vec3));
         }
         if (world->joints.jointType[i] == (uint8_t)m3_pulleyJoint)
         {
             // The rope's world anchors exist only under a pulley.
-            h = m3Hash64(h, &world->joints.jointGroundA[i], (int32_t)sizeof(m3Pos3));
-            h = m3Hash64(h, &world->joints.jointGroundB[i], (int32_t)sizeof(m3Pos3));
+            h = m3Hash64(h, &world->joints.jointGroundA[i], (int64_t)sizeof(m3Pos3));
+            h = m3Hash64(h, &world->joints.jointGroundB[i], (int64_t)sizeof(m3Pos3));
         }
     }
     return h;
@@ -590,15 +590,15 @@ static uint64_t HashWater(const m3World* world, uint64_t h)
         }
         if (waterAlive > 0)
         {
-            h = m3Hash64(h, world->water.waterLo, M3_MAX_WATER_VOLUMES * (int32_t)sizeof(m3Pos3));
-            h = m3Hash64(h, world->water.waterHi, M3_MAX_WATER_VOLUMES * (int32_t)sizeof(m3Pos3));
+            h = m3Hash64(h, world->water.waterLo, M3_MAX_WATER_VOLUMES * (int64_t)sizeof(m3Pos3));
+            h = m3Hash64(h, world->water.waterHi, M3_MAX_WATER_VOLUMES * (int64_t)sizeof(m3Pos3));
             h = m3Hash64(h, world->water.waterDensity,
-                         M3_MAX_WATER_VOLUMES * (int32_t)sizeof(float));
+                         M3_MAX_WATER_VOLUMES * (int64_t)sizeof(float));
             h = m3Hash64(h, world->water.waterLinDrag,
-                         M3_MAX_WATER_VOLUMES * (int32_t)sizeof(float));
+                         M3_MAX_WATER_VOLUMES * (int64_t)sizeof(float));
             h = m3Hash64(h, world->water.waterAngDrag,
-                         M3_MAX_WATER_VOLUMES * (int32_t)sizeof(float));
-            h = m3Hash64(h, world->water.waterFlow, M3_MAX_WATER_VOLUMES * (int32_t)sizeof(m3Vec3));
+                         M3_MAX_WATER_VOLUMES * (int64_t)sizeof(float));
+            h = m3Hash64(h, world->water.waterFlow, M3_MAX_WATER_VOLUMES * (int64_t)sizeof(m3Vec3));
             h = m3Hash64(h, world->water.waterPool.alive, M3_MAX_WATER_VOLUMES);
         }
     }
@@ -614,7 +614,7 @@ static uint64_t HashContacts(const m3World* world, uint64_t h)
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
         h = m3Hash64(h, &world->contacts.pairKeys[i], 8);
-        h = m3Hash64(h, &world->contacts.manifolds[i], (int32_t)sizeof(m3Manifold));
+        h = m3Hash64(h, &world->contacts.manifolds[i], (int64_t)sizeof(m3Manifold));
     }
     return h;
 }

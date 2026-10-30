@@ -177,10 +177,10 @@ extern "C"
     /// backend with m3_errorUnsupported, so a program can call this first to
     /// choose another path, or build with -DMAUL3D_SIMD=scalar.
     ///
-    /// @return 1 when the CPU can run this library, 0 when it cannot.
+    /// @return Whether the CPU can run this library.
     /// @par Thread safety
     /// Safe from any thread.
-    M3_API int32_t m3IsCpuBackendSupported(void);
+    M3_API bool m3IsCpuBackendSupported(void);
 
     // Ids of the objects a world owns: a 1-based slot (0 is the null id)
     // and the generation the slot had when the object was made, so an id
@@ -218,7 +218,7 @@ extern "C"
     /// @return The new running hash.
     /// @par Thread safety
     /// Safe from any thread.
-    M3_API uint64_t m3Hash64(uint64_t seed, const void* data, int32_t byteCount);
+    M3_API uint64_t m3Hash64(uint64_t seed, const void* data, int64_t byteCount);
 
 // The seed of an m3Hash64 chain.
 #define M3_HASH_INIT 0xCBF29CE484222325ull
