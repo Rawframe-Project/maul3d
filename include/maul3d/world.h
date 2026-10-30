@@ -315,7 +315,8 @@ extern "C"
     /// snapshots like one the API built.
     /// Snapshot writes m3World_GetSnapshotSize bytes, never more than
     /// M3_MAX_SNAPSHOT_BYTES, and sets *bytesOut; a smaller buffer
-    /// returns m3_errorCapacity.
+    /// returns m3_errorCapacity. Any failure, a null world's included,
+    /// leaves *bytesOut zero.
     M3_API int32_t m3World_GetSnapshotSize(const m3World* world);
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
                                                   int32_t capacity, int32_t* bytesOut);
@@ -786,13 +787,11 @@ extern "C"
     /// caller-owned buffer (m3_errorState while a journal is already
     /// running); Stop sets *bytesOut to the bytes written, or returns
     /// m3_errorCapacity when the buffer overflowed (m3_errorState when
-    /// none was running); Replay applies a stream to this world. A tape
-    /// is laid out the same on every target (little-endian, each record
-    /// as on x86-64) and never holds a def's padding, so the same calls
-    /// write the same bytes anywhere. It starts with the 16-byte state
-    /// prefix, written when the journal starts, so the buffer holds at
-    /// least 16 bytes and a session of no op is those 16. Only the
-    /// release that wrote a tape replays it.
+    /// none was running), and any failure leaves *bytesOut zero; Replay applies a stream to this
+    /// world. A tape is laid out the same on every target (little-endian, each record as on x86-64)
+    /// and never holds a def's padding, so the same calls write the same bytes anywhere. It starts
+    /// with the 16-byte state prefix, written when the journal starts, so the buffer holds at least
+    /// 16 bytes and a session of no op is those 16. Only the release that wrote a tape replays it.
     M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
                                                       int32_t capacity);
     M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int32_t* bytesOut);

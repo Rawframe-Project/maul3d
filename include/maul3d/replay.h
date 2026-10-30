@@ -61,7 +61,8 @@ extern "C"
 
     /// Encode a container. finalHash is the recorder's end hash
     /// (m3World_Hash after the session); verifiers compare against
-    /// it. Sets *bytesOut to the bytes written. Returns m3_errorVersion
+    /// it. Sets *bytesOut to the bytes written; any failure leaves it as
+    /// it was, since the call has no owner. Returns m3_errorVersion
     /// for a snapshot or tape another release wrote, m3_errorInvalid for
     /// a null pointer, m3_errorFormat for sizes too short to hold a
     /// snapshot or a tape, a header that is not a snapshot's or a

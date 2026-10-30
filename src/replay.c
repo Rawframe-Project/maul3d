@@ -81,12 +81,8 @@ m3Result m3EncodeReplay(const void* snapshot, int32_t snapshotBytes, const void*
                         int32_t journalBytes, uint64_t finalHash, void* out, int32_t capacity,
                         int32_t* bytesOut)
 {
-    if (bytesOut == NULL)
-    {
-        return m3_errorInvalid;
-    }
-    *bytesOut = 0;
-    if (snapshot == NULL || journal == NULL || out == NULL)
+    // No owner: a failure leaves *bytesOut as it was, set only on success.
+    if (bytesOut == NULL || snapshot == NULL || journal == NULL || out == NULL)
     {
         return m3_errorInvalid;
     }

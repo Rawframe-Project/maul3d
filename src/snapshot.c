@@ -124,11 +124,14 @@ int32_t m3World_GetSnapshotSize(const m3World* world)
 static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buffer,
                                                 int32_t capacity, int32_t* bytesOut)
 {
+    if (bytesOut != NULL)
+    {
+        *bytesOut = 0; // cleared before any check, the world's included
+    }
     if (world == NULL || buffer == NULL || bytesOut == NULL)
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    *bytesOut = 0;
     int64_t size = m3SnapshotBytes(world);
     if ((int64_t)capacity < size)
     {
