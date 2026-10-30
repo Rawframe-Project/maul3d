@@ -176,8 +176,7 @@ extern "C"
     /// model is deliberately approximate and deterministically so.
     typedef struct m3WaterVolumeDef
     {
-        m3Pos3 lo;             // within 1e15 m of the origin
-        m3Pos3 hi;             // must exceed lo on every axis; within 1e15 m
+        m3WorldAabb bounds;    // upper above lower on every axis, each within 1e15 m
         m3real density;        // kg/m3; 1000 is water, > 0 and at most 1e6
         m3real linearDrag;     // per-second rate toward the flow, >= 0
         m3real angularDrag;    // per-second spin damping, >= 0
@@ -425,11 +424,11 @@ extern "C"
         /// the island).
         int32_t recipeStart;
         int32_t recipeCount;
-        m3Vec3 comChunk;     /// island center of mass, chunk frame
-        m3Pos3 comWorld;     /// the same point in world space at emit time
-        m3real mass;         /// at density one (cell volume times count)
-        uint8_t boundsLo[3]; /// island voxel bounds, inclusive
-        uint8_t boundsHi[3];
+        m3Vec3 localCenter;    /// island center of mass, chunk frame
+        m3Pos3 worldCenter;    /// the same point in world space at emit time
+        m3real mass;           /// at density one (cell volume times count)
+        uint8_t lowerBound[3]; /// island voxel bounds, inclusive
+        uint8_t upperBound[3];
     } m3FragmentEvent;
 
     /// The fragment events of the last step and their recipe buffer.
@@ -538,7 +537,7 @@ extern "C"
     } m3MoverPlane;
 
 /// Planes past this count take no part in the solve.
-#define M3_MOVER_PLANES 16
+#define M3_MAX_MOVER_PLANES 16
 
     typedef struct m3MoverMove
     {
@@ -564,7 +563,7 @@ extern "C"
 
     /// The closest translation to the wish that no plane blocks, and
     /// the planes it rests on. Pure function, world-free. Only the
-    /// first M3_MOVER_PLANES planes take part.
+    /// first M3_MAX_MOVER_PLANES planes take part.
     M3_API m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count);
 
     /// The velocity closest to the given one that no pressed plane
@@ -644,10 +643,9 @@ extern "C"
     M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                       m3Quat rotation, m3QueryFilter filter, m3ShapeId* idsOut,
                                       int32_t capacity);
-    M3_API int32_t m3World_OverlapHullPoints(const m3World* world, m3Pos3 base,
-                                             const m3Vec3* points, int32_t count, m3real radius,
-                                             m3QueryFilter filter, m3ShapeId* idsOut,
-                                             int32_t capacity);
+    M3_API int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* points,
+                                       int32_t count, m3real radius, m3QueryFilter filter,
+                                       m3ShapeId* idsOut, int32_t capacity);
 
     /// Explosion definition: one journaled call pushes every
     /// dynamic convex shape in range. The impulse scales with the

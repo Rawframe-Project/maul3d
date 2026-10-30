@@ -513,8 +513,8 @@ static Scene Build(void)
     s.jelly = NewTetSoftBody(w, &tetDef, corners, 4, tet, 1).index1 - 1;
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){4.0, 0.0, 4.0};
-    pool.hi = (m3Pos3){6.0, 1.0, 6.0};
+    pool.bounds.lowerBound = (m3Pos3){4.0, 0.0, 4.0};
+    pool.bounds.upperBound = (m3Pos3){6.0, 1.0, 6.0};
     m3WaterVolumeId volume = NewWaterVolume(w, &pool);
     s.pool = m3WaterVolume_IsValid(w, volume) ? (int32_t)volume.index1 - 1 : -1;
     for (int32_t i = 0; i < 4; ++i)

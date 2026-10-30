@@ -541,8 +541,8 @@ static m3World* BusyWorld(Budget* budget)
     chd.position = (m3Pos3){-12.0, 1.0, 0.0};
     (void)NewCharacter(world, &chd);
     m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
-    water.lo = (m3Pos3){0.0, -1.0, 0.0};
-    water.hi = (m3Pos3){4.0, 0.5, 4.0};
+    water.bounds.lowerBound = (m3Pos3){0.0, -1.0, 0.0};
+    water.bounds.upperBound = (m3Pos3){4.0, 0.5, 4.0};
     (void)NewWaterVolume(world, &water);
     return world;
 }

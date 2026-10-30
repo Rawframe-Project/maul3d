@@ -388,8 +388,8 @@ M3_PIN_AT(m3WheelDef, driven, 45);
 M3_PIN_AT(m3WheelDef, brakeShare, 48);
 
 M3_PIN_SIZE(m3WaterVolumeDef, 80);
-M3_PIN_AT(m3WaterVolumeDef, lo, 0);
-M3_PIN_AT(m3WaterVolumeDef, hi, 24);
+M3_PIN_AT(m3WaterVolumeDef, bounds.lowerBound, 0);
+M3_PIN_AT(m3WaterVolumeDef, bounds.upperBound, 24);
 M3_PIN_AT(m3WaterVolumeDef, density, 48);
 M3_PIN_AT(m3WaterVolumeDef, linearDrag, 52);
 M3_PIN_AT(m3WaterVolumeDef, angularDrag, 56);

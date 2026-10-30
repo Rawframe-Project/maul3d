@@ -96,26 +96,26 @@ static void TestCloudFilterAndPurity(void)
     m3Vec3 tetra[4] = {
         {0.0f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, {-4.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}};
     m3ShapeId hits[8];
-    int32_t all = m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f,
-                                            m3DefaultQueryFilter(), hits, 8);
+    int32_t all = m3World_OverlapHull(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f,
+                                      m3DefaultQueryFilter(), hits, 8);
     // The cloud floats half a meter over the floor with a 0.1
     // skin: the plane is OUT of reach, both crates in.
     CHECK(all == 2, "the cloud reaches exactly the two crates");
     m3QueryFilter filter = m3DefaultQueryFilter();
     filter.maskBits = ~2ull;
     int32_t masked =
-        m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, filter, hits, 8);
+        m3World_OverlapHull(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 4, 0.1f, filter, hits, 8);
     CHECK(masked == 1, "the filter hides the category-2 crate");
     // Hostile clouds refuse quietly with zero hits.
     float bad;
     uint32_t nanBits = 0x7FC00000u;
     memcpy(&bad, &nanBits, sizeof(bad));
     m3Vec3 cursed[2] = {{0.0f, 0.0f, 0.0f}, {bad, 0.0f, 0.0f}};
-    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, cursed, 2, 0.1f,
-                                    m3DefaultQueryFilter(), hits, 8) == 0,
+    CHECK(m3World_OverlapHull(world, (m3Pos3){0.0, 0.5, 0.0}, cursed, 2, 0.1f,
+                              m3DefaultQueryFilter(), hits, 8) == 0,
           "a NaN cloud reads zero");
-    CHECK(m3World_OverlapHullPoints(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 0, 0.1f,
-                                    m3DefaultQueryFilter(), hits, 8) == 0,
+    CHECK(m3World_OverlapHull(world, (m3Pos3){0.0, 0.5, 0.0}, tetra, 0, 0.1f,
+                              m3DefaultQueryFilter(), hits, 8) == 0,
           "an empty cloud reads zero");
     CHECK(m3World_Hash(world) == before, "overlap queries move no bits");
     m3DestroyWorld(world);

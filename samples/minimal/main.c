@@ -106,7 +106,7 @@ int main(void)
     }
     m3BodyDef fdb = m3DefaultBodyDef();
     fdb.type = m3_dynamicBody;
-    fdb.position = events[0].comWorld;
+    fdb.position = events[0].worldCenter;
     m3BodyId fragment;
     Require(m3CreateBody(world, &fdb, &fragment), "fragment body");
     m3ShapeDef fsd = m3DefaultShapeDef();

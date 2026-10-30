@@ -22,7 +22,7 @@ m3WaterVolumeDef m3DefaultWaterVolumeDef(void)
 {
     m3WaterVolumeDef def;
     memset(&def, 0, sizeof(def));
-    def.hi = (m3Pos3){1.0, 1.0, 1.0};
+    def.bounds.upperBound = (m3Pos3){1.0, 1.0, 1.0};
     def.density = 1000.0f;
     def.linearDrag = 2.0f;
     def.angularDrag = 1.0f;
@@ -56,14 +56,16 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
 {
     // The full wall, here because replay hands this function
     // raw journal bytes.
-    m3Result result = m3BothChecks(m3CheckPosition(def->lo), m3CheckPosition(def->hi));
+    m3Result result = m3BothChecks(m3CheckPosition(def->bounds.lowerBound),
+                                   m3CheckPosition(def->bounds.upperBound));
     result = m3BothChecks(result, m3CheckPositive(def->density, M3_DENSITY_LIMIT));
     result = m3BothChecks(result, m3CheckWithinV3(def->flow, M3_SPEED_LIMIT));
     result =
         m3BothChecks(result, m3CheckValid(m3FiniteF(def->linearDrag) && def->linearDrag >= 0.0f &&
                                           m3FiniteF(def->angularDrag) && def->angularDrag >= 0.0f));
-    if (result == m3_success &&
-        !(def->hi.x > def->lo.x && def->hi.y > def->lo.y && def->hi.z > def->lo.z))
+    if (result == m3_success && !(def->bounds.upperBound.x > def->bounds.lowerBound.x &&
+                                  def->bounds.upperBound.y > def->bounds.lowerBound.y &&
+                                  def->bounds.upperBound.z > def->bounds.lowerBound.z))
     {
         result = m3_errorInvalid; // an empty or inverted box
     }
@@ -76,8 +78,8 @@ int32_t m3CreateWaterVolumeInternal(m3World* world, const m3WaterVolumeDef* def)
     {
         return M3_CREATE_FULL; // every slot taken: loud at the caller
     }
-    world->water.waterLo[slot] = def->lo;
-    world->water.waterHi[slot] = def->hi;
+    world->water.waterLo[slot] = def->bounds.lowerBound;
+    world->water.waterHi[slot] = def->bounds.upperBound;
     world->water.waterDensity[slot] = def->density;
     world->water.waterLinDrag[slot] = def->linearDrag;
     world->water.waterAngDrag[slot] = def->angularDrag;

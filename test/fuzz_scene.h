@@ -219,8 +219,8 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
     FuzzCreated(scene, m3Character_IsValid(world, scene->hero));
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){1.0, 0.0, 1.0};
-    pool.hi = (m3Pos3){3.0, 1.0, 3.0};
+    pool.bounds.lowerBound = (m3Pos3){1.0, 0.0, 1.0};
+    pool.bounds.upperBound = (m3Pos3){3.0, 1.0, 3.0};
     scene->pool = NewWaterVolume(world, &pool);
     FuzzCreated(scene, m3WaterVolume_IsValid(world, scene->pool));
     return scene->failures == 0;

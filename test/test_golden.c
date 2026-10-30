@@ -688,8 +688,8 @@ static Cast AddVehicles(m3World* world, double ox, double oz)
     NewSoftBody(world, &jelly);
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){-30.0 + ox, 0.0, 10.0 + oz};
-    pool.hi = (m3Pos3){-20.0 + ox, 4.0, 20.0 + oz};
+    pool.bounds.lowerBound = (m3Pos3){-30.0 + ox, 0.0, 10.0 + oz};
+    pool.bounds.upperBound = (m3Pos3){-20.0 + ox, 4.0, 20.0 + oz};
     pool.flow = (m3Vec3){0.5f, 0.0f, 0.0f};
     NewWaterVolume(world, &pool);
     for (int32_t i = 0; i < 3; ++i)
@@ -848,8 +848,8 @@ static void TourCreate(Tour* t)
     t->guest = NewCharacter(world, &cd);
 
     m3WaterVolumeDef pool = m3DefaultWaterVolumeDef();
-    pool.lo = (m3Pos3){62.0, 0.0, -3.0};
-    pool.hi = (m3Pos3){68.0, 1.5, 3.0};
+    pool.bounds.lowerBound = (m3Pos3){62.0, 0.0, -3.0};
+    pool.bounds.upperBound = (m3Pos3){68.0, 1.5, 3.0};
     t->tide = NewWaterVolume(world, &pool);
 
     m3JointDef jd = m3DefaultJointDef();
