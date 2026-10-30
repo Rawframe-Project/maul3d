@@ -1083,11 +1083,9 @@ answer "who touches me" through m3Body_GetContactData and
 m3Shape_GetContactData: manifold entries in canonical pair order
 with world points, separations, and last-step normal impulses.
 
-Every call that rejects its input records why: read m3LastResult
-right after a refusal (invalid input, a full pool, or data from a
-different build), on the same thread. Misuse against a live world also
-counts in m3Counters.misuseCount, so a host can poll once per frame and
-catch bugs in release builds. Refusals never assert.
+Every refusal returns its status and changes nothing. Misuse against a
+live world also counts in m3Counters.misuseCount, so a host can poll once
+per frame and catch bugs in release builds. Refusals never assert.
 
 Which refusals count misuse, in one place:
 
