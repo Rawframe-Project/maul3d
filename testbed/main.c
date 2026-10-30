@@ -1655,7 +1655,10 @@ int main(void)
             {
                 int32_t lo[3] = {cx - 1 < 0 ? 0 : cx - 1, cy, cz - 1 < 0 ? 0 : cz - 1};
                 int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy, cz + 1 > 15 ? 15 : cz + 1};
-                if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+                int32_t cleared = 0;
+                if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi, &cleared) ==
+                        m3_success &&
+                    cleared > 0)
                 {
                     SpawnFragments(scene.world);
                 }
@@ -1671,7 +1674,10 @@ int main(void)
                              cz - 1 < 0 ? 0 : cz - 1};
             int32_t hi[3] = {cx + 1 > 15 ? 15 : cx + 1, cy + 1 > 15 ? 15 : cy + 1,
                              cz + 1 > 15 ? 15 : cz + 1};
-            if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi) > 0)
+            int32_t cleared = 0;
+            if (m3VoxelChunkShape_ClearBox(scene.world, scene.chunk, lo, hi, &cleared) ==
+                    m3_success &&
+                cleared > 0)
             {
                 SpawnFragments(scene.world);
             }

@@ -365,15 +365,18 @@ Edits are commands: set a voxel (with payload), clear a voxel,
 clear a box region, set a fill fraction. Every edit is journaled
 and replayed like any other mutation; the surface follows the grid
 as a pure function; dynamic bodies touching the edited region wake.
-No edit asks the allocator. A chunk's surface holds at most 2048
-merged boxes, the checkerboard's count, and a voxel slot reserves a
+No edit asks the allocator. A chunk's surface holds at most
+`M3_MAX_VOXEL_SURFACE_BOXES` (2048) merged boxes, the checkerboard's
+count, and a voxel slot reserves a
 tree that size (about 84 KB) when its first chunk is created, so a
 world pays only for the slots it fills; the world keeps one 76 KB build
 scratch. An edit, an explosion's carve or the fracture it causes always
 leaves a tree that answers. An edit or a carve whose surface would pass
 the bound changes nothing and journals nothing; it counts in
-m3Counters.voxelEditsRefused, not in misuse, and the explosion's
-impulses still land. A create or a snapshot chunk past the bound is
+m3Counters.voxelEditsRefused, not in misuse, the edit returns
+`m3_errorLimit`, and the explosion's impulses still land. Each edit
+returns an `m3Result`, and `m3VoxelChunkShape_ClearBox` writes the
+count it cleared to its `clearedOut`. A create or a snapshot chunk past the bound is
 refused.
 Fill is mass, never geometry: a worn voxel collides at full size
 but its fragment weighs fill over 255. A chunk edited to empty
@@ -1254,7 +1257,7 @@ past what real scenes use. Vectors are bounded per component.
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
 | Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
-| Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields |
+| Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface |
 | Capacities | `M3_MAX_SHAPE_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
 
 The step holds what it produces within the same limits: every

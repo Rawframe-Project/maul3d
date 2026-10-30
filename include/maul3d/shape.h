@@ -286,14 +286,17 @@ extern "C"
     /// shape that collides with nothing (the natural end state of
     /// destruction).
     ///
-    /// A chunk's surface holds at most 2048 merged boxes, the
-    /// checkerboard's count; the slot reserved that much when its
-    /// first chunk was created, so no edit asks the allocator. An
-    /// edit whose surface would pass the bound changes nothing,
-    /// journals nothing and counts no misuse: it counts in
-    /// m3Counters.voxelEditsRefused instead, and m3VoxelChunkShape_ClearBox
-    /// returns -1. A create whose grid passes it is refused with
-    /// m3_errorCapacity.
+    /// Each edit returns m3_success when it landed; m3_errorStale for a
+    /// stale id, m3_errorInvalid for the null id, a non-voxel shape or
+    /// a bad argument, and m3_errorBusy inside a step callback, each
+    /// counting one misuse. A chunk's surface holds at most
+    /// M3_MAX_VOXEL_SURFACE_BOXES merged boxes; the slot reserved that
+    /// much when its first chunk was created, so no edit asks the
+    /// allocator. An edit whose surface would pass the bound returns
+    /// m3_errorLimit: it changes nothing, journals nothing and counts
+    /// no misuse, only m3Counters.voxelEditsRefused, which also counts
+    /// the carves m3World_Explode loses to the bound. A create whose
+    /// grid passes it is refused with m3_errorCapacity.
     ///
     /// The anchor convention: an island is anchored through the
     /// CHUNK's y = 0 base layer, not through world ground. Build
@@ -302,24 +305,28 @@ extern "C"
     /// y = 0. Voxels with no path to the base layer survive
     /// creation but fragment on the first clearing edit anywhere in
     /// the chunk (the sweep is chunk-wide by design).
-    M3_API void m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                           int32_t z, uint16_t payload);
-    M3_API void m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                             int32_t z);
-    /// Clears the inclusive box [lo, hi] per axis. Returns the
-    /// number of voxels that were actually cleared (zero is legal),
-    /// or -1 on a stale id, a non-voxel shape, a bad region, or a
-    /// surface past the box bound.
-    M3_API int32_t m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape, const int32_t lo[3],
-                                              const int32_t hi[3]);
+    M3_NODISCARD M3_API m3Result m3VoxelChunkShape_SetVoxel(m3World* world, m3ShapeId shape,
+                                                            int32_t x, int32_t y, int32_t z,
+                                                            uint16_t payload);
+    M3_NODISCARD M3_API m3Result m3VoxelChunkShape_ClearVoxel(m3World* world, m3ShapeId shape,
+                                                              int32_t x, int32_t y, int32_t z);
+    /// Clears the inclusive box [lo, hi] per axis and writes the
+    /// number of voxels it cleared to *clearedOut (zero is legal). On
+    /// any failure *clearedOut is zero; a NULL clearedOut is refused
+    /// with m3_errorInvalid.
+    M3_NODISCARD M3_API m3Result m3VoxelChunkShape_ClearBox(m3World* world, m3ShapeId shape,
+                                                            const int32_t lo[3],
+                                                            const int32_t hi[3],
+                                                            int32_t* clearedOut);
     /// Fill fraction: 255 is a whole voxel, 1 a sliver. A
     /// mass and destruction property, never geometry: the voxel
     /// still collides as a full box, but its fragment mass scales
     /// by fill / 255. Refuses zero fill (that is a clear: use
     /// m3VoxelChunkShape_ClearVoxel) and empty voxels. Journaled state,
     /// hashed, inside the rollback delta like every edit.
-    M3_API void m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape, int32_t x, int32_t y,
-                                          int32_t z, uint8_t fill);
+    M3_NODISCARD M3_API m3Result m3VoxelChunkShape_SetFill(m3World* world, m3ShapeId shape,
+                                                           int32_t x, int32_t y, int32_t z,
+                                                           uint8_t fill);
 
     /// True while the id names a live shape of this world; false for
     /// the null id and stale generations, without counting misuse.

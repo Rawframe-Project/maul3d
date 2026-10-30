@@ -752,8 +752,9 @@ extern "C"
         int64_t freeCount;       // blocks it gave back, cumulative
         uint64_t misuseCount;    // stale-id, wrong-kind or bad-argument refusals, cumulative
         // Voxel edits and explosion carves refused because the chunk's
-        // surface would merge into more boxes than its tree holds,
-        // cumulative; each changed nothing and journaled nothing. A
+        // surface would merge into more than M3_MAX_VOXEL_SURFACE_BOXES
+        // boxes, cumulative; each changed nothing and journaled nothing,
+        // and each edit returned m3_errorLimit. A
         // counter, not state: it is not hashed or snapshotted, and a
         // restore or a replay's back-out leaves it as it is, so a replay
         // refused after an edit was refused leaves it higher.

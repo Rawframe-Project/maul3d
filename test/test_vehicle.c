@@ -360,7 +360,9 @@ static void TestCarveUnderParkedCar(void)
     // Carve everything under and around the car.
     int32_t lo[3] = {4, 0, 4};
     int32_t hi[3] = {12, 1, 12};
-    CHECK(m3VoxelChunkShape_ClearBox(world, chunk, lo, hi) > 0, "the carve clears the deck");
+    int32_t cleared = 0;
+    CHECK(m3VoxelChunkShape_ClearBox(world, chunk, lo, hi, &cleared) == m3_success && cleared > 0,
+          "the carve clears the deck");
     for (int32_t i = 0; i < 120; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);

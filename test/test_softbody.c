@@ -244,7 +244,9 @@ static void TestRopeInBowlAndCarve(void)
     // Carve the floor slab out from under it.
     int32_t lo[3] = {5, 0, 5};
     int32_t hi[3] = {10, 0, 10};
-    CHECK(m3VoxelChunkShape_ClearBox(world, chunk, lo, hi) > 0, "the carve clears the floor");
+    int32_t cleared = 0;
+    CHECK(m3VoxelChunkShape_ClearBox(world, chunk, lo, hi, &cleared) == m3_success && cleared > 0,
+          "the carve clears the floor");
     for (int32_t i = 0; i < 90; ++i)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);

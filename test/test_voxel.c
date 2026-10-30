@@ -400,7 +400,9 @@ static void TestEditsCarveAndWake(void)
     // Carve a 4x1x4 pocket in the top layer under the crate.
     int32_t lo[3] = {6, 3, 6};
     int32_t hi[3] = {9, 3, 9};
-    CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, lo, hi) == 16,
+    int32_t cleared = 0;
+    CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, lo, hi, &cleared) == m3_success &&
+              cleared == 16,
           "the carve clears sixteen voxels");
     CHECK(wp->bodies.awake[crateSlot] == 1, "the vanishing floor wakes the sleeper");
 
@@ -414,7 +416,9 @@ static void TestEditsCarveAndWake(void)
     // Single-voxel edits reshape the surface analytically: refill
     // one pocket voxel and the surface gains a box.
     int32_t before = SurfaceOf(world, chunkShape)->boxCount;
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, chunkShape, 6, 3, 6, 42),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, chunkShape, 6, 3, 6, 42) == m3_success,
+                        "a refill lands"),
                   "a refill lands");
     CHECK(SurfaceOf(world, chunkShape)->boxCount == before + 1, "the refill adds one box");
     const m3VoxelChunkData* chunk =
@@ -426,7 +430,9 @@ static void TestEditsCarveAndWake(void)
     static m3VoxelSurface surfBefore;
     memcpy(&surfBefore, SurfaceOf(world, chunkShape), sizeof(m3VoxelSurface));
     uint64_t hashBefore = m3World_Hash(world);
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, chunkShape, 6, 3, 6, 43),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, chunkShape, 6, 3, 6, 43) == m3_success,
+                        "the payload update lands"),
                   "the payload update lands");
     CHECK(m3World_Hash(world) != hashBefore, "payload is state: the hash moves");
     CHECK(memcmp(&surfBefore, SurfaceOf(world, chunkShape), offsetof(m3VoxelSurface, bvh)) == 0,
@@ -451,32 +457,59 @@ static void TestEditRefusalsAndEmptyEnd(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.4f};
     m3ShapeId ballShape = NewSphereShape(world, ball, &sd, &sphere);
 
-    CHECK_REFUSES(world, m3VoxelChunkShape_SetVoxel(world, chunkShape, 16, 0, 0, 0),
-                  "out-of-range x refuses");
-    CHECK_REFUSES(world, m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, -1, 0),
-                  "negative y refuses");
-    CHECK_REFUSES(world, m3VoxelChunkShape_SetVoxel(world, ballShape, 0, 0, 0, 0),
+    CHECK_REFUSES(
+        world,
+        CHECK(m3VoxelChunkShape_SetVoxel(world, chunkShape, 16, 0, 0, 0) == m3_errorInvalid,
+              "out-of-range x refuses"),
+        "out-of-range x refuses");
+    CHECK_REFUSES(
+        world,
+        CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, -1, 0) == m3_errorInvalid,
+              "negative y refuses"),
+        "negative y refuses");
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, ballShape, 0, 0, 0, 0) == m3_errorInvalid,
+                        "a non-voxel shape refuses edits"),
                   "a non-voxel shape refuses edits");
     int32_t lo[3] = {2, 0, 0};
     int32_t hi[3] = {1, 0, 0};
-    uint64_t misuse = m3World_GetCounters(world).misuseCount;
-    CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, lo, hi) == -1,
-          "an inverted region refuses");
-    CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "and counts one misuse");
+    int32_t cleared = -1;
+    CHECK_REFUSES(
+        world,
+        CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, lo, hi, &cleared) == m3_errorInvalid,
+              "an inverted region is m3_errorInvalid"),
+        "an inverted region refuses");
+    CHECK(cleared == 0, "a refused box clear writes zero");
     int32_t origin[3] = {0, 0, 0};
     int32_t past[3] = {0, 0, 16};
-    CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, origin, past) == -1,
-          "a region past the chunk refuses");
-    CHECK(m3World_GetCounters(world).misuseCount == misuse + 2, "and counts one misuse");
+    cleared = -1;
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, origin, past, &cleared) ==
+                            m3_errorInvalid,
+                        "a region past the chunk is m3_errorInvalid"),
+                  "a region past the chunk refuses");
+    CHECK(cleared == 0, "a refused box clear writes zero");
+    int32_t corner[3] = {0, 0, 0};
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_ClearBox(world, chunkShape, corner, corner, NULL) ==
+                            m3_errorInvalid,
+                        "a NULL clearedOut is m3_errorInvalid"),
+                  "a NULL clearedOut refuses");
+    CHECK(m3VoxelChunkShape_ClearBox(NULL, chunkShape, corner, corner, &cleared) == m3_errorInvalid,
+          "a NULL world is m3_errorInvalid");
     m3ShapeId stale = chunkShape;
     stale.generation += 1;
-    CHECK_REFUSES(world, m3VoxelChunkShape_ClearVoxel(world, stale, 0, 0, 0),
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, stale, 0, 0, 0) == m3_errorStale,
+                        "a stale id refuses edits"),
                   "a stale id refuses edits");
 
     // Clear the last voxel: the chunk stays a valid shape that
     // collides with nothing, and the ball falls straight through
     // where the floor voxel used to be.
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, 0, 0),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, 0, 0) == m3_success,
+                        "the last voxel clears"),
                   "the last voxel clears");
     CHECK(m3Shape_IsValid(world, chunkShape), "the empty chunk stays a valid shape");
     CHECK(SurfaceOf(world, chunkShape)->boxCount == 0, "the empty surface has no boxes");
@@ -513,7 +546,10 @@ static void TestFragmentEventPaddingIsZeroed(void)
         m3ShapeId chunk = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
         memset(world->events.fragmentEvents, fills[run],
                M3_FRAGMENT_EVENT_CAP * sizeof(m3FragmentEvent));
-        CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunk, 2, 0, 8), "the cut lands");
+        CHECK_ACCEPTS(world,
+                      CHECK(m3VoxelChunkShape_ClearVoxel(world, chunk, 2, 0, 8) == m3_success,
+                            "the cut lands"),
+                      "the cut lands");
         m3FragmentEvents events = m3World_GetFragmentEvents(world);
         CHECK(events.fragmentCount == 1, "the cut strands the stub");
         memcpy(emitted[run], &events.fragmentEvents[0], sizeof(m3FragmentEvent));
@@ -555,7 +591,9 @@ static void TestFractureBridge(void)
 
     // Cut the left joint: still anchored through the right pillar.
     int32_t count = 0;
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, bridge, 3, 8, 8),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, bridge, 3, 8, 8) == m3_success,
+                        "the left cut lands"),
                   "the left cut lands");
     count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a span anchored through one pillar drops nothing");
@@ -569,7 +607,9 @@ static void TestFractureBridge(void)
     for (int32_t run = 0; run < 2; ++run)
     {
         // Cut the right joint: the middle span (x = 4..11) hangs.
-        CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, bridge, 12, 8, 8),
+        CHECK_ACCEPTS(world,
+                      CHECK(m3VoxelChunkShape_ClearVoxel(world, bridge, 12, 8, 8) == m3_success,
+                            "the right cut lands"),
                       "the right cut lands");
         const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
         count = m3World_GetFragmentEvents(world).fragmentCount;
@@ -649,7 +689,10 @@ static void TestFractureTwoIslands(void)
     m3ShapeId tee = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
     CHECK(m3Shape_IsValid(world, tee), "the tee creates");
 
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, tee, 8, 5, 8), "the connector clears");
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, tee, 8, 5, 8) == m3_success,
+                        "the connector clears"),
+                  "the connector clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 2, "both arms strand in one edit");
@@ -901,7 +944,10 @@ static void TestBulletVsVoxelWall(void)
                 // a 3x3 window so the bullet's radius fits.
                 int32_t lo[3] = {8, 7, 7};
                 int32_t hi[3] = {8, 9, 9};
-                CHECK(m3VoxelChunkShape_ClearBox(world, wall, lo, hi) == 9, "the window opens");
+                int32_t cleared = 0;
+                CHECK(m3VoxelChunkShape_ClearBox(world, wall, lo, hi, &cleared) == m3_success &&
+                          cleared == 9,
+                      "the window opens");
             }
 
             m3BodyDef bd = m3DefaultBodyDef();
@@ -1002,12 +1048,19 @@ static void TestFillWeightsFragments(void)
     voxels[10 + M3_VOXEL_DIM * (5 + M3_VOXEL_DIM * 8)] = 1; // arm far
     m3ShapeId tee = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetFill(world, tee, 9, 5, 8, 255),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetFill(world, tee, 9, 5, 8, 255) == m3_success,
+                        "the near arm keeps full fill"),
                   "the near arm keeps full fill");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetFill(world, tee, 10, 5, 8, 85),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetFill(world, tee, 10, 5, 8, 85) == m3_success,
+                        "the far arm wears to a third"),
                   "the far arm wears to a third");
 
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, tee, 8, 5, 8), "the connector clears");
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, tee, 8, 5, 8) == m3_success,
+                        "the connector clears"),
+                  "the connector clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "the two-arm island strands as one fragment");
@@ -1029,19 +1082,29 @@ static void TestSetFillContracts(void)
     FillSlab(voxels, 2);
     m3ShapeId chunkShape = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
 
-    CHECK_REFUSES(world, m3VoxelChunkShape_SetFill(world, chunkShape, 0, 5, 0, 100),
-                  "fill on an empty voxel refuses");
-    CHECK_REFUSES(world, m3VoxelChunkShape_SetFill(world, chunkShape, 0, 0, 0, 0),
+    CHECK_REFUSES(
+        world,
+        CHECK(m3VoxelChunkShape_SetFill(world, chunkShape, 0, 5, 0, 100) == m3_errorInvalid,
+              "fill on an empty voxel refuses"),
+        "fill on an empty voxel refuses");
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_SetFill(world, chunkShape, 0, 0, 0, 0) == m3_errorInvalid,
+                        "zero fill refuses (that is a clear)"),
                   "zero fill refuses (that is a clear)");
-    CHECK_REFUSES(world, m3VoxelChunkShape_SetFill(world, chunkShape, 16, 0, 0, 100),
-                  "out-of-range fill refuses");
+    CHECK_REFUSES(
+        world,
+        CHECK(m3VoxelChunkShape_SetFill(world, chunkShape, 16, 0, 0, 100) == m3_errorInvalid,
+              "out-of-range fill refuses"),
+        "out-of-range fill refuses");
 
     // Fill is state (the hash moves) and never geometry (the
     // surface does not move by a single byte).
     static m3VoxelSurface before;
     memcpy(&before, SurfaceOf(world, chunkShape), sizeof(m3VoxelSurface));
     uint64_t hashBefore = m3World_Hash(world);
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetFill(world, chunkShape, 3, 1, 3, 77),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetFill(world, chunkShape, 3, 1, 3, 77) == m3_success,
+                        "the fill lands"),
                   "the fill lands");
     CHECK(m3World_Hash(world) != hashBefore, "fill is state: the hash moves");
     CHECK(memcmp(&before, SurfaceOf(world, chunkShape), offsetof(m3VoxelSurface, bvh)) == 0,
@@ -1052,7 +1115,9 @@ static void TestSetFillContracts(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the fill snapshot writes");
     uint64_t at77 = m3World_Hash(world);
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetFill(world, chunkShape, 3, 1, 3, 200),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetFill(world, chunkShape, 3, 1, 3, 200) == m3_success,
+                        "the second fill lands"),
                   "the second fill lands");
     CHECK(Restore(world, snap, snapBytes), "the fill rollback lands");
     CHECK(m3World_Hash(world) == at77, "fill rides the rollback delta");
@@ -1138,13 +1203,21 @@ static void TestNegativeAndEdgeCoordinates(void)
           "the weld holds at negative coordinates");
 
     // Edits on the extreme voxels of a negative-position chunk.
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkA, 0, 0, 0),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkA, 0, 0, 0) == m3_success,
+                        "the corner voxel clears"),
                   "the corner voxel clears");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, chunkA, 0, 0, 0, 3),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, chunkA, 0, 0, 0, 3) == m3_success,
+                        "the corner voxel refills"),
                   "the corner voxel refills");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkA, 15, 0, 15),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkA, 15, 0, 15) == m3_success,
+                        "the far corner clears"),
                   "the far corner clears");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, chunkA, 15, 0, 15, 4),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, chunkA, 15, 0, 15, 4) == m3_success,
+                        "the far corner refills"),
                   "the far corner refills");
 
     // A ball dropped at negative coordinates rests on the floor at
@@ -1202,7 +1275,9 @@ static void TestAnchorConventionPinned(void)
 
     // Clearing an EMPTY voxel is a no-op: no occupancy change, no
     // sweep (pinned as contract; the wake pass still runs).
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkShape, 15, 15, 15),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkShape, 15, 15, 15) == m3_success,
+                        "an empty clear is a quiet no-op"),
                   "an empty clear is a quiet no-op");
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 0, "a no-op clear does not sweep");
@@ -1210,7 +1285,9 @@ static void TestAnchorConventionPinned(void)
 
     // The first occupancy-changing clear sweeps the whole grid:
     // one platform voxel goes directly, the three others fragment.
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkShape, 4, 7, 4),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkShape, 4, 7, 4) == m3_success,
+                        "the platform corner clears"),
                   "the platform corner clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     count = m3World_GetFragmentEvents(world).fragmentCount;
@@ -1244,7 +1321,9 @@ static void TestJournalCompositionRefusal(void)
     CHECK(Snapshot(world, snap, snapBytes) == snapBytes, "the seed snapshot writes");
 
     CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, 0, 0),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, chunkShape, 0, 0, 0) == m3_success,
+                        "the journaled edit lands"),
                   "the journaled edit lands");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     int64_t bytes = StopJournal(world);
@@ -1291,7 +1370,9 @@ static void TestVoxelPoolSweep(void)
     m3ShapeId three = NewVoxelChunkShape(world, c, &sd, voxels, NULL, 1.0f);
     CHECK(m3Shape_IsValid(world, three), "the freed slot recycles");
     CHECK(!m3Shape_IsValid(world, two), "the destroyed chunk id is stale");
-    CHECK_REFUSES(world, m3VoxelChunkShape_ClearVoxel(world, two, 0, 0, 0),
+    CHECK_REFUSES(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, two, 0, 0, 0) == m3_errorStale,
+                        "a stale chunk refuses edits"),
                   "a stale chunk refuses edits");
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m3World_Hash(world) != 0, "the sweep leaves a healthy world");
@@ -1311,7 +1392,9 @@ static void TestFractureStorms(void)
     m3ShapeId full = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
     int32_t lo[3] = {0, 0, 0};
     int32_t hi[3] = {15, 0, 15};
-    CHECK(m3VoxelChunkShape_ClearBox(world, full, lo, hi) == 256, "the anchor layer clears");
+    int32_t cleared = 0;
+    CHECK(m3VoxelChunkShape_ClearBox(world, full, lo, hi, &cleared) == m3_success && cleared == 256,
+          "the anchor layer clears");
     const m3FragmentEvent* events = m3World_GetFragmentEvents(world).fragmentEvents;
     int32_t count = m3World_GetFragmentEvents(world).fragmentCount;
     CHECK(count == 1, "everything above the anchor is one island");
@@ -1344,7 +1427,9 @@ static void TestFractureStorms(void)
     }
     CHECK(studs == 448, "the storm grid holds 448 isolated studs");
     m3ShapeId cloud = NewVoxelChunkShape(world2, ground2, &sd, voxels, NULL, 1.0f);
-    CHECK_ACCEPTS(world2, m3VoxelChunkShape_ClearVoxel(world2, cloud, 0, 0, 0),
+    CHECK_ACCEPTS(world2,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world2, cloud, 0, 0, 0) == m3_success,
+                        "the trigger clear lands"),
                   "the trigger clear lands");
     count = 0;
     events = m3World_GetFragmentEvents(world2).fragmentEvents;
@@ -1400,16 +1485,24 @@ static void TestBoxLimitRefusesEdits(void)
     before = *ChunkOf(world, slab);
     uint64_t hash = m3World_Hash(world);
     CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, slab, 6, 1, 6, 7),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, slab, 6, 1, 6, 7) == m3_errorLimit,
+                        "a set past the limit is m3_errorLimit"),
                   "a set past the limit counts no misuse");
     CHECK(Refused(world) == 1, "the refused set is counted");
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_ClearVoxel(world, slab, 5, 0, 5),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearVoxel(world, slab, 5, 0, 5) == m3_errorLimit,
+                        "a clear past the limit is m3_errorLimit"),
                   "a clear past the limit counts no misuse");
     CHECK(Refused(world) == 2, "the refused clear is counted");
     int32_t lo[3] = {8, 0, 8};
     int32_t hi[3] = {9, 0, 9};
-    CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo, hi) == -1,
-          "a box clear past the limit is -1");
+    int32_t cleared = -1;
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_ClearBox(world, slab, lo, hi, &cleared) == m3_errorLimit,
+                        "a box clear past the limit is m3_errorLimit"),
+                  "a box clear past the limit counts no misuse");
+    CHECK(cleared == 0, "and clears nothing");
     CHECK(Refused(world) == 3, "the refused box clear is counted");
     CHECK(memcmp(ChunkOf(world, slab), &before, sizeof(before)) == 0,
           "the refused edits leave the grid as it was");
@@ -1418,7 +1511,9 @@ static void TestBoxLimitRefusesEdits(void)
 
     // A payload change leaves the surface alone, so the limit never
     // refuses it.
-    CHECK_ACCEPTS(world, m3VoxelChunkShape_SetVoxel(world, slab, 0, 0, 0, 9),
+    CHECK_ACCEPTS(world,
+                  CHECK(m3VoxelChunkShape_SetVoxel(world, slab, 0, 0, 0, 9) == m3_success,
+                        "a payload set lands at the limit"),
                   "a payload set lands at the limit");
     CHECK(Refused(world) == 3 && ChunkOf(world, slab)->payload[0] == 9,
           "the payload set lands uncounted");
@@ -1449,9 +1544,10 @@ static void TestBoxLimitRefusesEdits(void)
 
     // A recorder with room landed an edit that a world at the limit
     // cannot: its replay refuses, atomically.
-    world->voxels.voxelBoxLimit = M3_VOXEL_MAX_BOXES;
+    world->voxels.voxelBoxLimit = M3_MAX_VOXEL_SURFACE_BOXES;
     CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal arms again");
-    m3VoxelChunkShape_SetVoxel(world, slab, 6, 1, 6, 7);
+    CHECK(m3VoxelChunkShape_SetVoxel(world, slab, 6, 1, 6, 7) == m3_success,
+          "with room the set lands");
     bytes = StopJournal(world);
     CHECK(SurfaceOf(world, slab)->boxCount == 2, "with room the set lands as a second box");
     twin = SmallWorld();
@@ -1517,7 +1613,7 @@ static void TestCheckerboardFillsTheTree(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3ShapeId board = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
     CHECK(m3Shape_IsValid(world, board), "the checkerboard creates");
-    CHECK(SurfaceOf(world, board)->boxCount == M3_VOXEL_MAX_BOXES,
+    CHECK(SurfaceOf(world, board)->boxCount == M3_MAX_VOXEL_SURFACE_BOXES,
           "the checkerboard is the box limit exactly");
 
     // (0, 15, 0) is empty and (0, 14, 0) is filled: a ray down the
@@ -1535,14 +1631,16 @@ static void TestCheckerboardFillsTheTree(void)
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "the checkerboard snapshots");
     uint64_t hash = m3World_Hash(world);
-    m3VoxelChunkShape_SetVoxel(world, board, 0, 15, 0, 1);
-    CHECK(Refused(world) == 0 && SurfaceOf(world, board)->boxCount <= M3_VOXEL_MAX_BOXES,
+    CHECK(m3VoxelChunkShape_SetVoxel(world, board, 0, 15, 0, 1) == m3_success,
+          "a set on the full tree is m3_success");
+    CHECK(Refused(world) == 0 && SurfaceOf(world, board)->boxCount <= M3_MAX_VOXEL_SURFACE_BOXES,
           "a set on the full tree lands");
     found = m3World_CastRayClosest(world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f},
                                    m3DefaultQueryFilter(), &hit);
     CHECK(found && fabs(hit.point.y - 16.0) < 1.0e-4, "the rebuilt tree answers");
     CHECK(Restore(world, snap, size), "the checkerboard restores");
-    CHECK(m3World_Hash(world) == hash && SurfaceOf(world, board)->boxCount == M3_VOXEL_MAX_BOXES,
+    CHECK(m3World_Hash(world) == hash &&
+              SurfaceOf(world, board)->boxCount == M3_MAX_VOXEL_SURFACE_BOXES,
           "the restore rebuilds the full surface");
     free(snap);
     m3DestroyWorld(world);

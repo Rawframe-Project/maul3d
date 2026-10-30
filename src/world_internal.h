@@ -410,14 +410,13 @@ void m3MeshBvhBuildIn(m3MeshBvh* bvh, void* scratch, const m3Vec3* los, const m3
 // padding-free snapshot block per slot. STATE ends there; the
 // merged-box surface and its BVH are derived (never snapshotted,
 // never hashed, rebuilt wherever content lands).
-#define M3_VOXEL_DIM       16
-#define M3_VOXEL_COUNT     (M3_VOXEL_DIM * M3_VOXEL_DIM * M3_VOXEL_DIM)
-#define M3_VOXEL_MAX_BOXES 2048 // the isolated-voxel (checkerboard) worst case
-// One slot's surface tree: 2 * M3_VOXEL_MAX_BOXES nodes, then
-// M3_VOXEL_MAX_BOXES order entries.
+#define M3_VOXEL_DIM   16
+#define M3_VOXEL_COUNT (M3_VOXEL_DIM * M3_VOXEL_DIM * M3_VOXEL_DIM)
+// One slot's surface tree: 2 * M3_MAX_VOXEL_SURFACE_BOXES nodes, then
+// M3_MAX_VOXEL_SURFACE_BOXES order entries.
 #define M3_VOXEL_TREE_BYTES                                                                        \
-    (2 * M3_VOXEL_MAX_BOXES * (int32_t)sizeof(m3MeshBvhNode) +                                     \
-     M3_VOXEL_MAX_BOXES * (int32_t)sizeof(uint16_t))
+    (2 * M3_MAX_VOXEL_SURFACE_BOXES * (int32_t)sizeof(m3MeshBvhNode) +                             \
+     M3_MAX_VOXEL_SURFACE_BOXES * (int32_t)sizeof(uint16_t))
 
 typedef struct m3VoxelChunkData
 {
@@ -439,13 +438,13 @@ _Static_assert(sizeof(m3VoxelChunkData) == 8 + 512 + 8192 + 4096,
 typedef struct m3VoxelSurface
 {
     int32_t boxCount;
-    uint8_t boxLo[M3_VOXEL_MAX_BOXES][3]; // inclusive voxel coords
-    uint8_t boxHi[M3_VOXEL_MAX_BOXES][3];
+    uint8_t boxLo[M3_MAX_VOXEL_SURFACE_BOXES][3]; // inclusive voxel coords
+    uint8_t boxHi[M3_MAX_VOXEL_SURFACE_BOXES][3];
     // Seam welding: bit k of boxCovered[b] says face k of box
     // b (-x,+x,-y,+y,-z,+z) is fully flush against filled voxels,
     // in this chunk or a welded neighbor. A covered face is
     // interior geometry and can never be a contact feature.
-    uint8_t boxCovered[M3_VOXEL_MAX_BOXES];
+    uint8_t boxCovered[M3_MAX_VOXEL_SURFACE_BOXES];
     m3MeshBvh bvh;
 } m3VoxelSurface;
 
@@ -653,14 +652,14 @@ typedef struct m3Voxels
     int32_t* voxelShape;                 // owning shape per slot, -1 free
     int32_t* voxelNeighbors;             // derived: 6 welded slots per
     // Each slot's surface tree, M3_VOXEL_TREE_BYTES sized for
-    // M3_VOXEL_MAX_BOXES boxes and taken when a chunk first lands in the
+    // M3_MAX_VOXEL_SURFACE_BOXES boxes and taken when a chunk first lands in the
     // slot (NULL until then), so an edit, a fracture or a restore
     // rebuilds it in place and never asks the allocator. One build
     // scratch and one staging copy of a chunk serve every slot.
     void** voxelTrees;
     void* voxelTreeScratch;
     m3VoxelChunkData* voxelStage;
-    // The most boxes a surface may merge into: M3_VOXEL_MAX_BOXES, which
+    // The most boxes a surface may merge into: M3_MAX_VOXEL_SURFACE_BOXES, which
     // the storage holds; a whitebox test lowers it to reach the refusal.
     int32_t voxelBoxLimit;
     uint64_t voxelEditsRefused; // edits whose surface would pass the limit

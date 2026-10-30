@@ -274,12 +274,12 @@ static bool CreatePools(m3World* world)
     int32_t voxelCap = world->voxels.voxelCapacity;
     world->voxels.voxelTrees = (void**)m3AllocArray(&world->heap, voxelCap, (int64_t)sizeof(void*));
     world->voxels.voxelTreeScratch =
-        m3AllocZeroed(&world->heap, m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES));
+        m3AllocZeroed(&world->heap, m3MeshBvhScratchBytes(M3_MAX_VOXEL_SURFACE_BOXES));
     world->voxels.voxelStage =
         (m3VoxelChunkData*)m3AllocZeroed(&world->heap, (int32_t)sizeof(m3VoxelChunkData));
-    world->voxels.voxelBoxLimit = M3_VOXEL_MAX_BOXES;
+    world->voxels.voxelBoxLimit = M3_MAX_VOXEL_SURFACE_BOXES;
     world->memoryBytes += (int64_t)voxelCap * (int64_t)sizeof(void*) +
-                          m3MeshBvhScratchBytes(M3_VOXEL_MAX_BOXES) +
+                          m3MeshBvhScratchBytes(M3_MAX_VOXEL_SURFACE_BOXES) +
                           (int64_t)sizeof(m3VoxelChunkData);
     return ok && world->broadphase.tree.capacity != 0 && world->scratch.capacity != 0 &&
            world->voxels.voxelTrees != NULL && world->voxels.voxelTreeScratch != NULL &&
