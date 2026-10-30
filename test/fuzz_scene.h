@@ -46,7 +46,7 @@ enum
 {
     FUZZ_BODIES = 12,
     FUZZ_SHAPES = 11,
-    FUZZ_JOINTS = 2,
+    FUZZ_JOINTS = 3,
     FUZZ_VEHICLES = 1,
     FUZZ_SOFT_BODIES = 2,
     FUZZ_CHARACTERS = 1,
@@ -60,6 +60,7 @@ typedef struct FuzzScene
     m3BodyId ball;
     m3ShapeId voxels;
     m3JointId hinge;
+    m3JointId shoulder;
     m3WaterVolumeId pool;
     m3CharacterId hero;
     int32_t failures; // creates that refused
@@ -162,6 +163,22 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
     jd.maxMotorEffort = 5.0f;
     scene->hinge = NewJoint(world, &jd);
     FuzzCreated(scene, m3Joint_IsValid(world, scene->hinge));
+    // The ball hangs from the ground on a spherical joint with its cone and
+    // twist range on, so the seeds hold a cone the targets can corrupt.
+    jd = m3DefaultJointDef();
+    jd.bodyIdA = ground;
+    jd.bodyIdB = scene->ball;
+    jd.localAnchorA = (m3Vec3){1.0f, 2.0f, 0.0f};
+    jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
+    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jd.enableCone = true;
+    jd.coneAngle = 0.5f;
+    jd.enableLimit = true;
+    jd.lowerLimit = -0.4f;
+    jd.upperLimit = 0.4f;
+    scene->shoulder = NewJoint(world, &jd);
+    FuzzCreated(scene, m3Joint_IsValid(world, scene->shoulder));
 
     m3BodyId chassis = FuzzBody(world, scene, m3_dynamicBody, 0.0, 1.0, -4.0);
     FuzzShape(world, scene, NewBoxShape(world, chassis, &sd, (m3Vec3){0.8f, 0.2f, 0.4f}));
@@ -228,14 +245,16 @@ static inline void FuzzStep(m3World* world, int32_t steps)
     }
 }
 
-// A short session on the built scene: pushes and setters, a voxel edit,
-// a blast, a destroy and steps between them.
+// A short session on the built scene: pushes and setters, a cone moved, a
+// voxel edit, a blast, a destroy and steps between them.
 static inline void FuzzSession(m3World* world, const FuzzScene* scene)
 {
     FuzzStep(world, 4);
     m3Body_SetLinearVelocity(world, scene->crate, (m3Vec3){0.5f, 0.0f, 0.0f});
     m3Body_ApplyLinearImpulse(world, scene->ball, (m3Vec3){0.0f, 0.5f, 0.2f});
     m3World_SetGravity(world, (m3Vec3){0.0f, -9.0f, 0.5f});
+    m3SphericalJoint_SetConeAngle(world, scene->shoulder, 0.6f);
+    m3SphericalJoint_EnableCone(world, scene->shoulder, true);
     FuzzStep(world, 4);
     m3VoxelChunkShape_ClearVoxel(world, scene->voxels, 0, 0, 0);
     m3ExplosionDef blast = m3DefaultExplosionDef();
