@@ -414,6 +414,139 @@ static void TestColdPairAndReusedSlot(void)
     m3DestroyWorld(world);
 }
 
+// A floor plane at slot 0 and six touching balls at slots 1 to 6 on it:
+// a middle ball is the higher slot of its pairs with the floor and its
+// left neighbour, and the lower slot of its pair with its right one.
+static m3World* BallRow(m3ShapeId balls[6])
+{
+    m3World* world = PlaneWorld(NULL);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        bd.position = (m3Pos3){0.99 * i, 0.5, 0.0};
+        balls[i] = NewSphereShape(world, NewBody(world, &bd), &sd, &sphere);
+    }
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    return world;
+}
+
+static bool NamesShape(m3ContactEvents events, m3ShapeId shape)
+{
+    bool named = false;
+    for (int32_t i = 0; i < events.beginCount; ++i)
+    {
+        named = named || events.beginEvents[i].shapeIdA.index1 == shape.index1 ||
+                events.beginEvents[i].shapeIdB.index1 == shape.index1;
+    }
+    for (int32_t i = 0; i < events.endCount; ++i)
+    {
+        named = named || events.endEvents[i].shapeIdA.index1 == shape.index1 ||
+                events.endEvents[i].shapeIdB.index1 == shape.index1;
+    }
+    return named;
+}
+
+static void TestForgetBothHalvesOfAShape(void)
+{
+    // The middle ball's pairs on both sides of its slot die with it: the
+    // shape that takes the slot far away is named by no event.
+    m3ShapeId balls[6];
+    m3World* world = BallRow(balls);
+    CHECK(balls[0].index1 == 2 && balls[3].index1 == 5, "the floor holds slot 0, the balls 1 to 6");
+    CHECK(m3DestroyShape(world, balls[3]) == m3_success, "the middle ball's shape is destroyed");
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){50.0, 5.0, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId newer = NewSphereShape(world, NewBody(world, &gd), &sd, &sphere);
+    CHECK(newer.index1 == balls[3].index1, "a static shape far away takes the slot");
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(!NamesShape(m3World_GetContactEvents(world), newer),
+          "no event names the shape that took a slot of both halves");
+    m3DestroyWorld(world);
+}
+
+static void TestForgetAfterThePairsChange(void)
+{
+    // One destroy builds the pair index; a step changes the pairs; the
+    // next destroy must find them anew. A twin restored before it builds
+    // its index from the restored pairs, so both forget the same pairs.
+    m3ShapeId balls[6];
+    m3World* world = BallRow(balls);
+    CHECK(m3DestroyShape(world, balls[0]) == m3_success, "the first ball's shape is destroyed");
+    CHECK(m3DestroyShape(world, balls[1]) == m3_success, "and the second, on the same index");
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t size = m3World_GetSnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    int32_t written = 0;
+    CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
+          "the world snapshots after the step");
+    m3World* twin = PlaneWorld(NULL);
+    CHECK(m3World_Restore(twin, snap, written) == m3_success, "a twin restores it");
+    CHECK(m3DestroyShape(world, balls[4]) == m3_success &&
+              m3DestroyShape(twin, balls[4]) == m3_success,
+          "both destroy the fifth ball's shape");
+    CHECK(m3World_Hash(world) == m3World_Hash(twin), "both forget the same pairs");
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(twin, 1.0f / 60.0f, 4);
+    CHECK(m3World_Hash(world) == m3World_Hash(twin), "and step alike");
+    free(snap);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
+// A ball asleep on the floor is destroyed and a sphere that takes its
+// slot is put to sleep before any step. The frozen buffer then holds the
+// dead ball's floor pair and the new shape's own, under one slot: the
+// next pair update must drop the first and keep the second, as a twin
+// restored after the sleep rebuilds only the second.
+static void TestSleepInAReusedSlot(void)
+{
+    m3World* world = PlaneWorld(NULL);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.5, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3BodyId ball = NewBody(world, &bd);
+    m3ShapeId x = NewSphereShape(world, ball, &sd, &sphere);
+    for (int32_t i = 0; i < 600 && m3Body_IsAwake(world, ball); ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m3Body_IsAwake(world, ball), "the ball falls asleep on the floor");
+    CHECK(m3DestroyShape(world, x) == m3_success, "the sleeping ball's shape is destroyed");
+    bd.position = (m3Pos3){3.0, 0.5, 0.0};
+    m3BodyId sleeper = NewBody(world, &bd);
+    m3ShapeId newer = NewSphereShape(world, sleeper, &sd, &sphere);
+    CHECK(newer.index1 == x.index1, "a sphere on the floor takes the freed slot");
+    m3Body_SetAwake(world, sleeper, false);
+    CHECK(!m3Body_IsAwake(world, sleeper), "and is put to sleep before any step");
+    int32_t size = m3World_GetSnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    int32_t written = 0;
+    CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
+          "the world snapshots after the sleep");
+    m3World* twin = PlaneWorld(NULL);
+    CHECK(m3World_Restore(twin, snap, written) == m3_success, "a twin restores it");
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        (void)m3World_Step(twin, 1.0f / 60.0f, 4);
+    }
+    CHECK(m3World_Hash(world) == m3World_Hash(twin),
+          "the sleeping sphere keeps its floor pair, as the restored twin does");
+    free(snap);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHitEvents();
@@ -423,6 +556,9 @@ int main(void)
     TestHostileEvents();
     TestDestroyedPairAndReusedSlot();
     TestColdPairAndReusedSlot();
+    TestForgetBothHalvesOfAShape();
+    TestForgetAfterThePairsChange();
+    TestSleepInAReusedSlot();
     if (s_failures == 0)
     {
         printf("test_events: all green\n");

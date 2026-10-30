@@ -398,6 +398,22 @@ static void ClearEvents(m3World* world)
     world->lastInvH = 0.0f; // readback reads 0 until the next step
 }
 
+// What the pair update keeps between steps from the pairs it saw, the
+// frozen buffer, the destroy's pair index and its dead slots, describes
+// the world before the restore: the next update rebuilds it from the tree.
+static void ForgetPairMemory(m3World* world)
+{
+    world->contacts.sleepingPairCount = 0;
+    world->contacts.pairsFullQuery = 1;
+    world->contacts.pairIndexFresh = 0;
+    if (world->contacts.frozenDeadCount > 0)
+    {
+        memset(world->contacts.frozenDeadBefore, 0,
+               (size_t)world->shapes.shapeCapacity * sizeof(int32_t));
+        world->contacts.frozenDeadCount = 0;
+    }
+}
+
 // Frees the stage's arrays, not what they hold.
 static void FreeStageArrays(m3World* world, m3RestoreStage* stage)
 {
@@ -588,8 +604,7 @@ void m3RestoreCommit(m3World* world, m3RestoreStage* stage)
             memset(&world->voxels.voxelSurface[v], 0, sizeof(m3VoxelSurface));
         }
     }
-    world->contacts.sleepingPairCount = 0;
-    world->contacts.pairsFullQuery = 1;
+    ForgetPairMemory(world);
     world->broadphase.candidatesFresh = 0;
     m3RebuildPlaneList(world);
     for (int32_t v = 0; v < world->voxels.voxelPool.maxIndex; ++v)
