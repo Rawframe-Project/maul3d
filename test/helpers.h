@@ -96,21 +96,21 @@ static inline m3ShapeId NewMeshShape(m3World* world, m3BodyId body, const m3Shap
     return id;
 }
 
+static inline m3ShapeId NewHeightFieldMeshShape(m3World* world, m3BodyId body,
+                                                const m3ShapeDef* def, const float* heights,
+                                                int32_t nx, int32_t nz, m3real cellSize)
+{
+    m3ShapeId id = m3_nullShapeId;
+    (void)m3CreateHeightFieldMeshShape(world, body, def, heights, nx, nz, cellSize, &id);
+    return id;
+}
+
 static inline m3ShapeId NewHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                             const float* heights, int32_t nx, int32_t nz,
                                             m3real cellSize)
 {
     m3ShapeId id = m3_nullShapeId;
     (void)m3CreateHeightFieldShape(world, body, def, heights, nx, nz, cellSize, &id);
-    return id;
-}
-
-static inline m3ShapeId NewHeightFieldGridShape(m3World* world, m3BodyId body,
-                                                const m3ShapeDef* def, const float* heights,
-                                                int32_t nx, int32_t nz, m3real cellSize)
-{
-    m3ShapeId id = m3_nullShapeId;
-    (void)m3CreateHeightFieldGridShape(world, body, def, heights, nx, nz, cellSize, &id);
     return id;
 }
 
@@ -130,12 +130,12 @@ static inline m3SoftBodyId NewSoftBody(m3World* world, const m3SoftBodyDef* def)
     return id;
 }
 
-static inline m3SoftBodyId NewSoftBodyTet(m3World* world, const m3SoftBodyDef* def,
+static inline m3SoftBodyId NewTetSoftBody(m3World* world, const m3SoftBodyDef* def,
                                           const m3Vec3* points, int32_t pointCount,
                                           const uint16_t* tets, int32_t tetCount)
 {
     m3SoftBodyId id = m3_nullSoftBodyId;
-    (void)m3CreateSoftBodyTet(world, def, points, pointCount, tets, tetCount, &id);
+    (void)m3CreateTetSoftBody(world, def, points, pointCount, tets, tetCount, &id);
     return id;
 }
 

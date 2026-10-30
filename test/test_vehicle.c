@@ -390,8 +390,8 @@ static void TestHeightfieldDrive(void)
     m3BodyDef gd = m3DefaultBodyDef();
     gd.position = (m3Pos3){-8.0, 0.0, -8.0};
     m3ShapeDef sd = m3DefaultShapeDef();
-    CHECK(m3Shape_IsValid(
-              world, NewHeightFieldShape(world, NewBody(world, &gd), &sd, heights, 32, 32, 0.5f)),
+    CHECK(m3Shape_IsValid(world, NewHeightFieldMeshShape(world, NewBody(world, &gd), &sd, heights,
+                                                         32, 32, 0.5f)),
           "the terrain creates");
 
     m3BodyId chassis;

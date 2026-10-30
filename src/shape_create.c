@@ -453,11 +453,11 @@ m3Result m3CreateMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
     return result;
 }
 
-static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyId body,
-                                                         const m3ShapeDef* def,
-                                                         const float* heights, int32_t nx,
-                                                         int32_t nz, m3real cellSize,
-                                                         m3ShapeId* shapeOut)
+static M3_NOINLINE m3Result CreateHeightFieldMeshShapeWorker(m3World* world, m3BodyId body,
+                                                             const m3ShapeDef* def,
+                                                             const float* heights, int32_t nx,
+                                                             int32_t nz, m3real cellSize,
+                                                             m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -534,22 +534,22 @@ static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyI
     return result;
 }
 
-m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                  const float* heights, int32_t nx, int32_t nz, m3real cellSize,
-                                  m3ShapeId* shapeOut)
+m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                                      const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                      m3ShapeId* shapeOut)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result =
-        CreateHeightFieldShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
+        CreateHeightFieldMeshShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3BodyId body,
-                                                             const m3ShapeDef* def,
-                                                             const float* heights, int32_t nx,
-                                                             int32_t nz, m3real cellSize,
-                                                             m3ShapeId* shapeOut)
+static M3_NOINLINE m3Result CreateHeightFieldShapeWorker(m3World* world, m3BodyId body,
+                                                         const m3ShapeDef* def,
+                                                         const float* heights, int32_t nx,
+                                                         int32_t nz, m3real cellSize,
+                                                         m3ShapeId* shapeOut)
 {
     if (shapeOut == NULL)
     {
@@ -620,13 +620,13 @@ static M3_NOINLINE m3Result CreateHeightFieldGridShapeWorker(m3World* world, m3B
     return m3_success;
 }
 
-m3Result m3CreateHeightFieldGridShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
-                                      const float* heights, int32_t nx, int32_t nz, m3real cellSize,
-                                      m3ShapeId* shapeOut)
+m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
+                                  const float* heights, int32_t nx, int32_t nz, m3real cellSize,
+                                  m3ShapeId* shapeOut)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result =
-        CreateHeightFieldGridShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
+        CreateHeightFieldShapeWorker(world, body, def, heights, nx, nz, cellSize, shapeOut);
     m3FloatEnvLeave(env);
     return result;
 }

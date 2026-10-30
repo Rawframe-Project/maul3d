@@ -128,7 +128,7 @@ static void TestPlanesFromEverySurface(void)
         }
         else if (kind == 1)
         {
-            surface = NewHeightFieldGridShape(world, ground, &sd, flat, 64, 64, 1.0f);
+            surface = NewHeightFieldShape(world, ground, &sd, flat, 64, 64, 1.0f);
         }
         else if (kind == 2)
         {

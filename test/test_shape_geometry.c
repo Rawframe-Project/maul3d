@@ -143,7 +143,7 @@ static void Build(m3World* world, m3ShapeId* shapes)
     static const uint16_t tris[6] = {0, 2, 1, 0, 3, 2};
     shapes[shape_mesh] = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
     static const float heights[16] = {0.0f};
-    shapes[shape_heightField] = NewHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f);
+    shapes[shape_heightField] = NewHeightFieldShape(world, ground, &sd, heights, 4, 4, 1.0f);
     static uint8_t voxels[M3_VOXEL_COUNT];
     voxels[0] = 1;
     shapes[shape_voxel] = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 0.5f);
@@ -285,11 +285,11 @@ static void TestSoftCreatesWithinTheLimit(void)
         {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
     uint16_t tet[4] = {0, 1, 2, 3};
     jelly.position = (m3Pos3){0.0, 0.0, -M3_POSITION_LIMIT};
-    CHECK_ACCEPTS(world, (void)m3CreateSoftBodyTet(world, &jelly, points, 4, tet, 1, &id),
+    CHECK_ACCEPTS(world, (void)m3CreateTetSoftBody(world, &jelly, points, 4, tet, 1, &id),
                   "a tet body on the limit counts no misuse");
     CHECK(id.index1 != 0, "and is created");
     jelly.position = (m3Pos3){0.0, M3_POSITION_LIMIT - 0.875, 0.0};
-    CHECK_REFUSES(world, result = m3CreateSoftBodyTet(world, &jelly, points, 4, tet, 1, &id),
+    CHECK_REFUSES(world, result = m3CreateTetSoftBody(world, &jelly, points, 4, tet, 1, &id),
                   "a tet body with a point past the limit counts one misuse");
     CHECK(result == m3_errorLimit && id.index1 == 0, "and is refused with the null id");
     m3DestroyWorld(world);
@@ -329,7 +329,7 @@ static void TestParticlesStayWithinTheLimit(void)
     uint16_t tet[4] = {0, 1, 2, 3};
     m3SoftBodyDef jellyDef = m3DefaultSoftBodyDef();
     jellyDef.position = (m3Pos3){10.0, 0.0, 0.0};
-    jelly = NewSoftBodyTet(world, &jellyDef, points, 4, tet, 1);
+    jelly = NewTetSoftBody(world, &jellyDef, points, 4, tet, 1);
     CHECK(lattice.index1 != 0 && jelly.index1 != 0, "both soft bodies are created");
     bool within = true;
     bool lifted = true;
@@ -403,11 +403,11 @@ static void TestStaticGeometryAtTheLimit(void)
     {
         heights[i] = (i & 1) != 0 ? M3_GEOMETRY_LIMIT : -M3_GEOMETRY_LIMIT;
     }
-    CHECK_ACCEPTS(
-        world,
-        result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, M3_MAX_HEIGHTFIELD_SIZE,
-                                              M3_MAX_HEIGHTFIELD_SIZE, M3_CELL_LIMIT, &id),
-        "a grid at both limits counts no misuse");
+    CHECK_ACCEPTS(world,
+                  result =
+                      m3CreateHeightFieldShape(world, ground, &sd, heights, M3_MAX_HEIGHTFIELD_SIZE,
+                                               M3_MAX_HEIGHTFIELD_SIZE, M3_CELL_LIMIT, &id),
+                  "a grid at both limits counts no misuse");
     const double cell = (double)M3_CELL_LIMIT;
     const double reach = (double)M3_GEOMETRY_LIMIT;
     CHECK(result == m3_success &&
@@ -419,25 +419,25 @@ static void TestStaticGeometryAtTheLimit(void)
     {
         CHECK_REFUSES(
             world,
-            result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
+            result = m3CreateHeightFieldShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
             "a grid cell past the limit counts one misuse");
         CHECK(result == m3_errorLimit, "a grid cell past M3_CELL_LIMIT is refused as limit");
         CHECK_REFUSES(
             world,
-            result = m3CreateHeightFieldShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
+            result = m3CreateHeightFieldMeshShape(world, ground, &sd, heights, 4, 4, cells[i], &id),
             "a mesh height field cell past the limit counts one misuse");
         CHECK(result == m3_errorLimit,
               "a mesh height field cell past M3_CELL_LIMIT is refused as limit");
     }
     heights[5] = 2.0f * M3_GEOMETRY_LIMIT;
-    CHECK_REFUSES(
-        world, result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
-        "a far sample counts one misuse");
+    CHECK_REFUSES(world,
+                  result = m3CreateHeightFieldShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
+                  "a far sample counts one misuse");
     CHECK(result == m3_errorLimit, "a sample past M3_GEOMETRY_LIMIT is refused as limit");
     heights[5] = NAN;
-    CHECK_REFUSES(
-        world, result = m3CreateHeightFieldGridShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
-        "a NaN sample counts one misuse");
+    CHECK_REFUSES(world,
+                  result = m3CreateHeightFieldShape(world, ground, &sd, heights, 4, 4, 1.0f, &id),
+                  "a NaN sample counts one misuse");
     CHECK(result == m3_errorInvalid, "a NaN sample is invalid");
 
     const float g = M3_GEOMETRY_LIMIT;

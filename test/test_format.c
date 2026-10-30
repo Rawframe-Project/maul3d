@@ -127,7 +127,7 @@ static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
     m3ShapeId mesh = NewMeshShape(world, ground, &sd, floor, 4, floorTris, 2);
     static const float heights[9] = {0.0f, 0.1f, 0.0f, 0.1f, 0.2f, 0.1f, 0.0f, 0.1f, 0.0f};
     s_paint(fill);
-    m3ShapeId terrain = NewHeightFieldGridShape(world, ground, &sd, heights, 3, 3, 1.0f);
+    m3ShapeId terrain = NewHeightFieldShape(world, ground, &sd, heights, 3, 3, 1.0f);
     static uint8_t voxels[M3_VOXEL_COUNT];
     memset(voxels, 0, sizeof(voxels));
     voxels[0] = 1;
@@ -172,7 +172,7 @@ static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
     softModel.position = (m3Pos3){10.0, 3.0, 0.0};
     PADDED(m3SoftBodyDef, soft, softModel, fill);
     s_paint(fill);
-    CHECK(m3SoftBody_IsValid(world, NewSoftBodyTet(world, &soft, points, 4, tets, 1)),
+    CHECK(m3SoftBody_IsValid(world, NewTetSoftBody(world, &soft, points, 4, tets, 1)),
           "the tet soft body creates");
 
     bodyModel.position = (m3Pos3){-8.0, 1.0, 0.0};

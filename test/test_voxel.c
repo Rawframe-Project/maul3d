@@ -824,7 +824,8 @@ static void TestVoxelMeetsHeightfield(void)
         {
             heights[i] = 0.0f; // a flat field: the junction is exact
         }
-        CHECK(m3Shape_IsValid(world, NewHeightFieldShape(world, field, &sd, heights, 16, 16, 1.0f)),
+        CHECK(m3Shape_IsValid(world,
+                              NewHeightFieldMeshShape(world, field, &sd, heights, 16, 16, 1.0f)),
               "the field creates");
 
         static uint8_t voxels[M3_VOXEL_COUNT];

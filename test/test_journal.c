@@ -75,7 +75,7 @@ static void TestRefusedCreatesMoveNoIds(void)
         tets[4 * t + 3] = (uint16_t)(384 + (t * 5 + t / 32) % 128);
     }
     m3SoftBodyDef soft = m3DefaultSoftBodyDef();
-    CHECK(!m3SoftBody_IsValid(world, NewSoftBodyTet(world, &soft, points, 512, tets, 1024)),
+    CHECK(!m3SoftBody_IsValid(world, NewTetSoftBody(world, &soft, points, 512, tets, 1024)),
           "a tet body past the edge budget refuses");
     soft.countX = 2;
     soft.countY = 2;

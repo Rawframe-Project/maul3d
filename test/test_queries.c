@@ -971,7 +971,7 @@ static m3World* LongFloor(int32_t kind, m3real* topOut)
     *topOut = 0.0f;
     if (kind == 0)
     {
-        NewHeightFieldGridShape(world, ground, &sd, flat, 129, 5, 1.0f);
+        NewHeightFieldShape(world, ground, &sd, flat, 129, 5, 1.0f);
     }
     else if (kind == 1)
     {

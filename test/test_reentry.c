@@ -172,9 +172,9 @@ static m3Result RunOp(Scene* scene, int32_t op)
     case OpMesh:
         return m3CreateMeshShape(world, scene->ground, &sd, kQuadVerts, 4, kQuadTris, 2, &shape);
     case OpHeightField:
-        return m3CreateHeightFieldShape(world, scene->ground, &sd, heights, 9, 9, 1.0f, &shape);
+        return m3CreateHeightFieldMeshShape(world, scene->ground, &sd, heights, 9, 9, 1.0f, &shape);
     case OpHeightFieldGrid:
-        return m3CreateHeightFieldGridShape(world, scene->ground, &sd, heights, 9, 9, 1.0f, &shape);
+        return m3CreateHeightFieldShape(world, scene->ground, &sd, heights, 9, 9, 1.0f, &shape);
     case OpVoxel:
         return m3CreateVoxelChunkShape(world, scene->ground, &sd, voxels, NULL, 0.5f, &shape);
     case OpRebuild:

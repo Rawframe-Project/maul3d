@@ -470,7 +470,7 @@ static bool AddTetEdges(m3World* world, int32_t slot, const m3Vec3* points, cons
     return true;
 }
 
-int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
+int32_t m3CreateTetSoftBodyInternal(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
                                     int32_t pointCount, const uint16_t* tets, int32_t tetCount)
 {
     m3Result checked = TetDefCheck(def, points, pointCount, tets, tetCount);
@@ -520,7 +520,7 @@ int32_t m3CreateSoftBodyTetInternal(m3World* world, const m3SoftBodyDef* def, co
     return slot;
 }
 
-static M3_NOINLINE m3Result CreateSoftBodyTetWorker(m3World* world, const m3SoftBodyDef* def,
+static M3_NOINLINE m3Result CreateTetSoftBodyWorker(m3World* world, const m3SoftBodyDef* def,
                                                     const m3Vec3* points, int32_t pointCount,
                                                     const uint16_t* tets, int32_t tetCount,
                                                     m3SoftBodyId* softBodyOut)
@@ -539,7 +539,7 @@ static M3_NOINLINE m3Result CreateSoftBodyTetWorker(m3World* world, const m3Soft
     {
         return m3Refuse(world, m3_errorInvalid);
     }
-    int32_t slot = m3CreateSoftBodyTetInternal(world, def, points, pointCount, tets, tetCount);
+    int32_t slot = m3CreateTetSoftBodyInternal(world, def, points, pointCount, tets, tetCount);
     if (slot < 0)
     {
         return m3CreateRefusal(world, slot);
@@ -562,13 +562,13 @@ static M3_NOINLINE m3Result CreateSoftBodyTetWorker(m3World* world, const m3Soft
     return m3_success;
 }
 
-m3Result m3CreateSoftBodyTet(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
+m3Result m3CreateTetSoftBody(m3World* world, const m3SoftBodyDef* def, const m3Vec3* points,
                              int32_t pointCount, const uint16_t* tets, int32_t tetCount,
                              m3SoftBodyId* softBodyOut)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result =
-        CreateSoftBodyTetWorker(world, def, points, pointCount, tets, tetCount, softBodyOut);
+        CreateTetSoftBodyWorker(world, def, points, pointCount, tets, tetCount, softBodyOut);
     m3FloatEnvLeave(env);
     return result;
 }
