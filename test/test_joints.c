@@ -1480,7 +1480,8 @@ static void TestHeavyBodyWelds(void)
 // of a 65 kg ball of radius 0.25 on an arm of length arm, the angle
 // degrees below the x axis in the xy plane: across the slider's axis, z,
 // for the slider, and in full for the others.
-static double PivotDrift(int32_t type, float degrees, float arm)
+// freeTurn frees that angular axis of a generic joint, -1 none.
+static double PivotDriftFree(int32_t type, float degrees, float arm, int32_t freeTurn)
 {
     float angle = degrees * M3_PI / 180.0f;
     m3Vec3 offset = {arm * cosf(angle), -arm * sinf(angle), 0.0f};
@@ -1502,6 +1503,10 @@ static double PivotDrift(int32_t type, float degrees, float arm)
     jd.localAnchorB = m3MulSV3(-1.0f, offset);
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    if (freeTurn >= 0)
+    {
+        jd.genericAngular[freeTurn] = m3_axisFree;
+    }
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the long arm joint builds");
     double worst = 0.0;
     for (int32_t k = 0; k < 60; ++k)
@@ -1513,6 +1518,11 @@ static double PivotDrift(int32_t type, float degrees, float arm)
     }
     m3DestroyWorld(world);
     return worst;
+}
+
+static double PivotDrift(int32_t type, float degrees, float arm)
+{
+    return PivotDriftFree(type, degrees, arm, -1);
 }
 
 // On a 1000 m arm the ball's mass * arm^2 / inertia is 4e7: each float
@@ -1532,6 +1542,37 @@ static void TestLongArmHolds(void)
             snprintf(what, sizeof(what), "a %s on a 1000 m arm at %.0f degrees holds its pivot",
                      t == 0 ? "socket" : "hinge", (double)degrees[d]);
             CHECK(PivotDrift(types[t], degrees[d], 1000.0f) < 0.01, what);
+        }
+    }
+}
+
+// A joint's coupled rows on a body far from its center of mass once ran
+// one block after another, and each undid most of the other's work: a
+// slider on a 10 m arm sagged 0.54 m off its axis in a second, on a
+// 100 m arm 2.4 m. Solved as one block, an offset anchor holds like one
+// at the center.
+static void TestOffsetAnchorsHold(void)
+{
+    // The generic joint locks any subset of its six axes: all six make it
+    // a weld, all but the turn about z a hinge, and it holds like them.
+    const int32_t types[5] = {m3_prismaticJoint, m3_revoluteJoint, m3_fixedJoint, m3_genericJoint,
+                              m3_genericJoint};
+    const int32_t freeTurns[5] = {-1, -1, -1, -1, 2};
+    const char* names[5] = {"slider", "hinge", "weld", "generic weld", "generic hinge"};
+    const float arms[3] = {1.0f, 10.0f, 100.0f};
+    for (int32_t t = 0; t < 5; ++t)
+    {
+        for (int32_t a = 0; a < 3; ++a)
+        {
+            char what[96];
+            snprintf(what, sizeof(what), "a %s on a %.0f m arm holds its anchor", names[t],
+                     (double)arms[a]);
+            double drift = PivotDriftFree(types[t], 0.0f, arms[a], freeTurns[t]);
+            if (!(drift < 1.0e-3))
+            {
+                printf("  %s: %.3g m\n", what, drift);
+            }
+            CHECK(drift < 1.0e-3, what);
         }
     }
 }
@@ -1566,6 +1607,7 @@ int main(void)
     TestHeavyBodyHangs();
     TestHeavyBodyWelds();
     TestLongArmHolds();
+    TestOffsetAnchorsHold();
     if (s_failures == 0)
     {
         printf("test_joints: all checks passed\n");

@@ -35,8 +35,14 @@ static void SolveWeld(m3JointConstraint* c, const m3JointPose* pose, m3JointBodi
         m3JointFrames f = m3PoseFrames(c, pose);
         error = m3RotationError(&f, s_identity);
     }
-    m3SolveTurnBlock(b, m3BlockBias(unit, error), unit, &c->angularImpulse, M3_ROW_FREE);
-    m3SolveJointPoint(c, pose, b, pass);
+    m3Vec3 turnBias = m3BlockBias(unit, error);
+    const m3JointRow rows[3] = {m3TurnRow((m3Vec3){1.0f, 0.0f, 0.0f}),
+                                m3TurnRow((m3Vec3){0.0f, 1.0f, 0.0f}),
+                                m3TurnRow((m3Vec3){0.0f, 0.0f, 1.0f})};
+    const m3real bias[3] = {turnBias.x, turnBias.y, turnBias.z};
+    m3real* const accumulated[3] = {&c->angularImpulse.x, &c->angularImpulse.y,
+                                    &c->angularImpulse.z};
+    m3SolveJointPointWith(c, pose, b, pass, rows, 3, bias, accumulated);
 }
 
 const m3JointKind m3_weldJointKind = {PrepareWeld, WarmStartWeld, SolveWeld};
