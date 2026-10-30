@@ -83,6 +83,16 @@ m3real m3SolveRow(const m3JointRow* row, m3JointBodies* b, m3RowDrive drive, m3r
 void m3SolveRowPair(const m3JointRow rows[2], m3JointBodies* b, const m3real bias[2],
                     m3RowDrive drive, m3real* first, m3real* second);
 
+// The most rows m3SolveRowBlock takes.
+#define M3_BLOCK_ROWS 6
+
+// Solves up to M3_BLOCK_ROWS coupled rows as one block, all driven with
+// the same scale and leak and each with its own bias, each accumulated
+// impulse held within M3_ROW_SPEED_BOUND. The couplings are factored in
+// double. A singular block falls back to the rows one at a time.
+void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const m3real* bias,
+                     m3RowDrive drive, m3real* const* accumulated);
+
 // The three rows that pin B's anchor to A's, solved as one block, with
 // the accumulated impulse held within a ball of radius budget.
 void m3SolvePointBlock(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 bias, m3RowDrive drive,
