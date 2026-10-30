@@ -272,6 +272,148 @@ static void TestHostileEvents(void)
     m3DestroyWorld(world);
 }
 
+// What one step reports for a pair whose shape was destroyed after the
+// pair touched, when the next create takes the freed slot.
+typedef struct ReuseEvents
+{
+    int32_t begins;
+    int32_t ends;
+    bool newerNamed; // a begin names the shape that took the slot
+} ReuseEvents;
+
+// Shape 0, a box (a sensor when sensor is set), overlaps ball X, shape
+// 1, with no gravity. After a step, X is destroyed and the next create
+// takes slot 1: far from the box, or over it again when overlap is set.
+// The new shape is a sensor when the box is, so it never meets X's
+// pair as a fresh pair of its own unless it overlaps.
+static ReuseEvents ReuseAfterDestroy(bool sensor, bool overlap)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef boxDef = m3DefaultShapeDef();
+    boxDef.isSensor = sensor;
+    m3ShapeId box = NewBoxShape(world, NewBody(world, &gd), &boxDef, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3ShapeDef ballDef = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId x = NewSphereShape(world, NewBody(world, &bd), &ballDef, &sphere);
+    CHECK(box.index1 == 1 && x.index1 == 2, "the box takes slot 0 and the ball slot 1");
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    int32_t touched = sensor ? m3World_GetSensorEvents(world).beginCount
+                             : m3World_GetContactEvents(world).beginCount;
+    CHECK(touched == 1, "the box and the ball begin touching");
+
+    CHECK(m3DestroyShape(world, x) == m3_success, "the ball's shape is destroyed");
+    gd.position = overlap ? (m3Pos3){0.0, 0.0, 0.0} : (m3Pos3){50.0, 0.0, 0.0};
+    gd.type = overlap ? m3_dynamicBody : m3_staticBody;
+    m3ShapeDef newerDef = m3DefaultShapeDef();
+    newerDef.isSensor = sensor && !overlap;
+    m3ShapeId newer = NewSphereShape(world, NewBody(world, &gd), &newerDef, &sphere);
+    CHECK(newer.index1 == x.index1 && newer.generation != x.generation,
+          "the next create takes the freed slot");
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+
+    ReuseEvents out = {0, 0, false};
+    m3ContactEvents contacts = m3World_GetContactEvents(world);
+    m3SensorEvents sensors = m3World_GetSensorEvents(world);
+    out.begins = contacts.beginCount + sensors.beginCount;
+    out.ends = contacts.endCount + sensors.endCount;
+    for (int32_t i = 0; i < contacts.beginCount; ++i)
+    {
+        out.newerNamed =
+            out.newerNamed || (contacts.beginEvents[i].shapeIdB.index1 == newer.index1 &&
+                               contacts.beginEvents[i].shapeIdB.generation == newer.generation);
+    }
+    for (int32_t i = 0; i < sensors.beginCount; ++i)
+    {
+        out.newerNamed = out.newerNamed ||
+                         (sensors.beginEvents[i].visitorShapeId.index1 == newer.index1 &&
+                          sensors.beginEvents[i].visitorShapeId.generation == newer.generation);
+    }
+    m3DestroyWorld(world);
+    return out;
+}
+
+static void TestDestroyedPairAndReusedSlot(void)
+{
+    // A destroyed shape's pair ends silently: no end event, whatever
+    // takes its slot, since an id would name a shape that never touched.
+    for (int32_t sensor = 0; sensor < 2; ++sensor)
+    {
+        ReuseEvents far = ReuseAfterDestroy(sensor != 0, false);
+        if (far.begins != 0 || far.ends != 0)
+        {
+            printf("  %s, far: %d begins, %d ends\n", sensor ? "sensor" : "contact",
+                   (int)far.begins, (int)far.ends);
+        }
+        CHECK(far.begins == 0 && far.ends == 0,
+              "a destroyed shape's pair emits nothing when its slot is taken far away");
+        ReuseEvents over = ReuseAfterDestroy(sensor != 0, true);
+        if (over.begins != 1 || over.ends != 0 || !over.newerNamed)
+        {
+            printf("  %s, over: %d begins, %d ends, newer named %d\n",
+                   sensor ? "sensor" : "contact", (int)over.begins, (int)over.ends,
+                   (int)over.newerNamed);
+        }
+        CHECK(over.begins == 1 && over.ends == 0 && over.newerNamed,
+              "the shape that takes the slot over the box begins its own touch");
+    }
+}
+
+// The same reuse with the ball asleep on the box, so the pair waits in
+// the frozen buffer: the static shape that takes the slot far away gets
+// no event, and the world steps as one restored from a snapshot taken
+// right after the destroy, which rebuilds its pairs from the tree.
+static void TestColdPairAndReusedSlot(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    NewBoxShape(world, NewBody(world, &gd), &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 1.5, 0.0};
+    m3BodyId ball = NewBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId x = NewSphereShape(world, ball, &sd, &sphere);
+    for (int32_t i = 0; i < 600 && m3Body_IsAwake(world, ball); ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m3Body_IsAwake(world, ball), "the ball falls asleep on the box");
+
+    CHECK(m3DestroyShape(world, x) == m3_success, "the sleeping ball's shape is destroyed");
+    gd.position = (m3Pos3){50.0, 0.0, 0.0};
+    m3ShapeId newer = NewSphereShape(world, NewBody(world, &gd), &sd, &sphere);
+    CHECK(newer.index1 == x.index1, "a static shape far away takes the freed slot");
+    int32_t size = m3World_GetSnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    int32_t written = 0;
+    CHECK(snap != NULL && m3World_Snapshot(world, snap, size, &written) == m3_success,
+          "the world snapshots after the destroy");
+    m3World* twin = NewWorld(&def);
+    CHECK(m3World_Restore(twin, snap, written) == m3_success, "a twin restores the snapshot");
+
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    (void)m3World_Step(twin, 1.0f / 60.0f, 4);
+    m3ContactEvents events = m3World_GetContactEvents(world);
+    CHECK(events.beginCount == 0 && events.endCount == 0,
+          "the cold pair of a destroyed shape emits nothing");
+    CHECK(m3World_Hash(world) == m3World_Hash(twin),
+          "the world steps as the twin restored after the destroy");
+    free(snap);
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHitEvents();
@@ -279,6 +421,8 @@ int main(void)
     TestPreSolveOneWay();
     TestEventTwinsAndJointStream();
     TestHostileEvents();
+    TestDestroyedPairAndReusedSlot();
+    TestColdPairAndReusedSlot();
     if (s_failures == 0)
     {
         printf("test_events: all green\n");
