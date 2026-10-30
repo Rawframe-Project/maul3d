@@ -518,9 +518,12 @@ static void ProbeSoftBodies(void)
 static void ProbeWater(void)
 {
     static const Field fields[] = {
-        FIELD(m3WaterVolumeDef, lo.y, 'd'),        FIELD(m3WaterVolumeDef, hi.y, 'd'),
-        FIELD(m3WaterVolumeDef, density, 'f'),     FIELD(m3WaterVolumeDef, linearDrag, 'f'),
-        FIELD(m3WaterVolumeDef, angularDrag, 'f'), FIELD(m3WaterVolumeDef, flow.x, 'f'),
+        FIELD(m3WaterVolumeDef, bounds.lowerBound.y, 'd'),
+        FIELD(m3WaterVolumeDef, bounds.upperBound.y, 'd'),
+        FIELD(m3WaterVolumeDef, density, 'f'),
+        FIELD(m3WaterVolumeDef, linearDrag, 'f'),
+        FIELD(m3WaterVolumeDef, angularDrag, 'f'),
+        FIELD(m3WaterVolumeDef, flow.x, 'f'),
     };
     m3WaterVolumeDef wd = m3DefaultWaterVolumeDef();
     wd.bounds.lowerBound = (m3Pos3){-5.0, 0.0, -5.0};
