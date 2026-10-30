@@ -113,6 +113,10 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
     {
         return m3_errorLimit; // no buffer of this target holds the pair
     }
+    if (capacity < need)
+    {
+        return m3_errorCapacity;
+    }
     // The container is copied straight into out, so the bytes it fills
     // must not hold either input. The capacity may reach past them, since
     // only these are written.
@@ -120,10 +124,6 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
         BytesOverlap(out, need, journal, journalBytes))
     {
         return m3_errorInvalid;
-    }
-    if (capacity < need)
-    {
-        return m3_errorCapacity;
     }
     // A container never wraps a malformed stream, nor one another release
     // wrote.

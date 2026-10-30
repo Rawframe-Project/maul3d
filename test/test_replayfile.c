@@ -202,6 +202,13 @@ static void TestOverlappingOutRefuses(void)
                          &written) == m3_success &&
               written == bytes && memcmp(after, blob, (size_t)bytes) == 0,
           "an out that starts where the tape ends is taken");
+    // Too small for the container, an out just before the snapshot is
+    // short, not overlapping: the bytes past its capacity are not its own.
+    written = 1234;
+    CHECK(m3EncodeReplay(snap, snapBytes, tape, tapeBytes, view.finalHash, snap - 64, 64,
+                         &written) == m3_errorCapacity &&
+              written == 1234,
+          "a short out that ends where the snapshot starts is short, not overlapping");
 
     struct
     {
