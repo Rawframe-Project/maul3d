@@ -28,20 +28,31 @@ static m3World* SceneWorld(FuzzScene* scene)
     return world;
 }
 
-// The slot of the scene's distance joint, the rope between the crate and
-// the ball.
-static int32_t RopeSlot(const m3World* world)
+// The slot of the scene's one joint of a type, or -1.
+static int32_t JointSlotOfType(const m3World* world, m3JointType type)
 {
     m3JointId joints[8];
     int32_t count = m3World_GetJoints(world, joints, 8);
     for (int32_t i = 0; i < count && i < 8; ++i)
     {
-        if (m3Joint_GetType(world, joints[i]) == m3_distanceJoint)
+        if (m3Joint_GetType(world, joints[i]) == type)
         {
             return (int32_t)joints[i].index1 - 1;
         }
     }
     return -1;
+}
+
+// The rope between the crate and the ball.
+static int32_t RopeSlot(const m3World* world)
+{
+    return JointSlotOfType(world, m3_distanceJoint);
+}
+
+// The shoulder the ball hangs from, its cone on.
+static int32_t ShoulderSlot(const m3World* world)
+{
+    return JointSlotOfType(world, m3_sphericalJoint);
 }
 
 static void TestSceneHolds(void)
@@ -67,6 +78,7 @@ typedef enum Corruption
     corrupt_ropeMinimum,
     corrupt_ropeLength,
     corrupt_springHertz,
+    corrupt_coneAngle,
     corrupt_gravityScale,
     corrupt_friction,
     corrupt_gravity,
@@ -96,6 +108,10 @@ static void Corrupt(m3World* world, const FuzzScene* scene, Corruption which)
     case corrupt_springHertz:
         world->joints.jointSpring[rope].x = 2.0f * M3_HERTZ_LIMIT;
         break;
+    case corrupt_coneAngle:
+        // The cone angle rides the limit slot's z.
+        world->joints.jointLimits[ShoulderSlot(world)].z = -0.5f;
+        break;
     case corrupt_gravityScale:
         world->bodies.gravityScales[crate] = 2.0f * M3_RATIO_LIMIT;
         break;
@@ -124,6 +140,7 @@ static void TestOracleCatches(void)
         {corrupt_ropeMinimum, "a negative rope minimum"},
         {corrupt_ropeLength, "a negative rope rest length"},
         {corrupt_springHertz, "a rope spring frequency past its limit"},
+        {corrupt_coneAngle, "a negative angle under a switched-on cone"},
         {corrupt_gravityScale, "a gravity scale past its limit"},
         {corrupt_friction, "a negative friction"},
         {corrupt_gravity, "a world gravity past its limit"},
@@ -133,7 +150,7 @@ static void TestOracleCatches(void)
     {
         FuzzScene scene;
         m3World* world = SceneWorld(&scene);
-        CHECK(RopeSlot(world) >= 0, "the rope lives");
+        CHECK(RopeSlot(world) >= 0 && ShoulderSlot(world) >= 0, "the rope and the shoulder live");
         Corrupt(world, &scene, cases[c].which);
         bool held = FuzzValuesHold(world, scene.hero);
         if (held)
@@ -197,11 +214,47 @@ static void TestRestoredRopeFailsOracle(void)
     }
 }
 
+// A snapshot of the scene with the shoulder's cone angle set to -0.5 under
+// its switched-on cone. Restore refuses it, and were it accepted, the
+// oracle would fail the world it left.
+static void TestRestoredConeFailsOracle(void)
+{
+    FuzzScene scene;
+    m3World* world = SceneWorld(&scene);
+    int32_t shoulder = ShoulderSlot(world);
+    int32_t size = m3World_GetSnapshotSize(world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)size);
+    int64_t limits = m3StateFieldAt(world, offsetof(m3World, joints.jointLimits));
+    bool ready = snapshot != NULL && Snapshot(world, snapshot, size) == size && limits >= 0 &&
+                 shoulder >= 0 && m3SphericalJoint_IsConeEnabled(world, scene.shoulder);
+    CHECK(ready, "the shoulder's switched-on cone is snapshot state");
+    if (ready)
+    {
+        const float angle = -0.5f;
+        memcpy(snapshot + M3_SNAPSHOT_HEADER_BYTES + limits + sizeof(m3Vec3) * (size_t)shoulder +
+                   2 * sizeof(float),
+               &angle, sizeof(angle));
+        m3WorldDef def = FuzzWorldDef();
+        m3World* restored = NewWorld(&def);
+        bool accepted = m3World_Restore(restored, snapshot, size) == m3_success;
+        if (accepted)
+        {
+            printf("  restore took a negative angle under a switched-on cone\n");
+            CHECK(!FuzzValuesHold(restored, scene.hero), "and the oracle fails the world it left");
+        }
+        CHECK(!accepted, "restore refuses a cone no caller could set");
+        m3DestroyWorld(restored);
+    }
+    free(snapshot);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestSceneHolds();
     TestOracleCatches();
     TestRestoredRopeFailsOracle();
+    TestRestoredConeFailsOracle();
     if (s_failures == 0)
     {
         printf("test_fuzz_oracle: all checks passed\n");
