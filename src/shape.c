@@ -553,6 +553,7 @@ void m3DestroyShapeInternal(m3World* world, int32_t index)
         world->broadphase.moved[index] = 1;
     }
     ReleaseShapeContent(world, index);
+    m3ForgetShapePairs(world, index);
     m3Shapes* sh = &world->shapes;
     sh->shapeType[index] = 0;
     sh->shapeGeom[index] = (m3ShapeGeom){{0.0f, 0.0f, 0.0f}, 0.0f, {0.0f, 0.0f, 0.0f}, 0.0f};
