@@ -37,9 +37,9 @@ extern "C"
         m3real springDampingRatio; // damping ratio
         m3real radius;             // wheel radius (the cast reaches
                                    // restLength + radius along direction)
-        bool steerable;            // consumed by the drive slice
-        bool driven;               // consumed by the drive slice
-        m3real brakeShare;         // consumed by the drive slice
+        bool steerable;            // turns with the steer command
+        bool driven;               // takes the drive force or engine torque
+        m3real brakeShare;         // this wheel's share of brakeForce
     } m3WheelDef;
 
     typedef struct m3VehicleDef
