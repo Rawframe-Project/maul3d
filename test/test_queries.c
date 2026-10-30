@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "test_harness.h"
 
+#include "maul3d/replay.h"
 #include "maul3d/shape.h"
 
 #include <float.h>
@@ -1286,20 +1287,21 @@ static void TestListOutputs(void)
     {
         ListCall* call;
         const char* name;
+        size_t itemBytes;
     } calls[] = {
-        {ListAabb, "OverlapAabb"},
-        {ListSphere, "OverlapSphere"},
-        {ListCapsule, "OverlapCapsule"},
-        {ListBox, "OverlapBox"},
-        {ListHull, "OverlapHull"},
-        {ListRay, "CastRayAll"},
-        {ListMover, "CollideMover"},
-        {ListBodyContacts, "Body_GetContactData"},
-        {ListShapeContacts, "Shape_GetContactData"},
-        {ListBodies, "World_GetBodies"},
-        {ListJoints, "World_GetJoints"},
-        {ListBodyShapes, "Body_GetShapes"},
-        {ListBodyJoints, "Body_GetJoints"},
+        {ListAabb, "OverlapAabb", sizeof(m3ShapeId)},
+        {ListSphere, "OverlapSphere", sizeof(m3ShapeId)},
+        {ListCapsule, "OverlapCapsule", sizeof(m3ShapeId)},
+        {ListBox, "OverlapBox", sizeof(m3ShapeId)},
+        {ListHull, "OverlapHull", sizeof(m3ShapeId)},
+        {ListRay, "CastRayAll", sizeof(m3CastHit)},
+        {ListMover, "CollideMover", sizeof(m3MoverPlane)},
+        {ListBodyContacts, "Body_GetContactData", sizeof(m3ContactData)},
+        {ListShapeContacts, "Shape_GetContactData", sizeof(m3ContactData)},
+        {ListBodies, "World_GetBodies", sizeof(m3BodyId)},
+        {ListJoints, "World_GetJoints", sizeof(m3JointId)},
+        {ListBodyShapes, "Body_GetShapes", sizeof(m3ShapeId)},
+        {ListBodyJoints, "Body_GetJoints", sizeof(m3JointId)},
     };
     // One entry of any call's type: each call stores into the member of
     // its own type, and the union's size and alignment cover them all.
@@ -1334,6 +1336,74 @@ static void TestListOutputs(void)
         CHECK(nullRefused && negativeRefused,
               "a NULL array with a positive capacity, or a negative capacity, refuses");
     }
+    // A refused call zeroes its array over the whole capacity, so no item
+    // an earlier call wrote is read as the answer: a NULL world for every
+    // call, and a stale id for the calls that take one.
+    ListScene dead = sc;
+    dead.world = NULL;
+    ListScene stale = sc;
+    stale.floorBody.generation += 1;
+    stale.floor.generation += 1;
+    stale.hub.generation += 1;
+    static union
+    {
+        m3ContactData contact;
+        m3CastHit hit;
+        m3MoverPlane plane;
+        m3ShapeId shape;
+        m3BodyId body;
+        m3JointId joint;
+    } three[3];
+    for (size_t c = 0; c < sizeof(calls) / sizeof(calls[0]); ++c)
+    {
+        const ListScene* refused[2] = {&dead, &stale};
+        for (int32_t r = 0; r < 2; ++r)
+        {
+            memset(three, 0x5A, sizeof(three));
+            int32_t got = calls[c].call(refused[r], three, 3);
+            if (r == 1 && got != 0)
+            {
+                continue; // takes no id: the stale scene is an ordinary call
+            }
+            bool zeroed = true;
+            const unsigned char* bytes = (const unsigned char*)three;
+            for (size_t k = 0; k < 3 * calls[c].itemBytes; ++k)
+            {
+                zeroed = zeroed && bytes[k] == 0;
+            }
+            if (got != 0 || !zeroed)
+            {
+                printf("  %s with %s: returned %d, array %s\n", calls[c].name,
+                       r == 0 ? "a NULL world" : "a stale id", (int)got,
+                       zeroed ? "zeroed" : "left as it was");
+            }
+            CHECK(got == 0 && zeroed, "a refused list call zeroes its whole array");
+        }
+    }
+    // The world comparison refuses a NULL world and two worlds of
+    // different capacities the same way: -1, a zero count and its rows
+    // zeroed over their whole capacity.
+    m3WorldDef other = m3DefaultWorldDef();
+    other.bodyCapacity = wd.bodyCapacity + 1;
+    m3World* wider = NewWorld(&other);
+    const m3World* pairs[2][2] = {{sc.world, NULL}, {sc.world, wider}};
+    for (int32_t p = 0; p < 2; ++p)
+    {
+        m3BodyDiff rows[3];
+        memset(rows, 0x5A, sizeof(rows));
+        int32_t count = 7;
+        int32_t got = m3World_Compare(pairs[p][0], pairs[p][1], rows, 3, &count);
+        bool zeroed = true;
+        const unsigned char* bytes = (const unsigned char*)rows;
+        for (size_t k = 0; k < sizeof(rows); ++k)
+        {
+            zeroed = zeroed && bytes[k] == 0;
+        }
+        CHECK(got == -1 && count == 0 && zeroed,
+              p == 0 ? "a comparison with a NULL world zeroes its rows"
+                     : "a comparison of different capacities zeroes its rows");
+    }
+    m3DestroyWorld(wider);
     m3DestroyWorld(sc.world);
 }
 

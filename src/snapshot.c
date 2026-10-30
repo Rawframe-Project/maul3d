@@ -120,6 +120,17 @@ int64_t m3World_GetSnapshotSize(const m3World* world)
     return result;
 }
 
+// Zeroes a refused snapshot's buffer over its whole capacity, so no
+// bytes an earlier snapshot left there read as this one. A capacity that
+// cannot be a block of this target is left alone.
+static void ClearSnapshotBuffer(void* buffer, int64_t capacity)
+{
+    if (buffer != NULL && capacity > 0 && m3SizeFitsMemory(capacity))
+    {
+        memset(buffer, 0, (size_t)capacity);
+    }
+}
+
 static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buffer,
                                                 int64_t capacity, int64_t* bytesOut)
 {
@@ -129,6 +140,7 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
     }
     if (world == NULL || buffer == NULL || bytesOut == NULL)
     {
+        ClearSnapshotBuffer(buffer, capacity);
         return m3Refuse(world, m3_errorInvalid);
     }
     int64_t size = m3SnapshotBytes(world);
@@ -136,6 +148,7 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
     {
         // A buffer sized with m3World_GetSnapshotSize always fits, so a short
         // one is the caller's bug as well as a capacity refusal.
+        ClearSnapshotBuffer(buffer, capacity);
         m3Refuse(world, m3_errorInvalid);
         return m3_errorCapacity;
     }
