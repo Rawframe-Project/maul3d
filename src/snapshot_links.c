@@ -508,15 +508,26 @@ static bool BroadphaseValid(const m3Incoming* inc)
 // at once, while the keys are rebuilt only by the next step, so a snapshot
 // taken between them holds such keys. The block checks put both halves of
 // every key below the shape capacity and the count within the pair
-// capacity.
+// capacity. A pair of two sensors may sit in the list, when a sensor took
+// a destroyed shape's slot, but it never touches: the broad phase never
+// pairs two sensors, and a destroy clears its shape's pairs, so a touching
+// one would make the next step's events name two sensors.
 static bool PairsValid(const m3Incoming* inc)
 {
     const uint8_t* keys = m3InField(inc, offsetof(m3World, contacts.pairKeys));
+    const uint8_t* manifolds = m3InField(inc, offsetof(m3World, contacts.manifolds));
+    const uint8_t* sensors = m3InField(inc, offsetof(m3World, shapes.shapeSensor));
     int32_t count = m3InI32(m3InField(inc, offsetof(m3World, contacts.pairCount)), 0);
     for (int32_t i = 0; i < count; ++i)
     {
         uint64_t key = m3InU64(keys, i);
         if ((i > 0 && key <= m3InU64(keys, i - 1)) || (key >> 32) >= (key & 0xFFFFFFFFu))
+        {
+            return false;
+        }
+        int32_t points = m3InI32(
+            manifolds + (size_t)i * sizeof(m3Manifold) + offsetof(m3Manifold, pointCount), 0);
+        if (points > 0 && sensors[key >> 32] != 0 && sensors[key & 0xFFFFFFFFu] != 0)
         {
             return false;
         }
