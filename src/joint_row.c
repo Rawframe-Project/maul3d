@@ -167,6 +167,212 @@ static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, m3real budget, con
     return m3Sub3(next, old);
 }
 
+// Factors K = L D L^T in place, in double and without square roots, then
+// solves for x by two substitutions. False, with x untouched, when a
+// pivot falls below floor times its diagonal: the block has a dependent
+// row, or one too few digits tell apart.
+static bool SolveBlockWide(double k[M3_BLOCK_ROWS][M3_BLOCK_ROWS], int32_t count, double* x,
+                           double floor)
+{
+    if (count < 1 || count > M3_BLOCK_ROWS)
+    {
+        return false;
+    }
+    double d[M3_BLOCK_ROWS];
+    for (int32_t j = 0; j < count; ++j)
+    {
+        double pivot = k[j][j];
+        for (int32_t m = 0; m < j; ++m)
+        {
+            pivot -= k[j][m] * k[j][m] * d[m];
+        }
+        if (!(pivot > floor * k[j][j]))
+        {
+            return false;
+        }
+        d[j] = pivot;
+        for (int32_t i = j + 1; i < count; ++i)
+        {
+            double sum = k[i][j];
+            for (int32_t m = 0; m < j; ++m)
+            {
+                sum -= k[i][m] * k[j][m] * d[m];
+            }
+            k[i][j] = sum / pivot;
+        }
+    }
+    for (int32_t i = 0; i < count; ++i)
+    {
+        for (int32_t m = 0; m < i; ++m)
+        {
+            x[i] -= k[i][m] * x[m];
+        }
+    }
+    for (int32_t i = count - 1; i >= 0; --i)
+    {
+        x[i] /= d[i];
+        for (int32_t m = i + 1; m < count; ++m)
+        {
+            x[i] -= k[m][i] * x[m];
+        }
+    }
+    return true;
+}
+
+// M^-1 J^T for one row in double: what an impulse on it does to each
+// body's velocity and spin, the linear and angular parts of A, then B's.
+static void WideResponse(const m3JointRow* r, const m3JointBodies* b, double out[12])
+{
+    const m3Vec3 parts[4] = {r->linA, r->angA, r->linB, r->angB};
+    const m3Mat3* inertia[2] = {&b->iA, &b->iB};
+    const m3real masses[2] = {b->mA, b->mB};
+    for (int32_t body = 0; body < 2; ++body)
+    {
+        m3Vec3 lin = parts[2 * body];
+        m3Vec3 ang = parts[2 * body + 1];
+        const m3Mat3* w = inertia[body];
+        double* o = out + 6 * body;
+        o[0] = (double)masses[body] * (double)lin.x;
+        o[1] = (double)masses[body] * (double)lin.y;
+        o[2] = (double)masses[body] * (double)lin.z;
+        o[3] = (double)w->cx.x * (double)ang.x + (double)w->cy.x * (double)ang.y +
+               (double)w->cz.x * (double)ang.z;
+        o[4] = (double)w->cx.y * (double)ang.x + (double)w->cy.y * (double)ang.y +
+               (double)w->cz.y * (double)ang.z;
+        o[5] = (double)w->cx.z * (double)ang.x + (double)w->cy.z * (double)ang.y +
+               (double)w->cz.z * (double)ang.z;
+    }
+}
+
+// J times a response in double: one coupling of the block.
+static double WideApply(const m3JointRow* r, const double w[12])
+{
+    const m3Vec3 parts[4] = {r->linA, r->angA, r->linB, r->angB};
+    double sum = 0.0;
+    for (int32_t p = 0; p < 4; ++p)
+    {
+        sum += (double)parts[p].x * w[3 * p] + (double)parts[p].y * w[3 * p + 1] +
+               (double)parts[p].z * w[3 * p + 2];
+    }
+    return sum;
+}
+
+// K's lower half built again from the rows in double, where a float K
+// cancelled too far.
+static void BuildBlockWide(const m3JointRow* rows, int32_t count, const m3JointBodies* b,
+                           double k[M3_BLOCK_ROWS][M3_BLOCK_ROWS])
+{
+    double wide[M3_BLOCK_ROWS][12];
+    for (int32_t i = 0; i < count; ++i)
+    {
+        WideResponse(&rows[i], b, wide[i]);
+        for (int32_t j = 0; j <= i; ++j)
+        {
+            k[i][j] = WideApply(&rows[i], wide[j]);
+        }
+    }
+}
+
+// Clamps each row's accumulated impulse by the solved step x and pushes
+// what changed as one velocity change, from the responses M^-1 J^T
+// already built for K.
+static void PushBlock(const m3JointRow* response, const bool* linear, const m3real* diagonal,
+                      const double* x, int32_t count, m3JointBodies* b, m3RowDrive drive,
+                      m3real* const* accumulated)
+{
+    m3JointRow change = {
+        {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}};
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m3real old = *accumulated[i];
+        m3real bound = M3_ROW_SPEED_BOUND / diagonal[i];
+        m3real next = m3ClampF(old - (m3real)x[i] - drive.leak * old, -bound, bound);
+        *accumulated[i] = next;
+        m3real applied = next - old;
+        const m3JointRow* w = &response[i];
+        if (linear[i])
+        {
+            change.linA = m3Add3(change.linA, m3MulSV3(applied, w->linA));
+            change.linB = m3Add3(change.linB, m3MulSV3(applied, w->linB));
+        }
+        change.angA = m3Add3(change.angA, m3MulSV3(applied, w->angA));
+        change.angB = m3Add3(change.angB, m3MulSV3(applied, w->angB));
+    }
+    b->vA = m3Add3(b->vA, change.linA);
+    b->wA = m3Add3(b->wA, change.angA);
+    b->vB = m3Add3(b->vB, change.linB);
+    b->wB = m3Add3(b->wB, change.angB);
+}
+
+static bool IsZero3(m3Vec3 v)
+{
+    return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
+}
+
+void m3SolveRowBlock(const m3JointRow* rows, int32_t count, m3JointBodies* b, const m3real* bias,
+                     m3RowDrive drive, m3real* const* accumulated)
+{
+    // K and the responses M^-1 J^T are built in float, like every other
+    // row's mass, and factored in double. A turn row has no linear part,
+    // so its terms with one are left out: they add exact zeros.
+    double k[M3_BLOCK_ROWS][M3_BLOCK_ROWS];
+    double x[M3_BLOCK_ROWS];
+    m3JointRow response[M3_BLOCK_ROWS];
+    bool linear[M3_BLOCK_ROWS];
+    const m3Vec3 zero = {0.0f, 0.0f, 0.0f};
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const m3JointRow* r = &rows[i];
+        linear[i] = !(IsZero3(r->linA) && IsZero3(r->linB));
+        m3Vec3 angA = m3MulMV3(b->iA, r->angA);
+        m3Vec3 angB = m3MulMV3(b->iB, r->angB);
+        response[i] =
+            linear[i] ? (m3JointRow){m3MulSV3(b->mA, r->linA), angA, m3MulSV3(b->mB, r->linB), angB}
+                      : (m3JointRow){zero, angA, zero, angB};
+        for (int32_t j = 0; j <= i; ++j)
+        {
+            const m3JointRow* w = &response[j];
+            m3real turn = m3Dot3(r->angA, w->angA) + m3Dot3(r->angB, w->angB);
+            if (linear[i] && linear[j])
+            {
+                turn = m3Dot3(r->linA, w->linA) + m3Dot3(r->angA, w->angA) +
+                       m3Dot3(r->linB, w->linB) + m3Dot3(r->angB, w->angB);
+            }
+            k[i][j] = (double)turn;
+        }
+        m3real speed = m3Dot3(r->angA, b->wA) + m3Dot3(r->angB, b->wB);
+        if (linear[i])
+        {
+            speed = m3RowSpeed(r, b);
+        }
+        x[i] = (double)(drive.scale * speed + CapBias(bias[i]));
+    }
+    m3real diagonal[M3_BLOCK_ROWS];
+    for (int32_t i = 0; i < count; ++i)
+    {
+        diagonal[i] = (m3real)k[i][i];
+    }
+    // A float K holds about seven digits: a pivot that cancels below 1e-4
+    // of its diagonal has too few left, so K is built again in double,
+    // and only a block singular even there falls back to the rows.
+    bool solved = SolveBlockWide(k, count, x, 1.0e-4);
+    if (!solved)
+    {
+        BuildBlockWide(rows, count, b, k);
+        solved = SolveBlockWide(k, count, x, 1.0e-12);
+    }
+    if (!solved)
+    {
+        for (int32_t i = 0; i < count; ++i)
+        {
+            m3RowDrive one = {bias[i], drive.scale, drive.leak};
+            m3SolveRow(&rows[i], b, one, accumulated[i], -M3_ROW_FREE, M3_ROW_FREE);
+        }
+        return;
+    }
+    PushBlock(response, linear, diagonal, x, count, b, drive, accumulated);
+}
+
 void m3PushPoint(m3Vec3 armA, m3Vec3 armB, m3JointBodies* b, m3Vec3 impulse)
 {
     b->vA = m3Sub3(b->vA, m3MulSV3(b->mA, impulse));
