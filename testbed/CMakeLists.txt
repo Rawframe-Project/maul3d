@@ -23,6 +23,10 @@ target_include_directories(testbed PRIVATE ${PROJECT_SOURCE_DIR}/test)
 # would collide with this directory; it stays here instead.
 set_target_properties(testbed PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_target_properties(testbed PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON)
+# ftello sizes a recording with a 64-bit off_t on 32-bit glibc too.
+if(NOT WIN32)
+    target_compile_definitions(testbed PRIVATE _FILE_OFFSET_BITS=64)
+endif()
 if(NOT MSVC)
     target_compile_options(testbed PRIVATE -Wall -Wextra)
 endif()
