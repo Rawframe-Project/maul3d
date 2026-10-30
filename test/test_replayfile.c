@@ -216,6 +216,61 @@ static bool VetoAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void*
     return false; // veto every flagged contact
 }
 
+// A journal stop made from the world's own pre-solve callback, mid-step:
+// refused as busy, it leaves the caller's size as it was.
+typedef struct BusyStop
+{
+    m3World* world;
+    int32_t bytes;
+    m3Result result;
+    int calls;
+} BusyStop;
+
+static bool StopFromCallback(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void* context)
+{
+    (void)a;
+    (void)b;
+    (void)point;
+    (void)normal;
+    BusyStop* stop = (BusyStop*)context;
+    if (stop->calls++ == 0)
+    {
+        stop->bytes = 1234;
+        stop->result = m3World_StopJournal(stop->world, &stop->bytes);
+    }
+    return true;
+}
+
+static void TestBusyStopKeepsSize(void)
+{
+    m3WorldDef def = Def();
+    m3World* world = NewWorld(&def);
+    static uint8_t journal[65536];
+    CHECK(StartJournal(world, journal, (int32_t)sizeof(journal)), "the journal starts");
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId floor = NewBoxShape(world, NewBody(world, &gd), &sd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    m3Shape_EnablePreSolveEvents(world, floor, true);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.9, 0.0};
+    NewBoxShape(world, NewBody(world, &bd), &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    BusyStop stop = {world, 0, m3_success, 0};
+    m3World_SetPreSolveCallback(world, StopFromCallback, &stop);
+    for (int32_t i = 0; i < 4 && stop.calls == 0; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(stop.calls > 0, "the pre-solve callback runs");
+    CHECK(stop.result == m3_errorBusy && stop.bytes == 1234,
+          "a stop from the world's own callback is refused busy and keeps the size");
+    m3World_SetPreSolveCallback(world, NULL, NULL);
+    int32_t bytes = 99;
+    CHECK(m3World_StopJournal(world, &bytes) == m3_success && bytes > 16,
+          "the journal it left running stops after the step");
+    m3DestroyWorld(world);
+}
+
 static void TestPreSolveReplay(void)
 {
     m3WorldDef def = Def();
@@ -331,6 +386,7 @@ int main(void)
     TestRefusals();
     TestSmallCapacity();
     TestSizeOutputsOnFailure();
+    TestBusyStopKeepsSize();
     TestFuzz();
     if (s_failures == 0)
     {

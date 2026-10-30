@@ -787,7 +787,8 @@ extern "C"
     /// caller-owned buffer (m3_errorState while a journal is already
     /// running); Stop sets *bytesOut to the bytes written, or returns
     /// m3_errorCapacity when the buffer overflowed (m3_errorState when
-    /// none was running), and any failure leaves *bytesOut zero; Replay applies a stream to this
+    /// none was running), and any failure leaves *bytesOut zero but a
+    /// stop refused as busy, which leaves it as it was; Replay applies a stream to this
     /// world. A tape is laid out the same on every target (little-endian, each record as on x86-64)
     /// and never holds a def's padding, so the same calls write the same bytes anywhere. It starts
     /// with the 16-byte state prefix, written when the journal starts, so the buffer holds at least
