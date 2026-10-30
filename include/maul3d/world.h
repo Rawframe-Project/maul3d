@@ -492,27 +492,17 @@ extern "C"
     /// stays silent; do not expect callbacks to fire under replay.
     M3_API void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFunction* fn, void* context);
 
-    /// The closest hit of a ray or shape cast: origin in world doubles,
-    /// translation = direction times reach, fraction in [0, 1] along
-    /// the translation. Ties break to the lower shape index. A zero
-    /// translation misses.
-    typedef struct m3RayCastResult
-    {
-        m3ShapeId shapeId; // null when hit is false
-        m3Pos3 point;
-        m3Vec3 normal;
-        m3real fraction;
-        bool hit;
-    } m3RayCastResult;
-
-    /// One entry of m3World_CastRayAll.
-    typedef struct m3RayHit
+    /// One hit of a ray or shape cast, from a closest cast or from
+    /// m3World_CastRayAll: origin in world doubles, translation =
+    /// direction times reach, fraction in [0, 1] along the translation.
+    /// Ties break to the lower shape index. A zero translation misses.
+    typedef struct m3CastHit
     {
         m3ShapeId shapeId;
-        m3Pos3 point;
-        m3Vec3 normal;
-        m3real fraction;
-    } m3RayHit;
+        m3Pos3 point;    // the world hit point
+        m3Vec3 normal;   // the world surface normal; zero on initial overlap
+        m3real fraction; // the hit is origin + fraction * translation
+    } m3CastHit;
 
     /// The mover toolkit: pure queries and a pure plane
     /// solver for hosts that roll their own character movers (the
@@ -536,9 +526,10 @@ extern "C"
     } m3MoverMove;
 
     /// Cast the mover capsule along a translation; the closest
-    /// blocking hit (sensors are invisible to movers).
-    M3_API m3RayCastResult m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
-                                             m3real radius, m3Vec3 translation);
+    /// blocking hit (sensors are invisible to movers), with the
+    /// closest casts' contract below.
+    M3_API bool m3World_CastMover(const m3World* world, m3Pos3 center, m3real halfHeight,
+                                  m3real radius, m3Vec3 translation, m3CastHit* hitOut);
 
     /// Collect contact planes for the mover at rest: every shape
     /// within `skin` of the capsule contributes one plane. Returns
@@ -562,15 +553,19 @@ extern "C"
     /// all. The closest front-face hit along origin + t * translation
     /// for t in [0, 1]: rays MISS shapes they start inside or exactly
     /// on (front faces only); ask m3World_TestPoint for containment.
-    M3_API m3RayCastResult m3World_CastRayClosest(const m3World* world, m3Pos3 origin,
-                                                  m3Vec3 translation, m3QueryFilter filter);
+    /// Every closest cast clears hitOut first, then returns true on a
+    /// hit and writes it there, or returns false and leaves it zeroed:
+    /// on a miss, and on a hostile input or a null world, which count
+    /// one misuse. A null hitOut returns false and counts one misuse.
+    M3_API bool m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
+                                       m3QueryFilter filter, m3CastHit* hitOut);
 
     /// Every ray hit along the translation, one entry point per
     /// shape, sorted by fraction (ties to the lower shape index).
     /// Returns the count written (never more than capacity; excess
     /// hits are dropped from the FAR end, deterministically).
     M3_API int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                      m3RayHit* hits, int32_t capacity, m3QueryFilter filter);
+                                      m3CastHit* hits, int32_t capacity, m3QueryFilter filter);
 
     /// Closest-hit shape casts: sweep a sphere or a capsule along a
     /// translation. fraction is the earliest touch in [0, 1]; a cast
@@ -583,18 +578,18 @@ extern "C"
     /// earliest touch in [0, 1], start-overlapped reports fraction
     /// zero with a zero normal, hostile inputs miss. A single point
     /// is a ray: use the ray casts.
-    M3_API m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center,
-                                                  m3Vec3 halfExtents, m3Quat rotation,
-                                                  m3Vec3 translation, m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base,
-                                                   const m3Vec3* points, int32_t count,
-                                                   m3Vec3 translation, m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastSphereClosest(const m3World* world, m3Pos3 center,
-                                                     m3real radius, m3Vec3 translation,
-                                                     m3QueryFilter filter);
-    M3_API m3RayCastResult m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center,
-                                                      m3Vec3 point1, m3Vec3 point2, m3real radius,
-                                                      m3Vec3 translation, m3QueryFilter filter);
+    M3_API bool m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
+                                       m3Quat rotation, m3Vec3 translation, m3QueryFilter filter,
+                                       m3CastHit* hitOut);
+    M3_API bool m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
+                                        int32_t count, m3Vec3 translation, m3QueryFilter filter,
+                                        m3CastHit* hitOut);
+    M3_API bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
+                                          m3Vec3 translation, m3QueryFilter filter,
+                                          m3CastHit* hitOut);
+    M3_API bool m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1,
+                                           m3Vec3 point2, m3real radius, m3Vec3 translation,
+                                           m3QueryFilter filter, m3CastHit* hitOut);
 
     /// The first shape (lowest index) whose volume contains the
     /// point, or the null id. Meshes are open surfaces and never

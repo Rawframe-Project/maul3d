@@ -263,16 +263,18 @@ static void TestQueriesAgainstVoxels(void)
     CHECK(m3Shape_IsValid(world, chunkShape), "the query chunk creates");
 
     // A downward ray hits the top face at the analytic fraction.
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the ray hits the chunk");
+    m3CastHit hit = {0};
+    bool landed =
+        m3World_CastRayClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                               m3DefaultQueryFilter(), &hit);
+    CHECK(landed && hit.shapeId.index1 == chunkShape.index1, "the ray hits the chunk");
     CHECK(hit.fraction > 0.599f && hit.fraction < 0.601f, "the ray fraction is analytic");
     CHECK(hit.normal.y > 0.99f, "the entry normal is the top face");
 
     // A ray born inside the slab misses (the ray contract).
-    hit = m3World_CastRayClosest(world, (m3Pos3){8.0, 2.0, 8.0}, (m3Vec3){0.0f, -5.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a ray born inside reports a miss");
+    landed = m3World_CastRayClosest(world, (m3Pos3){8.0, 2.0, 8.0}, (m3Vec3){0.0f, -5.0f, 0.0f},
+                                    m3DefaultQueryFilter(), &hit);
+    CHECK(!landed, "a ray born inside reports a miss");
 
     // Containment: inside a filled voxel, above the slab, outside.
     CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 3.5, 8.0}).index1 == chunkShape.index1,
@@ -600,9 +602,11 @@ static void TestFractureBridge(void)
         CHECK(m3World_GetFragmentEvents(world).fragmentsDropped == 0, "nothing was dropped");
 
         // The pillars remain and still collide: a ray finds one.
-        m3RayCastResult hit = m3World_CastRayClosest(
-            world, (m3Pos3){2.5, 20.0, 8.5}, (m3Vec3){0.0f, -15.0f, 0.0f}, m3DefaultQueryFilter());
-        CHECK(hit.hit, "the surviving pillar still answers rays");
+        m3CastHit hit = {0};
+        bool found =
+            m3World_CastRayClosest(world, (m3Pos3){2.5, 20.0, 8.5}, (m3Vec3){0.0f, -15.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+        CHECK(found, "the surviving pillar still answers rays");
 
         hashes[run] = m3World_Hash(world);
         if (run == 0)
@@ -943,34 +947,37 @@ static void TestShapeCastsAgainstVoxels(void)
 
     // A sphere cast straight down: center stops at 4 + r, so the
     // fraction is (10 - 4.3 - slop band) / 8 within the TOI band.
-    m3RayCastResult hit = m3World_CastSphereClosest(
-        world, (m3Pos3){8.0, 10.0, 8.0}, 0.3f, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the sphere cast hits the chunk");
+    m3CastHit hit = {0};
+    bool found =
+        m3World_CastSphereClosest(world, (m3Pos3){8.0, 10.0, 8.0}, 0.3f,
+                                  (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == chunkShape.index1, "the sphere cast hits the chunk");
     CHECK(hit.fraction > 0.70f && hit.fraction < 0.72f, "the voxel cast fraction is analytic");
 
     // A capsule cast onto the top face, and a start-overlapped cast.
-    hit = m3World_CastCapsuleClosest(world, (m3Pos3){8.0, 6.0, 8.0}, (m3Vec3){-0.4f, 0.0f, 0.0f},
-                                     (m3Vec3){0.4f, 0.0f, 0.0f}, 0.2f, (m3Vec3){0.0f, -4.0f, 0.0f},
-                                     m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction > 0.44f && hit.fraction < 0.46f,
+    found = m3World_CastCapsuleClosest(world, (m3Pos3){8.0, 6.0, 8.0}, (m3Vec3){-0.4f, 0.0f, 0.0f},
+                                       (m3Vec3){0.4f, 0.0f, 0.0f}, 0.2f,
+                                       (m3Vec3){0.0f, -4.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction > 0.44f && hit.fraction < 0.46f,
           "the capsule cast fraction is analytic");
-    hit = m3World_CastSphereClosest(world, (m3Pos3){8.0, 3.9, 8.0}, 0.3f,
-                                    (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.fraction == 0.0f, "a cast born inside the chunk reports zero");
+    found = m3World_CastSphereClosest(world, (m3Pos3){8.0, 3.9, 8.0}, 0.3f,
+                                      (m3Vec3){0.0f, -2.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.fraction == 0.0f, "a cast born inside the chunk reports zero");
 
     // A box cast lands on the chunk face at the same analytic
     // height as the sphere (generic casts see voxels through
     // the shared branch).
     m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
-    hit = m3World_CastBoxClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.4f, 0.4f, 0.4f},
-                                 identity, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == chunkShape.index1, "the box cast hits the chunk");
+    found =
+        m3World_CastBoxClosest(world, (m3Pos3){8.0, 10.0, 8.0}, (m3Vec3){0.4f, 0.4f, 0.4f},
+                               identity, (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == chunkShape.index1, "the box cast hits the chunk");
     CHECK(hit.fraction > 0.69f && hit.fraction < 0.71f, "the voxel box-cast fraction is analytic");
 
     // A cast that misses the chunk entirely.
-    hit = m3World_CastSphereClosest(world, (m3Pos3){40.0, 10.0, 8.0}, 0.3f,
-                                    (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!hit.hit, "a cast beside the chunk misses");
+    found = m3World_CastSphereClosest(world, (m3Pos3){40.0, 10.0, 8.0}, 0.3f,
+                                      (m3Vec3){0.0f, -8.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(!found, "a cast beside the chunk misses");
     m3DestroyWorld(world);
 }
 
@@ -1156,9 +1163,10 @@ static void TestNegativeAndEdgeCoordinates(void)
 
     // A ray from deeper negative space finds the floor (aimed away
     // from the resting ball, which would otherwise catch it first).
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){-28.0, -5.0, -28.0}, (m3Vec3){0.0f, -20.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == chunkA.index1, "the negative-side ray lands");
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){-28.0, -5.0, -28.0},
+                                        (m3Vec3){0.0f, -20.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == chunkA.index1, "the negative-side ray lands");
     CHECK(hit.fraction > 0.49f && hit.fraction < 0.51f, "the negative-side fraction is analytic");
     m3DestroyWorld(world);
 }
@@ -1513,9 +1521,10 @@ static void TestCheckerboardFillsTheTree(void)
 
     // (0, 15, 0) is empty and (0, 14, 0) is filled: a ray down the
     // column stops on top of the second.
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit && hit.shapeId.index1 == board.index1 && fabs(hit.point.y - 15.0) < 1.0e-4,
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){0.5, 20.0, 0.5},
+                                        (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found && hit.shapeId.index1 == board.index1 && fabs(hit.point.y - 15.0) < 1.0e-4,
           "a ray strikes the top of the column's highest voxel");
 
     // A restore rebuilds the full surface into the same slot. No clear
@@ -1528,9 +1537,9 @@ static void TestCheckerboardFillsTheTree(void)
     m3VoxelChunkShape_SetVoxel(world, board, 0, 15, 0, 1);
     CHECK(Refused(world) == 0 && SurfaceOf(world, board)->boxCount <= M3_VOXEL_MAX_BOXES,
           "a set on the full tree lands");
-    hit = m3World_CastRayClosest(world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f},
-                                 m3DefaultQueryFilter());
-    CHECK(hit.hit && fabs(hit.point.y - 16.0) < 1.0e-4, "the rebuilt tree answers");
+    found = m3World_CastRayClosest(world, (m3Pos3){0.5, 20.0, 0.5}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                   m3DefaultQueryFilter(), &hit);
+    CHECK(found && fabs(hit.point.y - 16.0) < 1.0e-4, "the rebuilt tree answers");
     CHECK(Restore(world, snap, size), "the checkerboard restores");
     CHECK(m3World_Hash(world) == hash && SurfaceOf(world, board)->boxCount == M3_VOXEL_MAX_BOXES,
           "the restore rebuilds the full surface");

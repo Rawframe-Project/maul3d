@@ -213,13 +213,12 @@ namespace Maul3D
     public struct Plane { public Vec3 Normal; public float Offset; }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct RayCastResult
+    public struct CastHit
     {
         public ShapeId ShapeId;
         public Pos3 Point;
         public Vec3 Normal;
         public float Fraction;
-        public byte Hit;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -332,9 +331,10 @@ namespace Maul3D
         // Queries
         [DllImport(Lib, EntryPoint = "m3DefaultQueryFilter")]
         public static extern QueryFilter DefaultQueryFilter();
+        // 1 on a hit, written to hit; 0 on a miss, with hit zeroed.
         [DllImport(Lib, EntryPoint = "m3World_CastRayClosest")]
-        public static extern RayCastResult CastRayClosest(IntPtr world, Pos3 origin,
-                                                          Vec3 translation, QueryFilter filter);
+        public static extern byte CastRayClosest(IntPtr world, Pos3 origin, Vec3 translation,
+                                                 QueryFilter filter, out CastHit hit);
 
         /// Sizes probed from the C compiler (x86-64 System V and
         /// Windows x64 agree on all of these). A mismatch here means
@@ -348,7 +348,7 @@ namespace Maul3D
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
             Check<JointDef>(248);
-            Check<RayCastResult>(56);
+            Check<CastHit>(48);
             Check<QueryFilter>(16);
             Check<Version>(6);
             Check<Allocator>(24);

@@ -93,11 +93,13 @@ static void TestRebuildChangesNoAnswer(void)
     }
     CHECK(same, "the rebuild keeps the overlap list, in order");
 
-    m3RayCastResult h1 = m3World_CastRayClosest(
-        plain, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    m3RayCastResult h2 = m3World_CastRayClosest(
-        rebuilt, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(h1.hit && h2.hit && h1.shapeId.index1 == h2.shapeId.index1 && h1.fraction == h2.fraction,
+    m3CastHit h1 = {0};
+    bool h1Hit = m3World_CastRayClosest(plain, (m3Pos3){0.0, 5.0, 0.0},
+                                        (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &h1);
+    m3CastHit h2 = {0};
+    bool h2Hit = m3World_CastRayClosest(rebuilt, (m3Pos3){0.0, 5.0, 0.0},
+                                        (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &h2);
+    CHECK(h1Hit && h2Hit && h1.shapeId.index1 == h2.shapeId.index1 && h1.fraction == h2.fraction,
           "the rebuilt tree casts the same ray");
 
     for (int32_t i = 0; i < 180; ++i)

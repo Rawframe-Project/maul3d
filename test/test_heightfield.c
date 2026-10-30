@@ -172,16 +172,20 @@ static void TestRayAndOverlap(void)
     // can lose the watertight edge test by one float ulp, the same
     // contract as the mesh path): local x = 4.1 on the y = 0.4 x
     // plane gives 1.64.
-    m3RayCastResult hit = m3World_CastRayClosest(
-        world, (m3Pos3){0.1, 5.0, 0.05}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(hit.hit, "the ray finds the terrain");
+    m3CastHit hit = {0};
+    bool landed =
+        m3World_CastRayClosest(world, (m3Pos3){0.1, 5.0, 0.05}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                               m3DefaultQueryFilter(), &hit);
+    CHECK(landed, "the ray finds the terrain");
     CHECK(fabs(hit.point.y - 1.64) < 0.02, "the ray lands on the sampled height");
     CHECK(hit.normal.y > 0.9f, "the slope normal points mostly up");
 
     // A miss beside the grid stays a miss.
-    m3RayCastResult miss = m3World_CastRayClosest(
-        world, (m3Pos3){40.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    CHECK(!miss.hit, "a ray beside the grid misses");
+    m3CastHit miss = {0};
+    bool missHit =
+        m3World_CastRayClosest(world, (m3Pos3){40.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                               m3DefaultQueryFilter(), &miss);
+    CHECK(!missHit, "a ray beside the grid misses");
 
     m3ShapeId found[8];
     int32_t n = m3World_OverlapSphere(world, (m3Pos3){0.0, 1.6, 0.0}, 0.5f, found, 8,
@@ -223,19 +227,23 @@ static void TestCastsMeetTheGrid(void)
     const m3Vec3 down = {0.0f, -10.0f, 0.0f};
     for (int32_t i = 0; i < 2; ++i)
     {
-        m3RayCastResult sphere = m3World_CastSphereClosest(world, starts[i], 0.5f, down, all);
-        CHECK(sphere.hit && fabsf(sphere.fraction - 0.35f) < 1.0e-3f && sphere.normal.y > 0.99f,
+        m3CastHit sphere = {0};
+        bool sphereHit = m3World_CastSphereClosest(world, starts[i], 0.5f, down, all, &sphere);
+        CHECK(sphereHit && fabsf(sphere.fraction - 0.35f) < 1.0e-3f && sphere.normal.y > 0.99f,
               "a sphere cast meets the surface, in the middle and over the corner");
-        m3RayCastResult capsule =
+        m3CastHit capsule = {0};
+        bool capsuleHit =
             m3World_CastCapsuleClosest(world, starts[i], (m3Vec3){0.0f, 0.25f, 0.0f},
-                                       (m3Vec3){0.0f, -0.25f, 0.0f}, 0.5f, down, all);
-        CHECK(capsule.hit && fabsf(capsule.fraction - 0.325f) < 1.0e-3f,
+                                       (m3Vec3){0.0f, -0.25f, 0.0f}, 0.5f, down, all, &capsule);
+        CHECK(capsuleHit && fabsf(capsule.fraction - 0.325f) < 1.0e-3f,
               "a capsule cast meets the surface");
-        m3RayCastResult box = m3World_CastBoxClosest(world, starts[i], (m3Vec3){0.5f, 0.5f, 0.5f},
-                                                     m3MakeIdentityQuat(), down, all);
-        CHECK(box.hit && fabsf(box.fraction - 0.35f) < 1.0e-3f, "a box cast meets the surface");
-        m3RayCastResult mover = m3World_CastMover(world, starts[i], 0.5f, 0.25f, down);
-        CHECK(mover.hit && fabsf(mover.fraction - 0.325f) < 1.0e-3f,
+        m3CastHit box = {0};
+        bool boxHit = m3World_CastBoxClosest(world, starts[i], (m3Vec3){0.5f, 0.5f, 0.5f},
+                                             m3MakeIdentityQuat(), down, all, &box);
+        CHECK(boxHit && fabsf(box.fraction - 0.35f) < 1.0e-3f, "a box cast meets the surface");
+        m3CastHit mover = {0};
+        bool moverHit = m3World_CastMover(world, starts[i], 0.5f, 0.25f, down, &mover);
+        CHECK(moverHit && fabsf(mover.fraction - 0.325f) < 1.0e-3f,
               "a mover cast meets the surface");
     }
     m3DestroyWorld(world);

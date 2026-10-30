@@ -404,7 +404,7 @@ typedef struct m3RayCastContext
     const m3World* world;
     m3Pos3 origin;
     m3Vec3 translation;
-    m3RayCastResult best;
+    m3CastResult best;
     int32_t bestShape;
     int32_t ignoreBody;   // -1 none: the suspension casts' self filter
     m3QueryFilter filter; // The query behaves like a shape
@@ -504,8 +504,8 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
 
 // The single-shape test as an internal hook (the multi-hit query in
 // query.c walks candidates itself and reuses this).
-m3RayCastResult m3RayTestOneShape(const m3World* world, int32_t shape, m3Pos3 origin,
-                                  m3Vec3 translation)
+m3CastResult m3RayTestOneShape(const m3World* world, int32_t shape, m3Pos3 origin,
+                               m3Vec3 translation)
 {
     m3RayCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -526,8 +526,8 @@ static bool RayQueryCallback(int32_t shape, void* userContext)
     return true;
 }
 
-m3RayCastResult m3RayClosestFiltered(const m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                     int32_t ignoreBody, m3QueryFilter filter)
+m3CastResult m3RayClosestFiltered(const m3World* world, m3Pos3 origin, m3Vec3 translation,
+                                  int32_t ignoreBody, m3QueryFilter filter)
 {
     m3RayCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -573,29 +573,35 @@ m3RayCastResult m3RayClosestFiltered(const m3World* world, m3Pos3 origin, m3Vec3
     return ctx.best;
 }
 
-m3RayCastResult m3RayClosestExcept(m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                   int32_t ignoreBody)
+m3CastResult m3RayClosestExcept(m3World* world, m3Pos3 origin, m3Vec3 translation,
+                                int32_t ignoreBody)
 {
     return m3RayClosestFiltered(world, origin, translation, ignoreBody, m3DefaultQueryFilter());
 }
 
-m3RayCastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation)
+m3CastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translation)
 {
     return m3RayClosestFiltered(world, origin, translation, -1, m3DefaultQueryFilter());
 }
 
-static M3_NOINLINE m3RayCastResult WorldCastRayClosestWorker(const m3World* world, m3Pos3 origin,
-                                                             m3Vec3 translation,
-                                                             m3QueryFilter filter)
+static M3_NOINLINE bool WorldCastRayClosestWorker(const m3World* world, m3Pos3 origin,
+                                                  m3Vec3 translation, m3QueryFilter filter,
+                                                  m3CastHit* hitOut)
 {
-    return m3RayClosestFiltered(world, origin, translation, -1, filter);
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
+    return m3TakeCastHit(m3RayClosestFiltered(world, origin, translation, -1, filter), hitOut);
 }
 
-m3RayCastResult m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
-                                       m3QueryFilter filter)
+bool m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
+                            m3QueryFilter filter, m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result = WorldCastRayClosestWorker(world, origin, translation, filter);
+    bool result = WorldCastRayClosestWorker(world, origin, translation, filter, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }

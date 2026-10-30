@@ -31,7 +31,7 @@ typedef struct m3RayAllContext
     const m3World* world;
     m3Pos3 origin;
     m3Vec3 translation;
-    m3RayHit* hits;
+    m3CastHit* hits;
     int32_t capacity;
     int32_t count;
     m3QueryFilter filter;
@@ -40,14 +40,14 @@ typedef struct m3RayAllContext
 // The single-shape ray test lives in raycast.c; queries reuse it
 // through this internal hook.
 
-static void RayAllInsert(m3RayAllContext* ctx, const m3RayCastResult* hit, int32_t shapeIndex)
+static void RayAllInsert(m3RayAllContext* ctx, const m3CastResult* hit, int32_t shapeIndex)
 {
     // Insertion sort by (fraction, shape index): capacities are
     // small and the order is the contract.
     int32_t pos = ctx->count;
     while (pos > 0)
     {
-        const m3RayHit* prev = &ctx->hits[pos - 1];
+        const m3CastHit* prev = &ctx->hits[pos - 1];
         int after =
             hit->fraction > prev->fraction ||
             (hit->fraction == prev->fraction && shapeIndex > (int32_t)prev->shapeId.index1 - 1);
@@ -66,7 +66,7 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3RayCastResult* hit, int32
     {
         ctx->hits[k] = ctx->hits[k - 1];
     }
-    ctx->hits[pos] = (m3RayHit){hit->shapeId, hit->point, hit->normal, hit->fraction};
+    ctx->hits[pos] = (m3CastHit){hit->shapeId, hit->point, hit->normal, hit->fraction};
     if (ctx->count < ctx->capacity)
     {
         ctx->count += 1;
@@ -85,7 +85,7 @@ static bool RayAllCallback(int32_t shape, void* userContext)
     {
         return true; // filtered out
     }
-    m3RayCastResult hit = m3RayTestOneShape(ctx->world, shape, ctx->origin, ctx->translation);
+    m3CastResult hit = m3RayTestOneShape(ctx->world, shape, ctx->origin, ctx->translation);
     if (hit.hit)
     {
         RayAllInsert(ctx, &hit, shape);
@@ -94,7 +94,7 @@ static bool RayAllCallback(int32_t shape, void* userContext)
 }
 
 static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 origin,
-                                                 m3Vec3 translation, m3RayHit* hits,
+                                                 m3Vec3 translation, m3CastHit* hits,
                                                  int32_t capacity, m3QueryFilter filter)
 {
     if (world == NULL || hits == NULL || capacity <= 0 || !m3FinitePos3(origin) ||
@@ -125,7 +125,7 @@ static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 or
         if (m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
                          world->shapes.shapeMask[s]))
         {
-            m3RayCastResult hit = m3RayTestOneShape(world, s, origin, translation);
+            m3CastResult hit = m3RayTestOneShape(world, s, origin, translation);
             if (hit.hit)
             {
                 RayAllInsert(&ctx, &hit, s);
@@ -135,7 +135,7 @@ static M3_NOINLINE int32_t WorldCastRayAllWorker(const m3World* world, m3Pos3 or
     return ctx.count;
 }
 
-int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3RayHit* hits,
+int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation, m3CastHit* hits,
                            int32_t capacity, m3QueryFilter filter)
 {
     uint64_t env = m3FloatEnvEnter();

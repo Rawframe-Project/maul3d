@@ -26,7 +26,7 @@ typedef struct m3ShapeCastContext
     int32_t castPointCount;
     m3real castRadius;
     m3Vec3 translation;
-    m3RayCastResult best;
+    m3CastResult best;
     int32_t bestShape;
     m3QueryFilter filter;
 } m3ShapeCastContext;
@@ -384,10 +384,9 @@ static bool ShapeCastCallback(int32_t shape, void* userContext)
     return true;
 }
 
-static m3RayCastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base,
-                                          const m3Vec3* points, int32_t pointCount, m3real radius,
-                                          m3Vec3 translation, int32_t ignoreBody,
-                                          m3QueryFilter filter)
+static m3CastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
+                                       int32_t pointCount, m3real radius, m3Vec3 translation,
+                                       int32_t ignoreBody, m3QueryFilter filter)
 {
     m3ShapeCastContext ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -457,13 +456,17 @@ static m3RayCastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base,
     return ctx.best;
 }
 
-static M3_NOINLINE m3RayCastResult WorldCastBoxClosestWorker(const m3World* world, m3Pos3 center,
-                                                             m3Vec3 halfExtents, m3Quat rotation,
-                                                             m3Vec3 translation,
-                                                             m3QueryFilter filter)
+static M3_NOINLINE bool WorldCastBoxClosestWorker(const m3World* world, m3Pos3 center,
+                                                  m3Vec3 halfExtents, m3Quat rotation,
+                                                  m3Vec3 translation, m3QueryFilter filter,
+                                                  m3CastHit* hitOut)
 {
-    m3RayCastResult miss;
-    memset(&miss, 0, sizeof(miss));
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
     m3real qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
                 rotation.w * rotation.w;
     if (!m3FinitePos3(center) || !m3FiniteV3(halfExtents) || !m3FiniteV3(translation) ||
@@ -471,9 +474,9 @@ static M3_NOINLINE m3RayCastResult WorldCastBoxClosestWorker(const m3World* worl
         !(halfExtents.z > 0.0f) || !(qq > 0.98f) || !(qq < 1.02f))
     {
         m3Refuse(world, m3_errorInvalid);
-        return miss; // hostile input: the cast quietly misses, loudly
-                     // documented (the query contract has no id to
-                     // refuse with)
+        return false; // hostile input: the cast quietly misses, loudly
+                      // documented (the query contract has no id to
+                      // refuse with)
     }
     m3Vec3 corners[8];
     for (int32_t c = 0; c < 8; ++c)
@@ -485,103 +488,122 @@ static M3_NOINLINE m3RayCastResult WorldCastBoxClosestWorker(const m3World* worl
     }
     if (world == NULL)
     {
-        return miss;
+        return false;
     }
-    return CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter);
+    return m3TakeCastHit(
+        CastConvexFiltered(world, center, corners, 8, 0.0f, translation, -1, filter), hitOut);
 }
 
-m3RayCastResult m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
-                                       m3Quat rotation, m3Vec3 translation, m3QueryFilter filter)
+bool m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
+                            m3Quat rotation, m3Vec3 translation, m3QueryFilter filter,
+                            m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result =
-        WorldCastBoxClosestWorker(world, center, halfExtents, rotation, translation, filter);
+    bool result = WorldCastBoxClosestWorker(world, center, halfExtents, rotation, translation,
+                                            filter, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3RayCastResult WorldCastHullClosestWorker(const m3World* world, m3Pos3 base,
-                                                              const m3Vec3* points, int32_t count,
-                                                              m3Vec3 translation,
-                                                              m3QueryFilter filter)
+static M3_NOINLINE bool WorldCastHullClosestWorker(const m3World* world, m3Pos3 base,
+                                                   const m3Vec3* points, int32_t count,
+                                                   m3Vec3 translation, m3QueryFilter filter,
+                                                   m3CastHit* hitOut)
 {
-    m3RayCastResult miss;
-    memset(&miss, 0, sizeof(miss));
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
     if (points == NULL || count < 2 || count > M3_MAX_CAST_POINTS || !m3FinitePos3(base) ||
         !m3FiniteV3(translation))
     {
         m3Refuse(world, m3_errorInvalid);
-        return miss; // a one-point skinless cast is a ray: use rays
+        return false; // a one-point skinless cast is a ray: use rays
     }
     for (int32_t k = 0; k < count; ++k)
     {
         if (!m3FiniteV3(points[k]))
         {
             m3Refuse(world, m3_errorInvalid);
-            return miss;
+            return false;
         }
     }
     if (world == NULL)
     {
         m3Refuse(world, m3_errorInvalid);
-        return miss;
+        return false;
     }
-    return CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter);
+    return m3TakeCastHit(
+        CastConvexFiltered(world, base, points, count, 0.0f, translation, -1, filter), hitOut);
 }
 
-m3RayCastResult m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
-                                        int32_t count, m3Vec3 translation, m3QueryFilter filter)
+bool m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points, int32_t count,
+                             m3Vec3 translation, m3QueryFilter filter, m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result =
-        WorldCastHullClosestWorker(world, base, points, count, translation, filter);
+    bool result =
+        WorldCastHullClosestWorker(world, base, points, count, translation, filter, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }
 
-m3RayCastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
-                                      int32_t pointCount, m3real radius, m3Vec3 translation,
-                                      int32_t ignoreBody)
+m3CastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m3Vec3* points,
+                                   int32_t pointCount, m3real radius, m3Vec3 translation,
+                                   int32_t ignoreBody)
 {
     return CastConvexFiltered(worldPtr, base, points, pointCount, radius, translation, ignoreBody,
                               m3DefaultQueryFilter());
 }
 
-static M3_NOINLINE m3RayCastResult WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center,
-                                                                m3real radius, m3Vec3 translation,
-                                                                m3QueryFilter filter)
+static M3_NOINLINE bool WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center,
+                                                     m3real radius, m3Vec3 translation,
+                                                     m3QueryFilter filter, m3CastHit* hitOut)
 {
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
     m3Vec3 point = {0.0f, 0.0f, 0.0f};
-    return CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter);
+    return m3TakeCastHit(
+        CastConvexFiltered(world, center, &point, 1, radius, translation, -1, filter), hitOut);
 }
 
-m3RayCastResult m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
-                                          m3Vec3 translation, m3QueryFilter filter)
+bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, m3real radius,
+                               m3Vec3 translation, m3QueryFilter filter, m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result =
-        WorldCastSphereClosestWorker(world, center, radius, translation, filter);
+    bool result = WorldCastSphereClosestWorker(world, center, radius, translation, filter, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }
 
-static M3_NOINLINE m3RayCastResult WorldCastCapsuleClosestWorker(const m3World* world,
-                                                                 m3Pos3 center, m3Vec3 point1,
-                                                                 m3Vec3 point2, m3real radius,
-                                                                 m3Vec3 translation,
-                                                                 m3QueryFilter filter)
+static M3_NOINLINE bool WorldCastCapsuleClosestWorker(const m3World* world, m3Pos3 center,
+                                                      m3Vec3 point1, m3Vec3 point2, m3real radius,
+                                                      m3Vec3 translation, m3QueryFilter filter,
+                                                      m3CastHit* hitOut)
 {
+    if (hitOut == NULL)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return false;
+    }
+    m3ClearCastHit(hitOut);
     m3Vec3 points[2] = {point1, point2};
-    return CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter);
+    return m3TakeCastHit(
+        CastConvexFiltered(world, center, points, 2, radius, translation, -1, filter), hitOut);
 }
 
-m3RayCastResult m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1,
-                                           m3Vec3 point2, m3real radius, m3Vec3 translation,
-                                           m3QueryFilter filter)
+bool m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
+                                m3real radius, m3Vec3 translation, m3QueryFilter filter,
+                                m3CastHit* hitOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3RayCastResult result =
-        WorldCastCapsuleClosestWorker(world, center, point1, point2, radius, translation, filter);
+    bool result = WorldCastCapsuleClosestWorker(world, center, point1, point2, radius, translation,
+                                                filter, hitOut);
     m3FloatEnvLeave(env);
     return result;
 }

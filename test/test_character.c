@@ -216,10 +216,10 @@ static void TestCharacterContracts(void)
 // is a query's hit, and the body is the capsule's.
 static m3ShapeId CapsuleOf(const m3World* world, m3Pos3 at)
 {
-    m3RayCastResult hit =
-        m3World_CastRayClosest(world, (m3Pos3){at.x, at.y + 5.0, at.z}, (m3Vec3){0.0f, -5.0f, 0.0f},
-                               m3DefaultQueryFilter());
-    CHECK(hit.hit, "a ray finds the character's capsule");
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, (m3Pos3){at.x, at.y + 5.0, at.z},
+                                        (m3Vec3){0.0f, -5.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(found, "a ray finds the character's capsule");
     return hit.shapeId;
 }
 

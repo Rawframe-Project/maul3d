@@ -94,9 +94,10 @@ static m3Result CreateSlab(m3World* world, m3BodyId slabBody, m3ShapeId* slabOut
 // or voxel tree answers no query.
 static bool RayStrikes(const m3World* world, m3Pos3 origin, m3ShapeId shape)
 {
-    m3RayCastResult hit =
-        m3World_CastRayClosest(world, origin, (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter());
-    return hit.hit && hit.shapeId.index1 == shape.index1 &&
+    m3CastHit hit = {0};
+    bool found = m3World_CastRayClosest(world, origin, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                        m3DefaultQueryFilter(), &hit);
+    return found && hit.shapeId.index1 == shape.index1 &&
            hit.shapeId.generation == shape.generation;
 }
 
