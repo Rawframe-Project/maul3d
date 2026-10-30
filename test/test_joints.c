@@ -1198,8 +1198,8 @@ static m3JointDef GenericBase(m3BodyId a, m3BodyId b)
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericLinear[k] = (uint8_t)m3_axisLocked;
-        jd.genericAngular[k] = (uint8_t)m3_axisFree;
+        jd.genericLinear[k] = m3_axisLocked;
+        jd.genericAngular[k] = m3_axisFree;
     }
     return jd;
 }
@@ -1282,9 +1282,9 @@ static void TestGenericAsHingeWithMotorAndLimits(void)
 
     m3JointDef jd = GenericBase(frame, door);
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
-    jd.genericAngular[0] = (uint8_t)m3_axisLocked;
-    jd.genericAngular[1] = (uint8_t)m3_axisLocked;
-    jd.genericAngular[2] = (uint8_t)m3_axisLimited;
+    jd.genericAngular[0] = m3_axisLocked;
+    jd.genericAngular[1] = m3_axisLocked;
+    jd.genericAngular[2] = m3_axisLimited;
     jd.genericAngularLower[2] = -0.5f;
     jd.genericAngularUpper[2] = 1.0f;
     jd.genericMotorAxis = 5; // angular z
@@ -1326,12 +1326,12 @@ static void TestGenericAsSlider(void)
     // The rail's z axis points down the world y: axis (0, 1, 0).
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    jd.genericLinear[2] = (uint8_t)m3_axisLimited; // along the rail
+    jd.genericLinear[2] = m3_axisLimited; // along the rail
     jd.genericLinearLower[2] = -2.0f;
     jd.genericLinearUpper[2] = 2.0f;
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericAngular[k] = (uint8_t)m3_axisLocked;
+        jd.genericAngular[k] = m3_axisLocked;
     }
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic slider creates");
     for (int32_t i = 0; i < 300; ++i)
@@ -1375,14 +1375,14 @@ static void TestGenericContracts(void)
     m3BodyId b = NewBody(world, &bd);
 
     m3JointDef jd = GenericBase(a, b);
-    jd.genericAngular[0] = (uint8_t)m3_axisLimited;
-    jd.genericAngular[1] = (uint8_t)m3_axisLimited;
+    jd.genericAngular[0] = m3_axisLimited;
+    jd.genericAngular[1] = m3_axisLimited;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)),
           "two limited angular axes refuse (the v1 rule)");
     jd = GenericBase(a, b);
-    jd.genericAngular[0] = (uint8_t)m3_axisLimited;
-    jd.genericAngular[1] = (uint8_t)m3_axisLocked;
-    jd.genericAngular[2] = (uint8_t)m3_axisFree;
+    jd.genericAngular[0] = m3_axisLimited;
+    jd.genericAngular[1] = m3_axisLocked;
+    jd.genericAngular[2] = m3_axisFree;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)),
           "a mixed locked-free pair beside a limited axis refuses");
     jd = GenericBase(a, b);
@@ -1394,7 +1394,7 @@ static void TestGenericContracts(void)
     jd.genericLinear[0] = 7;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an unknown mode refuses");
     jd = GenericBase(a, b);
-    jd.genericLinear[2] = (uint8_t)m3_axisLimited;
+    jd.genericLinear[2] = m3_axisLimited;
     jd.genericLinearLower[2] = 1.0f;
     jd.genericLinearUpper[2] = -1.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "inverted generic limits refuse");

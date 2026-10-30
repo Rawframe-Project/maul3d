@@ -83,6 +83,8 @@ namespace Maul3D
         Gear = 10, Pulley = 11
     }
 
+    public enum AxisMode : int { Locked = 0, Free = 1, Limited = 2 }
+
     /// Build with Native.DefaultWorldDef(); the cookie in InternalValue
     /// and the binary interface in Version are demanded by CreateWorld,
     /// so a hand-rolled def refuses loudly.
@@ -182,8 +184,8 @@ namespace Maul3D
         public byte EnableCone;
         public float ConeAngle;
         public byte EnableConnectedCollision;
-        public byte GenericLinear0, GenericLinear1, GenericLinear2;
-        public byte GenericAngular0, GenericAngular1, GenericAngular2;
+        public AxisMode GenericLinear0, GenericLinear1, GenericLinear2;
+        public AxisMode GenericAngular0, GenericAngular1, GenericAngular2;
         public byte GenericMotorAxis;
         public float GenericLinearLower0, GenericLinearLower1, GenericLinearLower2;
         public float GenericLinearUpper0, GenericLinearUpper1, GenericLinearUpper2;
@@ -347,7 +349,7 @@ namespace Maul3D
             Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
-            Check<JointDef>(248);
+            Check<JointDef>(272);
             Check<CastHit>(48);
             Check<QueryFilter>(16);
             Check<Version>(6);

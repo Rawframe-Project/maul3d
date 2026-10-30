@@ -189,25 +189,26 @@ static bool GenericAxesValid(const m3JointDef* def)
     int32_t freeAngular = 0;
     for (int32_t k = 0; k < 3; ++k)
     {
-        if (def->genericLinear[k] > 2 || def->genericAngular[k] > 2)
+        if (def->genericLinear[k] < m3_axisLocked || def->genericLinear[k] > m3_axisLimited ||
+            def->genericAngular[k] < m3_axisLocked || def->genericAngular[k] > m3_axisLimited)
         {
             return false;
         }
-        if (def->genericLinear[k] == (uint8_t)m3_axisLimited &&
+        if (def->genericLinear[k] == m3_axisLimited &&
             !(m3FiniteF(def->genericLinearLower[k]) && m3FiniteF(def->genericLinearUpper[k]) &&
               def->genericLinearLower[k] <= def->genericLinearUpper[k]))
         {
             return false;
         }
-        if (def->genericAngular[k] == (uint8_t)m3_axisLimited &&
+        if (def->genericAngular[k] == m3_axisLimited &&
             !(m3FiniteF(def->genericAngularLower[k]) && m3FiniteF(def->genericAngularUpper[k]) &&
               def->genericAngularLower[k] <= def->genericAngularUpper[k]))
         {
             return false;
         }
-        limitedAngular += def->genericAngular[k] == (uint8_t)m3_axisLimited ? 1 : 0;
-        lockedAngular += def->genericAngular[k] == (uint8_t)m3_axisLocked ? 1 : 0;
-        freeAngular += def->genericAngular[k] == (uint8_t)m3_axisFree ? 1 : 0;
+        limitedAngular += def->genericAngular[k] == m3_axisLimited ? 1 : 0;
+        lockedAngular += def->genericAngular[k] == m3_axisLocked ? 1 : 0;
+        freeAngular += def->genericAngular[k] == m3_axisFree ? 1 : 0;
     }
     return limitedAngular == 0 || (limitedAngular == 1 && (lockedAngular == 2 || freeAngular == 2));
 }
@@ -237,9 +238,9 @@ static bool GenericDefValid(const m3JointDef* def)
     {
         return false;
     }
-    uint8_t mode = def->genericMotorAxis < 3 ? def->genericLinear[def->genericMotorAxis]
-                                             : def->genericAngular[def->genericMotorAxis - 3];
-    return mode != (uint8_t)m3_axisLocked;
+    m3AxisMode mode = def->genericMotorAxis < 3 ? def->genericLinear[def->genericMotorAxis]
+                                                : def->genericAngular[def->genericMotorAxis - 3];
+    return mode != m3_axisLocked;
 }
 
 // The distance contract: an explicit range (a rod has equal bounds), a

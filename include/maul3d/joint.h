@@ -140,8 +140,8 @@ extern "C"
         /// spin angle, m3Joint_GetTranslation the suspension travel.
         /// Breakage applies unchanged: a capped axle snaps
         /// deterministically and the wheel body rolls away.
-        uint8_t genericLinear[3];
-        uint8_t genericAngular[3];
+        m3AxisMode genericLinear[3];
+        m3AxisMode genericAngular[3];
         uint8_t genericMotorAxis;
         float genericLinearLower[3];
         float genericLinearUpper[3];
