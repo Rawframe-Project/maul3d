@@ -275,9 +275,11 @@ extern "C"
     ///
     /// A step never asks the allocator: the world took the scratch a
     /// step needs at its capacities when it was created. Returns
-    /// m3_errorInvalid for a NULL world or a dt or substep count out of
-    /// range, and m3_errorBusy when called from host code the world is
-    /// running; either changes nothing. A step that finds more
+    /// m3_errorInvalid for a NULL world, a NaN dt, a dt of zero or below
+    /// or fewer than one substep, m3_errorLimit for a dt below
+    /// M3_MIN_STEP or above M3_STEP_LIMIT, an infinite one included, or
+    /// more than M3_MAX_SUBSTEPS substeps, and m3_errorBusy when called
+    /// from host code the world is running; each changes nothing. A step that finds more
     /// broadphase pairs than m3WorldDef.pairCapacity holds still runs
     /// whole and returns m3_success: it keeps the pairs of the lowest
     /// shape indexes, and the shapes of each pair it drops get no
