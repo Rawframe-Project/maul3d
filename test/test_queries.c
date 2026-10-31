@@ -1410,7 +1410,8 @@ static void TestListOutputs(void)
 
 // An inverted box, lower above upper on any axis, is an argument no
 // correct program passes: the query refuses it, counts one misuse and
-// zeroes the array over its capacity. A one-point box is a real query.
+// zeroes the array over its capacity. A flat or one-point box is a real
+// query.
 static void TestOverlapAabbRefusesInvertedBox(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -1437,8 +1438,13 @@ static void TestOverlapAabbRefusesInvertedBox(void)
         }
         CHECK(n == 0 && zeroed, "and returns 0 with the array zeroed");
     }
-    m3WorldAabb point = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    m3WorldAabb flat = {{-1.0, 0.0, -1.0}, {1.0, 0.0, 1.0}};
     int32_t n = -1;
+    CHECK_ACCEPTS(world, n = m3World_OverlapAabb(world, flat, m3DefaultQueryFilter(), ids, 4),
+                  "a flat box counts no misuse");
+    CHECK(n == 1 && ids[0].index1 == shape.index1, "and finds the shape it cuts");
+    m3WorldAabb point = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    n = -1;
     CHECK_ACCEPTS(world, n = m3World_OverlapAabb(world, point, m3DefaultQueryFilter(), ids, 4),
                   "a one-point box counts no misuse");
     CHECK(n == 1 && ids[0].index1 == shape.index1, "and finds the shape around the point");

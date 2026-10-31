@@ -635,7 +635,9 @@ extern "C"
     /// array with a positive capacity or a negative capacity refuses.
     /// A refusal zeroes the array over its whole capacity; a success, an empty one included, writes
     /// only its entries; a list call only reads, so none is refused as busy. Shapes whose tight
-    /// bounds overlap the box.
+    /// bounds overlap the box. A box with a non-finite bound, or with its lower bound above its
+    /// upper bound on any axis, is refused: the call returns 0, zeroes the array and counts one
+    /// misuse. A flat or one-point box, lower equal to upper on an axis, is a valid query.
     M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter filter,
                                        m3ShapeId* idsOut, int32_t capacity);
 
