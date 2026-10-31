@@ -352,14 +352,13 @@ jobs:
 
   # Every night each target fuzzes ten minutes from its corpus of the nights
   # before, carried in an Actions cache, in a job of its own so that every
-  # target runs at once. The cache is keyed by the target and by the fuzz
-  # build's inputs (the library, its CMake, the target, the shared scene and
-  # the compiler), so an unchanged build restores its own corpus exactly. A
-  # target whose build changed restores its latest corpus of an earlier
-  # build: a corpus is only inputs, which stay valid against a new binary.
-  # After the run the fuzzer's merge minimizes the seeds and the corpus
-  # together against this binary, and the result is saved for the next
-  # night. The summary compares the seeds' coverage with the corpus's.
+  # target runs at once. The cache is keyed by the target and the run id, and
+  # each night restores the target's newest corpus, whatever build saved it:
+  # a corpus is only inputs, which stay valid against a new binary.
+  # prune-caches keeps that newest one and deletes the rest. After the run
+  # the fuzzer's merge minimizes the seeds and the corpus together against
+  # this binary, and on main the result is saved for the next night. The
+  # summary compares the seeds' coverage with the corpus's.
   fuzz-nightly:
     needs: fuzz-targets
     strategy:
@@ -437,6 +436,9 @@ jobs:
             echo "| \`$TARGET\` | $restored | $(coverage "out/seeds/$TARGET") | $(coverage "out/corpus/$TARGET") | $(ls "out/corpus/$TARGET" | wc -l) |"
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Save the corpus
+        # Only main saves, so every corpus is in main's scope, where each
+        # run restores it and prune-caches deletes the replaced ones.
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
