@@ -157,7 +157,8 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/world.c
     src/world_events.c
     src/world_hash.c
-    src/world_state.c)
+    src/world_state.c
+    src/world_stats.c)
 maul_configure_library(maul3d)
 # sqrt, floor and their kin are the only libm functions the library calls.
 if(NOT WIN32)

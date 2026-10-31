@@ -13,6 +13,10 @@
 #include "helpers.h"
 #include "test_harness.h"
 
+#include "maul3d/character.h"
+#include "maul3d/draw.h"
+#include "maul3d/softbody.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -384,6 +388,192 @@ static void TestDestroyStalesIdsBeforeFree(void)
     }
 }
 
+// A world's destroy hands its blocks back one by one. Host code in the
+// free hook may still read the world: every reader must find an empty
+// world, never a pool already freed. Each run destroys the same world and,
+// at one free in turn, runs every kind of reader from the hook and checks
+// that each finds no object.
+typedef struct DyingWorld
+{
+    const m3World* world; // set while the destroy under watch runs
+    int32_t at;           // the free that reads, from 1; 0 counts only
+    int32_t frees;
+    bool empty; // what the reader at that free found
+    m3BodyId body;
+    m3ShapeId mesh;
+    m3JointId joint;
+    m3SoftBodyId soft;
+    m3CharacterId hero;
+} DyingWorld;
+
+static void IgnoreSegment(m3Pos3 p1, m3Pos3 p2, uint32_t color, void* context)
+{
+    (void)p1;
+    (void)p2;
+    (void)color;
+    (void)context;
+}
+
+static void IgnorePoint(m3Pos3 p, float size, uint32_t color, void* context)
+{
+    (void)p;
+    (void)size;
+    (void)color;
+    (void)context;
+}
+
+static void IgnoreTriangle(m3Pos3 a, m3Pos3 b, m3Pos3 c, uint32_t color, void* context)
+{
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)color;
+    (void)context;
+}
+
+// Runs every kind of reader and returns whether each found an empty world:
+// no object counted, every id taken before the destroy invalid and read as
+// zero, and no query hit.
+static bool ReadDyingWorld(const DyingWorld* d)
+{
+    const m3World* world = d->world;
+    m3Counters counters = m3World_GetCounters(world);
+    bool empty = counters.bodyCount == 0 && counters.shapeCount == 0 && counters.jointCount == 0 &&
+                 counters.softBodyCount == 0 && counters.characterCount == 0 &&
+                 counters.meshCount == 0 && counters.hullCount == 0 &&
+                 counters.voxelChunkCount == 0 && counters.awakeCount == 0;
+    (void)m3World_GetMemoryUsage(world);
+    (void)m3World_GetProfile(world);
+    (void)m3World_GetSnapshotSize(world);
+    (void)m3World_Hash(world);
+    m3Pos3 p = m3Body_GetPosition(world, d->body);
+    m3WorldAabb box = m3Shape_GetAabb(world, d->mesh);
+    empty = empty && !m3Body_IsValid(world, d->body) && !m3Shape_IsValid(world, d->mesh) &&
+            !m3Joint_IsValid(world, d->joint) && !m3SoftBody_IsValid(world, d->soft) &&
+            !m3Character_IsValid(world, d->hero) && p.x == 0.0 && p.y == 0.0 && p.z == 0.0 &&
+            box.lowerBound.x == 0.0 && box.upperBound.y == 0.0 &&
+            m3SoftBody_GetParticleCount(world, d->soft) == 0 &&
+            !m3Character_IsGrounded(world, d->hero);
+    m3CastHit hit;
+    empty = empty &&
+            !m3World_CastRayClosest(world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                    m3DefaultQueryFilter(), &hit);
+    m3ShapeId ids[8];
+    empty = empty && m3World_OverlapAabb(world, (m3WorldAabb){{-5.0, -5.0, -5.0}, {5.0, 5.0, 5.0}},
+                                         m3DefaultQueryFilter(), ids, 8) == 0;
+    m3DebugDraw draw;
+    memset(&draw, 0, sizeof(draw));
+    draw.drawSegment = IgnoreSegment;
+    draw.drawPoint = IgnorePoint;
+    draw.drawTriangle = IgnoreTriangle;
+    draw.drawShapes = true;
+    draw.drawSolidShapes = true;
+    draw.drawContacts = true;
+    draw.drawJoints = true;
+    draw.drawAabbs = true;
+    draw.drawSleepTint = true;
+    draw.drawIslands = true;
+    draw.drawMassAxes = true;
+    draw.drawTreeBoxes = true;
+    m3World_Draw(world, &draw);
+    return empty;
+}
+
+static void* DyingAlloc(size_t bytes, size_t alignment, void* context)
+{
+    (void)alignment;
+    (void)context;
+    return malloc(bytes);
+}
+
+static void DyingFree(void* memory, size_t bytes, size_t alignment, void* context)
+{
+    (void)bytes;
+    (void)alignment;
+    DyingWorld* d = (DyingWorld*)context;
+    if (d->world != NULL)
+    {
+        d->frees += 1;
+        if (d->frees == d->at)
+        {
+            d->empty = ReadDyingWorld(d);
+        }
+    }
+    free(memory);
+}
+
+static m3World* BuildDyingWorld(DyingWorld* d)
+{
+    static uint8_t voxels[CHUNK_DIM * CHUNK_DIM * CHUNK_DIM];
+    static const float heights[9] = {0.0f, 0.1f, 0.0f, 0.2f, 0.3f, 0.1f, 0.0f, 0.1f, 0.0f};
+    static const m3Vec3 cloud[5] = {{-0.4f, -0.3f, -0.2f},
+                                    {0.5f, -0.2f, -0.3f},
+                                    {0.1f, 0.6f, -0.1f},
+                                    {-0.2f, 0.1f, 0.5f},
+                                    {0.3f, 0.2f, 0.4f}};
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.bodyCapacity = 8;
+    wd.shapeCapacity = 8;
+    wd.voxelCapacity = 1;
+    wd.softBodyCapacity = 1;
+    wd.characterCapacity = 1;
+    wd.allocator = (m3Allocator){DyingAlloc, DyingFree, d};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    d->mesh = NewMeshShape(world, ground, &sd, kQuadVerts, 4, kQuadTris, 2);
+    (void)NewHeightFieldShape(world, ground, &sd, heights, 3, 3, 1.0f);
+    memset(voxels, 1, CHUNK_DIM * CHUNK_DIM);
+    gd.position = (m3Pos3){20.0, 0.0, 0.0};
+    (void)NewVoxelChunkShape(world, NewBody(world, &gd), &sd, voxels, NULL, 1.0f);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    d->body = NewBody(world, &bd);
+    (void)NewHullShape(world, d->body, &sd, cloud, 5);
+    m3JointDef jd = m3DefaultJointDef();
+    jd.type = m3_distanceJoint;
+    jd.bodyIdA = ground;
+    jd.bodyIdB = d->body;
+    d->joint = NewJoint(world, &jd);
+    m3SoftBodyDef sbd = m3DefaultSoftBodyDef();
+    sbd.position = (m3Pos3){-4.0, 2.0, 0.0};
+    d->soft = NewSoftBody(world, &sbd);
+    m3CharacterDef cd = m3DefaultCharacterDef();
+    cd.position = (m3Pos3){4.0, 2.0, 0.0};
+    d->hero = NewCharacter(world, &cd);
+    m3WaterVolumeDef water = m3DefaultWaterVolumeDef();
+    water.bounds.lowerBound = (m3Pos3){-10.0, -2.0, -10.0};
+    water.bounds.upperBound = (m3Pos3){10.0, 0.5, 10.0};
+    (void)NewWaterVolume(world, &water);
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    return world;
+}
+
+static void TestReadersDuringWorldDestroy(void)
+{
+    DyingWorld d;
+    memset(&d, 0, sizeof(d));
+    m3World* world = BuildDyingWorld(&d);
+    d.world = world;
+    CHECK(!ReadDyingWorld(&d), "before its destroy the readers find the world not empty");
+    m3DestroyWorld(world);
+    int32_t total = d.frees;
+    CHECK(total > 10, "the world's destroy hands back its blocks one by one");
+    for (int32_t at = 1; at <= total; ++at)
+    {
+        memset(&d, 0, sizeof(d));
+        world = BuildDyingWorld(&d);
+        d.at = at;
+        d.world = world;
+        m3DestroyWorld(world);
+        CHECK(d.frees == total, "every destroy hands back the same blocks");
+        CHECK(d.empty, "and at each free the hook finds an empty world");
+    }
+    printf("M3_REENTRY the world's destroy: every reader ran at each of %d frees\n", total);
+}
+
 int main(void)
 {
     for (int32_t op = 0; op < OpCount; ++op)
@@ -391,6 +581,7 @@ int main(void)
         SweepOp(op);
     }
     TestDestroyStalesIdsBeforeFree();
+    TestReadersDuringWorldDestroy();
     if (s_failures == 0)
     {
         printf("test_reentry: all passed\n");

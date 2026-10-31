@@ -99,3 +99,4 @@ world_events: fpenv journal misuse world world_internal
 world_hash: body fpenv joint_solver misuse world world_internal
 world_internal: allocator dynamic_tree
 world_state: allocator manifold world_internal
+world_stats: fpenv misuse world_internal
