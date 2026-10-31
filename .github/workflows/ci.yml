@@ -32,7 +32,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       pull-requests: read
 
@@ -46,10 +46,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
 
@@ -138,7 +138,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
     with:
@@ -164,7 +164,7 @@ jobs:
           - { preset: macos-clang-bench, runner: macos-15 }
           - { preset: windows-clang-cl-bench, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl-bench, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
     with:
@@ -352,14 +352,13 @@ jobs:
 
   # Every night each target fuzzes ten minutes from its corpus of the nights
   # before, carried in an Actions cache, in a job of its own so that every
-  # target runs at once. The cache is keyed by the target and by the fuzz
-  # build's inputs (the library, its CMake, the target, the shared scene and
-  # the compiler), so an unchanged build restores its own corpus exactly. A
-  # target whose build changed restores its latest corpus of an earlier
-  # build: a corpus is only inputs, which stay valid against a new binary.
-  # After the run the fuzzer's merge minimizes the seeds and the corpus
-  # together against this binary, and the result is saved for the next
-  # night. The summary compares the seeds' coverage with the corpus's.
+  # target runs at once. The cache is keyed by the target and the run id, and
+  # each night restores the target's newest corpus, whatever build saved it:
+  # a corpus is only inputs, which stay valid against a new binary.
+  # prune-caches keeps that newest one and deletes the rest. After the run
+  # the fuzzer's merge minimizes the seeds and the corpus together against
+  # this binary, and on main the result is saved for the next night. The
+  # summary compares the seeds' coverage with the corpus's.
   fuzz-nightly:
     needs: fuzz-targets
     strategy:
@@ -380,8 +379,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Build
-        env:
-          INPUTS: ${{ hashFiles('src/**', 'include/**', 'cmake/**', 'CMakeLists.txt', 'test/fuzz_scene.h', 'test/helpers.h', 'test/fuzz_seeds.c', format('test/{0}.c', matrix.target)) }}
         run: |
           cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -D${PREFIX}_FUZZ=ON \
             -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF \
@@ -389,19 +386,17 @@ jobs:
           cmake --build out/fuzz --target "$TARGET" fuzz_seeds
           [ -x "out/fuzz/$TARGET" ] || { echo "::error::$TARGET was not built"; exit 1; }
           out/fuzz/fuzz_seeds out/seeds
-          compiler=$(clang-20 --version | head -1 | sha256sum | cut -c1-16)
-          echo "CORPUS_KEY=corpus-$TARGET-$INPUTS-$compiler" >>"$GITHUB_ENV"
       - name: Restore the corpus
         id: restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
-          key: ${{ env.CORPUS_KEY }}-${{ github.run_id }}
-          # This build's corpus, else the target's from an earlier build:
-          # its inputs stay valid, and the merge re-scores them.
-          restore-keys: |
-            ${{ env.CORPUS_KEY }}-
-            corpus-${{ matrix.target }}-
+          # The key never matches, so the target's newest corpus is taken. A
+          # corpus is only inputs: they stay valid across source and compiler
+          # changes, and the merge re-scores them. One key per target lets
+          # prune-caches delete every corpus but the newest.
+          key: corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: corpus-${{ matrix.target }}-
       - name: Fuzz
         # tools/fuzz_target.sh keeps the findings and the log on the runner
         # and reports a finding without its input.
@@ -434,21 +429,20 @@ jobs:
           rm -rf "out/corpus/$TARGET"
           mv out/merged "out/corpus/$TARGET"
           coverage() { "out/fuzz/$TARGET" -runs=0 "$@" 2>&1 | sed -n 's/.*INITED cov: \([0-9]*\).*/\1/p'; }
-          case "$MATCHED" in
-          "") restored="none: the seeds alone" ;;
-          "$CORPUS_KEY"-*) restored="this build's" ;;
-          *) restored="an earlier build's" ;;
-          esac
+          restored=${MATCHED:-none: the seeds alone}
           {
             echo "| Target | Corpus restored | Seeds' coverage | Corpus's coverage | Corpus files |"
             echo "|---|---|---|---|---|"
             echo "| \`$TARGET\` | $restored | $(coverage "out/seeds/$TARGET") | $(coverage "out/corpus/$TARGET") | $(ls "out/corpus/$TARGET" | wc -l) |"
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Save the corpus
+        # Only main saves, so every corpus is in main's scope, where each
+        # run restores it and prune-caches deletes the replaced ones.
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
-          key: ${{ env.CORPUS_KEY }}-${{ github.run_id }}
+          key: corpus-${{ matrix.target }}-${{ github.run_id }}
 
   # The interactive testbed builds against raylib, which it fetches; only on
   # main and at night, since the library cells already compile every source
@@ -470,12 +464,23 @@ jobs:
             -D${PREFIX}_WERROR=ON -D${PREFIX}_BUILD_TESTBED=ON -D${PREFIX}_BUILD_TESTS=OFF
           cmake --build out/testbed --target testbed
 
+  # Main's last job: deletes the cache entries of main a newer save
+  # replaced, the per-commit ccache and codeql entries and the per-run
+  # corpora, so the 10 GB keeps one entry per cache and GitHub never evicts
+  # the corpus fuzz-nightly saved. Skipped on a pull request.
+  prune-caches:
+    needs: [build, bench, fuzz, fuzz-nightly]
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: Rawframe-Project/.github/.github/workflows/cache-prune.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
+    permissions:
+      actions: write
+
   # The one check the ruleset requires: it passes when every job above
   # passed or was skipped for a documentation-only change, so adding or
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, fuzz, fuzz-targets, fuzz-nightly, testbed]
+    needs: [changes, docs, zizmor, checks, build, bench, msvc-headers, web, fuzz, fuzz-targets, fuzz-nightly, testbed, prune-caches]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
