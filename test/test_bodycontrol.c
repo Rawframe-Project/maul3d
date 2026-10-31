@@ -358,6 +358,21 @@ static void TestDefsCarrySettings(void)
     m3DestroyWorld(world);
 }
 
+// A disabled body takes no part in the step, so the awake count leaves it
+// out though it keeps its awake flag; enabled again, it counts.
+static void TestAwakeCountSkipsDisabled(void)
+{
+    m3World* world = PlaneWorld();
+    m3BodyId crate = Crate(world, (m3Pos3){0.0, 3.0, 0.0});
+    CHECK(m3Body_IsAwake(world, crate) && m3World_GetCounters(world).awakeCount == 1,
+          "the falling crate is the one awake body");
+    m3Body_Enable(world, crate, false);
+    CHECK(m3World_GetCounters(world).awakeCount == 0, "disabled while awake, it is not counted");
+    m3Body_Enable(world, crate, true);
+    CHECK(m3World_GetCounters(world).awakeCount == 1, "enabled again, it counts");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestTeleportWakes();
@@ -366,6 +381,7 @@ int main(void)
     TestMotionLocks();
     TestSleepKnobsAndControlReplay();
     TestDefsCarrySettings();
+    TestAwakeCountSkipsDisabled();
     if (s_failures == 0)
     {
         printf("test_bodycontrol: all green\n");

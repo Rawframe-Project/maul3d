@@ -739,7 +739,7 @@ extern "C"
         int32_t shapeCount;
         int32_t jointCount;
         int32_t contactCount; // live broadphase pairs with manifolds
-        int32_t awakeCount;   // awake dynamic bodies
+        int32_t awakeCount;   // awake, enabled dynamic bodies
         int32_t islandCount;  // dynamic islands in the last step
         int32_t colorCount;   // solver graph colors in the last step
         int32_t characterCount;

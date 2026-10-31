@@ -86,8 +86,10 @@ m3Counters m3World_GetCounters(const m3World* world)
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
     for (int32_t i = 0; i < maxBody; ++i)
     {
+        // A disabled body keeps its awake flag but takes no part in the step.
         if (world->bodies.bodyPool.alive[i] != 0 &&
-            world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] != 0)
+            world->bodies.types[i] == (uint8_t)m3_dynamicBody && world->bodies.awake[i] != 0 &&
+            world->bodies.bodyEnabled[i] != 0)
         {
             awake += 1;
         }
