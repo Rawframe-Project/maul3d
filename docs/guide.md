@@ -24,9 +24,10 @@ motor).
 Everything is created from a **def** struct obtained from its
 `m3Default*Def()` function. Defs carry a private cookie; a def that
 was not built from the default function is refused. Every create
-returns an **id**; every failure returns the null id or false. The
-library never aborts on user input: bad defs, stale ids, exhausted
-pools, and hostile floats are refused through return values
+writes an **id** to its last argument. Every refusal changes nothing,
+and a call that can fail returns its status. The library never aborts
+on user input: bad defs, stale ids, exhausted pools, and hostile
+floats are refused through return values
 (assertions guard internal invariants only, states that cannot be
 reached from outside).
 
@@ -901,8 +902,9 @@ state: snapshotted, hashed when attached, rolled back mid-shift
 to the bit. Vehicles without a drivetrain keep the flat model
 untouched.
 
-Differentials: the def's `diffMode` picks open (0, the classic
-equal split), limited (1), or locked (2), and `diffCouple` sets
+Differentials: the def's `diffMode` picks `m3_differentialOpen`
+(the classic equal split), `m3_differentialLimitedSlip` or
+`m3_differentialLocked`, and `diffCouple` sets
 the coupling force per m/s of wheel-speed disparity. The
 coupling reads each driven wheel's contact speed with one step
 of lag (the drivetrain's own wheel-reading convention) and

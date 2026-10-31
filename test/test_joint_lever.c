@@ -120,8 +120,8 @@ static void TestCreateKeepsTheRatio(void)
         {
             for (int32_t a = 0; a < 3; ++a)
             {
-                jd.genericLinear[a] = (uint8_t)m3_axisLocked;
-                jd.genericAngular[a] = (uint8_t)m3_axisFree;
+                jd.genericLinear[a] = m3_axisLocked;
+                jd.genericAngular[a] = m3_axisFree;
             }
         }
         m3JointId joint = m3_nullJointId;

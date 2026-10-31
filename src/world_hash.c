@@ -378,7 +378,7 @@ static uint64_t HashDrivetrain(const m3World* world, uint64_t h, int32_t i)
     }
     h = m3Hash64(h, &world->vehicles.vehDtReverse[i], 4);
     h = m3Hash64(h, &world->vehicles.vehDtFinal[i], 4);
-    if (world->vehicles.vehDtDiffMode[i] != 0)
+    if (world->vehicles.vehDtDiffMode[i] != m3_differentialOpen)
     {
         // The diff folds only when engaged, wheel
         // speeds included: they steer forces only then.

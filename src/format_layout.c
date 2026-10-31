@@ -31,6 +31,14 @@
 #define M3_PIN_AT(type, member, at)                                                                \
     _Static_assert(offsetof(type, member) == (at), #type "." #member " left the format's layout")
 
+// The public kinds and modes: fixed-width integers, as the records and
+// the defs below hold them.
+M3_PIN_SIZE(m3BodyType, 4);
+M3_PIN_SIZE(m3ShapeType, 4);
+M3_PIN_SIZE(m3JointType, 4);
+M3_PIN_SIZE(m3AxisMode, 4);
+M3_PIN_SIZE(m3DifferentialMode, 4);
+
 // The journal's records, in journal.h's order.
 M3_PIN_SIZE(m3OpBodyByte, 12);
 M3_PIN_AT(m3OpBodyByte, id, 0);
@@ -303,9 +311,9 @@ M3_PIN_AT(m3CreateMeshShapeOp, expected, 112);
 M3_PIN_AT(m3CreateMeshShapeOp, vertexCount, 120);
 M3_PIN_AT(m3CreateMeshShapeOp, triangleCount, 124);
 
-M3_PIN_SIZE(m3CreateJointOp, 256);
+M3_PIN_SIZE(m3CreateJointOp, 280);
 M3_PIN_AT(m3CreateJointOp, def, 0);
-M3_PIN_AT(m3CreateJointOp, expected, 248);
+M3_PIN_AT(m3CreateJointOp, expected, 272);
 
 M3_PIN_SIZE(m3CreateHullShapeOp, 3200);
 M3_PIN_AT(m3CreateHullShapeOp, def, 0);
@@ -413,7 +421,7 @@ M3_PIN_AT(m3ShapeDef, localPosition, 68);
 M3_PIN_AT(m3ShapeDef, localRotation, 80);
 M3_PIN_AT(m3ShapeDef, internalValue, 96);
 
-M3_PIN_SIZE(m3JointDef, 248);
+M3_PIN_SIZE(m3JointDef, 272);
 M3_PIN_AT(m3JointDef, type, 0);
 M3_PIN_AT(m3JointDef, bodyIdA, 4);
 M3_PIN_AT(m3JointDef, bodyIdB, 12);
@@ -430,25 +438,25 @@ M3_PIN_AT(m3JointDef, maxMotorEffort, 88);
 M3_PIN_AT(m3JointDef, enableCone, 92);
 M3_PIN_AT(m3JointDef, coneAngle, 96);
 M3_PIN_AT(m3JointDef, enableConnectedCollision, 100);
-M3_PIN_AT(m3JointDef, genericLinear, 101);
-M3_PIN_AT(m3JointDef, genericAngular, 104);
-M3_PIN_AT(m3JointDef, genericMotorAxis, 107);
-M3_PIN_AT(m3JointDef, genericLinearLower, 108);
-M3_PIN_AT(m3JointDef, genericLinearUpper, 120);
-M3_PIN_AT(m3JointDef, genericAngularLower, 132);
-M3_PIN_AT(m3JointDef, genericAngularUpper, 144);
-M3_PIN_AT(m3JointDef, ratio, 156);
-M3_PIN_AT(m3JointDef, groundAnchorA, 160);
-M3_PIN_AT(m3JointDef, groundAnchorB, 184);
-M3_PIN_AT(m3JointDef, maxForce, 208);
-M3_PIN_AT(m3JointDef, maxTorque, 212);
-M3_PIN_AT(m3JointDef, minLength, 216);
-M3_PIN_AT(m3JointDef, maxLength, 220);
-M3_PIN_AT(m3JointDef, length, 224);
-M3_PIN_AT(m3JointDef, enableSpring, 228);
-M3_PIN_AT(m3JointDef, springHertz, 232);
-M3_PIN_AT(m3JointDef, springDampingRatio, 236);
-M3_PIN_AT(m3JointDef, internalValue, 240);
+M3_PIN_AT(m3JointDef, genericLinear, 104);
+M3_PIN_AT(m3JointDef, genericAngular, 116);
+M3_PIN_AT(m3JointDef, genericMotorAxis, 128);
+M3_PIN_AT(m3JointDef, genericLinearLower, 132);
+M3_PIN_AT(m3JointDef, genericLinearUpper, 144);
+M3_PIN_AT(m3JointDef, genericAngularLower, 156);
+M3_PIN_AT(m3JointDef, genericAngularUpper, 168);
+M3_PIN_AT(m3JointDef, ratio, 180);
+M3_PIN_AT(m3JointDef, groundAnchorA, 184);
+M3_PIN_AT(m3JointDef, groundAnchorB, 208);
+M3_PIN_AT(m3JointDef, maxForce, 232);
+M3_PIN_AT(m3JointDef, maxTorque, 236);
+M3_PIN_AT(m3JointDef, minLength, 240);
+M3_PIN_AT(m3JointDef, maxLength, 244);
+M3_PIN_AT(m3JointDef, length, 248);
+M3_PIN_AT(m3JointDef, enableSpring, 252);
+M3_PIN_AT(m3JointDef, springHertz, 256);
+M3_PIN_AT(m3JointDef, springDampingRatio, 260);
+M3_PIN_AT(m3JointDef, internalValue, 264);
 
 M3_PIN_SIZE(m3DrivetrainDef, 132);
 M3_PIN_AT(m3DrivetrainDef, curveCount, 0);

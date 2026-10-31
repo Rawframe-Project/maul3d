@@ -14,7 +14,8 @@ extern "C"
 {
 #endif
 
-    typedef enum m3ShapeType
+    typedef int32_t m3ShapeType;
+    enum
     {
         m3_sphereShape = 0,
         m3_planeShape = 1,       // static bodies only: an infinite half-space
@@ -23,7 +24,7 @@ extern "C"
         m3_meshShape = 4,        // static triangle soup
         m3_voxelShape = 5,       // dense 16^3 voxel chunk
         m3_heightFieldShape = 6, // native grid terrain
-    } m3ShapeType;
+    };
 
     typedef struct m3Sphere
     {

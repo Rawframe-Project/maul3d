@@ -428,13 +428,13 @@ static Scene Build(void)
     jd.localAnchorA = (m3Vec3){0.0f, 0.5f, 1.0f};
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericLinear[k] = (uint8_t)m3_axisFree;
-        jd.genericAngular[k] = (uint8_t)m3_axisFree;
+        jd.genericLinear[k] = m3_axisFree;
+        jd.genericAngular[k] = m3_axisFree;
     }
-    jd.genericLinear[0] = (uint8_t)m3_axisLimited;
+    jd.genericLinear[0] = m3_axisLimited;
     jd.genericLinearLower[0] = -0.5f;
     jd.genericLinearUpper[0] = 0.5f;
-    jd.genericAngular[1] = (uint8_t)m3_axisLimited;
+    jd.genericAngular[1] = m3_axisLimited;
     jd.genericAngularLower[1] = -0.25f;
     jd.genericAngularUpper[1] = 0.25f;
     s.six = NewJoint(w, &jd).index1 - 1;

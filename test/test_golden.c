@@ -422,14 +422,14 @@ static void AddSliders(m3World* world, m3BodyId ground)
     NewJoint(world, &rope);
 
     m3JointDef six = HangDef(world, ground, 30.0, 2.0, 0.2, m3_genericJoint, NULL);
-    six.genericLinear[0] = (uint8_t)m3_axisLimited;
-    six.genericLinear[1] = (uint8_t)m3_axisLocked;
-    six.genericLinear[2] = (uint8_t)m3_axisLocked;
+    six.genericLinear[0] = m3_axisLimited;
+    six.genericLinear[1] = m3_axisLocked;
+    six.genericLinear[2] = m3_axisLocked;
     six.genericLinearLower[0] = -0.2f;
     six.genericLinearUpper[0] = 0.2f;
-    six.genericAngular[0] = (uint8_t)m3_axisLocked;
-    six.genericAngular[1] = (uint8_t)m3_axisLocked;
-    six.genericAngular[2] = (uint8_t)m3_axisLimited;
+    six.genericAngular[0] = m3_axisLocked;
+    six.genericAngular[1] = m3_axisLocked;
+    six.genericAngular[2] = m3_axisLimited;
     six.genericAngularLower[2] = -0.7f;
     six.genericAngularUpper[2] = 0.7f;
     six.genericMotorAxis = 5;
@@ -872,8 +872,8 @@ static void TourCreate(Tour* t)
     jd.enableConnectedCollision = true;
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericLinear[k] = (uint8_t)m3_axisFree;
-        jd.genericAngular[k] = (uint8_t)m3_axisFree;
+        jd.genericLinear[k] = m3_axisFree;
+        jd.genericAngular[k] = m3_axisFree;
     }
     t->ghost = NewJoint(world, &jd);
     CHECK(m3Vehicle_IsValid(world, t->tank) && m3SoftBody_IsValid(world, t->tet) &&

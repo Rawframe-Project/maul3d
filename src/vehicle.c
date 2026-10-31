@@ -433,7 +433,8 @@ void m3VehicleApplySuspension(m3World* world, float dt)
         // contact speeds, one pass and one step of lag like the
         // engine's own wheel reading.
         float dtMeanLon = 0.0f;
-        if (world->vehicles.vehDtActive[slot] != 0 && world->vehicles.vehDtDiffMode[slot] != 0)
+        if (world->vehicles.vehDtActive[slot] != 0 &&
+            world->vehicles.vehDtDiffMode[slot] != m3_differentialOpen)
         {
             int32_t drivenSeen = 0;
             for (int32_t w = 0; w < world->vehicles.vehWheelCount[slot]; ++w)
@@ -585,11 +586,11 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                     if (world->vehicles.vehDtActive[slot] != 0)
                     {
                         float driveForce = dtForce;
-                        if (world->vehicles.vehDtDiffMode[slot] != 0)
+                        if (world->vehicles.vehDtDiffMode[slot] != m3_differentialOpen)
                         {
                             float coupling = world->vehicles.vehDtDiffCouple[slot] *
                                              (dtMeanLon - world->vehicles.vehWheelLon[k]);
-                            if (world->vehicles.vehDtDiffMode[slot] == 1)
+                            if (world->vehicles.vehDtDiffMode[slot] == m3_differentialLimitedSlip)
                             {
                                 // Limited slip: the coupling may not
                                 // exceed the engine's own share.

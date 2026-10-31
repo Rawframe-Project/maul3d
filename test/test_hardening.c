@@ -963,6 +963,16 @@ static void TestUntrustedDataCountsNoMisuse(void)
     CHECK(m3World_Restore(world, snap, size) == m3_errorVersion, "a format 5 snapshot is refused");
     format = 6u;
     memcpy(snap + 8, &format, 4);
+    // Format 6 stored the generic joint's modes in single bytes; its tapes
+    // are refused by version too.
+    memcpy(&format, tape + 8, 4);
+    CHECK(format == 7u, "a tape is written in format 7");
+    format = 6u;
+    memcpy(tape + 8, &format, 4);
+    CHECK(m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorVersion,
+          "a format 6 tape is refused");
+    format = 7u;
+    memcpy(tape + 8, &format, 4);
     CHECK(m3World_ReplayJournal(world, tape, tapeBytes - 1) == m3_errorFormat,
           "a tape one byte short is refused");
     CHECK(m3World_GetCounters(world).misuseCount == before, "and none of it counts as misuse");

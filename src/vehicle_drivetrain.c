@@ -87,7 +87,8 @@ bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
     if (!(def->reverseRatio >= 0.0f && def->reverseRatio <= M3_RATIO_LIMIT) ||
         !(def->finalDrive > 0.0f && def->finalDrive <= M3_RATIO_LIMIT) ||
         !m3FiniteF(def->shiftUpRpm) || !m3FiniteF(def->shiftDownRpm) || def->shiftDownRpm < 0.0f ||
-        def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < 0 || def->diffMode > 2 ||
+        def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < m3_differentialOpen ||
+        def->diffMode > m3_differentialLocked ||
         !(def->diffCouple >= 0.0f && def->diffCouple <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
     {
         return false;
