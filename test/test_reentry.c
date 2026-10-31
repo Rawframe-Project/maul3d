@@ -391,12 +391,14 @@ static void TestDestroyStalesIdsBeforeFree(void)
 // A world's destroy hands its blocks back one by one. Host code in the
 // free hook may still read the world: every reader must find an empty
 // world, never a pool already freed. Each run destroys the same world and,
-// at one free in turn, runs every kind of reader from the hook.
+// at one free in turn, runs every kind of reader from the hook and checks
+// that each finds no object.
 typedef struct DyingWorld
 {
     const m3World* world; // set while the destroy under watch runs
     int32_t at;           // the free that reads, from 1; 0 counts only
     int32_t frees;
+    bool empty; // what the reader at that free found
     m3BodyId body;
     m3ShapeId mesh;
     m3JointId joint;
@@ -429,26 +431,36 @@ static void IgnoreTriangle(m3Pos3 a, m3Pos3 b, m3Pos3 c, uint32_t color, void* c
     (void)context;
 }
 
-static void ReadDyingWorld(const DyingWorld* d)
+// Runs every kind of reader and returns whether each found an empty world:
+// no object counted, every id taken before the destroy invalid and read as
+// zero, and no query hit.
+static bool ReadDyingWorld(const DyingWorld* d)
 {
     const m3World* world = d->world;
-    (void)m3World_GetCounters(world);
+    m3Counters counters = m3World_GetCounters(world);
+    bool empty = counters.bodyCount == 0 && counters.shapeCount == 0 && counters.jointCount == 0 &&
+                 counters.softBodyCount == 0 && counters.characterCount == 0 &&
+                 counters.meshCount == 0 && counters.hullCount == 0 &&
+                 counters.voxelChunkCount == 0 && counters.awakeCount == 0;
     (void)m3World_GetMemoryUsage(world);
     (void)m3World_GetProfile(world);
     (void)m3World_GetSnapshotSize(world);
     (void)m3World_Hash(world);
-    (void)m3Body_GetPosition(world, d->body);
-    (void)m3Body_IsValid(world, d->body);
-    (void)m3Shape_GetAabb(world, d->mesh);
-    (void)m3Joint_IsValid(world, d->joint);
-    (void)m3SoftBody_GetParticleCount(world, d->soft);
-    (void)m3Character_IsGrounded(world, d->hero);
+    m3Pos3 p = m3Body_GetPosition(world, d->body);
+    m3WorldAabb box = m3Shape_GetAabb(world, d->mesh);
+    empty = empty && !m3Body_IsValid(world, d->body) && !m3Shape_IsValid(world, d->mesh) &&
+            !m3Joint_IsValid(world, d->joint) && !m3SoftBody_IsValid(world, d->soft) &&
+            !m3Character_IsValid(world, d->hero) && p.x == 0.0 && p.y == 0.0 && p.z == 0.0 &&
+            box.lowerBound.x == 0.0 && box.upperBound.y == 0.0 &&
+            m3SoftBody_GetParticleCount(world, d->soft) == 0 &&
+            !m3Character_IsGrounded(world, d->hero);
     m3CastHit hit;
-    (void)m3World_CastRayClosest(world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
-                                 m3DefaultQueryFilter(), &hit);
+    empty = empty &&
+            !m3World_CastRayClosest(world, (m3Pos3){0.0, 5.0, 0.0}, (m3Vec3){0.0f, -10.0f, 0.0f},
+                                    m3DefaultQueryFilter(), &hit);
     m3ShapeId ids[8];
-    (void)m3World_OverlapAabb(world, (m3WorldAabb){{-5.0, -5.0, -5.0}, {5.0, 5.0, 5.0}},
-                              m3DefaultQueryFilter(), ids, 8);
+    empty = empty && m3World_OverlapAabb(world, (m3WorldAabb){{-5.0, -5.0, -5.0}, {5.0, 5.0, 5.0}},
+                                         m3DefaultQueryFilter(), ids, 8) == 0;
     m3DebugDraw draw;
     memset(&draw, 0, sizeof(draw));
     draw.drawSegment = IgnoreSegment;
@@ -464,6 +476,7 @@ static void ReadDyingWorld(const DyingWorld* d)
     draw.drawMassAxes = true;
     draw.drawTreeBoxes = true;
     m3World_Draw(world, &draw);
+    return empty;
 }
 
 static void* DyingAlloc(size_t bytes, size_t alignment, void* context)
@@ -483,7 +496,7 @@ static void DyingFree(void* memory, size_t bytes, size_t alignment, void* contex
         d->frees += 1;
         if (d->frees == d->at)
         {
-            ReadDyingWorld(d);
+            d->empty = ReadDyingWorld(d);
         }
     }
     free(memory);
@@ -544,6 +557,7 @@ static void TestReadersDuringWorldDestroy(void)
     memset(&d, 0, sizeof(d));
     m3World* world = BuildDyingWorld(&d);
     d.world = world;
+    CHECK(!ReadDyingWorld(&d), "before its destroy the readers find the world not empty");
     m3DestroyWorld(world);
     int32_t total = d.frees;
     CHECK(total > 10, "the world's destroy hands back its blocks one by one");
@@ -555,6 +569,7 @@ static void TestReadersDuringWorldDestroy(void)
         d.world = world;
         m3DestroyWorld(world);
         CHECK(d.frees == total, "every destroy hands back the same blocks");
+        CHECK(d.empty, "and at each free the hook finds an empty world");
     }
     printf("M3_REENTRY the world's destroy: every reader ran at each of %d frees\n", total);
 }
