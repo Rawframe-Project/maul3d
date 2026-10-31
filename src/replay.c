@@ -9,6 +9,7 @@
 #include "misuse.h"
 #include "state_prefix.h"
 
+#include <stdint.h>
 #include <string.h>
 
 // The container's header: the state prefix, the recorder's final hash,
@@ -78,6 +79,21 @@ int64_t m3GetEncodedReplaySize(int64_t snapshotBytes, int64_t journalBytes)
     return M3_REPLAY_HEADER_BYTES + snapshotBytes + journalBytes;
 }
 
+// Whether bytes1 bytes at one and bytes2 at two share a byte. The
+// addresses are compared as integers, since the buffers may be different
+// objects, and through the distance between their starts, so no end is
+// computed that could wrap. An empty buffer overlaps nothing.
+static bool BytesOverlap(const void* one, int64_t bytes1, const void* two, int64_t bytes2)
+{
+    uintptr_t a = (uintptr_t)one;
+    uintptr_t b = (uintptr_t)two;
+    if (bytes1 <= 0 || bytes2 <= 0)
+    {
+        return false;
+    }
+    return b >= a ? b - a < (uint64_t)bytes1 : a - b < (uint64_t)bytes2;
+}
+
 m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void* journal,
                         int64_t journalBytes, uint64_t finalHash, void* out, int64_t capacity,
                         int64_t* bytesOut)
@@ -100,6 +116,14 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
     if (capacity < need)
     {
         return m3_errorCapacity;
+    }
+    // The container is copied straight into out, so the bytes it fills
+    // must not hold either input. The capacity may reach past them, since
+    // only these are written.
+    if (BytesOverlap(out, need, snapshot, snapshotBytes) ||
+        BytesOverlap(out, need, journal, journalBytes))
+    {
+        return m3_errorInvalid;
     }
     // A container never wraps a malformed stream, nor one another release
     // wrote.

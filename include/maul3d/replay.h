@@ -66,11 +66,12 @@ extern "C"
     /// it. Sets *bytesOut to the bytes written; any failure leaves it as
     /// it was, since the call has no owner. Returns m3_errorVersion
     /// for a snapshot or tape another release wrote, m3_errorInvalid for
-    /// a null pointer, m3_errorFormat for sizes too short to hold a
-    /// snapshot or a tape, a header that is not a snapshot's or a
-    /// malformed journal, m3_errorLimit for a pair whose container no
-    /// buffer of this target can hold, and m3_errorCapacity for a small
-    /// buffer.
+    /// a null pointer or an out whose first m3GetEncodedReplaySize
+    /// bytes overlap the snapshot or the tape, m3_errorFormat for sizes
+    /// too short to hold a snapshot or a tape, a header that is not a
+    /// snapshot's or a malformed journal, m3_errorLimit for a pair whose
+    /// container no buffer of this target can hold, and m3_errorCapacity
+    /// for a small buffer.
     M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes,
                                                 const void* journal, int64_t journalBytes,
                                                 uint64_t finalHash, void* out, int64_t capacity,
