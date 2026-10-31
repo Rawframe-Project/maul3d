@@ -395,9 +395,10 @@ static M3_NOINLINE m3Result WorldStepWorker(m3World* world, float dt, int32_t su
     {
         return m3Refuse(world, m3_errorBusy);
     }
-    if (world == NULL || m3StepCheck(dt, substepCount) != m3_success)
+    m3Result checked = world == NULL ? m3_errorInvalid : m3StepCheck(dt, substepCount);
+    if (checked != m3_success)
     {
-        return m3Refuse(world, m3_errorInvalid);
+        return m3Refuse(world, checked);
     }
     world->contacts.stepVetoCount = 0;
     m3WorldEnter(world);

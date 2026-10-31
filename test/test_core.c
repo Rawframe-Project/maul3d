@@ -163,7 +163,7 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m3World_OverlapSphere(world, (m3Pos3){0.0, (double)NAN, 0.0}, 1.0f,
                                 m3DefaultQueryFilter(), found, 4) == 0,
           "a NaN sphere center overlaps nothing");
-    CHECK(m3World_Step(world, INFINITY, 4) == m3_errorInvalid, "an infinite step is refused");
+    CHECK(m3World_Step(world, INFINITY, 4) == m3_errorLimit, "an infinite step is refused");
     CHECK(m3World_Step(world, 1.0f / 60.0f, 0) == m3_errorInvalid, "so is one of no substep");
     CHECK(m3World_Step(NULL, 1.0f / 60.0f, 4) == m3_errorInvalid, "and a step of no world");
     CHECK(m3World_GetCounters(world).misuseCount == misuse + 9, "each refuses once");
@@ -171,10 +171,66 @@ static void TestEveryRefusalHasAReason(void)
     m3DestroyWorld(world);
 }
 
+// A step's dt and substep count past the bounds base.h publishes refuse
+// with m3_errorLimit; a NaN, a dt of zero or below and fewer than one
+// substep with m3_errorInvalid. Each refusal counts one misuse and leaves
+// the world as it was, and the bounds themselves are taken.
+static void TestStepBounds(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 5.0, 0.0};
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, body, &sd, &ball);
+
+    const struct
+    {
+        float dt;
+        int32_t substeps;
+        m3Result expected;
+        const char* what;
+    } refusals[] = {
+        {M3_MIN_STEP * 0.5f, 4, m3_errorLimit, "a dt below M3_MIN_STEP is past a limit"},
+        {M3_STEP_LIMIT * 1.5f, 4, m3_errorLimit, "a dt above M3_STEP_LIMIT is past a limit"},
+        {INFINITY, 4, m3_errorLimit, "an infinite dt is past a limit"},
+        {1.0f / 60.0f, M3_MAX_SUBSTEPS + 1, m3_errorLimit,
+         "more than M3_MAX_SUBSTEPS substeps are past a limit"},
+        {1.0f / 60.0f, INT32_MAX, m3_errorLimit, "INT32_MAX substeps are past a limit"},
+        {NAN, 4, m3_errorInvalid, "a NaN dt is invalid"},
+        {0.0f, 4, m3_errorInvalid, "a dt of zero is invalid"},
+        {-1.0f / 60.0f, 4, m3_errorInvalid, "a negative dt is invalid"},
+        {-INFINITY, 4, m3_errorInvalid, "a dt of minus infinity is invalid"},
+        {1.0f / 60.0f, 0, m3_errorInvalid, "no substep is invalid"},
+        {1.0f / 60.0f, -1, m3_errorInvalid, "a negative substep count is invalid"},
+        {1.0f / 60.0f, INT32_MIN, m3_errorInvalid, "INT32_MIN substeps are invalid"},
+    };
+    uint64_t hash = m3World_Hash(world);
+    for (size_t k = 0; k < sizeof(refusals) / sizeof(refusals[0]); ++k)
+    {
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
+        CHECK(m3World_Step(world, refusals[k].dt, refusals[k].substeps) == refusals[k].expected &&
+                  m3World_GetCounters(world).misuseCount == misuse + 1 &&
+                  m3World_Hash(world) == hash,
+              refusals[k].what);
+    }
+
+    CHECK(m3World_Step(world, M3_MIN_STEP, 1) == m3_success, "a dt of M3_MIN_STEP steps");
+    CHECK(m3World_Step(world, M3_STEP_LIMIT, 1) == m3_success, "a dt of M3_STEP_LIMIT steps");
+    CHECK(m3World_Step(world, 1.0f / 60.0f, M3_MAX_SUBSTEPS) == m3_success,
+          "M3_MAX_SUBSTEPS substeps step");
+    CHECK(m3World_Hash(world) != hash, "and the taken steps moved the world");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCreateWorld();
     TestEveryRefusalHasAReason();
+    TestStepBounds();
     if (s_failures == 0)
     {
         printf("test_core: all checks passed\n");
