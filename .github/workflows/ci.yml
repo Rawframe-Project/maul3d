@@ -32,7 +32,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       pull-requests: read
 
@@ -46,10 +46,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
 
@@ -138,7 +138,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
     with:
@@ -164,7 +164,7 @@ jobs:
           - { preset: macos-clang-bench, runner: macos-15 }
           - { preset: windows-clang-cl-bench, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl-bench, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
     with:
@@ -230,8 +230,10 @@ jobs:
 
   # Each fuzz target reads the bytes a program gets from disk or a peer (a
   # snapshot, a journal tape, a replay file), seeded by fuzz_seeds from the
-  # shared scene: briefly on a pull request, longer on main. The nightly run
-  # is fuzz-nightly.
+  # shared scene and by the corpus fuzz-nightly grew, restored read-only:
+  # briefly on a pull request, so a change that breaks a harness's promise
+  # fails on its own pull request, longer on main. Only fuzz-nightly saves
+  # the corpus.
   fuzz:
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')
@@ -244,6 +246,9 @@ jobs:
       contents: read
     env:
       FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && 20 || 90 }}
+      # The targets with a restore step below; Run fails on a built target
+      # missing here, so a new target cannot fuzz from the seeds alone.
+      CORPUS_TARGETS: fuzz_journal fuzz_replay fuzz_restore_step fuzz_snapshot
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -270,6 +275,33 @@ jobs:
         with:
           path: .cache/ccache
           key: ccache-fuzz-${{ github.sha }}
+      # Each target's latest corpus, read-only, one step per name in
+      # CORPUS_TARGETS. The key never matches, so the newest corpus of any
+      # build is taken; a target with none yet starts from the seeds.
+      - name: Restore the journal corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/fuzz_journal
+          key: corpus-fuzz_journal-read-${{ github.run_id }}
+          restore-keys: corpus-fuzz_journal-
+      - name: Restore the replay corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/fuzz_replay
+          key: corpus-fuzz_replay-read-${{ github.run_id }}
+          restore-keys: corpus-fuzz_replay-
+      - name: Restore the restore-step corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/fuzz_restore_step
+          key: corpus-fuzz_restore_step-read-${{ github.run_id }}
+          restore-keys: corpus-fuzz_restore_step-
+      - name: Restore the snapshot corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: out/corpus/fuzz_snapshot
+          key: corpus-fuzz_snapshot-read-${{ github.run_id }}
+          restore-keys: corpus-fuzz_snapshot-
       - name: Run
         # As many targets at a time as the runner has cores; each keeps its
         # full time. tools/fuzz_target.sh keeps a target's findings and log
@@ -278,7 +310,17 @@ jobs:
         run: |
           targets=$(find out/fuzz -maxdepth 1 -name 'fuzz_*' -type f -perm -u+x ! -name fuzz_seeds)
           [ -n "$targets" ] || { echo "::error::no fuzz target was built"; exit 1; }
-          for target in $targets; do mkdir -p "out/corpus/$(basename "$target")"; done
+          for target in $targets; do
+            name=$(basename "$target")
+            case " $CORPUS_TARGETS " in
+            *" $name "*) ;;
+            *)
+              echo "::error::$name has no corpus restore step in the fuzz job"
+              exit 1
+              ;;
+            esac
+            mkdir -p "out/corpus/$name"
+          done
           rm -rf out/fuzz-reports
           status=0
           echo "$targets" |
@@ -351,7 +393,6 @@ jobs:
           echo "CORPUS_KEY=corpus-$TARGET-$INPUTS-$compiler" >>"$GITHUB_ENV"
       - name: Restore the corpus
         id: restore
-        if: github.event_name != 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
