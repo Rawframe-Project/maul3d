@@ -233,7 +233,10 @@ static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 p
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapes.shapePool.alive[s] != 0 && PointInShape(world, s, point))
+        // Disabled bodies vanish from queries.
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
+            PointInShape(world, s, point))
         {
             return (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
