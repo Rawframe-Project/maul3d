@@ -30,6 +30,18 @@ static inline m3Transform m3ShapeWorldTransform(const m3World* world, int32_t sh
     return xf;
 }
 
+// A plane's normal and offset in world space. A plane is stored in its
+// body's frame like every shape, so it moves with the shape's world
+// transform: the offset grows by the turned normal along the position.
+static inline m3Vec3 m3PlaneWorld(const m3World* world, int32_t shape, double* offsetOut)
+{
+    m3Transform xf = m3ShapeWorldTransform(world, shape);
+    m3Vec3 n = m3RotateVec3(xf.q, world->shapes.shapeGeom[shape].v);
+    *offsetOut = (double)world->shapes.shapeGeom[shape].s + (double)n.x * xf.p.x +
+                 (double)n.y * xf.p.y + (double)n.z * xf.p.z;
+    return n;
+}
+
 // The filter rule, one function for pairs and queries alike.
 static inline int m3FilterPass(uint64_t catA, uint64_t maskA, uint64_t catB, uint64_t maskB)
 {

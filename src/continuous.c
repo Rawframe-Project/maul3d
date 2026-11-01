@@ -280,9 +280,10 @@ static bool SweepCallback(int32_t shape, void* context)
 // every step would erase its integration while its velocity stayed.
 static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 {
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    double planeOffset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &planeOffset);
     float offset =
-        world->shapes.shapeGeom[planeShape].s -
+        (float)planeOffset -
         (float)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, sw->shape, scratch);

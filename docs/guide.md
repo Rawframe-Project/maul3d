@@ -1242,8 +1242,9 @@ length (a corrupted quaternion is refused, not renormalized).
 Positions are double precision; everything else is single. Mesh
 triangles wind counter-clockwise seen from outside; backfaces do not
 collide. Planes are half-spaces: `dot(normal, p) <= offset` is
-solid. Capsules are a segment plus a radius; a zero-length segment
-is refused (use a sphere).
+solid, with p in the body's frame as for every shape. Capsules are
+a segment plus a radius; a zero-length segment is refused (use a
+sphere).
 
 ## Magnitude limits
 
