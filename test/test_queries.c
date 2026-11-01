@@ -839,6 +839,38 @@ static void TestPointTakesFilter(void)
     m3DestroyWorld(world);
 }
 
+// The point test skips a disabled body's shapes, as every other query
+// does: it answers with the next shape that holds the point, or none.
+static void TestPointSkipsDisabledBodies(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){2.0, 3.0, -1.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3BodyId first = NewBody(world, &bd);
+    m3ShapeId firstBall = NewSphereShape(world, first, &sd, &ball);
+    m3BodyId second = NewBody(world, &bd);
+    m3ShapeId secondBall = NewSphereShape(world, second, &sd, &ball);
+    m3Pos3 center = {2.0, 3.0, -1.0};
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == firstBall.index1,
+          "the lowest shape that holds the point answers");
+    m3Body_Enable(world, first, false);
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == secondBall.index1,
+          "a disabled body's shape is skipped for the next one");
+    m3Body_Enable(world, second, false);
+    m3ShapeId found[2];
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == 0 &&
+              m3World_OverlapSphere(world, center, 0.1f, m3DefaultQueryFilter(), found, 2) == 0,
+          "with both bodies disabled the point test agrees with the overlap: nothing");
+    m3Body_Enable(world, first, true);
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == firstBall.index1,
+          "an enabled body's shape answers again");
+    m3DestroyWorld(world);
+}
+
 // The generic casts. Boxes carry orientation, hulls carry
 // their cloud, and every cast keeps the family contracts.
 static void TestGenericCasts(void)
@@ -1419,29 +1451,57 @@ static void TestListOutputs(void)
             CHECK(got == 0 && zeroed, "a refused list call zeroes its whole array");
         }
     }
-    // The world comparison refuses a NULL world and two worlds of
-    // different capacities the same way: -1, a zero count and its rows
-    // zeroed over their whole capacity.
+    // The world comparison refuses a NULL world, a NULL total and a bad
+    // array with m3_errorInvalid, a zero total and its rows zeroed over
+    // their whole capacity, counting one misuse on the world it was
+    // given.
+    m3BodyDiff rows[3];
+    int32_t total = 7;
+    uint64_t misuse = m3World_GetCounters(sc.world).misuseCount;
+    memset(rows, 0x5A, sizeof(rows));
+    m3Result result = m3World_Compare(NULL, sc.world, rows, 3, &total);
+    bool zeroed = true;
+    const unsigned char* rowBytes = (const unsigned char*)rows;
+    for (size_t k = 0; k < sizeof(rows); ++k)
+    {
+        zeroed = zeroed && rowBytes[k] == 0;
+    }
+    CHECK(result == m3_errorInvalid && total == 0 && zeroed &&
+              m3World_GetCounters(sc.world).misuseCount == misuse + 1u,
+          "a comparison with a NULL world zeroes its rows and counts one misuse");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, NULL, 3, &total) == m3_errorInvalid && total == 0,
+          "a NULL array with a positive capacity is refused");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, rows, -1, &total) == m3_errorInvalid && total == 0,
+          "a negative capacity is refused");
+    CHECK(m3World_Compare(sc.world, sc.world, rows, 3, NULL) == m3_errorInvalid,
+          "a NULL total is refused");
+    CHECK(m3World_GetCounters(sc.world).misuseCount == misuse + 4u,
+          "each refused comparison counts one misuse");
+
+    // Two worlds of different capacities compare slot by slot: every
+    // body of the full world is missing from the empty, wider one.
     m3WorldDef other = m3DefaultWorldDef();
     other.bodyCapacity = wd.bodyCapacity + 1;
     m3World* wider = NewWorld(&other);
-    const m3World* pairs[2][2] = {{sc.world, NULL}, {sc.world, wider}};
-    for (int32_t p = 0; p < 2; ++p)
+    total = 0;
+    CHECK(m3World_Compare(sc.world, wider, NULL, 0, &total) == m3_success && total == 7,
+          "a NULL array with capacity 0 measures");
+    memset(rows, 0x5A, sizeof(rows));
+    total = 0;
+    result = m3World_Compare(sc.world, wider, rows, 3, &total);
+    bool missing = true;
+    for (int32_t i = 0; i < 3; ++i)
     {
-        m3BodyDiff rows[3];
-        memset(rows, 0x5A, sizeof(rows));
-        int32_t count = 7;
-        int32_t got = m3World_Compare(pairs[p][0], pairs[p][1], rows, 3, &count);
-        bool zeroed = true;
-        const unsigned char* bytes = (const unsigned char*)rows;
-        for (size_t k = 0; k < sizeof(rows); ++k)
-        {
-            zeroed = zeroed && bytes[k] == 0;
-        }
-        CHECK(got == -1 && count == 0 && zeroed,
-              p == 0 ? "a comparison with a NULL world zeroes its rows"
-                     : "a comparison of different capacities zeroes its rows");
+        missing = missing && rows[i].onlyInA && !rows[i].onlyInB &&
+                  rows[i].bodyId.index1 == (uint32_t)i + 1u;
     }
+    CHECK(result == m3_success && total == 7 && missing,
+          "a comparison of different capacities reports every body missing from one side");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, rows, 3, &total) == m3_success && total == 0,
+          "a world agrees with itself");
     m3DestroyWorld(wider);
     m3DestroyWorld(sc.world);
 }
@@ -1506,6 +1566,7 @@ int main(void)
     TestOverlapAndInsideFamilies();
     TestFarPointsMissVoxels();
     TestPointTakesFilter();
+    TestPointSkipsDisabledBodies();
     TestGenericCasts();
     TestSensorPassThrough();
     TestSensorEventRoles();

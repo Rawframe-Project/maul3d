@@ -234,7 +234,9 @@ static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 p
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
+        // Disabled bodies vanish from queries.
         if (world->shapes.shapePool.alive[s] != 0 &&
+            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
             m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
                          world->shapes.shapeMask[s]) &&
             PointInShape(world, s, point))

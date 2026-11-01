@@ -52,7 +52,8 @@ uint8_t m3LockBits(m3MotionLocks locks);
 
 void m3SetAllowFastRotationInternal(m3World* world, int32_t index, int32_t allow);
 
-void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name);
+// Stores a name the caller checked: byteCount bytes, then zeros.
+void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name, int32_t byteCount);
 
 #define M3_SLEEP_VELOCITY_DEFAULT 0.05f
 

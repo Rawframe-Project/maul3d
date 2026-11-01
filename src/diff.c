@@ -57,20 +57,20 @@ static void KeepWorst(m3BodyDiff* out, int32_t capacity, int32_t* written, const
     *written = last + 1;
 }
 
-static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3World* worldB,
-                                              m3BodyDiff* out, int32_t capacity, int32_t* outCount)
+static M3_NOINLINE m3Result WorldCompareWorker(const m3World* worldA, const m3World* worldB,
+                                               m3BodyDiff* rowsOut, int32_t capacity,
+                                               int32_t* totalOut)
 {
     const m3World* a = worldA;
     const m3World* b = worldB;
-    if (a == NULL || b == NULL || out == NULL || capacity <= 0 || outCount == NULL ||
-        a->bodies.bodyCapacity != b->bodies.bodyCapacity)
+    if (a == NULL || b == NULL || totalOut == NULL || !m3ListOutputValid(rowsOut, capacity))
     {
-        if (outCount != NULL)
+        if (totalOut != NULL)
         {
-            *outCount = 0;
+            *totalOut = 0;
         }
-        m3ClearListOutput(out, capacity, sizeof(*out));
-        return -1;
+        (void)m3RefuseList(a != NULL ? a : b, rowsOut, capacity, sizeof(*rowsOut));
+        return m3_errorInvalid;
     }
     int32_t maxA = a->bodies.bodyPool.maxIndex;
     int32_t maxB = b->bodies.bodyPool.maxIndex;
@@ -94,7 +94,7 @@ static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3Wor
             d.onlyInA = aliveA != 0;
             d.onlyInB = aliveB != 0;
             found += 1;
-            KeepWorst(out, capacity, &written, &d);
+            KeepWorst(rowsOut, capacity, &written, &d);
             continue;
         }
         m3Vec3 dp = {(float)(a->bodies.transforms[i].p.x - b->bodies.transforms[i].p.x),
@@ -112,18 +112,18 @@ static M3_NOINLINE int32_t WorldCompareWorker(const m3World* worldA, const m3Wor
             a->bodies.awake[i] != b->bodies.awake[i])
         {
             found += 1;
-            KeepWorst(out, capacity, &written, &d);
+            KeepWorst(rowsOut, capacity, &written, &d);
         }
     }
-    *outCount = written;
-    return found;
+    *totalOut = found;
+    return m3_success;
 }
 
-int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
-                        int32_t capacity, int32_t* outCount)
+m3Result m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* rowsOut,
+                         int32_t capacity, int32_t* totalOut)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldCompareWorker(worldA, worldB, out, capacity, outCount);
+    m3Result result = WorldCompareWorker(worldA, worldB, rowsOut, capacity, totalOut);
     m3FloatEnvLeave(env);
     return result;
 }

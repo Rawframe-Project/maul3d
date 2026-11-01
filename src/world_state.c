@@ -7,6 +7,7 @@
 #include "world_state.h"
 
 #include "allocator.h"
+#include "body_state.h"
 #include "manifold.h"
 #include "world_internal.h"
 
@@ -69,7 +70,7 @@ typedef enum m3Check
     m3_check_finite32,    // every float of every element finite
     m3_check_finite64,    // every double of every element finite
     m3_check_transform,   // a double position and a float rotation, finite
-    m3_check_bodyName,    // name slots ending in a zero byte, zeros after the text
+    m3_check_bodyName,    // name slots of UTF-8 text, then zeros to the slot end
 } m3Check;
 
 #define M3_STATE_SNAPSHOT 0x01u // walked by snapshots and restores
@@ -715,23 +716,15 @@ static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
     return true;
 }
 
-// Each slot as m3SetBodyNameInternal writes it: the text, then zeros to
-// the slot's end, its last byte always one of them. A reader takes the
-// slot as a C string, so a slot with no terminator would read past it.
+// Each slot as the setter writes it: valid name text, then zeros to the
+// slot's end, its last byte always one of them. The getter measures the
+// slot up to its first zero, so a slot with no zero would read past it.
 static bool CheckBodyNames(const uint8_t* data, size_t count)
 {
     for (size_t slot = 0; slot + M3_BODY_NAME_CAPACITY <= count; slot += M3_BODY_NAME_CAPACITY)
     {
-        bool ended = false;
-        for (size_t i = 0; i < M3_BODY_NAME_CAPACITY; ++i)
-        {
-            if (ended && data[slot + i] != 0)
-            {
-                return false;
-            }
-            ended = ended || data[slot + i] == 0;
-        }
-        if (!ended)
+        int32_t length;
+        if (!m3BodyNameSlotValid(data + slot, &length))
         {
             return false;
         }

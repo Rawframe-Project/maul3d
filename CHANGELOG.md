@@ -6,6 +6,260 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.0](https://github.com/Rawframe-Project/maul3d/compare/v0.10.0...v0.11.0) (2026-11-01)
+
+### Added
+
+- **The spherical joint's cone at run time.**
+  `m3SphericalJoint_EnableCone`, `IsConeEnabled`, `SetConeAngle` and
+  `GetConeAngle` switch and move the swing cone without recreating the
+  joint, so a ragdoll keeps its warm impulses. Each call wakes the
+  joint's bodies. The angle must be finite and not negative, and
+  `EnableCone` refuses to switch the cone on over a negative angle a
+  def left. Any other joint type or a stale id is refused with one
+  misuse, and the getters then read false and 0.
+  ([#205](https://github.com/Rawframe-Project/maul3d/pull/205))
+
+### Changed
+
+- **Breaking: names follow maul2d's and the API's own patterns.**
+  Rename your calls as below. Each does what the old name did, except
+  where the two height field creates trade names: a call written for
+  the old `m3CreateHeightFieldShape` still compiles and now builds the
+  native grid, so a program that wants the triangle mesh must call
+  `m3CreateHeightFieldMeshShape`.
+
+  | 0.10.0 | 0.11.0 |
+  |---|---|
+  | `m3AabbResult` in `body.h` | `m3WorldAabb` in `world.h` |
+  | `m3Joint_GetConstraintForce`, `GetConstraintTorque` | `m3Joint_GetReactionForce`, `GetReactionTorque` |
+  | `m3Joint_SetBreakThresholds` | `m3Joint_SetBreakLimits` |
+  | `m3_fixedJoint`, value 3 | `m3_weldJoint`, value 3 |
+  | `m3CreateHeightFieldGridShape` | `m3CreateHeightFieldShape` |
+  | `m3CreateHeightFieldShape`, the triangle mesh | `m3CreateHeightFieldMeshShape` |
+  | `m3CreateSoftBodyTet` | `m3CreateTetSoftBody` |
+  | `M3_MOVER_PLANES` | `M3_MAX_MOVER_PLANES` |
+  | `m3World_OverlapHullPoints` | `m3World_OverlapHull` |
+  | `m3FragmentEvent`'s `comChunk`, `comWorld`, `boundsLo`, `boundsHi` | `localCenter`, `worldCenter`, `lowerBound`, `upperBound` |
+  | `m3WaterVolumeDef`'s `lo`, `hi` | `bounds.lowerBound`, `bounds.upperBound` |
+  | `m3WheelDef`'s `hertz`, `zeta` | `springHertz`, `springDampingRatio` |
+  | `m3Counters`' `misuse`, `allocCalls`, `freeCalls`, `heldPushRetakes` | `misuseCount`, `allocCount`, `freeCount`, `heldPushRetakeCount` |
+  | `m3Body_GetRotationalInertia` | `m3Body_GetCentralInertia` |
+  | C# `JointType.Fixed` | `JointType.Weld` |
+  | Godot `substeps` property | `substep_count` |
+
+  `m3Joint_GetBreakLimits` is new and reads back what
+  `m3Joint_SetBreakLimits` set, 0 for a cap that is off.
+  ([#207](https://github.com/Rawframe-Project/maul3d/pull/207),
+  [#255](https://github.com/Rawframe-Project/maul3d/pull/255),
+  [#256](https://github.com/Rawframe-Project/maul3d/pull/256),
+  [#257](https://github.com/Rawframe-Project/maul3d/pull/257),
+  [#258](https://github.com/Rawframe-Project/maul3d/pull/258),
+  [#263](https://github.com/Rawframe-Project/maul3d/pull/263))
+- **Breaking: the distance joint has its own range, spring and rest
+  length.** Its range is `m3JointDef.minLength` and `maxLength`, set
+  with `m3DistanceJoint_SetLengthRange` and read with
+  `GetLengthRange`. Its spring is switched by the def's `enableSpring`
+  with `springHertz` and `springDampingRatio`, and by
+  `m3Joint_EnableSpring` and the spring setters at run time. It pulls
+  toward `m3JointDef.length`, set with `m3DistanceJoint_SetLength`,
+  which need not lie inside the range. The joint takes no limit and no
+  motor, so a def that still sets the range through `enableLimit` or
+  the spring through `enableMotor` is refused at create, as are the
+  limit and motor calls on it. The def's spring fields now switch the
+  spring at create on every joint type that takes one. The C#
+  `JointDef` gains `MinLength`, `MaxLength`, `Length`, `EnableSpring`,
+  `SpringHertz` and `SpringDampingRatio`.
+  ([#191](https://github.com/Rawframe-Project/maul3d/pull/191),
+  [#202](https://github.com/Rawframe-Project/maul3d/pull/202))
+- **Breaking: kinds and modes are fixed-width integers.**
+  `m3BodyType`, `m3ShapeType`, `m3JointType` and `m3AxisMode` are
+  `int32_t` typedefs with the same named values, so source that uses
+  the names compiles as before. `m3DrivetrainDef.diffMode` is an
+  `m3DifferentialMode`: `m3_differentialOpen`,
+  `m3_differentialLimitedSlip` or `m3_differentialLocked`. The generic
+  joint's modes are `m3AxisMode` arrays, so `m3JointDef` grows from
+  248 to 272 bytes. The C# defs hold `BodyType`, `JointType` and a new
+  `AxisMode` enum.
+  ([#282](https://github.com/Rawframe-Project/maul3d/pull/282))
+- **Breaking: refusals a correct program can meet return a status.**
+  These calls carry `M3_NODISCARD` and return `m3Result`:
+  - `m3VoxelChunkShape_SetVoxel`, `ClearVoxel`, `SetFill` and
+    `ClearBox` return `m3_errorLimit` when the chunk's surface would
+    pass `M3_MAX_VOXEL_SURFACE_BOXES`, 2048 boxes, and change nothing.
+    `ClearBox` writes its count through a new `int32_t* clearedOut`.
+  - `m3SoftBody_PinParticle`, `AnchorParticle` and `AnchorToSoft`
+    return `m3_errorLimit` for a full table of
+    `M3_MAX_SOFTBODY_ANCHORS`.
+  - `m3Body_SetType`, `m3Body_SetTargetTransform`,
+    `m3Shape_SetDensity`, `m3Shape_SetSphere` and `m3Shape_SetCapsule`
+    return `m3_errorLimit` for a body mass past `M3_MASS_LIMIT`, a
+    joint past its lever ratio, a type change the body's shapes, joints
+    or speed refuse, or a servo target out of reach.
+
+  A refusal the world's state decides no longer counts misuse, in
+  these calls and in the shape and joint creates and `m3DestroyShape`.
+  A stale id is `m3_errorStale`, a density past `M3_DENSITY_LIMIT`
+  `m3_errorLimit` and a bad argument `m3_errorInvalid`, each still
+  counting one misuse.
+  ([#265](https://github.com/Rawframe-Project/maul3d/pull/265),
+  [#266](https://github.com/Rawframe-Project/maul3d/pull/266),
+  [#268](https://github.com/Rawframe-Project/maul3d/pull/268))
+- **Breaking: `m3World_Step` returns `m3_errorLimit` past its
+  published bounds.** A dt below `M3_MIN_STEP` or above
+  `M3_STEP_LIMIT`, an infinite one included, and more than
+  `M3_MAX_SUBSTEPS` substeps were `m3_errorInvalid`. A NaN dt, a dt of
+  zero or below and fewer than one substep stay `m3_errorInvalid`.
+  Each still counts one misuse. The step's second parameter is named
+  `substepCount`.
+  ([#283](https://github.com/Rawframe-Project/maul3d/pull/283),
+  [#263](https://github.com/Rawframe-Project/maul3d/pull/263))
+- **Breaking: list calls take the filter before the array and return
+  the true total.** `m3World_OverlapAabb`, `OverlapSphere`,
+  `OverlapCapsule`, `OverlapBox`, `OverlapHull` and `CastRayAll` take
+  the query filter before the output array. `m3World_OverlapAabb`
+  takes one `m3WorldAabb` in place of its two corners. Those six,
+  `m3World_CollideMover`, `m3Body_GetContactData` and
+  `m3Shape_GetContactData` write at most capacity entries and return
+  the total, which may exceed the capacity, where they returned the
+  count written. A NULL array with capacity 0 measures. A NULL array
+  with a positive capacity, or a negative capacity, is refused with one
+  misuse by these calls and by `m3World_GetBodies`, `GetJoints`,
+  `m3Body_GetShapes` and `GetJoints`, which took both before.
+  ([#207](https://github.com/Rawframe-Project/maul3d/pull/207),
+  [#216](https://github.com/Rawframe-Project/maul3d/pull/216))
+- **Breaking: a refused list call or snapshot zeroes the caller's
+  buffer.** Every list call above and `m3World_Compare` zero their
+  array over its whole capacity when they refuse, a stale id included,
+  so an earlier answer is never read as this one. A successful answer,
+  an empty one included, writes only its entries. A refused
+  `m3World_Snapshot` zeroes its buffer over its capacity, so a host
+  that rings snapshot buffers should size each with
+  `m3World_GetSnapshotSize` first.
+  ([#259](https://github.com/Rawframe-Project/maul3d/pull/259))
+- **Breaking: one hit type for every cast.** `m3CastHit`
+  {`shapeId`, `point`, `normal`, `fraction`} replaces
+  `m3RayCastResult` and `m3RayHit`. `m3World_CastRayClosest`,
+  `CastSphereClosest`, `CastCapsuleClosest`, `CastBoxClosest`,
+  `CastHullClosest` and `CastMover` return `bool` and take
+  `m3CastHit* hitOut` last. Each clears it first, so a miss leaves
+  zeros, and a NULL `hitOut` returns false with one misuse.
+  `m3World_CastRayAll` fills `m3CastHit`. The C# `RayCastResult` is
+  `CastHit`, and `CastRayClosest` takes `out CastHit hit`.
+  ([#211](https://github.com/Rawframe-Project/maul3d/pull/211))
+- **Breaking: sensor events name the sensor, the visitor and the
+  step.** `m3SensorEvents` holds arrays of `m3SensorBeginEvent` and
+  `m3SensorEndEvent`, each {`sensorShapeId`, `visitorShapeId`,
+  `step`}, in place of the contact event structs with `shapeIdA` and
+  `shapeIdB`. `step` is the world's step count before the step, so the
+  first step's events carry 0.
+  ([#217](https://github.com/Rawframe-Project/maul3d/pull/217))
+- **Breaking: snapshot, journal and replay sizes are 64-bit, with no
+  cap.** `m3World_GetSnapshotSize`, `m3World_Snapshot`,
+  `m3World_Restore`, `m3World_StartJournal`, `m3World_StopJournal`,
+  `m3World_ReplayJournal`, `m3DescribeJournal`,
+  `m3GetEncodedReplaySize`, `m3EncodeReplay` and `m3DecodeReplay` take
+  and return `int64_t` sizes, as do `m3ReplayView`'s sizes,
+  `m3JournalInfo`'s counts and `m3Counters.snapshotBytes`, and the C#
+  snapshot calls take `long`. `M3_MAX_SNAPSHOT_BYTES` is removed, and
+  `m3CreateWorld` no longer limits mesh and hull slots, and a height
+  field grid's create no longer refuses samples, to keep a snapshot
+  under 2 GiB. On a 32-bit target a size past
+  `SIZE_MAX` is `m3_errorInvalid`.
+  ([#226](https://github.com/Rawframe-Project/maul3d/pull/226))
+- **Breaking: what a failed call leaves in `bytesOut`.**
+  `m3World_Snapshot` and `m3World_StopJournal` write 0 when the world
+  is NULL, where they left it. A stop refused as busy, from the world's
+  own callback, leaves it as it was, where it wrote 0.
+  `m3EncodeReplay` leaves it as it was on any failure, where it
+  wrote 0.
+  ([#210](https://github.com/Rawframe-Project/maul3d/pull/210),
+  [#215](https://github.com/Rawframe-Project/maul3d/pull/215))
+- **Breaking: `m3IsCpuBackendSupported` returns `bool`** in place of
+  an `int32_t` 1 or 0, and `m3Hash64` takes an `int64_t` byte count.
+  ([#260](https://github.com/Rawframe-Project/maul3d/pull/260))
+- **Breaking: joints solve their coupled rows as one block.** A
+  slider, weld or generic weld whose anchor sits far from its body's
+  center of mass gave way by metres: on a 100 m arm a slider sagged
+  2.4 m off its axis in a second. It now holds within 1e-4 m. The
+  prismatic, weld, revolute, wheel and generic joints step to
+  different results, and the joint-heavy bench scene costs about 18%
+  more a step, the others about 5%.
+  ([#232](https://github.com/Rawframe-Project/maul3d/pull/232))
+- **Breaking: `m3Counters.awakeCount` counts only enabled bodies.** A
+  body disabled while awake keeps its awake flag and was counted,
+  though it takes no part in the step.
+  ([#287](https://github.com/Rawframe-Project/maul3d/pull/287))
+- **Formats.** Journal tapes are format 7 and the replay container is
+  format 4, with a 56-byte header. As in every release, a snapshot,
+  tape or container written by another release is refused with
+  `m3_errorVersion`.
+  ([#191](https://github.com/Rawframe-Project/maul3d/pull/191),
+  [#202](https://github.com/Rawframe-Project/maul3d/pull/202),
+  [#205](https://github.com/Rawframe-Project/maul3d/pull/205),
+  [#226](https://github.com/Rawframe-Project/maul3d/pull/226),
+  [#282](https://github.com/Rawframe-Project/maul3d/pull/282))
+
+### Removed
+
+- **Breaking: the `m3real` typedef.** Every call and field that used
+  it takes `float`, the same type, so replace the name and nothing else
+  moves.
+  ([#262](https://github.com/Rawframe-Project/maul3d/pull/262))
+
+### Fixed
+
+- A shape created in a destroyed shape's slot took over its contact
+  pairs: an end event for a touch it never had, a lost begin event, the
+  dead pair's warm impulses, and for a sleeping pair a world that no
+  longer stepped like one restored at the same moment. A destroy now
+  forgets its shape's pairs. The first destroy after a step builds an
+  index of the pairs, about 0.4 ms in a world of 138,000 pairs, and
+  later destroys cost what they did.
+  ([#219](https://github.com/Rawframe-Project/maul3d/pull/219),
+  [#223](https://github.com/Rawframe-Project/maul3d/pull/223))
+- A free hook that read a shape or body back during its destroy found
+  a live id over content already freed. The id is now stale before any
+  content is freed.
+  ([#278](https://github.com/Rawframe-Project/maul3d/pull/278))
+- A reader called from the free hook during `m3DestroyWorld` walked
+  pools already freed, a use after free under AddressSanitizer. The
+  hook now finds an empty world, and every writer it calls is refused
+  as busy.
+  ([#285](https://github.com/Rawframe-Project/maul3d/pull/285))
+- `m3EncodeReplay` copied into an output that overlapped the snapshot
+  or the tape, which C leaves undefined. It now refuses with
+  `m3_errorInvalid` and writes nothing.
+  ([#281](https://github.com/Rawframe-Project/maul3d/pull/281))
+- A call given a NULL world and a live id returned `m3_errorStale`. It
+  returns `m3_errorInvalid`.
+  ([#275](https://github.com/Rawframe-Project/maul3d/pull/275))
+- `m3World_StopJournal` on an overflowed journal returned
+  `m3_errorState` with one misuse, where its documentation says
+  `m3_errorCapacity`. It returns `m3_errorCapacity` and counts none.
+  ([#221](https://github.com/Rawframe-Project/maul3d/pull/221))
+- The joint create accepted `enableCone` on every type. On a wheel it
+  switched steering on at 0 Hz, and the world's own snapshot was then
+  refused by its restore. Only the spherical joint takes it now.
+  ([#204](https://github.com/Rawframe-Project/maul3d/pull/204))
+- `m3World_Restore` accepted values no call can write, and now refuses
+  them with `m3_errorFormat`: a motor joint aim past 4e15 m on any
+  axis, a nonzero third drive value on a joint type that never writes
+  it, and a touching pair of two sensors, which the next step reported
+  as a sensor event.
+  ([#198](https://github.com/Rawframe-Project/maul3d/pull/198),
+  [#201](https://github.com/Rawframe-Project/maul3d/pull/201),
+  [#225](https://github.com/Rawframe-Project/maul3d/pull/225))
+- `m3World_Restore` took the body name slots without a check, so a
+  snapshot whose name slot held no zero byte restored, and
+  `m3Body_GetName` then returned text that ran past its slot. Restore
+  refuses such a slot with `m3_errorFormat`.
+  ([#292](https://github.com/Rawframe-Project/maul3d/pull/292))
+- `m3replay` sized a container with a 32-bit offset on Windows and
+  32-bit Linux, so a container past 2 GiB read as invalid. It uses a
+  64-bit offset and names each read failure.
+  ([#231](https://github.com/Rawframe-Project/maul3d/pull/231))
+
 ## [0.10.0](https://github.com/Rawframe-Project/maul3d/compare/v0.9.0...v0.10.0) (2026-10-29)
 
 ### Added
