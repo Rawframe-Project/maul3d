@@ -83,17 +83,9 @@ static inline void FuzzBodyValues(m3World* world, m3BodyId body, m3CharacterId h
         (void)m3Body_SetType(world, body, m3Body_GetType(world, body));
     }
     m3Body_Enable(world, body, m3Body_IsEnabled(world, body));
-    // A copy, since the setter writes where the getter's string lives.
-    char name[32];
-    const char* held = m3Body_GetName(world, body);
-    size_t length = 0;
-    while (length < sizeof(name) - 1 && held[length] != 0)
-    {
-        ++length;
-    }
-    memcpy(name, held, length);
-    name[length] = 0;
-    m3Body_SetName(world, body, name);
+    char name[M3_MAX_BODY_NAME_BYTES];
+    int32_t length = m3Body_GetName(world, body, name, M3_MAX_BODY_NAME_BYTES);
+    (void)m3Body_SetName(world, body, name, length);
     m3Body_SetLinearVelocity(world, body, m3Body_GetLinearVelocity(world, body));
     m3Body_SetAngularVelocity(world, body, m3Body_GetAngularVelocity(world, body));
     m3Body_SetGravityScale(world, body, m3Body_GetGravityScale(world, body));

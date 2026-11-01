@@ -802,6 +802,38 @@ static void TestFarPointsMissVoxels(void)
     m3DestroyWorld(world);
 }
 
+// The point test skips a disabled body's shapes, as every other query
+// does: it answers with the next shape that holds the point, or none.
+static void TestPointSkipsDisabledBodies(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){2.0, 3.0, -1.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3BodyId first = NewBody(world, &bd);
+    m3ShapeId firstBall = NewSphereShape(world, first, &sd, &ball);
+    m3BodyId second = NewBody(world, &bd);
+    m3ShapeId secondBall = NewSphereShape(world, second, &sd, &ball);
+    m3Pos3 center = {2.0, 3.0, -1.0};
+    CHECK(m3World_TestPoint(world, center).index1 == firstBall.index1,
+          "the lowest shape that holds the point answers");
+    m3Body_Enable(world, first, false);
+    CHECK(m3World_TestPoint(world, center).index1 == secondBall.index1,
+          "a disabled body's shape is skipped for the next one");
+    m3Body_Enable(world, second, false);
+    m3ShapeId found[2];
+    CHECK(m3World_TestPoint(world, center).index1 == 0 &&
+              m3World_OverlapSphere(world, center, 0.1f, m3DefaultQueryFilter(), found, 2) == 0,
+          "with both bodies disabled the point test agrees with the overlap: nothing");
+    m3Body_Enable(world, first, true);
+    CHECK(m3World_TestPoint(world, center).index1 == firstBall.index1,
+          "an enabled body's shape answers again");
+    m3DestroyWorld(world);
+}
+
 // The generic casts. Boxes carry orientation, hulls carry
 // their cloud, and every cast keeps the family contracts.
 static void TestGenericCasts(void)
@@ -1495,6 +1527,7 @@ int main(void)
     TestCastsAgainstMeshAndPlane();
     TestOverlapAndInsideFamilies();
     TestFarPointsMissVoxels();
+    TestPointSkipsDisabledBodies();
     TestGenericCasts();
     TestSensorPassThrough();
     TestSensorEventRoles();

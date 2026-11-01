@@ -178,12 +178,30 @@ extern "C"
     /// step holds every body within. Journaled.
     M3_API void m3Body_EnableFastRotation(m3World* world, m3BodyId body, bool flag);
     M3_API bool m3Body_IsFastRotationEnabled(const m3World* world, m3BodyId body);
-    /// Debug name, up to 31 bytes plus the terminator; longer names
-    /// truncate silently. Journaled and carried by snapshots, never
-    /// part of the hash (a label moves no matter). GetName returns
-    /// the empty string for unnamed bodies and stale ids.
-    M3_API void m3Body_SetName(m3World* world, m3BodyId body, const char* name);
-    M3_API const char* m3Body_GetName(const m3World* world, m3BodyId body);
+    /// A body's debug name: UTF-8 of at most M3_MAX_BODY_NAME_BYTES bytes,
+    /// with no zero byte. Journaled and carried by snapshots, never part
+    /// of the hash (a label moves no matter). A body starts unnamed, and
+    /// a byteCount of 0 clears the name. name may be NULL when byteCount
+    /// is 0.
+    /// Returns m3_success; m3_errorLimit for a byteCount past
+    /// M3_MAX_BODY_NAME_BYTES; m3_errorStale for a stale id;
+    /// m3_errorInvalid for a NULL world, the null id, a negative
+    /// byteCount, a NULL name with a positive byteCount, or bytes that
+    /// are not valid UTF-8 or hold a zero byte; m3_errorBusy inside a step
+    /// callback. Every refusal changes nothing and counts one misuse.
+    M3_NODISCARD M3_API m3Result m3Body_SetName(m3World* world, m3BodyId body, const char* name,
+                                                int32_t byteCount);
+    /// Copies a body's name into nameOut, with no terminator, and returns
+    /// its byte length, 0 for an unnamed body. The name is written only
+    /// when it fits whole: a capacity below its length zeroes nameOut
+    /// over its capacity and still returns the length, so a NULL nameOut
+    /// with capacity 0 measures, and a capacity of M3_MAX_BODY_NAME_BYTES
+    /// always fits. A stale id, a NULL world, a negative capacity or a
+    /// NULL nameOut with a positive capacity returns 0 and counts one
+    /// misuse; nameOut is then zeroed over its capacity whenever it and
+    /// the capacity are valid.
+    M3_API int32_t m3Body_GetName(const m3World* world, m3BodyId body, char* nameOut,
+                                  int32_t capacity);
     /// Who touches me now: fills up to capacity entries and returns
     /// the total, which may exceed capacity; a NULL array with
     /// capacity 0 measures. A stale body is a refusal. A refusal zeroes the array over its whole

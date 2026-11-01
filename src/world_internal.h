@@ -68,7 +68,9 @@ static inline int32_t m3CellFromF(float f, float nanPark)
 
 // Debug names: journaled and snapshot like userData, NEVER
 // hashed (a name moves no matter).
-#define M3_BODY_NAME_CAPACITY 32
+// Each slot holds the name's bytes, then zeros to its end, so its last
+// byte is always zero.
+#define M3_BODY_NAME_CAPACITY (M3_MAX_BODY_NAME_BYTES + 1)
 
 // Immutable interned hull data (lifetime 3): vertices, face planes,
 // and face vertex loops for the SAT, plus unit-density mass

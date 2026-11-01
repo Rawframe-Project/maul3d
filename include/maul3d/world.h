@@ -627,8 +627,9 @@ extern "C"
                                            m3QueryFilter filter, m3CastHit* hitOut);
 
     /// The first shape (lowest index) whose volume contains the
-    /// point, or the null id. Meshes are open surfaces and never
-    /// contain points; planes are solid half spaces.
+    /// point, or the null id. A disabled body's shapes are skipped.
+    /// Meshes are open surfaces and never contain points; planes are
+    /// solid half spaces.
     M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point);
 
     /// The overlap queries write the lowest capacity shape ids in
