@@ -307,7 +307,8 @@ static void TestPlaneSitsWithItsBody(void)
     // quarter about z, which carries the plane's +x normal to +y, and
     // the shape rides 1 m out along that normal, so the floor at offset
     // 1 lies at y = 4. A ball, a lying capsule and a box come to rest on
-    // it, a fast ball stops on it, and the ray and the mover meet it there.
+    // it, a fast ball stops on it, and the ray, the sphere cast and the mover
+    // meet it there.
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
@@ -353,6 +354,11 @@ static void TestPlaneSitsWithItsBody(void)
     bool down = m3World_CastRayClosest(world, (m3Pos3){-8.0, 10.0, 0.0},
                                        (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
     CHECK(down && fabs(hit.point.y - 4.0) < 1.0e-4, "the ray meets the floor at y = 4");
+    m3CastHit swept = {0};
+    bool cast =
+        m3World_CastSphereClosest(world, (m3Pos3){-8.0, 10.0, 0.0}, 0.5f,
+                                  (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &swept);
+    CHECK(cast && fabsf(swept.fraction - 0.55f) < 1.0e-3f, "the sphere cast stops on it too");
     m3MoverPlane planes[2];
     int32_t met =
         m3World_CollideMover(world, (m3Pos3){-8.0, 4.85, 0.0}, 0.5f, 0.3f, 0.1f, planes, 2);
