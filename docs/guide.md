@@ -1131,8 +1131,9 @@ volume, wakes everything around BOTH the old and the new bounds
 broadphase picks the new box up the same step machinery that
 tracks every mover.
 
-The overlap family joins the sphere: m3World_OverlapCapsule, an
-oriented m3World_OverlapBox, and m3World_OverlapHull (a
+The overlap family joins the sphere: m3World_OverlapCapsule (a
+center and two center-relative points, as the capsule cast takes
+them), an oriented m3World_OverlapBox, and m3World_OverlapHull (a
 base plus up to 64 base-relative points and an optional radius,
 the cast convention). All answer EXACTLY per family: convex
 candidates through the GJK core, planes by minimum point
