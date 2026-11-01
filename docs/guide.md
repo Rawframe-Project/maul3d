@@ -1282,6 +1282,7 @@ past what real scenes use. Vectors are bounded per component.
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
 | Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
+| Contact lever | `M3_CONTACT_LEVER_LIMIT`, 1e6 for mass * arm^2 / moment: see below | a shape create, destroy, resize, density or filter change on a dynamic body, a body turning dynamic |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface |
 | Capacities | `M3_MAX_SHAPE_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
 
@@ -1316,6 +1317,22 @@ it too. The ratio does not depend on
 how the bodies turn, so a joint within it stays within it as they
 move. The distance, generic, parallel, gear, pulley and filter joints
 solve single rows and keep no such limit.
+
+A dynamic body keeps the same ratio for its contacts, over its own mass:
+its mass times the squared arm from its center of mass to any point of
+a shape that can collide (not a sensor, and with a nonzero category and
+mask or a positive group), over the moment that arm turns it, within
+1e6. Contacts are solved in float lanes, one constraint after another,
+so a contact far out on a body that a joint or another contact also
+holds must be undone by it at every pass: past about 1e7 the two no
+longer settle, and the contact lets its shape sink through the ground.
+A core of density 1e6 and radius 1 with a colliding shell of radius 1
+reaches 1e6 near 630 m. A shape create, destroy, resize or density
+change, a filter change that lets a shape collide, and a body turning
+dynamic are refused past it, each with m3_errorLimit, changing nothing
+and counting no misuse; restore and replay refuse it too. Shapes that
+collide with nothing, and static and kinematic bodies, keep no such
+limit.
 
 Restore refuses the same values past the same limits. Creates and
 teleports place every body and soft particle within 1e15 m, and the

@@ -37,8 +37,8 @@ static void HullContentStarts(const m3World* world, const uint8_t* raw, int64_t 
 }
 
 // The incoming shape arrays, and the hull records' starts, that the mass
-// computation reads; hull holds the unit mass properties of the shape
-// read last.
+// computation reads; hull holds the unit mass properties and the vertices
+// of the shape read last.
 typedef struct IncomingShapes
 {
     const uint8_t* next;
@@ -49,6 +49,10 @@ typedef struct IncomingShapes
     const uint8_t* hasOffset;
     const uint8_t* localPos;
     const uint8_t* localRot;
+    const uint8_t* sensors;
+    const uint8_t* categories;
+    const uint8_t* masks;
+    const uint8_t* groups;
     const uint8_t* raw;
     const int64_t* starts;
     m3HullData* hull;
@@ -65,23 +69,37 @@ static void ReadIncomingShape(const void* context, int32_t s, m3MassShape* out)
     memcpy(&out->localPos, in->localPos + (size_t)s * sizeof(m3Vec3), sizeof(out->localPos));
     memcpy(&out->localRot, in->localRot + (size_t)s * sizeof(m3Quat), sizeof(out->localRot));
     memcpy(&out->next, in->next + 4 * (size_t)s, sizeof(out->next));
+    uint64_t category;
+    uint64_t mask;
+    int32_t group;
+    memcpy(&category, in->categories + 8 * (size_t)s, sizeof(category));
+    memcpy(&mask, in->masks + 8 * (size_t)s, sizeof(mask));
+    memcpy(&group, in->groups + 4 * (size_t)s, sizeof(group));
+    out->collides = m3ShapeCanCollide(in->sensors[s], category, mask, group) ? 1 : 0;
     memcpy(&h, in->hullIndices + 4 * (size_t)s, sizeof(h));
     memset(&in->hull->unitMass, 0, sizeof(in->hull->unitMass));
     memset(&in->hull->unitCom, 0, sizeof(in->hull->unitCom));
     memset(&in->hull->unitInertiaCom, 0, sizeof(in->hull->unitInertiaCom));
+    in->hull->vertexCount = 0;
     if (h >= 0 && in->starts[h] >= 0)
     {
+        // The record: its four counts, the unit mass properties, the
+        // vertex centroid, then the vertices (src/snapshot_walk.c).
         const uint8_t* at = in->raw + in->starts[h];
+        memcpy(&in->hull->vertexCount, at - 16, sizeof(in->hull->vertexCount));
         memcpy(&in->hull->unitMass, at, sizeof(in->hull->unitMass));
         memcpy(&in->hull->unitCom, at + 4, sizeof(in->hull->unitCom));
         memcpy(&in->hull->unitInertiaCom, at + 4 + sizeof(m3Vec3),
                sizeof(in->hull->unitInertiaCom));
+        memcpy(in->hull->vertices, at + 4 + 2 * sizeof(m3Vec3) + sizeof(m3Mat3),
+               (size_t)in->hull->vertexCount * sizeof(m3Vec3));
     }
     out->hull = h >= 0 ? in->hull : NULL;
 }
 
-// Whether every incoming joint keeps its lever ratio at the masses the
-// incoming bodies take from their shapes, as restore will compute them.
+// Whether every incoming dynamic body keeps its contact lever ratio, and
+// every incoming joint its lever ratio, at the masses the incoming bodies
+// take from their shapes, as restore will compute them.
 static bool IncomingLeversFit(m3World* world, const uint8_t* prefix, const IncomingShapes* shapes,
                               bool* fits)
 {
@@ -103,6 +121,7 @@ static bool IncomingLeversFit(m3World* world, const uint8_t* prefix, const Incom
     {
         return false;
     }
+    *fits = true;
     for (int32_t b = 0; b < bodyCap; ++b)
     {
         m3LeverBody none = {0.0f, m3MakeZeroMat3(), {0.0f, 0.0f, 0.0f}};
@@ -114,9 +133,10 @@ static bool IncomingLeversFit(m3World* world, const uint8_t* prefix, const Incom
             bool massive;
             memcpy(&head, heads + 4 * (size_t)b, sizeof(head));
             levers[b] = m3DynamicMassOf(ReadIncomingShape, shapes, head, &inertia, &massive);
+            *fits = *fits && m3ContactLeverFits(ReadIncomingShape, shapes, head, &levers[b],
+                                                &inertia, massive);
         }
     }
-    *fits = true;
     for (int32_t j = 0; *fits && j < world->joints.jointPool.capacity; ++j)
     {
         if (jointAlive[j] == 0)
@@ -208,6 +228,10 @@ m3Result m3SnapshotMassesFit(m3World* world, const uint8_t* raw, const uint8_t* 
         prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeHasOffset)),
         prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeLocalPos)),
         prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeLocalRot)),
+        prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeSensor)),
+        prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeCategory)),
+        prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeMask)),
+        prefix + m3StateFieldAt(world, offsetof(m3World, shapes.shapeGroup)),
         raw,
         starts,
         &hull};

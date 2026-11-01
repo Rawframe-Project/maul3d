@@ -489,7 +489,8 @@ bool m3ReplaySetFilter(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, r->payload, sizeof(record));
     int32_t slot = m3ShapeSlot(world, record.id);
-    if (slot < 0)
+    if (slot < 0 || !m3ShapeFilterKeepsLevers(world, slot, record.categoryBits, record.maskBits,
+                                              record.groupIndex))
     {
         return false; // hostile bytes fail loudly
     }

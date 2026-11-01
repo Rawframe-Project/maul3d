@@ -58,7 +58,7 @@ static inline void FuzzShapeValues(m3World* world, m3ShapeId shape)
     uint64_t mask = 0;
     int32_t group = 0;
     m3Shape_GetFilter(world, shape, &category, &mask, &group);
-    m3Shape_SetFilter(world, shape, category, mask, group);
+    (void)m3Shape_SetFilter(world, shape, category, mask, group);
 }
 
 // Whether a body is the character's own: the kinematic body the character
