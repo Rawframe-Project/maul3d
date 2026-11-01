@@ -164,6 +164,50 @@ static void TestNamesAndHooks(void)
     m3DestroyWorld(world);
 }
 
+// A name slot is the text, then zeros to the slot's end. Restore takes
+// only slots of that shape: a slot with no terminator would hand
+// m3Body_GetName text that runs past it.
+static void TestRestoreRefusesBrokenNameSlots(void)
+{
+    static uint8_t clean[2097152];
+    static uint8_t poisoned[2097152];
+    static uint8_t after[2097152];
+    m3World* world = BuildYard();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){5.0, 1.0, 0.0};
+    m3BodyId hero = NewBody(world, &bd);
+    m3Body_SetName(world, hero, "a name of exactly thirty one b!");
+    CHECK(strlen(m3Body_GetName(world, hero)) == 31, "a full slot holds 31 bytes of text");
+    int64_t size = Snapshot(world, clean, (int64_t)sizeof(clean));
+    CHECK(size > 0, "the named world is snapshotted");
+    CHECK(Restore(world, clean, size), "a full name slot restores");
+    int64_t at = -1;
+    for (int64_t i = 0; size > 0 && i + 31 <= size && at < 0; ++i)
+    {
+        at = memcmp(clean + i, "a name of exactly thirty one b!", 31) == 0 ? i : -1;
+    }
+    CHECK(at >= 0 && at + 32 <= size, "the name slot is found");
+
+    memcpy(poisoned, clean, (size_t)size);
+    memset(poisoned + at, 'a', 32);
+    CHECK(m3World_Restore(world, poisoned, size) == m3_errorFormat,
+          "a name slot with no terminator is refused");
+    CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+          "and the world is untouched");
+
+    m3Body_SetName(world, hero, "hero");
+    CHECK(Snapshot(world, clean, size) == size, "the short name is snapshotted");
+    memcpy(poisoned, clean, (size_t)size);
+    poisoned[at + 20] = 'x';
+    CHECK(m3World_Restore(world, poisoned, size) == m3_errorFormat,
+          "a name slot with a byte after its terminator is refused");
+    CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+          "and the world is untouched again");
+    CHECK(strcmp(m3Body_GetName(world, hero), "hero") == 0, "the name is the one it was");
+    m3DestroyWorld(world);
+}
+
 static void TestContactReadback(void)
 {
     m3World* world = BuildYard();
@@ -308,6 +352,7 @@ int main(void)
     TestCountsMatchTheScene();
     TestReadingIsPure();
     TestNamesAndHooks();
+    TestRestoreRefusesBrokenNameSlots();
     TestContactReadback();
     TestReadback();
     if (s_failures == 0)
