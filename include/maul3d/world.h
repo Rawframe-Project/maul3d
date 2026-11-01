@@ -652,7 +652,8 @@ extern "C"
     /// sphere: shapes within EXACT reach (GJK per candidate, planes
     /// and voxel/mesh handled per family), ascending shape index,
     /// filtered, read-only. Clouds carry base-relative points (the
-    /// cast convention), at most 64 of them.
+    /// cast convention), at most 64 of them. A box's rotation is within
+    /// a percent of unit length, as the box cast's: any other refuses.
     M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, float radius,
                                           m3QueryFilter filter, m3ShapeId* idsOut,
                                           int32_t capacity);
