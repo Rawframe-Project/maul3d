@@ -69,6 +69,7 @@ typedef enum m3Check
     m3_check_finite32,    // every float of every element finite
     m3_check_finite64,    // every double of every element finite
     m3_check_transform,   // a double position and a float rotation, finite
+    m3_check_bodyName,    // name slots ending in a zero byte, zeros after the text
 } m3Check;
 
 #define M3_STATE_SNAPSHOT 0x01u // walked by snapshots and restores
@@ -137,7 +138,7 @@ static const m3StateArray s_state[] = {
     M3_STATE_CHECKED(bodies.sleepTimes, float, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.bulletFlags, uint8_t, body, M3_STATE_SNAPSHOT, bool, one),
     M3_STATE_ARRAY(bodies.userData, uint64_t, body, M3_STATE_SNAPSHOT),
-    M3_STATE_ARRAY(bodies.bodyNames, char, bodyName, M3_STATE_SNAPSHOT),
+    M3_STATE_CHECKED(bodies.bodyNames, char, bodyName, M3_STATE_SNAPSHOT, bodyName, one),
     M3_STATE_CHECKED(bodies.bodyForce, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.bodyTorque, m3Vec3, body, M3_STATE_SNAPSHOT, finite32, one),
     M3_STATE_CHECKED(bodies.bodyEnabled, uint8_t, body, M3_STATE_SNAPSHOT, bool, one),
@@ -714,6 +715,30 @@ static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
     return true;
 }
 
+// Each slot as m3SetBodyNameInternal writes it: the text, then zeros to
+// the slot's end, its last byte always one of them. A reader takes the
+// slot as a C string, so a slot with no terminator would read past it.
+static bool CheckBodyNames(const uint8_t* data, size_t count)
+{
+    for (size_t slot = 0; slot + M3_BODY_NAME_CAPACITY <= count; slot += M3_BODY_NAME_CAPACITY)
+    {
+        bool ended = false;
+        for (size_t i = 0; i < M3_BODY_NAME_CAPACITY; ++i)
+        {
+            if (ended && data[slot + i] != 0)
+            {
+                return false;
+            }
+            ended = ended || data[slot + i] == 0;
+        }
+        if (!ended)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
 {
     for (size_t at = 0; at + width <= bytes; at += width)
@@ -847,6 +872,8 @@ static bool CheckBlock(const m3World* world, const m3StateArray* array, const ui
         return CheckBytes(data, count, (uint8_t)(M3_SHAPE_TYPE_COUNT - 1));
     case m3_check_jointType:
         return CheckBytes(data, count, (uint8_t)m3_pulleyJoint);
+    case m3_check_bodyName:
+        return CheckBodyNames(data, count);
     case m3_check_finite32:
         return CheckFinite(data, count * array->elementSize, sizeof(float));
     case m3_check_finite64:
