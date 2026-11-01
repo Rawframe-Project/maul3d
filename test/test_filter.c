@@ -168,6 +168,101 @@ static void TestQueryFilters(void)
     m3DestroyWorld(world);
 }
 
+// The fast-body sweep asks the narrowphase's own pair rule. A ball of
+// radius 0.1 falls from y = 5 at 200 m/s, gravity off, at a floor whose
+// top is y = 0: a plane or a box on the ground body, tied to the ball by
+// a rope, or a voxel chunk of category 2. It stops on the floor only
+// when the pair may touch; otherwise it flies on to y = -5/3 in two
+// steps, as no contact would ever hold it.
+enum
+{
+    FLOOR_PLANE,
+    FLOOR_BOX,
+    FLOOR_VOXELS
+};
+
+static float RopedBallHeight(int32_t floor, bool touches)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.voxelCapacity = 1;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    if (floor == FLOOR_BOX)
+    {
+        gd.position = (m3Pos3){0.0, -0.5, 0.0};
+    }
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef fd = m3DefaultShapeDef();
+    fd.categoryBits = CAT_DEBRIS;
+    if (floor == FLOOR_PLANE)
+    {
+        m3Plane top = {{0.0f, 1.0f, 0.0f}, 0.0f};
+        NewPlaneShape(world, ground, &fd, &top);
+    }
+    else if (floor == FLOOR_BOX)
+    {
+        NewBoxShape(world, ground, &fd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    }
+    else
+    {
+        m3BodyDef vd = m3DefaultBodyDef();
+        vd.position = (m3Pos3){-8.0, -1.0, -8.0};
+        m3BodyId chunk = NewBody(world, &vd);
+        static uint8_t voxels[16 * 16 * 16];
+        memset(voxels, 0, sizeof(voxels));
+        for (int32_t z = 0; z < 16; ++z)
+        {
+            memset(&voxels[16 * 16 * z], 1, 16); // the bottom row, y = 0
+        }
+        NewVoxelChunkShape(world, chunk, &fd, voxels, NULL, 1.0f);
+    }
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 5.0, 0.0};
+    bd.linearVelocity = (m3Vec3){0.0f, -200.0f, 0.0f};
+    bd.gravityScale = 0.0f;
+    m3BodyId ball = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    if (floor == FLOOR_VOXELS && !touches)
+    {
+        sd.maskBits = ~(uint64_t)CAT_DEBRIS;
+    }
+    m3Sphere shape = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    NewSphereShape(world, ball, &sd, &shape);
+    if (floor != FLOOR_VOXELS)
+    {
+        m3JointDef rope = m3DefaultJointDef();
+        rope.type = m3_distanceJoint;
+        rope.bodyIdA = ground;
+        rope.bodyIdB = ball;
+        rope.localAnchorA = (m3Vec3){50.0f, 0.0f, 0.0f}; // off the ball's path
+        rope.minLength = 0.0f;
+        rope.maxLength = 100.0f;
+        rope.enableConnectedCollision = touches;
+        CHECK(m3Joint_IsValid(world, NewJoint(world, &rope)), "the rope ties the ball");
+    }
+    for (int32_t step = 0; step < 2; ++step)
+    {
+        CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps");
+    }
+    float y = (float)m3Body_GetPosition(world, ball).y;
+    m3DestroyWorld(world);
+    return y;
+}
+
+static void TestSweepAsksThePairRule(void)
+{
+    const char* const stops[3] = {"a roped ball with connected collision stops on the plane",
+                                  "and on the box", "a ball the chunk's filter lets touch stops"};
+    const char* const passes[3] = {"a roped ball flies through the plane", "and through the box",
+                                   "a ball whose mask hides the chunk flies through"};
+    for (int32_t floor = FLOOR_PLANE; floor <= FLOOR_VOXELS; ++floor)
+    {
+        CHECK(fabsf(RopedBallHeight(floor, true) - 0.1f) < 0.01f, stops[floor]);
+        CHECK(fabsf(RopedBallHeight(floor, false) + 5.0f / 3.0f) < 1e-3f, passes[floor]);
+    }
+}
+
 static void TestRuntimeFilterChange(void)
 {
     // A ball that has come to rest and fallen asleep turns ghost at
@@ -220,6 +315,7 @@ static void TestRuntimeFilterChange(void)
 
 int main(void)
 {
+    TestSweepAsksThePairRule();
     TestMaskGate();
     TestGroupOverride();
     TestQueryFilters();

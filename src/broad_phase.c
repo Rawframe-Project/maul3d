@@ -225,29 +225,31 @@ static m3Aabb3d FreshBounds(const m3World* world, m3Aabb3d* cache, uint8_t* cach
     return cache[shape];
 }
 
-// Shared pair filter: no self pairs, no static-static pairs.
-static int PairAllowed(const m3World* world, int32_t i, int32_t j)
+// The pair rule every part that pairs shapes asks: no self pairs, no
+// disabled bodies, no static-static pairs, no sensor pairs, the filter
+// and groups, and no jointed bodies unless the joint says otherwise.
+bool m3PairAllowed(const m3World* world, int32_t i, int32_t j)
 {
     int32_t bodyI = world->shapes.shapeBody[i];
     int32_t bodyJ = world->shapes.shapeBody[j];
     if (bodyI == bodyJ)
     {
-        return 0;
+        return false;
     }
     if (world->bodies.bodyEnabled[bodyI] == 0 || world->bodies.bodyEnabled[bodyJ] == 0)
     {
-        return 0; // disabled bodies vanish
+        return false; // disabled bodies vanish
     }
     if (world->bodies.types[bodyI] == (uint8_t)m3_staticBody &&
         world->bodies.types[bodyJ] == (uint8_t)m3_staticBody)
     {
-        return 0;
+        return false;
     }
 
     // Sensors do not sense other sensors.
     if (world->shapes.shapeSensor[i] != 0 && world->shapes.shapeSensor[j] != 0)
     {
-        return 0;
+        return false;
     }
     // Filters: a shared nonzero group overrides the bits,
     // positive forcing and negative forbidding; otherwise each
@@ -257,13 +259,13 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
     {
         if (gi < 0)
         {
-            return 0;
+            return false;
         }
     }
     else if (!m3FilterPass(world->shapes.shapeCategory[i], world->shapes.shapeMask[i],
                            world->shapes.shapeCategory[j], world->shapes.shapeMask[j]))
     {
-        return 0;
+        return false;
     }
     // Jointed bodies skip contact unless the joint says otherwise
     // so chained links do not fight. Walk the shorter list.
@@ -275,10 +277,10 @@ static int PairAllowed(const m3World* world, int32_t i, int32_t j)
                                                               : world->joints.jointBodyA[jt];
         if (other == bodyJ && world->joints.jointConnectedCollision[jt] == 0)
         {
-            return 0;
+            return false;
         }
     }
-    return 1;
+    return true;
 }
 
 // A pair is hot when either endpoint is an awake dynamic
@@ -395,7 +397,7 @@ static bool QueryHit(int32_t other, void* context)
             return true; // the other side owns this emit
         }
     }
-    if (!PairAllowed(ctx->world, ctx->self, other))
+    if (!m3PairAllowed(ctx->world, ctx->self, other))
     {
         return true;
     }
@@ -532,7 +534,7 @@ static void EmitCandidates(m3World* world, m3Aabb3d* cache, uint8_t* cacheValid)
         int32_t j = (int32_t)(bp->candidateKeys[k] & 0xFFFFFFFFu);
         // A destroy marks its shape moved, so no dead shape survives.
         M3_ASSERT(world->shapes.shapePool.alive[i] != 0 && world->shapes.shapePool.alive[j] != 0);
-        if (!PairHot(world, i, j) || !PairAllowed(world, i, j))
+        if (!PairHot(world, i, j) || !m3PairAllowed(world, i, j))
         {
             continue; // cold pairs ride the frozen buffer
         }
@@ -555,7 +557,7 @@ typedef struct m3FreezeCtx
 static bool FreezeHit(int32_t other, void* context)
 {
     m3FreezeCtx* ctx = (m3FreezeCtx*)context;
-    if (other == ctx->self || !PairAllowed(ctx->world, ctx->self, other))
+    if (other == ctx->self || !m3PairAllowed(ctx->world, ctx->self, other))
     {
         return true;
     }
@@ -606,7 +608,7 @@ void m3FreezeDiscoverPairs(m3World* world, int32_t body)
         for (int32_t k = 0; k < world->shapes.planeCount; ++k)
         {
             int32_t p2 = world->shapes.planeShapes[k];
-            if (!PairAllowed(world, p2, sh))
+            if (!m3PairAllowed(world, p2, sh))
             {
                 continue;
             }
@@ -847,7 +849,7 @@ void m3UpdatePairs(m3World* world)
         for (int32_t s = 0; s < maxShape; ++s)
         {
             if (world->shapes.shapePool.alive[s] == 0 ||
-                world->shapes.shapeType[s] == (uint8_t)m3_planeShape || !PairAllowed(world, p, s))
+                world->shapes.shapeType[s] == (uint8_t)m3_planeShape || !m3PairAllowed(world, p, s))
             {
                 continue;
             }
@@ -915,7 +917,7 @@ void m3UpdatePairsBruteForce(m3World* world)
         }
         for (int32_t j = i + 1; j < maxShape; ++j)
         {
-            if (world->shapes.shapePool.alive[j] == 0 || !PairAllowed(world, i, j))
+            if (world->shapes.shapePool.alive[j] == 0 || !m3PairAllowed(world, i, j))
             {
                 continue;
             }
