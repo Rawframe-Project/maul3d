@@ -11,6 +11,11 @@
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
 
+// Only for m3IntegrateRotation, an inline helper, in the finite
+// differences: no internal function is called, so the suite still runs
+// against the shared library.
+#include "../src/core.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

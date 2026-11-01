@@ -64,41 +64,6 @@ extern "C"
         return result;
     }
 
-    static inline m3Mat3 m3MakeZeroMat3(void)
-    {
-        m3Mat3 m;
-        m3Vec3 zero = {0.0f, 0.0f, 0.0f};
-        m.cx = zero;
-        m.cy = zero;
-        m.cz = zero;
-        return m;
-    }
-
-    /// Pinned minimum: exactly (a < b ? a : b), in this operand order,
-    /// on every platform. MSVC x64 lowers the ternary through MINSS
-    /// which matches. It is spelled out rather than assumed because
-    /// some arm64 compilers lower min and max differently.
-    static inline float m3MinF(float a, float b)
-    {
-        return a < b ? a : b;
-    }
-
-    /// Pinned maximum: exactly (a > b ? a : b), in this operand order.
-    static inline float m3MaxF(float a, float b)
-    {
-        return a > b ? a : b;
-    }
-
-    static inline float m3ClampF(float a, float lo, float hi)
-    {
-        return m3MaxF(lo, m3MinF(a, hi));
-    }
-
-    static inline float m3AbsF(float a)
-    {
-        return a < 0.0f ? -a : a;
-    }
-
     static inline m3Vec3 m3Add3(m3Vec3 a, m3Vec3 b)
     {
         m3Vec3 result = {a.x + b.x, a.y + b.y, a.z + b.z};
@@ -162,13 +127,6 @@ extern "C"
         return result;
     }
 
-    /// Convert any angle into the range [-pi, pi]. remainderf is IEEE
-    /// exact (like sqrt), so this is deterministic.
-    static inline float m3UnwindAngle(float radians)
-    {
-        return remainderf(radians, 2.0f * M3_PI);
-    }
-
     static inline m3Quat m3MakeIdentityQuat(void)
     {
         m3Quat result = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -212,24 +170,6 @@ extern "C"
     {
         m3Quat c = {-q.x, -q.y, -q.z, q.w};
         return m3RotateVec3(c, v);
-    }
-
-    /// Integrate a rotation by an angular displacement (radians, world
-    /// frame): q2 = normalize(q1 + 0.5 * (dr, 0) * q1), the first-order
-    /// step of the quaternion derivative. Renormalization every call is the
-    /// 3D numeric contract: drift never accumulates.
-    static inline m3Quat m3IntegrateRotation(m3Quat q, m3Vec3 deltaRotation)
-    {
-        float ax = 0.5f * deltaRotation.x;
-        float ay = 0.5f * deltaRotation.y;
-        float az = 0.5f * deltaRotation.z;
-        m3Quat qd;
-        qd.w = -(ax * q.x + ay * q.y + az * q.z);
-        qd.x = ax * q.w + ay * q.z - az * q.y;
-        qd.y = -ax * q.z + ay * q.w + az * q.x;
-        qd.z = ax * q.y - ay * q.x + az * q.w;
-        m3Quat q2 = {q.x + qd.x, q.y + qd.y, q.z + qd.z, q.w + qd.w};
-        return m3NormalizeQuat(q2);
     }
 
     /// Deterministic cosine and sine (a quarter-turn reduction with a

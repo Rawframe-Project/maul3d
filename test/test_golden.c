@@ -32,6 +32,8 @@
 // function is called, so the suite still runs against the shared library.
 #include "../src/journal.h"
 #include "../src/state_prefix.h"
+// Only for m3IntegrateRotation, an inline helper, to aim the motors.
+#include "../src/core.h"
 
 #include <stdlib.h>
 #include <string.h>
