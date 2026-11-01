@@ -916,7 +916,7 @@ static void TourBodyState(const Tour* t)
     m3Body_SetAngularDamping(t->world, t->crate, 0.2f);
     m3Body_EnableBullet(t->world, t->crate, true);
     m3Body_SetUserData(t->world, t->crate, 0x1234u);
-    m3Body_SetName(t->world, t->crate, "crate");
+    CHECK(m3Body_SetName(t->world, t->crate, "crate", 5) == m3_success, "the tour names the crate");
     m3Body_EnableFastRotation(t->world, t->crate, true);
 }
 

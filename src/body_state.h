@@ -18,6 +18,16 @@ bool m3ResolveBody(const m3World* world, m3BodyId body, int32_t* indexOut);
 
 void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
 
+// Whether bytes can be a body's name text: well-formed UTF-8 with no zero
+// byte, whatever their length. The setter, journal replay and restore
+// share it, so each stored name reads back as valid UTF-8.
+bool m3BodyNameValid(const uint8_t* text, int32_t byteCount);
+
+// Whether a stored name slot, from a tape or a snapshot, is one the setter
+// could have written: valid name text, then zeros to the slot's end, with
+// at least one zero. Gives the text's length.
+bool m3BodyNameSlotValid(const uint8_t* slot, int32_t* lengthOut);
+
 void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3]);
 
 // bodyLocks bit 6: this body bypasses the angular speed cap (fast
