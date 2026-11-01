@@ -98,8 +98,7 @@ static Heavy HeavyScene(bool hung)
     scene.shape = NewBoxShape(scene.world, scene.body, &sd, (m3Vec3){100.0f, 100.0f, 100.0f});
     if (hung)
     {
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_sphericalJoint;
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = scene.body;
         jd.localAnchorA = (m3Vec3){0.0f, 201.0f, 0.0f};

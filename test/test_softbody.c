@@ -278,8 +278,7 @@ static void TestJellySeesaw(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     sd.friction = 0.6f;
     NewBoxShape(world, plank, &sd, (m3Vec3){1.5f, 0.05f, 0.4f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = post;
     jd.bodyIdB = plank;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};

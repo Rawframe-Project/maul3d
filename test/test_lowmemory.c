@@ -518,8 +518,7 @@ static m3World* BusyWorld(Budget* budget)
         NewBoxShape(world, box, &sd, (m3Vec3){0.25f, 0.25f, 0.25f});
         if (i < 4)
         {
-            m3JointDef jd = m3DefaultJointDef();
-            jd.type = m3_sphericalJoint;
+            m3SphericalJointDef jd = m3DefaultSphericalJointDef();
             jd.bodyIdA = previous;
             jd.bodyIdB = box;
             (void)NewJoint(world, &jd);

@@ -114,36 +114,32 @@ static void BuildScene(Scene* s)
     s->spare = m3_nullBodyId;
     s->socket = m3_nullJointId;
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = s->ground;
     jd.bodyIdB = s->arm;
     jd.localAnchorA = (m3Vec3){3.0f, 2.0f, 0.0f};
     s->hinge = NewJoint(w, &jd);
-    jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
-    jd.bodyIdA = s->box;
-    jd.bodyIdB = s->arm;
-    jd.maxLength = 5.0f;
-    jd.length = 2.0f;
-    jd.enableSpring = true;
-    jd.springHertz = 2.0f;
-    jd.springDampingRatio = 0.5f;
-    s->rope = NewJoint(w, &jd);
-    jd = m3DefaultJointDef();
-    jd.type = m3_motorJoint;
-    jd.bodyIdA = s->ground;
-    jd.bodyIdB = s->puck;
-    jd.localAnchorA = (m3Vec3){-3.0f, 2.0f, 0.0f};
-    s->servo = NewJoint(w, &jd);
-    jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
-    jd.bodyIdA = s->cart;
-    jd.bodyIdB = s->tire;
-    jd.localAnchorA = (m3Vec3){1.5f, -0.5f, 0.0f};
-    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
-    s->wheel = NewJoint(w, &jd);
+    m3DistanceJointDef jdDistance = m3DefaultDistanceJointDef();
+    jdDistance.bodyIdA = s->box;
+    jdDistance.bodyIdB = s->arm;
+    jdDistance.maxLength = 5.0f;
+    jdDistance.length = 2.0f;
+    jdDistance.enableSpring = true;
+    jdDistance.springHertz = 2.0f;
+    jdDistance.springDampingRatio = 0.5f;
+    s->rope = NewJoint(w, &jdDistance);
+    m3MotorJointDef jdMotor = m3DefaultMotorJointDef();
+    jdMotor.bodyIdA = s->ground;
+    jdMotor.bodyIdB = s->puck;
+    jdMotor.localAnchorA = (m3Vec3){-3.0f, 2.0f, 0.0f};
+    s->servo = NewJoint(w, &jdMotor);
+    m3WheelJointDef jdWheel = m3DefaultWheelJointDef();
+    jdWheel.bodyIdA = s->cart;
+    jdWheel.bodyIdB = s->tire;
+    jdWheel.localAnchorA = (m3Vec3){1.5f, -0.5f, 0.0f};
+    jdWheel.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jdWheel.localSpinAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
+    s->wheel = NewJoint(w, &jdWheel);
 
     m3VehicleDef vd = m3DefaultVehicleDef();
     vd.chassisId = s->chassis;
@@ -606,8 +602,7 @@ static void HingeTarget(Scene* s, float v)
 static void Socket(Scene* s, float v)
 {
     (void)v;
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = s->ground;
     jd.bodyIdB = s->box;
     jd.localAnchorA = (m3Vec3){0.0f, 2.0f, 0.0f};
@@ -633,8 +628,7 @@ static void ServoTorque(Scene* s, float v)
 
 static void DefMotorSpeed(Scene* s, float v)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = s->ground;
     jd.bodyIdB = s->puck;
     jd.localAnchorA = (m3Vec3){-3.0f, 2.0f, 0.0f};
@@ -646,8 +640,7 @@ static void DefMotorSpeed(Scene* s, float v)
 
 static void DefRopeRatio(Scene* s, float v)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = s->box;
     jd.bodyIdB = s->puck;
     jd.maxLength = 5.0f;
@@ -659,8 +652,7 @@ static void DefRopeRatio(Scene* s, float v)
 
 static void DefServoForce(Scene* s, float v)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_motorJoint;
+    m3MotorJointDef jd = m3DefaultMotorJointDef();
     jd.bodyIdA = s->ground;
     jd.bodyIdB = s->box;
     jd.localAnchorA = (m3Vec3){0.0f, 2.0f, 0.0f};
@@ -670,8 +662,7 @@ static void DefServoForce(Scene* s, float v)
 
 static void GearRatio(Scene* s, float v)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_gearJoint;
+    m3GearJointDef jd = m3DefaultGearJointDef();
     jd.bodyIdA = s->arm;
     jd.bodyIdB = s->puck;
     jd.ratio = v;
@@ -680,8 +671,7 @@ static void GearRatio(Scene* s, float v)
 
 static void PulleyRatio(Scene* s, float v)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_pulleyJoint;
+    m3PulleyJointDef jd = m3DefaultPulleyJointDef();
     jd.bodyIdA = s->box;
     jd.bodyIdB = s->puck;
     jd.groundAnchorA = (m3Pos3){0.0, 6.0, 0.0};

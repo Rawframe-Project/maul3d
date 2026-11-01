@@ -137,6 +137,19 @@ static inline float m3WrapPi(float a)
 
 int32_t m3JointSlot(const m3World* world, m3JointId jointId);
 
+// The full joint def, in journal.h.
+typedef struct m3JointDef m3JointDef;
+
+// The full def of a joint type before its def's fields go in: the type,
+// zero anchors, unit z axes, every part off, ratio 1, no generic motor
+// axis and the cookie m3CreateJointInternal checks.
+m3JointDef m3JointDefaults(m3JointType type);
+
+// The create behind every m3Create*Joint, inside its floating-point
+// environment: checks, journals and builds the joint. A NULL def, which a
+// create passes for a def with another type's cookie, is m3_errorInvalid.
+m3Result m3CreateJointFromDef(m3World* world, const m3JointDef* def, m3JointId* jointOut);
+
 int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB);
 
 void m3DestroyJointInternal(m3World* world, int32_t index);

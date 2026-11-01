@@ -478,8 +478,7 @@ static m3World* SceneJointRig(void)
             m3BodyId link = NewBody(world, &bd);
             m3Capsule pill = {{-0.2f, 0.0f, 0.0f}, {0.2f, 0.0f, 0.0f}, 0.05f};
             NewCapsuleShape(world, link, &sd, &pill);
-            m3JointDef jd = m3DefaultJointDef();
-            jd.type = m3_revoluteJoint;
+            m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
             jd.bodyIdA = previous;
             jd.bodyIdB = link;
             jd.localAnchorA = previousAnchor;
@@ -498,8 +497,7 @@ static m3World* SceneJointRig(void)
         m3BodyId ball = NewBody(world, &bd);
         m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
         NewSphereShape(world, ball, &sd, &sphere);
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_prismaticJoint;
+        m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
         jd.bodyIdA = ceiling;
         jd.bodyIdB = ball;
         jd.localAnchorA = (m3Vec3){0.0f, 10.0f, (float)z};
@@ -507,8 +505,8 @@ static m3World* SceneJointRig(void)
         jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
         jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
         jd.enableLimit = true;
-        jd.lowerLimit = -1.0f;
-        jd.upperLimit = 1.0f;
+        jd.lowerTranslation = -1.0f;
+        jd.upperTranslation = 1.0f;
         NewJoint(world, &jd);
     }
     for (int32_t i = 0; i < 32; ++i)
@@ -520,8 +518,7 @@ static m3World* SceneJointRig(void)
         bd.position = (m3Pos3){x, 1.3, -6.0};
         m3BodyId b = NewBody(world, &bd);
         NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_weldJoint;
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
         jd.bodyIdA = a;
         jd.bodyIdB = b;
         jd.localAnchorA = (m3Vec3){0.4f, 0.4f, 0.4f};
@@ -563,16 +560,15 @@ static m3World* SceneVehicleRig(void)
             ws.friction = 1.0f;
             m3Sphere tire = {{0.0f, 0.0f, 0.0f}, 0.3f};
             NewSphereShape(world, wheel, &ws, &tire);
-            m3JointDef jd = m3DefaultJointDef();
-            jd.type = m3_wheelJoint;
+            m3WheelJointDef jd = m3DefaultWheelJointDef();
             jd.bodyIdA = chassis;
             jd.bodyIdB = wheel;
             jd.localAnchorA = local;
             jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-            jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+            jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
             jd.enableLimit = true;
-            jd.lowerLimit = -0.1f;
-            jd.upperLimit = 0.1f;
+            jd.lowerTranslation = -0.1f;
+            jd.upperTranslation = 0.1f;
             jd.enableMotor = true;
             jd.motorSpeed = -10.0f;
             jd.maxMotorEffort = 200.0f;
@@ -609,8 +605,7 @@ static void AddRagdoll(m3World* world, m3Pos3 at)
     m3BodyId head = NewBody(world, &bd);
     m3Sphere skull = {{0.0f, 0.0f, 0.0f}, 0.12f};
     NewSphereShape(world, head, &sd, &skull);
-    m3JointDef socket = m3DefaultJointDef();
-    socket.type = m3_sphericalJoint;
+    m3SphericalJointDef socket = m3DefaultSphericalJointDef();
     socket.bodyIdA = torso;
     socket.bodyIdB = head;
     socket.localAnchorA = (m3Vec3){0.0f, 0.35f, 0.0f};
@@ -638,8 +633,7 @@ static void AddRagdoll(m3World* world, m3Pos3 at)
             socket.localAnchorB = (m3Vec3){0.0f, 0.2f, 0.0f};
             socket.coneAngle = 1.2f;
             NewJoint(world, &socket);
-            m3JointDef hinge = m3DefaultJointDef();
-            hinge.type = m3_revoluteJoint;
+            m3RevoluteJointDef hinge = m3DefaultRevoluteJointDef();
             hinge.bodyIdA = upper;
             hinge.bodyIdB = lower;
             hinge.localAnchorA = (m3Vec3){0.0f, -0.175f, 0.0f};
@@ -647,8 +641,8 @@ static void AddRagdoll(m3World* world, m3Pos3 at)
             hinge.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
             hinge.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
             hinge.enableLimit = true;
-            hinge.lowerLimit = leg == 0 ? 0.0f : -2.0f;
-            hinge.upperLimit = leg == 0 ? 2.0f : 0.0f;
+            hinge.lowerAngle = leg == 0 ? 0.0f : -2.0f;
+            hinge.upperAngle = leg == 0 ? 2.0f : 0.0f;
             NewJoint(world, &hinge);
         }
     }

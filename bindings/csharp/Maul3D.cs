@@ -165,43 +165,205 @@ namespace Maul3D
         public int InternalValue;
     }
 
+    // One def per joint type, as in the C API. A C _Bool field is a byte,
+    // 0 or 1.
     [StructLayout(LayoutKind.Sequential)]
-    public struct JointDef
+    public struct SphericalJointDef
     {
-        public JointType Type;
         public BodyId BodyIdA;
         public BodyId BodyIdB;
         public Vec3 LocalAnchorA;
         public Vec3 LocalAnchorB;
         public Vec3 LocalAxisA;
         public Vec3 LocalAxisB;
+        public byte EnableSpring;
+        public float SpringHertz;
+        public float SpringDampingRatio;
         public byte EnableLimit;
-        public float LowerLimit;
-        public float UpperLimit;
-        public byte EnableMotor;
-        public float MotorSpeed;
-        public float MaxMotorEffort;
+        public float LowerTwist;
+        public float UpperTwist;
         public byte EnableCone;
         public float ConeAngle;
         public byte EnableConnectedCollision;
-        public AxisMode GenericLinear0, GenericLinear1, GenericLinear2;
-        public AxisMode GenericAngular0, GenericAngular1, GenericAngular2;
-        public byte GenericMotorAxis;
-        public float GenericLinearLower0, GenericLinearLower1, GenericLinearLower2;
-        public float GenericLinearUpper0, GenericLinearUpper1, GenericLinearUpper2;
-        public float GenericAngularLower0, GenericAngularLower1, GenericAngularLower2;
-        public float GenericAngularUpper0, GenericAngularUpper1, GenericAngularUpper2;
-        public float Ratio;
-        public Pos3 GroundAnchorA;
-        public Pos3 GroundAnchorB;
-        public float MaxForce;
-        public float MaxTorque;
-        public float MinLength;
-        public float MaxLength;
-        public float Length;
-        public byte EnableSpring; // C _Bool: one byte, 0 or 1
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RevoluteJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalAxisB;
+        public byte EnableSpring;
         public float SpringHertz;
         public float SpringDampingRatio;
+        public byte EnableMotor;
+        public float MotorSpeed;
+        public float MaxMotorEffort;
+        public byte EnableLimit;
+        public float LowerAngle;
+        public float UpperAngle;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PrismaticJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalAxisB;
+        public byte EnableSpring;
+        public float SpringHertz;
+        public float SpringDampingRatio;
+        public byte EnableMotor;
+        public float MotorSpeed;
+        public float MaxMotorEffort;
+        public byte EnableLimit;
+        public float LowerTranslation;
+        public float UpperTranslation;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WeldJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DistanceJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public float Length;
+        public float MinLength;
+        public float MaxLength;
+        public byte EnableSpring;
+        public float SpringHertz;
+        public float SpringDampingRatio;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GenericJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalAxisB;
+        public AxisMode LinearModes0, LinearModes1, LinearModes2;
+        public AxisMode AngularModes0, AngularModes1, AngularModes2;
+        public float LinearLower0, LinearLower1, LinearLower2;
+        public float LinearUpper0, LinearUpper1, LinearUpper2;
+        public float AngularLower0, AngularLower1, AngularLower2;
+        public float AngularUpper0, AngularUpper1, AngularUpper2;
+        public byte MotorAxis;
+        public float MotorSpeed;
+        public float MaxMotorEffort;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WheelJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalSpinAxisB;
+        public byte EnableSpring;
+        public float SpringHertz;
+        public float SpringDampingRatio;
+        public byte EnableMotor;
+        public float MotorSpeed;
+        public float MaxMotorEffort;
+        public byte EnableLimit;
+        public float LowerTranslation;
+        public float UpperTranslation;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FilterJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ParallelJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalAxisB;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MotorJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public float MaxForce;
+        public float MaxTorque;
+        public byte EnableSpring;
+        public float SpringHertz;
+        public float SpringDampingRatio;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GearJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Vec3 LocalAxisA;
+        public Vec3 LocalAxisB;
+        public float Ratio;
+        public byte EnableConnectedCollision;
+        public int InternalValue;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PulleyJointDef
+    {
+        public BodyId BodyIdA;
+        public BodyId BodyIdB;
+        public Pos3 GroundAnchorA;
+        public Pos3 GroundAnchorB;
+        public Vec3 LocalAnchorA;
+        public Vec3 LocalAnchorB;
+        public float Ratio;
+        public byte EnableConnectedCollision;
         public int InternalValue;
     }
 
@@ -323,10 +485,66 @@ namespace Maul3D
                                                      ref Plane plane, out ShapeId shape);
 
         // Joints
-        [DllImport(Lib, EntryPoint = "m3DefaultJointDef")]
-        public static extern JointDef DefaultJointDef();
-        [DllImport(Lib, EntryPoint = "m3CreateJoint")]
-        public static extern Result CreateJoint(IntPtr world, ref JointDef def, out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3DefaultSphericalJointDef")]
+        public static extern SphericalJointDef DefaultSphericalJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultRevoluteJointDef")]
+        public static extern RevoluteJointDef DefaultRevoluteJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultPrismaticJointDef")]
+        public static extern PrismaticJointDef DefaultPrismaticJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultWeldJointDef")]
+        public static extern WeldJointDef DefaultWeldJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultDistanceJointDef")]
+        public static extern DistanceJointDef DefaultDistanceJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultGenericJointDef")]
+        public static extern GenericJointDef DefaultGenericJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultWheelJointDef")]
+        public static extern WheelJointDef DefaultWheelJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultFilterJointDef")]
+        public static extern FilterJointDef DefaultFilterJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultParallelJointDef")]
+        public static extern ParallelJointDef DefaultParallelJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultMotorJointDef")]
+        public static extern MotorJointDef DefaultMotorJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultGearJointDef")]
+        public static extern GearJointDef DefaultGearJointDef();
+        [DllImport(Lib, EntryPoint = "m3DefaultPulleyJointDef")]
+        public static extern PulleyJointDef DefaultPulleyJointDef();
+        [DllImport(Lib, EntryPoint = "m3CreateSphericalJoint")]
+        public static extern Result CreateSphericalJoint(IntPtr world, ref SphericalJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateRevoluteJoint")]
+        public static extern Result CreateRevoluteJoint(IntPtr world, ref RevoluteJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreatePrismaticJoint")]
+        public static extern Result CreatePrismaticJoint(IntPtr world, ref PrismaticJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateWeldJoint")]
+        public static extern Result CreateWeldJoint(IntPtr world, ref WeldJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateDistanceJoint")]
+        public static extern Result CreateDistanceJoint(IntPtr world, ref DistanceJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateGenericJoint")]
+        public static extern Result CreateGenericJoint(IntPtr world, ref GenericJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateWheelJoint")]
+        public static extern Result CreateWheelJoint(IntPtr world, ref WheelJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateFilterJoint")]
+        public static extern Result CreateFilterJoint(IntPtr world, ref FilterJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateParallelJoint")]
+        public static extern Result CreateParallelJoint(IntPtr world, ref ParallelJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateMotorJoint")]
+        public static extern Result CreateMotorJoint(IntPtr world, ref MotorJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreateGearJoint")]
+        public static extern Result CreateGearJoint(IntPtr world, ref GearJointDef def,
+                                                 out JointId joint);
+        [DllImport(Lib, EntryPoint = "m3CreatePulleyJoint")]
+        public static extern Result CreatePulleyJoint(IntPtr world, ref PulleyJointDef def,
+                                                 out JointId joint);
         [DllImport(Lib, EntryPoint = "m3DestroyJoint")]
         public static extern Result DestroyJoint(IntPtr world, JointId joint);
 
@@ -349,7 +567,18 @@ namespace Maul3D
             Check<WorldDef>(136);
             Check<BodyDef>(120);
             Check<ShapeDef>(104);
-            Check<JointDef>(272);
+            Check<SphericalJointDef>(104);
+            Check<RevoluteJointDef>(108);
+            Check<PrismaticJointDef>(108);
+            Check<WeldJointDef>(48);
+            Check<DistanceJointDef>(72);
+            Check<GenericJointDef>(156);
+            Check<WheelJointDef>(108);
+            Check<FilterJointDef>(20);
+            Check<ParallelJointDef>(72);
+            Check<MotorJointDef>(68);
+            Check<GearJointDef>(52);
+            Check<PulleyJointDef>(104);
             Check<CastHit>(48);
             Check<QueryFilter>(16);
             Check<Version>(6);

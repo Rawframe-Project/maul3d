@@ -21,11 +21,11 @@
 
 #define M3_JOINT_COOKIE ((int32_t)(M3_COOKIE ^ ((int32_t)sizeof(m3JointDef) << 8) ^ 3))
 
-m3JointDef m3DefaultJointDef(void)
+m3JointDef m3JointDefaults(m3JointType type)
 {
     m3JointDef def;
     memset(&def, 0, sizeof(def));
-    def.type = m3_sphericalJoint;
+    def.type = type;
     def.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     def.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     def.genericMotorAxis = 255; // no motor unless chosen
@@ -254,7 +254,7 @@ static bool DistanceDefValid(const m3JointDef* def)
 
 // The whole def contract in one place: known type, real axes where the
 // type needs them, the generic and distance rules, and finite, ordered
-// fields. m3CreateJoint runs it before resolving the bodies, and
+// fields. m3CreateJointFromDef runs it before resolving the bodies, and
 // m3CreateJointInternal runs it again for replay.
 static m3Result JointDefCheck(const m3JointDef* def)
 {
@@ -465,7 +465,8 @@ static void InitGenericJoint(m3World* world, int32_t index, const m3JointDef* de
 int32_t m3CreateJointInternal(m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB)
 {
     // The def contract and the body pair are checked here, not only in
-    // m3CreateJoint, because replay hands this function raw journal bytes.
+    // m3CreateJointFromDef, because replay hands this function raw journal
+    // bytes.
     // A joint between two immovable bodies is inert and refuses, and so
     // does one whose bodies' masses would pass its lever ratio.
     JointBake bake;
@@ -607,8 +608,7 @@ void m3DestroyJointInternal(m3World* world, int32_t index)
     m3IdPoolFree(&world->joints.jointPool, index);
 }
 
-static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* def,
-                                              m3JointId* jointOut)
+m3Result m3CreateJointFromDef(m3World* world, const m3JointDef* def, m3JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -651,14 +651,6 @@ static M3_NOINLINE m3Result CreateJointWorker(m3World* world, const m3JointDef* 
     }
     *jointOut = id;
     return m3_success;
-}
-
-m3Result m3CreateJoint(m3World* world, const m3JointDef* def, m3JointId* jointOut)
-{
-    uint64_t env = m3FloatEnvEnter();
-    m3Result result = CreateJointWorker(world, def, jointOut);
-    m3FloatEnvLeave(env);
-    return result;
 }
 
 static M3_NOINLINE m3Result DestroyJointWorker(m3World* world, m3JointId joint)

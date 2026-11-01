@@ -6,14 +6,25 @@
 defs filled with constants:
     m3DefaultBodyDef
     m3DefaultCharacterDef
+    m3DefaultDistanceJointDef
     m3DefaultDrivetrainDef
     m3DefaultExplosionDef
-    m3DefaultJointDef
+    m3DefaultFilterJointDef
+    m3DefaultGearJointDef
+    m3DefaultGenericJointDef
+    m3DefaultMotorJointDef
+    m3DefaultParallelJointDef
+    m3DefaultPrismaticJointDef
+    m3DefaultPulleyJointDef
     m3DefaultQueryFilter
+    m3DefaultRevoluteJointDef
     m3DefaultShapeDef
     m3DefaultSoftBodyDef
+    m3DefaultSphericalJointDef
     m3DefaultVehicleDef
     m3DefaultWaterVolumeDef
+    m3DefaultWeldJointDef
+    m3DefaultWheelJointDef
     m3DefaultWorldDefValues
 
 the build, the CPU, result names and the integer hash:

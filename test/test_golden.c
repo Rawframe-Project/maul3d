@@ -342,32 +342,37 @@ static m3BodyId JointBox(m3World* world, double x, double y, double z)
     return body;
 }
 
-// A def joining the ground to a new box, anchored at the world point
-// (x, 3, 0) on the ground's side.
-static m3JointDef HangDef(m3World* world, m3BodyId ground, double x, double y, double z,
-                          m3JointType type, m3BodyId* bodyOut)
+// Joins the ground to a new box through a def's bodies and anchors,
+// anchored at the world point (x, 3, 0) on the ground's side.
+static void HangJoin(m3World* world, m3BodyId ground, double x, double y, double z,
+                     m3BodyId* bodyIdA, m3BodyId* bodyIdB, m3Vec3* localAnchorA,
+                     m3Vec3* localAnchorB, m3BodyId* bodyOut)
 {
     m3BodyId body = JointBox(world, x, y, z);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = type;
-    jd.bodyIdA = ground;
-    jd.bodyIdB = body;
-    jd.localAnchorA = (m3Vec3){(float)x, 3.0f, 0.0f};
-    jd.localAnchorB = (m3Vec3){0.0f, (float)(3.0 - y), (float)(0.0 - z)};
+    *bodyIdA = ground;
+    *bodyIdB = body;
+    *localAnchorA = (m3Vec3){(float)x, 3.0f, 0.0f};
+    *localAnchorB = (m3Vec3){0.0f, (float)(3.0 - y), (float)(0.0 - z)};
     if (bodyOut != NULL)
     {
         *bodyOut = body;
     }
-    return jd;
 }
+
+// Declares def, a joint def of the type Type hung from the ground as
+// HangJoin hangs it.
+#define HANG_DEF(Type, def, world, ground, x, y, z, bodyOut)                                       \
+    m3##Type##JointDef def = m3Default##Type##JointDef();                                          \
+    HangJoin(world, ground, x, y, z, &def.bodyIdA, &def.bodyIdB, &def.localAnchorA,                \
+             &def.localAnchorB, bodyOut)
 
 // Returns the ball joint, whose cone the tour moves.
 static m3JointId AddHinges(m3World* world, m3BodyId ground)
 {
-    m3JointDef ball = HangDef(world, ground, 20.0, 2.2, 0.4, m3_sphericalJoint, NULL);
+    HANG_DEF(Spherical, ball, world, ground, 20.0, 2.2, 0.4, NULL);
     ball.enableLimit = true;
-    ball.lowerLimit = -0.4f;
-    ball.upperLimit = 0.4f;
+    ball.lowerTwist = -0.4f;
+    ball.upperTwist = 0.4f;
     ball.enableCone = true;
     ball.coneAngle = 0.5f;
     m3JointId joint = NewJoint(world, &ball);
@@ -378,10 +383,10 @@ static m3JointId AddHinges(m3World* world, m3BodyId ground)
     m3SphericalJoint_SetTargetRotation(
         world, joint, m3IntegrateRotation(m3MakeIdentityQuat(), (m3Vec3){0.2f, 0.0f, 0.0f}));
 
-    m3JointDef hinge = HangDef(world, ground, 22.0, 2.0, 0.5, m3_revoluteJoint, NULL);
+    HANG_DEF(Revolute, hinge, world, ground, 22.0, 2.0, 0.5, NULL);
     hinge.enableLimit = true;
-    hinge.lowerLimit = -0.8f;
-    hinge.upperLimit = 0.8f;
+    hinge.lowerAngle = -0.8f;
+    hinge.upperAngle = 0.8f;
     hinge.enableMotor = true;
     hinge.motorSpeed = 2.0f;
     hinge.maxMotorEffort = 3.0f;
@@ -391,7 +396,7 @@ static m3JointId AddHinges(m3World* world, m3BodyId ground)
     m3Joint_EnableSpring(world, joint, true);
     m3RevoluteJoint_SetTargetAngle(world, joint, 0.3f);
 
-    m3JointDef parallel = HangDef(world, ground, 24.0, 2.0, 0.3, m3_parallelJoint, NULL);
+    HANG_DEF(Parallel, parallel, world, ground, 24.0, 2.0, 0.3, NULL);
     parallel.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     parallel.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
     NewJoint(world, &parallel);
@@ -400,18 +405,18 @@ static m3JointId AddHinges(m3World* world, m3BodyId ground)
 
 static void AddSliders(m3World* world, m3BodyId ground)
 {
-    m3JointDef slider = HangDef(world, ground, 26.0, 2.5, 0.0, m3_prismaticJoint, NULL);
+    HANG_DEF(Prismatic, slider, world, ground, 26.0, 2.5, 0.0, NULL);
     slider.localAxisA = (m3Vec3){0.6f, 0.8f, 0.0f};
     slider.localAxisB = (m3Vec3){0.6f, 0.8f, 0.0f};
     slider.enableLimit = true;
-    slider.lowerLimit = -0.5f;
-    slider.upperLimit = 0.5f;
+    slider.lowerTranslation = -0.5f;
+    slider.upperTranslation = 0.5f;
     slider.enableMotor = true;
     slider.motorSpeed = 0.5f;
     slider.maxMotorEffort = 20.0f;
     NewJoint(world, &slider);
 
-    m3JointDef rope = HangDef(world, ground, 28.0, 2.0, 0.3, m3_distanceJoint, NULL);
+    HANG_DEF(Distance, rope, world, ground, 28.0, 2.0, 0.3, NULL);
     rope.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
     rope.minLength = 0.5f;
     rope.maxLength = 1.5f;
@@ -421,18 +426,18 @@ static void AddSliders(m3World* world, m3BodyId ground)
     rope.springDampingRatio = 0.4f;
     NewJoint(world, &rope);
 
-    m3JointDef six = HangDef(world, ground, 30.0, 2.0, 0.2, m3_genericJoint, NULL);
-    six.genericLinear[0] = m3_axisLimited;
-    six.genericLinear[1] = m3_axisLocked;
-    six.genericLinear[2] = m3_axisLocked;
-    six.genericLinearLower[0] = -0.2f;
-    six.genericLinearUpper[0] = 0.2f;
-    six.genericAngular[0] = m3_axisLocked;
-    six.genericAngular[1] = m3_axisLocked;
-    six.genericAngular[2] = m3_axisLimited;
-    six.genericAngularLower[2] = -0.7f;
-    six.genericAngularUpper[2] = 0.7f;
-    six.genericMotorAxis = 5;
+    HANG_DEF(Generic, six, world, ground, 30.0, 2.0, 0.2, NULL);
+    six.linearModes[0] = m3_axisLimited;
+    six.linearModes[1] = m3_axisLocked;
+    six.linearModes[2] = m3_axisLocked;
+    six.linearLower[0] = -0.2f;
+    six.linearUpper[0] = 0.2f;
+    six.angularModes[0] = m3_axisLocked;
+    six.angularModes[1] = m3_axisLocked;
+    six.angularModes[2] = m3_axisLimited;
+    six.angularLower[2] = -0.7f;
+    six.angularUpper[2] = 0.7f;
+    six.motorAxis = 5;
     six.motorSpeed = 1.0f;
     six.maxMotorEffort = 3.0f;
     NewJoint(world, &six);
@@ -441,17 +446,16 @@ static void AddSliders(m3World* world, m3BodyId ground)
 static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
 {
     m3BodyId holder;
-    m3JointDef hold = HangDef(world, ground, 32.0, 2.3, 0.0, m3_sphericalJoint, &holder);
+    HANG_DEF(Spherical, hold, world, ground, 32.0, 2.3, 0.0, &holder);
     NewJoint(world, &hold);
-    m3JointDef weld = m3DefaultJointDef();
-    weld.type = m3_weldJoint;
+    m3WeldJointDef weld = m3DefaultWeldJointDef();
     weld.bodyIdA = holder;
     weld.bodyIdB = JointBox(world, 32.5, 2.3, 0.0);
     weld.localAnchorA = (m3Vec3){0.25f, 0.0f, 0.0f};
     weld.localAnchorB = (m3Vec3){-0.25f, 0.0f, 0.0f};
     NewJoint(world, &weld);
 
-    m3JointDef servo = HangDef(world, ground, 34.0, 2.0, 0.0, m3_motorJoint, NULL);
+    HANG_DEF(Motor, servo, world, ground, 34.0, 2.0, 0.0, NULL);
     m3JointId joint = NewJoint(world, &servo);
     m3Joint_SetSpringHertz(world, joint, 3.0f);
     m3Joint_SetSpringDampingRatio(world, joint, 1.0f);
@@ -461,12 +465,12 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
     m3MotorJoint_SetMaxForce(world, joint, 50.0f);
     m3MotorJoint_SetMaxTorque(world, joint, 20.0f);
 
-    m3JointDef wheel = HangDef(world, ground, 36.0, 2.4, 0.0, m3_wheelJoint, NULL);
+    HANG_DEF(Wheel, wheel, world, ground, 36.0, 2.4, 0.0, NULL);
     wheel.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    wheel.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    wheel.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     wheel.enableLimit = true;
-    wheel.lowerLimit = -0.3f;
-    wheel.upperLimit = 0.3f;
+    wheel.lowerTranslation = -0.3f;
+    wheel.upperTranslation = 0.3f;
     wheel.enableMotor = true;
     wheel.motorSpeed = 5.0f;
     wheel.maxMotorEffort = 2.0f;
@@ -483,22 +487,20 @@ static void AddWeldsAndDrives(m3World* world, m3BodyId ground)
 
     m3BodyId gearA;
     m3BodyId gearB;
-    m3JointDef axleA = HangDef(world, ground, 38.0, 3.0, 0.0, m3_revoluteJoint, &gearA);
+    HANG_DEF(Revolute, axleA, world, ground, 38.0, 3.0, 0.0, &gearA);
     axleA.enableMotor = true;
     axleA.motorSpeed = 3.0f;
     axleA.maxMotorEffort = 1.0f;
     NewJoint(world, &axleA);
-    m3JointDef axleB = HangDef(world, ground, 38.6, 3.0, 0.0, m3_revoluteJoint, &gearB);
+    HANG_DEF(Revolute, axleB, world, ground, 38.6, 3.0, 0.0, &gearB);
     NewJoint(world, &axleB);
-    m3JointDef mesh = m3DefaultJointDef();
-    mesh.type = m3_gearJoint;
+    m3GearJointDef mesh = m3DefaultGearJointDef();
     mesh.bodyIdA = gearA;
     mesh.bodyIdB = gearB;
     mesh.ratio = 2.0f;
     NewJoint(world, &mesh);
 
-    m3JointDef pulley = m3DefaultJointDef();
-    pulley.type = m3_pulleyJoint;
+    m3PulleyJointDef pulley = m3DefaultPulleyJointDef();
     pulley.bodyIdA = JointBox(world, 40.0, 2.0, 0.0);
     pulley.bodyIdB = JointBox(world, 41.0, 1.5, 0.0);
     pulley.groundAnchorA = (m3Pos3){40.0, 4.0, 0.0};
@@ -855,8 +857,7 @@ static void TourCreate(Tour* t)
     pool.bounds.upperBound = (m3Pos3){68.0, 1.5, 3.0};
     t->tide = NewWaterVolume(world, &pool);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = t->crate;
     jd.bodyIdB = t->ball;
     jd.minLength = 1.0f;
@@ -865,17 +866,16 @@ static void TourCreate(Tour* t)
     // The motor record's joint: free on every axis, with no motor axis and
     // its bodies left colliding, so its calls reach the tape and move
     // nothing.
-    jd = m3DefaultJointDef();
-    jd.type = m3_genericJoint;
-    jd.bodyIdA = t->crate;
-    jd.bodyIdB = t->ball;
-    jd.enableConnectedCollision = true;
+    m3GenericJointDef jdGeneric = m3DefaultGenericJointDef();
+    jdGeneric.bodyIdA = t->crate;
+    jdGeneric.bodyIdB = t->ball;
+    jdGeneric.enableConnectedCollision = true;
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericLinear[k] = m3_axisFree;
-        jd.genericAngular[k] = m3_axisFree;
+        jdGeneric.linearModes[k] = m3_axisFree;
+        jdGeneric.angularModes[k] = m3_axisFree;
     }
-    t->ghost = NewJoint(world, &jd);
+    t->ghost = NewJoint(world, &jdGeneric);
     CHECK(m3Vehicle_IsValid(world, t->tank) && m3SoftBody_IsValid(world, t->tet) &&
               m3SoftBody_IsValid(world, t->rope) && m3Character_IsValid(world, t->guest) &&
               m3Joint_IsValid(world, t->spare) && m3Joint_IsValid(world, t->ghost),
@@ -1251,16 +1251,23 @@ static void WalkJoin(Walk* w)
     {
         return;
     }
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = (Next() & 1) != 0 ? m3_distanceJoint : m3_sphericalJoint;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    jd.enableLimit = jd.type == m3_sphericalJoint;
-    jd.lowerLimit = 0.5f;
-    jd.upperLimit = 2.0f;
-    jd.minLength = 0.5f;
-    jd.maxLength = 2.0f;
-    NewJoint(w->world, &jd);
+    if ((Next() & 1) != 0)
+    {
+        m3DistanceJointDef rope = m3DefaultDistanceJointDef();
+        rope.bodyIdA = a;
+        rope.bodyIdB = b;
+        rope.minLength = 0.5f;
+        rope.maxLength = 2.0f;
+        NewJoint(w->world, &rope);
+        return;
+    }
+    m3SphericalJointDef ball = m3DefaultSphericalJointDef();
+    ball.bodyIdA = a;
+    ball.bodyIdB = b;
+    ball.enableLimit = true;
+    ball.lowerTwist = 0.5f;
+    ball.upperTwist = 2.0f;
+    NewJoint(w->world, &ball);
 }
 
 static void WalkOp(Walk* w)

@@ -89,6 +89,7 @@ add_library(maul3d ${MAUL_LIBRARY_KIND}
     src/island.c
     src/integrate.c
     src/joint.c
+    src/joint_create.c
     src/joint_distance.c
     src/joint_weld.c
     src/joint_gear.c

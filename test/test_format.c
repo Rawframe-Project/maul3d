@@ -144,14 +144,13 @@ static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
     s_paint(fill);
     m3Body_ApplyLinearImpulseAtPoint(world, b, (m3Vec3){0.0f, 0.5f, 0.0f}, (m3Pos3){2.0, 2.5, 0.0});
 
-    m3JointDef jointModel = m3DefaultJointDef();
-    jointModel.type = m3_distanceJoint;
+    m3DistanceJointDef jointModel = m3DefaultDistanceJointDef();
     jointModel.bodyIdA = a;
     jointModel.bodyIdB = b;
     jointModel.minLength = 1.0f;
     jointModel.maxLength = 3.0f;
-    m3JointDef jd;
-    PADDED(m3JointDef, jd, jointModel, fill);
+    m3DistanceJointDef jd;
+    PADDED(m3DistanceJointDef, jd, jointModel, fill);
     s_paint(fill);
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the joint creates");
 

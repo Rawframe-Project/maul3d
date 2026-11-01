@@ -9,6 +9,50 @@
 
 #include "world_internal.h"
 
+// The full joint def: every m3Create*Joint fills one from its type's def,
+// with the defaults of m3JointDefaults in the fields the type does not
+// take, and m3CreateJointInternal builds the joint from it. The journal's
+// create record carries it as it is, so its layout is the record's and
+// src/format_layout.c pins it.
+typedef struct m3JointDef
+{
+    m3JointType type;
+    m3BodyId bodyIdA;
+    m3BodyId bodyIdB;
+    m3Vec3 localAnchorA;
+    m3Vec3 localAnchorB;
+    m3Vec3 localAxisA; // the wheel's localAxisB is its spin axis
+    m3Vec3 localAxisB;
+    bool enableLimit;
+    float lowerLimit; // the twist, angle or translation by type
+    float upperLimit;
+    bool enableMotor;
+    float motorSpeed;
+    float maxMotorEffort;
+    bool enableCone;
+    float coneAngle;
+    bool enableConnectedCollision;
+    m3AxisMode genericLinear[3];
+    m3AxisMode genericAngular[3];
+    uint8_t genericMotorAxis;
+    float genericLinearLower[3];
+    float genericLinearUpper[3];
+    float genericAngularLower[3];
+    float genericAngularUpper[3];
+    float ratio;
+    m3Pos3 groundAnchorA;
+    m3Pos3 groundAnchorB;
+    float maxForce;
+    float maxTorque;
+    float minLength;
+    float maxLength;
+    float length;
+    bool enableSpring;
+    float springHertz;
+    float springDampingRatio;
+    int32_t internalValue; // M3_JOINT_COOKIE
+} m3JointDef;
+
 // Journal ops. The stream is [i32 op][i32 size][payload], replayed
 // through the same internal functions the public API uses.
 typedef enum m3Op

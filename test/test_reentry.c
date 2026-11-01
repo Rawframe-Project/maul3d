@@ -532,8 +532,7 @@ static m3World* BuildDyingWorld(DyingWorld* d)
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
     d->body = NewBody(world, &bd);
     (void)NewHullShape(world, d->body, &sd, cloud, 5);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = ground;
     jd.bodyIdB = d->body;
     d->joint = NewJoint(world, &jd);

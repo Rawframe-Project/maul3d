@@ -69,17 +69,16 @@ static JointCart MakeJointCart(m3World* world, m3Pos3 at)
         ws.density = 120.0f; // ~13.6 kg per wheel: real unsprung mass
         m3Sphere tire = {{0.0f, 0.0f, 0.0f}, 0.3f};
         NewSphereShape(world, cart.wheels[w], &ws, &tire);
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_wheelJoint;
+        m3WheelJointDef jd = m3DefaultWheelJointDef();
         jd.bodyIdA = cart.chassis;
         jd.bodyIdB = cart.wheels[w];
         jd.localAnchorA = local;
         jd.localAnchorB = (m3Vec3){0.0f, 0.0f, 0.0f};
-        jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut: chassis down
-        jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle: wheel z
+        jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};    // strut: chassis down
+        jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f}; // axle: wheel z
         jd.enableLimit = true;
-        jd.lowerLimit = -0.1f;
-        jd.upperLimit = 0.1f;
+        jd.lowerTranslation = -0.1f;
+        jd.upperTranslation = 0.1f;
         cart.joints[w] = NewJoint(world, &jd);
         m3Joint_SetSpringHertz(world, cart.joints[w], 4.0f);
         m3Joint_SetSpringDampingRatio(world, cart.joints[w], 0.7f);
@@ -203,18 +202,17 @@ static void TestHostileWall(void)
     NewSphereShape(world, a, &sd, &ball);
     NewSphereShape(world, b, &sd, &ball);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
+    m3WheelJointDef jd = m3DefaultWheelJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f}; // axle along the strut
+    jd.localSpinAxisB = (m3Vec3){0.0f, -1.0f, 0.0f}; // axle along the strut
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an axle along the strut refuses");
 
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 0.0f};
+    jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 0.0f};
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero axle refuses");
 
-    jd.localAxisB = (m3Vec3){0.0f, 0.05f, 1.0f}; // ~2.9 degrees of skew
+    jd.localSpinAxisB = (m3Vec3){0.0f, 0.05f, 1.0f}; // ~2.9 degrees of skew
     m3JointId wheel = NewJoint(world, &jd);
     CHECK(m3Joint_IsValid(world, wheel), "a small skew snaps and lands");
     CHECK(m3Joint_GetAngle(world, wheel) == 0.0f, "the spin angle starts at the create pose");
@@ -234,8 +232,7 @@ static void TestHostileWall(void)
 
     // Regression: the older type gates stay closed to the wheel's
     // readers and vice versa.
-    m3JointDef rd = m3DefaultJointDef();
-    rd.type = m3_revoluteJoint;
+    m3RevoluteJointDef rd = m3DefaultRevoluteJointDef();
     rd.bodyIdA = a;
     rd.bodyIdB = b;
     rd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
@@ -246,9 +243,8 @@ static void TestHostileWall(void)
 }
 
 // The cone switch belongs to the spherical joint. On a wheel the same
-// bit is the steering switch, so a wheel def with enableCone would start
-// steering at 0 Hz and its world's snapshot would not restore; every type
-// but the spherical refuses the switch at create.
+// bit is the steering switch, and only the spherical def holds the cone,
+// so a wheel starts with steering off and its world's snapshot restores.
 static void TestConeIsSphericalOnly(void)
 {
     m3World* world = PlaneWorld();
@@ -257,29 +253,19 @@ static void TestConeIsSphericalOnly(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, -1.0, 0.0};
     m3BodyId rim = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
-    jd.bodyIdA = hub;
-    jd.bodyIdB = rim;
-    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    jd.enableCone = true;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a wheel refuses the cone switch");
-    jd.type = m3_revoluteJoint;
-    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "and so does a hinge");
-    jd = m3DefaultJointDef();
-    jd.bodyIdA = hub;
-    jd.bodyIdB = rim;
-    jd.enableCone = true;
-    jd.coneAngle = 0.5f;
-    m3JointId ball = NewJoint(world, &jd);
+    m3SphericalJointDef ballDef = m3DefaultSphericalJointDef();
+    ballDef.bodyIdA = hub;
+    ballDef.bodyIdB = rim;
+    ballDef.enableCone = true;
+    ballDef.coneAngle = 0.5f;
+    m3JointId ball = NewJoint(world, &ballDef);
     CHECK(m3Joint_IsValid(world, ball), "a spherical joint takes it");
-    jd.type = m3_wheelJoint;
-    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    jd.enableCone = false;
-    m3JointId wheel = NewJoint(world, &jd);
+    m3WheelJointDef wheelDef = m3DefaultWheelJointDef();
+    wheelDef.bodyIdA = hub;
+    wheelDef.bodyIdB = rim;
+    wheelDef.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    wheelDef.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    m3JointId wheel = NewJoint(world, &wheelDef);
     CHECK(m3Joint_IsValid(world, wheel) && !m3WheelJoint_IsSteeringEnabled(world, wheel),
           "a wheel without it starts with steering off");
     int64_t size = m3World_GetSnapshotSize(world);

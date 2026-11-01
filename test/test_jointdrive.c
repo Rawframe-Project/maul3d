@@ -52,8 +52,7 @@ static void TestRuntimeMotorAndLimits(void)
     m3World* world = SmallWorld();
     m3BodyId post = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
     m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = post;
     jd.bodyIdB = door;
     jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
@@ -105,8 +104,7 @@ static void TestCollideToggle(void)
     NewPlaneShape(world, ground, &sg, &fl);
     m3BodyId a = Box(world, (m3Pos3){0.0, 0.5, 0.0}, 0.5f, 1);
     m3BodyId b = Box(world, (m3Pos3){0.6, 0.5, 0.0}, 0.5f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){0.3f, 0.6f, 0.0f};
@@ -133,8 +131,7 @@ static void TestReadbackBand(void)
     m3World* world = SmallWorld();
     m3BodyId anchor = Box(world, (m3Pos3){0.0, 5.0, 0.0}, 0.2f, 0);
     m3BodyId crate = Box(world, (m3Pos3){0.0, 3.8, 0.0}, 0.5f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = crate;
     jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
@@ -158,8 +155,7 @@ static void TestBreakage(void)
         m3World* world = SmallWorld();
         m3BodyId anchor = Box(world, (m3Pos3){0.0, 6.0, 0.0}, 0.2f, 0);
         m3BodyId crate = Box(world, (m3Pos3){0.0, 4.3, 0.0}, 1.0f, 1); // mass 8, weight 80
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_sphericalJoint;
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = anchor;
         jd.bodyIdB = crate;
         jd.localAnchorA = (m3Vec3){0.0f, -0.2f, 0.0f};
@@ -207,8 +203,7 @@ static void TestSpringServo(void)
     m3World* world = SmallWorld();
     m3BodyId post = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
     m3BodyId door = Box(world, (m3Pos3){0.8, 2.0, 0.0}, 0.4f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = post;
     jd.bodyIdB = door;
     jd.localAnchorA = (m3Vec3){0.4f, 0.0f, 0.0f};
@@ -242,8 +237,7 @@ static void TestSpringDampingContrast(void)
         m3World* world = NewWorld(&def);
         m3BodyId rail = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
         m3BodyId slider = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.3f, 1);
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_prismaticJoint;
+        m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
         jd.bodyIdA = rail;
         jd.bodyIdB = slider;
         jd.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
@@ -284,8 +278,7 @@ static void TestSphericalRotationDrive(void)
     m3World* world = NewWorld(&def);
     m3BodyId anchor = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
     m3BodyId crate = Box(world, (m3Pos3){0.0, 2.0, 1.2}, 0.4f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = crate;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.6f};
@@ -316,8 +309,7 @@ static void TestHostileRuntime(void)
     m3World* world = SmallWorld();
     m3BodyId a = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
     m3BodyId b = Box(world, (m3Pos3){1.0, 2.0, 0.0}, 0.4f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     m3JointId link = NewJoint(world, &jd);
@@ -364,14 +356,13 @@ static void TestSwitchesKeepValues(void)
     m3World* world = SmallWorld();
     m3BodyId a = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
     m3BodyId b = Box(world, (m3Pos3){1.0, 2.0, 0.0}, 0.4f, 1);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){0.5f, 0.0f, 0.0f};
     jd.localAnchorB = (m3Vec3){-0.5f, 0.0f, 0.0f};
-    jd.lowerLimit = 0.5f; // a disabled def range may be inverted
-    jd.upperLimit = -0.5f;
+    jd.lowerAngle = 0.5f; // a disabled def range may be inverted
+    jd.upperAngle = -0.5f;
     m3JointId hinge = NewJoint(world, &jd);
     CHECK_REFUSES(world, m3Joint_EnableLimit(world, hinge, true),
                   "an inverted range cannot be switched on");
@@ -406,11 +397,10 @@ static void TestSwitchesKeepValues(void)
           "the motor reads back on with its values");
 
     // A weld takes none of the three; its getters read zeros.
-    jd = m3DefaultJointDef();
-    jd.type = m3_weldJoint;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    m3JointId weld = NewJoint(world, &jd);
+    m3WeldJointDef jdWeld = m3DefaultWeldJointDef();
+    jdWeld.bodyIdA = a;
+    jdWeld.bodyIdB = b;
+    m3JointId weld = NewJoint(world, &jdWeld);
     CHECK_REFUSES(world, m3Joint_EnableLimit(world, weld, true), "a weld takes no limit");
     CHECK_REFUSES(world, m3Joint_SetLimits(world, weld, 0.0f, 1.0f), "nor a limit range");
     CHECK_REFUSES(world, m3Joint_SetSpringHertz(world, weld, 1.0f), "nor a spring");
