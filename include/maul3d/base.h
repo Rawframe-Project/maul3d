@@ -303,8 +303,10 @@ extern "C"
 #define M3_MAX_HEIGHTFIELD_SIZE      255
 #define M3_MAX_HEIGHTFIELD_MESH_SIZE 32
 // - the merged boxes of a voxel chunk's collision surface, the count a
-//   checkerboard of single voxels needs.
+//   checkerboard of single voxels needs;
 #define M3_MAX_VOXEL_SURFACE_BOXES 2048
+// - the bytes of a body's name.
+#define M3_MAX_BODY_NAME_BYTES 31
     // The soft body, vehicle and drivetrain counts are in their headers.
 
 #ifdef __cplusplus

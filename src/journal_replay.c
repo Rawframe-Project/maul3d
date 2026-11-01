@@ -483,8 +483,12 @@ static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    record.name[M3_BODY_NAME_CAPACITY - 1] = 0;
-    m3SetBodyNameInternal(world, index, record.name);
+    int32_t length;
+    if (!m3BodyNameSlotValid((const uint8_t*)record.name, &length))
+    {
+        return false;
+    }
+    m3SetBodyNameInternal(world, index, record.name, length);
     return true;
 }
 

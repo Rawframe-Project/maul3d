@@ -1080,8 +1080,9 @@ root, sleeping bodies keep the tint of the island they slept in),
 center-of-mass axis frames, and the broadphase tree's internal node
 boxes. One purity gate covers every layer.
 
-Bodies take debug names (m3Body_SetName, 31 bytes plus the
-terminator, journaled, carried by snapshots, NEVER hashed) and
+Bodies take debug names (m3Body_SetName: UTF-8 with its byte length,
+at most M3_MAX_BODY_NAME_BYTES, journaled, carried by snapshots, NEVER
+hashed; m3Body_GetName copies it out with no terminator) and
 answer "who touches me" through m3Body_GetContactData and
 m3Shape_GetContactData: manifold entries in canonical pair order
 with world points, separations, and last-step normal impulses.
@@ -1283,7 +1284,7 @@ past what real scenes use. Vectors are bounded per component.
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
 | Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
-| Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface |
+| Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048, `M3_MAX_BODY_NAME_BYTES` 31 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface, a body's name |
 | Capacities | `M3_MAX_SHAPE_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
 
 The step holds what it produces within the same limits: every

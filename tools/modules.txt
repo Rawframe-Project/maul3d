@@ -98,5 +98,5 @@ world: body_state cpu fpenv journal misuse snapshot_walk step_scratch world_inte
 world_events: fpenv journal misuse world world_internal
 world_hash: body fpenv joint_solver misuse world world_internal
 world_internal: allocator dynamic_tree
-world_state: allocator manifold world_internal
+world_state: allocator body_state manifold world_internal
 world_stats: fpenv misuse world_internal
