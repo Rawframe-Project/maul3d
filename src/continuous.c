@@ -31,7 +31,8 @@ typedef struct Sweeper
     int32_t shape;
     m3Pos3 base; // the fast body's start: the sweep frame's origin
     m3Sweep sweep;
-    float fraction; // the earliest impact so far
+    m3Sweep shapeSweep; // the fast shape's own sweep, its local transform composed
+    float fraction;     // the earliest impact so far
 } Sweeper;
 
 // A body's sweep over the step, relative to base so the kernels see small
@@ -52,6 +53,25 @@ static m3Sweep RelativeSweep(const m3World* world, int32_t body, const m3Pos3* c
     return sweep;
 }
 
+// The sweep of one shape of a body: the body's sweep carried through the
+// shape's local transform, so the shape's proxy and pieces, which are in
+// its own frame, move where the shape sits. The rotations take the local
+// rotation on the right, which keeps their angle and blend, and the
+// center of mass is read in the shape's frame.
+static m3Sweep ShapeSweep(const m3World* world, int32_t shape, m3Sweep sweep)
+{
+    if (world->shapes.shapeHasOffset[shape] == 0)
+    {
+        return sweep;
+    }
+    m3Quat lq = world->shapes.shapeLocalRot[shape];
+    sweep.localCenter =
+        m3InvRotateVec3(lq, m3Sub3(sweep.localCenter, world->shapes.shapeLocalPos[shape]));
+    sweep.q1 = m3MulQuat(sweep.q1, lq);
+    sweep.q2 = m3MulQuat(sweep.q2, lq);
+    return sweep;
+}
+
 static void TakeImpact(Sweeper* sw, const m3TOIInput* input)
 {
     m3TOIOutput out = m3TimeOfImpact(input);
@@ -61,14 +81,15 @@ static void TakeImpact(Sweeper* sw, const m3TOIInput* input)
     }
 }
 
-// The fast body's path in the frame of a target body (static meshes,
+// The fast body's path in the frame of a target shape (static meshes,
 // grids and voxel chunks keep their pieces in their own frame): its
 // center of mass moves on a line through the step, carrying the body
 // within its reach, up to the earliest impact so far.
 static m3SurfacePath SweptPathIn(const Sweeper* sw, int32_t target)
 {
     const m3World* world = sw->world;
-    const m3Transform* xfT = &world->bodies.transforms[target];
+    m3Transform xfS = m3ShapeWorldTransform(world, target);
+    const m3Transform* xfT = &xfS;
     const m3Transform* xfF = &world->bodies.transforms[sw->body];
     m3Pos3 start = sw->com0[sw->body];
     m3Vec3 rlc = m3RotateVec3(xfF->q, world->bodies.localCenters[sw->body]);
@@ -104,13 +125,14 @@ typedef struct SurfaceSweep
     m3TOIInput input;
 } SurfaceSweep;
 
-static void SurfaceSweepBegin(Sweeper* sw, int32_t body, SurfaceSweep* ss)
+static void SurfaceSweepBegin(Sweeper* sw, int32_t shape, int32_t body, SurfaceSweep* ss)
 {
     ss->sw = sw;
-    ss->path = SweptPathIn(sw, body);
+    ss->path = SweptPathIn(sw, shape);
     ss->input.proxyB = m3MakeShapeProxy(sw->world, sw->shape, ss->scratch);
-    ss->input.sweepA = RelativeSweep(sw->world, body, sw->com0, sw->rot0, sw->base);
-    ss->input.sweepB = sw->sweep;
+    ss->input.sweepA =
+        ShapeSweep(sw->world, shape, RelativeSweep(sw->world, body, sw->com0, sw->rot0, sw->base));
+    ss->input.sweepB = sw->shapeSweep;
 }
 
 static void SweepPiece(SurfaceSweep* ss, const m3Vec3* points, int32_t count, m3Vec3 lo, m3Vec3 hi)
@@ -153,7 +175,7 @@ static void SweepVoxels(Sweeper* sw, int32_t shape, int32_t body)
     const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];
     float cell = world->voxels.voxelData[slot].cellSize;
     SurfaceSweep ss;
-    SurfaceSweepBegin(sw, body, &ss);
+    SurfaceSweepBegin(sw, shape, body, &ss);
     m3MeshBvhHits gather;
     m3MeshBvhGatherPath(&surface->bvh, &ss.path, &gather);
     for (int32_t g = m3MeshBvhFirstHit(&gather); g >= 0; g = m3MeshBvhNextHit(&gather, g))
@@ -178,7 +200,7 @@ static void SweepMesh(Sweeper* sw, int32_t shape, int32_t body)
     m3World* world = sw->world;
     const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[shape]];
     SurfaceSweep ss;
-    SurfaceSweepBegin(sw, body, &ss);
+    SurfaceSweepBegin(sw, shape, body, &ss);
     m3MeshBvhHits gather;
     m3MeshBvhGatherPath(&world->meshes.meshBvh[world->shapes.shapeMeshIndex[shape]], &ss.path,
                         &gather);
@@ -197,7 +219,7 @@ static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
 {
     m3World* world = sw->world;
     SurfaceSweep ss;
-    SurfaceSweepBegin(sw, body, &ss);
+    SurfaceSweepBegin(sw, shape, body, &ss);
     m3HeightFieldVisitPath(&world->heightFields.hfData[world->shapes.shapeHfIndex[shape]], &ss.path,
                            SweepTriangle, &ss);
 }
@@ -254,8 +276,9 @@ static bool SweepCallback(int32_t shape, void* context)
     m3TOIInput input;
     input.proxyA = m3MakeShapeProxy(world, shape, scratchA);
     input.proxyB = m3MakeShapeProxy(world, sw->shape, scratchB);
-    input.sweepA = RelativeSweep(world, body, sw->com0, sw->rot0, sw->base);
-    input.sweepB = sw->sweep;
+    input.sweepA =
+        ShapeSweep(world, shape, RelativeSweep(world, body, sw->com0, sw->rot0, sw->base));
+    input.sweepB = sw->shapeSweep;
     input.maxFraction = sw->fraction;
     TakeImpact(sw, &input);
     return true;
@@ -289,7 +312,7 @@ static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
     float t = 0.0f;
     for (int32_t iteration = 0; iteration < 25; ++iteration)
     {
-        m3Transform xf = m3GetSweepTransform(&sw->sweep, t);
+        m3Transform xf = m3GetSweepTransform(&sw->shapeSweep, t);
         float lowest = FLT_MAX;
         for (int32_t k = 0; k < proxy.count; ++k)
         {
@@ -333,6 +356,7 @@ static void SweepShape(Sweeper* sw, int32_t shape)
 {
     m3World* world = sw->world;
     sw->shape = shape;
+    sw->shapeSweep = ShapeSweep(world, shape, sw->sweep);
     double pad = (double)(world->bodies.maxExtents[sw->body] + M3_AABB_MARGIN);
     m3Pos3 a = sw->com0[sw->body];
     m3Pos3 b = {sw->base.x + (double)sw->sweep.c2.x, sw->base.y + (double)sw->sweep.c2.y,

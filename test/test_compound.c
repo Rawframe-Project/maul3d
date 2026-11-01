@@ -111,6 +111,84 @@ static void TestDumbbellInertia(void)
     m3DestroyWorld(world);
 }
 
+// A fast ball, radius 0.1, falls at 200 m/s with gravity off onto a floor
+// whose top is y = 0, and the sweep stops it there however the shapes ride
+// their bodies: a box offset below its body, a tall box laid flat by its
+// local rotation, an offset voxel chunk, or the ball's own sphere 1 m
+// below its body. The ball's lowest point ends on the floor each time.
+enum
+{
+    SWEEP_OFFSET_BOX,
+    SWEEP_TURNED_BOX,
+    SWEEP_OFFSET_CHUNK,
+    SWEEP_OFFSET_BALL
+};
+
+static double FastBallBottom(int32_t scene)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.voxelCapacity = 1;
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef fd = m3DefaultShapeDef();
+    if (scene == SWEEP_TURNED_BOX)
+    {
+        float s = sinf(0.25f * M3_PI);
+        float c = cosf(0.25f * M3_PI);
+        fd.localPosition = (m3Vec3){0.0f, -0.5f, 0.0f};
+        fd.localRotation = (m3Quat){0.0f, 0.0f, s, c}; // 90 degrees about z
+        NewBoxShape(world, ground, &fd, (m3Vec3){0.5f, 5.0f, 5.0f});
+    }
+    else if (scene == SWEEP_OFFSET_CHUNK)
+    {
+        fd.localPosition = (m3Vec3){-8.0f, -1.0f, -8.0f};
+        static uint8_t voxels[16 * 16 * 16];
+        memset(voxels, 0, sizeof(voxels));
+        for (int32_t z = 0; z < 16; ++z)
+        {
+            memset(&voxels[16 * 16 * z], 1, 16); // the bottom row, y = 0
+        }
+        NewVoxelChunkShape(world, ground, &fd, voxels, NULL, 1.0f);
+    }
+    else
+    {
+        fd.localPosition = (m3Vec3){0.0f, -0.5f, 0.0f};
+        NewBoxShape(world, ground, &fd, (m3Vec3){5.0f, 0.5f, 5.0f});
+    }
+    double drop = scene == SWEEP_OFFSET_BALL ? 1.0 : 0.0;
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 5.0 + drop, 0.0};
+    bd.linearVelocity = (m3Vec3){0.0f, -200.0f, 0.0f};
+    bd.gravityScale = 0.0f;
+    m3BodyId ball = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.localPosition = (m3Vec3){0.0f, (float)-drop, 0.0f};
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    for (int32_t step = 0; step < 4; ++step)
+    {
+        CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps");
+    }
+    double bottom = m3Body_GetPosition(world, ball).y - drop - 0.1;
+    m3DestroyWorld(world);
+    return bottom;
+}
+
+static void TestSweepSeesOffsets(void)
+{
+    const char* const why[4] = {"a fast ball stops on a box offset below its body",
+                                "on a box its local rotation lays flat", "on an offset voxel chunk",
+                                "and with its own sphere offset below its body"};
+    for (int32_t scene = SWEEP_OFFSET_BOX; scene <= SWEEP_OFFSET_BALL; ++scene)
+    {
+        CHECK(fabs(FastBallBottom(scene)) < 0.03, why[scene]);
+    }
+}
+
 static void TestRotatedOffsetRests(void)
 {
     // A capsule whose OFFSET rotation lays it on its side: the body
@@ -371,6 +449,7 @@ int main(void)
 {
     TestOffsetEquivalence();
     TestDumbbellInertia();
+    TestSweepSeesOffsets();
     TestRotatedOffsetRests();
     TestQueriesSeeOffsets();
     TestPlaneSitsWithItsBody();
