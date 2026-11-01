@@ -162,8 +162,9 @@ snapshot and journal formats.
   and return `int64_t` sizes, as do `m3ReplayView`'s sizes,
   `m3JournalInfo`'s counts and `m3Counters.snapshotBytes`, and the C#
   snapshot calls take `long`. `M3_MAX_SNAPSHOT_BYTES` is removed, and
-  `m3CreateWorld` no longer limits mesh, hull and height field slots to
-  keep a snapshot under 2 GiB. On a 32-bit target a size past
+  `m3CreateWorld` no longer limits mesh and hull slots, and a height
+  field grid's create no longer refuses samples, to keep a snapshot
+  under 2 GiB. On a 32-bit target a size past
   `SIZE_MAX` is `m3_errorInvalid`.
   ([#226](https://github.com/Rawframe-Project/maul3d/pull/226))
 - **Breaking: what a failed call leaves in `bytesOut`.**
