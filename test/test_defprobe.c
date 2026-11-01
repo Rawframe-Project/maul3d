@@ -613,6 +613,119 @@ static void ProbeJoints(void)
     }
 }
 
+// A part one joint type takes, written into another type's create record.
+typedef struct ForeignPart
+{
+    const char* what;
+    Builder* build;
+    const void* base;
+    void (*write)(m3JointDef* def);
+} ForeignPart;
+
+static void ConeOn(m3JointDef* def)
+{
+    def->enableCone = true;
+    def->coneAngle = 0.5f;
+}
+
+static void SpringOn(m3JointDef* def)
+{
+    def->enableSpring = true;
+    def->springHertz = 4.0f;
+}
+
+static void LimitOn(m3JointDef* def)
+{
+    def->enableLimit = true;
+    def->lowerLimit = 0.5f;
+    def->upperLimit = 2.0f;
+}
+
+static void MotorOn(m3JointDef* def)
+{
+    def->enableMotor = true;
+    def->motorSpeed = 1.0f;
+}
+
+static void NegativeType(m3JointDef* def)
+{
+    def->type = -1;
+}
+
+// Whether a tape whose last record, a clean create, carries the part is
+// refused on replay with m3_errorFormat, counting no misuse and leaving
+// the world as it was.
+static bool ReplayRefusesPart(const ForeignPart* part)
+{
+    static uint8_t tape[65536];
+    m3World* world = Scene();
+    int64_t capacity = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int64_t snapBytes = 0;
+    bool ok = snap != NULL && m3World_Snapshot(world, snap, capacity, &snapBytes) == m3_success &&
+              StartJournal(world, tape, (int32_t)sizeof(tape)) &&
+              part->build(world, part->base) == m3_success;
+    int64_t tapeBytes = StopJournal(world);
+    int32_t last = -1;
+    for (int32_t at = 16; ok && at + 8 <= tapeBytes;)
+    {
+        int32_t payloadBytes;
+        memcpy(&payloadBytes, tape + at + 4, sizeof(payloadBytes));
+        last = at;
+        at += 8 + payloadBytes;
+    }
+    ok = ok && last >= 0 && m3World_Restore(world, snap, snapBytes) == m3_success;
+    if (ok)
+    {
+        m3JointDef def;
+        memcpy(&def, tape + last + 8, sizeof(def));
+        part->write(&def);
+        memcpy(tape + last + 8, &def, sizeof(def));
+        uint64_t hash = m3World_Hash(world);
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
+        ok = m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorFormat &&
+             m3World_GetCounters(world).misuseCount == misuse && m3World_Hash(world) == hash;
+    }
+    free(snap);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+// No type's def can carry another type's part, but a tape carries the full
+// def, so replay still refuses each one: a cone on a wheel or a hinge, a
+// spring on a weld, a limit or a motor on a distance joint, and a negative
+// type.
+static void ProbeForeignPartsOnReplay(void)
+{
+    m3WheelJointDef wheel = m3DefaultWheelJointDef();
+    wheel.bodyIdA = s_boxA;
+    wheel.bodyIdB = s_boxB;
+    m3RevoluteJointDef hinge = m3DefaultRevoluteJointDef();
+    hinge.bodyIdA = s_boxA;
+    hinge.bodyIdB = s_boxB;
+    m3WeldJointDef weld = m3DefaultWeldJointDef();
+    weld.bodyIdA = s_boxA;
+    weld.bodyIdB = s_boxB;
+    m3DistanceJointDef rope = m3DefaultDistanceJointDef();
+    rope.bodyIdA = s_boxA;
+    rope.bodyIdB = s_boxB;
+    rope.maxLength = 2.0f;
+    const ForeignPart parts[6] = {
+        {"a cone on a wheel", BuildWheelJoint, &wheel, ConeOn},
+        {"a cone on a hinge", BuildRevoluteJoint, &hinge, ConeOn},
+        {"a spring on a weld", BuildWeldJoint, &weld, SpringOn},
+        {"a limit on a distance joint", BuildDistanceJoint, &rope, LimitOn},
+        {"a motor on a distance joint", BuildDistanceJoint, &rope, MotorOn},
+        {"a negative joint type", BuildWeldJoint, &weld, NegativeType},
+    };
+    for (int32_t k = 0; k < 6; ++k)
+    {
+        char message[96];
+        snprintf(message, sizeof(message), "a replayed create with %s is refused", parts[k].what);
+        CHECK(ReplayRefusesPart(&parts[k]), message);
+    }
+}
+
 static void ProbeCharacters(void)
 {
     static const Field fields[] = {
@@ -772,6 +885,7 @@ int main(void)
     ProbeBodies();
     ProbeShapes();
     ProbeJoints();
+    ProbeForeignPartsOnReplay();
     ProbeCharacters();
     ProbeVehicles();
     ProbeDrivetrains();
