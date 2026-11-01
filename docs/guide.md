@@ -443,7 +443,8 @@ new math:
   change them at run time.
 - `m3_genericJoint`: per-axis `m3AxisMode` (locked, free, limited)
   over three linear and three angular axes, plus one motor on any
-  movable axis. The v1 angular contract: at most one limited
+  movable axis, which drives while its switch is on, as on every
+  type with a motor. The v1 angular contract: at most one limited
   angular axis, and its neighbors both locked or both free.
 - `m3_wheelJoint`: suspension slide plus free axle spin, its own
   chapter below.

@@ -433,6 +433,7 @@ static void AddSliders(m3World* world, m3BodyId ground)
     six.genericAngularLower[2] = -0.7f;
     six.genericAngularUpper[2] = 0.7f;
     six.genericMotorAxis = 5;
+    six.enableMotor = true;
     six.motorSpeed = 1.0f;
     six.maxMotorEffort = 3.0f;
     NewJoint(world, &six);
