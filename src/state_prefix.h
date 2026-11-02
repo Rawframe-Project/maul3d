@@ -42,11 +42,11 @@ typedef struct m3StatePrefix
 m3StatePrefix m3MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t headerBytes);
 
 // Checks the prefix of untrusted bytes, in the order every state format
-// shares: too short or another magic is m3_errorInvalid, since the bytes
+// shares: too short or another magic is m3_errorFormat, since the bytes
 // are not this format; another release or format number is
 // m3_errorVersion, since only the release that wrote them reads them; a
 // header size that is not this format's, or bytes too short to hold it,
-// is m3_errorInvalid. Counts nothing: the bytes are untrusted.
+// is m3_errorFormat. Counts nothing: the bytes are untrusted.
 m3Result m3CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes);
 
