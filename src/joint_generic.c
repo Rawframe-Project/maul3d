@@ -48,11 +48,11 @@ static uint32_t MotorAxis(const m3JointConstraint* c)
     return (uint32_t)(c->genModes >> 12) & 15u;
 }
 
-// The motor's row, when there is one.
+// The motor's row, when the joint has a motor axis and its motor is on.
 static bool MotorRow(const m3JointConstraint* c, const m3JointPose* pose, const m3JointFrames* f,
                      m3JointRow* row)
 {
-    uint32_t axis = MotorAxis(c);
+    uint32_t axis = (c->flags & M3_JOINT_MOTOR) != 0 ? MotorAxis(c) : 15u;
     if (axis < 3u)
     {
         *row = m3SlideRow(pose, m3FrameAxis(f->a, (int32_t)axis));

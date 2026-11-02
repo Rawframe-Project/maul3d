@@ -117,8 +117,9 @@ extern "C"
         /// frame axis; limits are meters (linear) and radians
         /// (angular), used only where the mode is limited. One
         /// motor: genericMotorAxis picks 0..2 (linear) or 3..5
-        /// (angular), 255 for none; it drives motorSpeed with the
-        /// maxMotorEffort cap on a free or limited axis. At most ONE
+        /// (angular), 255 for none; while enableMotor is on, it
+        /// drives motorSpeed with the maxMotorEffort cap on a free or
+        /// limited axis, as every motor follows its switch. At most ONE
         /// angular axis may be limited, and the other two must be
         /// BOTH locked (a hinge with range) or BOTH free (a
         /// twist-limited ball); anything else refuses loudly. The

@@ -626,10 +626,11 @@ extern "C"
                                            m3Vec3 point2, float radius, m3Vec3 translation,
                                            m3QueryFilter filter, m3CastHit* hitOut);
 
-    /// The first shape (lowest index) whose volume contains the
-    /// point, or the null id. Meshes are open surfaces and never
-    /// contain points; planes are solid half spaces.
-    M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point);
+    /// The first shape (lowest index) the filter sees whose volume
+    /// contains the point, or the null id. A disabled body's shapes are
+    /// skipped. Meshes are open surfaces and never contain points;
+    /// planes are solid half spaces.
+    M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point, m3QueryFilter filter);
 
     /// The overlap queries write the lowest capacity shape ids in
     /// ascending shape index order and return the total, which may
@@ -651,11 +652,12 @@ extern "C"
     /// raw convex cloud queries with the same contract as the
     /// sphere: shapes within EXACT reach (GJK per candidate, planes
     /// and voxel/mesh handled per family), ascending shape index,
-    /// filtered, read-only. Clouds carry base-relative points (the
-    /// cast convention), at most 64 of them.
-    M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, float radius,
-                                          m3QueryFilter filter, m3ShapeId* idsOut,
-                                          int32_t capacity);
+    /// filtered, read-only. The capsule's two points are relative to
+    /// its center. Clouds carry base-relative points (the cast
+    /// convention), at most 64 of them.
+    M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 center, m3Vec3 point1,
+                                          m3Vec3 point2, float radius, m3QueryFilter filter,
+                                          m3ShapeId* idsOut, int32_t capacity);
     M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                       m3Quat rotation, m3QueryFilter filter, m3ShapeId* idsOut,
                                       int32_t capacity);

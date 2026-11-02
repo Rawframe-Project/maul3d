@@ -6,6 +6,7 @@
 // only +, -, *, / and the IEEE-exact floorf, sqrtf and remainderf are
 // used, and the build turns floating-point contraction off.
 
+#include "core.h"
 #include "fpenv.h"
 
 #include "maul3d/core_math.h"

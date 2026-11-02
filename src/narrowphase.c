@@ -77,8 +77,8 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
     int32_t hullBody = world->shapes.shapeBody[hullShape];
     m3Transform xfS = m3ShapeWorldTransform(world, hullShape);
     const m3Transform* xf = &xfS;
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    float offset = world->shapes.shapeGeom[planeShape].s;
+    double offset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &offset);
 
     int32_t candIndex[M3_HULL_MAX_VERTS];
     float candSep[M3_HULL_MAX_VERTS];
@@ -90,7 +90,7 @@ static void CollidePlaneHullPair(m3World* world, m3Manifold* fresh, int32_t shap
         double wx = xf->p.x + (double)r.x;
         double wy = xf->p.y + (double)r.y;
         double wz = xf->p.z + (double)r.z;
-        double sep = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - (double)offset;
+        double sep = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - offset;
         if ((float)sep < M3_SPECULATIVE_DISTANCE)
         {
             candIndex[candCount] = v;
@@ -193,8 +193,8 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
     int32_t capBody = world->shapes.shapeBody[capShape];
     m3Transform xfS = m3ShapeWorldTransform(world, capShape);
     const m3Transform* xf = &xfS;
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    float offset = world->shapes.shapeGeom[planeShape].s;
+    double offset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &offset);
     float radius = world->shapes.shapeGeom[capShape].s;
     m3Vec3 caps[2] = {world->shapes.shapeGeom[capShape].v, world->shapes.shapeGeom[capShape].v2};
     int32_t count = 0;
@@ -204,7 +204,7 @@ static void CollidePlaneCapsulePair(m3World* world, m3Manifold* fresh, int32_t s
         double wx = xf->p.x + (double)r.x;
         double wy = xf->p.y + (double)r.y;
         double wz = xf->p.z + (double)r.z;
-        double centerDist = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - (double)offset;
+        double centerDist = (double)n.x * wx + (double)n.y * wy + (double)n.z * wz - offset;
         float sep = (float)centerDist - radius;
         if (sep > M3_SPECULATIVE_DISTANCE)
         {
@@ -439,13 +439,13 @@ static void CollidePlaneSpherePair(m3World* world, m3Manifold* fresh, int32_t sh
     // has the lower index the manifold flips on the way out.
     int32_t planeShape = typeA == (uint8_t)m3_planeShape ? shapeA : shapeB;
     int32_t sphereShape = planeShape == shapeA ? shapeB : shapeA;
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
-    float offset = world->shapes.shapeGeom[planeShape].s;
+    double offset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &offset);
     double cx;
     double cy;
     double cz;
     m3SphereWorldCenter(world, sphereShape, &cx, &cy, &cz);
-    double distD = (double)n.x * cx + (double)n.y * cy + (double)n.z * cz - (double)offset;
+    double distD = (double)n.x * cx + (double)n.y * cy + (double)n.z * cz - offset;
     *fresh = m3CollidePlaneSphere(n, (float)distD, world->shapes.shapeGeom[sphereShape].s);
     if (fresh->pointCount > 0)
     {

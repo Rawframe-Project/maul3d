@@ -10,5 +10,6 @@ fabsf
 floorf
 fmax
 fmin
+remainderf
 sqrt
 sqrtf

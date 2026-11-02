@@ -138,7 +138,7 @@ static int64_t RecordSession(uint8_t fill, uint8_t* tape, int64_t capacity)
               m3Shape_IsValid(world, chunk),
           "every kind of shape creates");
     s_paint(fill);
-    m3Shape_SetFilter(world, box, 0x2u, 0xFFu, -3);
+    CHECK(m3Shape_SetFilter(world, box, 0x2u, 0xFFu, -3) == m3_success, "the box takes a filter");
     s_paint(fill);
     m3Body_ApplyForceAtPoint(world, a, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Pos3){0.0, 2.5, 0.0});
     s_paint(fill);

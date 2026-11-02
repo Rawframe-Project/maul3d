@@ -277,11 +277,12 @@ static void TestQueriesAgainstVoxels(void)
     CHECK(!landed, "a ray born inside reports a miss");
 
     // Containment: inside a filled voxel, above the slab, outside.
-    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 3.5, 8.0}).index1 == chunkShape.index1,
+    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 3.5, 8.0}, m3DefaultQueryFilter()).index1 ==
+              chunkShape.index1,
           "a point in a filled voxel is inside");
-    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 4.5, 8.0}).index1 == 0,
+    CHECK(m3World_TestPoint(world, (m3Pos3){8.0, 4.5, 8.0}, m3DefaultQueryFilter()).index1 == 0,
           "a point above the slab is outside");
-    CHECK(m3World_TestPoint(world, (m3Pos3){-1.0, 1.0, 8.0}).index1 == 0,
+    CHECK(m3World_TestPoint(world, (m3Pos3){-1.0, 1.0, 8.0}, m3DefaultQueryFilter()).index1 == 0,
           "a point before the chunk origin is outside");
 
     // Overlaps: the sphere reach and the AABB both see the chunk.
@@ -1166,7 +1167,7 @@ static void TestEmbeddedRecovery(void)
         // PointInside finds the ball's own sphere (a center is
         // always inside its own shape); the assertion is that the
         // CHUNK no longer contains it.
-        CHECK(m3World_TestPoint(world, p).index1 != block.index1,
+        CHECK(m3World_TestPoint(world, p, m3DefaultQueryFilter()).index1 != block.index1,
               "the rest position is outside the solid block");
         hashes[run] = m3World_Hash(world);
         m3DestroyWorld(world);

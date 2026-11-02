@@ -422,11 +422,11 @@ static void TestPointAndOverlaps(void)
     m3ShapeId boxShape = NewBoxShape(world, boxBody, &sd, (m3Vec3){1.0f, 1.0f, 1.0f});
 
     // Point containment per family.
-    m3ShapeId inBox = m3World_TestPoint(world, (m3Pos3){5.2, 2.3, 0.4});
+    m3ShapeId inBox = m3World_TestPoint(world, (m3Pos3){5.2, 2.3, 0.4}, m3DefaultQueryFilter());
     CHECK(inBox.index1 == boxShape.index1, "the point inside the box finds the box");
-    m3ShapeId below = m3World_TestPoint(world, (m3Pos3){100.0, -0.5, 0.0});
+    m3ShapeId below = m3World_TestPoint(world, (m3Pos3){100.0, -0.5, 0.0}, m3DefaultQueryFilter());
     CHECK(below.index1 == floorShape.index1, "a point below the floor is inside the half space");
-    m3ShapeId nowhere = m3World_TestPoint(world, (m3Pos3){5.0, 8.0, 0.0});
+    m3ShapeId nowhere = m3World_TestPoint(world, (m3Pos3){5.0, 8.0, 0.0}, m3DefaultQueryFilter());
     CHECK(nowhere.index1 == 0, "open air contains nothing");
 
     // Overlaps: the AABB box catches the box, the sphere probes reach.
@@ -761,15 +761,15 @@ static void TestOverlapAndInsideFamilies(void)
 
     // Point-inside for the remaining families: capsule (cylinder
     // and cap regions), hull, and the mesh open-surface rule.
-    m3ShapeId inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.2, 0.1});
+    m3ShapeId inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.2, 0.1}, m3DefaultQueryFilter());
     CHECK(inside.index1 == pillShape.index1, "a point in the capsule cylinder is inside");
-    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.8, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 1.8, 0.0}, m3DefaultQueryFilter());
     CHECK(inside.index1 == pillShape.index1, "a point in the capsule cap is inside");
-    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 2.5, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){-4.0, 2.5, 0.0}, m3DefaultQueryFilter());
     CHECK(inside.index1 == 0, "above the capsule is outside");
-    inside = m3World_TestPoint(world, (m3Pos3){-8.0, 1.1, 0.1});
+    inside = m3World_TestPoint(world, (m3Pos3){-8.0, 1.1, 0.1}, m3DefaultQueryFilter());
     CHECK(inside.index1 == rockShape.index1, "a point in the hull is inside");
-    inside = m3World_TestPoint(world, (m3Pos3){6.0, 2.0, 0.0});
+    inside = m3World_TestPoint(world, (m3Pos3){6.0, 2.0, 0.0}, m3DefaultQueryFilter());
     CHECK(inside.index1 == 0, "a point ON a mesh is outside: meshes are open surfaces");
 
     m3DestroyWorld(world);
@@ -787,18 +787,87 @@ static void TestFarPointsMissVoxels(void)
     memset(cells, 1, sizeof(cells));
     m3ShapeDef sd = m3DefaultShapeDef();
     m3ShapeId chunk = NewVoxelChunkShape(world, ground, &sd, cells, NULL, 0.25f);
-    CHECK(m3World_TestPoint(world, (m3Pos3){0.5, 0.5, 0.5}).index1 == chunk.index1,
+    CHECK(m3World_TestPoint(world, (m3Pos3){0.5, 0.5, 0.5}, m3DefaultQueryFilter()).index1 ==
+              chunk.index1,
           "a point in a filled cell is inside the chunk");
     static const double far[] = {1.0e10, 3.0e9, -3.0e9, -1.0e10, 1.0e30};
     int32_t outside = 0;
     for (size_t i = 0; i < sizeof(far) / sizeof(far[0]); ++i)
     {
-        outside += m3World_TestPoint(world, (m3Pos3){far[i], 0.5, 0.5}).index1 == 0 ? 1 : 0;
-        outside += m3World_TestPoint(world, (m3Pos3){0.5, far[i], 0.5}).index1 == 0 ? 1 : 0;
-        outside += m3World_TestPoint(world, (m3Pos3){0.5, 0.5, far[i]}).index1 == 0 ? 1 : 0;
+        outside +=
+            m3World_TestPoint(world, (m3Pos3){far[i], 0.5, 0.5}, m3DefaultQueryFilter()).index1 == 0
+                ? 1
+                : 0;
+        outside +=
+            m3World_TestPoint(world, (m3Pos3){0.5, far[i], 0.5}, m3DefaultQueryFilter()).index1 == 0
+                ? 1
+                : 0;
+        outside +=
+            m3World_TestPoint(world, (m3Pos3){0.5, 0.5, far[i]}, m3DefaultQueryFilter()).index1 == 0
+                ? 1
+                : 0;
     }
     CHECK(outside == 3 * (int32_t)(sizeof(far) / sizeof(far[0])),
           "a far point on any axis is outside the chunk");
+    m3DestroyWorld(world);
+}
+
+// The point test takes a filter as every other query does: it answers
+// with the lowest shape the filter sees that holds the point.
+static void TestPointTakesFilter(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){-3.0, 1.0, 4.0};
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.categoryBits = 2u;
+    m3ShapeId tagged = NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    sd = m3DefaultShapeDef();
+    m3ShapeId plain = NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    m3Pos3 center = {-3.0, 1.0, 4.0};
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == tagged.index1,
+          "the default filter sees the lowest shape");
+    m3QueryFilter skipTagged = m3DefaultQueryFilter();
+    skipTagged.maskBits = ~(uint64_t)2u;
+    CHECK(m3World_TestPoint(world, center, skipTagged).index1 == plain.index1,
+          "a mask without the first shape's category answers with the next");
+    m3QueryFilter none = m3DefaultQueryFilter();
+    none.maskBits = 0u;
+    CHECK(m3World_TestPoint(world, center, none).index1 == 0, "an empty mask sees nothing");
+    m3DestroyWorld(world);
+}
+
+// The point test skips a disabled body's shapes, as every other query
+// does: it answers with the next shape that holds the point, or none.
+static void TestPointSkipsDisabledBodies(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){2.0, 3.0, -1.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3BodyId first = NewBody(world, &bd);
+    m3ShapeId firstBall = NewSphereShape(world, first, &sd, &ball);
+    m3BodyId second = NewBody(world, &bd);
+    m3ShapeId secondBall = NewSphereShape(world, second, &sd, &ball);
+    m3Pos3 center = {2.0, 3.0, -1.0};
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == firstBall.index1,
+          "the lowest shape that holds the point answers");
+    m3Body_Enable(world, first, false);
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == secondBall.index1,
+          "a disabled body's shape is skipped for the next one");
+    m3Body_Enable(world, second, false);
+    m3ShapeId found[2];
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == 0 &&
+              m3World_OverlapSphere(world, center, 0.1f, m3DefaultQueryFilter(), found, 2) == 0,
+          "with both bodies disabled the point test agrees with the overlap: nothing");
+    m3Body_Enable(world, first, true);
+    CHECK(m3World_TestPoint(world, center, m3DefaultQueryFilter()).index1 == firstBall.index1,
+          "an enabled body's shape answers again");
     m3DestroyWorld(world);
 }
 
@@ -1187,8 +1256,9 @@ static int32_t ListSphere(const ListScene* sc, void* out, int32_t capacity)
 
 static int32_t ListCapsule(const ListScene* sc, void* out, int32_t capacity)
 {
-    return m3World_OverlapCapsule(sc->world, (m3Pos3){-1.5, 0.5, 0.0}, (m3Pos3){1.5, 0.5, 0.0},
-                                  0.6f, m3DefaultQueryFilter(), (m3ShapeId*)out, capacity);
+    return m3World_OverlapCapsule(sc->world, (m3Pos3){0.0, 0.5, 0.0}, (m3Vec3){-1.5f, 0.0f, 0.0f},
+                                  (m3Vec3){1.5f, 0.0f, 0.0f}, 0.6f, m3DefaultQueryFilter(),
+                                  (m3ShapeId*)out, capacity);
 }
 
 static int32_t ListBox(const ListScene* sc, void* out, int32_t capacity)
@@ -1381,29 +1451,57 @@ static void TestListOutputs(void)
             CHECK(got == 0 && zeroed, "a refused list call zeroes its whole array");
         }
     }
-    // The world comparison refuses a NULL world and two worlds of
-    // different capacities the same way: -1, a zero count and its rows
-    // zeroed over their whole capacity.
+    // The world comparison refuses a NULL world, a NULL total and a bad
+    // array with m3_errorInvalid, a zero total and its rows zeroed over
+    // their whole capacity, counting one misuse on the world it was
+    // given.
+    m3BodyDiff rows[3];
+    int32_t total = 7;
+    uint64_t misuse = m3World_GetCounters(sc.world).misuseCount;
+    memset(rows, 0x5A, sizeof(rows));
+    m3Result result = m3World_Compare(NULL, sc.world, rows, 3, &total);
+    bool zeroed = true;
+    const unsigned char* rowBytes = (const unsigned char*)rows;
+    for (size_t k = 0; k < sizeof(rows); ++k)
+    {
+        zeroed = zeroed && rowBytes[k] == 0;
+    }
+    CHECK(result == m3_errorInvalid && total == 0 && zeroed &&
+              m3World_GetCounters(sc.world).misuseCount == misuse + 1u,
+          "a comparison with a NULL world zeroes its rows and counts one misuse");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, NULL, 3, &total) == m3_errorInvalid && total == 0,
+          "a NULL array with a positive capacity is refused");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, rows, -1, &total) == m3_errorInvalid && total == 0,
+          "a negative capacity is refused");
+    CHECK(m3World_Compare(sc.world, sc.world, rows, 3, NULL) == m3_errorInvalid,
+          "a NULL total is refused");
+    CHECK(m3World_GetCounters(sc.world).misuseCount == misuse + 4u,
+          "each refused comparison counts one misuse");
+
+    // Two worlds of different capacities compare slot by slot: every
+    // body of the full world is missing from the empty, wider one.
     m3WorldDef other = m3DefaultWorldDef();
     other.bodyCapacity = wd.bodyCapacity + 1;
     m3World* wider = NewWorld(&other);
-    const m3World* pairs[2][2] = {{sc.world, NULL}, {sc.world, wider}};
-    for (int32_t p = 0; p < 2; ++p)
+    total = 0;
+    CHECK(m3World_Compare(sc.world, wider, NULL, 0, &total) == m3_success && total == 7,
+          "a NULL array with capacity 0 measures");
+    memset(rows, 0x5A, sizeof(rows));
+    total = 0;
+    result = m3World_Compare(sc.world, wider, rows, 3, &total);
+    bool missing = true;
+    for (int32_t i = 0; i < 3; ++i)
     {
-        m3BodyDiff rows[3];
-        memset(rows, 0x5A, sizeof(rows));
-        int32_t count = 7;
-        int32_t got = m3World_Compare(pairs[p][0], pairs[p][1], rows, 3, &count);
-        bool zeroed = true;
-        const unsigned char* bytes = (const unsigned char*)rows;
-        for (size_t k = 0; k < sizeof(rows); ++k)
-        {
-            zeroed = zeroed && bytes[k] == 0;
-        }
-        CHECK(got == -1 && count == 0 && zeroed,
-              p == 0 ? "a comparison with a NULL world zeroes its rows"
-                     : "a comparison of different capacities zeroes its rows");
+        missing = missing && rows[i].onlyInA && !rows[i].onlyInB &&
+                  rows[i].bodyId.index1 == (uint32_t)i + 1u;
     }
+    CHECK(result == m3_success && total == 7 && missing,
+          "a comparison of different capacities reports every body missing from one side");
+    total = 7;
+    CHECK(m3World_Compare(sc.world, sc.world, rows, 3, &total) == m3_success && total == 0,
+          "a world agrees with itself");
     m3DestroyWorld(wider);
     m3DestroyWorld(sc.world);
 }
@@ -1451,9 +1549,74 @@ static void TestOverlapAabbRefusesInvertedBox(void)
     m3DestroyWorld(world);
 }
 
+// Planes live outside the tree, so every overlap offers them apart:
+// each one skips a plane the filter hides or whose body is disabled,
+// as it skips any other shape.
+static int32_t OverlapEach(m3World* world, int32_t kind, m3QueryFilter filter, m3ShapeId* ids)
+{
+    m3Pos3 center = {0.0, 0.0, 0.0};
+    if (kind == 0)
+    {
+        m3WorldAabb box = {{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
+        return m3World_OverlapAabb(world, box, filter, ids, 4);
+    }
+    if (kind == 1)
+    {
+        return m3World_OverlapSphere(world, center, 1.0f, filter, ids, 4);
+    }
+    if (kind == 2)
+    {
+        return m3World_OverlapCapsule(world, center, (m3Pos3){1.0, 0.0, 0.0}, 0.5f, filter, ids, 4);
+    }
+    if (kind == 3)
+    {
+        return m3World_OverlapBox(world, center, (m3Vec3){1.0f, 1.0f, 1.0f},
+                                  (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, filter, ids, 4);
+    }
+    m3Vec3 cloud[2] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
+    return m3World_OverlapHull(world, center, cloud, 2, 0.5f, filter, ids, 4);
+}
+
+static void TestOverlapsSkipHiddenPlanes(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef pd = m3DefaultShapeDef();
+    pd.categoryBits = 2;
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId plane = NewPlaneShape(world, ground, &pd, &floor);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 0.25, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f};
+    m3ShapeId shape = NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    m3QueryFilter hide = m3DefaultQueryFilter();
+    hide.maskBits = ~2ull;
+    m3ShapeId ids[4];
+    for (int32_t kind = 0; kind < 5; ++kind)
+    {
+        CHECK(OverlapEach(world, kind, m3DefaultQueryFilter(), ids) == 2 &&
+                  ids[0].index1 == plane.index1 && ids[1].index1 == shape.index1,
+              "each overlap finds the plane and the ball");
+        CHECK(OverlapEach(world, kind, hide, ids) == 1 && ids[0].index1 == shape.index1,
+              "and none finds the plane the filter hides");
+    }
+    m3Body_Enable(world, ground, false);
+    for (int32_t kind = 0; kind < 5; ++kind)
+    {
+        CHECK(OverlapEach(world, kind, m3DefaultQueryFilter(), ids) == 1 &&
+                  ids[0].index1 == shape.index1,
+              "nor the plane of a disabled body");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
+    TestOverlapsSkipHiddenPlanes();
     TestLongPathsMeetFarPieces();
     TestContactEvents();
     TestRayHitsEveryFamily();
@@ -1467,6 +1630,8 @@ int main(void)
     TestCastsAgainstMeshAndPlane();
     TestOverlapAndInsideFamilies();
     TestFarPointsMissVoxels();
+    TestPointTakesFilter();
+    TestPointSkipsDisabledBodies();
     TestGenericCasts();
     TestSensorPassThrough();
     TestSensorEventRoles();
