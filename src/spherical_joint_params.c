@@ -28,8 +28,8 @@ static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 
 // The switch rides the cone bit and the angle the limit slot's z. Each
 // call records the whole cone: the part it sets and the rest as the joint
-// holds it. SetConeAngle takes no negative angle, and EnableCone refuses
-// to switch on over one a def left.
+// holds it. Only SetConeAngle takes a value to check, since no joint holds
+// an angle its create, restore or replay would refuse.
 static M3_NOINLINE void SphericalJointSetCone(m3World* world, m3JointId joint, bool setsSwitch,
                                               bool enable, float angle)
 {
@@ -46,8 +46,7 @@ static M3_NOINLINE void SphericalJointSetCone(m3World* world, m3JointId joint, b
     int32_t held = (world->joints.jointFlags[slot] & M3_JOINT_CONE) != 0 ? 1 : 0;
     int32_t on = setsSwitch ? (enable ? 1 : 0) : held;
     float value = setsSwitch ? world->joints.jointLimits[slot].z : angle;
-    if (world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint ||
-        (!setsSwitch && !(angle >= 0.0f)) || !m3SphericalConeFits(on, value))
+    if (world->joints.jointType[slot] != (uint8_t)m3_sphericalJoint || !m3SphericalConeFits(value))
     {
         m3Refuse(world, m3_errorInvalid);
         return;

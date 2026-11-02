@@ -431,8 +431,8 @@ A create refuses a def with another type's cookie.
   `upperTwist`). The cone is the spherical joint's alone: no other
   type's def holds it.
   `m3SphericalJoint_EnableCone` and `m3SphericalJoint_SetConeAngle`
-  change it at run time; the angle is never negative while the cone
-  is on.
+  change it at run time; the angle is never negative, with the cone
+  on or off.
 - `m3_revoluteJoint`: hinge; angle limits (`lowerAngle`,
   `upperAngle`) and a motor (`motorSpeed`, `maxMotorEffort`).
 - `m3_prismaticJoint`: slider; translation limits
