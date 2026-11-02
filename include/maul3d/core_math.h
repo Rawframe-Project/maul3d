@@ -172,11 +172,26 @@ extern "C"
         return m3RotateVec3(c, v);
     }
 
-    /// Deterministic cosine and sine (a quarter-turn reduction with a
-    /// split pi/2, then Taylor series) and atan2 (a pi/6 argument shift,
-    /// then the Taylor series): hand rolled because platform libm
-    /// implementations disagree in the last bits.
+    /// Deterministic cosine and sine: a quarter-turn reduction with a split
+    /// pi/2, then Taylor series, hand rolled because platform libm
+    /// implementations disagree in the last bits. Every build gives the
+    /// same bits for the same angle.
+    ///
+    /// @param radians  The angle, any finite value.
+    /// @return The cosine and sine, scaled so c*c + s*s is one to float
+    ///         rounding.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3CosSin m3ComputeCosSin(float radians);
+
+    /// Deterministic atan2: a pi/6 argument shift, then the Taylor series,
+    /// hand rolled for the same reason as m3ComputeCosSin.
+    ///
+    /// @param y  The sine side.
+    /// @param x  The cosine side.
+    /// @return The angle of (x, y) in radians, in [-pi, pi]; 0 for (0, 0).
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API float m3Atan2(float y, float x);
 
 #ifdef __cplusplus

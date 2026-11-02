@@ -41,6 +41,21 @@ extern "C"
         int64_t stepCount;
     } m3JournalInfo;
 
+    /// Counts the records of a journal tape and the steps among them,
+    /// walking its framing without replaying it.
+    ///
+    /// @param journal  The tape a journal wrote into its buffer, between
+    ///                 m3World_StartJournal and m3World_StopJournal.
+    /// @param bytes    The tape's length in bytes.
+    /// @param infoOut  Receives the counts; any failure leaves it as it
+    ///                 was, since the call has no owner.
+    /// @return m3_success; m3_errorInvalid for a null tape or infoOut, a
+    ///         negative length or one this target cannot address;
+    ///         m3_errorVersion for a tape another release wrote;
+    ///         m3_errorFormat for a tape too short for its header, another
+    ///         format's header or a record whose framing runs past the end.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_NODISCARD M3_API m3Result m3DescribeJournal(const void* journal, int64_t bytes,
                                                    m3JournalInfo* infoOut);
 
@@ -59,6 +74,13 @@ extern "C"
     /// Exact encoded size for the given payload sizes, or 0 when they
     /// cannot be a snapshot and a tape or the container would pass
     /// INT64_MAX bytes.
+    ///
+    /// @param snapshotBytes  The snapshot's length in bytes.
+    /// @param journalBytes   The journal tape's length in bytes.
+    /// @return The container's length in bytes, or 0 for a length too
+    ///         short to hold its own header or a pair past INT64_MAX.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API int64_t m3GetEncodedReplaySize(int64_t snapshotBytes, int64_t journalBytes);
 
     /// Encode a container. finalHash is the recorder's end hash
@@ -72,6 +94,22 @@ extern "C"
     /// snapshot's or a malformed journal, m3_errorLimit for a pair whose
     /// container no buffer of this target can hold, and m3_errorCapacity
     /// for a small buffer.
+    ///
+    /// @param snapshot       The session's first snapshot, as
+    ///                       m3World_Snapshot wrote it.
+    /// @param snapshotBytes  The snapshot's length in bytes.
+    /// @param journal        The session's journal tape.
+    /// @param journalBytes   The tape's length in bytes.
+    /// @param finalHash      The recorder's m3World_Hash at the session's
+    ///                       end.
+    /// @param containerOut   Receives the container; it must not overlap
+    ///                       either input.
+    /// @param capacity       containerOut's length in bytes, at least
+    ///                       m3GetEncodedReplaySize of the two lengths.
+    /// @param bytesOut       Receives the container's length on success.
+    /// @return m3_success, or one of the refusals above.
+    /// @par Thread safety
+    /// Safe from any thread; the buffers are used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes,
                                                 const void* journal, int64_t journalBytes,
                                                 uint64_t finalHash, void* containerOut,
@@ -82,6 +120,16 @@ extern "C"
     /// walk). Returns m3_errorVersion when another release wrote the
     /// container or what it holds, and m3_errorFormat on any
     /// corruption, with the view untouched either way.
+    ///
+    /// @param data     The container, as m3EncodeReplay wrote it.
+    /// @param bytes    The container's length in bytes.
+    /// @param viewOut  Receives the view, whose pointers alias data; any
+    ///                 failure leaves it as it was.
+    /// @return m3_success; m3_errorInvalid for a null data or viewOut, a
+    ///         negative length or one this target cannot address;
+    ///         m3_errorVersion or m3_errorFormat as above.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_NODISCARD M3_API m3Result m3DecodeReplay(const void* data, int64_t bytes,
                                                 m3ReplayView* viewOut);
 
@@ -111,6 +159,17 @@ extern "C"
     /// to 0 and, when rowsOut and capacity pass, zeroes rowsOut over its
     /// whole capacity; a success writes only its rows. It only reads, so
     /// it is never refused as busy.
+    ///
+    /// @param worldA    The first world, whose ids the rows carry.
+    /// @param worldB    The second world.
+    /// @param rowsOut   Receives up to capacity rows, worst first; null
+    ///                  with capacity 0 measures.
+    /// @param capacity  rowsOut's length in rows, at least 0.
+    /// @param totalOut  Receives the number of differing body slots.
+    /// @return m3_success, or m3_errorInvalid as above.
+    /// @par Thread safety
+    /// Safe from any thread; each world is used by one thread at a time, or
+    /// by several readers at once.
     M3_NODISCARD M3_API m3Result m3World_Compare(const m3World* worldA, const m3World* worldB,
                                                  m3BodyDiff* rowsOut, int32_t capacity,
                                                  int32_t* totalOut);

@@ -39,7 +39,16 @@ extern "C"
     /// Draws what the flags ask for through the callbacks given; a
     /// missing callback skips what it would draw. Solid shapes come
     /// first, then wireframes, bounds, contacts, joints and the rest.
-    /// Reads simulation state only. Thread class: reader.
+    /// Reads simulation state only. The callbacks are host code the world
+    /// runs: they may read the world, and a call that would change it is
+    /// refused as busy.
+    ///
+    /// @param world  The world; null draws nothing.
+    /// @param draw   The callbacks and flags; null draws nothing and
+    ///               counts one misuse on the world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API void m3World_Draw(const m3World* world, const m3DebugDraw* draw);
 
 #ifdef __cplusplus
