@@ -231,8 +231,7 @@ static float RopedBallHeight(int32_t floor, bool touches)
     NewSphereShape(world, ball, &sd, &shape);
     if (floor != FLOOR_VOXELS)
     {
-        m3JointDef rope = m3DefaultJointDef();
-        rope.type = m3_distanceJoint;
+        m3DistanceJointDef rope = m3DefaultDistanceJointDef();
         rope.bodyIdA = ground;
         rope.bodyIdB = ball;
         rope.localAnchorA = (m3Vec3){50.0f, 0.0f, 0.0f}; // off the ball's path
