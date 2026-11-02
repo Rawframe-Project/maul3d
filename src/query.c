@@ -496,6 +496,9 @@ static int32_t OverlapGather(const m3World* world, m3OverlapContext* ctx, m3Shap
     for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
         int32_t s = world->shapes.planeShapes[k];
+        if (world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
+            m3FilterPass(ctx->filter.categoryBits, ctx->filter.maskBits,
+                         world->shapes.shapeCategory[s], world->shapes.shapeMask[s]))
         {
             int include;
             if (ctx->radius >= 0.0f)
