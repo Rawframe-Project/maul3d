@@ -36,8 +36,11 @@ reached from outside).
 Ids are generation-tagged: `{index1, generation}`, a 1-based slot and
 the generation the slot had when the object was made. A slot's
 generation bumps when the object is destroyed, so a stale id can
-never alias a recycled slot. The rule for staleness is uniform:
-getters return zeros, commands and destroys no-op, creates refuse.
+never alias a recycled slot. The rule for staleness is uniform: a
+stale id counts one misuse, a getter returns zeros (the identity for a
+rotation), a command changes nothing, and a call with a status, a
+destroy or a create given a stale body included, returns
+`m3_errorStale`.
 
 A slot names objects under generations 0 to 2^32 - 1, then retires
 instead of wrapping, so a pool of capacity n makes n × 2^32 objects
@@ -57,9 +60,9 @@ means something only to the world that issued it: given to another
 world, it names whatever that world holds in the same slot with the
 same generation. Nothing crashes either way.
 
-Destroying a body cascades: its shapes and its joints go with it.
-Destroy of an already-stale id is a quiet no-op (the destroy
-contract).
+Destroying a body cascades: its shapes, its joints and a vehicle
+whose chassis it is go with it. Destroying an already destroyed id
+returns `m3_errorStale` and counts one misuse, as any stale id does.
 
 ## The determinism law
 
