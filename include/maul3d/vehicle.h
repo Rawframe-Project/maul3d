@@ -153,7 +153,8 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M3_API float m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel);
+    M3_API float m3Vehicle_GetWheelCompression(const m3World* world, m3VehicleId vehicle,
+                                               int32_t wheel);
 
     /// Whether the wheel's suspension cast found ground last step.
     ///
@@ -227,9 +228,9 @@ extern "C"
     /// several readers at once.
     M3_API float m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
-#define M3_MAX_DRIVETRAIN_CURVE 8
-#define M3_MAX_DRIVETRAIN_GEARS 6
-#define M3_MAX_CLUTCH_STEPS     600
+#define M3_MAX_DRIVETRAIN_CURVE_POINTS 8
+#define M3_MAX_DRIVETRAIN_GEARS        6
+#define M3_MAX_CLUTCH_STEPS            600
 
     /// The drivetrain: the flat force model grows an engine.
     /// Torque comes from a pinned curve (control points, linear
@@ -258,30 +259,30 @@ extern "C"
     /// gears only and waits for the clutch to close between shifts.
     typedef struct m3DrivetrainDef
     {
-        int32_t curveCount;                         // 2..8 control points
-        float curveRpm[M3_MAX_DRIVETRAIN_CURVE];    // strictly ascending,
-                                                    // nonnegative
-        float curveTorque[M3_MAX_DRIVETRAIN_CURVE]; // newton meters at
-                                                    // the crank
-        int32_t gearCount;                          // 1..6 forward gears
-        float gearRatio[M3_MAX_DRIVETRAIN_GEARS];   // crank turns per
-                                                    // wheel turn
-        float reverseRatio;                         // positive magnitude; 0 forbids reverse
-        float finalDrive;                           // multiplies every gear
-        float shiftUpRpm;                           // auto shift climbs above this
-        float shiftDownRpm;                         // auto shift drops below this
+        int32_t curveCount;                                // 2..8 control points
+        float curveRpm[M3_MAX_DRIVETRAIN_CURVE_POINTS];    // strictly ascending,
+                                                           // nonnegative
+        float curveTorque[M3_MAX_DRIVETRAIN_CURVE_POINTS]; // newton meters at
+                                                           // the crank
+        int32_t gearCount;                                 // 1..6 forward gears
+        float gearRatio[M3_MAX_DRIVETRAIN_GEARS];          // crank turns per
+                                                           // wheel turn
+        float reverseRatio;                                // positive magnitude; 0 forbids reverse
+        float finalDrive;                                  // multiplies every gear
+        float shiftUpRpm;                                  // auto shift climbs above this
+        float shiftDownRpm;                                // auto shift drops below this
         int32_t clutchSteps; // steps of torque cut per shift, 0..M3_MAX_CLUTCH_STEPS
-        bool autoShift;
+        bool enableAutoShift;
         /// Differential: m3_differentialOpen (the equal split),
         /// m3_differentialLimitedSlip or m3_differentialLocked. The
-        /// other two couple each driven wheel
-        /// toward the driven mean of the LAST step's contact speeds
-        /// with diffCouple newtons per m/s of disparity, at most 1e15; limited
-        /// slip additionally clamps the coupling to the engine's
-        /// own per-wheel force. One step of lag is the drivetrain's
-        /// own convention (engine speed reads wheels the same way).
-        m3DifferentialMode diffMode;
-        float diffCouple;
+        /// other two couple each driven wheel toward the driven mean of
+        /// the LAST step's contact speeds with differentialCoupling
+        /// newtons per m/s of disparity, at most 1e15; limited slip
+        /// additionally clamps the coupling to the engine's own
+        /// per-wheel force. One step of lag is the drivetrain's own
+        /// convention (engine speed reads wheels the same way).
+        m3DifferentialMode differentialMode;
+        float differentialCoupling;
         int32_t internalValue;
     } m3DrivetrainDef;
 
@@ -299,7 +300,7 @@ extern "C"
     /// Attach a drivetrain (journaled). Replaces the flat driveForce
     /// model for this vehicle; starts in first gear, clutch closed.
     /// Invalid defs are documented no-ops: a def m3DefaultDrivetrainDef
-    /// did not make, a curve count outside 2 to M3_MAX_DRIVETRAIN_CURVE,
+    /// did not make, a curve count outside 2 to M3_MAX_DRIVETRAIN_CURVE_POINTS,
     /// a gear count outside 1 to M3_MAX_DRIVETRAIN_GEARS, clutch steps
     /// outside 0 to M3_MAX_CLUTCH_STEPS, a curve rpm that is not finite,
     /// is negative or does not ascend strictly, a torque that is negative,

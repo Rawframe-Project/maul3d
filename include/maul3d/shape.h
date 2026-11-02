@@ -22,7 +22,7 @@ extern "C"
         m3_hullShape = 2,        // convex hull: boxes and point clouds
         m3_capsuleShape = 3,     // a segment with a radius
         m3_meshShape = 4,        // static triangle soup
-        m3_voxelShape = 5,       // dense 16^3 voxel chunk
+        m3_voxelChunkShape = 5,  // dense 16^3 voxel chunk
         m3_heightFieldShape = 6, // native grid terrain
     };
 

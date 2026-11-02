@@ -615,7 +615,7 @@ construction, under the same four gates as everything else.
   hangs from beams and follows them when they move. Both return an
   `m3Result`: an anchor past a full table of
   `M3_MAX_SOFTBODY_ANCHORS` is `m3_errorLimit`, which counts no
-  misuse, and `m3SoftBody_AnchorToSoft` shares that table.
+  misuse, and `m3SoftBody_AnchorToSoftBody` shares that table.
 - Soft-versus-soft and self-collision are NOT in this version
   (documented out, the bullet-versus-bullet precedent); particle
   counts cap at 512 and anchors at 32 per body.
@@ -657,7 +657,7 @@ must be dynamic with mass; anything nonzero wakes the body.
 arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
 servo: the body lands exactly on the target next step and the
 order clears; the exit velocity stays yours by contract. A target
-past `M3_SERVO_REACH_LIMIT` from the body returns `m3_errorLimit`.
+past `M3_TARGET_REACH_LIMIT` from the body returns `m3_errorLimit`.
 `m3Body_SetType` flips dynamic/kinematic/static with a full mass
 rebuild, and returns `m3_errorLimit` when the body's mass, joints or
 speed do not allow the new type. `m3Body_Enable` with false removes the body from
@@ -869,7 +869,7 @@ that lies.
 Lattices collide with EACH OTHER (canonical particle pairs behind
 lattice-bound gates; self-collision stays out, the structure rods
 hold a lattice apart), and they hold hands:
-m3SoftBody_AnchorToSoft pins particle to particle across lattices
+m3SoftBody_AnchorToSoftBody pins particle to particle across lattices
 with silent release when either side dies. Wind
 (m3World_SetWind) drives particles with proportional drag toward
 a gusted velocity whose phase ACCUMULATES in the snapshot: a
@@ -912,9 +912,9 @@ state: snapshotted, hashed when attached, rolled back mid-shift
 to the bit. Vehicles without a drivetrain keep the flat model
 untouched.
 
-Differentials: the def's `diffMode` picks `m3_differentialOpen`
+Differentials: the def's `differentialMode` picks `m3_differentialOpen`
 (the classic equal split), `m3_differentialLimitedSlip` or
-`m3_differentialLocked`, and `diffCouple` sets
+`m3_differentialLocked`, and `differentialCoupling` sets
 the coupling force per m/s of wheel-speed disparity. The
 coupling reads each driven wheel's contact speed with one step
 of lag (the drivetrain's own wheel-reading convention) and
@@ -1118,7 +1118,7 @@ Which refusals count misuse, in one place:
   body's total mass past `M3_MASS_LIMIT` or a joint past its lever
   ratio, a joint create past that ratio, a type change the body's
   shapes, joints or speed refuse, and a servo target more than
-  `M3_SERVO_REACH_LIMIT` from where the step left the kinematic body.
+  `M3_TARGET_REACH_LIMIT` from where the step left the kinematic body.
 m3SetAssertHandler installs a host hook ahead of the abort for a
 failed internal invariant; returning nonzero declares the failure
 handled (test harnesses, crash reporters). There is no log hook:
@@ -1276,7 +1276,7 @@ past what real scenes use. Vectors are bounded per component.
 |---|---|---|
 | Position | `M3_POSITION_LIMIT`, 1e15 m | body defs, poses, anchors in the world, a plane's offset, water boxes, every soft particle a create places |
 | Body-frame offset or extent | `M3_LOCAL_LIMIT`, 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
-| Servo target | `M3_SERVO_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
+| Servo target | `M3_TARGET_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
 | Static geometry | `M3_GEOMETRY_LIMIT`, 1e8 m in its body's frame | mesh vertices, height samples |
 | Cell size | `M3_CELL_LIMIT`, 1e5 m, positive | height field grids and mesh height fields, voxel chunks |
 | Cast or character move | `M3_CAST_LIMIT`, 1e18 m | shape casts, `m3Character_Move` |
@@ -1287,14 +1287,14 @@ past what real scenes use. Vectors are bounded per component.
 | Acceleration | `M3_ACCEL_LIMIT`, 1e4 m/s^2 | gravity |
 | Frequency | `M3_HERTZ_LIMIT`, 1e5 Hz | contact hertz, joint springs and steering, wind gusts, wheel suspension |
 | Ratio | `M3_RATIO_LIMIT`, 1e4 | damping ratios, restitution, gravity scales, gear and pulley ratios, gear and final drive ratios, brake share, tire grip, lean gain, wind gust scale, a character's push ratio, an explosion's soft push |
-| Differential coupling | `M3_FORCE_LIMIT / M3_SPEED_LIMIT`, 1e15 N per m/s | `m3DrivetrainDef.diffCouple` |
+| Differential coupling | `M3_FORCE_LIMIT / M3_SPEED_LIMIT`, 1e15 N per m/s | `m3DrivetrainDef.differentialCoupling` |
 | Step length | `M3_MIN_STEP` to `M3_STEP_LIMIT`, 1e-4 to 10 s | `m3World_Step` |
 | Substeps | `M3_MAX_SUBSTEPS`, 256 | `m3World_Step` |
 | Density | `M3_DENSITY_LIMIT`, 1e6 kg/m^3 | shapes, water |
 | Mass | a shape at least `M3_MIN_MASS`, 1e-6 kg, with every principal moment at least `M3_MIN_INERTIA`, 1e-12 kg m^2; a body at most `M3_MASS_LIMIT`, 1e20 kg | shapes on dynamic bodies, a body turning dynamic, characters, soft particles |
 | Wheel radius | at least `M3_MIN_WHEEL_RADIUS`, 1e-3 m | vehicle wheels |
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
-| Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
+| Blast | `M3_EXPLOSION_IMPULSE_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 | Contact lever | `M3_CONTACT_LEVER_LIMIT`, 1e6 for mass * arm^2 / moment: see below | a shape create, destroy, resize, density or filter change on a dynamic body, a body turning dynamic |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048, `M3_MAX_BODY_NAME_BYTES` 31 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface, a body's name |

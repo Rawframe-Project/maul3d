@@ -461,7 +461,7 @@ static void RayTestShape(m3RayCastContext* ctx, int32_t shape)
         local =
             RayHeightField(o, d, &world->heightFields.hfData[world->shapes.shapeHfIndex[shape]]);
     }
-    else if (type == (uint8_t)m3_voxelShape)
+    else if (type == (uint8_t)m3_voxelChunkShape)
     {
         local = RayVoxel(o, d, &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]],
                          world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize);

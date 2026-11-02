@@ -498,7 +498,7 @@ extern "C"
     /// the body lands ON the target pose after that step, then the
     /// target clears. Kinematic bodies only (the correct way to
     /// drive elevators and doors). Journaled. Returns m3_success;
-    /// m3_errorLimit for a target more than M3_SERVO_REACH_LIMIT from
+    /// m3_errorLimit for a target more than M3_TARGET_REACH_LIMIT from
     /// where the body is, which the step decides, so it changes nothing
     /// and counts no misuse; m3_errorStale for a stale id,
     /// m3_errorInvalid for the null id, a body that is not kinematic or

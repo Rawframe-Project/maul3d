@@ -45,7 +45,7 @@ m3DrivetrainDef m3DefaultDrivetrainDef(void)
     def.shiftUpRpm = 5500.0f;
     def.shiftDownRpm = 2000.0f;
     def.clutchSteps = 12;
-    def.autoShift = true;
+    def.enableAutoShift = true;
     def.internalValue = M3_DRIVETRAIN_COOKIE;
     return def;
 }
@@ -55,8 +55,8 @@ m3DrivetrainDef m3DefaultDrivetrainDef(void)
 // it of every stored drivetrain.
 bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
 {
-    if (def->curveCount < 2 || def->curveCount > M3_MAX_DRIVETRAIN_CURVE || def->gearCount < 1 ||
-        def->gearCount > M3_MAX_DRIVETRAIN_GEARS || def->clutchSteps < 0 ||
+    if (def->curveCount < 2 || def->curveCount > M3_MAX_DRIVETRAIN_CURVE_POINTS ||
+        def->gearCount < 1 || def->gearCount > M3_MAX_DRIVETRAIN_GEARS || def->clutchSteps < 0 ||
         def->clutchSteps > M3_MAX_CLUTCH_STEPS)
     {
         return false;
@@ -87,9 +87,10 @@ bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
     if (!(def->reverseRatio >= 0.0f && def->reverseRatio <= M3_RATIO_LIMIT) ||
         !(def->finalDrive > 0.0f && def->finalDrive <= M3_RATIO_LIMIT) ||
         !m3FiniteF(def->shiftUpRpm) || !m3FiniteF(def->shiftDownRpm) || def->shiftDownRpm < 0.0f ||
-        def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < m3_differentialOpen ||
-        def->diffMode > m3_differentialLocked ||
-        !(def->diffCouple >= 0.0f && def->diffCouple <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
+        def->shiftUpRpm <= def->shiftDownRpm || def->differentialMode < m3_differentialOpen ||
+        def->differentialMode > m3_differentialLocked ||
+        !(def->differentialCoupling >= 0.0f &&
+          def->differentialCoupling <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
     {
         return false;
     }
@@ -104,12 +105,12 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     }
     world->vehicles.vehDtActive[slot] = 1;
     world->vehicles.vehDtCurveCount[slot] = def->curveCount;
-    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE_POINTS; ++c)
     {
         int32_t inRange = c < def->curveCount;
-        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE + c] =
+        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE_POINTS + c] =
             inRange ? def->curveRpm[c] : 0.0f;
-        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE + c] =
+        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE_POINTS + c] =
             inRange ? def->curveTorque[c] : 0.0f;
     }
     world->vehicles.vehDtGearCount[slot] = def->gearCount;
@@ -120,12 +121,12 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     }
     world->vehicles.vehDtReverse[slot] = def->reverseRatio;
     world->vehicles.vehDtFinal[slot] = def->finalDrive;
-    world->vehicles.vehDtDiffMode[slot] = def->diffMode;
-    world->vehicles.vehDtDiffCouple[slot] = def->diffCouple;
+    world->vehicles.vehDtDiffMode[slot] = def->differentialMode;
+    world->vehicles.vehDtDiffCouple[slot] = def->differentialCoupling;
     world->vehicles.vehDtShiftUp[slot] = def->shiftUpRpm;
     world->vehicles.vehDtShiftDown[slot] = def->shiftDownRpm;
     world->vehicles.vehDtClutchSteps[slot] = def->clutchSteps;
-    world->vehicles.vehDtAutoShift[slot] = def->autoShift ? 1 : 0;
+    world->vehicles.vehDtAutoShift[slot] = def->enableAutoShift ? 1 : 0;
     world->vehicles.vehDtGear[slot] = 1;
     world->vehicles.vehDtClutch[slot] = 0;
     world->vehicles.vehDtRpm[slot] = 0.0f;

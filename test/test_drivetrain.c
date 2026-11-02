@@ -93,7 +93,7 @@ static void TestUphillBogAndClimb(void)
         m3BodyId chassis;
         m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
         m3DrivetrainDef dt = m3DefaultDrivetrainDef();
-        dt.autoShift = false; // the gear is the experiment variable
+        dt.enableAutoShift = false; // the gear is the experiment variable
         m3Vehicle_SetDrivetrain(world, car, &dt);
         m3Vehicle_SetGear(world, car, variant == 0 ? 5 : 1);
         for (int32_t i = 0; i < 120; ++i)
@@ -177,7 +177,7 @@ static void TestNeutralAndReverse(void)
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 1.0, 0.0}, &chassis);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
-    dt.autoShift = false;
+    dt.enableAutoShift = false;
     m3Vehicle_SetDrivetrain(world, car, &dt);
     m3Vehicle_SetGear(world, car, 0);
     for (int32_t i = 0; i < 120; ++i)
@@ -209,9 +209,9 @@ static double DiffYaw(m3DifferentialMode mode, float couple, uint64_t* outHash)
     m3BodyId chassis;
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 0.6, 0.0}, &chassis);
     m3DrivetrainDef dt = m3DefaultDrivetrainDef();
-    dt.autoShift = false;
-    dt.diffMode = mode;
-    dt.diffCouple = couple;
+    dt.enableAutoShift = false;
+    dt.differentialMode = mode;
+    dt.differentialCoupling = couple;
     m3Vehicle_SetDrivetrain(world, car, &dt);
     m3Vehicle_SetGear(world, car, 1);
     double yaw = 0.0;
@@ -254,17 +254,18 @@ static void TestDifferentials(void)
     m3World* world = PlaneWorld();
     m3VehicleId car = MakeCar(world, (m3Pos3){0.0, 0.6, 0.0}, NULL);
     m3DrivetrainDef bad = m3DefaultDrivetrainDef();
-    bad.diffMode = 3;
+    bad.differentialMode = 3;
     m3Vehicle_SetDrivetrain(world, car, &bad);
     // A negative mode is as unknown as one past the last.
-    bad.diffMode = -1;
-    CHECK_REFUSES(world, m3Vehicle_SetDrivetrain(world, car, &bad), "a diffMode of -1 refuses");
-    bad.diffMode = INT32_MIN;
+    bad.differentialMode = -1;
     CHECK_REFUSES(world, m3Vehicle_SetDrivetrain(world, car, &bad),
-                  "a diffMode of INT32_MIN refuses");
+                  "a differentialMode of -1 refuses");
+    bad.differentialMode = INT32_MIN;
+    CHECK_REFUSES(world, m3Vehicle_SetDrivetrain(world, car, &bad),
+                  "a differentialMode of INT32_MIN refuses");
     m3DrivetrainDef good = m3DefaultDrivetrainDef();
-    good.diffMode = m3_differentialLocked;
-    good.diffCouple = -1.0f;
+    good.differentialMode = m3_differentialLocked;
+    good.differentialCoupling = -1.0f;
     m3Vehicle_SetDrivetrain(world, car, &good);
     // Neither hostile def attached: gear selection still refuses
     // like a drivetrain-less car accepts nothing but neutral.

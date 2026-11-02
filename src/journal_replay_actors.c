@@ -189,7 +189,7 @@ bool m3ReplayVehicleDrivetrain(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    m3NormalizeBoolByte(&record.def, offsetof(m3DrivetrainDef, autoShift));
+    m3NormalizeBoolByte(&record.def, offsetof(m3DrivetrainDef, enableAutoShift));
     int32_t slot = m3VehicleSlot(world, record.id);
     if (slot < 0 || !m3VehicleDrivetrainInternal(world, slot, &record.def))
     {

@@ -875,8 +875,8 @@ typedef struct m3Vehicles
     // hashed only when a drivetrain is attached).
     uint8_t* vehDtActive;
     int32_t* vehDtCurveCount;
-    float* vehDtCurveRpm;    // capacity * M3_MAX_DRIVETRAIN_CURVE
-    float* vehDtCurveTorque; // capacity * M3_MAX_DRIVETRAIN_CURVE
+    float* vehDtCurveRpm;    // capacity * M3_MAX_DRIVETRAIN_CURVE_POINTS
+    float* vehDtCurveTorque; // capacity * M3_MAX_DRIVETRAIN_CURVE_POINTS
     int32_t* vehDtGearCount;
     float* vehDtGearRatio; // capacity * M3_MAX_DRIVETRAIN_GEARS
     float* vehDtReverse;

@@ -237,7 +237,7 @@ static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
     {
         return false;
     }
-    if (type == (uint8_t)m3_voxelShape || type == (uint8_t)m3_meshShape ||
+    if (type == (uint8_t)m3_voxelChunkShape || type == (uint8_t)m3_meshShape ||
         type == (uint8_t)m3_heightFieldShape)
     {
         return true;
@@ -256,7 +256,7 @@ static bool SweepCallback(int32_t shape, void* context)
     }
     int32_t body = world->shapes.shapeBody[shape];
     uint8_t type = world->shapes.shapeType[shape];
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         SweepVoxels(sw, shape, body);
         return true;

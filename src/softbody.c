@@ -766,8 +766,8 @@ static M3_NOINLINE m3Result SoftBodyAnchorToSoftWorker(m3World* world, m3SoftBod
     return m3_success;
 }
 
-m3Result m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
-                                 m3SoftBodyId softBodyB, int32_t particleB)
+m3Result m3SoftBody_AnchorToSoftBody(m3World* world, m3SoftBodyId softBodyA, int32_t particleA,
+                                     m3SoftBodyId softBodyB, int32_t particleB)
 {
     uint64_t env = m3FloatEnvEnter();
     m3Result result = SoftBodyAnchorToSoftWorker(world, softBodyA, particleA, softBodyB, particleB);

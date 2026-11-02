@@ -213,7 +213,7 @@ static uint64_t HashShapes(const m3World* world, uint64_t h)
         h = m3Hash64(h, &world->shapes.shapeHullIndex[i], 4);
         h = m3Hash64(h, &world->shapes.shapeMeshIndex[i], 4);
         h = m3Hash64(h, &world->shapes.shapeSensor[i], 1);
-        if (world->shapes.shapeType[i] == (uint8_t)m3_voxelShape)
+        if (world->shapes.shapeType[i] == (uint8_t)m3_voxelChunkShape)
         {
             // Folded only for the new type: pre-voxel scenes keep
             // their exact hash input set (the golden must not move
@@ -368,8 +368,9 @@ static uint64_t HashDrivetrain(const m3World* world, uint64_t h, int32_t i)
     h = m3Hash64(h, &world->vehicles.vehDtCurveCount[i], 4);
     for (int32_t c = 0; c < world->vehicles.vehDtCurveCount[i]; ++c)
     {
-        h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_MAX_DRIVETRAIN_CURVE + c], 4);
-        h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_MAX_DRIVETRAIN_CURVE + c], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtCurveRpm[i * M3_MAX_DRIVETRAIN_CURVE_POINTS + c], 4);
+        h = m3Hash64(h, &world->vehicles.vehDtCurveTorque[i * M3_MAX_DRIVETRAIN_CURVE_POINTS + c],
+                     4);
     }
     h = m3Hash64(h, &world->vehicles.vehDtGearCount[i], 4);
     for (int32_t g = 0; g < world->vehicles.vehDtGearCount[i]; ++g)

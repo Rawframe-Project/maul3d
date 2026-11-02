@@ -388,11 +388,12 @@ static bool DrivetrainValid(const m3Incoming* inc, int32_t v)
     m3DrivetrainDef def;
     memset(&def, 0, sizeof(def));
     def.curveCount = m3InI32(M3_IN(vehicles.vehDtCurveCount), v);
-    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE_POINTS; ++c)
     {
-        def.curveRpm[c] = m3InF32(M3_IN(vehicles.vehDtCurveRpm), v * M3_MAX_DRIVETRAIN_CURVE + c);
+        def.curveRpm[c] =
+            m3InF32(M3_IN(vehicles.vehDtCurveRpm), v * M3_MAX_DRIVETRAIN_CURVE_POINTS + c);
         def.curveTorque[c] =
-            m3InF32(M3_IN(vehicles.vehDtCurveTorque), v * M3_MAX_DRIVETRAIN_CURVE + c);
+            m3InF32(M3_IN(vehicles.vehDtCurveTorque), v * M3_MAX_DRIVETRAIN_CURVE_POINTS + c);
     }
     def.gearCount = m3InI32(M3_IN(vehicles.vehDtGearCount), v);
     for (int32_t g = 0; g < M3_MAX_DRIVETRAIN_GEARS; ++g)
@@ -404,8 +405,8 @@ static bool DrivetrainValid(const m3Incoming* inc, int32_t v)
     def.shiftUpRpm = m3InF32(M3_IN(vehicles.vehDtShiftUp), v);
     def.shiftDownRpm = m3InF32(M3_IN(vehicles.vehDtShiftDown), v);
     def.clutchSteps = m3InI32(M3_IN(vehicles.vehDtClutchSteps), v);
-    def.diffMode = m3InI32(M3_IN(vehicles.vehDtDiffMode), v);
-    def.diffCouple = m3InF32(M3_IN(vehicles.vehDtDiffCouple), v);
+    def.differentialMode = m3InI32(M3_IN(vehicles.vehDtDiffMode), v);
+    def.differentialCoupling = m3InF32(M3_IN(vehicles.vehDtDiffCouple), v);
     return m3DrivetrainDefValid(&def);
 }
 

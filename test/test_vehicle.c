@@ -169,7 +169,7 @@ static void TestSuspensionSettle(void)
     float sum = 0.0f;
     for (int32_t w = 0; w < 4; ++w)
     {
-        float x = m3Vehicle_GetCompression(world, car, w);
+        float x = m3Vehicle_GetWheelCompression(world, car, w);
         CHECK(m3Vehicle_IsWheelGrounded(world, car, w), "every wheel finds the plane");
         CHECK(x > 0.8f * balance && x < 1.2f * balance,
               "the compression sits at the analytic balance");
@@ -177,8 +177,8 @@ static void TestSuspensionSettle(void)
     }
     for (int32_t w = 1; w < 4; ++w)
     {
-        CHECK(fabsf(m3Vehicle_GetCompression(world, car, w) -
-                    m3Vehicle_GetCompression(world, car, 0)) < 0.01f,
+        CHECK(fabsf(m3Vehicle_GetWheelCompression(world, car, w) -
+                    m3Vehicle_GetWheelCompression(world, car, 0)) < 0.01f,
               "the symmetric drop loads all four corners alike");
     }
     CHECK(sum > 0.0f, "the suspension carries weight");
@@ -433,7 +433,7 @@ static void TestPoolAndCascade(void)
 
     DestroyBody(world, chassisA);
     CHECK(!m3Vehicle_IsValid(world, a), "the chassis takes its vehicle with it");
-    CHECK(m3Vehicle_GetCompression(world, a, 0) == 0.0f, "a stale handle reads zero");
+    CHECK(m3Vehicle_GetWheelCompression(world, a, 0) == 0.0f, "a stale handle reads zero");
     CHECK(!m3Vehicle_IsWheelGrounded(world, a, 0), "a stale handle grounds nothing");
     DestroyVehicle(world, a); // stale: no-op
     (void)m3World_Step(world, 1.0f / 60.0f, 4);
@@ -629,7 +629,7 @@ static void TestVehicleContracts(void)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m3Vehicle_GetCompression(world, car, 5) == 0.0f, "an out-of-range wheel reads zero");
+    CHECK(m3Vehicle_GetWheelCompression(world, car, 5) == 0.0f, "an out-of-range wheel reads zero");
     m3DestroyWorld(world);
 }
 

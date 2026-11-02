@@ -195,7 +195,7 @@ static int PointInShape(const m3World* world, int32_t shape, m3Pos3 point)
         return m3Dot3(world->shapes.shapeGeom[shape].v, local) - world->shapes.shapeGeom[shape].s <=
                0.0f;
     }
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         return PointInVoxel(world, shape, point);
     }
@@ -347,7 +347,7 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
             m3Dot3(world->shapes.shapeGeom[shape].v, local) - world->shapes.shapeGeom[shape].s;
         return d <= radius;
     }
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         // Reach against the merged boxes: exact clamp per candidate
         // (boxes are axis-aligned in the chunk frame).

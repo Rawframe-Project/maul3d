@@ -32,7 +32,7 @@ float m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Vec
     }
     m3Vec3 lo;
     m3Vec3 hi;
-    if (stype == (uint8_t)m3_voxelShape)
+    if (stype == (uint8_t)m3_voxelChunkShape)
     {
         float side = 16.0f * world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape]].cellSize;
         lo = (m3Vec3){0.0f, 0.0f, 0.0f};

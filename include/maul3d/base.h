@@ -243,7 +243,7 @@ extern "C"
 // - a kinematic body's linear speed, m/s, set or servoed, and how far a
 //   kinematic target may lie from where the body is now, m;
 #define M3_KINEMATIC_SPEED_LIMIT 1.0e10f
-#define M3_SERVO_REACH_LIMIT     1.0e6
+#define M3_TARGET_REACH_LIMIT    1.0e6
 // - gravity, m/s^2;
 #define M3_ACCEL_LIMIT 1.0e4f
 // - a spring, contact, steering or suspension frequency, or the wind's
@@ -276,7 +276,7 @@ extern "C"
 // - a vehicle wheel's radius, m;
 #define M3_MIN_WHEEL_RADIUS 1.0e-3f
 // - an explosion's impulse per square meter, N s/m^2;
-#define M3_BLAST_LIMIT 1.0e10f
+#define M3_EXPLOSION_IMPULSE_LIMIT 1.0e10f
 // - a cast's translation, m, per component;
 #define M3_CAST_LIMIT 1.0e18f
 // - a mesh vertex or height sample in its body's frame, m, per

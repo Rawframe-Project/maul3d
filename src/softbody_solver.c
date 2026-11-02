@@ -278,7 +278,7 @@ static void SoftCollideParticle(m3World* world, int32_t k, int32_t shape, uint8_
         }
         return;
     }
-    if (stype == (uint8_t)m3_voxelShape)
+    if (stype == (uint8_t)m3_voxelChunkShape)
     {
         int32_t vslot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelChunkData* chunk = &world->voxels.voxelData[vslot];

@@ -973,7 +973,7 @@ static void TourJointsAndSoft(const Tour* t)
     m3Joint_SetBreakLimits(t->world, t->spare, 1.0e6f, 1.0e6f);
     CHECK(m3SoftBody_PinParticle(t->world, t->rope, 0) == m3_success &&
               m3SoftBody_AnchorParticle(t->world, t->rope, 5, t->crate) == m3_success &&
-              m3SoftBody_AnchorToSoft(t->world, t->rope, 3, t->tet, 2) == m3_success,
+              m3SoftBody_AnchorToSoftBody(t->world, t->rope, 3, t->tet, 2) == m3_success,
           "the tour pins and anchors the rope");
 }
 

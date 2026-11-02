@@ -771,12 +771,18 @@ static void ProbeVehicles(void)
 static void ProbeDrivetrains(void)
 {
     static const Field fields[] = {
-        FIELD(m3DrivetrainDef, curveCount, 'i'),     FIELD(m3DrivetrainDef, curveRpm[0], 'f'),
-        FIELD(m3DrivetrainDef, curveTorque[1], 'f'), FIELD(m3DrivetrainDef, gearCount, 'i'),
-        FIELD(m3DrivetrainDef, gearRatio[0], 'f'),   FIELD(m3DrivetrainDef, reverseRatio, 'f'),
-        FIELD(m3DrivetrainDef, finalDrive, 'f'),     FIELD(m3DrivetrainDef, shiftUpRpm, 'f'),
-        FIELD(m3DrivetrainDef, shiftDownRpm, 'f'),   FIELD(m3DrivetrainDef, clutchSteps, 'i'),
-        FIELD(m3DrivetrainDef, diffMode, 'i'),       FIELD(m3DrivetrainDef, diffCouple, 'f'),
+        FIELD(m3DrivetrainDef, curveCount, 'i'),
+        FIELD(m3DrivetrainDef, curveRpm[0], 'f'),
+        FIELD(m3DrivetrainDef, curveTorque[1], 'f'),
+        FIELD(m3DrivetrainDef, gearCount, 'i'),
+        FIELD(m3DrivetrainDef, gearRatio[0], 'f'),
+        FIELD(m3DrivetrainDef, reverseRatio, 'f'),
+        FIELD(m3DrivetrainDef, finalDrive, 'f'),
+        FIELD(m3DrivetrainDef, shiftUpRpm, 'f'),
+        FIELD(m3DrivetrainDef, shiftDownRpm, 'f'),
+        FIELD(m3DrivetrainDef, clutchSteps, 'i'),
+        FIELD(m3DrivetrainDef, differentialMode, 'i'),
+        FIELD(m3DrivetrainDef, differentialCoupling, 'f'),
     };
     m3DrivetrainDef dd = m3DefaultDrivetrainDef();
     // The drivetrain is a setter on a car the probe builds first.

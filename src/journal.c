@@ -223,9 +223,9 @@ void m3JournalDrivetrainDef(m3DrivetrainDef* out, const m3DrivetrainDef* def)
     out->shiftUpRpm = def->shiftUpRpm;
     out->shiftDownRpm = def->shiftDownRpm;
     out->clutchSteps = def->clutchSteps;
-    out->autoShift = def->autoShift;
-    out->diffMode = def->diffMode;
-    out->diffCouple = def->diffCouple;
+    out->enableAutoShift = def->enableAutoShift;
+    out->differentialMode = def->differentialMode;
+    out->differentialCoupling = def->differentialCoupling;
     out->internalValue = def->internalValue;
 }
 

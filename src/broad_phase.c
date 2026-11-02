@@ -84,7 +84,7 @@ static m3Aabb3d SphereAabb(const m3World* world, int32_t shape)
         return box;
     }
 
-    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelChunkShape)
     {
         // Voxel chunk bounds: the eight corners of the chunk box
         // [0, dim * cell]^3 in the body frame, rotated out.
@@ -169,7 +169,7 @@ uint32_t m3ProxyMask(const m3World* world, int32_t shape)
         bodyType == (uint8_t)m3_staticBody
             ? M3_PROXY_STATIC
             : (bodyType == (uint8_t)m3_kinematicBody ? M3_PROXY_KINEMATIC : M3_PROXY_DYNAMIC);
-    bool surface = type == (uint8_t)m3_meshShape || type == (uint8_t)m3_voxelShape;
+    bool surface = type == (uint8_t)m3_meshShape || type == (uint8_t)m3_voxelChunkShape;
     return kind | (surface ? M3_PROXY_SURFACE : 0u);
 }
 
