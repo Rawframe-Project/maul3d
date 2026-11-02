@@ -264,8 +264,7 @@ static bool JointLimitsFit(uint8_t type, uint8_t flags, m3Vec3 limits)
                m3DistanceRestLengthFits(limits.z);
     }
     return !((flags & M3_JOINT_LIMIT) != 0 && !(limits.x <= limits.y)) &&
-           !(type == (uint8_t)m3_sphericalJoint &&
-             !m3SphericalConeFits((flags & M3_JOINT_CONE) != 0 ? 1 : 0, limits.z)) &&
+           !(type == (uint8_t)m3_sphericalJoint && !m3SphericalConeFits(limits.z)) &&
            !(type == (uint8_t)m3_pulleyJoint && limits.z < 0.0f);
 }
 

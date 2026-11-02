@@ -764,8 +764,8 @@ static void TestConeCalls(void)
     CHECK(m3Body_IsAwake(world, arm), "a cone call wakes the joint's bodies");
     m3DestroyWorld(world);
 
-    // A def may leave a negative angle while its cone is off; the switch
-    // refuses to turn the cone on over it, and takes it once moved.
+    // A def refuses a negative angle with its cone off too, as the setter
+    // does, so no joint ever holds one for the switch to meet.
     m3WorldDef wd = m3DefaultWorldDef();
     world = NewWorld(&wd);
     m3BodyDef bd = m3DefaultBodyDef();
@@ -777,20 +777,16 @@ static void TestConeCalls(void)
     jd.bodyIdA = socket;
     jd.bodyIdB = bob;
     jd.coneAngle = -0.5f;
+    m3JointId refused = m3_nullJointId;
+    CHECK(m3CreateSphericalJoint(world, &jd, &refused) == m3_errorInvalid &&
+              !m3Joint_IsValid(world, refused) && m3World_GetCounters(world).misuseCount == 1u,
+          "a def refuses a negative angle with its cone off");
+    jd.coneAngle = 0.0f;
     m3JointId ball = NewJoint(world, &jd);
-    CHECK(m3Joint_IsValid(world, ball) && m3SphericalJoint_GetConeAngle(world, ball) == -0.5f,
-          "a def leaves a negative angle with its cone off");
-    m3SphericalJoint_EnableCone(world, ball, true);
-    CHECK(!m3SphericalJoint_IsConeEnabled(world, ball) &&
-              m3World_GetCounters(world).misuseCount == 1u,
-          "the switch refuses to turn the cone on over it");
-    m3SphericalJoint_EnableCone(world, ball, false);
-    CHECK(m3World_GetCounters(world).misuseCount == 1u, "switching it off again is taken");
-    m3SphericalJoint_SetConeAngle(world, ball, 0.2f);
     m3SphericalJoint_EnableCone(world, ball, true);
     CHECK(m3SphericalJoint_IsConeEnabled(world, ball) &&
               m3World_GetCounters(world).misuseCount == 1u,
-          "once moved, the cone switches on");
+          "a zero angle is taken and the cone switches on over it");
 
     // Every other type refuses the four calls, and a stale id too.
     m3RevoluteJointDef hingeDef = m3DefaultRevoluteJointDef();
@@ -815,10 +811,10 @@ static void TestConeCalls(void)
     m3DestroyWorld(world);
 }
 
-// Records the shoulder's cone moved to 0.6 and switched on, with every 0.6
-// in the tape's records set to angle, and tells whether a fresh shoulder
-// replays it.
-static bool ReplaysCone(float angle)
+// Records the shoulder's cone moved to 0.6, and switched on when switchOn
+// is set, with every 0.6 in the tape's records set to angle, and tells
+// whether a fresh shoulder replays it.
+static bool ReplaysCone(float angle, bool switchOn)
 {
     static uint8_t tape[16384];
     m3BodyId arm;
@@ -826,7 +822,10 @@ static bool ReplaysCone(float angle)
     m3World* world = ShoulderWorld(false, &arm, &shoulder);
     CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "the shoulder tape records");
     m3SphericalJoint_SetConeAngle(world, shoulder, 0.6f);
-    m3SphericalJoint_EnableCone(world, shoulder, true);
+    if (switchOn)
+    {
+        m3SphericalJoint_EnableCone(world, shoulder, true);
+    }
     StepN(world, 30);
     int64_t bytes = StopJournal(world);
     const float recorded = 0.6f;
@@ -839,7 +838,7 @@ static bool ReplaysCone(float angle)
             ++patched;
         }
     }
-    CHECK(patched == 2, "the angle sits in the two cone records");
+    CHECK(patched == (switchOn ? 2 : 1), "the angle sits in each cone record");
     m3World* replayed = ShoulderWorld(false, &arm, &shoulder);
     bool ok = ReplayJournal(replayed, tape, bytes);
     if (ok && angle == recorded)
@@ -853,9 +852,12 @@ static bool ReplaysCone(float angle)
 
 static void TestConeReplay(void)
 {
-    CHECK(ReplaysCone(0.6f), "a recorded cone replays");
-    CHECK(!ReplaysCone(-1.0f), "a recorded cone switched on over a negative angle is refused");
-    CHECK(!ReplaysCone(NAN), "and so is a NaN angle");
+    CHECK(ReplaysCone(0.6f, true), "a recorded cone replays");
+    CHECK(ReplaysCone(0.6f, false), "and so does an angle moved with the cone off");
+    CHECK(!ReplaysCone(-1.0f, true),
+          "a recorded cone switched on over a negative angle is refused");
+    CHECK(!ReplaysCone(-1.0f, false), "and so is a negative angle with the cone off");
+    CHECK(!ReplaysCone(NAN, true), "and so is a NaN angle");
 }
 
 static void TestTwistClamp(void)

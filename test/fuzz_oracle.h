@@ -201,18 +201,14 @@ static inline bool FuzzJointValues(m3World* world, m3JointId joint)
     }
     else if (type == m3_sphericalJoint)
     {
-        // A def may leave a negative angle while its cone is off; the
-        // setter takes none.
+        // No caller can leave a negative angle, with the cone on or off.
         float angle = m3SphericalJoint_GetConeAngle(world, joint);
         bool enabled = m3SphericalJoint_IsConeEnabled(world, joint);
-        if (angle >= 0.0f)
-        {
-            m3SphericalJoint_SetConeAngle(world, joint, angle);
-        }
-        else if (enabled || !isfinite(angle))
+        if (!(angle >= 0.0f) || !isfinite(angle))
         {
             return false;
         }
+        m3SphericalJoint_SetConeAngle(world, joint, angle);
         m3SphericalJoint_EnableCone(world, joint, enabled);
     }
     else if (type == m3_wheelJoint)

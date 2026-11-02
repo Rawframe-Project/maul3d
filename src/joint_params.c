@@ -502,9 +502,9 @@ bool m3DistanceRestLengthFits(float length)
     return m3FiniteF(length) && length >= 0.0f;
 }
 
-bool m3SphericalConeFits(int32_t enable, float angle)
+bool m3SphericalConeFits(float angle)
 {
-    return m3FiniteF(angle) && !(enable != 0 && angle < 0.0f);
+    return m3FiniteF(angle) && angle >= 0.0f;
 }
 
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper)

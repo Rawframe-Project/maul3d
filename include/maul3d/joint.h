@@ -74,7 +74,7 @@ extern "C"
         float lowerTwist; // radians, ordered when the limit is on
         float upperTwist;
         bool enableCone;
-        float coneAngle; // radians from the A frame's z axis
+        float coneAngle; // radians from the A frame's z axis, not negative
         bool enableConnectedCollision;
         int32_t internalValue; // the cookie m3DefaultSphericalJointDef sets
     } m3SphericalJointDef;
@@ -439,10 +439,10 @@ extern "C"
     ///         same body twice, two bodies of which neither is dynamic, a NaN
     ///         anchor, an axis that is not finite, a limit bound that is not
     ///         finite (checked with the limit off too) or bounds out of order
-    ///         with the limit on, a cone angle that is not finite (checked with
-    ///         the cone off too) or is negative with the cone on, a spring
-    ///         hertz or damping ratio that is negative or NaN (checked with the
-    ///         spring off too), or a zero hertz with the spring on;
+    ///         with the limit on, a cone angle that is negative or not finite
+    ///         (checked with the cone off too), a spring hertz or damping
+    ///         ratio that is negative or NaN (checked with the spring off too),
+    ///         or a zero hertz with the spring on;
     ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
     ///         M3_LOCAL_LIMIT, a spring hertz past 1e5 or a damping ratio past
     ///         1e4, infinities included; m3_errorLimit, counting no misuse,
@@ -1492,15 +1492,13 @@ extern "C"
 
     /// The swing cone (m3SphericalJointDef enableCone and coneAngle), switched and
     /// moved at run time; each takes effect in its own call. The angle is
-    /// finite and not negative, and EnableCone refuses to switch the cone
-    /// on over a negative angle a def left. Any other joint type, a stale
-    /// id or a refused value changes nothing and counts one misuse; the
-    /// getters then read false and zero.
+    /// finite and not negative, as the create holds it. Any other joint
+    /// type, a stale id or a refused value changes nothing and counts one
+    /// misuse; the getters then read false and zero.
     /// Journaled.
     /// A null world does nothing. A stale or null id, a joint that is not a
-    /// spherical joint, switching the cone on while its angle is negative, or a
-    /// call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// spherical joint, or a call from host code the world is running changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world   The world.
     /// @param joint   The joint.

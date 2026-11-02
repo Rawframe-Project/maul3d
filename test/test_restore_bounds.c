@@ -47,6 +47,7 @@ typedef struct Scene
     int32_t jelly;   // a soft body of one tet
     int32_t six;     // a generic joint with a limited axis
     int32_t cone;    // a spherical joint with a cone
+    int32_t bare;    // a spherical joint with its cone off
     int32_t rope;    // a distance joint with a range of 1 to 2 m
 } Scene;
 
@@ -76,6 +77,7 @@ typedef enum Which
     which_six,
     which_dot,
     which_cone,
+    which_bare,
     which_rope,
 } Which;
 
@@ -132,6 +134,8 @@ static int32_t SlotOf(const Scene* s, Which which)
         return s->dot;
     case which_cone:
         return s->cone;
+    case which_bare:
+        return s->bare;
     case which_rope:
         return s->rope;
     }
@@ -255,6 +259,7 @@ static const Case s_cases[] = {
     {"target rotation on a hinge", COMPONENT(joints.jointTargetQ, m3Quat, which_hinge, 3), (double)(1.0), +1},
     {"limit order", COMPONENT(joints.jointLimits, m3Vec3, which_hinge, 1), (double)(-1.0), -1},
     {"cone angle", COMPONENT(joints.jointLimits, m3Vec3, which_cone, 2), (double)(0.0), -1},
+    {"cone angle with the cone off", COMPONENT(joints.jointLimits, m3Vec3, which_bare, 2), (double)(0.0), -1},
     {"rope minimum length", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 0), (double)(0.0), -1},
     {"rope length order", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 1), (double)(1.0), -1},
     {"rope rest length", COMPONENT(joints.jointLimits, m3Vec3, which_rope, 2), (double)(0.0), -1},
@@ -340,8 +345,8 @@ static void Put(const Scene* s, uint8_t* snap, const Value* v, double x)
 }
 
 // The scene: a ball, a crate on a hinge, a gear, a pulley, a servo, a
-// wheel, a generic joint, a coned spherical joint and a rope from the
-// ground to the crate, a kinematic rail, a
+// wheel, a generic joint, a coned spherical joint, one with its cone off
+// and a rope from the ground to the crate, a kinematic rail, a
 // character, a vehicle with a drivetrain, a closed lattice anchored to the
 // crate, a lone particle, a tet body, a water volume and a steady wind.
 static Scene Build(void)
@@ -439,6 +444,9 @@ static Scene Build(void)
     jdSpherical.enableCone = true;
     jdSpherical.coneAngle = 0.5f;
     s.cone = NewJoint(w, &jdSpherical).index1 - 1;
+    jdSpherical.enableCone = false;
+    jdSpherical.coneAngle = 0.0f;
+    s.bare = NewJoint(w, &jdSpherical).index1 - 1;
     m3DistanceJointDef jdDistance = m3DefaultDistanceJointDef();
     jdDistance.bodyIdA = ground;
     jdDistance.bodyIdB = crate;
@@ -625,7 +633,7 @@ static void TestBoundsAtTheirEdges(void)
     Scene s = Build();
     m3World* world = s.world;
     m3Counters counters = m3World_GetCounters(world);
-    CHECK(counters.misuseCount == 0 && counters.jointCount == 8 && counters.vehicleCount == 1 &&
+    CHECK(counters.misuseCount == 0 && counters.jointCount == 9 && counters.vehicleCount == 1 &&
               counters.softBodyCount == 3 && counters.characterCount == 1 && s.pool >= 0 &&
               world->softBodies.softAnchorCount[s.soft] == 1 &&
               world->vehicles.vehDtActive[s.vehicle] == 1,
