@@ -739,8 +739,7 @@ static HashScene BuildHashScene(void)
     bd.position = (m3Pos3){1.5, 1.0, 0.0};
     m3BodyId arm = NewBody(scene.world, &bd);
     NewBoxShape(scene.world, arm, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = scene.box;
     jd.bodyIdB = arm;
     jd.localAnchorA = (m3Vec3){0.75f, 0.0f, 0.0f};

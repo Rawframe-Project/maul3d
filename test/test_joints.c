@@ -67,7 +67,7 @@ static void TestPendulum(void)
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.1f};
     NewSphereShape(world, bob, &sd, &ball);
 
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = bob;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
@@ -116,8 +116,7 @@ static void TestFarErrorClosesAtSpeedLimit(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, bob, &sd, &ball);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = bob;
     NewJoint(world, &jd);
@@ -162,7 +161,7 @@ static void TestChainSettlesAndSleeps(void)
         m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.12f};
         NewSphereShape(world, links[k], &sd, &ball);
 
-        m3JointDef jd = m3DefaultJointDef();
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = previous;
         jd.bodyIdB = links[k];
         jd.localAnchorA = (m3Vec3){0.0f, k == 0 ? 0.0f : -0.25f, 0.0f};
@@ -208,7 +207,7 @@ static void TestJointContracts(void)
     m3BodyId b = NewBody(world, &bd);
     m3BodyId c = NewBody(world, &bd);
 
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = a;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a self-joint is refused");
@@ -228,7 +227,7 @@ static void TestJointContracts(void)
     m3DestroyWorld(world);
 }
 
-static m3BodyId MakeDoor(m3World* world, m3JointDef* jdOut)
+static m3BodyId MakeDoor(m3World* world, m3RevoluteJointDef* jdOut)
 {
     // A door panel hinged to a static post on the y axis: the hinge
     // line passes through x = 0, the panel extends to +x.
@@ -242,8 +241,7 @@ static m3BodyId MakeDoor(m3World* world, m3JointDef* jdOut)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, door, &sd, (m3Vec3){0.5f, 1.0f, 0.05f});
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = post;
     jd.bodyIdB = door;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
@@ -272,7 +270,7 @@ static void TestDoorSwings(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3World* world = NewWorld(&def);
-    m3JointDef jd;
+    m3RevoluteJointDef jd;
     m3BodyId door = MakeDoor(world, &jd);
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the hinge creates");
     m3Body_SetAngularVelocity(world, door, (m3Vec3){0.0f, 2.0f, 0.0f});
@@ -307,11 +305,11 @@ static void TestDoorLimits(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m3World* world = NewWorld(&def);
-    m3JointDef jd;
+    m3RevoluteJointDef jd;
     m3BodyId door = MakeDoor(world, &jd);
     jd.enableLimit = true;
-    jd.lowerLimit = -0.7854f;
-    jd.upperLimit = 0.7854f;
+    jd.lowerAngle = -0.7854f;
+    jd.upperAngle = 0.7854f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the limited hinge creates");
     m3Body_SetAngularVelocity(world, door, (m3Vec3){0.0f, 12.0f, 0.0f});
 
@@ -343,7 +341,7 @@ static void TestDoorMotor(void)
         def.bodyCapacity = 8;
         def.shapeCapacity = 8;
         m3World* world = NewWorld(&def);
-        m3JointDef jd;
+        m3RevoluteJointDef jd;
         m3BodyId door = MakeDoor(world, &jd);
         jd.enableMotor = true;
         jd.motorSpeed = 2.0f;
@@ -484,8 +482,7 @@ static void TestElevator(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, car, &sd, (m3Vec3){0.5f, 0.1f, 0.5f});
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_prismaticJoint;
+    m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
     jd.bodyIdA = shaft;
     jd.bodyIdB = car;
     jd.localAnchorA = (m3Vec3){0.0f, 0.5f, 0.0f}; // the rail zero
@@ -493,8 +490,8 @@ static void TestElevator(void)
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.enableLimit = true;
-    jd.lowerLimit = 0.0f;
-    jd.upperLimit = 2.0f;
+    jd.lowerTranslation = 0.0f;
+    jd.upperTranslation = 2.0f;
     jd.enableMotor = true;
     jd.motorSpeed = 1.0f;
     jd.maxMotorEffort = 200.0f; // plenty against gravity
@@ -532,8 +529,7 @@ static void TestSliderGravityAlongRail(void)
 
     // Axis 30 degrees off horizontal in the xz-free xy plane.
     m3Vec3 axis = {0.8660254f, -0.5f, 0.0f};
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_prismaticJoint;
+    m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
     jd.bodyIdA = rail;
     jd.bodyIdB = car;
     jd.localAxisA = axis;
@@ -663,8 +659,7 @@ static m3World* ShoulderWorld(bool cone, m3BodyId* armOut, m3JointId* shoulderOu
     m3Capsule capsule = {{-0.5f, 0.0f, 0.0f}, {0.3f, 0.0f, 0.0f}, 0.1f};
     NewCapsuleShape(world, *armOut, &sd, &capsule);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = socket;
     jd.bodyIdB = *armOut;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};
@@ -778,7 +773,7 @@ static void TestConeCalls(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, -1.0, 0.0};
     m3BodyId bob = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = socket;
     jd.bodyIdB = bob;
     jd.coneAngle = -0.5f;
@@ -798,10 +793,11 @@ static void TestConeCalls(void)
           "once moved, the cone switches on");
 
     // Every other type refuses the four calls, and a stale id too.
-    jd.type = m3_revoluteJoint;
-    jd.coneAngle = 0.0f;
-    m3JointId hinge = NewJoint(world, &jd);
-    m3JointId gone = NewJoint(world, &jd);
+    m3RevoluteJointDef hingeDef = m3DefaultRevoluteJointDef();
+    hingeDef.bodyIdA = socket;
+    hingeDef.bodyIdB = bob;
+    m3JointId hinge = NewJoint(world, &hingeDef);
+    m3JointId gone = NewJoint(world, &hingeDef);
     DestroyJoint(world, gone);
     m3JointId others[2] = {hinge, gone};
     for (int32_t i = 0; i < 2; ++i)
@@ -881,15 +877,14 @@ static void TestTwistClamp(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, spinner, &sd, (m3Vec3){0.4f, 0.1f, 0.4f});
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = spinner;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.enableLimit = true;
-    jd.lowerLimit = -0.5f;
-    jd.upperLimit = 0.5f;
+    jd.lowerTwist = -0.5f;
+    jd.upperTwist = 0.5f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the twist-limited joint creates");
     m3Body_SetAngularVelocity(world, spinner, (m3Vec3){0.0f, 0.0f, 6.0f});
 
@@ -938,8 +933,7 @@ static void TestFrameBuilderBranches(void)
             m3ShapeDef sd = m3DefaultShapeDef();
             m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f};
             NewSphereShape(world, swinger, &sd, &ball);
-            m3JointDef jd = m3DefaultJointDef();
-            jd.type = m3_revoluteJoint;
+            m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
             jd.bodyIdA = anchor;
             jd.bodyIdB = swinger;
             jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -987,8 +981,7 @@ static void TestWeldActsAsOneBody(void)
         m3BodyId b = NewBody(world, &bd);
         NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
 
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_weldJoint;
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
         jd.bodyIdA = a;
         jd.bodyIdB = b;
         jd.localAnchorA = (m3Vec3){0.45f, 0.0f, 0.0f};
@@ -1040,8 +1033,7 @@ static void TestRopeAndRod(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.2f};
     NewSphereShape(world, ball, &sd, &sphere);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
     jd.minLength = 0.0f;
@@ -1075,8 +1067,7 @@ static void TestRopeAndRod(void)
     m3BodyDef ad2 = m3DefaultBodyDef();
     ad2.position = (m3Pos3){4.0, 10.0, 0.0};
     m3BodyId anchor2 = NewBody(world, &ad2);
-    m3JointDef rod = m3DefaultJointDef();
-    rod.type = m3_distanceJoint;
+    m3DistanceJointDef rod = m3DefaultDistanceJointDef();
     rod.bodyIdA = anchor2;
     rod.bodyIdB = bob;
     rod.minLength = 2.0f;
@@ -1117,8 +1108,7 @@ static void TestDistanceSpring(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.2f};
     NewSphereShape(world, ball, &sd, &sphere);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
     jd.minLength = 0.0f;
@@ -1161,25 +1151,15 @@ static void TestNewJointContracts(void)
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
-    jd.enableLimit = true; // the range is the lengths, not a limit
-    jd.lowerLimit = 0.5f;
-    jd.upperLimit = 2.0f;
     jd.maxLength = 2.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a distance joint refuses a limit");
-    jd.enableLimit = false;
     jd.minLength = 2.5f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an unordered length range refuses");
     jd.minLength = -1.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a negative minimum length refuses");
     jd.minLength = 0.5f;
-    jd.enableMotor = true;
-    jd.motorSpeed = 1.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a distance joint refuses a motor");
-    jd.enableMotor = false;
     jd.enableSpring = true;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a spring with zero hertz refuses");
     jd.springHertz = 2.0f;
@@ -1193,18 +1173,17 @@ static void TestNewJointContracts(void)
 // The generic 6-DOF reproduces its ancestors in behavioral
 // bands (bitwise agreement is neither expected nor sought: the row
 // structures differ by design).
-static m3JointDef GenericBase(m3BodyId a, m3BodyId b)
+static m3GenericJointDef GenericBase(m3BodyId a, m3BodyId b)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_genericJoint;
+    m3GenericJointDef jd = m3DefaultGenericJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
     jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericLinear[k] = m3_axisLocked;
-        jd.genericAngular[k] = m3_axisFree;
+        jd.linearModes[k] = m3_axisLocked;
+        jd.angularModes[k] = m3_axisFree;
     }
     return jd;
 }
@@ -1229,7 +1208,7 @@ static void TestGenericAsSpherical(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f};
     NewSphereShape(world, bob, &sd, &ball);
-    m3JointDef jd = GenericBase(anchor, bob);
+    m3GenericJointDef jd = GenericBase(anchor, bob);
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
     uint64_t misuse = m3World_GetCounters(world).misuseCount;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic ball creates");
@@ -1285,14 +1264,14 @@ static void TestGenericAsHingeWithMotorAndLimits(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, door, &sd, (m3Vec3){0.9f, 0.5f, 0.05f});
 
-    m3JointDef jd = GenericBase(frame, door);
+    m3GenericJointDef jd = GenericBase(frame, door);
     jd.localAnchorB = (m3Vec3){-1.0f, 0.0f, 0.0f};
-    jd.genericAngular[0] = m3_axisLocked;
-    jd.genericAngular[1] = m3_axisLocked;
-    jd.genericAngular[2] = m3_axisLimited;
-    jd.genericAngularLower[2] = -0.5f;
-    jd.genericAngularUpper[2] = 1.0f;
-    jd.genericMotorAxis = 5; // angular z
+    jd.angularModes[0] = m3_axisLocked;
+    jd.angularModes[1] = m3_axisLocked;
+    jd.angularModes[2] = m3_axisLimited;
+    jd.angularLower[2] = -0.5f;
+    jd.angularUpper[2] = 1.0f;
+    jd.motorAxis = 5; // angular z
     jd.enableMotor = true;
     jd.motorSpeed = 2.0f;
     jd.maxMotorEffort = 50.0f;
@@ -1333,13 +1312,13 @@ static void TestGenericMotorFollowsItsSwitch(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, wheel, &sd, &ball);
-    m3JointDef jd = GenericBase(ground, wheel);
+    m3GenericJointDef jd = GenericBase(ground, wheel);
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericAngular[k] = m3_axisLocked;
+        jd.angularModes[k] = m3_axisLocked;
     }
-    jd.genericAngular[2] = m3_axisFree;
-    jd.genericMotorAxis = 5; // angular z
+    jd.angularModes[2] = m3_axisFree;
+    jd.motorAxis = 5; // angular z
     jd.motorSpeed = 3.0f;
     jd.maxMotorEffort = 100.0f;
     m3JointId joint = NewJoint(world, &jd);
@@ -1381,16 +1360,16 @@ static void TestGenericAsSlider(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, cart, &sd, (m3Vec3){0.2f, 0.2f, 0.2f});
 
-    m3JointDef jd = GenericBase(rail, cart);
+    m3GenericJointDef jd = GenericBase(rail, cart);
     // The rail's z axis points down the world y: axis (0, 1, 0).
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
     jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-    jd.genericLinear[2] = m3_axisLimited; // along the rail
-    jd.genericLinearLower[2] = -2.0f;
-    jd.genericLinearUpper[2] = 2.0f;
+    jd.linearModes[2] = m3_axisLimited; // along the rail
+    jd.linearLower[2] = -2.0f;
+    jd.linearUpper[2] = 2.0f;
     for (int32_t k = 0; k < 3; ++k)
     {
-        jd.genericAngular[k] = m3_axisLocked;
+        jd.angularModes[k] = m3_axisLocked;
     }
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic slider creates");
     for (int32_t i = 0; i < 300; ++i)
@@ -1433,29 +1412,29 @@ static void TestGenericContracts(void)
     bd.position = (m3Pos3){0.0, 2.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
 
-    m3JointDef jd = GenericBase(a, b);
-    jd.genericAngular[0] = m3_axisLimited;
-    jd.genericAngular[1] = m3_axisLimited;
+    m3GenericJointDef jd = GenericBase(a, b);
+    jd.angularModes[0] = m3_axisLimited;
+    jd.angularModes[1] = m3_axisLimited;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)),
           "two limited angular axes refuse (the v1 rule)");
     jd = GenericBase(a, b);
-    jd.genericAngular[0] = m3_axisLimited;
-    jd.genericAngular[1] = m3_axisLocked;
-    jd.genericAngular[2] = m3_axisFree;
+    jd.angularModes[0] = m3_axisLimited;
+    jd.angularModes[1] = m3_axisLocked;
+    jd.angularModes[2] = m3_axisFree;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)),
           "a mixed locked-free pair beside a limited axis refuses");
     jd = GenericBase(a, b);
-    jd.genericMotorAxis = 1; // linear y, which is locked
+    jd.motorAxis = 1; // linear y, which is locked
     jd.motorSpeed = 1.0f;
     jd.maxMotorEffort = 10.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a motor on a locked axis refuses");
     jd = GenericBase(a, b);
-    jd.genericLinear[0] = 7;
+    jd.linearModes[0] = 7;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an unknown mode refuses");
     jd = GenericBase(a, b);
-    jd.genericLinear[2] = m3_axisLimited;
-    jd.genericLinearLower[2] = 1.0f;
-    jd.genericLinearUpper[2] = -1.0f;
+    jd.linearModes[2] = m3_axisLimited;
+    jd.linearLower[2] = 1.0f;
+    jd.linearUpper[2] = -1.0f;
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "inverted generic limits refuse");
     jd = GenericBase(a, b);
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the plain generic ball creates");
@@ -1481,8 +1460,7 @@ static void TestHeavyBodyHangs(void)
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.density = densities[i];
         NewBoxShape(world, cube, &sd, (m3Vec3){halves[i], halves[i], halves[i]});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_sphericalJoint;
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = cube;
         CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the socket builds");
@@ -1518,8 +1496,7 @@ static void TestHeavyBodyWelds(void)
         m3ShapeDef sd = m3DefaultShapeDef();
         sd.density = densities[i];
         NewBoxShape(world, cube, &sd, (m3Vec3){halves[i], halves[i], halves[i]});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_weldJoint;
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = cube;
         jd.localAnchorA = (m3Vec3){-halves[i], halves[i], 0.0f};
@@ -1557,23 +1534,67 @@ static double PivotDriftFree(int32_t type, float degrees, float arm, int32_t fre
     sd.density = 1000.0f;
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.25f};
     NewSphereShape(world, ball, &sd, &sphere);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = type;
-    jd.bodyIdA = ground;
-    jd.bodyIdB = ball;
-    jd.localAnchorB = m3MulSV3(-1.0f, offset);
-    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    if (freeTurn >= 0)
+    m3Vec3 anchorB = m3MulSV3(-1.0f, offset);
+    m3Vec3 axis = {0.0f, 0.0f, 1.0f};
+    m3JointId joint = m3_nullJointId;
+    if (type == m3_revoluteJoint)
     {
-        jd.genericAngular[freeTurn] = m3_axisFree;
+        m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        joint = NewJoint(world, &jd);
     }
-    CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the long arm joint builds");
+    else if (type == m3_prismaticJoint)
+    {
+        m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        joint = NewJoint(world, &jd);
+    }
+    else if (type == m3_weldJoint)
+    {
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = anchorB;
+        joint = NewJoint(world, &jd);
+    }
+    else if (type == m3_genericJoint)
+    {
+        m3GenericJointDef jd = m3DefaultGenericJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        if (freeTurn >= 0)
+        {
+            jd.angularModes[freeTurn] = m3_axisFree;
+        }
+        joint = NewJoint(world, &jd);
+    }
+    else
+    {
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        joint = NewJoint(world, &jd);
+    }
+    CHECK(m3Joint_IsValid(world, joint), "the long arm joint builds");
     double worst = 0.0;
     for (int32_t k = 0; k < 60; ++k)
     {
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
-        m3Pos3 at = m3Body_GetWorldPoint(world, ball, jd.localAnchorB);
+        m3Pos3 at = m3Body_GetWorldPoint(world, ball, anchorB);
         double z = type == m3_prismaticJoint ? 0.0 : (double)at.z;
         worst = fmax(worst, sqrt((double)at.x * at.x + (double)at.y * at.y + z * z));
     }

@@ -32,12 +32,54 @@ static inline m3CharacterId NewCharacter(m3World* world, const m3CharacterDef* d
     return id;
 }
 
-static inline m3JointId NewJoint(m3World* world, const m3JointDef* def)
-{
-    m3JointId id = m3_nullJointId;
-    (void)m3CreateJoint(world, def, &id);
-    return id;
-}
+// A joint of any type, created from its own def, or the null id. NewJoint
+// picks the create by the def's type.
+#define M3_TEST_NEW_JOINT(Name)                                                                    \
+    static inline m3JointId New##Name##Joint(m3World* world, const m3##Name##JointDef* def)        \
+    {                                                                                              \
+        m3JointId id = m3_nullJointId;                                                             \
+        (void)m3Create##Name##Joint(world, def, &id);                                              \
+        return id;                                                                                 \
+    }
+M3_TEST_NEW_JOINT(Spherical)
+M3_TEST_NEW_JOINT(Revolute)
+M3_TEST_NEW_JOINT(Prismatic)
+M3_TEST_NEW_JOINT(Weld)
+M3_TEST_NEW_JOINT(Distance)
+M3_TEST_NEW_JOINT(Generic)
+M3_TEST_NEW_JOINT(Wheel)
+M3_TEST_NEW_JOINT(Filter)
+M3_TEST_NEW_JOINT(Parallel)
+M3_TEST_NEW_JOINT(Motor)
+M3_TEST_NEW_JOINT(Gear)
+M3_TEST_NEW_JOINT(Pulley)
+
+#define NewJoint(world, def)                                                                       \
+    _Generic((def),                                                                                \
+        m3SphericalJointDef*: NewSphericalJoint,                                                   \
+        const m3SphericalJointDef*: NewSphericalJoint,                                             \
+        m3RevoluteJointDef*: NewRevoluteJoint,                                                     \
+        const m3RevoluteJointDef*: NewRevoluteJoint,                                               \
+        m3PrismaticJointDef*: NewPrismaticJoint,                                                   \
+        const m3PrismaticJointDef*: NewPrismaticJoint,                                             \
+        m3WeldJointDef*: NewWeldJoint,                                                             \
+        const m3WeldJointDef*: NewWeldJoint,                                                       \
+        m3DistanceJointDef*: NewDistanceJoint,                                                     \
+        const m3DistanceJointDef*: NewDistanceJoint,                                               \
+        m3GenericJointDef*: NewGenericJoint,                                                       \
+        const m3GenericJointDef*: NewGenericJoint,                                                 \
+        m3WheelJointDef*: NewWheelJoint,                                                           \
+        const m3WheelJointDef*: NewWheelJoint,                                                     \
+        m3FilterJointDef*: NewFilterJoint,                                                         \
+        const m3FilterJointDef*: NewFilterJoint,                                                   \
+        m3ParallelJointDef*: NewParallelJoint,                                                     \
+        const m3ParallelJointDef*: NewParallelJoint,                                               \
+        m3MotorJointDef*: NewMotorJoint,                                                           \
+        const m3MotorJointDef*: NewMotorJoint,                                                     \
+        m3GearJointDef*: NewGearJoint,                                                             \
+        const m3GearJointDef*: NewGearJoint,                                                       \
+        m3PulleyJointDef*: NewPulleyJoint,                                                         \
+        const m3PulleyJointDef*: NewPulleyJoint)((world), (def))
 
 static inline m3ShapeId NewSphereShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
                                        const m3Sphere* sphere)

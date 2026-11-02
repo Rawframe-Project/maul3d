@@ -58,17 +58,106 @@ static m3BodyId Rod(m3World* world, float half)
     return rod;
 }
 
-// A joint of this type from a's center to the anchor s_arm above b's.
-static m3JointDef LeverDef(m3JointType type, m3BodyId a, m3BodyId b)
+// A joint of this type from a's center to the anchor s_arm above b's,
+// each type built from its own def: a distance joint as a rope of 0 to
+// 1 m, a generic joint locked in translation and free in rotation.
+static m3Result CreateLever(m3World* world, m3JointType type, m3BodyId a, m3BodyId b,
+                            m3JointId* jointOut)
 {
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = type;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    jd.localAnchorB = (m3Vec3){0.0f, s_arm, 0.0f};
-    jd.localAxisA = type == m3_wheelJoint ? (m3Vec3){0.0f, 1.0f, 0.0f} : (m3Vec3){1.0f, 0.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
-    return jd;
+    m3Vec3 anchorA = {0.0f, 0.0f, 0.0f};
+    m3Vec3 anchorB = {0.0f, s_arm, 0.0f};
+    m3Vec3 axis = {1.0f, 0.0f, 0.0f};
+    switch (type)
+    {
+    case m3_revoluteJoint:
+    {
+        m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        return m3CreateRevoluteJoint(world, &jd, jointOut);
+    }
+    case m3_prismaticJoint:
+    {
+        m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        return m3CreatePrismaticJoint(world, &jd, jointOut);
+    }
+    case m3_weldJoint:
+    {
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        return m3CreateWeldJoint(world, &jd, jointOut);
+    }
+    case m3_wheelJoint:
+    {
+        m3WheelJointDef jd = m3DefaultWheelJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
+        jd.localSpinAxisB = axis;
+        return m3CreateWheelJoint(world, &jd, jointOut);
+    }
+    case m3_motorJoint:
+    {
+        m3MotorJointDef jd = m3DefaultMotorJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        return m3CreateMotorJoint(world, &jd, jointOut);
+    }
+    case m3_distanceJoint:
+    {
+        m3DistanceJointDef jd = m3DefaultDistanceJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.maxLength = 1.0f;
+        return m3CreateDistanceJoint(world, &jd, jointOut);
+    }
+    case m3_genericJoint:
+    {
+        m3GenericJointDef jd = m3DefaultGenericJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        for (int32_t k = 0; k < 3; ++k)
+        {
+            jd.linearModes[k] = m3_axisLocked;
+            jd.angularModes[k] = m3_axisFree;
+        }
+        return m3CreateGenericJoint(world, &jd, jointOut);
+    }
+    default:
+    {
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.localAnchorA = anchorA;
+        jd.localAnchorB = anchorB;
+        jd.localAxisA = axis;
+        jd.localAxisB = axis;
+        return m3CreateSphericalJoint(world, &jd, jointOut);
+    }
+    }
 }
 
 static float Radius(const m3World* world, m3ShapeId shape)
@@ -95,13 +184,13 @@ static void TestCreateKeepsTheRatio(void)
         m3BodyId ground = Ground(world);
         m3BodyId fit = Rod(world, s_fit);
         m3BodyId past = Rod(world, s_past);
-        m3JointDef jd = LeverDef(blocks[k], ground, fit);
         m3JointId joint = m3_nullJointId;
-        CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "a joint within the ratio creates");
+        CHECK(CreateLever(world, blocks[k], ground, fit, &joint) == m3_success,
+              "a joint within the ratio creates");
         uint64_t misuse = Misuse(world);
         int32_t joints = m3World_GetCounters(world).jointCount;
-        jd = LeverDef(blocks[k], ground, past);
-        CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorLimit, "one past the ratio is refused");
+        CHECK(CreateLever(world, blocks[k], ground, past, &joint) == m3_errorLimit,
+              "one past the ratio is refused");
         CHECK(Misuse(world) == misuse && m3World_GetCounters(world).jointCount == joints,
               "counting no misuse and creating nothing");
         m3DestroyWorld(world);
@@ -110,22 +199,10 @@ static void TestCreateKeepsTheRatio(void)
     for (int32_t k = 0; k < 2; ++k)
     {
         m3World* world = LeverWorld();
-        m3JointDef jd = LeverDef(rows[k], Ground(world), Rod(world, s_past));
-        if (rows[k] == m3_distanceJoint)
-        {
-            jd.minLength = 0.0f;
-            jd.maxLength = 1.0f;
-        }
-        if (rows[k] == m3_genericJoint)
-        {
-            for (int32_t a = 0; a < 3; ++a)
-            {
-                jd.genericLinear[a] = m3_axisLocked;
-                jd.genericAngular[a] = m3_axisFree;
-            }
-        }
+        m3BodyId ground = Ground(world);
+        m3BodyId past = Rod(world, s_past);
         m3JointId joint = m3_nullJointId;
-        CHECK(m3CreateJoint(world, &jd, &joint) == m3_success,
+        CHECK(CreateLever(world, rows[k], ground, past, &joint) == m3_success,
               "a joint of single rows takes the rod past the ratio");
         m3DestroyWorld(world);
     }
@@ -176,9 +253,9 @@ static void TestBallChangesKeepTheRatio(void)
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 5.0f};
     m3ShapeId shape = NewSphereShape(world, ball, &sd, &sphere);
     m3BodyId rod = Rod(world, s_past);
-    m3JointDef jd = LeverDef(m3_sphericalJoint, ball, rod);
     m3JointId joint = m3_nullJointId;
-    CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the light ball carries the rod");
+    CHECK(CreateLever(world, m3_sphericalJoint, ball, rod, &joint) == m3_success,
+          "the light ball carries the rod");
     MassBits before = MassOf(world, ball);
     uint64_t hash = m3World_Hash(world);
     uint64_t misuse = Misuse(world);
@@ -221,9 +298,9 @@ static m3World* RodWithBall(m3BodyId* rodOut, m3ShapeId* ballOut)
     sd.maskBits = 0;
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.5f};
     *ballOut = NewSphereShape(world, rod, &sd, &sphere);
-    m3JointDef jd = LeverDef(m3_revoluteJoint, ground, rod);
     m3JointId joint = m3_nullJointId;
-    CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the rod with its ball is jointed");
+    CHECK(CreateLever(world, m3_revoluteJoint, ground, rod, &joint) == m3_success,
+          "the rod with its ball is jointed");
     *rodOut = rod;
     return world;
 }
@@ -308,9 +385,9 @@ static void TestReplayKeepsTheRatio(void)
     sd.maskBits = 0;
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 1.5f};
     (void)NewSphereShape(world, rod, &sd, &sphere);
-    m3JointDef jd = LeverDef(m3_revoluteJoint, ground, rod);
     m3JointId joint = m3_nullJointId;
-    CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the rod with its ball is jointed");
+    CHECK(CreateLever(world, m3_revoluteJoint, ground, rod, &joint) == m3_success,
+          "the rod with its ball is jointed");
     int64_t bytes = StopJournal(world);
     uint64_t hash = m3World_Hash(world);
     m3DestroyWorld(world);
@@ -365,11 +442,15 @@ static void TestVoxelEditsKeepJointedMass(void)
     bd.position = (m3Pos3){4.0, 3.0, 4.0};
     m3BodyId box = NewBody(world, &bd);
     NewBoxShape(world, box, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
-    m3JointDef jd = LeverDef(m3_sphericalJoint, holder, box);
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
+    jd.bodyIdA = holder;
+    jd.bodyIdB = box;
     jd.localAnchorA = (m3Vec3){4.0f, 4.0f, 4.0f};
     jd.localAnchorB = (m3Vec3){0.0f, 1.0f, 0.0f};
+    jd.localAxisA = (m3Vec3){1.0f, 0.0f, 0.0f};
+    jd.localAxisB = (m3Vec3){1.0f, 0.0f, 0.0f};
     m3JointId joint = m3_nullJointId;
-    CHECK(m3CreateJoint(world, &jd, &joint) == m3_success, "the box hangs from the wall");
+    CHECK(m3CreateSphericalJoint(world, &jd, &joint) == m3_success, "the box hangs from the wall");
     MassBits holderBefore = MassOf(world, holder);
     MassBits boxBefore = MassOf(world, box);
     CHECK(m3VoxelChunkShape_SetVoxel(world, wall, 1, 9, 1, 0) == m3_success, "a voxel lands");

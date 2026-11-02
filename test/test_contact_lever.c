@@ -60,7 +60,7 @@ static m3BodyId CoreBody(m3World* world, m3BodyType type)
     return body;
 }
 
-// The 1 microgram shell of radius 1, its center at distance ahead and one
+// The 1 mg shell of radius 1, its center at distance ahead and one
 // meter up in the body's frame, colliding as mask says.
 static m3Result AddShell(m3World* world, m3BodyId body, float distance, uint64_t mask,
                          m3ShapeId* shellOut)
@@ -108,7 +108,7 @@ static void TestNearShellHolds(void)
     m3BodyId body = CoreBody(world, m3_dynamicBody);
     m3ShapeId shell;
     CHECK(AddShell(world, body, s_near, ~0ull, &shell) == m3_success, "the shell creates");
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = ground;
     jd.bodyIdB = body;
     jd.localAnchorA = (m3Vec3){-1.0f, 1.0f, 0.0f};

@@ -1348,7 +1348,7 @@ static void TestListOutputs(void)
     for (int32_t i = 0; i < 2; ++i)
     {
         bd.position = (m3Pos3){22.0 + 2.0 * i, 20.0, 0.0};
-        m3JointDef jd = m3DefaultJointDef();
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = sc.hub;
         jd.bodyIdB = NewBody(sc.world, &bd);
         NewJoint(sc.world, &jd);

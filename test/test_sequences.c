@@ -51,7 +51,7 @@ static void TestStaleIdsEverywhere(void)
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.4f};
     m3ShapeId shape = NewSphereShape(world, body, &sd, &ball);
     m3BodyId other = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = body;
     jd.bodyIdB = other;
     m3JointId joint = NewJoint(world, &jd);
@@ -168,7 +168,7 @@ static int64_t RecordSession(m3World* world, uint8_t* journal, int64_t cap)
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
     NewSphereShape(world, a, &sd, &ball);
     NewSphereShape(world, b, &sd, &ball);
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     NewJoint(world, &jd);
@@ -244,7 +244,7 @@ static void TestCascadeRaces(void)
         m3BodyId hub = NewBody(world, &bd);
         m3BodyId spokes[3];
         m3JointId joints[3];
-        m3JointDef jd = m3DefaultJointDef();
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         for (int32_t i = 0; i < 3; ++i)
         {
             bd.position = (m3Pos3){(double)i - 1.0, 1.0, 0.0};
@@ -454,8 +454,7 @@ static void TestNullWorldIsInvalid(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     m3ShapeId shape = NewSphereShape(world, ball, &sd, &sphere);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = ground;
     jd.bodyIdB = ball;
     m3JointId joint = NewJoint(world, &jd);
@@ -475,7 +474,7 @@ static void TestNullWorldIsInvalid(void)
     m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
     CHECK(m3CreateSphereShape(NULL, ball, &sd, &sphere, &newShape) == m3_errorInvalid,
           "a shape create on a NULL world is m3_errorInvalid");
-    CHECK(m3CreateJoint(NULL, &jd, &newJoint) == m3_errorInvalid,
+    CHECK(m3CreateDistanceJoint(NULL, &jd, &newJoint) == m3_errorInvalid,
           "a joint create on a NULL world is m3_errorInvalid");
     CHECK(m3Body_SetType(NULL, ball, m3_staticBody) == m3_errorInvalid,
           "a type change on a NULL world is m3_errorInvalid");

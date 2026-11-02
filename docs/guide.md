@@ -421,19 +421,24 @@ dropped count says so loudly.
 
 Twelve types, every one built from the same proven row blocks
 (point, axial, rotation-vector) so a new joint is a recipe, not
-new math:
+new math. Each type has its own def, holding only what that type
+reads, its default and its create: `m3RevoluteJointDef`,
+`m3DefaultRevoluteJointDef` and `m3CreateRevoluteJoint`, and so on.
+A create refuses a def with another type's cookie.
 
 - `m3_sphericalJoint`: a shared point, plus an optional swing cone
-  (`enableCone`, `coneAngle`) and twist limit pair. The cone is the
-  spherical joint's alone: every other type refuses `enableCone`.
+  (`enableCone`, `coneAngle`) and twist limit pair (`lowerTwist`,
+  `upperTwist`). The cone is the spherical joint's alone: no other
+  type's def holds it.
   `m3SphericalJoint_EnableCone` and `m3SphericalJoint_SetConeAngle`
   change it at run time; the angle is never negative while the cone
   is on.
-- `m3_revoluteJoint`: hinge; angle limits and a motor
-  (`motorSpeed`, `maxMotorTorque`).
-- `m3_prismaticJoint`: slider; translation limits and a motor.
+- `m3_revoluteJoint`: hinge; angle limits (`lowerAngle`,
+  `upperAngle`) and a motor (`motorSpeed`, `maxMotorEffort`).
+- `m3_prismaticJoint`: slider; translation limits
+  (`lowerTranslation`, `upperTranslation`) and a motor.
 - `m3_weldJoint`: the relative pose at create time IS the
-  weld pose (axes and limits are ignored by contract).
+  weld pose; its def holds only the bodies and anchors.
 - `m3_distanceJoint`: rope or rod along the anchor axis, held
   within `minLength` and `maxLength`. Equal lengths make a rod.
   The joint spring (`enableSpring`, `springHertz`,
@@ -443,8 +448,9 @@ new math:
   change them at run time.
 - `m3_genericJoint`: per-axis `m3AxisMode` (locked, free, limited)
   over three linear and three angular axes, plus one motor on any
-  movable axis, which drives while its switch is on, as on every
-  type with a motor. The v1 angular contract: at most one limited
+  movable axis, `motorAxis`, which drives while its switch is on,
+  `enableMotor` in the def or `m3Joint_EnableMotor` at run time, as
+  on every type with a motor. The v1 angular contract: at most one limited
   angular axis, and its neighbors both locked or both free.
 - `m3_wheelJoint`: suspension slide plus free axle spin, its own
   chapter below.
@@ -924,11 +930,12 @@ m3_wheelJoint is the OPTIONAL rigid-wheel path: the wheel is a
 real body on real contacts (trucks over rubble, wheels in
 fragments), while the raycast vehicle stays the default.
 localAxisA is the suspension axis in the chassis frame,
-localAxisB the axle in the wheel frame; the axle is captured at
+localSpinAxisB the axle in the wheel frame; the axle is captured at
 create and snapped exactly perpendicular to the strut (more
 than a small skew refuses loudly). One joint composes both
 halves: the wheel slides along the strut (travel limits from
-enableLimit, suspension spring from m3Joint_EnableSpring plus
+enableLimit with lowerTranslation and upperTranslation,
+suspension spring from m3Joint_EnableSpring plus
 m3Joint_SetTargetTranslation) and spins freely about its axle
 (drive with m3Joint_EnableMotor; read the spin with
 m3Joint_GetAngle and the travel with m3Joint_GetTranslation).

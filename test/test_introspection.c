@@ -63,8 +63,7 @@ static void TestCountsMatchTheScene(void)
     ad.position = (m3Pos3){3.0, 1.0, 0.0};
     m3BodyId b = NewBody(world, &ad);
     NewBoxShape(world, b, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     m3JointId link = NewJoint(world, &jd);
@@ -405,8 +404,7 @@ static void TestReadback(void)
     m3ShapeId sensor = NewSphereShape(world, body, &sd, &probe);
     m3BodyDef ad = m3DefaultBodyDef();
     m3BodyId anchor = NewBody(world, &ad);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = body;
     m3JointId joint = NewJoint(world, &jd);

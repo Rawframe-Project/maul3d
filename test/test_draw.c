@@ -184,8 +184,7 @@ static m3World* MakeZoo(void)
     m3BodyDef ad = m3DefaultBodyDef();
     ad.position = (m3Pos3){3.0, 3.0, 0.0};
     m3BodyId anchor = NewBody(world, &ad);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_sphericalJoint;
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = box;
     jd.localAnchorA = (m3Vec3){0.0f, 0.0f, 0.0f};

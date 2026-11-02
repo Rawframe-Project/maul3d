@@ -143,41 +143,39 @@ static inline bool FuzzBuild(m3World* world, FuzzScene* scene)
                   NewVoxelChunkShape(world, FuzzBody(world, scene, m3_staticBody, -3.0, 0.0, 0.0),
                                      &sd, cells, NULL, 0.25f));
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = scene->crate;
     jd.bodyIdB = scene->ball;
     jd.minLength = 0.5f;
     jd.maxLength = 2.0f;
     FuzzCreated(scene, m3Joint_IsValid(world, NewJoint(world, &jd)));
-    jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
-    jd.bodyIdA = ground;
-    jd.bodyIdB = scene->crate;
-    jd.localAnchorA = (m3Vec3){0.0f, 1.5f, 0.0f};
-    jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
-    jd.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
-    jd.enableMotor = true;
-    jd.motorSpeed = 1.0f;
-    jd.maxMotorEffort = 5.0f;
-    scene->hinge = NewJoint(world, &jd);
+    m3RevoluteJointDef jdRevolute = m3DefaultRevoluteJointDef();
+    jdRevolute.bodyIdA = ground;
+    jdRevolute.bodyIdB = scene->crate;
+    jdRevolute.localAnchorA = (m3Vec3){0.0f, 1.5f, 0.0f};
+    jdRevolute.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
+    jdRevolute.localAxisA = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jdRevolute.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jdRevolute.enableMotor = true;
+    jdRevolute.motorSpeed = 1.0f;
+    jdRevolute.maxMotorEffort = 5.0f;
+    scene->hinge = NewJoint(world, &jdRevolute);
     FuzzCreated(scene, m3Joint_IsValid(world, scene->hinge));
     // The ball hangs from the ground on a spherical joint with its cone and
     // twist range on, so the seeds hold a cone the targets can corrupt.
-    jd = m3DefaultJointDef();
-    jd.bodyIdA = ground;
-    jd.bodyIdB = scene->ball;
-    jd.localAnchorA = (m3Vec3){1.0f, 2.0f, 0.0f};
-    jd.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
-    jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.enableCone = true;
-    jd.coneAngle = 0.5f;
-    jd.enableLimit = true;
-    jd.lowerLimit = -0.4f;
-    jd.upperLimit = 0.4f;
-    scene->shoulder = NewJoint(world, &jd);
+    m3SphericalJointDef jdSpherical = m3DefaultSphericalJointDef();
+    jdSpherical.bodyIdA = ground;
+    jdSpherical.bodyIdB = scene->ball;
+    jdSpherical.localAnchorA = (m3Vec3){1.0f, 2.0f, 0.0f};
+    jdSpherical.localAnchorB = (m3Vec3){0.0f, 0.5f, 0.0f};
+    jdSpherical.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jdSpherical.localAxisB = (m3Vec3){0.0f, -1.0f, 0.0f};
+    jdSpherical.enableCone = true;
+    jdSpherical.coneAngle = 0.5f;
+    jdSpherical.enableLimit = true;
+    jdSpherical.lowerTwist = -0.4f;
+    jdSpherical.upperTwist = 0.4f;
+    scene->shoulder = NewJoint(world, &jdSpherical);
     FuzzCreated(scene, m3Joint_IsValid(world, scene->shoulder));
 
     m3BodyId chassis = FuzzBody(world, scene, m3_dynamicBody, 0.0, 1.0, -4.0);

@@ -51,8 +51,7 @@ static void TestCapacityExhaustion(void)
 
     // The joint pool: fill, refuse, recycle, and the invalid defs
     // that must never mint an id in the first place.
-    m3JointDef pin = m3DefaultJointDef();
-    pin.type = m3_sphericalJoint;
+    m3SphericalJointDef pin = m3DefaultSphericalJointDef();
     pin.bodyIdA = bodies[0];
     pin.bodyIdB = bodies[1];
     m3JointId j1 = NewJoint(world, &pin);
@@ -72,8 +71,7 @@ static void TestCapacityExhaustion(void)
     pin.bodyIdA = bodies[0];
     pin.bodyIdB = bodies[0];
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &pin)), "a self joint refuses");
-    m3JointDef bad = m3DefaultJointDef();
-    bad.type = m3_revoluteJoint;
+    m3RevoluteJointDef bad = m3DefaultRevoluteJointDef();
     bad.bodyIdA = bodies[0];
     bad.bodyIdB = bodies[1];
     bad.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
@@ -1401,14 +1399,14 @@ static void TestBoundsRefuseAsLimit(void)
     CHECK(result == m3_errorLimit,
           "a mesh height field past M3_MAX_HEIGHTFIELD_MESH_SIZE is refused as limit");
 
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = ground;
     jd.bodyIdB = body;
     jd.enableMotor = true;
     jd.motorSpeed = 2.0f * M3_SPEED_LIMIT;
     m3JointId jointOut = m3_nullJointId;
-    CHECK_REFUSES(world, result = m3CreateJoint(world, &jd, &jointOut), "a fast motor misuses");
+    CHECK_REFUSES(world, result = m3CreateRevoluteJoint(world, &jd, &jointOut),
+                  "a fast motor misuses");
     CHECK(result == m3_errorLimit && jointOut.index1 == 0,
           "a motor speed past M3_SPEED_LIMIT is refused as limit");
 

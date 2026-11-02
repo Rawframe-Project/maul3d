@@ -49,8 +49,7 @@ static void TestFilterIsRowlessAndFilters(void)
     bd.position = (m3Pos3){0.2, 3.2, 0.0};
     m3BodyId b = NewBody(world, &bd);
     NewBoxShape(world, b, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_filterJoint;
+    m3FilterJointDef jd = m3DefaultFilterJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     m3JointId filter = NewJoint(world, &jd);
@@ -96,8 +95,7 @@ static void TestParallelKeepsAxesParallel(void)
     bd.position = (m3Pos3){2.0, 2.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
     NewBoxShape(world, b, &sd, (m3Vec3){0.6f, 0.05f, 0.6f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_parallelJoint;
+    m3ParallelJointDef jd = m3DefaultParallelJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
@@ -151,8 +149,7 @@ static double ArmDroop(bool spring, bool motor, float budget)
     m3BodyId arm = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, arm, &sd, (m3Vec3){0.7f, 0.08f, 0.08f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = arm;
     jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
@@ -227,12 +224,11 @@ static void TestWheelSteering(void)
         m3ShapeDef sd = m3DefaultShapeDef();
         m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
         NewSphereShape(world, rim, &sd, &ball);
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_wheelJoint;
+        m3WheelJointDef jd = m3DefaultWheelJointDef();
         jd.bodyIdA = hub;
         jd.bodyIdB = rim;
-        jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut down
-        jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
+        jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};    // strut down
+        jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f}; // axle
         m3JointId wheel = NewJoint(world, &jd);
         CHECK(m3Joint_IsValid(world, wheel), "the wheel creates");
         m3WheelJoint_SetSteeringHertz(world, wheel, 8.0f);
@@ -286,7 +282,7 @@ static void TestWheelSteering(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     m3JointId ball = NewJoint(world, &jd);
@@ -320,12 +316,11 @@ static void TestWheelTargetKeepsSteering(void)
     m3ShapeDef sd = m3DefaultShapeDef();
     m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.3f};
     NewSphereShape(world, rim, &sd, &ball);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
+    m3WheelJointDef jd = m3DefaultWheelJointDef();
     jd.bodyIdA = hub;
     jd.bodyIdB = rim;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
     m3WheelJoint_SetSteeringHertz(world, wheel, 8.0f);
     m3WheelJoint_SetSteeringDampingRatio(world, wheel, 1.0f);
@@ -367,12 +362,11 @@ static bool ReplaysSteering(float hertz)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.4, 0.0};
     m3BodyId rim = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
+    m3WheelJointDef jd = m3DefaultWheelJointDef();
     jd.bodyIdA = hub;
     jd.bodyIdB = rim;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
     m3WheelJoint_SetSteeringHertz(world, wheel, 6.25f);
     m3WheelJoint_EnableSteering(world, wheel, true);
@@ -418,12 +412,11 @@ static void TestSteeringSwitchKeepsValues(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.4, 0.0};
     m3BodyId rim = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_wheelJoint;
+    m3WheelJointDef jd = m3DefaultWheelJointDef();
     jd.bodyIdA = hub;
     jd.bodyIdB = rim;
     jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};
-    jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
+    jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};
     m3JointId wheel = NewJoint(world, &jd);
     uint64_t misuse = m3World_GetCounters(world).misuseCount;
     m3WheelJoint_EnableSteering(world, wheel, true);
@@ -448,10 +441,10 @@ static void TestSteeringSwitchKeepsValues(void)
     CHECK(m3WheelJoint_GetSteeringHertz(world, wheel) == 6.0f &&
               m3World_GetCounters(world).misuseCount == misuse + 2,
           "enabled steering refuses a zero frequency");
-    jd = m3DefaultJointDef();
-    jd.bodyIdA = hub;
-    jd.bodyIdB = rim;
-    m3JointId ball = NewJoint(world, &jd);
+    m3SphericalJointDef jdSpherical = m3DefaultSphericalJointDef();
+    jdSpherical.bodyIdA = hub;
+    jdSpherical.bodyIdB = rim;
+    m3JointId ball = NewJoint(world, &jdSpherical);
     m3WheelJoint_SetSteeringHertz(world, ball, 6.0f);
     m3WheelJoint_EnableSteering(world, ball, true);
     CHECK(m3World_GetCounters(world).misuseCount == misuse + 4,
@@ -482,8 +475,7 @@ static double ServoDroop(float maxForce)
     m3BodyId cube = NewBody(world, &bd);
     m3ShapeDef sd = m3DefaultShapeDef();
     NewBoxShape(world, cube, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_motorJoint;
+    m3MotorJointDef jd = m3DefaultMotorJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = cube;
     m3JointId servo = NewJoint(world, &jd);
@@ -515,17 +507,16 @@ static m3World* RopeWorld(float minLength, float maxLength, m3JointId* ropeOut, 
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.minLength = minLength;
     jd.maxLength = maxLength;
     *ropeOut = NewJoint(world, &jd);
-    jd = m3DefaultJointDef();
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    *ballOut = NewJoint(world, &jd);
+    m3SphericalJointDef jdSpherical = m3DefaultSphericalJointDef();
+    jdSpherical.bodyIdA = a;
+    jdSpherical.bodyIdB = b;
+    *ballOut = NewJoint(world, &jdSpherical);
     return world;
 }
 
@@ -638,8 +629,7 @@ static void TestDistanceSpringAndLength(void)
     world = RopeWorld(0.5f, 2.0f, &rope, &ball);
     m3BodyId bodies[2];
     CHECK(m3World_GetBodies(world, bodies, 2) == 2, "two bodies");
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_distanceJoint;
+    m3DistanceJointDef jd = m3DefaultDistanceJointDef();
     jd.bodyIdA = bodies[0];
     jd.bodyIdB = bodies[1];
     jd.maxLength = 2.0f;
@@ -652,20 +642,16 @@ static void TestDistanceSpringAndLength(void)
               m3Joint_GetSpringDampingRatio(world, sprung) == 0.5f &&
               m3DistanceJoint_GetLength(world, sprung) == 1.25f,
           "the rope def's spring and length read back");
-    jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
-    jd.bodyIdA = bodies[0];
-    jd.bodyIdB = bodies[1];
-    jd.enableSpring = true;
-    jd.springHertz = 4.0f;
-    m3JointId hinge = NewJoint(world, &jd);
+    m3RevoluteJointDef jdRevolute = m3DefaultRevoluteJointDef();
+    jdRevolute.bodyIdA = bodies[0];
+    jdRevolute.bodyIdB = bodies[1];
+    jdRevolute.enableSpring = true;
+    jdRevolute.springHertz = 4.0f;
+    m3JointId hinge = NewJoint(world, &jdRevolute);
     CHECK(m3Joint_IsSpringEnabled(world, hinge) && m3Joint_GetSpringHertz(world, hinge) == 4.0f,
           "a hinge def's spring reads back");
-    jd.springHertz = 0.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a def spring at 0 Hz refuses");
-    jd.type = m3_weldJoint;
-    jd.springHertz = 4.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a weld refuses a def spring");
+    jdRevolute.springHertz = 0.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jdRevolute)), "a def spring at 0 Hz refuses");
     m3DestroyWorld(world);
 }
 
@@ -732,8 +718,7 @@ static void TestMotorJointServo(void)
         m3BodyId cube = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         NewBoxShape(world, cube, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_motorJoint;
+        m3MotorJointDef jd = m3DefaultMotorJointDef();
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
         CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the servo creates");
@@ -762,8 +747,7 @@ static void TestMotorJointServo(void)
         m3BodyId cube = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         NewBoxShape(world, cube, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_motorJoint;
+        m3MotorJointDef jd = m3DefaultMotorJointDef();
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
         m3JointId servo = NewJoint(world, &jd);
@@ -812,8 +796,7 @@ static void TestMotorJointServo(void)
         m3BodyId cube = NewBody(world, &bd);
         m3ShapeDef sd = m3DefaultShapeDef();
         NewBoxShape(world, cube, &sd, (m3Vec3){0.3f, 0.3f, 0.3f});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_motorJoint;
+        m3MotorJointDef jd = m3DefaultMotorJointDef();
         jd.bodyIdA = anchor;
         jd.bodyIdB = cube;
         m3JointId servo = NewJoint(world, &jd);
@@ -873,7 +856,7 @@ static void TestMotorJointServo(void)
         bd.type = m3_dynamicBody;
         bd.position = (m3Pos3){0.0, 1.0, 0.0};
         m3BodyId b = NewBody(world, &bd);
-        m3JointDef jd = m3DefaultJointDef();
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = a;
         jd.bodyIdB = b;
         m3JointId ball = NewJoint(world, &jd);
@@ -890,10 +873,12 @@ static void TestMotorJointServo(void)
 
         // The def's budgets, the aim and the budgets read back, and the
         // servo takes no limits.
-        jd.type = m3_motorJoint;
-        jd.maxForce = 5.0f;
-        jd.maxTorque = 7.0f;
-        m3JointId servo = NewJoint(world, &jd);
+        m3MotorJointDef servoDef = m3DefaultMotorJointDef();
+        servoDef.bodyIdA = a;
+        servoDef.bodyIdB = b;
+        servoDef.maxForce = 5.0f;
+        servoDef.maxTorque = 7.0f;
+        m3JointId servo = NewJoint(world, &servoDef);
         CHECK(m3MotorJoint_GetMaxForce(world, servo) == 5.0f &&
                   m3MotorJoint_GetMaxTorque(world, servo) == 7.0f,
               "the def's budgets read back");
@@ -918,8 +903,8 @@ static void TestMotorJointServo(void)
 
 static void TestJointWalls(void)
 {
-    // Hostile walls: a parallel joint with a zero axis refuses, a
-    // filter with zero axes creates (it has no geometry to check).
+    // Hostile walls: a parallel joint with a zero axis refuses, and a
+    // filter, which has no geometry to check, creates.
     m3World* world = Yard();
     m3BodyDef bd = m3DefaultBodyDef();
     bd.type = m3_dynamicBody;
@@ -927,14 +912,60 @@ static void TestJointWalls(void)
     m3BodyId a = NewBody(world, &bd);
     bd.position = (m3Pos3){1.0, 2.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
-    m3JointDef jd = m3DefaultJointDef();
-    jd.type = m3_parallelJoint;
+    m3ParallelJointDef jd = m3DefaultParallelJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAxisA = (m3Vec3){0.0f, 0.0f, 0.0f};
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a zero-axis parallel refuses");
-    jd.type = m3_filterJoint;
-    CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "a filter needs no axes");
+    m3FilterJointDef filter = m3DefaultFilterJointDef();
+    filter.bodyIdA = a;
+    filter.bodyIdB = b;
+    CHECK(m3Joint_IsValid(world, NewJoint(world, &filter)), "a filter needs no axes");
+    m3DestroyWorld(world);
+}
+
+// Each create takes only its own type's def: a def carrying another
+// type's cookie is refused with m3_errorInvalid and one misuse, gives the
+// null id and creates nothing.
+#define CHECK_FOREIGN_COOKIE(Name, Other)                                                          \
+    do                                                                                             \
+    {                                                                                              \
+        m3##Name##JointDef def = m3Default##Name##JointDef();                                      \
+        def.bodyIdA = a;                                                                           \
+        def.bodyIdB = b;                                                                           \
+        def.internalValue = m3Default##Other##JointDef().internalValue;                            \
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;                                  \
+        m3JointId joint = {7u, 7u};                                                                \
+        CHECK(m3Create##Name##Joint(world, &def, &joint) == m3_errorInvalid &&                     \
+                  joint.index1 == 0 && m3World_GetCounters(world).jointCount == 0 &&               \
+                  m3World_GetCounters(world).misuseCount == misuse + 1u,                           \
+              "m3Create" #Name "Joint refuses a " #Other " def with one misuse");                  \
+        def.internalValue = m3Default##Name##JointDef().internalValue;                             \
+        CHECK(m3Create##Name##Joint(world, &def, &joint) == m3_success, "and takes its own");      \
+        CHECK(m3DestroyJoint(world, joint) == m3_success, "which is destroyed again");             \
+    } while (0)
+
+static void TestCreateTakesOnlyItsOwnDef(void)
+{
+    m3World* world = Yard();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId a = NewBody(world, &bd);
+    bd.position = (m3Pos3){1.0, 2.0, 0.0};
+    m3BodyId b = NewBody(world, &bd);
+    CHECK_FOREIGN_COOKIE(Spherical, Revolute);
+    CHECK_FOREIGN_COOKIE(Revolute, Prismatic);
+    CHECK_FOREIGN_COOKIE(Prismatic, Weld);
+    CHECK_FOREIGN_COOKIE(Weld, Distance);
+    CHECK_FOREIGN_COOKIE(Distance, Generic);
+    CHECK_FOREIGN_COOKIE(Generic, Wheel);
+    CHECK_FOREIGN_COOKIE(Wheel, Filter);
+    CHECK_FOREIGN_COOKIE(Filter, Parallel);
+    CHECK_FOREIGN_COOKIE(Parallel, Motor);
+    CHECK_FOREIGN_COOKIE(Motor, Gear);
+    CHECK_FOREIGN_COOKIE(Gear, Pulley);
+    CHECK_FOREIGN_COOKIE(Pulley, Spherical);
     m3DestroyWorld(world);
 }
 
@@ -953,6 +984,7 @@ int main(void)
     TestRestLengthReplay();
     TestMotorJointServo();
     TestJointWalls();
+    TestCreateTakesOnlyItsOwnDef();
     if (s_failures == 0)
     {
         printf("test_newjoints: all passed\n");

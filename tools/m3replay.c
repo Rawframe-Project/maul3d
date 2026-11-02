@@ -68,10 +68,10 @@ static m3ShapeId NewBoxShape(m3World* world, m3BodyId body, const m3ShapeDef* de
     return shape;
 }
 
-static m3JointId NewJoint(m3World* world, const m3JointDef* def)
+static m3JointId NewRevoluteJoint(m3World* world, const m3RevoluteJointDef* def)
 {
     m3JointId joint;
-    Built(m3CreateJoint(world, def, &joint), "m3CreateJoint");
+    Built(m3CreateRevoluteJoint(world, def, &joint), "m3CreateRevoluteJoint");
     return joint;
 }
 
@@ -162,15 +162,14 @@ static void DemoSessionEx(m3World* world, int32_t steps, int32_t injectStep)
         dd.position = (m3Pos3){-2.0, 2.0, 0.0};
         m3BodyId door = NewBody(world, &dd);
         NewBoxShape(world, door, &sd, (m3Vec3){0.8f, 1.0f, 0.1f});
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = m3_revoluteJoint;
+        m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
         jd.bodyIdA = post;
         jd.bodyIdB = door;
         jd.localAnchorA = (m3Vec3){0.2f, 0.0f, 0.0f};
         jd.localAnchorB = (m3Vec3){-0.8f, 0.0f, 0.0f};
         jd.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f};
         jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
-        hinge = NewJoint(world, &jd);
+        hinge = NewRevoluteJoint(world, &jd);
         injectTarget = door;
     }
 

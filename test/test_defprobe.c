@@ -21,6 +21,11 @@
 
 #include "maul3d/maul3d.h"
 
+// Only for the joint create record's layout, to poison a joint def's field
+// where its tape holds it. No internal function is called, so the suite
+// still runs against the shared library.
+#include "../src/journal.h"
+
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -31,11 +36,15 @@ typedef struct Field
 {
     const char* name;
     size_t offset;
-    char kind; // 'f' float, 'd' double, 'i' int32, 'b' bool
+    size_t tapeOffset; // where the create's journal record holds it
+    char kind;         // 'f' float, 'd' double, 'i' int32, 'b' bool
 } Field;
 
-#define FIELD(type, member, kind) {#member, offsetof(type, member), kind}
-#define COUNT(array)              ((int32_t)(sizeof(array) / sizeof((array)[0])))
+#define FIELD(type, member, kind) {#member, offsetof(type, member), offsetof(type, member), kind}
+// A joint def's field, which its tape holds in the full joint def.
+#define JOINT_FIELD(type, member, full, kind)                                                      \
+    {#member, offsetof(type, member), offsetof(m3JointDef, full), kind}
+#define COUNT(array) ((int32_t)(sizeof(array) / sizeof((array)[0])))
 
 static const float s_floats[] = {NAN, INFINITY, -INFINITY, -1.0f, 0.0f, 1.0e30f, -1.0e30f};
 static const double s_doubles[] = {(double)NAN, (double)INFINITY, -(double)INFINITY, 1.0e300,
@@ -123,21 +132,21 @@ typedef struct Target
     bool taped; // the create journals its def at the start of its record
 } Target;
 
-static void Poison(uint8_t* def, const Field* field, int32_t value)
+static void Poison(uint8_t* def, size_t offset, char kind, int32_t value)
 {
-    switch (field->kind)
+    switch (kind)
     {
     case 'f':
-        memcpy(def + field->offset, &s_floats[value], sizeof(float));
+        memcpy(def + offset, &s_floats[value], sizeof(float));
         break;
     case 'd':
-        memcpy(def + field->offset, &s_doubles[value], sizeof(double));
+        memcpy(def + offset, &s_doubles[value], sizeof(double));
         break;
     case 'b':
-        memcpy(def + field->offset, &s_bools[value], sizeof(bool));
+        memcpy(def + offset, &s_bools[value], sizeof(bool));
         break;
     default:
-        memcpy(def + field->offset, &s_ints[value], sizeof(int32_t));
+        memcpy(def + offset, &s_ints[value], sizeof(int32_t));
         break;
     }
 }
@@ -200,7 +209,7 @@ static bool ReplayAgrees(const Target* target, const Field* field, int32_t value
     ok = ok && last >= 0 && m3World_Restore(world, snap, snapBytes) == m3_success;
     if (ok)
     {
-        Poison(tape + last + 8, field, value);
+        Poison(tape + last + 8, field->tapeOffset, field->kind, value);
         uint64_t hash = m3World_Hash(world);
         uint64_t misuse = m3World_GetCounters(world).misuseCount;
         m3Result replayed = m3World_ReplayJournal(world, tape, tapeBytes);
@@ -228,7 +237,7 @@ static void Probe(const Target* target, const Field* fields, int32_t count)
         for (int32_t v = 0; v < ValueCount(fields[f].kind); ++v)
         {
             memcpy(def, target->base, target->size);
-            Poison(def, &fields[f], v);
+            Poison(def, fields[f].offset, fields[f].kind, v);
             m3World* world = Scene();
             uint64_t misuse = m3World_GetCounters(world).misuseCount;
             m3Result result = target->build(world, def);
@@ -278,11 +287,24 @@ static m3Result BuildShape(m3World* world, const void* def)
                             &shape);
 }
 
-static m3Result BuildJoint(m3World* world, const void* def)
-{
-    m3JointId joint;
-    return m3CreateJoint(world, (const m3JointDef*)def, &joint);
-}
+#define BUILD_JOINT(Name)                                                                          \
+    static m3Result Build##Name##Joint(m3World* world, const void* def)                            \
+    {                                                                                              \
+        m3JointId joint;                                                                           \
+        return m3Create##Name##Joint(world, (const m3##Name##JointDef*)def, &joint);               \
+    }
+BUILD_JOINT(Spherical)
+BUILD_JOINT(Revolute)
+BUILD_JOINT(Prismatic)
+BUILD_JOINT(Weld)
+BUILD_JOINT(Distance)
+BUILD_JOINT(Generic)
+BUILD_JOINT(Wheel)
+BUILD_JOINT(Filter)
+BUILD_JOINT(Parallel)
+BUILD_JOINT(Motor)
+BUILD_JOINT(Gear)
+BUILD_JOINT(Pulley)
 
 static m3Result BuildCharacter(m3World* world, const void* def)
 {
@@ -371,75 +393,338 @@ static void ProbeShapes(void)
     Probe(&target, fields, COUNT(fields));
 }
 
+// One joint type's def: the base def must build, or the probe fails
+// rather than dropping the type, and then every field is poisoned.
+static void ProbeJoint(const char* what, const void* base, size_t size, Builder* build,
+                       const Field* fields, int32_t count)
+{
+    m3World* world = Scene();
+    m3Result result = build(world, base);
+    m3DestroyWorld(world);
+    if (result != m3_success)
+    {
+        char message[80];
+        snprintf(message, sizeof(message), "%s: the base def builds", what);
+        CHECK(false, message);
+        return;
+    }
+    Target target = {what, base, size, build, true};
+    Probe(&target, fields, count);
+}
+
+#define ANCHOR_FIELDS(type)                                                                        \
+    JOINT_FIELD(type, localAnchorA.x, localAnchorA.x, 'f'),                                        \
+        JOINT_FIELD(type, localAnchorB.y, localAnchorB.y, 'f')
+#define AXIS_FIELDS(type)                                                                          \
+    JOINT_FIELD(type, localAxisA.x, localAxisA.x, 'f'),                                            \
+        JOINT_FIELD(type, localAxisA.y, localAxisA.y, 'f'),                                        \
+        JOINT_FIELD(type, localAxisB.z, localAxisB.z, 'f')
+#define SPRING_FIELDS(type)                                                                        \
+    JOINT_FIELD(type, enableSpring, enableSpring, 'b'),                                            \
+        JOINT_FIELD(type, springHertz, springHertz, 'f'),                                          \
+        JOINT_FIELD(type, springDampingRatio, springDampingRatio, 'f')
+#define MOTOR_FIELDS(type)                                                                         \
+    JOINT_FIELD(type, motorSpeed, motorSpeed, 'f'),                                                \
+        JOINT_FIELD(type, maxMotorEffort, maxMotorEffort, 'f')
+
+// Every joint type is probed, each with every switch it takes on so the
+// fields behind it are read: the limit, the motor, the cone and the
+// spring.
 static void ProbeJoints(void)
 {
-    static const Field fields[] = {
-        FIELD(m3JointDef, type, 'i'),
-        FIELD(m3JointDef, localAnchorA.x, 'f'),
-        FIELD(m3JointDef, localAnchorB.y, 'f'),
-        FIELD(m3JointDef, localAxisA.x, 'f'),
-        FIELD(m3JointDef, localAxisA.y, 'f'),
-        FIELD(m3JointDef, localAxisB.z, 'f'),
-        FIELD(m3JointDef, lowerLimit, 'f'),
-        FIELD(m3JointDef, upperLimit, 'f'),
-        FIELD(m3JointDef, motorSpeed, 'f'),
-        FIELD(m3JointDef, maxMotorEffort, 'f'),
-        FIELD(m3JointDef, coneAngle, 'f'),
-        FIELD(m3JointDef, minLength, 'f'),
-        FIELD(m3JointDef, maxLength, 'f'),
-        FIELD(m3JointDef, genericLinearLower[0], 'f'),
-        FIELD(m3JointDef, genericLinearUpper[0], 'f'),
-        FIELD(m3JointDef, genericAngularLower[1], 'f'),
-        FIELD(m3JointDef, genericAngularUpper[1], 'f'),
-        FIELD(m3JointDef, ratio, 'f'),
-        FIELD(m3JointDef, groundAnchorA.y, 'd'),
-        FIELD(m3JointDef, groundAnchorB.y, 'd'),
-        FIELD(m3JointDef, length, 'f'),
-        FIELD(m3JointDef, enableSpring, 'b'),
-        FIELD(m3JointDef, springHertz, 'f'),
-        FIELD(m3JointDef, springDampingRatio, 'f'),
-    };
-    // Every joint type is probed, with each switch it takes on so the
-    // fields behind it are read: the limit and the motor, the cone on the
-    // spherical, and the spring on the six types that take one. The
-    // distance joint takes no limit or motor switch: its length range and
-    // rest length are read without one. A base def that does not build
-    // fails the probe rather than dropping its type.
-    for (int32_t type = m3_sphericalJoint; type <= m3_pulleyJoint; ++type)
     {
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = (m3JointType)type;
-        jd.enableLimit = type != m3_distanceJoint;
-        jd.enableMotor = type != m3_distanceJoint;
-        jd.enableCone = type == m3_sphericalJoint;
-        jd.enableSpring = type == m3_revoluteJoint || type == m3_prismaticJoint ||
-                          type == m3_sphericalJoint || type == m3_wheelJoint ||
-                          type == m3_motorJoint || type == m3_distanceJoint;
-        jd.springHertz = 2.0f;
-        jd.springDampingRatio = 0.5f;
-        if (type == m3_wheelJoint)
-        {
-            jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f}; // strut
-            jd.localAxisB = (m3Vec3){0.0f, 0.0f, 1.0f};  // axle
-        }
-        jd.groundAnchorA = (m3Pos3){0.0, 4.0, 0.0};
-        jd.groundAnchorB = (m3Pos3){2.0, 4.0, 0.0};
-        m3World* world = Scene();
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3SphericalJointDef),
+            AXIS_FIELDS(m3SphericalJointDef),
+            JOINT_FIELD(m3SphericalJointDef, lowerTwist, lowerLimit, 'f'),
+            JOINT_FIELD(m3SphericalJointDef, upperTwist, upperLimit, 'f'),
+            JOINT_FIELD(m3SphericalJointDef, coneAngle, coneAngle, 'f'),
+            SPRING_FIELDS(m3SphericalJointDef),
+        };
+        m3SphericalJointDef jd = m3DefaultSphericalJointDef();
         jd.bodyIdA = s_boxA;
         jd.bodyIdB = s_boxB;
-        m3Result base = BuildJoint(world, &jd);
-        m3DestroyWorld(world);
-        char what[32];
-        snprintf(what, sizeof(what), "m3JointDef(type %d)", (int)type);
-        if (base != m3_success)
-        {
-            char message[64];
-            snprintf(message, sizeof(message), "%s: the base def builds", what);
-            CHECK(false, message);
-            continue;
-        }
-        Target target = {what, &jd, sizeof(jd), BuildJoint, true};
-        Probe(&target, fields, COUNT(fields));
+        jd.enableLimit = true;
+        jd.enableCone = true;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3SphericalJointDef", &jd, sizeof(jd), BuildSphericalJoint, fields,
+                   COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3RevoluteJointDef),
+            AXIS_FIELDS(m3RevoluteJointDef),
+            JOINT_FIELD(m3RevoluteJointDef, lowerAngle, lowerLimit, 'f'),
+            JOINT_FIELD(m3RevoluteJointDef, upperAngle, upperLimit, 'f'),
+            MOTOR_FIELDS(m3RevoluteJointDef),
+            SPRING_FIELDS(m3RevoluteJointDef),
+        };
+        m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.enableLimit = true;
+        jd.enableMotor = true;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3RevoluteJointDef", &jd, sizeof(jd), BuildRevoluteJoint, fields,
+                   COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3PrismaticJointDef),
+            AXIS_FIELDS(m3PrismaticJointDef),
+            JOINT_FIELD(m3PrismaticJointDef, lowerTranslation, lowerLimit, 'f'),
+            JOINT_FIELD(m3PrismaticJointDef, upperTranslation, upperLimit, 'f'),
+            MOTOR_FIELDS(m3PrismaticJointDef),
+            SPRING_FIELDS(m3PrismaticJointDef),
+        };
+        m3PrismaticJointDef jd = m3DefaultPrismaticJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.enableLimit = true;
+        jd.enableMotor = true;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3PrismaticJointDef", &jd, sizeof(jd), BuildPrismaticJoint, fields,
+                   COUNT(fields));
+    }
+    {
+        static const Field fields[] = {ANCHOR_FIELDS(m3WeldJointDef)};
+        m3WeldJointDef jd = m3DefaultWeldJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        ProbeJoint("m3WeldJointDef", &jd, sizeof(jd), BuildWeldJoint, fields, COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3DistanceJointDef),
+            JOINT_FIELD(m3DistanceJointDef, length, length, 'f'),
+            JOINT_FIELD(m3DistanceJointDef, minLength, minLength, 'f'),
+            JOINT_FIELD(m3DistanceJointDef, maxLength, maxLength, 'f'),
+            SPRING_FIELDS(m3DistanceJointDef),
+        };
+        m3DistanceJointDef jd = m3DefaultDistanceJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3DistanceJointDef", &jd, sizeof(jd), BuildDistanceJoint, fields,
+                   COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3GenericJointDef),
+            AXIS_FIELDS(m3GenericJointDef),
+            JOINT_FIELD(m3GenericJointDef, linearModes[0], genericLinear[0], 'i'),
+            JOINT_FIELD(m3GenericJointDef, angularModes[2], genericAngular[2], 'i'),
+            JOINT_FIELD(m3GenericJointDef, linearLower[0], genericLinearLower[0], 'f'),
+            JOINT_FIELD(m3GenericJointDef, linearUpper[0], genericLinearUpper[0], 'f'),
+            JOINT_FIELD(m3GenericJointDef, angularLower[1], genericAngularLower[1], 'f'),
+            JOINT_FIELD(m3GenericJointDef, angularUpper[1], genericAngularUpper[1], 'f'),
+            JOINT_FIELD(m3GenericJointDef, enableMotor, enableMotor, 'b'),
+            MOTOR_FIELDS(m3GenericJointDef),
+        };
+        m3GenericJointDef jd = m3DefaultGenericJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.enableMotor = true;
+        ProbeJoint("m3GenericJointDef", &jd, sizeof(jd), BuildGenericJoint, fields, COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3WheelJointDef),
+            JOINT_FIELD(m3WheelJointDef, localAxisA.x, localAxisA.x, 'f'),
+            JOINT_FIELD(m3WheelJointDef, localAxisA.y, localAxisA.y, 'f'),
+            JOINT_FIELD(m3WheelJointDef, localSpinAxisB.z, localAxisB.z, 'f'),
+            JOINT_FIELD(m3WheelJointDef, lowerTranslation, lowerLimit, 'f'),
+            JOINT_FIELD(m3WheelJointDef, upperTranslation, upperLimit, 'f'),
+            MOTOR_FIELDS(m3WheelJointDef),
+            SPRING_FIELDS(m3WheelJointDef),
+        };
+        m3WheelJointDef jd = m3DefaultWheelJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.localAxisA = (m3Vec3){0.0f, -1.0f, 0.0f};    // strut
+        jd.localSpinAxisB = (m3Vec3){0.0f, 0.0f, 1.0f}; // axle
+        jd.enableLimit = true;
+        jd.enableMotor = true;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3WheelJointDef", &jd, sizeof(jd), BuildWheelJoint, fields, COUNT(fields));
+    }
+    {
+        // No numeric field: the base def must still build.
+        m3FilterJointDef jd = m3DefaultFilterJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        ProbeJoint("m3FilterJointDef", &jd, sizeof(jd), BuildFilterJoint, NULL, 0);
+    }
+    {
+        static const Field fields[] = {ANCHOR_FIELDS(m3ParallelJointDef),
+                                       AXIS_FIELDS(m3ParallelJointDef)};
+        m3ParallelJointDef jd = m3DefaultParallelJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        ProbeJoint("m3ParallelJointDef", &jd, sizeof(jd), BuildParallelJoint, fields,
+                   COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3MotorJointDef),
+            JOINT_FIELD(m3MotorJointDef, maxForce, maxForce, 'f'),
+            JOINT_FIELD(m3MotorJointDef, maxTorque, maxTorque, 'f'),
+            SPRING_FIELDS(m3MotorJointDef),
+        };
+        m3MotorJointDef jd = m3DefaultMotorJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.enableSpring = true;
+        jd.springHertz = 2.0f;
+        jd.springDampingRatio = 0.5f;
+        ProbeJoint("m3MotorJointDef", &jd, sizeof(jd), BuildMotorJoint, fields, COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            AXIS_FIELDS(m3GearJointDef),
+            JOINT_FIELD(m3GearJointDef, ratio, ratio, 'f'),
+        };
+        m3GearJointDef jd = m3DefaultGearJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        ProbeJoint("m3GearJointDef", &jd, sizeof(jd), BuildGearJoint, fields, COUNT(fields));
+    }
+    {
+        static const Field fields[] = {
+            ANCHOR_FIELDS(m3PulleyJointDef),
+            JOINT_FIELD(m3PulleyJointDef, groundAnchorA.y, groundAnchorA.y, 'd'),
+            JOINT_FIELD(m3PulleyJointDef, groundAnchorB.y, groundAnchorB.y, 'd'),
+            JOINT_FIELD(m3PulleyJointDef, ratio, ratio, 'f'),
+        };
+        m3PulleyJointDef jd = m3DefaultPulleyJointDef();
+        jd.bodyIdA = s_boxA;
+        jd.bodyIdB = s_boxB;
+        jd.groundAnchorA = (m3Pos3){0.0, 4.0, 0.0};
+        jd.groundAnchorB = (m3Pos3){2.0, 4.0, 0.0};
+        ProbeJoint("m3PulleyJointDef", &jd, sizeof(jd), BuildPulleyJoint, fields, COUNT(fields));
+    }
+}
+
+// A part one joint type takes, written into another type's create record.
+typedef struct ForeignPart
+{
+    const char* what;
+    Builder* build;
+    const void* base;
+    void (*write)(m3JointDef* def);
+} ForeignPart;
+
+static void ConeOn(m3JointDef* def)
+{
+    def->enableCone = true;
+    def->coneAngle = 0.5f;
+}
+
+static void SpringOn(m3JointDef* def)
+{
+    def->enableSpring = true;
+    def->springHertz = 4.0f;
+}
+
+static void LimitOn(m3JointDef* def)
+{
+    def->enableLimit = true;
+    def->lowerLimit = 0.5f;
+    def->upperLimit = 2.0f;
+}
+
+static void MotorOn(m3JointDef* def)
+{
+    def->enableMotor = true;
+    def->motorSpeed = 1.0f;
+}
+
+static void NegativeType(m3JointDef* def)
+{
+    def->type = -1;
+}
+
+// Whether a tape whose last record, a clean create, carries the part is
+// refused on replay with m3_errorFormat, counting no misuse and leaving
+// the world as it was.
+static bool ReplayRefusesPart(const ForeignPart* part)
+{
+    static uint8_t tape[65536];
+    m3World* world = Scene();
+    int64_t capacity = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)capacity);
+    int64_t snapBytes = 0;
+    bool ok = snap != NULL && m3World_Snapshot(world, snap, capacity, &snapBytes) == m3_success &&
+              StartJournal(world, tape, (int32_t)sizeof(tape)) &&
+              part->build(world, part->base) == m3_success;
+    int64_t tapeBytes = StopJournal(world);
+    int32_t last = -1;
+    for (int32_t at = 16; ok && at + 8 <= tapeBytes;)
+    {
+        int32_t payloadBytes;
+        memcpy(&payloadBytes, tape + at + 4, sizeof(payloadBytes));
+        last = at;
+        at += 8 + payloadBytes;
+    }
+    ok = ok && last >= 0 && m3World_Restore(world, snap, snapBytes) == m3_success;
+    if (ok)
+    {
+        m3JointDef def;
+        memcpy(&def, tape + last + 8, sizeof(def));
+        part->write(&def);
+        memcpy(tape + last + 8, &def, sizeof(def));
+        uint64_t hash = m3World_Hash(world);
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
+        ok = m3World_ReplayJournal(world, tape, tapeBytes) == m3_errorFormat &&
+             m3World_GetCounters(world).misuseCount == misuse && m3World_Hash(world) == hash;
+    }
+    free(snap);
+    m3DestroyWorld(world);
+    return ok;
+}
+
+// No type's def can carry another type's part, but a tape carries the full
+// def, so replay still refuses each one: a cone on a wheel or a hinge, a
+// spring on a weld, a limit or a motor on a distance joint, and a negative
+// type.
+static void ProbeForeignPartsOnReplay(void)
+{
+    m3WheelJointDef wheel = m3DefaultWheelJointDef();
+    wheel.bodyIdA = s_boxA;
+    wheel.bodyIdB = s_boxB;
+    m3RevoluteJointDef hinge = m3DefaultRevoluteJointDef();
+    hinge.bodyIdA = s_boxA;
+    hinge.bodyIdB = s_boxB;
+    m3WeldJointDef weld = m3DefaultWeldJointDef();
+    weld.bodyIdA = s_boxA;
+    weld.bodyIdB = s_boxB;
+    m3DistanceJointDef rope = m3DefaultDistanceJointDef();
+    rope.bodyIdA = s_boxA;
+    rope.bodyIdB = s_boxB;
+    rope.maxLength = 2.0f;
+    const ForeignPart parts[6] = {
+        {"a cone on a wheel", BuildWheelJoint, &wheel, ConeOn},
+        {"a cone on a hinge", BuildRevoluteJoint, &hinge, ConeOn},
+        {"a spring on a weld", BuildWeldJoint, &weld, SpringOn},
+        {"a limit on a distance joint", BuildDistanceJoint, &rope, LimitOn},
+        {"a motor on a distance joint", BuildDistanceJoint, &rope, MotorOn},
+        {"a negative joint type", BuildWeldJoint, &weld, NegativeType},
+    };
+    for (int32_t k = 0; k < 6; ++k)
+    {
+        char message[96];
+        snprintf(message, sizeof(message), "a replayed create with %s is refused", parts[k].what);
+        CHECK(ReplayRefusesPart(&parts[k]), message);
     }
 }
 
@@ -555,7 +840,7 @@ static void ProbeWorlds(void)
         for (int32_t v = 0; v < ValueCount(fields[f].kind); ++v)
         {
             m3WorldDef def = s_worldDef;
-            Poison((uint8_t*)&def, &fields[f], v);
+            Poison((uint8_t*)&def, fields[f].offset, fields[f].kind, v);
             m3World* world = NULL;
             bool tooBig = fields[f].kind == 'i' && s_ints[v] == INT32_MAX;
             m3Result result = m3CreateWorld(&def, &world);
@@ -602,6 +887,7 @@ int main(void)
     ProbeBodies();
     ProbeShapes();
     ProbeJoints();
+    ProbeForeignPartsOnReplay();
     ProbeCharacters();
     ProbeVehicles();
     ProbeDrivetrains();

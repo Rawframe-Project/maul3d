@@ -275,33 +275,31 @@ static void TestHostileJointDefsAndCommands(void)
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
 
-    m3JointDef jd = m3DefaultJointDef();
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.localAnchorA = (m3Vec3){M3_TEST_NAN, 0.0f, 0.0f};
     CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a poisoned anchor refuses");
 
-    jd = m3DefaultJointDef();
-    jd.type = m3_revoluteJoint;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    jd.enableLimit = true;
-    jd.lowerLimit = 1.0f;
-    jd.upperLimit = -1.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "inverted limits refuse");
+    m3RevoluteJointDef jdRevolute = m3DefaultRevoluteJointDef();
+    jdRevolute.bodyIdA = a;
+    jdRevolute.bodyIdB = b;
+    jdRevolute.enableLimit = true;
+    jdRevolute.lowerAngle = 1.0f;
+    jdRevolute.upperAngle = -1.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jdRevolute)), "inverted limits refuse");
 
-    jd = m3DefaultJointDef();
-    jd.type = m3_prismaticJoint;
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    jd.enableMotor = true;
-    jd.motorSpeed = M3_TEST_INF;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "an infinite motor refuses");
-    jd.motorSpeed = 1.0f;
-    jd.maxMotorEffort = -5.0f;
-    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "negative motor effort refuses");
+    m3PrismaticJointDef jdPrismatic = m3DefaultPrismaticJointDef();
+    jdPrismatic.bodyIdA = a;
+    jdPrismatic.bodyIdB = b;
+    jdPrismatic.enableMotor = true;
+    jdPrismatic.motorSpeed = M3_TEST_INF;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jdPrismatic)), "an infinite motor refuses");
+    jdPrismatic.motorSpeed = 1.0f;
+    jdPrismatic.maxMotorEffort = -5.0f;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jdPrismatic)), "negative motor effort refuses");
 
-    jd = m3DefaultJointDef();
+    jd = m3DefaultSphericalJointDef();
     jd.bodyIdA = a;
     jd.bodyIdB = b;
     jd.enableCone = true;
@@ -394,14 +392,13 @@ static void TestNegativeKindsRefuse(void)
     bd.position = (m3Pos3){0.0, 1.0, 0.0};
     m3BodyId b = NewBody(world, &bd);
 
-    m3JointDef generic = m3DefaultJointDef();
-    generic.type = m3_genericJoint;
+    m3GenericJointDef generic = m3DefaultGenericJointDef();
     generic.bodyIdA = a;
     generic.bodyIdB = b;
     for (int32_t k = 0; k < 3; ++k)
     {
-        generic.genericLinear[k] = m3_axisLocked;
-        generic.genericAngular[k] = m3_axisFree;
+        generic.linearModes[k] = m3_axisLocked;
+        generic.angularModes[k] = m3_axisFree;
     }
 
     for (int32_t n = 0; n < 2; ++n)
@@ -416,28 +413,19 @@ static void TestNegativeKindsRefuse(void)
               "a negative body type is not set");
         CHECK(m3Body_GetType(world, a) == m3_dynamicBody, "the refused type changed nothing");
 
-        m3JointDef jd = m3DefaultJointDef();
-        jd.type = negatives[n];
-        jd.bodyIdA = a;
-        jd.bodyIdB = b;
-        m3JointId joint = m3_nullJointId;
-        CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorInvalid &&
-                  !m3Joint_IsValid(world, joint),
-              "a negative joint type refuses");
-
         for (int32_t axis = 0; axis < 6; ++axis)
         {
-            jd = generic;
+            m3GenericJointDef jd = generic;
             if (axis < 3)
             {
-                jd.genericLinear[axis] = negatives[n];
+                jd.linearModes[axis] = negatives[n];
             }
             else
             {
-                jd.genericAngular[axis - 3] = negatives[n];
+                jd.angularModes[axis - 3] = negatives[n];
             }
-            joint = m3_nullJointId;
-            CHECK(m3CreateJoint(world, &jd, &joint) == m3_errorInvalid &&
+            m3JointId joint = m3_nullJointId;
+            CHECK(m3CreateGenericJoint(world, &jd, &joint) == m3_errorInvalid &&
                       !m3Joint_IsValid(world, joint),
                   "a negative generic axis mode refuses");
         }
@@ -446,7 +434,8 @@ static void TestNegativeKindsRefuse(void)
     // The same generic def with its own modes creates, so each refusal
     // above was the mode's.
     m3JointId joint = m3_nullJointId;
-    CHECK(m3CreateJoint(world, &generic, &joint) == m3_success && m3Joint_IsValid(world, joint),
+    CHECK(m3CreateGenericJoint(world, &generic, &joint) == m3_success &&
+              m3Joint_IsValid(world, joint),
           "the generic def creates with its own modes");
     m3DestroyWorld(world);
 }
