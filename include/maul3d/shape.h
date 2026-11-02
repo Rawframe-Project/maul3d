@@ -32,7 +32,9 @@ extern "C"
         float radius;  // positive, at most 1e4 m
     } m3Sphere;
 
-    /// Half-space: points p with dot(normal, p) <= offset are solid.
+    /// Half-space: points p with dot(normal, p) <= offset are solid,
+    /// p in the body's frame as for every shape, so the plane moves with
+    /// its body's pose and the shape's local transform.
     /// A native plane, instead of a huge box or a height field.
     typedef struct m3Plane
     {

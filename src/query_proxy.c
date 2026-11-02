@@ -315,8 +315,10 @@ static M3_NOINLINE int32_t WorldOverlapBoxWorker(const m3World* world, m3Pos3 ce
                                                  m3QueryFilter filter, m3ShapeId* idsOut,
                                                  int32_t capacity)
 {
+    float qq = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z +
+               rotation.w * rotation.w;
     if (!m3FiniteV3(halfExtents) || !(halfExtents.x > 0.0f) || !(halfExtents.y > 0.0f) ||
-        !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation))
+        !(halfExtents.z > 0.0f) || !m3FiniteQuat(rotation) || !(qq > 0.98f) || !(qq < 1.02f))
     {
         return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }

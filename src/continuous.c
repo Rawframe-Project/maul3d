@@ -202,38 +202,26 @@ static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
                            SweepTriangle, &ss);
 }
 
-// Whether the fast shape sweeps against shape at all: never itself or
-// its own body, disabled bodies, bullets or sensors; dynamic and
-// kinematic bodies only for a bullet; and only pairs the collision
-// filter lets meet.
+// Whether the fast shape sweeps against shape at all: only a pair the
+// narrowphase would let touch, never a bullet or a sensor, and moving
+// bodies only for a bullet. Static surfaces are always swept.
 static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
 {
     const m3World* world = sw->world;
     int32_t body = world->shapes.shapeBody[shape];
     uint8_t type = world->shapes.shapeType[shape];
-    if (shape == sw->shape || body == sw->body || world->bodies.bodyEnabled[body] == 0 ||
-        world->bodies.bulletFlags[body] != 0 || world->shapes.shapeSensor[shape] != 0)
+    if (world->bodies.bulletFlags[body] != 0 || world->shapes.shapeSensor[shape] != 0 ||
+        !m3PairAllowed(world, sw->shape, shape))
     {
         return false;
     }
     if (type == (uint8_t)m3_voxelShape || type == (uint8_t)m3_meshShape ||
         type == (uint8_t)m3_heightFieldShape)
     {
-        return true; // static surfaces, filtered by their contacts
+        return true;
     }
-    if (world->bodies.types[body] != (uint8_t)m3_staticBody &&
-        world->bodies.bulletFlags[sw->body] == 0)
-    {
-        return false;
-    }
-    int32_t groupA = world->shapes.shapeGroup[shape];
-    int32_t groupB = world->shapes.shapeGroup[sw->shape];
-    if (groupA != 0 && groupA == groupB)
-    {
-        return groupA > 0;
-    }
-    return m3FilterPass(world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape],
-                        world->shapes.shapeCategory[sw->shape], world->shapes.shapeMask[sw->shape]);
+    return world->bodies.types[body] == (uint8_t)m3_staticBody ||
+           world->bodies.bulletFlags[sw->body] != 0;
 }
 
 static bool SweepCallback(int32_t shape, void* context)
@@ -280,9 +268,10 @@ static bool SweepCallback(int32_t shape, void* context)
 // every step would erase its integration while its velocity stayed.
 static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 {
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    double planeOffset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &planeOffset);
     float offset =
-        world->shapes.shapeGeom[planeShape].s -
+        (float)planeOffset -
         (float)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, sw->shape, scratch);
@@ -338,7 +327,8 @@ static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
     return motion > 0.5f * world->bodies.minExtents[body];
 }
 
-// Sweeps one shape of the fast body against the tree and the planes.
+// Sweeps one shape of the fast body against the tree and the planes it
+// meets.
 static void SweepShape(Sweeper* sw, int32_t shape)
 {
     m3World* world = sw->world;
@@ -357,7 +347,10 @@ static void SweepShape(Sweeper* sw, int32_t shape)
     m3TreeQueryMask(&world->broadphase.tree, lo, hi, targets, SweepCallback, sw);
     for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        SweepPlane(world, sw, world->shapes.planeShapes[k]);
+        if (SweepsAgainst(sw, world->shapes.planeShapes[k]))
+        {
+            SweepPlane(world, sw, world->shapes.planeShapes[k]);
+        }
     }
 }
 

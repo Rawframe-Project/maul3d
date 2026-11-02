@@ -110,10 +110,10 @@ static void CheckHeld(const char* what, Held heavy, Held light, bool spinHeld)
 }
 
 // A walker of mass mass walks along x past a ball of radius 1 at the
-// center of a 7 microgram body, 0.75 m to one side, so that it meets the
+// center of a 7 mg body, 0.75 m to one side, so that it meets the
 // ball once, glancing, and slides away: one push, along a normal with two
 // axes that passes through the ball's center, so with no moment but for
-// rounding. Six more 1 microgram balls, which collide with nothing, sit
+// rounding. Six more 1 mg balls, which collide with nothing, sit
 // 1e4 m out along each axis and give the body a moment of 400 kg m^2
 // about every axis. At 1e20 kg the push, mass * blocked or about 1e38
 // N s, is a float, but the body's velocity is not on either axis, while
@@ -221,7 +221,7 @@ static void TestPushesKeepDirection(void)
               true);
 }
 
-// The strongest blast, 1e10 N s per m^2, beside a 1 microgram box, off
+// The strongest blast, 1e10 N s per m^2, beside a 1 mg box, off
 // its center so that it spins the box too: the push, 4e10 N s, would
 // leave it at 4e16 m/s. It leaves the box held at the limit at once.
 static void TestBlastPush(void)
@@ -239,7 +239,7 @@ static void TestBlastPush(void)
     m3DestroyWorld(world);
 }
 
-// The same blast beside a 1 microgram soft particle: its kick, which the
+// The same blast beside a 1 mg soft particle: its kick, which the
 // next step lands, is held at the limit too, so the world's snapshot
 // restores, as every snapshot the engine writes must.
 static void TestBlastSoftKick(void)
@@ -342,7 +342,7 @@ static void TestSuspensionHold(void)
     m3DestroyWorld(world);
 }
 
-// A wheel on a 1 microgram chip at the inertia floor, turned 45 degrees
+// A wheel on a 1 mg chip at the inertia floor, turned 45 degrees
 // so the wheel lands on a corner, with every wheel bound at its ceiling:
 // a 1e20 kg chassis on one wheel, engine torque 1e20 N m through gear and
 // final ratios of 1e4 on a 1e-3 m wheel, tire grip 1e4. The friction

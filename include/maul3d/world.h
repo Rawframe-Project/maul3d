@@ -654,7 +654,8 @@ extern "C"
     /// and voxel/mesh handled per family), ascending shape index,
     /// filtered, read-only. The capsule's two points are relative to
     /// its center. Clouds carry base-relative points (the cast
-    /// convention), at most 64 of them.
+    /// convention), at most 64 of them. A box's rotation is within a
+    /// percent of unit length, as the box cast's: any other refuses.
     M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 center, m3Vec3 point1,
                                           m3Vec3 point2, float radius, m3QueryFilter filter,
                                           m3ShapeId* idsOut, int32_t capacity);

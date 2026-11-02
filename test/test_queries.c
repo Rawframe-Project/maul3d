@@ -1549,9 +1549,75 @@ static void TestOverlapAabbRefusesInvertedBox(void)
     m3DestroyWorld(world);
 }
 
+// Planes live outside the tree, so every overlap offers them apart:
+// each one skips a plane the filter hides or whose body is disabled,
+// as it skips any other shape.
+static int32_t OverlapEach(m3World* world, int32_t kind, m3QueryFilter filter, m3ShapeId* ids)
+{
+    m3Pos3 center = {0.0, 0.0, 0.0};
+    if (kind == 0)
+    {
+        m3WorldAabb box = {{-1.0, -1.0, -1.0}, {1.0, 1.0, 1.0}};
+        return m3World_OverlapAabb(world, box, filter, ids, 4);
+    }
+    if (kind == 1)
+    {
+        return m3World_OverlapSphere(world, center, 1.0f, filter, ids, 4);
+    }
+    if (kind == 2)
+    {
+        return m3World_OverlapCapsule(world, center, (m3Vec3){0.0f, 0.0f, 0.0f},
+                                      (m3Vec3){1.0f, 0.0f, 0.0f}, 0.5f, filter, ids, 4);
+    }
+    if (kind == 3)
+    {
+        return m3World_OverlapBox(world, center, (m3Vec3){1.0f, 1.0f, 1.0f},
+                                  (m3Quat){0.0f, 0.0f, 0.0f, 1.0f}, filter, ids, 4);
+    }
+    m3Vec3 cloud[2] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
+    return m3World_OverlapHull(world, center, cloud, 2, 0.5f, filter, ids, 4);
+}
+
+static void TestOverlapsSkipHiddenPlanes(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef pd = m3DefaultShapeDef();
+    pd.categoryBits = 2;
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId plane = NewPlaneShape(world, ground, &pd, &floor);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.position = (m3Pos3){0.0, 0.25, 0.0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.2f};
+    m3ShapeId shape = NewSphereShape(world, NewBody(world, &bd), &sd, &ball);
+    m3QueryFilter hide = m3DefaultQueryFilter();
+    hide.maskBits = ~2ull;
+    m3ShapeId ids[4];
+    for (int32_t kind = 0; kind < 5; ++kind)
+    {
+        CHECK(OverlapEach(world, kind, m3DefaultQueryFilter(), ids) == 2 &&
+                  ids[0].index1 == plane.index1 && ids[1].index1 == shape.index1,
+              "each overlap finds the plane and the ball");
+        CHECK(OverlapEach(world, kind, hide, ids) == 1 && ids[0].index1 == shape.index1,
+              "and none finds the plane the filter hides");
+    }
+    m3Body_Enable(world, ground, false);
+    for (int32_t kind = 0; kind < 5; ++kind)
+    {
+        CHECK(OverlapEach(world, kind, m3DefaultQueryFilter(), ids) == 1 &&
+                  ids[0].index1 == shape.index1,
+              "nor the plane of a disabled body");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOverlapBeyondTwoHundredFiftySix();
+    TestOverlapsSkipHiddenPlanes();
     TestLongPathsMeetFarPieces();
     TestContactEvents();
     TestRayHitsEveryFamily();
