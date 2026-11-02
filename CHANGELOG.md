@@ -8,37 +8,130 @@ snapshot and journal formats.
 
 ## [0.12.0](https://github.com/Rawframe-Project/maul3d/compare/v0.11.0...v0.12.0) (2026-11-02)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
+- **Breaking: a def, a default and a create per joint type.**
+  `m3JointDef`, `m3DefaultJointDef` and `m3CreateJoint` are gone. Each
+  of the twelve types has its own def, default and create:
+  `m3SphericalJointDef` with `m3DefaultSphericalJointDef` and
+  `m3CreateSphericalJoint`, and the same for the revolute, prismatic,
+  weld, distance, generic, wheel, filter, parallel, motor, gear and
+  pulley joints. Each def holds only the fields its type reads, so a
+  cone on a wheel or a spring on a weld can no longer be written.
+  Rename the fields you set as below. A create refuses another type's
+  def with `m3_errorInvalid` and one misuse. The default wheel def
+  builds: its suspension points down -y with its axle along z. The C#
+  `JointDef`, `DefaultJointDef` and `CreateJoint` are replaced by the
+  same twelve structs, defaults and creates.
 
-* **joint:** m3JointDef, m3DefaultJointDef and m3CreateJoint are replaced by a def, a default and a create per joint type, m3SphericalJointDef with m3DefaultSphericalJointDef and m3CreateSphericalJoint and so on for all twelve types. Each def holds only its type's fields, the limits are named per type (lowerTwist, lowerAngle, lowerTranslation), the wheel's axle is localSpinAxisB, the generic arrays are linearModes, angularModes, linearLower, linearUpper, angularLower, angularUpper and motorAxis, and a create refuses another type's def. The C# JointDef, DefaultJointDef and CreateJoint are replaced the same way.
-* **solver:** a dynamic body refuses, with m3_errorLimit and no misuse, any shape create, destroy, resize, density or filter change, or type change that would carry its contact lever ratio past the new M3_CONTACT_LEVER_LIMIT, 1e6; restore and replay refuse such bytes. m3Shape_SetFilter returns m3Result.
-* m3MinF, m3MaxF, m3ClampF, m3AbsF, m3MakeZeroMat3, m3UnwindAngle and m3IntegrateRotation are no longer declared in maul3d/core_math.h.
-* **query:** m3World_TestPoint takes an m3QueryFilter after the point. m3World_OverlapCapsule takes a center and two m3Vec3 points relative to it, as m3World_CastCapsuleClosest does, in place of two world points.
-* **replay:** m3World_Compare returns m3Result and takes rowsOut and totalOut, the total of differing slots, in place of out and outCount; it compares worlds of different capacities instead of refusing them, and a refusal counts one misuse. m3EncodeReplay's buffer parameter is containerOut.
-* **body:** m3Body_SetName takes a byte count and returns m3Result, refusing a name past M3_MAX_BODY_NAME_BYTES with m3_errorLimit and bytes that are not UTF-8 or hold a zero byte with m3_errorInvalid, where it cut the name; m3Body_GetName copies the name into a caller buffer with no terminator and returns its byte length.
+  | 0.11.0 `m3JointDef` field | 0.12.0 |
+  |---|---|
+  | `type` | gone: call the create for your type |
+  | `lowerLimit`, `upperLimit` | spherical `lowerTwist`, `upperTwist`; revolute `lowerAngle`, `upperAngle`; prismatic and wheel `lowerTranslation`, `upperTranslation` |
+  | wheel `localAxisB` | `localSpinAxisB` |
+  | `genericLinear`, `genericAngular` | `linearModes`, `angularModes` |
+  | `genericLinearLower`, `genericLinearUpper` | `linearLower`, `linearUpper` |
+  | `genericAngularLower`, `genericAngularUpper` | `angularLower`, `angularUpper` |
+  | `genericMotorAxis` | `motorAxis`, `M3_GENERIC_NO_MOTOR` for none |
+
+  ([#299](https://github.com/Rawframe-Project/maul3d/pull/299))
+- **Breaking: a dynamic body bounds its contact lever ratio.** A
+  colliding shape far from its body's center of mass, on a body a
+  joint also holds, let the contact go: past a ratio of about 1e7,
+  mass times the squared arm over the moment that arm turns, the
+  contact and the joint stopped settling and the body fell through.
+  `M3_CONTACT_LEVER_LIMIT`, 1e6, is the new bound. A shape create,
+  destroy, resize or density change, a filter change that lets a
+  shape collide, and a type change to dynamic are refused with
+  `m3_errorLimit` when they would carry the ratio past it. They change
+  nothing and count no misuse. Restore and replay refuse such bytes.
+  `m3Shape_SetFilter` now returns `m3Result`, so check its status.
+  ([#302](https://github.com/Rawframe-Project/maul3d/pull/302))
+- **Breaking: body names are UTF-8 with a byte count.**
+  `m3Body_SetName(world, body, name, byteCount)` returns `m3Result`.
+  It refuses a name longer than `M3_MAX_BODY_NAME_BYTES`, 31 bytes,
+  with `m3_errorLimit` where it cut the name, and bytes that are not
+  well-formed UTF-8 or hold a zero byte with `m3_errorInvalid`. Each
+  refusal keeps the old name and counts one misuse. A count of 0
+  clears the name. `m3Body_GetName(world, body, nameOut, capacity)`
+  copies the name into your buffer with no terminator and returns its
+  byte length; call it with a NULL buffer and capacity 0 to measure.
+  ([#293](https://github.com/Rawframe-Project/maul3d/pull/293))
+- **Breaking: `m3World_Compare` returns a status.** It takes
+  `rowsOut`, `capacity` and `totalOut` in place of `out` and
+  `outCount`, writes up to `capacity` rows and sets `*totalOut` to the
+  number of differing slots, which may exceed the capacity. Read
+  `min(total, capacity)` rows. Worlds of different capacities now
+  compare slot by slot instead of being refused. A refusal returns
+  `m3_errorInvalid` and counts one misuse, where it returned -1 and
+  counted none. `m3EncodeReplay`'s buffer parameter is named
+  `containerOut`.
+  ([#294](https://github.com/Rawframe-Project/maul3d/pull/294))
+- **Breaking: the point test takes a filter, the capsule overlap a
+  center.** `m3World_TestPoint(world, point, filter)` answers with the
+  lowest shape the filter sees; pass `m3DefaultQueryFilter()` to keep
+  the old answer. `m3World_OverlapCapsule` takes a center and two
+  points relative to it, as `m3World_CastCapsuleClosest` does, in
+  place of two world points.
+  ([#297](https://github.com/Rawframe-Project/maul3d/pull/297))
+- **Breaking: seven internal math helpers leave `core_math.h`.**
+  `m3MinF`, `m3MaxF`, `m3ClampF`, `m3AbsF`, `m3MakeZeroMat3`,
+  `m3UnwindAngle` and `m3IntegrateRotation` are no longer declared.
+  Use your own. The vector, matrix and quaternion math, `m3ComputeCosSin`
+  and `m3Atan2` stay.
+  ([#298](https://github.com/Rawframe-Project/maul3d/pull/298))
+- **Formats.** The snapshot keeps format 6, the journal tape format 7
+  and the replay container format 4. As in every release, a snapshot,
+  tape or container written by another release is refused with
+  `m3_errorVersion`.
 
 ### Fixed
 
-* **collision:** a fast body sweeps only against planes it meets ([#310](https://github.com/Rawframe-Project/maul3d/issues/310)) ([360b381](https://github.com/Rawframe-Project/maul3d/commit/360b381f9d55c5dc7732e046686ed4539fe27dde)), closes [#305](https://github.com/Rawframe-Project/maul3d/issues/305)
-* **collision:** a plane sits with its body in contacts and sweeps ([#312](https://github.com/Rawframe-Project/maul3d/issues/312)) ([8ffc862](https://github.com/Rawframe-Project/maul3d/commit/8ffc8621dd5c9c1f2f614634317488561b639004)), closes [#307](https://github.com/Rawframe-Project/maul3d/issues/307)
-* **collision:** the fast-body sweep asks the narrowphase's pair rule ([#315](https://github.com/Rawframe-Project/maul3d/issues/315)) ([c84e43c](https://github.com/Rawframe-Project/maul3d/commit/c84e43cd2d2eec0a326a6501eb776886a455262d)), closes [#311](https://github.com/Rawframe-Project/maul3d/issues/311)
-* **collision:** the fast-body sweep carries each shape's local transform ([#319](https://github.com/Rawframe-Project/maul3d/issues/319)) ([a026ace](https://github.com/Rawframe-Project/maul3d/commit/a026ace31e85282bfe8b764378b3d7e379b424e0)), closes [#313](https://github.com/Rawframe-Project/maul3d/issues/313)
-* **joint:** a generic joint's motor follows the motor switch ([#301](https://github.com/Rawframe-Project/maul3d/issues/301)) ([48c902e](https://github.com/Rawframe-Project/maul3d/commit/48c902e8232e3934713781f02f41bd80a25bfe7a)), closes [#300](https://github.com/Rawframe-Project/maul3d/issues/300)
-* **query:** box and sphere overlaps skip hidden and disabled planes ([#309](https://github.com/Rawframe-Project/maul3d/issues/309)) ([0076600](https://github.com/Rawframe-Project/maul3d/commit/0076600522f2e9f68bd0c68cc51049d746d3db05)), closes [#304](https://github.com/Rawframe-Project/maul3d/issues/304)
-* **query:** refuse a box overlap rotation that is not unit length ([#306](https://github.com/Rawframe-Project/maul3d/issues/306)) ([2cc16fb](https://github.com/Rawframe-Project/maul3d/commit/2cc16fb7ea9abb7b131093c63e877354ddfe9fb5)), closes [#303](https://github.com/Rawframe-Project/maul3d/issues/303)
-* **query:** the point test skips shapes of disabled bodies ([#296](https://github.com/Rawframe-Project/maul3d/issues/296)) ([4bc2ca9](https://github.com/Rawframe-Project/maul3d/commit/4bc2ca9cfb8b54d4a5e088af4064db995729ec2e)), closes [#295](https://github.com/Rawframe-Project/maul3d/issues/295)
-* **solver:** bound a dynamic body's contact lever ratio ([#302](https://github.com/Rawframe-Project/maul3d/issues/302)) ([b6f2de5](https://github.com/Rawframe-Project/maul3d/commit/b6f2de5f90549bbb219e477b19a22965a2b6540c)), closes [#180](https://github.com/Rawframe-Project/maul3d/issues/180)
-* **voxel:** an explosion carves only chunks its filter sees ([#318](https://github.com/Rawframe-Project/maul3d/issues/318)) ([83c8c77](https://github.com/Rawframe-Project/maul3d/commit/83c8c77f7265abd3129012f87d27ed6416e4d6d2)), closes [#308](https://github.com/Rawframe-Project/maul3d/issues/308)
-
-
-### Changed
-
-* **body:** names take a byte length and refuse what does not fit ([#293](https://github.com/Rawframe-Project/maul3d/issues/293)) ([5227663](https://github.com/Rawframe-Project/maul3d/commit/52276631761e5040c1f8a049b86352a73e28cd82)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252)
-* **joint:** a def, a default and a create per joint type ([#299](https://github.com/Rawframe-Project/maul3d/issues/299)) ([ab1f2a9](https://github.com/Rawframe-Project/maul3d/commit/ab1f2a928188250f25225b6dfbac174343319352)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#250](https://github.com/Rawframe-Project/maul3d/issues/250)
-* **query:** point test takes a filter, capsule overlap a center ([#297](https://github.com/Rawframe-Project/maul3d/issues/297)) ([12e3bea](https://github.com/Rawframe-Project/maul3d/commit/12e3beac49559de61fc7989f6c7a25fdf7d77081)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#246](https://github.com/Rawframe-Project/maul3d/issues/246)
-* **replay:** m3World_Compare returns a status, outputs end in Out ([#294](https://github.com/Rawframe-Project/maul3d/issues/294)) ([0e11bb0](https://github.com/Rawframe-Project/maul3d/commit/0e11bb06f2f848be2ca2c4a78f8587bf9f208b30)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#245](https://github.com/Rawframe-Project/maul3d/issues/245)
-* the library-only math helpers leave core_math.h ([#298](https://github.com/Rawframe-Project/maul3d/issues/298)) ([51a1913](https://github.com/Rawframe-Project/maul3d/commit/51a19133021dfa4e0c9454e79cf800784b0ad946)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#248](https://github.com/Rawframe-Project/maul3d/issues/248)
+- **A generic joint's motor follows its switch.** It drove the named
+  motor axis whether the motor was on or off, so
+  `m3Joint_EnableMotor(world, joint, false)` did not stop it. It now
+  drives only while the switch is on, like every other motor; set
+  `enableMotor` in the def to keep it driving.
+  ([#301](https://github.com/Rawframe-Project/maul3d/pull/301))
+- **A plane sits in its body's frame everywhere.** The contacts, the
+  fast-body sweep, the mover and the shape casts read a plane as world
+  space, while the ray casts, overlaps and point test placed it with
+  its body. A plane on a moved or turned static body collided in a
+  different place than queries found it. A plane on a body at the
+  origin collides exactly as before.
+  ([#312](https://github.com/Rawframe-Project/maul3d/pull/312))
+- **A fast body is swept only against shapes it can touch.** The
+  continuous phase moved a fast body back to the time it hit a shape
+  it never gets a contact with, so it lost most of a step's travel and
+  went through on the next one. It hit planes that are sensors, hidden
+  by its filter or on a disabled body, static surfaces its filter
+  hides, and shapes of a body it is jointed to with connected
+  collision off. The sweep now asks the same pair rule as contacts.
+  Scenes with such joints step to different results.
+  ([#310](https://github.com/Rawframe-Project/maul3d/pull/310),
+  [#315](https://github.com/Rawframe-Project/maul3d/pull/315))
+- **The fast-body sweep places offset shapes.** It swept every shape
+  as if it sat at its body's origin with no turn, so a fast body could
+  pass through an offset box, voxel chunk or plane, or stop in the air
+  above one. Bodies with offset shapes step to different results.
+  ([#319](https://github.com/Rawframe-Project/maul3d/pull/319))
+- **Queries skip what they should.** `m3World_TestPoint` no longer
+  reports shapes of disabled bodies, and `m3World_OverlapAabb` and
+  `m3World_OverlapSphere` no longer report planes the filter hides or
+  planes on disabled bodies.
+  ([#296](https://github.com/Rawframe-Project/maul3d/pull/296),
+  [#309](https://github.com/Rawframe-Project/maul3d/pull/309))
+- **A box overlap refuses a rotation that is not unit length.**
+  `m3World_OverlapBox` took any finite quaternion and answered for a
+  stretched or shrunk box. A rotation whose squared length is not
+  between 0.98 and 1.02 is now refused as the box cast refuses it: the
+  call returns 0, zeroes the array and counts one misuse.
+  ([#306](https://github.com/Rawframe-Project/maul3d/pull/306))
+- **An explosion carves only chunks its filter sees.**
+  `m3World_Explode` carved every voxel chunk in reach, including
+  chunks its filter hides and chunks on disabled bodies, while its
+  push already skipped both.
+  ([#318](https://github.com/Rawframe-Project/maul3d/pull/318))
 
 ## [0.11.0](https://github.com/Rawframe-Project/maul3d/compare/v0.10.0...v0.11.0) (2026-11-01)
 
