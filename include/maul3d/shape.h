@@ -99,15 +99,9 @@ extern "C"
 
     /// Create a sphere on a body and recompute the body's mass from
     /// its shapes (sphere mass = density * 4/3 pi r^3, inertia
-    /// 0.4 m r^2). Returns m3_errorInvalid for an invalid def or
-    /// geometry, m3_errorLimit for a value past a bound in
-    /// maul3d/base.h, a mass outside the mass floors and limit, or one
-    /// that would carry a joint on the body past its lever ratio,
-    /// m3_errorStale for a stale body and m3_errorCapacity for an
-    /// exhausted pool; every shape create leaves
-    /// *shapeOut the null id on any failure.
-    /// Journaled. Every refusal but a full pool's, a lever's and a null
-    /// world's counts one misuse.
+    /// 0.4 m r^2). Every shape create leaves *shapeOut the null id on
+    /// any failure, and changes nothing else.
+    /// Journaled.
     ///
     /// @param world     The world.
     /// @param body      The body the shape joins.
@@ -116,15 +110,26 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, a null sphere, a radius that is not positive or is
-    ///         NaN, or a NaN center; m3_errorLimit for a value past its bound
-    ///         in maul3d/base.h, a mass outside the floors and M3_MASS_LIMIT,
-    ///         or a joint or contact lever the shape would carry past its
-    ///         ratio, infinities included; m3_errorCapacity for a full shape
-    ///         pool; m3_errorStale for a stale body; m3_errorBusy from host
-    ///         code the world is running. Every refusal but a full pool's, an
-    ///         allocator's, a lever's and a null world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, a null sphere, a NaN center, or a radius that is
+    ///         not positive or is NaN; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, or a center component or radius past
+    ///         M3_LOCAL_LIMIT, infinities included, or a shape below the mass
+    ///         floors of a dynamic body; m3_errorLimit, counting no misuse, for
+    ///         a body mass the shape would carry past M3_MASS_LIMIT or a joint
+    ///         on the body it would carry past its lever ratio;
+    ///         m3_errorCapacity, counting no misuse, for a full shape pool or
+    ///         an allocator that refuses the shape's broadphase entry;
+    ///         m3_errorStale for a stale body; m3_errorBusy from host code the
+    ///         world is running. Every refusal counts one misuse but those
+    ///         marked as counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateSphereShape(m3World* world, m3BodyId body,
@@ -144,16 +149,22 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, a null plane, a zero or non-finite normal, a NaN
-    ///         offset, or a body that is not static; m3_errorLimit for a value
-    ///         past its bound in maul3d/base.h, a mass outside the floors and
-    ///         M3_MASS_LIMIT, or a joint or contact lever the shape would carry
-    ///         past its ratio, an offset past M3_POSITION_LIMIT included,
-    ///         infinities too; m3_errorCapacity for a full shape pool;
-    ///         m3_errorStale for a stale body; m3_errorBusy from host code the
-    ///         world is running. Every refusal but a full pool's, an
-    ///         allocator's, a lever's and a null world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, a null plane, a normal that is not finite or is
+    ///         near zero, a NaN offset, or a body that is not static;
+    ///         m3_errorLimit for a def localPosition component past
+    ///         M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT, a restitution
+    ///         past M3_RATIO_LIMIT, a surfaceVelocity component past
+    ///         M3_SPEED_LIMIT, or an offset past M3_POSITION_LIMIT, infinities
+    ///         included; m3_errorCapacity, counting no misuse, for a full shape
+    ///         pool; m3_errorStale for a stale body; m3_errorBusy from host
+    ///         code the world is running. Every refusal counts one misuse but
+    ///         those marked as counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreatePlaneShape(m3World* world, m3BodyId body,
@@ -173,15 +184,26 @@ extern "C"
     /// @param shapeOut     Receives the new id; any failure leaves the null id
     ///                     there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, or a half extent that is not positive or is NaN;
-    ///         m3_errorLimit for a value past its bound in maul3d/base.h, a
-    ///         mass outside the floors and M3_MASS_LIMIT, or a joint or contact
-    ///         lever the shape would carry past its ratio, infinities included;
-    ///         m3_errorCapacity for a full shape pool; m3_errorStale for a
-    ///         stale body; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's, an allocator's, a lever's and a
-    ///         null world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, or a half extent that is not positive or is NaN;
+    ///         m3_errorLimit for a def localPosition component past
+    ///         M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT, a restitution
+    ///         past M3_RATIO_LIMIT, a surfaceVelocity component past
+    ///         M3_SPEED_LIMIT, or a half extent past M3_LOCAL_LIMIT, infinities
+    ///         included, or a shape below the mass floors of a dynamic body;
+    ///         m3_errorLimit, counting no misuse, for a body mass the shape
+    ///         would carry past M3_MASS_LIMIT or a joint on the body it would
+    ///         carry past its lever ratio; m3_errorCapacity, counting no
+    ///         misuse, for a full shape or hull pool, or an allocator that
+    ///         refuses the hull or the shape's broadphase entry; m3_errorStale
+    ///         for a stale body; m3_errorBusy from host code the world is
+    ///         running. Every refusal counts one misuse but those marked as
+    ///         counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateBoxShape(m3World* world, m3BodyId body,
@@ -209,16 +231,26 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, a null capsule, a NaN point, a radius that is not
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, a null capsule, a NaN point, a radius that is not
     ///         positive or is NaN, or a zero-length segment; m3_errorLimit for
-    ///         a value past its bound in maul3d/base.h, a mass outside the
-    ///         floors and M3_MASS_LIMIT, or a joint or contact lever the shape
-    ///         would carry past its ratio, infinities included;
-    ///         m3_errorCapacity for a full shape pool; m3_errorStale for a
-    ///         stale body; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's, an allocator's, a lever's and a
-    ///         null world's counts one misuse.
+    ///         a def localPosition component past M3_LOCAL_LIMIT, a density
+    ///         past M3_DENSITY_LIMIT, a restitution past M3_RATIO_LIMIT, a
+    ///         surfaceVelocity component past M3_SPEED_LIMIT, or a point
+    ///         component or radius past M3_LOCAL_LIMIT, infinities included, or
+    ///         a shape below the mass floors of a dynamic body; m3_errorLimit,
+    ///         counting no misuse, for a body mass the shape would carry past
+    ///         M3_MASS_LIMIT or a joint on the body it would carry past its
+    ///         lever ratio; m3_errorCapacity, counting no misuse, for a full
+    ///         shape pool or an allocator that refuses the shape's broadphase
+    ///         entry; m3_errorStale for a stale body; m3_errorBusy from host
+    ///         code the world is running. Every refusal counts one misuse but
+    ///         those marked as counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateCapsuleShape(m3World* world, m3BodyId body,
@@ -241,6 +273,11 @@ extern "C"
         float radius;
     } m3Cylinder;
 
+    /// Create a faceted cylinder: a prism of 2 * segments vertices,
+    /// built and refused by m3CreateHullShape, so its mass, contacts
+    /// and casts are the prism's exactly. The side is a segments-gon,
+    /// not a curve; 24 segments roll visually smooth at meter scales.
+    /// Segments clamp to [3, 32] and are never refused.
     /// Journaled.
     ///
     /// @param world     The world.
@@ -251,15 +288,29 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, a null cylinder, bad geometry or a zero-length axis;
-    ///         m3_errorLimit for a value past its bound in maul3d/base.h, a
-    ///         mass outside the floors and M3_MASS_LIMIT, or a joint or contact
-    ///         lever the shape would carry past its ratio, infinities included;
-    ///         m3_errorCapacity for a full shape pool; m3_errorStale for a
-    ///         stale body; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's, an allocator's, a lever's and a
-    ///         null world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, a null cylinder, a NaN cap point, a radius that is
+    ///         not positive or is NaN, a zero-length axis, or a prism the hull
+    ///         builder finds degenerate; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, a cap point component or radius past
+    ///         M3_LOCAL_LIMIT, or a prism vertex past it, infinities included,
+    ///         or a shape below the mass floors of a dynamic body;
+    ///         m3_errorLimit, counting no misuse, for a body mass the shape
+    ///         would carry past M3_MASS_LIMIT or a joint on the body it would
+    ///         carry past its lever ratio; m3_errorCapacity, counting no
+    ///         misuse, for a full shape or hull pool, or an allocator that
+    ///         refuses the hull builder's memory, the hull or the shape's
+    ///         broadphase entry; m3_errorStale for a stale body; m3_errorBusy
+    ///         from host code the world is running. Every refusal counts one
+    ///         misuse but those marked as counting none and any with a null
+    ///         world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateCylinderShape(m3World* world, m3BodyId body,
@@ -325,16 +376,28 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, or a degenerate cloud; m3_errorLimit for a value past
-    ///         its bound in maul3d/base.h, a mass outside the floors and
-    ///         M3_MASS_LIMIT, or a joint or contact lever the shape would carry
-    ///         past its ratio, a cloud of more than M3_MAX_HULL_POINTS points
-    ///         included, infinities too; m3_errorCapacity for a full shape pool
-    ///         or an allocator that refuses the builder's memory; m3_errorStale
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, null points, a count of 0 or less, a NaN point, or
+    ///         a degenerate cloud: coplanar, collinear, or fewer than four
+    ///         points once merged; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, a count past M3_MAX_HULL_POINTS, or a point
+    ///         component past M3_LOCAL_LIMIT, infinities included, or a shape
+    ///         below the mass floors of a dynamic body; m3_errorLimit, counting
+    ///         no misuse, for a body mass the shape would carry past
+    ///         M3_MASS_LIMIT or a joint on the body it would carry past its
+    ///         lever ratio; m3_errorCapacity, counting no misuse, for a full
+    ///         shape or hull pool, or an allocator that refuses the builder's
+    ///         memory, the hull or the shape's broadphase entry; m3_errorStale
     ///         for a stale body; m3_errorBusy from host code the world is
-    ///         running. Every refusal but a full pool's, an allocator's, a
-    ///         lever's and a null world's counts one misuse.
+    ///         running. Every refusal counts one misuse but those marked as
+    ///         counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateHullShape(m3World* world, m3BodyId body,
@@ -362,18 +425,26 @@ extern "C"
     /// @param shapeOut       Receives the new id; any failure leaves the null
     ///                       id there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, null vertices or indices, fewer than 3 vertices or 1
-    ///         triangle, an index past the vertices, a NaN vertex, or a body
-    ///         that is not static; m3_errorLimit for a value past its bound in
-    ///         maul3d/base.h, a mass outside the floors and M3_MASS_LIMIT, or a
-    ///         joint or contact lever the shape would carry past its ratio, a
-    ///         count or a vertex past its bound included, infinities too;
-    ///         m3_errorCapacity for a full shape pool or an allocator that
-    ///         refuses the mesh; m3_errorStale for a stale body; m3_errorBusy
-    ///         from host code the world is running. Every refusal but a full
-    ///         pool's, an allocator's, a lever's and a null world's counts one
-    ///         misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, null vertices or indices, fewer than 3 vertices or
+    ///         1 triangle, an index past the vertices, a NaN vertex, or a body
+    ///         that is not static; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, a vertex count past M3_MAX_MESH_VERTICES, a
+    ///         triangle count past M3_MAX_MESH_TRIANGLES, or a vertex component
+    ///         past M3_GEOMETRY_LIMIT, infinities included; m3_errorCapacity,
+    ///         counting no misuse, for a full shape or mesh pool, or an
+    ///         allocator that refuses the mesh, its build memory or the shape's
+    ///         broadphase entry; m3_errorStale for a stale body; m3_errorBusy
+    ///         from host code the world is running. Every refusal counts one
+    ///         misuse but those marked as counting none and any with a null
+    ///         world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateMeshShape(m3World* world, m3BodyId body,
@@ -437,17 +508,26 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, null heights, fewer than 2 samples along an axis, or
-    ///         a body that is not static; m3_errorLimit for a value past its
-    ///         bound in maul3d/base.h, a mass outside the floors and
-    ///         M3_MASS_LIMIT, or a joint or contact lever the shape would carry
-    ///         past its ratio, a grid, cell size or height past its bound
-    ///         included, infinities too; m3_errorCapacity for a full shape pool
-    ///         or an allocator that refuses the mesh; m3_errorStale for a stale
-    ///         body; m3_errorBusy from host code the world is running. Every
-    ///         refusal but a full pool's, an allocator's, a lever's and a null
-    ///         world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, null heights, fewer than 2 samples along an axis, a
+    ///         cell size that is not positive or is NaN, a NaN height, or a
+    ///         body that is not static; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, a sample count past
+    ///         M3_MAX_HEIGHTFIELD_MESH_SIZE along an axis, a cell size past
+    ///         M3_CELL_LIMIT, or a height past M3_GEOMETRY_LIMIT, infinities
+    ///         included; m3_errorCapacity, counting no misuse, for a full shape
+    ///         or mesh pool, or an allocator that refuses the grid's staging,
+    ///         the mesh, its build memory or the shape's broadphase entry;
+    ///         m3_errorStale for a stale body; m3_errorBusy from host code the
+    ///         world is running. Every refusal counts one misuse but those
+    ///         marked as counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldMeshShape(m3World* world, m3BodyId body,
@@ -477,17 +557,25 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, null heights, fewer than 2 samples along an axis, or
-    ///         a body that is not static; m3_errorLimit for a value past its
-    ///         bound in maul3d/base.h, a mass outside the floors and
-    ///         M3_MASS_LIMIT, or a joint or contact lever the shape would carry
-    ///         past its ratio, a grid, cell size or height past its bound
-    ///         included, infinities too; m3_errorCapacity for a full shape pool
-    ///         or an allocator that refuses the samples; m3_errorStale for a
-    ///         stale body; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's, an allocator's, a lever's and a
-    ///         null world's counts one misuse.
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, null heights, a body that is not static, fewer than
+    ///         2 samples along an axis, a cell size that is not positive or is
+    ///         NaN, or a NaN height; m3_errorLimit for a def localPosition
+    ///         component past M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT,
+    ///         a restitution past M3_RATIO_LIMIT, a surfaceVelocity component
+    ///         past M3_SPEED_LIMIT, a sample count past M3_MAX_HEIGHTFIELD_SIZE
+    ///         along an axis, a cell size past M3_CELL_LIMIT, or a height past
+    ///         M3_GEOMETRY_LIMIT, infinities included; m3_errorCapacity,
+    ///         counting no misuse, for a full shape or height field pool, or an
+    ///         allocator that refuses the samples or the shape's broadphase
+    ///         entry; m3_errorStale for a stale body; m3_errorBusy from host
+    ///         code the world is running. Every refusal counts one misuse but
+    ///         those marked as counting none and any with a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateHeightFieldShape(m3World* world, m3BodyId body,
@@ -531,18 +619,25 @@ extern "C"
     /// @param shapeOut  Receives the new id; any failure leaves the null id
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or shapeOut,
-    ///         the null body id, a def m3DefaultShapeDef did not make or a bad
-    ///         def field, null voxels, a body that is not static, a sensor def
-    ///         or an empty grid; m3_errorLimit for a value past its bound in
-    ///         maul3d/base.h, a mass outside the floors and M3_MASS_LIMIT, or a
-    ///         joint or contact lever the shape would carry past its ratio, a
-    ///         cell size past M3_CELL_LIMIT included, infinities too;
-    ///         m3_errorCapacity for a full shape pool, an allocator that
-    ///         refuses the chunk, or a grid whose surface passes
+    ///         the null body id, a body a character owns, a def
+    ///         m3DefaultShapeDef did not make, a def localRotation that is not
+    ///         finite or whose squared length is outside [0.99, 1.01], a NaN in
+    ///         the def's localPosition, restitution or surfaceVelocity, a
+    ///         density that is not positive or is NaN, a friction or rolling
+    ///         resistance that is negative or not finite, a negative
+    ///         restitution, null voxels, a cell size that is not positive or is
+    ///         NaN, a body that is not static, a sensor def, or an empty grid;
+    ///         m3_errorLimit for a def localPosition component past
+    ///         M3_LOCAL_LIMIT, a density past M3_DENSITY_LIMIT, a restitution
+    ///         past M3_RATIO_LIMIT, a surfaceVelocity component past
+    ///         M3_SPEED_LIMIT, or a cell size past M3_CELL_LIMIT, infinities
+    ///         included; m3_errorCapacity, counting no misuse, for a full shape
+    ///         or voxel pool, an allocator that refuses the chunk, its surface
+    ///         or the shape's broadphase entry, or a grid whose surface passes
     ///         M3_MAX_VOXEL_SURFACE_BOXES; m3_errorStale for a stale body;
     ///         m3_errorBusy from host code the world is running. Every refusal
-    ///         but a full pool's, an allocator's, a lever's and a null world's
-    ///         counts one misuse.
+    ///         counts one misuse but those marked as counting none and any with
+    ///         a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateVoxelChunkShape(m3World* world, m3BodyId body,
