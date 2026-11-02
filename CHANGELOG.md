@@ -8,24 +8,52 @@ snapshot and journal formats.
 
 ## [0.13.0](https://github.com/Rawframe-Project/maul3d/compare/v0.12.0...v0.13.0) (2026-11-02)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
+- **Breaking: five names after the final shape review.** Each keeps
+  its value, type and meaning; rename your uses as below. Neither
+  binding exposes any of them.
 
-* **world:** m3Counters no longer has scratchPeak, scratchCapacity or snapshotBytes; read the first two from m3World_GetMemoryUsage and the snapshot size from m3World_GetSnapshotSize.
-* **world:** m3Counters.voxelEditsRefused counts only voxel edits refused with m3_errorLimit; an explosion carve skipped for the same bound counts in the new m3Counters.voxelCarvesDropped, after it, so m3Counters grows by 8 bytes.
-* m3_voxelShape is m3_voxelChunkShape; m3Vehicle_GetCompression is m3Vehicle_GetWheelCompression; m3SoftBody_AnchorToSoft is m3SoftBody_AnchorToSoftBody; m3DrivetrainDef's autoShift, diffMode and diffCouple are enableAutoShift, differentialMode and differentialCoupling; M3_MAX_DRIVETRAIN_CURVE, M3_SERVO_REACH_LIMIT and M3_BLAST_LIMIT are M3_MAX_DRIVETRAIN_CURVE_POINTS, M3_TARGET_REACH_LIMIT and M3_EXPLOSION_IMPULSE_LIMIT. Each keeps its value, type and meaning.
-* **joint:** m3CreateSphericalJoint refuses a negative coneAngle with m3_errorInvalid whether enableCone is on or off, and restore and replay refuse such bytes; m3SphericalJoint_EnableCone no longer has a negative angle to refuse.
+  | 0.12.0 | 0.13.0 |
+  |---|---|
+  | `m3_voxelShape` | `m3_voxelChunkShape` |
+  | `m3Vehicle_GetCompression` | `m3Vehicle_GetWheelCompression` |
+  | `m3SoftBody_AnchorToSoft` | `m3SoftBody_AnchorToSoftBody` |
+  | `m3DrivetrainDef.autoShift` | `enableAutoShift` |
+  | `m3DrivetrainDef.diffMode`, `diffCouple` | `differentialMode`, `differentialCoupling` |
+  | `M3_MAX_DRIVETRAIN_CURVE` | `M3_MAX_DRIVETRAIN_CURVE_POINTS` |
+  | `M3_SERVO_REACH_LIMIT` | `M3_TARGET_REACH_LIMIT` |
+  | `M3_BLAST_LIMIT` | `M3_EXPLOSION_IMPULSE_LIMIT` |
+
+  ([#344](https://github.com/Rawframe-Project/maul3d/pull/344))
+- **Breaking: a dropped explosion carve has its own counter.**
+  `m3Counters.voxelEditsRefused` counted both voxel edits refused with
+  `m3_errorLimit` and explosion carves `m3World_Explode` skipped for
+  the same surface bound, which no status reports. It now counts the
+  edits only, and the new `m3Counters.voxelCarvesDropped` counts the
+  skipped carves. A program that watched `voxelEditsRefused` for
+  carves reads `voxelCarvesDropped`.
+  ([#346](https://github.com/Rawframe-Project/maul3d/pull/346))
+- **Breaking: `m3Counters` drops three fields other calls report.**
+  `scratchPeak` and `scratchCapacity` are gone: read them from
+  `m3World_GetMemoryUsage`. `snapshotBytes` is gone: call
+  `m3World_GetSnapshotSize`. `m3World_GetCounters` no longer measures
+  the snapshot.
+  ([#347](https://github.com/Rawframe-Project/maul3d/pull/347))
+- **Formats.** The snapshot keeps format 6, the journal tape format 7
+  and the replay container format 4. As in every release, a snapshot,
+  tape or container written by another release is refused with
+  `m3_errorVersion`.
 
 ### Fixed
 
-* **joint:** a spherical def refuses a negative cone angle ([#341](https://github.com/Rawframe-Project/maul3d/issues/341)) ([59ea7ce](https://github.com/Rawframe-Project/maul3d/commit/59ea7ce22f680feea70c30f2dbbaaaeba8836b4c)), closes [#332](https://github.com/Rawframe-Project/maul3d/issues/332)
-
-
-### Changed
-
-* five names after the final shape review ([#344](https://github.com/Rawframe-Project/maul3d/issues/344)) ([31757c6](https://github.com/Rawframe-Project/maul3d/commit/31757c603472ce0663a32e8b803e4f369ad4a656))
-* **world:** a dropped carve counts in voxelCarvesDropped ([#346](https://github.com/Rawframe-Project/maul3d/issues/346)) ([7e495e4](https://github.com/Rawframe-Project/maul3d/commit/7e495e4c54127dfcd28bb70423bd5de52b7913cb)), closes [#338](https://github.com/Rawframe-Project/maul3d/issues/338)
-* **world:** m3Counters drops the fields other calls report ([#347](https://github.com/Rawframe-Project/maul3d/issues/347)) ([4924e0d](https://github.com/Rawframe-Project/maul3d/commit/4924e0d9be7e4e88991111b045807f59e27e72f5)), closes [#339](https://github.com/Rawframe-Project/maul3d/issues/339)
+- **Breaking: a spherical def refuses a negative cone angle.**
+  `m3CreateSphericalJoint` took a negative `coneAngle` while
+  `enableCone` was false, a value `m3SphericalJoint_SetConeAngle`
+  refuses with the cone on or off. The create now refuses it with
+  `m3_errorInvalid` and one misuse whether the cone is on or off, and
+  restore and replay refuse such bytes. Pass an angle of zero or more.
+  ([#341](https://github.com/Rawframe-Project/maul3d/pull/341))
 
 ## [0.12.0](https://github.com/Rawframe-Project/maul3d/compare/v0.11.0...v0.12.0) (2026-11-02)
 
