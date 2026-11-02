@@ -66,7 +66,7 @@ extern "C"
     /// it. Sets *bytesOut to the bytes written; any failure leaves it as
     /// it was, since the call has no owner. Returns m3_errorVersion
     /// for a snapshot or tape another release wrote, m3_errorInvalid for
-    /// a null pointer or an out whose first m3GetEncodedReplaySize
+    /// a null pointer or a containerOut whose first m3GetEncodedReplaySize
     /// bytes overlap the snapshot or the tape, m3_errorFormat for sizes
     /// too short to hold a snapshot or a tape, a header that is not a
     /// snapshot's or a malformed journal, m3_errorLimit for a pair whose
@@ -74,8 +74,8 @@ extern "C"
     /// for a small buffer.
     M3_NODISCARD M3_API m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes,
                                                 const void* journal, int64_t journalBytes,
-                                                uint64_t finalHash, void* out, int64_t capacity,
-                                                int64_t* bytesOut);
+                                                uint64_t finalHash, void* containerOut,
+                                                int64_t capacity, int64_t* bytesOut);
 
     /// Decode and validate framing (the container's header, the
     /// snapshot's and the tape's prefixes, lengths, journal record
@@ -99,18 +99,21 @@ extern "C"
         bool onlyInB;        /// alive in B, missing in A
     } m3BodyDiff;
 
-    /// Compare every body slot of two worlds (same capacities
-    /// expected; mismatched capacities refuse). Writes up to
-    /// capacity rows sorted worst-first, sets outCount to the
-    /// number written, and returns the TOTAL number of differing
-    /// slots (which may exceed capacity), or -1 on refusal. Zero
-    /// means the worlds agree body-for-body. A refusal (a NULL world,
-    /// a NULL or empty array, a NULL count, different capacities) sets a
-    /// given outCount to 0 and zeroes a given array over its whole
-    /// capacity; a success writes only its rows. It only reads, so it is
-    /// never refused as busy.
-    M3_API int32_t m3World_Compare(const m3World* worldA, const m3World* worldB, m3BodyDiff* out,
-                                   int32_t capacity, int32_t* outCount);
+    /// Compare every body slot of two worlds, of any capacities: a slot
+    /// past one world's bodies counts as missing there. Writes up to
+    /// capacity rows into rowsOut, sorted worst-first, sets *totalOut to
+    /// the number of differing slots, which may exceed capacity, and
+    /// returns m3_success. Zero means the worlds agree body for body.
+    /// A NULL rowsOut with capacity 0 measures. Returns m3_errorInvalid
+    /// for a NULL world, a NULL totalOut, a negative capacity or a NULL
+    /// rowsOut with a positive one, and counts one misuse on worldA, or
+    /// on worldB when worldA is NULL. A refusal sets a given totalOut
+    /// to 0 and, when rowsOut and capacity pass, zeroes rowsOut over its
+    /// whole capacity; a success writes only its rows. It only reads, so
+    /// it is never refused as busy.
+    M3_NODISCARD M3_API m3Result m3World_Compare(const m3World* worldA, const m3World* worldB,
+                                                 m3BodyDiff* rowsOut, int32_t capacity,
+                                                 int32_t* totalOut);
 
 #ifdef __cplusplus
 }

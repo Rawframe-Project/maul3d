@@ -32,6 +32,8 @@
 // function is called, so the suite still runs against the shared library.
 #include "../src/journal.h"
 #include "../src/state_prefix.h"
+// Only for m3IntegrateRotation, an inline helper, to aim the motors.
+#include "../src/core.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -433,6 +435,7 @@ static void AddSliders(m3World* world, m3BodyId ground)
     six.genericAngularLower[2] = -0.7f;
     six.genericAngularUpper[2] = 0.7f;
     six.genericMotorAxis = 5;
+    six.enableMotor = true;
     six.motorSpeed = 1.0f;
     six.maxMotorEffort = 3.0f;
     NewJoint(world, &six);
@@ -916,7 +919,7 @@ static void TourBodyState(const Tour* t)
     m3Body_SetAngularDamping(t->world, t->crate, 0.2f);
     m3Body_EnableBullet(t->world, t->crate, true);
     m3Body_SetUserData(t->world, t->crate, 0x1234u);
-    m3Body_SetName(t->world, t->crate, "crate");
+    CHECK(m3Body_SetName(t->world, t->crate, "crate", 5) == m3_success, "the tour names the crate");
     m3Body_EnableFastRotation(t->world, t->crate, true);
 }
 

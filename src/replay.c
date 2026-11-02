@@ -95,11 +95,11 @@ static bool BytesOverlap(const void* one, int64_t bytes1, const void* two, int64
 }
 
 m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void* journal,
-                        int64_t journalBytes, uint64_t finalHash, void* out, int64_t capacity,
-                        int64_t* bytesOut)
+                        int64_t journalBytes, uint64_t finalHash, void* containerOut,
+                        int64_t capacity, int64_t* bytesOut)
 {
     // No owner: a failure leaves *bytesOut as it was, set only on success.
-    if (bytesOut == NULL || snapshot == NULL || journal == NULL || out == NULL ||
+    if (bytesOut == NULL || snapshot == NULL || journal == NULL || containerOut == NULL ||
         !m3SizeFitsMemory(snapshotBytes) || !m3SizeFitsMemory(journalBytes))
     {
         return m3_errorInvalid;
@@ -117,11 +117,11 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
     {
         return m3_errorCapacity;
     }
-    // The container is copied straight into out, so the bytes it fills
+    // The container is copied straight into containerOut, so the bytes it fills
     // must not hold either input. The capacity may reach past them, since
     // only these are written.
-    if (BytesOverlap(out, need, snapshot, snapshotBytes) ||
-        BytesOverlap(out, need, journal, journalBytes))
+    if (BytesOverlap(containerOut, need, snapshot, snapshotBytes) ||
+        BytesOverlap(containerOut, need, journal, journalBytes))
     {
         return m3_errorInvalid;
     }
@@ -146,7 +146,7 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
     header.journalBytes = journalBytes;
     header.stepCount = info.stepCount;
     header.opCount = info.opCount;
-    uint8_t* p = (uint8_t*)out;
+    uint8_t* p = (uint8_t*)containerOut;
     memcpy(p, &header, sizeof(header));
     memcpy(p + M3_REPLAY_HEADER_BYTES, snapshot, (size_t)snapshotBytes);
     memcpy(p + M3_REPLAY_HEADER_BYTES + snapshotBytes, journal, (size_t)journalBytes);
