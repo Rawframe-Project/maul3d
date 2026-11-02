@@ -788,7 +788,8 @@ extern "C"
     /// several readers at once.
     M3_API float m3Shape_GetFriction(const m3World* world, m3ShapeId shape);
 
-    /// Sets the shape's restitution. Journaled.
+    /// Sets the shape's restitution. Journaled; contacts read it at prepare,
+    /// so it binds from the next step.
     /// A stale or null id, a refused value, or a call from host code the
     /// world is running changes nothing, is not journaled and counts one
     /// misuse.
@@ -811,7 +812,8 @@ extern "C"
     /// several readers at once.
     M3_API float m3Shape_GetRestitution(const m3World* world, m3ShapeId shape);
 
-    /// Sets the shape's rolling resistance. Journaled.
+    /// Sets the shape's rolling resistance. Journaled; contacts read it at
+    /// prepare, so it binds from the next step.
     /// A stale or null id, a refused value, or a call from host code the
     /// world is running changes nothing, is not journaled and counts one
     /// misuse.
