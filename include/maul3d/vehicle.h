@@ -69,6 +69,15 @@ extern "C"
         int32_t internalValue;
     } m3VehicleDef;
 
+    /// Returns a vehicle def with the defaults: no chassis and no wheels
+    /// yet, every wheel slot hanging down 0.4 m with 0.25 m of travel at
+    /// 1.5 Hz and a 0.6 damping ratio, a 0.3 m radius and a 0.25 brake
+    /// share; a 0.6 rad steer, 800 N of drive, 1600 N of brake, a grip of
+    /// 1.5 and no lean stabilization.
+    ///
+    /// @return The def, with the cookie m3CreateVehicle checks.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3VehicleDef m3DefaultVehicleDef(void);
 
     /// Creates the vehicle bound to its chassis body. Refuses (null
@@ -81,16 +90,71 @@ extern "C"
     /// A value past one of these bounds, or a wheel count past
     /// M3_MAX_VEHICLE_WHEELS, returns m3_errorLimit; any other bad
     /// field m3_errorInvalid. Journaled with id verification.
+    ///
+    /// @param world       The world.
+    /// @param def         The def, from m3DefaultVehicleDef.
+    /// @param vehicleOut  Receives the new id; any failure leaves the null
+    ///                    id there when it is not null.
+    /// @return m3_success; m3_errorInvalid for a null world, def or
+    ///         vehicleOut, a def m3DefaultVehicleDef did not make, a stale
+    ///         or non-dynamic chassis or another bad field; m3_errorLimit
+    ///         as above; m3_errorCapacity when the vehicle pool is full;
+    ///         m3_errorBusy from host code the world is running. Every
+    ///         refusal but a full pool's and a null world's counts one
+    ///         misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateVehicle(m3World* world, const m3VehicleDef* def,
                                                  m3VehicleId* vehicleOut);
+
+    /// Destroys a vehicle; its chassis body stays. Journaled.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @return m3_success; m3_errorInvalid for a null world or the null
+    ///         id; m3_errorStale for an id whose vehicle is gone;
+    ///         m3_errorBusy from host code the world is running. Each
+    ///         refusal but a null world's counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3DestroyVehicle(m3World* world, m3VehicleId vehicle);
+
+    /// Returns whether the id names a live vehicle of this world.
+    ///
+    /// @param world    The world; null gives false.
+    /// @param vehicle  The id.
+    /// @return Whether the vehicle is alive.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3Vehicle_IsValid(const m3World* world, m3VehicleId vehicle);
 
     /// Last step's suspension compression of one wheel, in meters
     /// from rest length (zero when airborne, stale, or out of
     /// range). Frozen while the chassis sleeps, like the chassis.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @param wheel    The wheel index, 0 to the wheel count - 1.
+    /// @return The compression in meters; 0 while airborne, for a null
+    ///         world, and for a stale or null id or an out-of-range wheel,
+    ///         which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API float m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel);
+
     /// Whether the wheel's suspension cast found ground last step.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @param wheel    The wheel index, 0 to the wheel count - 1.
+    /// @return Whether it touched ground; false for a null world, and for
+    ///         a stale or null id or an out-of-range wheel, which counts one
+    ///         misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3Vehicle_IsWheelGrounded(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
     /// Drive commands: journaled STATE, not per-step
@@ -108,14 +172,48 @@ extern "C"
     /// suspends the normal throttle until m3Vehicle_SetCommands is
     /// called again (which disengages it). Drivetrain vehicles
     /// refuse: a gearbox and a skid steer are different machines.
+    ///
+    /// A refused call changes nothing, is not journaled and counts one
+    /// misuse: a stale or null id, a non-finite command, a drivetrain
+    /// vehicle, or a call from host code the world is running.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @param left     The left side's throttle, clamped to [-1, 1].
+    /// @param right    The right side's throttle, clamped to [-1, 1].
+    /// @param brake    The brake, clamped to [0, 1].
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3Vehicle_SetTankCommands(m3World* world, m3VehicleId vehicle, float left,
                                           float right, float brake);
 
+    /// Sets the drive commands, as described above, and leaves tank mode.
+    /// A refused call changes nothing, is not journaled and counts one
+    /// misuse: a stale or null id, a non-finite command, or a call from
+    /// host code the world is running.
+    ///
+    /// @param world     The world.
+    /// @param vehicle   The vehicle.
+    /// @param throttle  The throttle, clamped to [-1, 1].
+    /// @param steer     The steer, clamped to [-1, 1].
+    /// @param brake     The brake, clamped to [0, 1].
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3Vehicle_SetCommands(m3World* world, m3VehicleId vehicle, float throttle,
                                       float steer, float brake);
 
     /// Accumulated spin angle of one wheel in radians (rendering
     /// state: hosts spin their wheel meshes with it).
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @param wheel    The wheel index, 0 to the wheel count - 1.
+    /// @return The spin angle in radians; 0 for a null world, and for a
+    ///         stale or null id or an out-of-range wheel, which counts one
+    ///         misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API float m3Vehicle_GetWheelSpin(const m3World* world, m3VehicleId vehicle, int32_t wheel);
 
 #define M3_MAX_DRIVETRAIN_CURVE 8
@@ -176,6 +274,15 @@ extern "C"
         int32_t internalValue;
     } m3DrivetrainDef;
 
+    /// Returns a drivetrain def for a plain small car: a four-point curve
+    /// from 120 N m at 1000 rpm to a 200 N m peak at 3000 rpm, five gears
+    /// from 3.5 to 0.9, a 3.2 reverse, a 3.7 final drive, automatic shifts
+    /// at 5500 and 2000 rpm with 12 clutch steps, and an open
+    /// differential.
+    ///
+    /// @return The def, with the cookie m3Vehicle_SetDrivetrain checks.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3DrivetrainDef m3DefaultDrivetrainDef(void);
 
     /// Attach a drivetrain (journaled). Replaces the flat driveForce
@@ -184,19 +291,53 @@ extern "C"
     /// counts, non-finite numbers, a torque past 1e20 N m, a gear,
     /// final drive or reverse ratio past 1e4, a coupling past 1e15)
     /// are documented no-ops.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle; a stale or null id is a no-op that
+    ///                 counts one misuse.
+    /// @param def      The def, from m3DefaultDrivetrainDef. A null or
+    ///                 invalid def is a no-op that is not journaled and
+    ///                 counts one misuse, as is a call from host code the
+    ///                 world is running.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3Vehicle_SetDrivetrain(m3World* world, m3VehicleId vehicle,
                                         const m3DrivetrainDef* def);
 
     /// Select a gear (journaled): -1 reverse, 0 neutral, 1..gearCount.
     /// Opens the clutch for clutchSteps. A no-op without a drivetrain,
     /// out of range, or when reverseRatio is zero and gear is -1.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle; a stale or null id is a no-op.
+    /// @param gear     The gear: -1 reverse, 0 neutral, 1 to gearCount.
+    ///                 Each no-op is not journaled and counts one misuse,
+    ///                 as does a call from host code the world is running.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3Vehicle_SetGear(m3World* world, m3VehicleId vehicle, int32_t gear);
 
     /// Current gear; 0 when no drivetrain is attached.
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @return The gear; 0 without a drivetrain, for a null world, and for
+    ///         a stale or null id, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3Vehicle_GetGear(const m3World* world, m3VehicleId vehicle);
 
     /// Engine speed computed by the last step, idle-floored like the
     /// torque lookup (a tachometer, not raw wheel math).
+    ///
+    /// @param world    The world.
+    /// @param vehicle  The vehicle.
+    /// @return The engine speed in rpm; 0 without a drivetrain, for a null
+    ///         world, and for a stale or null id, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API float m3Vehicle_GetEngineRpm(const m3World* world, m3VehicleId vehicle);
 
     static const m3VehicleId m3_nullVehicleId = {0, 0};
