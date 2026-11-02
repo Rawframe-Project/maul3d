@@ -153,12 +153,45 @@ static void TestVoxelWallExactness(void)
     m3DestroyWorld(world);
 }
 
+static void TestBoxRotationNearUnit(void)
+{
+    m3World* world = Yard();
+    CrateAt(world, 3.0, 0.5, 0.0, 0);
+    m3ShapeId hits[4];
+    m3Pos3 center = {0.0, 0.5, 0.0};
+    m3Vec3 half = {1.0f, 0.6f, 0.3f};
+    // A quarter turn about y, each part a percent long: within the
+    // percent of unit length the box cast takes, so it answers.
+    m3Quat near = {0.0f, 0.7106f, 0.0f, 0.7106f};
+    CHECK(m3World_OverlapBox(world, center, half, near, m3DefaultQueryFilter(), hits, 4) == 1,
+          "a near-unit rotation finds the plane");
+    // A zero quaternion and one of squared length two are not
+    // rotations: rotating by them leaves or stretches the box, so they
+    // are refused, as the box cast refuses them.
+    const m3Quat bad[2] = {{0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        uint64_t misuse = m3World_GetCounters(world).misuseCount;
+        memset(hits, 0xFF, sizeof(hits));
+        CHECK(m3World_OverlapBox(world, center, half, bad[k], m3DefaultQueryFilter(), hits, 4) == 0,
+              "a rotation off unit length is refused");
+        CHECK(hits[3].index1 == 0 && hits[3].generation == 0, "the refusal zeroes the array");
+        CHECK(m3World_GetCounters(world).misuseCount == misuse + 1, "and counts one misuse");
+        m3CastHit hit;
+        CHECK(!m3World_CastBoxClosest(world, center, half, bad[k], (m3Vec3){1.0f, 0.0f, 0.0f},
+                                      m3DefaultQueryFilter(), &hit),
+              "the box cast refuses the same rotation");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestBoxBeatsTheSphereAtCorners();
     TestCorridorCapsuleAndOrder();
     TestCloudFilterAndPurity();
     TestVoxelWallExactness();
+    TestBoxRotationNearUnit();
     if (s_failures == 0)
     {
         printf("test_overlapfamily: all passed\n");
