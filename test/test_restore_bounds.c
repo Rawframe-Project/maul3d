@@ -862,8 +862,8 @@ static void TestTargetReach(void)
         return;
     }
     uint64_t hash = m3World_Hash(world);
-    const double reach[2] = {M3_SERVO_REACH_LIMIT,
-                             nextafter(M3_SERVO_REACH_LIMIT, 2.0 * M3_SERVO_REACH_LIMIT)};
+    const double reach[2] = {M3_TARGET_REACH_LIMIT,
+                             nextafter(M3_TARGET_REACH_LIMIT, 2.0 * M3_TARGET_REACH_LIMIT)};
     bool restored[2];
     for (int32_t k = 0; k < 2; ++k)
     {

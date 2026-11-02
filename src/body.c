@@ -176,7 +176,7 @@ bool m3PoseValid(m3Transform pose)
 }
 
 // A servo target lands in one step at the distance over dt, so it must lie
-// within M3_SERVO_REACH_LIMIT of where the kinematic body is now: over the
+// within M3_TARGET_REACH_LIMIT of where the kinematic body is now: over the
 // shortest step that is M3_KINEMATIC_SPEED_LIMIT. Its turn, at most 2 / dt,
 // stays within M3_SPEED_LIMIT.
 bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose)
@@ -193,7 +193,7 @@ bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose)
     double dx = pose.p.x - now.x;
     double dy = pose.p.y - now.y;
     double dz = pose.p.z - now.z;
-    double limit = (double)M3_SERVO_REACH_LIMIT;
+    double limit = (double)M3_TARGET_REACH_LIMIT;
     return dx * dx + dy * dy + dz * dz <= limit * limit;
 }
 

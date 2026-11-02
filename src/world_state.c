@@ -510,7 +510,7 @@ static int64_t ExtentCount(const m3World* world, uint8_t extent)
     case m3_extent_vehicleWheel:
         return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_VEHICLE_WHEELS;
     case m3_extent_vehicleCurve:
-        return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_DRIVETRAIN_CURVE;
+        return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_DRIVETRAIN_CURVE_POINTS;
     case m3_extent_vehicleGear:
         return (int64_t)world->vehicles.vehicleCapacity * M3_MAX_DRIVETRAIN_GEARS;
     case m3_extent_soft:
@@ -532,7 +532,7 @@ static int64_t ExtentCount(const m3World* world, uint8_t extent)
     case m3_extent_wheelsPerVehicle:
         return M3_MAX_VEHICLE_WHEELS;
     case m3_extent_curvePerVehicle:
-        return M3_MAX_DRIVETRAIN_CURVE;
+        return M3_MAX_DRIVETRAIN_CURVE_POINTS;
     case m3_extent_gearsPerVehicle:
         return M3_MAX_DRIVETRAIN_GEARS;
     case m3_extent_particlesPerSoft:

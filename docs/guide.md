@@ -654,7 +654,7 @@ must be dynamic with mass; anything nonzero wakes the body.
 arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
 servo: the body lands exactly on the target next step and the
 order clears; the exit velocity stays yours by contract. A target
-past `M3_SERVO_REACH_LIMIT` from the body returns `m3_errorLimit`.
+past `M3_TARGET_REACH_LIMIT` from the body returns `m3_errorLimit`.
 `m3Body_SetType` flips dynamic/kinematic/static with a full mass
 rebuild, and returns `m3_errorLimit` when the body's mass, joints or
 speed do not allow the new type. `m3Body_Enable` with false removes the body from
@@ -1115,7 +1115,7 @@ Which refusals count misuse, in one place:
   body's total mass past `M3_MASS_LIMIT` or a joint past its lever
   ratio, a joint create past that ratio, a type change the body's
   shapes, joints or speed refuse, and a servo target more than
-  `M3_SERVO_REACH_LIMIT` from where the step left the kinematic body.
+  `M3_TARGET_REACH_LIMIT` from where the step left the kinematic body.
 m3SetAssertHandler installs a host hook ahead of the abort for a
 failed internal invariant; returning nonzero declares the failure
 handled (test harnesses, crash reporters). There is no log hook:
@@ -1273,7 +1273,7 @@ past what real scenes use. Vectors are bounded per component.
 |---|---|---|
 | Position | `M3_POSITION_LIMIT`, 1e15 m | body defs, poses, anchors in the world, a plane's offset, water boxes, every soft particle a create places |
 | Body-frame offset or extent | `M3_LOCAL_LIMIT`, 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
-| Servo target | `M3_SERVO_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
+| Servo target | `M3_TARGET_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
 | Static geometry | `M3_GEOMETRY_LIMIT`, 1e8 m in its body's frame | mesh vertices, height samples |
 | Cell size | `M3_CELL_LIMIT`, 1e5 m, positive | height field grids and mesh height fields, voxel chunks |
 | Cast or character move | `M3_CAST_LIMIT`, 1e18 m | shape casts, `m3Character_Move` |
@@ -1291,7 +1291,7 @@ past what real scenes use. Vectors are bounded per component.
 | Mass | a shape at least `M3_MIN_MASS`, 1e-6 kg, with every principal moment at least `M3_MIN_INERTIA`, 1e-12 kg m^2; a body at most `M3_MASS_LIMIT`, 1e20 kg | shapes on dynamic bodies, a body turning dynamic, characters, soft particles |
 | Wheel radius | at least `M3_MIN_WHEEL_RADIUS`, 1e-3 m | vehicle wheels |
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
-| Blast | `M3_BLAST_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
+| Blast | `M3_EXPLOSION_IMPULSE_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 | Contact lever | `M3_CONTACT_LEVER_LIMIT`, 1e6 for mass * arm^2 / moment: see below | a shape create, destroy, resize, density or filter change on a dynamic body, a body turning dynamic |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048, `M3_MAX_BODY_NAME_BYTES` 31 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface, a body's name |

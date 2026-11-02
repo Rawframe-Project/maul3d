@@ -201,8 +201,9 @@ bool m3WorldExplodeInternal(m3World* world, const m3ExplosionDef* def)
 {
     if (!m3BoundedPos3(def->position) || !m3FiniteF(def->radius) || def->radius < 0.0f ||
         !m3FiniteF(def->falloff) || def->falloff < 0.0f ||
-        !m3WithinF(def->impulsePerArea, M3_BLAST_LIMIT) || !m3FiniteF(def->voxelCarve) ||
-        def->voxelCarve < 0.0f || !m3WithinF(def->softPush, M3_RATIO_LIMIT))
+        !m3WithinF(def->impulsePerArea, M3_EXPLOSION_IMPULSE_LIMIT) ||
+        !m3FiniteF(def->voxelCarve) || def->voxelCarve < 0.0f ||
+        !m3WithinF(def->softPush, M3_RATIO_LIMIT))
     {
         return false;
     }

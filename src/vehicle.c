@@ -33,10 +33,10 @@ static void ResetDrivetrain(m3World* world, int32_t slot)
     world->vehicles.vehDtActive[slot] = 0;
     world->vehicles.vehDtCurveCount[slot] = 0;
     world->vehicles.vehDtGearCount[slot] = 0;
-    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE; ++c)
+    for (int32_t c = 0; c < M3_MAX_DRIVETRAIN_CURVE_POINTS; ++c)
     {
-        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE + c] = 0.0f;
-        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE + c] = 0.0f;
+        world->vehicles.vehDtCurveRpm[slot * M3_MAX_DRIVETRAIN_CURVE_POINTS + c] = 0.0f;
+        world->vehicles.vehDtCurveTorque[slot * M3_MAX_DRIVETRAIN_CURVE_POINTS + c] = 0.0f;
     }
     for (int32_t g = 0; g < M3_MAX_DRIVETRAIN_GEARS; ++g)
     {
@@ -328,7 +328,7 @@ void m3VehicleApplySuspension(m3World* world, float dt)
                 }
             }
             float radius = drivenCount > 0 ? radiusSum / (float)drivenCount : 0.0f;
-            int32_t base = slot * M3_MAX_DRIVETRAIN_CURVE;
+            int32_t base = slot * M3_MAX_DRIVETRAIN_CURVE_POINTS;
             int32_t count = world->vehicles.vehDtCurveCount[slot];
             int8_t gear = world->vehicles.vehDtGear[slot];
             float ratio = 0.0f;
