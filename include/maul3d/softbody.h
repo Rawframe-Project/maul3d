@@ -76,28 +76,29 @@ extern "C"
     M3_API m3SoftBodyDef m3DefaultSoftBodyDef(void);
 
     /// Creates the lattice with structural edges and face diagonals
-    /// in fixed index order. Refuses non-positive counts and NaN,
-    /// negative or non-positive geometry with m3_errorInvalid; counts
-    /// past M3_MAX_SOFTBODY_PARTICLES or M3_MAX_SOFTBODY_EDGES, a
-    /// particle mass outside M3_MIN_MASS to M3_MASS_LIMIT, a radius or
-    /// spacing past M3_LOCAL_LIMIT, a gravity scale past M3_RATIO_LIMIT,
-    /// a pressure past M3_SOFTBODY_PRESSURE_LIMIT and a particle past
-    /// M3_POSITION_LIMIT on any axis with m3_errorLimit; pressure on a
-    /// lattice with an axis count below 2 with m3_errorInvalid; and a
-    /// full pool with m3_errorCapacity, leaving
-    /// *softBodyOut the null id.
-    /// Journaled with id verification.
+    /// in fixed index order, leaving *softBodyOut the null id on any
+    /// refusal. Journaled with id verification.
     ///
     /// @param world        The world.
     /// @param def          The def, from m3DefaultSoftBodyDef.
     /// @param softBodyOut  Receives the new id; any failure leaves the null
     ///                     id there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or
-    ///         softBodyOut, a def m3DefaultSoftBodyDef did not make or a
-    ///         bad field; m3_errorLimit and m3_errorCapacity as above;
-    ///         m3_errorBusy from host code the world is running. Every
-    ///         refusal but a full pool's and a null world's counts one
-    ///         misuse.
+    ///         softBodyOut, a def m3DefaultSoftBodyDef did not make, an axis
+    ///         count below 1, a NaN position or gravity scale, a spacing,
+    ///         particle mass or radius that is not positive or is NaN, a
+    ///         compliance, bendCompliance or maxDeviation that is not finite
+    ///         or is negative, a pressure that is negative or NaN, or pressure
+    ///         on a lattice with an axis count below 2; m3_errorLimit for more
+    ///         than M3_MAX_SOFTBODY_PARTICLES particles or
+    ///         M3_MAX_SOFTBODY_EDGES edges, a particle mass outside
+    ///         M3_MIN_MASS to M3_MASS_LIMIT, a radius or spacing past
+    ///         M3_LOCAL_LIMIT, a gravity scale past M3_RATIO_LIMIT, a pressure
+    ///         past M3_SOFTBODY_PRESSURE_LIMIT, or a particle past
+    ///         M3_POSITION_LIMIT on any axis, infinities included;
+    ///         m3_errorCapacity for a full pool; m3_errorBusy from host code
+    ///         the world is running. Every refusal but a full pool's and a
+    ///         null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateSoftBody(m3World* world, const m3SoftBodyDef* def,
@@ -115,9 +116,8 @@ extern "C"
     /// create returns m3_errorInvalid, and def->countX/Y/Z and
     /// def->spacing are not read, so any value is accepted. Pins, anchors,
     /// wind, water, explosions, and collision all treat the
-    /// particles exactly like lattice particles. It refuses as
-    /// m3CreateSoftBody does, with m3_errorLimit past
-    /// M3_MAX_SOFTBODY_TETS tets or M3_MAX_SOFTBODY_EDGES edges.
+    /// particles exactly like lattice particles. Its refusals are
+    /// listed below.
     ///
     /// @param world        The world.
     /// @param def          The def, from m3DefaultSoftBodyDef, with the
