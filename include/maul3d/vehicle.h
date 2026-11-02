@@ -96,11 +96,22 @@ extern "C"
     /// @param vehicleOut  Receives the new id; any failure leaves the null
     ///                    id there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or
-    ///         vehicleOut, a def m3DefaultVehicleDef did not make, a stale
-    ///         or non-dynamic chassis or another bad field; m3_errorLimit
-    ///         as above; m3_errorCapacity when the vehicle pool is full;
-    ///         m3_errorBusy from host code the world is running. Every
-    ///         refusal but a full pool's and a null world's counts one
+    ///         vehicleOut, a def m3DefaultVehicleDef did not make, a chassis
+    ///         that is stale, null or not dynamic, a wheel count below 1, a
+    ///         steer angle that is not finite or is negative, a drive force,
+    ///         brake force, tire grip or lean stabilization that is negative
+    ///         or NaN, or a wheel whose direction is not finite or not within
+    ///         10 percent of unit length, whose travel is not positive or
+    ///         exceeds its rest length, whose anchor is NaN, whose rest
+    ///         length, hertz or radius is not positive or is NaN, or whose
+    ///         damping ratio or brake share is negative or NaN; m3_errorLimit
+    ///         for a wheel count past M3_MAX_VEHICLE_WHEELS, a drive or brake
+    ///         force past 1e20 N, a tire grip or lean stabilization past 1e4,
+    ///         or a wheel anchor, rest length or radius past 1e4 m, a radius
+    ///         below 1e-3 m, a hertz past 1e5 or a damping ratio or brake share
+    ///         past 1e4, infinities included; m3_errorCapacity when the vehicle
+    ///         pool is full; m3_errorBusy from host code the world is running.
+    ///         Every refusal but a full pool's and a null world's counts one
     ///         misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -287,10 +298,16 @@ extern "C"
 
     /// Attach a drivetrain (journaled). Replaces the flat driveForce
     /// model for this vehicle; starts in first gear, clutch closed.
-    /// Invalid defs (bad cookie, non-ascending curve, out-of-range
-    /// counts, non-finite numbers, a torque past 1e20 N m, a gear,
-    /// final drive or reverse ratio past 1e4, a coupling past 1e15)
-    /// are documented no-ops.
+    /// Invalid defs are documented no-ops: a def m3DefaultDrivetrainDef
+    /// did not make, a curve count outside 2 to M3_MAX_DRIVETRAIN_CURVE,
+    /// a gear count outside 1 to M3_MAX_DRIVETRAIN_GEARS, clutch steps
+    /// outside 0 to M3_MAX_CLUTCH_STEPS, a curve rpm that is not finite,
+    /// is negative or does not ascend strictly, a torque that is negative,
+    /// NaN or past 1e20 N m, a gear ratio or final drive that is not
+    /// positive or is past 1e4, a reverse ratio that is negative or past
+    /// 1e4, a shift rpm that is not finite, a negative shift-down rpm or a
+    /// shift-up rpm not above it, a differential mode out of range, or a
+    /// coupling that is negative, NaN or past 1e15.
     ///
     /// @param world    The world.
     /// @param vehicle  The vehicle; a stale or null id is a no-op that
