@@ -66,6 +66,12 @@ extern "C"
         M3_ALIGN8 uint64_t maskBits;
     } m3QueryFilter;
 
+    /// Returns the filter that sees every shape: every category and mask
+    /// bit set.
+    ///
+    /// @return The filter.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3QueryFilter m3DefaultQueryFilter(void);
 
     /// World definition. Build with m3DefaultWorldDef so the cookie and
@@ -120,6 +126,10 @@ extern "C"
     /// vehicles, no task hooks, the C library's allocator, and the def
     /// cookie, with version left 0. Call m3DefaultWorldDef instead, which
     /// stamps the version of the program's headers.
+    ///
+    /// @return The defaults, with version 0.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3WorldDef m3DefaultWorldDefValues(void);
 
     /// The world defaults, stamped with M3_ABI_VERSION of the headers the
@@ -132,26 +142,59 @@ extern "C"
         return def;
     }
 
-    /// Creates a world. The checks run in order: the CPU must run the
-    /// library's SIMD backend (m3_errorUnsupported), the def's cookie must
-    /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
-    /// (m3_errorVersion), and the rest of the def must hold
-    /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
-    /// maul3d/base.h, a shape, pair or voxel capacity included). A def whose step
-    /// scratch, sized at its capacities, would pass 2 GiB is refused with m3_errorCapacity
-    /// before anything is allocated; the allocator may refuse too
-    /// (m3_errorCapacity), and then nothing is left allocated. The world takes the scratch
-    /// a step needs here, about 918 bytes per pair of pairCapacity, 126 per body and 416 per
-    /// joint on a 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
-    /// allocator.
-    /// *worldOut is null on any failure.
+    /// Creates a world. The checks run in order: a null worldOut, then the
+    /// CPU, which must run the library's SIMD backend, then the def's
+    /// cookie, its version and the rest of its fields. A def whose step
+    /// scratch, sized at its capacities, would pass 2 GiB is refused before
+    /// anything is allocated; when the allocator refuses, nothing is left
+    /// allocated. The world takes the scratch a step needs here, about 918
+    /// bytes per pair of pairCapacity, 126 per body and 416 per joint on a
+    /// 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
+    /// allocator. *worldOut is null on any failure. No world exists yet, so
+    /// no refusal counts misuse.
+    ///
+    /// @param def       The def, from m3DefaultWorldDef.
+    /// @param worldOut  Receives the new world.
+    /// @return m3_success; m3_errorUnsupported for a CPU that cannot run the
+    ///         library's SIMD backend; m3_errorInvalid for a null def or
+    ///         worldOut, a def m3DefaultWorldDef did not make, a body, shape,
+    ///         mesh, joint, voxel, character, vehicle or soft body capacity of
+    ///         0 or less, a negative pairCapacity, only one of enqueueTask and
+    ///         finishTask, an allocator with only one of alloc and free, a
+    ///         restitution or hit event threshold that is negative or not
+    ///         finite, a NaN gravity component, or a contact hertz, damping
+    ///         ratio, push speed or maximum linear or angular speed that is not
+    ///         positive or is NaN; m3_errorVersion for a def version other than
+    ///         M3_ABI_VERSION; m3_errorLimit for a shapeCapacity past
+    ///         M3_MAX_SHAPE_CAPACITY, a pairCapacity past M3_MAX_PAIR_CAPACITY,
+    ///         a voxelCapacity past M3_MAX_VOXEL_CAPACITY, a gravity component
+    ///         past M3_ACCEL_LIMIT, a contact hertz past M3_HERTZ_LIMIT, a
+    ///         damping ratio past M3_RATIO_LIMIT, or a push speed or speed cap
+    ///         past M3_SPEED_LIMIT, infinities included; m3_errorCapacity for a
+    ///         step scratch past 2 GiB or an allocator that refuses the world.
+    /// @par Thread safety
+    /// Safe from any thread; def's allocator is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
+
     /// Destroys a world and everything it owns; ids it issued mean nothing
-    /// after. Null is a no-op.
+    /// after. Null is a no-op. Called from host code the world is running,
+    /// it destroys nothing and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3DestroyWorld(m3World* world);
 
     /// Set the gravity vector, within 1e4 m/s^2 on every axis.
     /// Journaled; sleeping islands stay asleep until disturbed.
+    /// A null world does nothing. A NaN gravity component, or one past 1e4
+    /// m/s^2 or infinite, or a call from host code the world is running,
+    /// changes nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world    The world.
+    /// @param gravity  The gravity, m/s^2, within 1e4 on every axis.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetGravity(m3World* world, m3Vec3 gravity);
 
     /// Rebuild the broadphase tree top down, balanced. Bulk shape
@@ -162,6 +205,13 @@ extern "C"
     /// function of the live shapes, so twins and replays agree.
     /// Returns m3_errorCapacity, with the tree unchanged and nothing
     /// recorded, when the world's allocator refuses the scratch.
+    ///
+    /// @param world  The world.
+    /// @return m3_success; m3_errorCapacity as above; m3_errorInvalid for a
+    ///         null world; m3_errorBusy from host code the world is running,
+    ///         which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_RebuildBroadphase(m3World* world);
 
 // Water volume slots per world: a fixed, small table. A create past it
@@ -192,19 +242,68 @@ extern "C"
 
     static const m3WaterVolumeId m3_nullWaterVolumeId = {0, 0};
 
+    /// Returns a water volume def with the defaults: the unit box at the
+    /// origin, density 1000, linear drag 2, angular drag 1 and no flow.
+    ///
+    /// @return The def, with the cookie m3CreateWaterVolume checks.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3WaterVolumeDef m3DefaultWaterVolumeDef(void);
-    /// A box past M3_POSITION_LIMIT, a density past M3_DENSITY_LIMIT or
+
+    /// Creates a water volume. A box past M3_POSITION_LIMIT, a density past
+    /// M3_DENSITY_LIMIT or
     /// a flow past M3_SPEED_LIMIT returns m3_errorLimit, any other bad
     /// field m3_errorInvalid.
     /// Up to M3_MAX_WATER_VOLUMES per world; journaled, snapshotted, hashed
     /// off-default. Creating or destroying a volume wakes every
     /// body whose bounds touch it (the tide moves things).
+    ///
+    /// @param world      The world.
+    /// @param def        The def, from m3DefaultWaterVolumeDef.
+    /// @param volumeOut  Receives the new id; any failure leaves the null id
+    ///                   there when it is not null.
+    /// @return m3_success; m3_errorInvalid for a null world, def or volumeOut,
+    ///         a def m3DefaultWaterVolumeDef did not make, a box that is empty
+    ///         or inverted on an axis, a NaN bound or flow, a density that is
+    ///         not positive or is NaN, or a drag that is not finite or is
+    ///         negative; m3_errorLimit as above, infinities included;
+    ///         m3_errorCapacity past M3_MAX_WATER_VOLUMES; m3_errorBusy from
+    ///         host code the world is running. Every refusal but a full table's
+    ///         and a null world's counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateWaterVolume(m3World* world, const m3WaterVolumeDef* def,
                                                      m3WaterVolumeId* volumeOut);
+
+    /// Destroys a water volume, waking the bodies it touches. Journaled.
+    ///
+    /// @param world   The world.
+    /// @param volume  The volume.
+    /// @return m3_success; m3_errorInvalid for a null world or the null id;
+    ///         m3_errorStale for a gone volume; m3_errorBusy from host code the
+    ///         world is running. Each refusal but a null world's counts one
+    ///         misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3DestroyWaterVolume(m3World* world, m3WaterVolumeId volume);
+
+    /// Returns whether the id names a live water volume of this world.
+    ///
+    /// @param world   The world; null gives false.
+    /// @param volume  The id.
+    /// @return Whether the volume is alive.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3WaterVolume_IsValid(const m3World* world, m3WaterVolumeId volume);
 
     /// Current gravity.
+    ///
+    /// @param world  The world.
+    /// @return The gravity, m/s^2; zero for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3Vec3 m3World_GetGravity(const m3World* world);
 
     /// Contact softness tuning: frequency (hertz, up to 1e5), damping
@@ -212,15 +311,42 @@ extern "C"
     /// m/s), each positive. Journaled. Static contacts
     /// use twice the frequency: a soft row against something
     /// immovable stores energy under a tall stack.
+    /// A null world does nothing. A hertz, damping ratio or push speed that is
+    /// not positive or is NaN, or past 1e5, 1e4 or 1e5 or infinite, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
+    ///
+    /// @param world         The world.
+    /// @param hertz         The contact frequency, hertz.
+    /// @param dampingRatio  The contact damping ratio.
+    /// @param pushMaxSpeed  The maximum depenetration speed, m/s.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetContactTuning(m3World* world, float hertz, float dampingRatio,
                                          float pushMaxSpeed);
 
     /// Impact speed below the threshold does not bounce. Journaled.
+    /// A null world does nothing. A negative or non-finite threshold, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param value  The threshold, m/s, finite and not negative.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetRestitutionThreshold(m3World* world, float value);
 
     /// Hard cap on any body's linear speed, applied every substep:
     /// positive and at most 1e5 m/s, the speed the step holds every
     /// body within. Journaled.
+    /// A null world does nothing. A cap that is not positive or is NaN, or past
+    /// 1e5 or infinite, or a call from host code the world is running, changes
+    /// nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param value  The cap, m/s.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetMaximumLinearSpeed(m3World* world, float value);
 
     /// Hard cap on any body's angular speed in rad/s, applied every
@@ -229,19 +355,53 @@ extern "C"
     /// m3Body_EnableFastRotation bypass it. Positive and at most 1e5
     /// rad/s; the step holds every body, flagged or not, within 1e5
     /// rad/s. Journaled.
+    /// A null world does nothing. A cap that is not positive or is NaN, or past
+    /// 1e5 or infinite, or a call from host code the world is running, changes
+    /// nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param value  The cap, rad/s.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetMaximumAngularSpeed(m3World* world, float value);
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
     /// sleeping body. Journaled.
+    /// A null world does nothing; a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param flag   Whether islands may sleep.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_EnableSleep(m3World* world, bool flag);
 
     /// Whether island sleeping is enabled.
+    ///
+    /// @param world  The world.
+    /// @return Whether it is; false for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_IsSleepEnabled(const m3World* world);
 
     /// Turn the continuous phase (CCD) on or off. Journaled.
+    /// A null world does nothing; a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param flag   Whether the continuous phase runs.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_EnableContinuous(m3World* world, bool flag);
 
     /// Whether the continuous phase is enabled.
+    ///
+    /// @param world  The world.
+    /// @return Whether it is; false for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_IsContinuousEnabled(const m3World* world);
 
     /// Wind: a deterministic field applied to soft-body
@@ -254,6 +414,19 @@ extern "C"
     /// each non-negative, on the call and on replay alike. The wind
     /// blows soft particles only; push rigid bodies with forces.
     /// Journaled.
+    /// A null world does nothing. A non-finite direction, a negative or NaN
+    /// speed, gust frequency or gust scale, one past 1e5, 1e5 or 1e4 or
+    /// infinite, or a direction whose squared length is outside [0.99, 1.01]
+    /// while the speed is not zero, or a call from host code the world is
+    /// running, changes nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world      The world.
+    /// @param direction  The wind's direction, near unit.
+    /// @param speed      The wind speed, m/s; 0 disables.
+    /// @param gustHertz  The gust frequency, hertz.
+    /// @param gustScale  The gust's share of the speed.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetWind(m3World* world, m3Vec3 direction, float speed, float gustHertz,
                                 float gustScale);
 
@@ -285,6 +458,14 @@ extern "C"
     /// shape indexes, and the shapes of each pair it drops get no
     /// contact that step and pass through each other.
     /// m3Counters.pairsDropped counts the drops.
+    ///
+    /// @param world         The world.
+    /// @param dt            The step, seconds.
+    /// @param substepCount  The solver substeps, 1 to M3_MAX_SUBSTEPS.
+    /// @return m3_success, or one of the refusals above, each counting one
+    ///         misuse but a null world's.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_Step(m3World* world, float dt, int32_t substepCount);
 
     /// Snapshot and rollback, first-class from day one. The format is
@@ -322,9 +503,45 @@ extern "C"
     /// have no cap of their own: a world that fits memory snapshots. On a
     /// 32-bit target Restore refuses a size past SIZE_MAX with
     /// m3_errorInvalid before it forms a pointer.
+    ///
+    /// @param world  The world.
+    /// @return The snapshot's size in bytes; -1 for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int64_t m3World_GetSnapshotSize(const m3World* world);
+
+    /// Writes the world's snapshot, as described above.
+    ///
+    /// @param world     The world.
+    /// @param buffer    Receives the snapshot.
+    /// @param capacity  buffer's length in bytes.
+    /// @param bytesOut  Receives the snapshot's length.
+    /// @return m3_success; m3_errorInvalid for a null world, buffer or
+    ///         bytesOut; m3_errorCapacity for a buffer smaller than
+    ///         m3World_GetSnapshotSize. Each refusal but a null world's counts
+    ///         one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_NODISCARD M3_API m3Result m3World_Snapshot(const m3World* world, void* buffer,
                                                   int64_t capacity, int64_t* bytesOut);
+
+    /// Restores a snapshot into this world in place, as described above.
+    ///
+    /// @param world  The world.
+    /// @param data   The snapshot, as m3World_Snapshot wrote it.
+    /// @param size   The snapshot's length in bytes.
+    /// @return m3_success; m3_errorInvalid for a null world, a negative size,
+    ///         one this target cannot address, or null data with a positive
+    ///         size; m3_errorVersion or m3_errorFormat as above, which count no
+    ///         misuse; m3_errorCapacity, counting no misuse, for an allocator
+    ///         that refuses the scratch the checks take or the staged content;
+    ///         m3_errorBusy from host code the world is running. A refusal
+    ///         leaves the world as it was, and the invalid and busy refusals
+    ///         count one misuse but a null world's.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int64_t size);
 
     /// Contact events: begin fires on the step two shapes
@@ -374,6 +591,13 @@ extern "C"
         int32_t hitsDropped;
     } m3ContactEvents;
 
+    /// Returns the last step's contact events.
+    ///
+    /// @param world  The world.
+    /// @return The streams, owned by the world; empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3ContactEvents m3World_GetContactEvents(const m3World* world);
 
     /// A shape that began overlapping a sensor during a step. Two sensors
@@ -406,6 +630,13 @@ extern "C"
         int32_t endCount;
     } m3SensorEvents;
 
+    /// Returns the last step's sensor events.
+    ///
+    /// @param world  The world.
+    /// @return The streams, owned by the world; empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3SensorEvents m3World_GetSensorEvents(const m3World* world);
 
     /// A fragment-spawn event: a voxel edit disconnected an
@@ -422,6 +653,7 @@ extern "C"
     {
         m3ShapeId chunkShapeId;
         int32_t voxelCount;
+
         /// Range into m3FragmentEvents.recipe: chunk-local linear
         /// voxel indices (v = x + 16 * (y + 16 * z)). recipeStart is
         /// -1 when the recipe buffer overflowed (the event and the
@@ -449,9 +681,24 @@ extern "C"
         int32_t fragmentsDropped;
     } m3FragmentEvents;
 
+    /// Returns the last step's fragment events.
+    ///
+    /// @param world  The world.
+    /// @return The streams, owned by the world; empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3FragmentEvents m3World_GetFragmentEvents(const m3World* world);
 
     /// Hit events require approach speed above this. Journaled.
+    /// A null world does nothing. A negative or non-finite threshold, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param value  The threshold, m/s, finite and not negative.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetHitEventThreshold(m3World* world, float value);
 
     /// A body move event: one per body that MOVED this step
@@ -472,6 +719,13 @@ extern "C"
         int32_t moveCount;
     } m3BodyEvents;
 
+    /// Returns the last step's body move events.
+    ///
+    /// @param world  The world.
+    /// @return The streams, owned by the world; empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3BodyEvents m3World_GetBodyEvents(const m3World* world);
 
     /// A joint break event. The id is already stale when the
@@ -488,6 +742,13 @@ extern "C"
         int32_t breakCount;
     } m3JointEvents;
 
+    /// Returns the last step's joint break events.
+    ///
+    /// @param world  The world.
+    /// @return The streams, owned by the world; empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3JointEvents m3World_GetJointEvents(const m3World* world);
 
     /// Pre-solve veto: called during contact preparation, in
@@ -515,6 +776,14 @@ extern "C"
     /// no callback installed and lands on the recorded bits. During
     /// such a step the recorded set wins and any installed callback
     /// stays silent; do not expect callbacks to fire under replay.
+    /// A null world does nothing; a call from host code the world is
+    /// running changes nothing and counts one misuse.
+    ///
+    /// @param world    The world.
+    /// @param fn       The callback, or null to clear it.
+    /// @param context  Passed to every call of fn.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_SetPreSolveCallback(m3World* world, m3PreSolveFunction* fn, void* context);
 
     /// One hit of a ray or shape cast, from a closest cast or from
@@ -553,6 +822,24 @@ extern "C"
     /// Cast the mover capsule along a translation; the closest
     /// blocking hit (sensors are invisible to movers), with the
     /// closest casts' contract below.
+    ///
+    /// @param world        The world.
+    /// @param center       The capsule's center.
+    /// @param halfHeight   Half the distance between the cap centers, not
+    ///                     negative.
+    /// @param radius       The capsule's radius.
+    /// @param translation  The move to cast along.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the capsule hits a shape. hitOut is cleared first and
+    ///         holds the hit only on true. A null hitOut, or a null world, a
+    ///         center that is not finite, a half height that is negative or not
+    ///         finite, a radius that is not finite or not positive, or a
+    ///         translation that is NaN or past M3_CAST_LIMIT on an axis, is
+    ///         refused: it returns false and counts one misuse, but a null
+    ///         world counts none.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastMover(const m3World* world, m3Pos3 center, float halfHeight,
                                   float radius, m3Vec3 translation, m3CastHit* hitOut);
 
@@ -567,6 +854,23 @@ extern "C"
     /// writes only its entries and leaves the rest of the array as it
     /// was. A list call only reads, so none is refused as busy. Pass the
     /// smaller of the two to m3SolveMover.
+    ///
+    /// @param world       The world.
+    /// @param center      The capsule's center.
+    /// @param halfHeight  Half the distance between the cap centers.
+    /// @param radius      The capsule's radius.
+    /// @param skin        How far from the capsule a shape still counts.
+    /// @param planesOut   Receives up to capacity planes.
+    /// @param capacity    planesOut's length, at least 0.
+    /// @return The total number of planes; 0 on a refusal, which zeroes the
+    ///         array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a center that is not finite, a half height or
+    ///         skin that is negative or not finite, or a radius that is not
+    ///         finite or not positive.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_CollideMover(const m3World* world, m3Pos3 center, float halfHeight,
                                         float radius, float skin, m3MoverPlane* planesOut,
                                         int32_t capacity);
@@ -574,10 +878,29 @@ extern "C"
     /// The closest translation to the wish that no plane blocks, and
     /// the planes it rests on. Pure function, world-free. Only the
     /// first M3_MAX_MOVER_PLANES planes take part.
+    ///
+    /// @param wish    The wanted translation.
+    /// @param planes  The planes, as m3World_CollideMover wrote them.
+    /// @param count   The number of planes.
+    /// @return The move and its pressed planes; the wish unchanged with no
+    ///         plane pressed for a null planes, a count below 1 or a wish that
+    ///         is not finite. No world is involved, so nothing counts misuse.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count);
 
     /// The velocity closest to the given one that no pressed plane
     /// opposes: what is left after hitting them. Pure function.
+    ///
+    /// @param velocity  The velocity to clip.
+    /// @param planes    The planes m3SolveMover saw.
+    /// @param count     The number of planes.
+    /// @param pressed   m3MoverMove.pressed from that solve.
+    /// @return The clipped velocity; velocity unchanged for a null planes, a
+    ///         count below 1, a velocity that is not finite, or no pressed bit
+    ///         below both count and M3_MAX_MOVER_PLANES.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3Vec3 m3ClipMoverVelocity(m3Vec3 velocity, const m3MoverPlane* planes, int32_t count,
                                       uint32_t pressed);
 
@@ -590,6 +913,22 @@ extern "C"
     /// hit and writes it there, or returns false and leaves it zeroed:
     /// on a miss, and on a hostile input or a null world, which count
     /// one misuse. A null hitOut returns false and counts one misuse.
+    ///
+    /// @param world        The world.
+    /// @param origin       The ray's start.
+    /// @param translation  The ray's direction times its reach.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the ray hits a shape. hitOut is cleared first and holds
+    ///         the hit only on true. A null hitOut, or a null world, an origin
+    ///         that is not finite or a translation that is NaN or past
+    ///         M3_CAST_LIMIT on an axis, is refused: it returns false and
+    ///         counts one misuse, but a null world counts none. A zero
+    ///         translation is a clean miss.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastRayClosest(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                        m3QueryFilter filter, m3CastHit* hitOut);
 
@@ -599,6 +938,23 @@ extern "C"
     /// may exceed capacity; a NULL array with capacity 0 measures.
     /// A refusal zeroes the array over its whole capacity; a success, an empty one included, writes
     /// only its entries; a list call only reads, so none is refused as busy.
+    ///
+    /// @param world        The world.
+    /// @param origin       The ray's start.
+    /// @param translation  The ray's direction times its reach.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitsOut      Receives up to capacity hits, nearest first.
+    /// @param capacity     hitsOut's length, at least 0.
+    /// @return The total number of hits found; 0 on a refusal, which zeroes the
+    ///         array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, an origin that is not finite, a zero
+    ///         translation, or a translation that is NaN or past M3_CAST_LIMIT
+    ///         on an axis.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_CastRayAll(const m3World* world, m3Pos3 origin, m3Vec3 translation,
                                       m3QueryFilter filter, m3CastHit* hitsOut, int32_t capacity);
 
@@ -613,15 +969,95 @@ extern "C"
     /// earliest touch in [0, 1], start-overlapped reports fraction
     /// zero with a zero normal, hostile inputs miss. A single point
     /// is a ray: use the ray casts.
+    ///
+    /// @param world        The world.
+    /// @param center       The box's center.
+    /// @param halfExtents  The box's half extents, each positive.
+    /// @param rotation     The box's rotation, a unit quaternion.
+    /// @param translation  The sweep.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the box hits a shape. hitOut is cleared first and holds
+    ///         the hit only on true. A null hitOut, or a null world, a center
+    ///         or translation that is not finite, a half extent that is not
+    ///         finite or not positive, a rotation that is not finite or whose
+    ///         squared length is not within 2 percent of 1, or a translation
+    ///         that is NaN or past M3_CAST_LIMIT on an axis, is refused: it
+    ///         returns false and counts one misuse, but a null world counts
+    ///         none.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                        m3Quat rotation, m3Vec3 translation, m3QueryFilter filter,
                                        m3CastHit* hitOut);
+
+    /// Sweeps a point cloud's hull along a translation; see above.
+    ///
+    /// @param world        The world.
+    /// @param base         The point the cloud is relative to.
+    /// @param points       The cloud, base-relative.
+    /// @param count        The number of points, 2 to M3_MAX_CAST_POINTS.
+    /// @param translation  The sweep.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the hull hits a shape. hitOut is cleared first and holds
+    ///         the hit only on true. A null hitOut, or a null world, null
+    ///         points, a count outside 2 to M3_MAX_CAST_POINTS, a base, point
+    ///         or translation that is not finite, or a translation that is NaN
+    ///         or past M3_CAST_LIMIT on an axis, is refused: it returns false
+    ///         and counts one misuse, but a null world counts none.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastHullClosest(const m3World* world, m3Pos3 base, const m3Vec3* points,
                                         int32_t count, m3Vec3 translation, m3QueryFilter filter,
                                         m3CastHit* hitOut);
+
+    /// Sweeps a sphere along a translation; see above.
+    ///
+    /// @param world        The world.
+    /// @param center       The sphere's center.
+    /// @param radius       The sphere's radius.
+    /// @param translation  The sweep.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the sphere hits a shape. hitOut is cleared first and
+    ///         holds the hit only on true. A null hitOut, or a null world, a
+    ///         center that is not finite, a radius that is not finite or not
+    ///         positive, or a translation that is NaN or past M3_CAST_LIMIT on
+    ///         an axis, is refused: it returns false and counts one misuse, but
+    ///         a null world counts none.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, float radius,
                                           m3Vec3 translation, m3QueryFilter filter,
                                           m3CastHit* hitOut);
+
+    /// Sweeps a capsule along a translation; see above.
+    ///
+    /// @param world        The world.
+    /// @param center       The capsule's center.
+    /// @param point1       The first segment end, relative to center.
+    /// @param point2       The second segment end, relative to center.
+    /// @param radius       The capsule's radius.
+    /// @param translation  The sweep.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param hitOut       Receives the closest hit.
+    /// @return Whether the capsule hits a shape. hitOut is cleared first and
+    ///         holds the hit only on true. A null hitOut, or a null world, a
+    ///         center or point that is not finite, a radius that is not finite
+    ///         or is negative, or a translation that is NaN or past
+    ///         M3_CAST_LIMIT on an axis, is refused: it returns false and
+    ///         counts one misuse, but a null world counts none.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API bool m3World_CastCapsuleClosest(const m3World* world, m3Pos3 center, m3Vec3 point1,
                                            m3Vec3 point2, float radius, m3Vec3 translation,
                                            m3QueryFilter filter, m3CastHit* hitOut);
@@ -630,6 +1066,16 @@ extern "C"
     /// contains the point, or the null id. A disabled body's shapes are
     /// skipped. Meshes are open surfaces and never contain points;
     /// planes are solid half spaces.
+    ///
+    /// @param world   The world.
+    /// @param point   The point.
+    /// @param filter  The query filter; m3DefaultQueryFilter sees every shape.
+    /// @return The shape's id; the null id when no shape holds the point, and
+    ///         for a null world or a point that is not finite, which counts one
+    ///         misuse but a null world's.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point, m3QueryFilter filter);
 
     /// The overlap queries write the lowest capacity shape ids in
@@ -641,10 +1087,43 @@ extern "C"
     /// bounds overlap the box. A box with a non-finite bound, or with its lower bound above its
     /// upper bound on any axis, is refused: the call returns 0, zeroes the array and counts one
     /// misuse. A flat or one-point box, lower equal to upper on an axis, is a valid query.
+    ///
+    /// @param world     The world.
+    /// @param box       The box.
+    /// @param filter    The query filter; m3DefaultQueryFilter sees every
+    ///                  shape.
+    /// @param idsOut    Receives up to capacity shape ids, in ascending shape
+    ///                  index order.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a bound that is not finite, or a lower bound
+    ///         above the upper bound on an axis.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_OverlapAabb(const m3World* world, m3WorldAabb box, m3QueryFilter filter,
                                        m3ShapeId* idsOut, int32_t capacity);
 
     /// Shapes within reach of the sphere (exact per family).
+    ///
+    /// @param world     The world.
+    /// @param center    The sphere's center.
+    /// @param radius    The sphere's radius.
+    /// @param filter    The query filter; m3DefaultQueryFilter sees every
+    ///                  shape.
+    /// @param idsOut    Receives up to capacity shape ids, in ascending shape
+    ///                  index order.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a center that is not finite, or a radius that is
+    ///         not finite or not positive.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_OverlapSphere(const m3World* world, m3Pos3 center, float radius,
                                          m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity);
 
@@ -656,12 +1135,75 @@ extern "C"
     /// its center. Clouds carry base-relative points (the cast
     /// convention), at most 64 of them. A box's rotation is within a
     /// percent of unit length, as the box cast's: any other refuses.
+    ///
+    /// @param world     The world.
+    /// @param center    The capsule's center.
+    /// @param point1    The first segment end, relative to center.
+    /// @param point2    The second segment end, relative to center.
+    /// @param radius    The capsule's radius.
+    /// @param filter    The query filter; m3DefaultQueryFilter sees every
+    ///                  shape.
+    /// @param idsOut    Receives up to capacity shape ids, in ascending shape
+    ///                  index order.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a center or point that is not finite, or a
+    ///         radius that is not finite or is negative.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 center, m3Vec3 point1,
                                           m3Vec3 point2, float radius, m3QueryFilter filter,
                                           m3ShapeId* idsOut, int32_t capacity);
+
+    /// Shapes within exact reach of an oriented box; see above.
+    ///
+    /// @param world        The world.
+    /// @param center       The box's center.
+    /// @param halfExtents  The box's half extents, each positive.
+    /// @param rotation     The box's rotation, a unit quaternion.
+    /// @param filter       The query filter; m3DefaultQueryFilter sees every
+    ///                     shape.
+    /// @param idsOut       Receives up to capacity shape ids, in ascending
+    ///                     shape index order.
+    /// @param capacity     idsOut's length, at least 0.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a center that is not finite, a half extent that
+    ///         is not finite or not positive, or a rotation that is not finite
+    ///         or whose squared length is not within 2 percent of 1.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_OverlapBox(const m3World* world, m3Pos3 center, m3Vec3 halfExtents,
                                       m3Quat rotation, m3QueryFilter filter, m3ShapeId* idsOut,
                                       int32_t capacity);
+
+    /// Shapes within exact reach of a point cloud's hull, inflated by a
+    /// radius; see above.
+    ///
+    /// @param world     The world.
+    /// @param base      The point the cloud is relative to.
+    /// @param points    The cloud, base-relative.
+    /// @param count     The number of points, 1 to 64.
+    /// @param radius    The inflation radius, not negative.
+    /// @param filter    The query filter; m3DefaultQueryFilter sees every
+    ///                  shape.
+    /// @param idsOut    Receives up to capacity shape ids, in ascending shape
+    ///                  index order.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, null points, a count outside 1 to 64, a base or
+    ///         point that is not finite, or a radius that is not finite or is
+    ///         negative.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* points,
                                        int32_t count, float radius, m3QueryFilter filter,
                                        m3ShapeId* idsOut, int32_t capacity);
@@ -688,11 +1230,26 @@ extern "C"
     /// Returns a def with pinned defaults (10 m radius, 5 m falloff,
     /// zero impulse, no carve, soft push 1, open filter) and a valid
     /// cookie.
+    ///
+    /// @return The def, with the cookie m3World_Explode checks.
+    /// @par Thread safety
+    /// Safe from any thread.
     M3_API m3ExplosionDef m3DefaultExplosionDef(void);
 
     /// Apply the explosion now. Journaled; hostile defs apply
     /// nothing and journal nothing. Every push leaves its body within
     /// 1e5 m/s and rad/s.
+    /// A null world does nothing. A null def, one m3DefaultExplosionDef did
+    /// not make, a position that is not finite or past 1e15 m, a radius,
+    /// falloff or voxel carve that is negative or not finite, an impulse per
+    /// area that is NaN or past 1e10 either way, a soft push that is NaN or
+    /// past 1e4 either way, or a call from host code the world is running,
+    /// changes nothing, is not journaled and counts one misuse.
+    ///
+    /// @param world  The world.
+    /// @param def    The def, from m3DefaultExplosionDef.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3World_Explode(m3World* world, const m3ExplosionDef* def);
 
     /// FNV-1a 64 over the deterministic state in canonical slot order:
@@ -705,16 +1262,51 @@ extern "C"
     /// left out, since nothing changes them after create, and so are
     /// derived data and observers (trees, events, counters, the
     /// profile). The value every gate compares.
+    ///
+    /// @param world  The world.
+    /// @return The hash; 0 for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API uint64_t m3World_Hash(const m3World* world);
 
     /// Every live body or joint, up to capacity ids in ascending slot
     /// order; returns the total, which may exceed capacity, and a NULL
     /// array with capacity 0 measures. A refusal zeroes the array over its whole capacity; a
     /// success, an empty one included, writes only its entries; a list call only reads, so none is
-    /// refused as busy. The step count is the number of steps taken (snapshot state). Thread class:
-    /// reader.
+    /// refused as busy.
+    ///
+    /// @param world     The world.
+    /// @param idsOut    Receives up to capacity body ids.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of live bodies; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity, or a null array with
+    ///         a positive one.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_GetBodies(const m3World* world, m3BodyId* idsOut, int32_t capacity);
+
+    /// Every live joint, as m3World_GetBodies lists the bodies.
+    ///
+    /// @param world     The world.
+    /// @param idsOut    Receives up to capacity joint ids.
+    /// @param capacity  idsOut's length, at least 0.
+    /// @return The total number of live joints; 0 on a refusal, as
+    ///         m3World_GetBodies lists them.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API int32_t m3World_GetJoints(const m3World* world, m3JointId* idsOut, int32_t capacity);
+
+    /// Returns the number of steps taken, which is snapshot state.
+    ///
+    /// @param world  The world.
+    /// @return The step count; 0 for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API uint64_t m3World_GetStepCount(const m3World* world);
 
     /// Live contact readback: one entry per manifold touching
@@ -780,6 +1372,13 @@ extern "C"
         uint64_t heldPushRetakeCount;
     } m3Counters;
 
+    /// Returns the world's counters.
+    ///
+    /// @param world  The world.
+    /// @return The counters; zeros for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3Counters m3World_GetCounters(const m3World* world);
 
     /// Per-world memory accounting, computed
@@ -798,6 +1397,14 @@ extern "C"
         int32_t scratchCapacity;
         int32_t scratchPeak;
     } m3MemoryUsage;
+
+    /// Returns the world's memory accounting.
+    ///
+    /// @param world  The world.
+    /// @return The usage; zeros for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3MemoryUsage m3World_GetMemoryUsage(const m3World* world);
 
     /// Wall-clock milliseconds per phase of the last completed step,
@@ -820,6 +1427,13 @@ extern "C"
         float softBodies;  // the soft body pass
     } m3Profile;
 
+    /// Returns the last completed step's profile.
+    ///
+    /// @param world  The world.
+    /// @return The profile; zeros for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M3_API m3Profile m3World_GetProfile(const m3World* world);
 
     /// Journal: every mutation of the world is a discrete recorded op,
@@ -836,9 +1450,34 @@ extern "C"
     /// 16 bytes and a session of no op is those 16. Only the release that wrote a tape replays it.
     /// Sizes are 64-bit; on a 32-bit target Start refuses a capacity, and Replay a size, past
     /// SIZE_MAX with m3_errorInvalid.
+    ///
+    /// @param world     The world.
+    /// @param buffer    The caller's buffer the tape is written into.
+    /// @param capacity  buffer's length in bytes, at least 16.
+    /// @return m3_success; m3_errorInvalid for a null world or buffer, a
+    ///         capacity below 16 or one this target cannot address;
+    ///         m3_errorState while a journal runs; m3_errorBusy from host code
+    ///         the world is running. Each refusal but a null world's counts one
+    ///         misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_StartJournal(m3World* world, void* buffer,
                                                       int64_t capacity);
+
+    /// Stops the journal and reports the tape's length, as described
+    /// above.
+    ///
+    /// @param world     The world.
+    /// @param bytesOut  Receives the tape's length in bytes.
+    /// @return m3_success; m3_errorCapacity when the buffer overflowed;
+    ///         m3_errorInvalid for a null world or bytesOut; m3_errorState when
+    ///         no journal runs; m3_errorBusy from host code the world is
+    ///         running. Each refusal but an overflow's and a null world's
+    ///         counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_StopJournal(m3World* world, int64_t* bytesOut);
+
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal the world is restored to its pre-call state; a
     /// half-applied session is impossible. Returns m3_errorVersion for a
@@ -853,6 +1492,20 @@ extern "C"
     /// contentBytes of m3World_GetMemoryUsage) and arrays sized by the
     /// mesh, shape and voxel capacities. A tape that fits a tight allocator without that
     /// headroom is refused with m3_errorCapacity before any op runs.
+    ///
+    /// @param world  The world.
+    /// @param data   The tape.
+    /// @param size   The tape's length in bytes.
+    /// @return m3_success, a tape of the 16-byte prefix alone included;
+    ///         m3_errorInvalid for a null world, a negative size, one this
+    ///         target cannot address, or null data with a positive size;
+    ///         m3_errorVersion, m3_errorFormat or m3_errorCapacity as above,
+    ///         which count no misuse; m3_errorBusy from host code the world is
+    ///         running. The invalid and busy refusals count one misuse but a
+    ///         null world's. A replay is not recorded into a running journal,
+    ///         like a restore: stop a journal before replaying.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
                                                        int64_t size);
 
