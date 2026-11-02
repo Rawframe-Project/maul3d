@@ -53,7 +53,9 @@ extern "C"
     ///         negative length or one this target cannot address;
     ///         m3_errorVersion for a tape another release wrote;
     ///         m3_errorFormat for a tape too short for its header, another
-    ///         format's header or a record whose framing runs past the end.
+    ///         format's header, a record with an op code below 1 or a
+    ///         negative payload length, or a record whose framing runs past
+    ///         the end.
     /// @par Thread safety
     /// Safe from any thread.
     M3_NODISCARD M3_API m3Result m3DescribeJournal(const void* journal, int64_t bytes,
@@ -139,7 +141,7 @@ extern "C"
     /// index ascending on ties).
     typedef struct m3BodyDiff
     {
-        m3BodyId bodyId;     /// the id under world A's numbering
+        m3BodyId bodyId;     /// the slot's id: A's generation, B's on an onlyInB row
         float positionError; /// |pA - pB|, meters
         float rotationError; /// 1 - |dot(qA, qB)|, unitless
         float velocityError; /// |vA - vB| + |wA - wB|
@@ -160,7 +162,9 @@ extern "C"
     /// whole capacity; a success writes only its rows. It only reads, so
     /// it is never refused as busy.
     ///
-    /// @param worldA    The first world, whose ids the rows carry.
+    /// @param worldA    The first world. A row's id carries its slot with
+    ///                  world A's generation when the body is alive in A,
+    ///                  and world B's on an onlyInB row.
     /// @param worldB    The second world.
     /// @param rowsOut   Receives up to capacity rows, worst first; null
     ///                  with capacity 0 measures.
