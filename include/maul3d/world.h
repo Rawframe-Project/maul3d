@@ -652,8 +652,9 @@ extern "C"
     /// raw convex cloud queries with the same contract as the
     /// sphere: shapes within EXACT reach (GJK per candidate, planes
     /// and voxel/mesh handled per family), ascending shape index,
-    /// filtered, read-only. Clouds carry base-relative points (the
-    /// cast convention), at most 64 of them.
+    /// filtered, read-only. The capsule's two points are relative to
+    /// its center. Clouds carry base-relative points (the cast
+    /// convention), at most 64 of them.
     M3_API int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 center, m3Vec3 point1,
                                           m3Vec3 point2, float radius, m3QueryFilter filter,
                                           m3ShapeId* idsOut, int32_t capacity);
