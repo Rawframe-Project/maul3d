@@ -205,10 +205,13 @@ extern "C"
     ///         m3_errorLimit for a dimension outside M3_MIN_STANCE to
     ///         M3_STANCE_LIMIT; m3_errorState when the stand-up veto
     ///         refuses; m3_errorBusy from host code the world is running.
+    ///         Every refusal but the veto's and a null world's counts one
+    ///         misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3Character_SetStance(m3World* world, m3CharacterId character,
                                                        float halfHeight, float radius);
+
     /// Read the live stance (zeros on a stale id).
     ///
     /// @param world          The world.
