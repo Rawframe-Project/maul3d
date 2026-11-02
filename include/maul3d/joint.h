@@ -441,15 +441,15 @@ extern "C"
     ///         finite (checked with the limit off too) or bounds out of order
     ///         with the limit on, a cone angle that is not finite (checked with
     ///         the cone off too) or is negative with the cone on, a spring
-    ///         hertz or damping ratio that is negative or NaN, or a zero hertz
-    ///         with the spring on; m3_errorStale for a stale body;
-    ///         m3_errorLimit for an anchor past M3_LOCAL_LIMIT, a spring hertz
-    ///         past 1e5 or a damping ratio past 1e4, infinities included;
-    ///         m3_errorLimit, counting no misuse, when the bodies' lever ratio
-    ///         would pass M3_JOINT_LEVER_LIMIT; m3_errorCapacity for a full
-    ///         joint pool; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's, the lever's and a null world's
-    ///         counts one misuse.
+    ///         hertz or damping ratio that is negative or NaN (checked with the
+    ///         spring off too), or a zero hertz with the spring on;
+    ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
+    ///         M3_LOCAL_LIMIT, a spring hertz past 1e5 or a damping ratio past
+    ///         1e4, infinities included; m3_errorLimit, counting no misuse,
+    ///         when the bodies' lever ratio would pass M3_JOINT_LEVER_LIMIT;
+    ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
+    ///         code the world is running. Every refusal but a full pool's, the
+    ///         lever's and a null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateSphericalJoint(m3World* world,
@@ -469,8 +469,9 @@ extern "C"
     ///         anchor, an axis that is zero or not finite, a limit bound that
     ///         is not finite (checked with the limit off too) or bounds out of
     ///         order with the limit on, a NaN motor speed or a motor effort
-    ///         that is negative or NaN, a spring hertz or damping ratio that is
-    ///         negative or NaN, or a zero hertz with the spring on;
+    ///         that is negative or NaN (checked with the motor off too), a
+    ///         spring hertz or damping ratio that is negative or NaN (checked
+    ///         with the spring off too), or a zero hertz with the spring on;
     ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
     ///         M3_LOCAL_LIMIT, a motor speed past 1e5 or an effort past 1e20, a
     ///         spring hertz past 1e5 or a damping ratio past 1e4, infinities
@@ -498,8 +499,9 @@ extern "C"
     ///         anchor, an axis that is zero or not finite, a limit bound that
     ///         is not finite (checked with the limit off too) or bounds out of
     ///         order with the limit on, a NaN motor speed or a motor effort
-    ///         that is negative or NaN, a spring hertz or damping ratio that is
-    ///         negative or NaN, or a zero hertz with the spring on;
+    ///         that is negative or NaN (checked with the motor off too), a
+    ///         spring hertz or damping ratio that is negative or NaN (checked
+    ///         with the spring off too), or a zero hertz with the spring on;
     ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
     ///         M3_LOCAL_LIMIT, a motor speed past 1e5 or an effort past 1e20, a
     ///         spring hertz past 1e5 or a damping ratio past 1e4, infinities
@@ -549,12 +551,13 @@ extern "C"
     ///         anchor, a range bound that is not finite or is negative, a
     ///         minLength above maxLength, a rest length that is not finite or
     ///         is negative, a spring hertz or damping ratio that is negative or
-    ///         NaN, or a zero hertz with the spring on; m3_errorStale for a
-    ///         stale body; m3_errorLimit for an anchor past M3_LOCAL_LIMIT, a
-    ///         spring hertz past 1e5 or a damping ratio past 1e4, infinities
-    ///         included; m3_errorCapacity for a full joint pool; m3_errorBusy
-    ///         from host code the world is running. Every refusal but a full
-    ///         pool's and a null world's counts one misuse.
+    ///         NaN (checked with the spring off too), or a zero hertz with the
+    ///         spring on; m3_errorStale for a stale body; m3_errorLimit for an
+    ///         anchor past M3_LOCAL_LIMIT, a spring hertz past 1e5 or a damping
+    ///         ratio past 1e4, infinities included; m3_errorCapacity for a full
+    ///         joint pool; m3_errorBusy from host code the world is running.
+    ///         Every refusal but a full pool's and a null world's counts one
+    ///         misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateDistanceJoint(m3World* world,
@@ -577,11 +580,12 @@ extern "C"
     ///         one whose other two are not both locked or both free, a motor
     ///         axis past 5 that is not M3_GENERIC_NO_MOTOR, a motor on a locked
     ///         axis, a NaN motor speed or a motor effort that is negative or
-    ///         NaN; m3_errorStale for a stale body; m3_errorLimit for an anchor
-    ///         past M3_LOCAL_LIMIT, a motor speed past 1e5 or an effort past
-    ///         1e20, infinities included; m3_errorCapacity for a full joint
-    ///         pool; m3_errorBusy from host code the world is running. Every
-    ///         refusal but a full pool's and a null world's counts one misuse.
+    ///         NaN (checked with the motor off too); m3_errorStale for a stale
+    ///         body; m3_errorLimit for an anchor past M3_LOCAL_LIMIT, a motor
+    ///         speed past 1e5 or an effort past 1e20, infinities included;
+    ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
+    ///         code the world is running. Every refusal but a full pool's and a
+    ///         null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateGenericJoint(m3World* world, const m3GenericJointDef* def,
@@ -601,11 +605,12 @@ extern "C"
     ///         small skew (|dot| > 0.1) off perpendicular to the suspension, a
     ///         limit bound that is not finite (checked with the limit off too)
     ///         or bounds out of order with the limit on, a NaN motor speed or a
-    ///         motor effort that is negative or NaN, a spring hertz or damping
-    ///         ratio that is negative or NaN, or a zero hertz with the spring
-    ///         on; m3_errorStale for a stale body; m3_errorLimit for an anchor
-    ///         past M3_LOCAL_LIMIT, a motor speed past 1e5 or an effort past
-    ///         1e20, a spring hertz past 1e5 or a damping ratio past 1e4,
+    ///         motor effort that is negative or NaN (checked with the motor off
+    ///         too), a spring hertz or damping ratio that is negative or NaN
+    ///         (checked with the spring off too), or a zero hertz with the
+    ///         spring on; m3_errorStale for a stale body; m3_errorLimit for an
+    ///         anchor past M3_LOCAL_LIMIT, a motor speed past 1e5 or an effort
+    ///         past 1e20, a spring hertz past 1e5 or a damping ratio past 1e4,
     ///         infinities included; m3_errorLimit, counting no misuse, when the
     ///         bodies' lever ratio would pass M3_JOINT_LEVER_LIMIT;
     ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
@@ -625,12 +630,11 @@ extern "C"
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or jointOut, a
     ///         def m3DefaultFilterJointDef did not make, a null body id, the
-    ///         same body twice, two bodies of which neither is dynamic, a NaN
-    ///         anchor; m3_errorStale for a stale body; m3_errorLimit for an
-    ///         anchor past M3_LOCAL_LIMIT, infinities included;
-    ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
-    ///         code the world is running. Every refusal but a full pool's and a
-    ///         null world's counts one misuse.
+    ///         same body twice, or two bodies of which neither is dynamic;
+    ///         m3_errorStale for a stale body; m3_errorCapacity for a full
+    ///         joint pool; m3_errorBusy from host code the world is running.
+    ///         Every refusal but a full pool's and a null world's counts one
+    ///         misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateFilterJoint(m3World* world, const m3FilterJointDef* def,
@@ -668,15 +672,16 @@ extern "C"
     ///         def m3DefaultMotorJointDef did not make, a null body id, the
     ///         same body twice, two bodies of which neither is dynamic, a NaN
     ///         anchor, a force or torque budget that is negative or NaN, a
-    ///         spring hertz or damping ratio that is negative or NaN, or a zero
-    ///         hertz with the spring on; m3_errorStale for a stale body;
-    ///         m3_errorLimit for an anchor past M3_LOCAL_LIMIT, a budget past
-    ///         1e20, a spring hertz past 1e5 or a damping ratio past 1e4,
-    ///         infinities included; m3_errorLimit, counting no misuse, when the
-    ///         bodies' lever ratio would pass M3_JOINT_LEVER_LIMIT;
-    ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
-    ///         code the world is running. Every refusal but a full pool's, the
-    ///         lever's and a null world's counts one misuse.
+    ///         spring hertz or damping ratio that is negative or NaN (checked
+    ///         with the spring off too), or a zero hertz with the spring on;
+    ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
+    ///         M3_LOCAL_LIMIT, a budget past 1e20, a spring hertz past 1e5 or a
+    ///         damping ratio past 1e4, infinities included; m3_errorLimit,
+    ///         counting no misuse, when the bodies' lever ratio would pass
+    ///         M3_JOINT_LEVER_LIMIT; m3_errorCapacity for a full joint pool;
+    ///         m3_errorBusy from host code the world is running. Every refusal
+    ///         but a full pool's, the lever's and a null world's counts one
+    ///         misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateMotorJoint(m3World* world, const m3MotorJointDef* def,
@@ -691,13 +696,13 @@ extern "C"
     ///                  there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def or jointOut, a
     ///         def m3DefaultGearJointDef did not make, a null body id, the same
-    ///         body twice, two bodies of which neither is dynamic, a NaN
-    ///         anchor, an axis that is zero or not finite, or a zero or NaN
-    ///         ratio; m3_errorStale for a stale body; m3_errorLimit for an
-    ///         anchor past M3_LOCAL_LIMIT, a ratio past 1e4, infinities
-    ///         included; m3_errorCapacity for a full joint pool; m3_errorBusy
-    ///         from host code the world is running. Every refusal but a full
-    ///         pool's and a null world's counts one misuse.
+    ///         body twice, two bodies of which neither is dynamic, an axis that
+    ///         is not finite or whose squared length is 1e-8 or less, or a zero
+    ///         or NaN ratio; m3_errorStale for a stale body; m3_errorLimit for
+    ///         a ratio past 1e4 either way, infinities included;
+    ///         m3_errorCapacity for a full joint pool; m3_errorBusy from host
+    ///         code the world is running. Every refusal but a full pool's and a
+    ///         null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateGearJoint(m3World* world, const m3GearJointDef* def,
@@ -714,13 +719,13 @@ extern "C"
     ///         def m3DefaultPulleyJointDef did not make, a null body id, the
     ///         same body twice, two bodies of which neither is dynamic, a NaN
     ///         anchor, a NaN ground anchor, a ratio that is not positive or is
-    ///         NaN, or an anchor whose rope end lies on its pulley;
-    ///         m3_errorStale for a stale body; m3_errorLimit for an anchor past
-    ///         M3_LOCAL_LIMIT, a ground anchor past M3_POSITION_LIMIT or a
-    ///         ratio past 1e4, infinities included; m3_errorCapacity for a full
-    ///         joint pool; m3_errorBusy from host code the world is running.
-    ///         Every refusal but a full pool's and a null world's counts one
-    ///         misuse.
+    ///         NaN, or an anchor whose rope end, at the bodies' create poses,
+    ///         lies within 1e-3 m of its pulley; m3_errorStale for a stale
+    ///         body; m3_errorLimit for an anchor past M3_LOCAL_LIMIT, a ground
+    ///         anchor past M3_POSITION_LIMIT or a ratio past 1e4, infinities
+    ///         included; m3_errorCapacity for a full joint pool; m3_errorBusy
+    ///         from host code the world is running. Every refusal but a full
+    ///         pool's and a null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreatePulleyJoint(m3World* world, const m3PulleyJointDef* def,
@@ -793,9 +798,10 @@ extern "C"
     /// distance joint's range is its length range below.
     /// Switches the limit on or off; the range must be ordered to switch
     /// it on. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, spherical or wheel, switching the limit on while
+    /// its bounds are out of order, or a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     /// Revolute, prismatic, spherical and wheel joints have a limit. Both
     /// bodies wake, and the stored impulse of the rows it changes is zeroed.
     ///
@@ -820,8 +826,10 @@ extern "C"
 
     /// Sets the limit range; finite, and ordered while the limit is on.
     /// Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, spherical or wheel, a bound that is not finite, a
+    /// lower bound above the upper one (refused with the limit off too), or a
+    /// call from host code the world is running changes nothing, is not
     /// journaled and counts one misuse.
     /// Revolute, prismatic, spherical and wheel joints have a limit. Both
     /// bodies wake, and the stored impulse of the rows it changes is zeroed.
@@ -852,9 +860,10 @@ extern "C"
     /// Motor: only revolute, prismatic, wheel and generic joints take one.
     /// Its speed is within 1e5 rad/s or m/s and its effort in [0, 1e20].
     /// Switches the motor on or off. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, wheel or generic, or a call from host code the
+    /// world is running changes nothing, is not journaled and counts one
+    /// misuse.
     /// Revolute, prismatic, wheel and generic joints have a motor. Both bodies
     /// wake, and the stored impulse of the rows it changes is zeroed.
     ///
@@ -878,9 +887,10 @@ extern "C"
     M3_API bool m3Joint_IsMotorEnabled(const m3World* world, m3JointId joint);
 
     /// Sets the motor's target speed. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, wheel or generic, a speed that is NaN or past 1e5
+    /// either way, infinities included, or a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     /// Revolute, prismatic, wheel and generic joints have a motor. Both bodies
     /// wake, and the stored impulse of the rows it changes is zeroed.
     ///
@@ -904,9 +914,10 @@ extern "C"
     M3_API float m3Joint_GetMotorSpeed(const m3World* world, m3JointId joint);
 
     /// Sets the motor's force or torque budget. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, wheel or generic, an effort that is negative, NaN
+    /// or past 1e20, infinities included, or a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     /// Revolute, prismatic, wheel and generic joints have a motor. Both bodies
     /// wake, and the stored impulse of the rows it changes is zeroed.
     ///
@@ -936,9 +947,11 @@ extern "C"
     /// at its create pose. Motor joints only, here and for the budgets:
     /// each setter refuses any other type loudly, each getter reads zeros
     /// for it, and either counts one misuse.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// motor joint, a linear offset component that is not finite or past 1e4,
+    /// an angular offset that is not finite or whose squared length is outside
+    /// [0.81, 1.21], or a call from host code the world is running changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world          The world.
     /// @param joint          The joint.
@@ -975,9 +988,10 @@ extern "C"
     /// The motor joint's budgets: the force its translation drive and the
     /// torque its rotation drive may spend, each in [0, 1e20], 0 for no
     /// cap.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// motor joint, a budget that is negative, NaN or past 1e20, infinities
+    /// included, or a call from host code the world is running changes nothing,
+    /// is not journaled and counts one misuse.
     ///
     /// @param world     The world.
     /// @param joint     The joint.
@@ -998,9 +1012,10 @@ extern "C"
     M3_API float m3MotorJoint_GetMaxForce(const m3World* world, m3JointId joint);
 
     /// Sets the motor joint's torque budget. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// motor joint, a budget that is negative, NaN or past 1e20, infinities
+    /// included, or a call from host code the world is running changes nothing,
+    /// is not journaled and counts one misuse.
     ///
     /// @param world      The world.
     /// @param joint      The joint.
@@ -1025,9 +1040,10 @@ extern "C"
     /// Distance joints only: the setter refuses any other type loudly, the
     /// getter reads zeros for it, and either counts one misuse. Either
     /// output may be null. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// distance joint, a bound that is not finite, a negative minimum, a
+    /// minimum above the maximum, or a call from host code the world is running
+    /// changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world      The world.
     /// @param joint      The joint.
@@ -1055,9 +1071,10 @@ extern "C"
     /// The distance joint's spring rest length in meters, finite and not
     /// negative, which the joint spring part pulls toward while it is on.
     /// Distance joints only, as the length range. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// distance joint, a length that is negative or not finite, or a call from
+    /// host code the world is running changes nothing, is not journaled and
+    /// counts one misuse.
     ///
     /// @param world   The world.
     /// @param joint   The joint.
@@ -1087,9 +1104,10 @@ extern "C"
     /// before enabling it. Wheel joints only: each setter refuses any
     /// other type loudly, each getter reads 0 for it, and either counts
     /// one misuse. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// wheel joint, switching steering on while its hertz is zero, or a call
+    /// from host code the world is running changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world   The world.
     /// @param joint   The joint.
@@ -1110,9 +1128,10 @@ extern "C"
     M3_API bool m3WheelJoint_IsSteeringEnabled(const m3World* world, m3JointId joint);
 
     /// Sets the steering target. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// wheel joint, an angle that is NaN or past 1 radian either way, or a call
+    /// from host code the world is running changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world    The world.
     /// @param joint    The joint.
@@ -1133,9 +1152,10 @@ extern "C"
     M3_API float m3WheelJoint_GetTargetSteeringAngle(const m3World* world, m3JointId joint);
 
     /// Sets the steering drive's frequency. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// wheel joint, a hertz that is negative, NaN or past 1e5, a zero hertz
+    /// while steering is on, or a call from host code the world is running
+    /// changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param joint  The joint.
@@ -1156,9 +1176,10 @@ extern "C"
     M3_API float m3WheelJoint_GetSteeringHertz(const m3World* world, m3JointId joint);
 
     /// Sets the steering drive's damping ratio. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// wheel joint, a ratio that is negative, NaN or past 1e4, or a call from
+    /// host code the world is running changes nothing, is not journaled and
+    /// counts one misuse.
     ///
     /// @param world         The world.
     /// @param joint         The joint.
@@ -1180,9 +1201,10 @@ extern "C"
     M3_API float m3WheelJoint_GetSteeringDampingRatio(const m3World* world, m3JointId joint);
 
     /// Sets the steering drive's torque budget. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// wheel joint, a torque that is negative, NaN or past 1e20, or a call from
+    /// host code the world is running changes nothing, is not journaled and
+    /// counts one misuse.
     ///
     /// @param world      The world.
     /// @param joint      The joint.
@@ -1216,9 +1238,9 @@ extern "C"
 
     /// Let (or forbid) the two jointed bodies collide with each
     /// other. Journaled; binds at the next step's pair scan.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, or a call from host code
+    /// the world is running, changes nothing, is not journaled and counts one
+    /// misuse.
     ///
     /// @param world  The world.
     /// @param joint  The joint.
@@ -1245,9 +1267,9 @@ extern "C"
     /// event (see world.h). Zero disables a cap; both zero (the
     /// default) means unbreakable.
     /// Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a cap that is negative or
+    /// not finite, or a call from host code the world is running changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world      The world.
     /// @param joint      The joint.
@@ -1333,9 +1355,10 @@ extern "C"
     /// The frequency is in [0, 1e5] Hz and positive while the spring is
     /// on, the damping ratio in [0, 1e4]. The spring keeps its values
     /// while it is off.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, spherical, wheel, motor or distance, switching the
+    /// spring on while its hertz is zero, or a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     /// Spherical, revolute, prismatic, wheel, motor and distance joints have a
     /// spring. Both bodies wake, and the stored impulse of the rows it changes
     /// is zeroed.
@@ -1361,9 +1384,11 @@ extern "C"
     M3_API bool m3Joint_IsSpringEnabled(const m3World* world, m3JointId joint);
 
     /// Sets the spring's frequency. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, spherical, wheel, motor or distance, a hertz that
+    /// is negative, NaN or past 1e5, infinities included, a zero hertz while
+    /// the spring is on, or a call from host code the world is running changes
+    /// nothing, is not journaled and counts one misuse.
     /// Spherical, revolute, prismatic, wheel, motor and distance joints have a
     /// spring. Both bodies wake, and the stored impulse of the rows it changes
     /// is zeroed.
@@ -1390,9 +1415,11 @@ extern "C"
     M3_API float m3Joint_GetSpringHertz(const m3World* world, m3JointId joint);
 
     /// Sets the spring's damping ratio. Journaled.
-    /// A stale or null id, a type without this part, a refused value, or
-    /// a call from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not
+    /// revolute, prismatic, spherical, wheel, motor or distance, a ratio that
+    /// is negative, NaN or past 1e4, infinities included, or a call from host
+    /// code the world is running changes nothing, is not journaled and counts
+    /// one misuse.
     /// Spherical, revolute, prismatic, wheel, motor and distance joints have a
     /// spring. Both bodies wake, and the stored impulse of the rows it changes
     /// is zeroed.
@@ -1418,8 +1445,9 @@ extern "C"
     M3_API float m3Joint_GetSpringDampingRatio(const m3World* world, m3JointId joint);
 
     /// Sets the revolute spring's target angle. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// revolute joint, an angle that is not finite or outside [-pi, pi], or a
+    /// call from host code the world is running changes nothing, is not
     /// journaled and counts one misuse.
     ///
     /// @param world    The world.
@@ -1431,9 +1459,10 @@ extern "C"
 
     /// Sets the prismatic or wheel spring's target translation.
     /// Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// prismatic or wheel joint, a translation that is not finite, or a call
+    /// from host code the world is running changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world   The world.
     /// @param joint   The joint.
@@ -1448,9 +1477,10 @@ extern "C"
     /// frame B relative to frame A. Pick
     /// your axes at create time so the frame reads naturally.
     /// Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// spherical joint, a rotation that is not finite or whose squared length
+    /// is outside [0.99, 1.01], or a call from host code the world is running
+    /// changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world   The world.
     /// @param joint   The joint.
@@ -1467,8 +1497,9 @@ extern "C"
     /// id or a refused value changes nothing and counts one misuse; the
     /// getters then read false and zero.
     /// Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// spherical joint, switching the cone on while its angle is negative, or a
+    /// call from host code the world is running changes nothing, is not
     /// journaled and counts one misuse.
     ///
     /// @param world   The world.
@@ -1490,9 +1521,10 @@ extern "C"
     M3_API bool m3SphericalJoint_IsConeEnabled(const m3World* world, m3JointId joint);
 
     /// Sets the cone angle. Journaled.
-    /// A stale or null id, another joint type, a refused value, or a call
-    /// from host code the world is running changes nothing, is not
-    /// journaled and counts one misuse.
+    /// A null world does nothing. A stale or null id, a joint that is not a
+    /// spherical joint, an angle that is negative or not finite (refused with
+    /// the cone off too), or a call from host code the world is running changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param joint  The joint.
