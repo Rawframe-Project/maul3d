@@ -304,8 +304,8 @@ extern "C"
     /// outside 0 to M3_MAX_CLUTCH_STEPS, a curve rpm that is not finite,
     /// is negative or does not ascend strictly, a torque that is negative,
     /// NaN or past 1e20 N m, a gear ratio or final drive that is not
-    /// positive or is past 1e4, a reverse ratio that is negative or past
-    /// 1e4, a shift rpm that is not finite, a negative shift-down rpm or a
+    /// positive, is NaN or is past 1e4, a reverse ratio that is negative,
+    /// NaN or past 1e4, a shift rpm that is not finite, a negative shift-down rpm or a
     /// shift-up rpm not above it, a differential mode out of range, or a
     /// coupling that is negative, NaN or past 1e15.
     ///
