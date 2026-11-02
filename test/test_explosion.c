@@ -422,12 +422,62 @@ static void TestHostileTape(void)
     m3DestroyWorld(twin);
 }
 
+// The voxels a carve leaves in a 16-tall column of category 2: one the
+// blast's filter sees, one it hides, or one on a disabled body.
+static int32_t ColumnLeftAfterCarve(int32_t chunk)
+{
+    m3World* world = BlastWorld();
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.categoryBits = 2;
+    static uint8_t voxels[16 * 16 * 16];
+    memset(voxels, 0, sizeof(voxels));
+    for (int32_t y = 0; y < 16; ++y)
+    {
+        voxels[8 + 16 * (y + 16 * 8)] = 1;
+    }
+    m3ShapeId column = NewVoxelChunkShape(world, ground, &sd, voxels, NULL, 1.0f);
+    if (chunk == 2)
+    {
+        m3Body_Enable(world, ground, false);
+    }
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = (m3Pos3){8.5, 8.5, 8.5};
+    def.impulsePerArea = 0.0f;
+    def.voxelCarve = 1.2f;
+    if (chunk == 1)
+    {
+        def.filter.maskBits = ~2ull;
+    }
+    m3World_Explode(world, &def);
+    m3Body_Enable(world, ground, true);
+    const int32_t lo[3] = {0, 0, 0};
+    const int32_t hi[3] = {15, 15, 15};
+    int32_t left = -1;
+    CHECK(m3VoxelChunkShape_ClearBox(world, column, lo, hi, &left) == m3_success,
+          "the column clears");
+    m3DestroyWorld(world);
+    return left;
+}
+
+static void TestCarveSkipsHiddenChunks(void)
+{
+    // The bite at radius 1.2 takes the column's waist, y 7 through 9;
+    // the six cells above it fall away as an island, which the clear
+    // does not count, so seven cells are left.
+    CHECK(ColumnLeftAfterCarve(0) == 7, "the blast carves a chunk its filter sees");
+    CHECK(ColumnLeftAfterCarve(1) == 16, "but not one its filter hides");
+    CHECK(ColumnLeftAfterCarve(2) == 16, "nor one whose body is disabled");
+}
+
 int main(void)
 {
     TestRingAndFalloff();
     TestWakeFilterAndStatics();
     TestOffCenterSpin();
     TestVoxelCarveCoupling();
+    TestCarveSkipsHiddenChunks();
     TestTreeHistoryChangesNothing();
     TestSoftPushAndKickWindow();
     TestHostileDefWall();
