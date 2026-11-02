@@ -1451,6 +1451,11 @@ static uint64_t Refused(const m3World* world)
     return m3World_GetCounters(world).voxelEditsRefused;
 }
 
+static uint64_t Dropped(const m3World* world)
+{
+    return m3World_GetCounters(world).voxelCarvesDropped;
+}
+
 static const m3VoxelChunkData* ChunkOf(const m3World* world, m3ShapeId shape)
 {
     return &world->voxels.voxelData[world->shapes.shapeVoxelIndex[shape.index1 - 1]];
@@ -1518,6 +1523,7 @@ static void TestBoxLimitRefusesEdits(void)
                   "a payload set lands at the limit");
     CHECK(Refused(world) == 3 && ChunkOf(world, slab)->payload[0] == 9,
           "the payload set lands uncounted");
+    CHECK(Dropped(world) == 0, "no refused edit counts as a dropped carve");
 
     // The explosion skips the chunk's carve and keeps its impulses.
     m3ExplosionDef blast = m3DefaultExplosionDef();
@@ -1528,7 +1534,8 @@ static void TestBoxLimitRefusesEdits(void)
     blast.voxelCarve = 1.0f;
     before = *ChunkOf(world, slab);
     CHECK_ACCEPTS(world, m3World_Explode(world, &blast), "a refused carve counts no misuse");
-    CHECK(Refused(world) == 4, "the refused carve is counted");
+    CHECK(Dropped(world) == 1, "the skipped carve counts as dropped");
+    CHECK(Refused(world) == 3, "and not as a refused edit");
     CHECK(memcmp(ChunkOf(world, slab), &before, sizeof(before)) == 0,
           "the refused carve leaves the grid as it was");
     CHECK(m3Body_GetLinearVelocity(world, ball).y > 0.0f, "the blast still pushes the ball");

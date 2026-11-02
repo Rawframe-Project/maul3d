@@ -103,6 +103,7 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.scratchPeak = world->lastScratchPeak;
     counters.scratchCapacity = world->scratch.capacity;
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
+    counters.voxelCarvesDropped = world->voxels.voxelCarvesDropped;
     counters.pairsDropped = world->contacts.pairsDropped;
     counters.heldPushRetakeCount = world->heldPushRetakeCount;
     counters.snapshotBytes = m3World_GetSnapshotSize(world);

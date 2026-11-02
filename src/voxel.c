@@ -402,8 +402,9 @@ bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z)
 
 // An edit lands in the world's staging copy of the chunk first: one whose
 // surface would pass the box limit is refused before anything changes,
-// counted and journaled by no one. Otherwise the copy lands, and the
-// surface, the fracture sweep and the seam coverage follow it.
+// counted in the counter the caller names and journaled by no one.
+// Otherwise the copy lands, and the surface, the fracture sweep and the
+// seam coverage follow it.
 static m3VoxelChunkData* StageChunk(m3World* world, int32_t slot)
 {
     m3VoxelChunkData* stage = world->voxels.voxelStage;
@@ -411,11 +412,12 @@ static m3VoxelChunkData* StageChunk(m3World* world, int32_t slot)
     return stage;
 }
 
-static bool LandStaged(m3World* world, int32_t shape, int32_t slot, bool fracture)
+static bool LandStaged(m3World* world, int32_t shape, int32_t slot, bool fracture,
+                       uint64_t* refusals)
 {
     if (!m3VoxelSurfaceFits(world, world->voxels.voxelStage))
     {
-        world->voxels.voxelEditsRefused += 1;
+        *refusals += 1;
         return false;
     }
     world->voxels.voxelData[slot] = *world->voxels.voxelStage;
@@ -457,7 +459,7 @@ bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int
         chunk->fill[v] = 255;
         chunk->filledCount += 1;
         // No fracture sweep: adding a voxel can only CONNECT islands.
-        if (!LandStaged(world, shape, slot, false))
+        if (!LandStaged(world, shape, slot, false, &world->voxels.voxelEditsRefused))
         {
             return false;
         }
@@ -476,7 +478,7 @@ bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, i
         m3VoxelChunkData* chunk = StageChunk(world, slot);
         ClearCell(chunk, x, y, z);
         chunk->filledCount -= 1;
-        if (!LandStaged(world, shape, slot, true))
+        if (!LandStaged(world, shape, slot, true, &world->voxels.voxelEditsRefused))
         {
             return false;
         }
@@ -509,7 +511,7 @@ int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        if (!LandStaged(world, shape, slot, true))
+        if (!LandStaged(world, shape, slot, true, &world->voxels.voxelEditsRefused))
         {
             return -1;
         }
@@ -584,7 +586,7 @@ int32_t m3VoxelCarveSphereInternal(m3World* world, int32_t shape, m3Vec3 center,
     if (cleared > 0)
     {
         chunk->filledCount -= cleared;
-        if (!LandStaged(world, shape, slot, true))
+        if (!LandStaged(world, shape, slot, true, &world->voxels.voxelCarvesDropped))
         {
             return -1;
         }
