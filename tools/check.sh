@@ -106,8 +106,9 @@ reaches_fuzz() {
 }
 
 source_checks() {
-    step "source, module, length, float environment, snippet and test hygiene rules"
+    step "source, documentation, module, length, float environment, snippet and test hygiene rules"
     python3 tools/check_source.py
+    python3 tools/check_docs.py
     python3 tools/check_modules.py
     python3 tools/check_lengths.py
     python3 tools/check_float_env.py
