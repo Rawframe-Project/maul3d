@@ -842,7 +842,7 @@ static M3_NOINLINE float VehicleGetCompressionWorker(const m3World* world, m3Veh
     return world->vehicles.vehWheelCompression[slot * M3_MAX_VEHICLE_WHEELS + wheel];
 }
 
-float m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
+float m3Vehicle_GetWheelCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel)
 {
     uint64_t env = m3FloatEnvEnter();
     float result = VehicleGetCompressionWorker(world, vehicle, wheel);

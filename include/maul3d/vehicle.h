@@ -153,7 +153,8 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M3_API float m3Vehicle_GetCompression(const m3World* world, m3VehicleId vehicle, int32_t wheel);
+    M3_API float m3Vehicle_GetWheelCompression(const m3World* world, m3VehicleId vehicle,
+                                               int32_t wheel);
 
     /// Whether the wheel's suspension cast found ground last step.
     ///

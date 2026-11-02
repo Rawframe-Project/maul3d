@@ -2015,7 +2015,7 @@ int main(void)
             {
                 m3Vec3 anchor = {(w & 1) != 0 ? 0.8f : -0.8f, -0.25f,
                                  (w & 2) != 0 ? 0.45f : -0.45f};
-                float suspLen = 0.4f - m3Vehicle_GetCompression(scene.world, scene.car, w);
+                float suspLen = 0.4f - m3Vehicle_GetWheelCompression(scene.world, scene.car, w);
                 m3Vec3 local = {anchor.x, anchor.y - suspLen, anchor.z};
                 m3Vec3 world3 = m3RotateVec3(cq, local);
                 Vector3 hub = {(float)cp.x + world3.x, (float)cp.y + world3.y,
