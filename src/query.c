@@ -223,7 +223,8 @@ static int PointInVoxel(const m3World* world, int32_t shape, m3Pos3 point)
     return m3VoxelGet(&world->voxels.voxelData[slot], x, y, z) ? 1 : 0;
 }
 
-static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 point)
+static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 point,
+                                                  m3QueryFilter filter)
 {
     if (world == NULL || !m3FinitePos3(point))
     {
@@ -233,7 +234,12 @@ static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 p
     int32_t maxShape = world->shapes.shapePool.maxIndex;
     for (int32_t s = 0; s < maxShape; ++s)
     {
-        if (world->shapes.shapePool.alive[s] != 0 && PointInShape(world, s, point))
+        // Disabled bodies vanish from queries.
+        if (world->shapes.shapePool.alive[s] != 0 &&
+            world->bodies.bodyEnabled[world->shapes.shapeBody[s]] != 0 &&
+            m3FilterPass(filter.categoryBits, filter.maskBits, world->shapes.shapeCategory[s],
+                         world->shapes.shapeMask[s]) &&
+            PointInShape(world, s, point))
         {
             return (m3ShapeId){s + 1, world->shapes.shapePool.generations[s]};
         }
@@ -241,10 +247,10 @@ static M3_NOINLINE m3ShapeId WorldTestPointWorker(const m3World* world, m3Pos3 p
     return m3_nullShapeId;
 }
 
-m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point)
+m3ShapeId m3World_TestPoint(const m3World* world, m3Pos3 point, m3QueryFilter filter)
 {
     uint64_t env = m3FloatEnvEnter();
-    m3ShapeId result = WorldTestPointWorker(world, point);
+    m3ShapeId result = WorldTestPointWorker(world, point, filter);
     m3FloatEnvLeave(env);
     return result;
 }

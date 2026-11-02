@@ -68,12 +68,14 @@ void m3DestroyShapeInternal(m3World* world, int32_t index);
 void m3RebuildPlaneList(m3World* world);
 
 // A shape as the mass computation reads it, from a world or from bytes a
-// restore checks: its type, geometry, density, hull (NULL for none) and
-// offset, and the next shape on its body (-1 for none).
+// restore checks: its type, geometry, density, hull (NULL for none),
+// offset and whether it can collide, and the next shape on its body (-1
+// for none).
 typedef struct m3MassShape
 {
     uint8_t type;
     uint8_t hasOffset;
+    uint8_t collides;
     m3ShapeGeom geom;
     float density;
     const m3HullData* hull;
@@ -83,6 +85,24 @@ typedef struct m3MassShape
 } m3MassShape;
 
 typedef void (*m3MassShapeRead)(const void* context, int32_t shape, m3MassShape* out);
+
+// Whether a shape with this sensor flag and filter can ever touch another
+// shape through a contact: a sensor never does, and otherwise a shared
+// positive group, or a category and a mask that are both nonzero, lets
+// the pair filter pass it.
+static inline bool m3ShapeCanCollide(uint8_t sensor, uint64_t categoryBits, uint64_t maskBits,
+                                     int32_t groupIndex)
+{
+    return sensor == 0 && (groupIndex > 0 || (categoryBits != 0 && maskBits != 0));
+}
+
+// Whether a dynamic body of this mass and inertia keeps M3_CONTACT_LEVER_LIMIT
+// over the shapes listed from head: its mass times the squared arm of any
+// point of a shape that can collide, over the moment that arm turns it,
+// bounded from above at each vertex, sphere and capsule end. A body whose
+// shapes bear no mass keeps it.
+bool m3ContactLeverFits(m3MassShapeRead read, const void* context, int32_t head,
+                        const m3LeverBody* body, const m3Mat3* inertia, bool massive);
 
 // The mass a dynamic body takes from the shapes listed from head, as the
 // step reads it, its inertia about the center, and whether its shapes bear
@@ -107,8 +127,9 @@ typedef enum m3MassFit
 
 // Whether shape slot's body, if dynamic, would keep every mass-bearing
 // shape at M3_MIN_MASS and M3_MIN_INERTIA or more and its total mass
-// within M3_MASS_LIMIT, and every joint on it within its lever ratio
-// (src/joint_lever.h), with slot given this type, geometry and density
+// within M3_MASS_LIMIT, every joint on it within its lever ratio
+// (src/joint_lever.h) and the body within its contact lever ratio, with
+// slot given this type, geometry and density
 // (src/shape_mass.c). Create, reshape and density changes ask it first;
 // only a dynamic body's mass reaches the solver.
 m3MassFit m3ShapeMassFit(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
@@ -121,12 +142,18 @@ bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3S
 bool m3BodyMassFits(const m3World* world, int32_t body);
 
 // Whether every joint on shape slot's body keeps its lever ratio
-// (src/joint_lever.h) once slot leaves the body. Destroy asks it first.
+// (src/joint_lever.h), and the body its contact lever ratio, once slot
+// leaves the body. Destroy asks it first.
 bool m3ShapeRemovalFits(const m3World* world, int32_t slot);
 
-// Whether every joint on body keeps its lever ratio once the body takes
-// this type and the mass the type gives it. A type change asks it first.
+// Whether every joint on body keeps its lever ratio, and the body its
+// contact lever ratio, once the body takes this type and the mass the type
+// gives it. A type change asks it first.
 bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type);
+
+// Whether shape slot's body keeps its contact lever ratio once slot can
+// collide or not as collides says. A filter change asks it first.
+bool m3ShapeFilterFits(const m3World* world, int32_t slot, bool collides);
 
 // Whether one shape of this type, geometry, density and hull content (NULL
 // for a shape with none) bears no mass or weighs at least M3_MIN_MASS
@@ -142,6 +169,11 @@ m3Result m3ShapeScalarCheck(int32_t op, float value);
 m3Result m3SurfaceVelocityCheck(m3Vec3 velocity);
 
 void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
+// Whether shape slot may take this filter: one under which it starts to
+// collide must keep its body's contact lever ratio. The setter and replay
+// ask it first.
+bool m3ShapeFilterKeepsLevers(const m3World* world, int32_t slot, uint64_t categoryBits,
+                              uint64_t maskBits, int32_t groupIndex);
 void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
                          int32_t groupIndex);
 

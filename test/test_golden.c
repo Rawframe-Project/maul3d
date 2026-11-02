@@ -32,6 +32,8 @@
 // function is called, so the suite still runs against the shared library.
 #include "../src/journal.h"
 #include "../src/state_prefix.h"
+// Only for m3IntegrateRotation, an inline helper, to aim the motors.
+#include "../src/core.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -438,6 +440,7 @@ static void AddSliders(m3World* world, m3BodyId ground)
     six.angularLower[2] = -0.7f;
     six.angularUpper[2] = 0.7f;
     six.motorAxis = 5;
+    six.enableMotor = true;
     six.motorSpeed = 1.0f;
     six.maxMotorEffort = 3.0f;
     NewJoint(world, &six);
@@ -916,7 +919,7 @@ static void TourBodyState(const Tour* t)
     m3Body_SetAngularDamping(t->world, t->crate, 0.2f);
     m3Body_EnableBullet(t->world, t->crate, true);
     m3Body_SetUserData(t->world, t->crate, 0x1234u);
-    m3Body_SetName(t->world, t->crate, "crate");
+    CHECK(m3Body_SetName(t->world, t->crate, "crate", 5) == m3_success, "the tour names the crate");
     m3Body_EnableFastRotation(t->world, t->crate, true);
 }
 
@@ -942,7 +945,8 @@ static void TourShapes(const Tour* t)
           "the crate takes a density");
     m3Shape_EnableHitEvents(t->world, t->crateShape, true);
     m3Shape_EnablePreSolveEvents(t->world, t->deck, true);
-    m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0);
+    CHECK(m3Shape_SetFilter(t->world, t->crateLid, 0x2u, ~0x4ull, 0) == m3_success,
+          "the lid takes a filter");
     m3Shape_SetUserData(t->world, t->crateShape, 0x5678u);
     m3Shape_SetSurfaceVelocity(t->world, t->deck, (m3Vec3){0.5f, 0.0f, 0.0f});
     static const m3MeshSurfaceMaterial paint[2] = {{0.9f, 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}},

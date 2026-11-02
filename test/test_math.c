@@ -11,6 +11,11 @@
 
 #include "maul3d/core_math.h"
 
+// The library's inline math helpers, pinned here with the public math. No
+// internal function is called, so the suite still runs against the
+// shared library.
+#include "../src/core.h"
+
 #include <stdio.h>
 
 static int NearF(float a, float b, float tol)

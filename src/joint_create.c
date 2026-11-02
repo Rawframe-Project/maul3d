@@ -211,6 +211,7 @@ static void GenericFull(const m3GenericJointDef* def, m3JointDef* full)
         full->genericAngularUpper[k] = def->angularUpper[k];
     }
     full->genericMotorAxis = def->motorAxis;
+    full->enableMotor = def->enableMotor;
     full->motorSpeed = def->motorSpeed;
     full->maxMotorEffort = def->maxMotorEffort;
     full->enableConnectedCollision = def->enableConnectedCollision;

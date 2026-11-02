@@ -526,11 +526,13 @@ static void ProbeJoints(void)
             JOINT_FIELD(m3GenericJointDef, linearUpper[0], genericLinearUpper[0], 'f'),
             JOINT_FIELD(m3GenericJointDef, angularLower[1], genericAngularLower[1], 'f'),
             JOINT_FIELD(m3GenericJointDef, angularUpper[1], genericAngularUpper[1], 'f'),
+            JOINT_FIELD(m3GenericJointDef, enableMotor, enableMotor, 'b'),
             MOTOR_FIELDS(m3GenericJointDef),
         };
         m3GenericJointDef jd = m3DefaultGenericJointDef();
         jd.bodyIdA = s_boxA;
         jd.bodyIdB = s_boxB;
+        jd.enableMotor = true;
         ProbeJoint("m3GenericJointDef", &jd, sizeof(jd), BuildGenericJoint, fields, COUNT(fields));
     }
     {

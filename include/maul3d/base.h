@@ -61,7 +61,7 @@ extern "C"
 #define M3_VERSION_MAJOR 0
 // x-release-please-end
 // x-release-please-start-minor
-#define M3_VERSION_MINOR 10
+#define M3_VERSION_MINOR 11
 // x-release-please-end
 // x-release-please-start-patch
 #define M3_VERSION_PATCH 0
@@ -266,6 +266,10 @@ extern "C"
 #define M3_MASS_LIMIT  1.0e20f
 // - the ratio of the effective masses a joint couples;
 #define M3_JOINT_LEVER_LIMIT 1.0e10
+// - a dynamic body's mass times the squared arm, from its center of mass,
+//   of any point of a shape that can collide, over the moment that arm
+//   turns the body, the ratio M3_JOINT_LEVER_LIMIT bounds for an anchor;
+#define M3_CONTACT_LEVER_LIMIT 1.0e6
 // - a character stance's half height and radius, m;
 #define M3_MIN_STANCE   0.05f
 #define M3_STANCE_LIMIT 10.0f
@@ -303,8 +307,10 @@ extern "C"
 #define M3_MAX_HEIGHTFIELD_SIZE      255
 #define M3_MAX_HEIGHTFIELD_MESH_SIZE 32
 // - the merged boxes of a voxel chunk's collision surface, the count a
-//   checkerboard of single voxels needs.
+//   checkerboard of single voxels needs;
 #define M3_MAX_VOXEL_SURFACE_BOXES 2048
+// - the bytes of a body's name.
+#define M3_MAX_BODY_NAME_BYTES 31
     // The soft body, vehicle and drivetrain counts are in their headers.
 
 #ifdef __cplusplus

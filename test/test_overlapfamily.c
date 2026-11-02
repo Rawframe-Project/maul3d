@@ -76,8 +76,9 @@ static void TestCorridorCapsuleAndOrder(void)
     (void)far;
     (void)near;
     m3ShapeId hits[8];
-    int32_t n = m3World_OverlapCapsule(world, (m3Pos3){-10.0, 0.5, 0.0}, (m3Pos3){10.0, 0.5, 0.0},
-                                       0.6f, m3DefaultQueryFilter(), hits, 8);
+    int32_t n =
+        m3World_OverlapCapsule(world, (m3Pos3){0.0, 0.5, 0.0}, (m3Vec3){-10.0f, 0.0f, 0.0f},
+                               (m3Vec3){10.0f, 0.0f, 0.0f}, 0.6f, m3DefaultQueryFilter(), hits, 8);
     // Plane + the two corridor crates; the side crate stays out.
     CHECK(n == 3, "the corridor capsule finds the plane and both ends");
     for (int32_t k = 1; k < n; ++k)
@@ -142,10 +143,11 @@ static void TestVoxelWallExactness(void)
     // A capsule hugging the wall face touches it; the same capsule
     // pulled a meter back does not (exactness, not AABB slop).
     int32_t touching =
-        m3World_OverlapCapsule(world, (m3Pos3){-4.0, 2.0, 0.7}, (m3Pos3){4.0, 2.0, 0.7}, 0.4f,
-                               m3DefaultQueryFilter(), hits, 8);
-    int32_t clear = m3World_OverlapCapsule(world, (m3Pos3){-4.0, 2.0, 2.0}, (m3Pos3){4.0, 2.0, 2.0},
-                                           0.4f, m3DefaultQueryFilter(), hits, 8);
+        m3World_OverlapCapsule(world, (m3Pos3){0.0, 2.0, 0.7}, (m3Vec3){-4.0f, 0.0f, 0.0f},
+                               (m3Vec3){4.0f, 0.0f, 0.0f}, 0.4f, m3DefaultQueryFilter(), hits, 8);
+    int32_t clear =
+        m3World_OverlapCapsule(world, (m3Pos3){0.0, 2.0, 2.0}, (m3Vec3){-4.0f, 0.0f, 0.0f},
+                               (m3Vec3){4.0f, 0.0f, 0.0f}, 0.4f, m3DefaultQueryFilter(), hits, 8);
     CHECK(touching == 1, "the hugging capsule touches the wall");
     CHECK(clear == 0, "a meter of air is a miss, not an AABB hit");
     m3DestroyWorld(world);

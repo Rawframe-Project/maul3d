@@ -127,6 +127,122 @@ static void TestReadingIsPure(void)
     CHECK(hashes[0] == hashes[1], "watching the world never changes it");
 }
 
+static m3Result SetName(m3World* world, m3BodyId body, const char* name)
+{
+    return m3Body_SetName(world, body, name, (int32_t)strlen(name));
+}
+
+static bool NameIs(const m3World* world, m3BodyId body, const char* expected)
+{
+    char name[M3_MAX_BODY_NAME_BYTES];
+    int32_t length = m3Body_GetName(world, body, name, M3_MAX_BODY_NAME_BYTES);
+    return length == (int32_t)strlen(expected) && memcmp(name, expected, (size_t)length) == 0;
+}
+
+static uint64_t Misuse(const m3World* world)
+{
+    return m3World_GetCounters(world).misuseCount;
+}
+
+// A name is UTF-8 of at most M3_MAX_BODY_NAME_BYTES with no zero byte.
+// A name past the bound is refused whole, never cut, so no stored name
+// ends inside a character; every refusal keeps the name it replaces.
+static void TestNameText(void)
+{
+    m3World* world = BuildYard();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId hero = NewBody(world, &bd);
+    CHECK(SetName(world, hero, "keep") == m3_success, "a first name lands");
+    uint64_t misuse = Misuse(world);
+
+    // 30 ASCII letters and a two-byte e acute: 32 bytes, one past the bound.
+    const char* acute = "abcdefghijklmnopqrstuvwxyzabcd\xC3\xA9";
+    CHECK(m3Body_SetName(world, hero, acute, 32) == m3_errorLimit, "32 bytes are past the bound");
+    CHECK(NameIs(world, hero, "keep") && Misuse(world) == misuse + 1,
+          "the long name is refused whole and counts one misuse");
+    CHECK(m3Body_SetName(world, hero, acute + 1, 31) == m3_success,
+          "31 bytes ending in e acute fit");
+    CHECK(NameIs(world, hero, acute + 1), "and read back whole");
+
+    struct
+    {
+        const char* bytes;
+        int32_t count;
+        const char* what;
+    } bad[] = {
+        {"ab\xC3", 3, "a character cut short"},
+        {"\xA9", 1, "a lone continuation byte"},
+        {"\xC0\x80", 2, "an overlong zero"},
+        {"\xE0\x80\xAF", 3, "an overlong slash"},
+        {"\xED\xA0\x80", 3, "a surrogate"},
+        {"\xF4\x90\x80\x80", 4, "a code point past U+10FFFF"},
+        {"\xF5\x80\x80\x80", 4, "a lead byte no character has"},
+        {"a\0b", 3, "a zero byte"},
+    };
+    CHECK(SetName(world, hero, "keep") == m3_success, "the name is reset");
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); ++i)
+    {
+        misuse = Misuse(world);
+        char msg[96];
+        snprintf(msg, sizeof(msg), "%s is refused as invalid", bad[i].what);
+        CHECK(m3Body_SetName(world, hero, bad[i].bytes, bad[i].count) == m3_errorInvalid, msg);
+        snprintf(msg, sizeof(msg), "%s keeps the name and counts one misuse", bad[i].what);
+        CHECK(NameIs(world, hero, "keep") && Misuse(world) == misuse + 1, msg);
+    }
+    CHECK(m3Body_SetName(world, hero, "\xF0\x9F\x8E\xB2 \xE2\x82\xAC", 8) == m3_success,
+          "four and three byte characters land");
+    CHECK(NameIs(world, hero, "\xF0\x9F\x8E\xB2 \xE2\x82\xAC"), "and read back");
+    CHECK(m3Body_SetName(world, hero, NULL, 0) == m3_success, "a NULL name of 0 bytes clears it");
+    CHECK(m3Body_GetName(world, hero, NULL, 0) == 0, "the body is unnamed again");
+
+    misuse = Misuse(world);
+    CHECK(m3Body_SetName(world, hero, NULL, 3) == m3_errorInvalid,
+          "a NULL name with bytes is invalid");
+    CHECK(m3Body_SetName(world, hero, "abc", -1) == m3_errorInvalid, "a negative count is invalid");
+    m3BodyId stale = {99, 7};
+    CHECK(m3Body_SetName(world, stale, "ghost", 5) == m3_errorStale, "a stale id is stale");
+    CHECK(m3Body_SetName(world, m3_nullBodyId, "ghost", 5) == m3_errorInvalid,
+          "the null id is invalid");
+    CHECK(m3Body_SetName(NULL, hero, "ghost", 5) == m3_errorInvalid, "a NULL world is invalid");
+    CHECK(Misuse(world) == misuse + 4, "each refusal on the world counts one misuse");
+    m3DestroyWorld(world);
+}
+
+// The getter writes the name only when it fits whole and gives its
+// length either way, so a caller can measure first.
+static void TestNameReadback(void)
+{
+    m3World* world = BuildYard();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId hero = NewBody(world, &bd);
+    CHECK(SetName(world, hero, "hero") == m3_success, "the hero is named");
+    char out[8];
+    uint64_t misuse = Misuse(world);
+    CHECK(m3Body_GetName(world, hero, NULL, 0) == 4, "a NULL array of capacity 0 measures");
+    memset(out, 0x55, sizeof(out));
+    CHECK(m3Body_GetName(world, hero, out, 3) == 4, "a short capacity still gives the length");
+    CHECK(out[0] == 0 && out[1] == 0 && out[2] == 0 && out[3] == 0x55,
+          "and zeroes the array over its capacity only");
+    memset(out, 0x55, sizeof(out));
+    CHECK(m3Body_GetName(world, hero, out, 4) == 4 && memcmp(out, "hero", 4) == 0 && out[4] == 0x55,
+          "an exact capacity takes the name with no terminator");
+    CHECK(Misuse(world) == misuse, "measuring and reading count no misuse");
+
+    memset(out, 0x55, sizeof(out));
+    m3BodyId stale = {99, 7};
+    CHECK(m3Body_GetName(world, stale, out, 8) == 0 && out[0] == 0 && out[7] == 0,
+          "a stale id reads 0 and zeroes the array");
+    memset(out, 0x55, sizeof(out));
+    CHECK(m3Body_GetName(NULL, hero, out, 8) == 0 && out[0] == 0 && out[7] == 0,
+          "a NULL world reads 0 and zeroes the array");
+    CHECK(m3Body_GetName(world, hero, NULL, 4) == 0, "a NULL array with a capacity is refused");
+    CHECK(m3Body_GetName(world, hero, out, -1) == 0, "a negative capacity is refused");
+    CHECK(Misuse(world) == misuse + 3, "the stale id and both bad arrays count one misuse each");
+    m3DestroyWorld(world);
+}
+
 static void TestNamesAndHooks(void)
 {
     static uint8_t journal[65536];
@@ -137,29 +253,24 @@ static void TestNamesAndHooks(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){5.0, 1.0, 0.0};
     m3BodyId hero = NewBody(world, &bd);
-    CHECK(m3Body_GetName(world, hero)[0] == 0, "a new body is unnamed");
-    m3Body_SetName(world, hero, "the crate of destiny");
-    CHECK(strcmp(m3Body_GetName(world, hero), "the crate of destiny") == 0, "the name reads back");
-    m3Body_SetName(world, hero, "a name far too long to fit inside thirty one bytes of storage");
-    CHECK(strlen(m3Body_GetName(world, hero)) == 31, "long names truncate to the cap");
-    m3Body_SetName(world, hero, "hero");
+    CHECK(m3Body_GetName(world, hero, NULL, 0) == 0, "a new body is unnamed");
+    CHECK(SetName(world, hero, "the crate of destiny") == m3_success, "the name lands");
+    CHECK(NameIs(world, hero, "the crate of destiny"), "the name reads back");
+    CHECK(SetName(world, hero, "hero") == m3_success, "a rename lands");
     uint64_t before = m3World_Hash(world);
-    m3Body_SetName(world, hero, "renamed");
+    CHECK(SetName(world, hero, "renamed") == m3_success, "a second rename lands");
     CHECK(m3World_Hash(world) == before, "a name is never a hash input");
     int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the naming session records");
     m3World* twin = BuildYard();
     CHECK(ReplayJournal(twin, journal, bytes), "the naming session replays");
-    CHECK(strcmp(m3Body_GetName(twin, hero), "renamed") == 0, "the replayed name lands");
+    CHECK(NameIs(twin, hero, "renamed"), "the replayed name lands");
     m3DestroyWorld(twin);
     int64_t snapBytes = Snapshot(world, snap, (int32_t)sizeof(snap));
     CHECK(snapBytes > 0, "the named snapshot fits");
-    m3Body_SetName(world, hero, "clobbered");
+    CHECK(SetName(world, hero, "clobbered") == m3_success, "the name is clobbered");
     CHECK(Restore(world, snap, snapBytes), "the restore lands");
-    CHECK(strcmp(m3Body_GetName(world, hero), "renamed") == 0, "the snapshot carries the name");
-    m3BodyId stale = {99, 7};
-    m3Body_SetName(world, stale, "ghost");
-    CHECK(m3Body_GetName(world, stale)[0] == 0, "a stale id stays nameless");
+    CHECK(NameIs(world, hero, "renamed"), "the snapshot carries the name");
     m3DestroyWorld(world);
 }
 
@@ -176,8 +287,8 @@ static void TestRestoreRefusesBrokenNameSlots(void)
     bd.type = m3_dynamicBody;
     bd.position = (m3Pos3){5.0, 1.0, 0.0};
     m3BodyId hero = NewBody(world, &bd);
-    m3Body_SetName(world, hero, "a name of exactly thirty one b!");
-    CHECK(strlen(m3Body_GetName(world, hero)) == 31, "a full slot holds 31 bytes of text");
+    CHECK(SetName(world, hero, "a name of exactly thirty one b!") == m3_success,
+          "a full slot holds 31 bytes of text");
     int64_t size = Snapshot(world, clean, (int64_t)sizeof(clean));
     CHECK(size > 0, "the named world is snapshotted");
     CHECK(Restore(world, clean, size), "a full name slot restores");
@@ -195,7 +306,7 @@ static void TestRestoreRefusesBrokenNameSlots(void)
     CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
           "and the world is untouched");
 
-    m3Body_SetName(world, hero, "hero");
+    CHECK(SetName(world, hero, "hero") == m3_success, "the hero is renamed");
     CHECK(Snapshot(world, clean, size) == size, "the short name is snapshotted");
     memcpy(poisoned, clean, (size_t)size);
     poisoned[at + 20] = 'x';
@@ -203,7 +314,14 @@ static void TestRestoreRefusesBrokenNameSlots(void)
           "a name slot with a byte after its terminator is refused");
     CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
           "and the world is untouched again");
-    CHECK(strcmp(m3Body_GetName(world, hero), "hero") == 0, "the name is the one it was");
+
+    memcpy(poisoned, clean, (size_t)size);
+    poisoned[at + 1] = 0xC3u;
+    CHECK(m3World_Restore(world, poisoned, size) == m3_errorFormat,
+          "a name slot that is not valid UTF-8 is refused");
+    CHECK(Snapshot(world, after, size) == size && memcmp(after, clean, (size_t)size) == 0,
+          "and the world is untouched once more");
+    CHECK(NameIs(world, hero, "hero"), "the name is the one it was");
     m3DestroyWorld(world);
 }
 
@@ -349,6 +467,8 @@ int main(void)
 {
     TestCountsMatchTheScene();
     TestReadingIsPure();
+    TestNameText();
+    TestNameReadback();
     TestNamesAndHooks();
     TestRestoreRefusesBrokenNameSlots();
     TestContactReadback();

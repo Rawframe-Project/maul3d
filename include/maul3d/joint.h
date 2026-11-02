@@ -157,7 +157,8 @@ extern "C"
     } m3DistanceJointDef;
 
     /// A 6-DOF joint: each axis of the joint frame is locked, free or
-    /// limited, and one motor may drive a free or limited axis. Limits are
+    /// limited, and one motor may drive a free or limited axis while
+    /// enableMotor is on, as every motor follows its switch. Limits are
     /// meters (linear) and radians (angular), ordered on a limited axis.
     /// At most ONE angular axis may be limited, and the other two must be
     /// BOTH locked (a hinge with range) or BOTH free (a twist-limited
@@ -180,6 +181,7 @@ extern "C"
         /// 0 to 2 for a linear axis, 3 to 5 for an angular one, or
         /// M3_GENERIC_NO_MOTOR, the default.
         uint8_t motorAxis;
+        bool enableMotor;     // drives motorAxis while on
         float motorSpeed;     // m/s or rad/s by axis
         float maxMotorEffort; // the motor's force or torque budget
         bool enableConnectedCollision;

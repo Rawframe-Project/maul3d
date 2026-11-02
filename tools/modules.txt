@@ -51,7 +51,7 @@ journal_replay_joints: body_state joint journal journal_replay world_internal
 journal_replay_shapes: body_state journal journal_replay quickhull shape shape_state snapshot_walk voxel world_internal
 manifold: distance shape_state world_internal
 manifold_mesh: manifold shape_state triangle_contact voxel world_internal
-math_functions: fpenv
+math_functions: core fpenv
 mesh_bvh: world_internal
 misuse: world_internal
 motor_joint_params: fpenv joint joint_solver journal misuse world_internal
@@ -99,5 +99,5 @@ world: body_state cpu fpenv journal misuse snapshot_walk step_scratch world_inte
 world_events: fpenv journal misuse world world_internal
 world_hash: body fpenv joint_solver misuse world world_internal
 world_internal: allocator dynamic_tree
-world_state: allocator manifold world_internal
+world_state: allocator body_state manifold world_internal
 world_stats: fpenv misuse world_internal
