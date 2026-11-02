@@ -79,12 +79,21 @@ static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
     return geom->v; // sphere center
 }
 
+// Whether the blast touches a shape at all: its body is enabled and the
+// blast's filter lets the shape through.
+static bool BlastTouches(const m3World* world, const m3ExplosionDef* def, int32_t shape)
+{
+    return world->bodies.bodyEnabled[world->shapes.shapeBody[shape]] != 0 &&
+           m3FilterPass(def->filter.categoryBits, def->filter.maskBits,
+                        world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]);
+}
+
 // A voxel chunk's share of the blast. The carve couples the blast to
 // destruction: one call bites the chunk, the fracture sweep frees
 // islands, and the fragment events carry the rest to the host.
 static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
 {
-    if (def->voxelCarve > 0.0f)
+    if (def->voxelCarve > 0.0f && BlastTouches(world, def, shape))
     {
         m3Transform vxf = m3ShapeWorldTransform(world, shape);
         m3Vec3 vlocal = m3InvRotateVec3(vxf.q, (m3Vec3){(float)(def->position.x - vxf.p.x),
@@ -97,18 +106,12 @@ static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
 }
 
 // A convex shape's share of the blast: an impulse on its body when the
-// body is dynamic, the filter lets the blast through and the shape is in
-// reach.
+// body is dynamic, the blast touches the shape and the shape is in reach.
 static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
 {
     int32_t body = world->shapes.shapeBody[shape];
     if (world->bodies.types[body] != (uint8_t)m3_dynamicBody ||
-        world->bodies.bodyEnabled[body] == 0 || world->bodies.invMass[body] <= 0.0f)
-    {
-        return;
-    }
-    if (!m3FilterPass(def->filter.categoryBits, def->filter.maskBits,
-                      world->shapes.shapeCategory[shape], world->shapes.shapeMask[shape]))
+        world->bodies.invMass[body] <= 0.0f || !BlastTouches(world, def, shape))
     {
         return;
     }
