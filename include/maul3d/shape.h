@@ -399,9 +399,16 @@ extern "C"
 
     /// The collision filter, changed at runtime: shapes it touched wake
     /// and every pair is filtered again on the next step. Journaled.
-    /// GetFilter's out pointers may be NULL.
-    M3_API void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits,
-                                  uint64_t maskBits, int32_t groupIndex);
+    /// Returns m3_success; m3_errorLimit when the filter lets a shape of a
+    /// dynamic body collide that did not, and its reach would pass the
+    /// body's M3_CONTACT_LEVER_LIMIT, which changes nothing and counts no
+    /// misuse; m3_errorStale for a stale id, m3_errorInvalid for the null
+    /// id or a NULL world, and m3_errorBusy inside a step callback, which
+    /// change nothing and count one misuse. GetFilter's out pointers may
+    /// be NULL.
+    M3_NODISCARD M3_API m3Result m3Shape_SetFilter(m3World* world, m3ShapeId shape,
+                                                   uint64_t categoryBits, uint64_t maskBits,
+                                                   int32_t groupIndex);
     M3_API void m3Shape_GetFilter(const m3World* world, m3ShapeId shape, uint64_t* categoryBitsOut,
                                   uint64_t* maskBitsOut, int32_t* groupIndexOut);
 

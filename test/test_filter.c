@@ -198,7 +198,8 @@ static void TestRuntimeFilterChange(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m3Body_IsAwake(world, ball), "the ball rests and sleeps");
-    m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0);
+    CHECK(m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0) == m3_success,
+          "the filter changes");
     uint64_t category = 0;
     uint64_t mask = 0;
     int32_t group = -1;

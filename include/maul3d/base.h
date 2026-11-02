@@ -266,6 +266,10 @@ extern "C"
 #define M3_MASS_LIMIT  1.0e20f
 // - the ratio of the effective masses a joint couples;
 #define M3_JOINT_LEVER_LIMIT 1.0e10
+// - a dynamic body's mass times the squared arm, from its center of mass,
+//   of any point of a shape that can collide, over the moment that arm
+//   turns the body, the ratio M3_JOINT_LEVER_LIMIT bounds for an anchor;
+#define M3_CONTACT_LEVER_LIMIT 1.0e6
 // - a character stance's half height and radius, m;
 #define M3_MIN_STANCE   0.05f
 #define M3_STANCE_LIMIT 10.0f
