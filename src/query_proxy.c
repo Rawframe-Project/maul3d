@@ -290,24 +290,22 @@ int32_t m3World_OverlapHull(const m3World* world, m3Pos3 base, const m3Vec3* poi
     return result;
 }
 
-static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos3 p1, m3Pos3 p2,
-                                                     float radius, m3QueryFilter filter,
-                                                     m3ShapeId* idsOut, int32_t capacity)
+static M3_NOINLINE int32_t WorldOverlapCapsuleWorker(const m3World* world, m3Pos3 center,
+                                                     m3Vec3 point1, m3Vec3 point2, float radius,
+                                                     m3QueryFilter filter, m3ShapeId* idsOut,
+                                                     int32_t capacity)
 {
-    if (!m3FinitePos3(p1) || !m3FinitePos3(p2))
-    {
-        return m3RefuseList(world, idsOut, capacity, sizeof(*idsOut));
-    }
-    m3Vec3 pts[2] = {{0.0f, 0.0f, 0.0f},
-                     {(float)(p2.x - p1.x), (float)(p2.y - p1.y), (float)(p2.z - p1.z)}};
-    return m3World_OverlapHull(world, p1, pts, 2, radius, filter, idsOut, capacity);
+    m3Vec3 points[2] = {point1, point2};
+    return WorldOverlapHullWorker(world, center, points, 2, radius, filter, idsOut, capacity);
 }
 
-int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 p1, m3Pos3 p2, float radius,
-                               m3QueryFilter filter, m3ShapeId* idsOut, int32_t capacity)
+int32_t m3World_OverlapCapsule(const m3World* world, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
+                               float radius, m3QueryFilter filter, m3ShapeId* idsOut,
+                               int32_t capacity)
 {
     uint64_t env = m3FloatEnvEnter();
-    int32_t result = WorldOverlapCapsuleWorker(world, p1, p2, radius, filter, idsOut, capacity);
+    int32_t result =
+        WorldOverlapCapsuleWorker(world, center, point1, point2, radius, filter, idsOut, capacity);
     m3FloatEnvLeave(env);
     return result;
 }

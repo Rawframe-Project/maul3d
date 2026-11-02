@@ -280,9 +280,10 @@ static bool SweepCallback(int32_t shape, void* context)
 // every step would erase its integration while its velocity stayed.
 static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 {
-    m3Vec3 n = world->shapes.shapeGeom[planeShape].v;
+    double planeOffset;
+    m3Vec3 n = m3PlaneWorld(world, planeShape, &planeOffset);
     float offset =
-        world->shapes.shapeGeom[planeShape].s -
+        (float)planeOffset -
         (float)((double)n.x * sw->base.x + (double)n.y * sw->base.y + (double)n.z * sw->base.z);
     m3Vec3 scratch[2];
     m3DistanceProxy proxy = m3MakeShapeProxy(world, sw->shape, scratch);
@@ -338,7 +339,8 @@ static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
     return motion > 0.5f * world->bodies.minExtents[body];
 }
 
-// Sweeps one shape of the fast body against the tree and the planes.
+// Sweeps one shape of the fast body against the tree and the planes it
+// meets.
 static void SweepShape(Sweeper* sw, int32_t shape)
 {
     m3World* world = sw->world;
@@ -357,7 +359,10 @@ static void SweepShape(Sweeper* sw, int32_t shape)
     m3TreeQueryMask(&world->broadphase.tree, lo, hi, targets, SweepCallback, sw);
     for (int32_t k = 0; k < world->shapes.planeCount; ++k)
     {
-        SweepPlane(world, sw, world->shapes.planeShapes[k]);
+        if (SweepsAgainst(sw, world->shapes.planeShapes[k]))
+        {
+            SweepPlane(world, sw, world->shapes.planeShapes[k]);
+        }
     }
 }
 

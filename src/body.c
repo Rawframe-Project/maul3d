@@ -785,56 +785,82 @@ bool m3Body_IsFastRotationEnabled(const m3World* world, m3BodyId body)
            (world->bodies.bodyLocks[index] & M3_LOCKS_ALLOW_FAST_ROTATION) != 0;
 }
 
-void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name)
+void m3SetBodyNameInternal(m3World* world, int32_t index, const char* name, int32_t byteCount)
 {
     char* slot = world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY;
     memset(slot, 0, M3_BODY_NAME_CAPACITY);
-    if (name != NULL)
+    if (byteCount > 0)
     {
-        // Truncation is silent and the terminator is forced: names
-        // are debug labels, not data.
-        for (int32_t i = 0; i < M3_BODY_NAME_CAPACITY - 1 && name[i] != 0; ++i)
-        {
-            slot[i] = name[i];
-        }
+        memcpy(slot, name, (size_t)byteCount);
     }
 }
 
-void m3Body_SetName(m3World* world, m3BodyId body, const char* name)
+m3Result m3Body_SetName(m3World* world, m3BodyId body, const char* name, int32_t byteCount)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t index;
-    if (!m3ResolveBody(world, body, &index))
+    int32_t index = m3BodySlot(world, body);
+    if (index < 0)
     {
-        return;
+        return m3Refuse(world, m3MissingId(world, body.index1));
+    }
+    if (byteCount < 0 || (name == NULL && byteCount > 0))
+    {
+        return m3Refuse(world, m3_errorInvalid);
+    }
+    if (byteCount > M3_MAX_BODY_NAME_BYTES)
+    {
+        return m3Refuse(world, m3_errorLimit); // before reading a byte of a long name
+    }
+    if (!m3BodyNameValid((const uint8_t*)name, byteCount))
+    {
+        return m3Refuse(world, m3_errorInvalid);
     }
     if (world->recorder.journalActive != 0)
     {
         m3OpSetBodyName record;
         memset(&record, 0, sizeof(record));
         record.id = body;
-        if (name != NULL)
+        if (byteCount > 0)
         {
-            for (int32_t i = 0; i < M3_BODY_NAME_CAPACITY - 1 && name[i] != 0; ++i)
-            {
-                record.name[i] = name[i];
-            }
+            memcpy(record.name, name, (size_t)byteCount);
         }
         m3JournalRecord(world, m3_opSetBodyName, &record, (int32_t)sizeof(record));
     }
-    m3SetBodyNameInternal(world, index, name);
+    m3SetBodyNameInternal(world, index, name, byteCount);
+    return m3_success;
 }
 
-const char* m3Body_GetName(const m3World* world, m3BodyId body)
+int32_t m3Body_GetName(const m3World* world, m3BodyId body, char* nameOut, int32_t capacity)
 {
+    if (world == NULL || !m3ListOutputValid(nameOut, capacity))
+    {
+        return m3RefuseList(world, nameOut, capacity, 1);
+    }
     int32_t index;
-    return m3ResolveBody(world, body, &index)
-               ? world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY
-               : "";
+    if (!m3ResolveBody(world, body, &index))
+    {
+        m3ClearListOutput(nameOut, capacity, 1);
+        return 0;
+    }
+    const char* slot = world->bodies.bodyNames + (size_t)index * M3_BODY_NAME_CAPACITY;
+    int32_t length = 0;
+    while (length < M3_MAX_BODY_NAME_BYTES && slot[length] != 0)
+    {
+        length += 1;
+    }
+    if (length > capacity)
+    {
+        m3ClearListOutput(nameOut, capacity, 1); // never a cut inside a character
+        return length;
+    }
+    if (length > 0)
+    {
+        memcpy(nameOut, slot, (size_t)length);
+    }
+    return length;
 }
 
 void m3Body_SetUserData(m3World* world, m3BodyId body, uint64_t userData)

@@ -311,9 +311,10 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
     {
         return; // filtered out
     }
-    m3Vec3 n = world->shapes.shapeGeom[shape].v;
+    double planeOffset;
+    m3Vec3 n = m3PlaneWorld(world, shape, &planeOffset);
     float offset =
-        world->shapes.shapeGeom[shape].s -
+        (float)planeOffset -
         (float)((double)n.x * ctx->base.x + (double)n.y * ctx->base.y + (double)n.z * ctx->base.z);
     const float linearSlop = 0.005f;
     // sep below is measured to the cast shape's SKIN (the radius is

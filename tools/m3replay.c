@@ -725,10 +725,16 @@ static int DiffViews(const m3ReplayView* va, const m3ReplayView* vb)
     ScrubSeek(&sa, hi);
     ScrubSeek(&sb, hi);
     m3BodyDiff rows[10];
-    int32_t written = 0;
-    int32_t total = m3World_Compare(sa.world, sb.world, rows, 10, &written);
+    int32_t total = 0;
+    if (m3World_Compare(sa.world, sb.world, rows, 10, &total) != m3_success)
+    {
+        fprintf(stderr, "m3replay: the worlds could not be compared\n");
+        ScrubFree(&sa);
+        ScrubFree(&sb);
+        return 1;
+    }
     printf("m3replay: %d differing bodies, worst first:\n", total);
-    for (int32_t i = 0; i < written; ++i)
+    for (int32_t i = 0; i < total && i < 10; ++i)
     {
         printf("  body %4d  pos %.6f  rot %.6f  vel %.6f%s%s\n", rows[i].bodyId.index1,
                (double)rows[i].positionError, (double)rows[i].rotationError,
@@ -829,9 +835,8 @@ static int DiffTest(void)
     ScrubSeek(&sa, hi);
     ScrubSeek(&sc, hi);
     m3BodyDiff rows[4];
-    int32_t written = 0;
-    int32_t total = m3World_Compare(sa.world, sc.world, rows, 4, &written);
-    if (total <= 0 || written <= 0)
+    int32_t total = 0;
+    if (m3World_Compare(sa.world, sc.world, rows, 4, &total) != m3_success || total <= 0)
     {
         fprintf(stderr, "difftest: no body diff at the divergent step\n");
         return 1;

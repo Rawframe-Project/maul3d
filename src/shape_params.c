@@ -507,18 +507,34 @@ void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, ui
     world->shapes.shapeGroup[slot] = groupIndex;
 }
 
-static M3_NOINLINE void ShapeSetFilterWorker(m3World* world, m3ShapeId shape, uint64_t categoryBits,
-                                             uint64_t maskBits, int32_t groupIndex)
+bool m3ShapeFilterKeepsLevers(const m3World* world, int32_t slot, uint64_t categoryBits,
+                              uint64_t maskBits, int32_t groupIndex)
+{
+    uint8_t sensor = world->shapes.shapeSensor[slot];
+    bool collides = m3ShapeCanCollide(sensor, categoryBits, maskBits, groupIndex);
+    bool collided =
+        m3ShapeCanCollide(sensor, world->shapes.shapeCategory[slot], world->shapes.shapeMask[slot],
+                          world->shapes.shapeGroup[slot]);
+    // Only a shape that starts to collide can lengthen its body's reach.
+    return !collides || collided || m3ShapeFilterFits(world, slot, true);
+}
+
+static M3_NOINLINE m3Result ShapeSetFilterWorker(m3World* world, m3ShapeId shape,
+                                                 uint64_t categoryBits, uint64_t maskBits,
+                                                 int32_t groupIndex)
 {
     if (m3WorldBusy(world))
     {
-        m3Refuse(world, m3_errorBusy);
-        return;
+        return m3Refuse(world, m3_errorBusy);
     }
-    int32_t slot;
-    if (!ResolveShape(world, shape, &slot))
+    int32_t slot = m3ShapeSlot(world, shape);
+    if (slot < 0)
     {
-        return;
+        return m3Refuse(world, m3MissingId(world, shape.index1));
+    }
+    if (!m3ShapeFilterKeepsLevers(world, slot, categoryBits, maskBits, groupIndex))
+    {
+        return m3_errorLimit; // the body's masses decide it: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -531,14 +547,16 @@ static M3_NOINLINE void ShapeSetFilterWorker(m3World* world, m3ShapeId shape, ui
         m3JournalRecord(world, m3_opSetFilter, &record, (int32_t)sizeof(record));
     }
     m3SetFilterInternal(world, slot, categoryBits, maskBits, groupIndex);
+    return m3_success;
 }
 
-void m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits, uint64_t maskBits,
-                       int32_t groupIndex)
+m3Result m3Shape_SetFilter(m3World* world, m3ShapeId shape, uint64_t categoryBits,
+                           uint64_t maskBits, int32_t groupIndex)
 {
     uint64_t env = m3FloatEnvEnter();
-    ShapeSetFilterWorker(world, shape, categoryBits, maskBits, groupIndex);
+    m3Result result = ShapeSetFilterWorker(world, shape, categoryBits, maskBits, groupIndex);
     m3FloatEnvLeave(env);
+    return result;
 }
 
 void m3Shape_GetFilter(const m3World* world, m3ShapeId shape, uint64_t* categoryBitsOut,

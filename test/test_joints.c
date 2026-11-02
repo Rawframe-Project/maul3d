@@ -11,6 +11,11 @@
 #include "maul3d/joint.h"
 #include "maul3d/shape.h"
 
+// Only for m3IntegrateRotation, an inline helper, in the finite
+// differences: no internal function is called, so the suite still runs
+// against the shared library.
+#include "../src/core.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1288,6 +1293,7 @@ static void TestGenericAsHingeWithMotorAndLimits(void)
     jd.genericAngularLower[2] = -0.5f;
     jd.genericAngularUpper[2] = 1.0f;
     jd.genericMotorAxis = 5; // angular z
+    jd.enableMotor = true;
     jd.motorSpeed = 2.0f;
     jd.maxMotorEffort = 50.0f;
     CHECK(m3Joint_IsValid(world, NewJoint(world, &jd)), "the generic hinge creates");
@@ -1299,6 +1305,59 @@ static void TestGenericAsHingeWithMotorAndLimits(void)
     float angle = 2.0f * atan2f(q.z, q.w);
     CHECK(angle > 0.93f && angle < 1.07f, "the motor parks the door at the upper stop");
     CHECK(q.x * q.x + q.y * q.y < 0.001f, "the locked axes admit no wobble");
+    m3DestroyWorld(world);
+}
+
+static void StepFor(m3World* world, int32_t steps)
+{
+    for (int32_t i = 0; i < steps; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+}
+
+// The generic motor follows its switch, as every motor does: a motor axis
+// alone drives nothing, the switch turns it on and off at run time, and
+// m3Joint_IsMotorEnabled reads what it does.
+static void TestGenericMotorFollowsItsSwitch(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    m3BodyId wheel = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, wheel, &sd, &ball);
+    m3JointDef jd = GenericBase(ground, wheel);
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        jd.genericAngular[k] = m3_axisLocked;
+    }
+    jd.genericAngular[2] = m3_axisFree;
+    jd.genericMotorAxis = 5; // angular z
+    jd.motorSpeed = 3.0f;
+    jd.maxMotorEffort = 100.0f;
+    m3JointId joint = NewJoint(world, &jd);
+    CHECK(m3Joint_IsValid(world, joint) && !m3Joint_IsMotorEnabled(world, joint),
+          "a generic joint with a motor axis and its switch off creates");
+    StepFor(world, 30);
+    CHECK(m3Body_GetAngularVelocity(world, wheel).z == 0.0f, "the motor axis alone drives nothing");
+    m3Joint_EnableMotor(world, joint, true);
+    StepFor(world, 30);
+    float driven = m3Body_GetAngularVelocity(world, wheel).z;
+    CHECK(m3Joint_IsMotorEnabled(world, joint) && driven > 2.9f && driven < 3.1f,
+          "switched on, the motor drives its axis");
+    m3Joint_EnableMotor(world, joint, false);
+    m3Body_SetAngularVelocity(world, wheel, (m3Vec3){0.0f, 0.0f, 0.0f});
+    StepFor(world, 30);
+    CHECK(!m3Joint_IsMotorEnabled(world, joint) &&
+              m3Body_GetAngularVelocity(world, wheel).z == 0.0f,
+          "switched off, it stops driving");
     m3DestroyWorld(world);
 }
 
@@ -1583,6 +1642,7 @@ int main(void)
 {
     TestGenericAsSpherical();
     TestGenericAsHingeWithMotorAndLimits();
+    TestGenericMotorFollowsItsSwitch();
     TestGenericAsSlider();
     TestGenericContracts();
     TestWeldActsAsOneBody();

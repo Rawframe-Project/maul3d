@@ -73,3 +73,81 @@ void m3WakeRegionAabb(m3World* world, const double lo[3], const double hi[3])
         }
     }
 }
+
+// The lead byte's range of second bytes and its count of bytes in all,
+// after Unicode's table of well-formed UTF-8 byte sequences: overlong
+// forms, surrogates and code points past U+10FFFF are refused.
+static int32_t Utf8Lead(uint8_t lead, uint8_t* lowOut, uint8_t* highOut)
+{
+    *lowOut = 0x80u;
+    *highOut = 0xBFu;
+    if (lead >= 0xC2u && lead <= 0xDFu)
+    {
+        return 2;
+    }
+    if (lead >= 0xE0u && lead <= 0xEFu)
+    {
+        *lowOut = lead == 0xE0u ? 0xA0u : 0x80u;
+        *highOut = lead == 0xEDu ? 0x9Fu : 0xBFu;
+        return 3;
+    }
+    if (lead >= 0xF0u && lead <= 0xF4u)
+    {
+        *lowOut = lead == 0xF0u ? 0x90u : 0x80u;
+        *highOut = lead == 0xF4u ? 0x8Fu : 0xBFu;
+        return 4;
+    }
+    return 0;
+}
+
+bool m3BodyNameValid(const uint8_t* text, int32_t byteCount)
+{
+    int32_t at = 0;
+    while (at < byteCount)
+    {
+        uint8_t lead = text[at];
+        if (lead == 0)
+        {
+            return false;
+        }
+        if (lead < 0x80u)
+        {
+            at += 1;
+            continue;
+        }
+        uint8_t low;
+        uint8_t high;
+        int32_t length = Utf8Lead(lead, &low, &high);
+        if (length == 0 || length > byteCount - at || text[at + 1] < low || text[at + 1] > high)
+        {
+            return false;
+        }
+        for (int32_t k = 2; k < length; ++k)
+        {
+            if (text[at + k] < 0x80u || text[at + k] > 0xBFu)
+            {
+                return false;
+            }
+        }
+        at += length;
+    }
+    return true;
+}
+
+bool m3BodyNameSlotValid(const uint8_t* slot, int32_t* lengthOut)
+{
+    int32_t length = 0;
+    while (length < M3_BODY_NAME_CAPACITY && slot[length] != 0)
+    {
+        length += 1;
+    }
+    *lengthOut = length;
+    for (int32_t i = length; i < M3_BODY_NAME_CAPACITY; ++i)
+    {
+        if (slot[i] != 0)
+        {
+            return false;
+        }
+    }
+    return length < M3_BODY_NAME_CAPACITY && m3BodyNameValid(slot, length);
+}

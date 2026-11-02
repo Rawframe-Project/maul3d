@@ -308,11 +308,12 @@ static M3_NOINLINE int32_t WorldCollideMoverWorker(const m3World* world, m3Pos3 
         {
             continue;
         }
-        m3Vec3 n = world->shapes.shapeGeom[s].v;
-        float off = world->shapes.shapeGeom[s].s;
+        double off;
+        m3Vec3 n = m3PlaneWorld(world, s, &off);
         // Closest capsule feature to the half-space.
         float dCenter =
-            (float)((double)n.x * center.x + (double)n.y * center.y + (double)n.z * center.z) - off;
+            (float)((double)n.x * center.x + (double)n.y * center.y + (double)n.z * center.z) -
+            (float)off;
         float gap = dCenter - halfHeight * (n.y > 0.0f ? n.y : -n.y) - radius;
         if (gap > skin)
         {

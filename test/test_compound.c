@@ -301,12 +301,79 @@ static void TestHostileOffsets(void)
     m3DestroyWorld(world);
 }
 
+static void TestPlaneSitsWithItsBody(void)
+{
+    // A plane is placed like any shape: its body sits at y = 2 turned a
+    // quarter about z, which carries the plane's +x normal to +y, and
+    // the shape rides 1 m out along that normal, so the floor at offset
+    // 1 lies at y = 4. A ball, a lying capsule and a box come to rest on
+    // it, a fast ball stops on it, and the ray, the sphere cast and the mover
+    // meet it there.
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 16;
+    m3World* world = NewWorld(&def);
+    float s = sinf(0.25f * M3_PI);
+    float c = cosf(0.25f * M3_PI);
+    m3BodyDef gd = m3DefaultBodyDef();
+    gd.position = (m3Pos3){0.0, 2.0, 0.0};
+    gd.rotation = (m3Quat){0.0f, 0.0f, s, c};
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef pd = m3DefaultShapeDef();
+    pd.localPosition = (m3Vec3){1.0f, 0.0f, 0.0f};
+    m3Plane fl = {{1.0f, 0.0f, 0.0f}, 1.0f};
+    NewPlaneShape(world, ground, &pd, &fl);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3ShapeDef sd = m3DefaultShapeDef();
+    bd.position = (m3Pos3){-4.0, 6.0, 0.0};
+    m3BodyId ball = NewBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    bd.position = (m3Pos3){0.0, 6.0, 0.0};
+    m3BodyId lying = NewBody(world, &bd);
+    m3Capsule cap = {{-0.5f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}, 0.3f};
+    NewCapsuleShape(world, lying, &sd, &cap);
+    bd.position = (m3Pos3){4.0, 6.0, 0.0};
+    m3BodyId box = NewBody(world, &bd);
+    NewBoxShape(world, box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    bd.position = (m3Pos3){8.0, 30.0, 0.0};
+    bd.linearVelocity = (m3Vec3){0.0f, -300.0f, 0.0f};
+    m3BodyId fast = NewBody(world, &bd);
+    m3Sphere bullet = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    NewSphereShape(world, fast, &sd, &bullet);
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps");
+    }
+    CHECK(fabs(m3Body_GetPosition(world, ball).y - 4.5) < 0.03, "the ball rests on the floor");
+    CHECK(fabs(m3Body_GetPosition(world, lying).y - 4.3) < 0.03, "so does the lying capsule");
+    CHECK(fabs(m3Body_GetPosition(world, box).y - 4.4) < 0.03, "and the box");
+    CHECK(fabs(m3Body_GetPosition(world, fast).y - 4.1) < 0.03, "the fast ball stops on it");
+    m3CastHit hit = {0};
+    bool down = m3World_CastRayClosest(world, (m3Pos3){-8.0, 10.0, 0.0},
+                                       (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+    CHECK(down && fabs(hit.point.y - 4.0) < 1.0e-4, "the ray meets the floor at y = 4");
+    m3CastHit swept = {0};
+    bool cast =
+        m3World_CastSphereClosest(world, (m3Pos3){-8.0, 10.0, 0.0}, 0.5f,
+                                  (m3Vec3){0.0f, -10.0f, 0.0f}, m3DefaultQueryFilter(), &swept);
+    CHECK(cast && fabsf(swept.fraction - 0.55f) < 1.0e-3f, "the sphere cast stops on it too");
+    m3MoverPlane planes[2];
+    int32_t met =
+        m3World_CollideMover(world, (m3Pos3){-8.0, 4.85, 0.0}, 0.5f, 0.3f, 0.1f, planes, 2);
+    CHECK(met == 1 && planes[0].normal.y > 0.999f && fabsf(planes[0].separation - 0.05f) < 1.0e-4f,
+          "and the mover finds it 5 cm below its capsule");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestOffsetEquivalence();
     TestDumbbellInertia();
     TestRotatedOffsetRests();
     TestQueriesSeeOffsets();
+    TestPlaneSitsWithItsBody();
     TestGrandMesh();
     TestBigHullUnderTheGates();
     TestHostileOffsets();

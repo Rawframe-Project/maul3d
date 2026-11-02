@@ -9,6 +9,7 @@
 #include "world_internal.h"
 
 #include <float.h>
+#include <math.h>
 #include <string.h>
 
 // Invert a symmetric positive-definite 3x3 via the adjugate, writing its
@@ -222,7 +223,8 @@ bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* 
 }
 
 // A change to one of a body's shapes: slot takes the given type, geometry
-// and density, or leaves the body when removed.
+// and density, or leaves the body when removed, or only takes a filter
+// under which it can collide or not.
 typedef struct ShapeChange
 {
     int32_t slot;
@@ -230,10 +232,11 @@ typedef struct ShapeChange
     uint8_t type;
     const m3ShapeGeom* geom;
     float density;
+    bool refiltered;
+    bool collides;
 } ShapeChange;
 
-static m3LeverBody MassWith(const m3World* world, int32_t body, uint8_t type,
-                            const ShapeChange* change, m3Mat3* inertiaOut, bool* massiveOut);
+static bool LeversFit(const m3World* world, int32_t body, uint8_t type, const ShapeChange* change);
 
 // The mass floors and ceiling over body's shapes, with slot (or -1 for
 // none) taking the given type, geometry and density, and every joint on
@@ -261,12 +264,10 @@ static m3MassFit MassFits(const m3World* world, int32_t body, int32_t slot, uint
     {
         return m3_massPastWorld;
     }
-    ShapeChange change = {slot, false, type, geom, density};
-    m3Mat3 inertia;
-    bool massive;
-    m3LeverBody next = MassWith(world, body, (uint8_t)m3_dynamicBody, slot >= 0 ? &change : NULL,
-                                &inertia, &massive);
-    return m3BodyJointsFit(world, body, &next) ? m3_massFits : m3_massPastWorld;
+    ShapeChange change = {slot, false, type, geom, density, false, false};
+    return LeversFit(world, body, (uint8_t)m3_dynamicBody, slot >= 0 ? &change : NULL)
+               ? m3_massFits
+               : m3_massPastWorld;
 }
 
 m3MassFit m3ShapeMassFit(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
@@ -386,10 +387,20 @@ static void ReadWorldShape(const void* context, int32_t s, m3MassShape* out)
     out->hasOffset = world->shapes.shapeHasOffset[s];
     out->localPos = world->shapes.shapeLocalPos[s];
     out->localRot = world->shapes.shapeLocalRot[s];
+    out->collides = m3ShapeCanCollide(world->shapes.shapeSensor[s], world->shapes.shapeCategory[s],
+                                      world->shapes.shapeMask[s], world->shapes.shapeGroup[s])
+                        ? 1
+                        : 0;
     out->next = world->shapes.shapeNext[s];
     if (change != NULL && s == change->slot)
     {
+        if (change->refiltered)
+        {
+            out->collides = change->collides ? 1 : 0;
+            return;
+        }
         out->type = change->removed ? (uint8_t)m3_planeShape : change->type;
+        out->collides = change->removed ? 0 : out->collides;
         if (!change->removed)
         {
             out->geom = *change->geom;
@@ -498,21 +509,107 @@ void m3RecomputeMass(m3World* world, int32_t bodyIndex)
                 &world->bodies.maxExtents[bodyIndex]);
 }
 
+// A point of a shape's frame in its body's frame.
+static m3Vec3 InBodyFrame(const m3MassShape* shape, m3Vec3 p)
+{
+    return shape->hasOffset != 0 ? m3Add3(shape->localPos, m3RotateVec3(shape->localRot, p)) : p;
+}
+
+// The square root of the turn a unit impulse at point p of the body
+// gives it (src/joint_lever.h). It is a seminorm of the arm, so a ball of
+// radius r around p turns it by at most this plus r over the root of the
+// smallest moment.
+static double TurnRoot(const m3Mat3* invInertia, m3Vec3 center, m3Vec3 p)
+{
+    return sqrt(m3LeverTurn(invInertia, m3Sub3(p, center)));
+}
+
+// The largest root turn any point of shape gives a body of this inverse
+// inertia, center and largest inverse moment.
+static double ShapeTurnRoot(const m3MassShape* shape, const m3Mat3* invInertia, m3Vec3 center,
+                            double largestInverse)
+{
+    const m3ShapeGeom* g = &shape->geom;
+    double radius = sqrt(largestInverse) * (double)g->s;
+    if (shape->type == (uint8_t)m3_sphereShape)
+    {
+        return TurnRoot(invInertia, center, InBodyFrame(shape, g->v)) + radius;
+    }
+    if (shape->type == (uint8_t)m3_capsuleShape)
+    {
+        return fmax(TurnRoot(invInertia, center, InBodyFrame(shape, g->v)),
+                    TurnRoot(invInertia, center, InBodyFrame(shape, g->v2))) +
+               radius;
+    }
+    double root = 0.0;
+    if (shape->type == (uint8_t)m3_hullShape && shape->hull != NULL)
+    {
+        for (int32_t v = 0; v < shape->hull->vertexCount; ++v)
+        {
+            root = fmax(root,
+                        TurnRoot(invInertia, center, InBodyFrame(shape, shape->hull->vertices[v])));
+        }
+    }
+    return root;
+}
+
+bool m3ContactLeverFits(m3MassShapeRead read, const void* context, int32_t head,
+                        const m3LeverBody* body, const m3Mat3* inertia, bool massive)
+{
+    if (!massive)
+    {
+        return true;
+    }
+    m3Vec3 moments;
+    m3Quat frame;
+    m3PrincipalAxes(inertia, &moments, &frame);
+    double largestInverse =
+        1.0 / fmin((double)moments.x, fmin((double)moments.y, (double)moments.z));
+    double root = 0.0;
+    m3MassShape shape;
+    for (int32_t s = head; s != -1; s = shape.next)
+    {
+        read(context, s, &shape);
+        if (shape.collides != 0)
+        {
+            root =
+                fmax(root, ShapeTurnRoot(&shape, &body->invInertia, body->center, largestInverse));
+        }
+    }
+    // The turn over the inverse mass: mass times the squared arm over the
+    // moment it turns, along the arm's own directions.
+    return root * root <= M3_CONTACT_LEVER_LIMIT * (double)body->invMass; // false for NaN
+}
+
+// Whether body, taking this type and change, keeps every joint on it
+// within its lever ratio and itself within its contact lever ratio.
+static bool LeversFit(const m3World* world, int32_t body, uint8_t type, const ShapeChange* change)
+{
+    m3Mat3 inertia;
+    bool massive;
+    m3LeverBody next = MassWith(world, body, type, change, &inertia, &massive);
+    WorldShapes shapes = {world, change};
+    return m3BodyJointsFit(world, body, &next) &&
+           (type != (uint8_t)m3_dynamicBody ||
+            m3ContactLeverFits(ReadWorldShape, &shapes, world->bodies.bodyShapeHead[body], &next,
+                               &inertia, massive));
+}
+
 bool m3ShapeRemovalFits(const m3World* world, int32_t slot)
 {
     int32_t body = world->shapes.shapeBody[slot];
-    ShapeChange change = {slot, true, 0, NULL, 0.0f};
-    m3Mat3 inertia;
-    bool massive;
-    m3LeverBody next =
-        MassWith(world, body, world->bodies.types[body], &change, &inertia, &massive);
-    return m3BodyJointsFit(world, body, &next);
+    ShapeChange change = {slot, true, 0, NULL, 0.0f, false, false};
+    return LeversFit(world, body, world->bodies.types[body], &change);
 }
 
 bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type)
 {
-    m3Mat3 inertia;
-    bool massive;
-    m3LeverBody next = MassWith(world, body, type, NULL, &inertia, &massive);
-    return m3BodyJointsFit(world, body, &next);
+    return LeversFit(world, body, type, NULL);
+}
+
+bool m3ShapeFilterFits(const m3World* world, int32_t slot, bool collides)
+{
+    int32_t body = world->shapes.shapeBody[slot];
+    ShapeChange change = {slot, false, 0, NULL, 0.0f, true, collides};
+    return LeversFit(world, body, world->bodies.types[body], &change);
 }

@@ -198,7 +198,8 @@ static void TestRuntimeFilterChange(void)
         (void)m3World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m3Body_IsAwake(world, ball), "the ball rests and sleeps");
-    m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0);
+    CHECK(m3Shape_SetFilter(world, shape, CAT_GHOST, CAT_DEBRIS, 0) == m3_success,
+          "the filter changes");
     uint64_t category = 0;
     uint64_t mask = 0;
     int32_t group = -1;
@@ -218,12 +219,63 @@ static void TestRuntimeFilterChange(void)
     m3DestroyWorld(world);
 }
 
+// A fast ball flies at a plane it does not meet: one its mask hides, a
+// sensor plane, or a plane whose body is disabled. The continuous phase
+// skips such a plane as it skips any such shape in the tree, so the ball
+// crosses it in free flight instead of being held at it for a step.
+static float FastBallHeight(int32_t plane)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef pd = m3DefaultShapeDef();
+    pd.categoryBits = CAT_GROUND;
+    pd.isSensor = plane == 2;
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    NewPlaneShape(world, ground, &pd, &floor);
+    if (plane == 3)
+    {
+        m3Body_Enable(world, ground, false);
+    }
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 5.0, 0.0};
+    bd.linearVelocity = (m3Vec3){0.0f, -200.0f, 0.0f};
+    bd.gravityScale = 0.0f;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.maskBits = plane == 1 ? ~(uint64_t)CAT_GROUND : ~0ull;
+    m3Sphere ball = {{0.0f, 0.0f, 0.0f}, 0.1f};
+    NewSphereShape(world, body, &sd, &ball);
+    for (int32_t step = 0; step < 2; ++step)
+    {
+        CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps");
+    }
+    float y = (float)m3Body_GetPosition(world, body).y;
+    m3DestroyWorld(world);
+    return y;
+}
+
+static void TestFastBodyPassesHiddenPlanes(void)
+{
+    CHECK(fabsf(FastBallHeight(0) - 0.1f) < 0.01f, "a plane it meets stops the fast ball");
+    const char* const why[3] = {"a plane its mask hides lets the fast ball fly through",
+                                "a sensor plane lets the fast ball fly through",
+                                "a disabled plane lets the fast ball fly through"};
+    for (int32_t plane = 1; plane <= 3; ++plane)
+    {
+        CHECK(fabsf(FastBallHeight(plane) + 5.0f / 3.0f) < 1e-3f, why[plane - 1]);
+    }
+}
+
 int main(void)
 {
     TestMaskGate();
     TestGroupOverride();
     TestQueryFilters();
     TestRuntimeFilterChange();
+    TestFastBodyPassesHiddenPlanes();
     if (s_failures == 0)
     {
         printf("test_filter: all green\n");
