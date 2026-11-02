@@ -469,9 +469,9 @@ M3_PIN_AT(m3DrivetrainDef, finalDrive, 100);
 M3_PIN_AT(m3DrivetrainDef, shiftUpRpm, 104);
 M3_PIN_AT(m3DrivetrainDef, shiftDownRpm, 108);
 M3_PIN_AT(m3DrivetrainDef, clutchSteps, 112);
-M3_PIN_AT(m3DrivetrainDef, autoShift, 116);
-M3_PIN_AT(m3DrivetrainDef, diffMode, 120);
-M3_PIN_AT(m3DrivetrainDef, diffCouple, 124);
+M3_PIN_AT(m3DrivetrainDef, enableAutoShift, 116);
+M3_PIN_AT(m3DrivetrainDef, differentialMode, 120);
+M3_PIN_AT(m3DrivetrainDef, differentialCoupling, 124);
 M3_PIN_AT(m3DrivetrainDef, internalValue, 128);
 
 M3_PIN_SIZE(m3ExplosionDef, 64);

@@ -393,7 +393,7 @@ static void TestWheelPush(void)
     dd.gearCount = 1;
     dd.gearRatio[0] = 1.0e4f;
     dd.finalDrive = 1.0e4f;
-    dd.autoShift = false;
+    dd.enableAutoShift = false;
     m3Vehicle_SetDrivetrain(world, vehicle, &dd);
     m3Vehicle_SetGear(world, vehicle, 1);
     m3Vehicle_SetCommands(world, vehicle, 1.0f, 0.0f, 0.0f);

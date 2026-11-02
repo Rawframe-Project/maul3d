@@ -45,7 +45,7 @@ m3DrivetrainDef m3DefaultDrivetrainDef(void)
     def.shiftUpRpm = 5500.0f;
     def.shiftDownRpm = 2000.0f;
     def.clutchSteps = 12;
-    def.autoShift = true;
+    def.enableAutoShift = true;
     def.internalValue = M3_DRIVETRAIN_COOKIE;
     return def;
 }
@@ -87,9 +87,10 @@ bool m3DrivetrainDefValid(const m3DrivetrainDef* def)
     if (!(def->reverseRatio >= 0.0f && def->reverseRatio <= M3_RATIO_LIMIT) ||
         !(def->finalDrive > 0.0f && def->finalDrive <= M3_RATIO_LIMIT) ||
         !m3FiniteF(def->shiftUpRpm) || !m3FiniteF(def->shiftDownRpm) || def->shiftDownRpm < 0.0f ||
-        def->shiftUpRpm <= def->shiftDownRpm || def->diffMode < m3_differentialOpen ||
-        def->diffMode > m3_differentialLocked ||
-        !(def->diffCouple >= 0.0f && def->diffCouple <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
+        def->shiftUpRpm <= def->shiftDownRpm || def->differentialMode < m3_differentialOpen ||
+        def->differentialMode > m3_differentialLocked ||
+        !(def->differentialCoupling >= 0.0f &&
+          def->differentialCoupling <= M3_FORCE_LIMIT / M3_SPEED_LIMIT))
     {
         return false;
     }
@@ -120,12 +121,12 @@ bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3Drivetrai
     }
     world->vehicles.vehDtReverse[slot] = def->reverseRatio;
     world->vehicles.vehDtFinal[slot] = def->finalDrive;
-    world->vehicles.vehDtDiffMode[slot] = def->diffMode;
-    world->vehicles.vehDtDiffCouple[slot] = def->diffCouple;
+    world->vehicles.vehDtDiffMode[slot] = def->differentialMode;
+    world->vehicles.vehDtDiffCouple[slot] = def->differentialCoupling;
     world->vehicles.vehDtShiftUp[slot] = def->shiftUpRpm;
     world->vehicles.vehDtShiftDown[slot] = def->shiftDownRpm;
     world->vehicles.vehDtClutchSteps[slot] = def->clutchSteps;
-    world->vehicles.vehDtAutoShift[slot] = def->autoShift ? 1 : 0;
+    world->vehicles.vehDtAutoShift[slot] = def->enableAutoShift ? 1 : 0;
     world->vehicles.vehDtGear[slot] = 1;
     world->vehicles.vehDtClutch[slot] = 0;
     world->vehicles.vehDtRpm[slot] = 0.0f;

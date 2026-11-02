@@ -272,17 +272,17 @@ extern "C"
         float shiftUpRpm;                           // auto shift climbs above this
         float shiftDownRpm;                         // auto shift drops below this
         int32_t clutchSteps; // steps of torque cut per shift, 0..M3_MAX_CLUTCH_STEPS
-        bool autoShift;
+        bool enableAutoShift;
         /// Differential: m3_differentialOpen (the equal split),
         /// m3_differentialLimitedSlip or m3_differentialLocked. The
-        /// other two couple each driven wheel
-        /// toward the driven mean of the LAST step's contact speeds
-        /// with diffCouple newtons per m/s of disparity, at most 1e15; limited
-        /// slip additionally clamps the coupling to the engine's
-        /// own per-wheel force. One step of lag is the drivetrain's
-        /// own convention (engine speed reads wheels the same way).
-        m3DifferentialMode diffMode;
-        float diffCouple;
+        /// other two couple each driven wheel toward the driven mean of
+        /// the LAST step's contact speeds with differentialCoupling
+        /// newtons per m/s of disparity, at most 1e15; limited slip
+        /// additionally clamps the coupling to the engine's own
+        /// per-wheel force. One step of lag is the drivetrain's own
+        /// convention (engine speed reads wheels the same way).
+        m3DifferentialMode differentialMode;
+        float differentialCoupling;
         int32_t internalValue;
     } m3DrivetrainDef;
 

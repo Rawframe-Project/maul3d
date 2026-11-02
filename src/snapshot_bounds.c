@@ -405,8 +405,8 @@ static bool DrivetrainValid(const m3Incoming* inc, int32_t v)
     def.shiftUpRpm = m3InF32(M3_IN(vehicles.vehDtShiftUp), v);
     def.shiftDownRpm = m3InF32(M3_IN(vehicles.vehDtShiftDown), v);
     def.clutchSteps = m3InI32(M3_IN(vehicles.vehDtClutchSteps), v);
-    def.diffMode = m3InI32(M3_IN(vehicles.vehDtDiffMode), v);
-    def.diffCouple = m3InF32(M3_IN(vehicles.vehDtDiffCouple), v);
+    def.differentialMode = m3InI32(M3_IN(vehicles.vehDtDiffMode), v);
+    def.differentialCoupling = m3InF32(M3_IN(vehicles.vehDtDiffCouple), v);
     return m3DrivetrainDefValid(&def);
 }
 

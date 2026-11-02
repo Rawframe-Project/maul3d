@@ -791,8 +791,8 @@ static void ReverseRatio(Scene* s, float v)
 static void DiffCouple(Scene* s, float v)
 {
     m3DrivetrainDef dd = m3DefaultDrivetrainDef();
-    dd.diffMode = m3_differentialLocked;
-    dd.diffCouple = v;
+    dd.differentialMode = m3_differentialLocked;
+    dd.differentialCoupling = v;
     m3Vehicle_SetDrivetrain(s->world, s->car, &dd);
 }
 

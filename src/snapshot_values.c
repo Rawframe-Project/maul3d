@@ -209,7 +209,7 @@ static bool VehiclesValid(const m3Incoming* inc)
     const uint8_t* active = m3InField(inc, offsetof(m3World, vehicles.vehDtActive));
     const uint8_t* curveCount = m3InField(inc, offsetof(m3World, vehicles.vehDtCurveCount));
     const uint8_t* gearCount = m3InField(inc, offsetof(m3World, vehicles.vehDtGearCount));
-    const uint8_t* diffMode = m3InField(inc, offsetof(m3World, vehicles.vehDtDiffMode));
+    const uint8_t* differentialMode = m3InField(inc, offsetof(m3World, vehicles.vehDtDiffMode));
     const uint8_t* clutchSteps = m3InField(inc, offsetof(m3World, vehicles.vehDtClutchSteps));
     const uint8_t* clutch = m3InField(inc, offsetof(m3World, vehicles.vehDtClutch));
     const uint8_t* gears = m3InField(inc, offsetof(m3World, vehicles.vehDtGear));
@@ -242,15 +242,16 @@ static bool VehiclesValid(const m3Incoming* inc)
         if (active[v] == 0)
         {
             if (m3InI32(curveCount, v) != 0 || m3InI32(gearCount, v) != 0 ||
-                m3InI32(diffMode, v) != 0 || steps != 0 || m3InI32(clutch, v) != 0 || gear != 0)
+                m3InI32(differentialMode, v) != 0 || steps != 0 || m3InI32(clutch, v) != 0 ||
+                gear != 0)
             {
                 return false;
             }
             continue;
         }
         if (m3InI32(curveCount, v) < 2 || m3InI32(gearCount, v) < 1 ||
-            m3InI32(diffMode, v) < m3_differentialOpen ||
-            m3InI32(diffMode, v) > m3_differentialLocked || steps < 0 || steps > 600 ||
+            m3InI32(differentialMode, v) < m3_differentialOpen ||
+            m3InI32(differentialMode, v) > m3_differentialLocked || steps < 0 || steps > 600 ||
             m3InI32(clutch, v) < 0 || m3InI32(clutch, v) > steps || gear < -1 ||
             gear > m3InI32(gearCount, v))
         {

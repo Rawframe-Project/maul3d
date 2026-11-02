@@ -909,9 +909,9 @@ state: snapshotted, hashed when attached, rolled back mid-shift
 to the bit. Vehicles without a drivetrain keep the flat model
 untouched.
 
-Differentials: the def's `diffMode` picks `m3_differentialOpen`
+Differentials: the def's `differentialMode` picks `m3_differentialOpen`
 (the classic equal split), `m3_differentialLimitedSlip` or
-`m3_differentialLocked`, and `diffCouple` sets
+`m3_differentialLocked`, and `differentialCoupling` sets
 the coupling force per m/s of wheel-speed disparity. The
 coupling reads each driven wheel's contact speed with one step
 of lag (the drivetrain's own wheel-reading convention) and
@@ -1284,7 +1284,7 @@ past what real scenes use. Vectors are bounded per component.
 | Acceleration | `M3_ACCEL_LIMIT`, 1e4 m/s^2 | gravity |
 | Frequency | `M3_HERTZ_LIMIT`, 1e5 Hz | contact hertz, joint springs and steering, wind gusts, wheel suspension |
 | Ratio | `M3_RATIO_LIMIT`, 1e4 | damping ratios, restitution, gravity scales, gear and pulley ratios, gear and final drive ratios, brake share, tire grip, lean gain, wind gust scale, a character's push ratio, an explosion's soft push |
-| Differential coupling | `M3_FORCE_LIMIT / M3_SPEED_LIMIT`, 1e15 N per m/s | `m3DrivetrainDef.diffCouple` |
+| Differential coupling | `M3_FORCE_LIMIT / M3_SPEED_LIMIT`, 1e15 N per m/s | `m3DrivetrainDef.differentialCoupling` |
 | Step length | `M3_MIN_STEP` to `M3_STEP_LIMIT`, 1e-4 to 10 s | `m3World_Step` |
 | Substeps | `M3_MAX_SUBSTEPS`, 256 | `m3World_Step` |
 | Density | `M3_DENSITY_LIMIT`, 1e6 kg/m^3 | shapes, water |
