@@ -212,10 +212,72 @@ static void TestBodyDefBoolBytesReadAsTrue(void)
     }
 }
 
+// Records a gravity change on a fresh world and returns the tape's size.
+static int64_t RecordGravity(uint8_t* tape, int32_t capacity, m3Vec3 gravity)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    StartJournal(world, tape, capacity);
+    m3World_SetGravity(world, gravity);
+    int64_t bytes = StopJournal(world);
+    m3DestroyWorld(world);
+    return bytes;
+}
+
+// A replay applies its ops through the internal functions, so a journal
+// running across it records none of them, like a restore; ops recorded
+// around the replay stay on the tape.
+static void TestReplayIsNotJournaled(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    static uint8_t source[4096];
+    m3World* recorder = NewWorld(&def);
+    StartJournal(recorder, source, (int32_t)sizeof(source));
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId body = NewBody(recorder, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(recorder, body, &sd, &sphere);
+    (void)m3World_Step(recorder, 1.0f / 60.0f, 4);
+    int64_t sourceBytes = StopJournal(recorder);
+    m3DestroyWorld(recorder);
+    CHECK(sourceBytes > 16, "the source session records its ops");
+
+    static uint8_t tape[4096];
+    m3World* world = NewWorld(&def);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "a journal starts");
+    CHECK(ReplayJournal(world, source, sourceBytes), "the session replays under it");
+    CHECK(m3World_GetBodies(world, NULL, 0) == 1, "and its body is in the world");
+    CHECK(StopJournal(world) == 16, "the journal holds only its 16-byte prefix");
+    m3DestroyWorld(world);
+
+    m3Vec3 gravity = {0.0f, -3.0f, 0.0f};
+    static uint8_t alone[4096];
+    int64_t aloneBytes = RecordGravity(alone, (int32_t)sizeof(alone), gravity);
+    world = NewWorld(&def);
+    CHECK(StartJournal(world, tape, (int32_t)sizeof(tape)), "a second journal starts");
+    m3World_SetGravity(world, gravity);
+    CHECK(ReplayJournal(world, source, sourceBytes), "a replay follows a recorded op");
+    int64_t bytes = StopJournal(world);
+    m3DestroyWorld(world);
+    CHECK(aloneBytes > 16 && bytes == aloneBytes,
+          "the op recorded before the replay is kept, and nothing else");
+
+    world = NewWorld(&def);
+    CHECK(ReplayJournal(world, tape, bytes), "that tape replays");
+    m3Vec3 replayed = m3World_GetGravity(world);
+    CHECK(SameVec(replayed, gravity) && m3World_GetBodies(world, NULL, 0) == 0,
+          "into the gravity change alone");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRefusedCreatesMoveNoIds();
     TestBodyDefBoolBytesReadAsTrue();
+    TestReplayIsNotJournaled();
     m3WorldDef def = m3DefaultWorldDef();
     def.bodyCapacity = 8;
 
