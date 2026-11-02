@@ -1071,9 +1071,10 @@ m3World_GetCounters reports the live census: bodies, shapes,
 joints, contacts, characters, vehicles, soft bodies, voxel
 chunks, interned hull and mesh slabs, awake dynamic bodies, the
 last step's island and solver-color counts, the broadphase tree
-height, the step scratch high water against its reserve, the
-exact snapshot size, and the process-wide persistent
-allocation/free call counts. m3World_GetProfile reports
+height, and the process-wide persistent allocation/free call
+counts. m3World_GetMemoryUsage reports the step scratch high water
+against its reserve, and m3World_GetSnapshotSize the exact snapshot
+size. m3World_GetProfile reports
 wall-clock milliseconds per phase of the last completed step
 (vehicles, broadphase, narrowphase, events, prepare, solve,
 continuous, sleep, characters, soft bodies, and the whole).
@@ -1277,7 +1278,7 @@ past what real scenes use. Vectors are bounded per component.
 |---|---|---|
 | Position | `M3_POSITION_LIMIT`, 1e15 m | body defs, poses, anchors in the world, a plane's offset, water boxes, every soft particle a create places |
 | Body-frame offset or extent | `M3_LOCAL_LIMIT`, 1e4 m | shape geometry, joint anchors, wheel anchors and lengths, a servo's aim, soft spacing and particle radius, a character's radius and half height |
-| Servo target | `M3_TARGET_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
+| Kinematic target | `M3_TARGET_REACH_LIMIT`, 1e6 m from the kinematic body | `m3Body_SetTargetTransform` |
 | Static geometry | `M3_GEOMETRY_LIMIT`, 1e8 m in its body's frame | mesh vertices, height samples |
 | Cell size | `M3_CELL_LIMIT`, 1e5 m, positive | height field grids and mesh height fields, voxel chunks |
 | Cast or character move | `M3_CAST_LIMIT`, 1e18 m | shape casts, `m3Character_Move` |
@@ -1295,7 +1296,7 @@ past what real scenes use. Vectors are bounded per component.
 | Mass | a shape at least `M3_MIN_MASS`, 1e-6 kg, with every principal moment at least `M3_MIN_INERTIA`, 1e-12 kg m^2; a body at most `M3_MASS_LIMIT`, 1e20 kg | shapes on dynamic bodies, a body turning dynamic, characters, soft particles |
 | Wheel radius | at least `M3_MIN_WHEEL_RADIUS`, 1e-3 m | vehicle wheels |
 | Character stance | `M3_MIN_STANCE` to `M3_STANCE_LIMIT`, 0.05 to 10 m | `m3Character_SetStance` |
-| Blast | `M3_EXPLOSION_IMPULSE_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
+| Explosion impulse | `M3_EXPLOSION_IMPULSE_LIMIT`, 1e10 N s/m^2 | `m3ExplosionDef.impulsePerArea` |
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 | Contact lever | `M3_CONTACT_LEVER_LIMIT`, 1e6 for mass * arm^2 / moment: see below | a shape create, destroy, resize, density or filter change on a dynamic body, a body turning dynamic |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048, `M3_MAX_BODY_NAME_BYTES` 31 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface, a body's name |

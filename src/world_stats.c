@@ -100,13 +100,10 @@ m3Counters m3World_GetCounters(const m3World* world)
     counters.treeHeight = world->broadphase.tree.root != M3_TREE_NULL
                               ? world->broadphase.tree.nodes[world->broadphase.tree.root].height
                               : 0;
-    counters.scratchPeak = world->lastScratchPeak;
-    counters.scratchCapacity = world->scratch.capacity;
     counters.voxelEditsRefused = world->voxels.voxelEditsRefused;
     counters.voxelCarvesDropped = world->voxels.voxelCarvesDropped;
     counters.pairsDropped = world->contacts.pairsDropped;
     counters.heldPushRetakeCount = world->heldPushRetakeCount;
-    counters.snapshotBytes = m3World_GetSnapshotSize(world);
     counters.allocCount = world->heap.allocCount;
     counters.freeCount = world->heap.freeCount;
     counters.misuseCount = m3MisuseCount(world);

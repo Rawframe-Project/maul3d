@@ -1326,8 +1326,10 @@ extern "C"
     /// Live-world counters: pure observer data. Reading them
     /// never touches the simulation, the snapshot, or the hash. The
     /// count fields are themselves deterministic (twins report
-    /// identical counts); islandCount, colorCount, and scratchPeak
-    /// describe the last completed step and are zero before it.
+    /// identical counts); islandCount and colorCount describe the last
+    /// completed step and are zero before it. The step scratch is in
+    /// m3World_GetMemoryUsage and the snapshot size in
+    /// m3World_GetSnapshotSize.
     typedef struct m3Counters
     {
         int32_t bodyCount;
@@ -1344,12 +1346,9 @@ extern "C"
         int32_t hullCount; // interned hull slabs
         int32_t meshCount; // interned mesh slabs
         int32_t treeHeight;
-        int32_t scratchPeak;     // step scratch high water, bytes
-        int32_t scratchCapacity; // step scratch reserve, bytes
-        int64_t snapshotBytes;   // exact m3World_Snapshot size now
-        int64_t allocCount;      // blocks the world took from its allocator, cumulative
-        int64_t freeCount;       // blocks it gave back, cumulative
-        uint64_t misuseCount;    // stale-id, wrong-kind or bad-argument refusals, cumulative
+        int64_t allocCount;   // blocks the world took from its allocator, cumulative
+        int64_t freeCount;    // blocks it gave back, cumulative
+        uint64_t misuseCount; // stale-id, wrong-kind or bad-argument refusals, cumulative
         // Voxel edits refused with m3_errorLimit because the chunk's
         // surface would merge into more than M3_MAX_VOXEL_SURFACE_BOXES
         // boxes, cumulative; each changed nothing and journaled nothing.

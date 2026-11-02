@@ -560,7 +560,7 @@ static void TestStepsNeverAllocate(void)
     m3World* reference = BusyWorld(&plenty);
     Budget none = {-1, 0};
     m3World* world = BusyWorld(&none);
-    int32_t scratch = m3World_GetCounters(world).scratchCapacity;
+    int32_t scratch = m3World_GetMemoryUsage(world).scratchCapacity;
     none.left = 0;
     bool stepped = true;
     for (int32_t i = 0; i < 120; ++i)
@@ -572,9 +572,8 @@ static void TestStepsNeverAllocate(void)
     CHECK(stepped, "every step runs under an allocator that refuses everything");
     CHECK(m3World_Hash(world) == m3World_Hash(reference),
           "and lands where steps with memory to spare land");
-    CHECK(m3World_GetCounters(world).scratchCapacity == scratch &&
-              m3World_GetCounters(world).scratchPeak > 0 &&
-              m3World_GetCounters(world).scratchPeak <= scratch,
+    m3MemoryUsage usage = m3World_GetMemoryUsage(world);
+    CHECK(usage.scratchCapacity == scratch && usage.scratchPeak > 0 && usage.scratchPeak <= scratch,
           "on the scratch the world was created with");
     m3DestroyWorld(reference);
     m3DestroyWorld(world);
@@ -614,7 +613,8 @@ static void TestStepsNeverAllocate(void)
     m3Counters counters = m3World_GetCounters(lattice);
     CHECK(packed == m3_success && counters.contactCount == 62 * 62 && counters.colorCount == 16,
           "a step of 3844 touching pairs in 16 colors runs on the world's scratch");
-    CHECK(counters.scratchPeak > counters.scratchCapacity / 4 * 3,
+    m3MemoryUsage latticeUsage = m3World_GetMemoryUsage(lattice);
+    CHECK(latticeUsage.scratchPeak > latticeUsage.scratchCapacity / 4 * 3,
           "and takes most of it, with the table 88 percent full");
     m3DestroyWorld(lattice);
 }

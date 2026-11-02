@@ -50,8 +50,6 @@ static void TestCountsMatchTheScene(void)
     CHECK(c.jointCount == 0, "no joints yet");
     CHECK(c.hullCount >= 1, "boxes intern hull slabs");
     CHECK(c.islandCount == 0 && c.colorCount == 0, "step statistics are zero before a step");
-    CHECK(c.snapshotBytes > 0, "the snapshot size reports");
-    CHECK(c.snapshotBytes == m3World_GetSnapshotSize(world), "the two size paths agree");
 
     // A joint arrives, then a lattice: the counters follow.
     m3BodyDef ad = m3DefaultBodyDef();
@@ -90,8 +88,9 @@ static void TestCountsMatchTheScene(void)
     CHECK(c.islandCount >= 1, "the step counted its islands");
     CHECK(c.colorCount >= 1, "the step counted its colors");
     CHECK(c.treeHeight >= 1, "the tree has height");
-    CHECK(c.scratchPeak > 0, "the step used scratch");
-    CHECK(c.scratchPeak <= c.scratchCapacity, "the peak fits the reserve");
+    m3MemoryUsage usage = m3World_GetMemoryUsage(world);
+    CHECK(usage.scratchPeak > 0, "the step used scratch");
+    CHECK(usage.scratchPeak <= usage.scratchCapacity, "the peak fits the reserve");
 
     // Destruction shrinks the census.
     DestroyJoint(world, link);
