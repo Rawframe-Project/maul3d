@@ -6,6 +6,40 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.12.0](https://github.com/Rawframe-Project/maul3d/compare/v0.11.0...v0.12.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **joint:** m3JointDef, m3DefaultJointDef and m3CreateJoint are replaced by a def, a default and a create per joint type, m3SphericalJointDef with m3DefaultSphericalJointDef and m3CreateSphericalJoint and so on for all twelve types. Each def holds only its type's fields, the limits are named per type (lowerTwist, lowerAngle, lowerTranslation), the wheel's axle is localSpinAxisB, the generic arrays are linearModes, angularModes, linearLower, linearUpper, angularLower, angularUpper and motorAxis, and a create refuses another type's def. The C# JointDef, DefaultJointDef and CreateJoint are replaced the same way.
+* **solver:** a dynamic body refuses, with m3_errorLimit and no misuse, any shape create, destroy, resize, density or filter change, or type change that would carry its contact lever ratio past the new M3_CONTACT_LEVER_LIMIT, 1e6; restore and replay refuse such bytes. m3Shape_SetFilter returns m3Result.
+* m3MinF, m3MaxF, m3ClampF, m3AbsF, m3MakeZeroMat3, m3UnwindAngle and m3IntegrateRotation are no longer declared in maul3d/core_math.h.
+* **query:** m3World_TestPoint takes an m3QueryFilter after the point. m3World_OverlapCapsule takes a center and two m3Vec3 points relative to it, as m3World_CastCapsuleClosest does, in place of two world points.
+* **replay:** m3World_Compare returns m3Result and takes rowsOut and totalOut, the total of differing slots, in place of out and outCount; it compares worlds of different capacities instead of refusing them, and a refusal counts one misuse. m3EncodeReplay's buffer parameter is containerOut.
+* **body:** m3Body_SetName takes a byte count and returns m3Result, refusing a name past M3_MAX_BODY_NAME_BYTES with m3_errorLimit and bytes that are not UTF-8 or hold a zero byte with m3_errorInvalid, where it cut the name; m3Body_GetName copies the name into a caller buffer with no terminator and returns its byte length.
+
+### Fixed
+
+* **collision:** a fast body sweeps only against planes it meets ([#310](https://github.com/Rawframe-Project/maul3d/issues/310)) ([360b381](https://github.com/Rawframe-Project/maul3d/commit/360b381f9d55c5dc7732e046686ed4539fe27dde)), closes [#305](https://github.com/Rawframe-Project/maul3d/issues/305)
+* **collision:** a plane sits with its body in contacts and sweeps ([#312](https://github.com/Rawframe-Project/maul3d/issues/312)) ([8ffc862](https://github.com/Rawframe-Project/maul3d/commit/8ffc8621dd5c9c1f2f614634317488561b639004)), closes [#307](https://github.com/Rawframe-Project/maul3d/issues/307)
+* **collision:** the fast-body sweep asks the narrowphase's pair rule ([#315](https://github.com/Rawframe-Project/maul3d/issues/315)) ([c84e43c](https://github.com/Rawframe-Project/maul3d/commit/c84e43cd2d2eec0a326a6501eb776886a455262d)), closes [#311](https://github.com/Rawframe-Project/maul3d/issues/311)
+* **collision:** the fast-body sweep carries each shape's local transform ([#319](https://github.com/Rawframe-Project/maul3d/issues/319)) ([a026ace](https://github.com/Rawframe-Project/maul3d/commit/a026ace31e85282bfe8b764378b3d7e379b424e0)), closes [#313](https://github.com/Rawframe-Project/maul3d/issues/313)
+* **joint:** a generic joint's motor follows the motor switch ([#301](https://github.com/Rawframe-Project/maul3d/issues/301)) ([48c902e](https://github.com/Rawframe-Project/maul3d/commit/48c902e8232e3934713781f02f41bd80a25bfe7a)), closes [#300](https://github.com/Rawframe-Project/maul3d/issues/300)
+* **query:** box and sphere overlaps skip hidden and disabled planes ([#309](https://github.com/Rawframe-Project/maul3d/issues/309)) ([0076600](https://github.com/Rawframe-Project/maul3d/commit/0076600522f2e9f68bd0c68cc51049d746d3db05)), closes [#304](https://github.com/Rawframe-Project/maul3d/issues/304)
+* **query:** refuse a box overlap rotation that is not unit length ([#306](https://github.com/Rawframe-Project/maul3d/issues/306)) ([2cc16fb](https://github.com/Rawframe-Project/maul3d/commit/2cc16fb7ea9abb7b131093c63e877354ddfe9fb5)), closes [#303](https://github.com/Rawframe-Project/maul3d/issues/303)
+* **query:** the point test skips shapes of disabled bodies ([#296](https://github.com/Rawframe-Project/maul3d/issues/296)) ([4bc2ca9](https://github.com/Rawframe-Project/maul3d/commit/4bc2ca9cfb8b54d4a5e088af4064db995729ec2e)), closes [#295](https://github.com/Rawframe-Project/maul3d/issues/295)
+* **solver:** bound a dynamic body's contact lever ratio ([#302](https://github.com/Rawframe-Project/maul3d/issues/302)) ([b6f2de5](https://github.com/Rawframe-Project/maul3d/commit/b6f2de5f90549bbb219e477b19a22965a2b6540c)), closes [#180](https://github.com/Rawframe-Project/maul3d/issues/180)
+* **voxel:** an explosion carves only chunks its filter sees ([#318](https://github.com/Rawframe-Project/maul3d/issues/318)) ([83c8c77](https://github.com/Rawframe-Project/maul3d/commit/83c8c77f7265abd3129012f87d27ed6416e4d6d2)), closes [#308](https://github.com/Rawframe-Project/maul3d/issues/308)
+
+
+### Changed
+
+* **body:** names take a byte length and refuse what does not fit ([#293](https://github.com/Rawframe-Project/maul3d/issues/293)) ([5227663](https://github.com/Rawframe-Project/maul3d/commit/52276631761e5040c1f8a049b86352a73e28cd82)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252)
+* **joint:** a def, a default and a create per joint type ([#299](https://github.com/Rawframe-Project/maul3d/issues/299)) ([ab1f2a9](https://github.com/Rawframe-Project/maul3d/commit/ab1f2a928188250f25225b6dfbac174343319352)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#250](https://github.com/Rawframe-Project/maul3d/issues/250)
+* **query:** point test takes a filter, capsule overlap a center ([#297](https://github.com/Rawframe-Project/maul3d/issues/297)) ([12e3bea](https://github.com/Rawframe-Project/maul3d/commit/12e3beac49559de61fc7989f6c7a25fdf7d77081)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#246](https://github.com/Rawframe-Project/maul3d/issues/246)
+* **replay:** m3World_Compare returns a status, outputs end in Out ([#294](https://github.com/Rawframe-Project/maul3d/issues/294)) ([0e11bb0](https://github.com/Rawframe-Project/maul3d/commit/0e11bb06f2f848be2ca2c4a78f8587bf9f208b30)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#245](https://github.com/Rawframe-Project/maul3d/issues/245)
+* the library-only math helpers leave core_math.h ([#298](https://github.com/Rawframe-Project/maul3d/issues/298)) ([51a1913](https://github.com/Rawframe-Project/maul3d/commit/51a19133021dfa4e0c9454e79cf800784b0ad946)), closes [#252](https://github.com/Rawframe-Project/maul3d/issues/252) [#248](https://github.com/Rawframe-Project/maul3d/issues/248)
+
 ## [0.11.0](https://github.com/Rawframe-Project/maul3d/compare/v0.10.0...v0.11.0) (2026-11-01)
 
 ### Added
