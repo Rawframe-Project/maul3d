@@ -2099,6 +2099,7 @@ int main(void)
         if (showStats)
         {
             m3Counters tc = m3World_GetCounters(scene.world);
+            m3MemoryUsage tm = m3World_GetMemoryUsage(scene.world);
             m3Profile tp = m3World_GetProfile(scene.world);
             UiLabel(&ui,
                     TextFormat("bodies %d awake %d contacts %d", tc.bodyCount, tc.awakeCount,
@@ -2109,8 +2110,9 @@ int main(void)
                                tc.treeHeight),
                     (Color){170, 190, 220, 255});
             UiLabel(&ui,
-                    TextFormat("scratch %dk/%dk snap %lldk", tc.scratchPeak / 1024,
-                               tc.scratchCapacity / 1024, (long long)(tc.snapshotBytes / 1024)),
+                    TextFormat("scratch %dk/%dk snap %lldk", tm.scratchPeak / 1024,
+                               tm.scratchCapacity / 1024,
+                               (long long)(m3World_GetSnapshotSize(scene.world) / 1024)),
                     (Color){170, 190, 220, 255});
             UiLabel(&ui,
                     TextFormat("pairs %.2f contact %.2f solve %.2f", (double)tp.broadphase,

@@ -1071,9 +1071,10 @@ m3World_GetCounters reports the live census: bodies, shapes,
 joints, contacts, characters, vehicles, soft bodies, voxel
 chunks, interned hull and mesh slabs, awake dynamic bodies, the
 last step's island and solver-color counts, the broadphase tree
-height, the step scratch high water against its reserve, the
-exact snapshot size, and the process-wide persistent
-allocation/free call counts. m3World_GetProfile reports
+height, and the process-wide persistent allocation/free call
+counts. m3World_GetMemoryUsage reports the step scratch high water
+against its reserve, and m3World_GetSnapshotSize the exact snapshot
+size. m3World_GetProfile reports
 wall-clock milliseconds per phase of the last completed step
 (vehicles, broadphase, narrowphase, events, prepare, solve,
 continuous, sleep, characters, soft bodies, and the whole).
