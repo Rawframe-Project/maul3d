@@ -489,7 +489,7 @@ static void TestNullWorldIsInvalid(void)
           "a pin on a NULL world is m3_errorInvalid");
     CHECK(m3SoftBody_AnchorParticle(NULL, soft, 0, ball) == m3_errorInvalid,
           "an anchor on a NULL world is m3_errorInvalid");
-    CHECK(m3SoftBody_AnchorToSoft(NULL, soft, 0, soft, 1) == m3_errorInvalid,
+    CHECK(m3SoftBody_AnchorToSoftBody(NULL, soft, 0, soft, 1) == m3_errorInvalid,
           "a soft-to-soft anchor on a NULL world is m3_errorInvalid");
     m3SoftBodyId newSoft = m3_nullSoftBodyId;
     CHECK(m3CreateSoftBody(NULL, &sbd, &newSoft) == m3_errorInvalid,

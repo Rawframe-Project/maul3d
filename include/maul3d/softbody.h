@@ -235,9 +235,10 @@ extern "C"
     /// @return m3_success, or one of the refusals above.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M3_NODISCARD M3_API m3Result m3SoftBody_AnchorToSoft(m3World* world, m3SoftBodyId softBodyA,
-                                                         int32_t particleA, m3SoftBodyId softBodyB,
-                                                         int32_t particleB);
+    M3_NODISCARD M3_API m3Result m3SoftBody_AnchorToSoftBody(m3World* world, m3SoftBodyId softBodyA,
+                                                             int32_t particleA,
+                                                             m3SoftBodyId softBodyB,
+                                                             int32_t particleB);
 
     /// Returns how many particles a soft body has.
     ///

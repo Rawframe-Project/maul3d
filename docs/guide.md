@@ -612,7 +612,7 @@ construction, under the same four gates as everything else.
   hangs from beams and follows them when they move. Both return an
   `m3Result`: an anchor past a full table of
   `M3_MAX_SOFTBODY_ANCHORS` is `m3_errorLimit`, which counts no
-  misuse, and `m3SoftBody_AnchorToSoft` shares that table.
+  misuse, and `m3SoftBody_AnchorToSoftBody` shares that table.
 - Soft-versus-soft and self-collision are NOT in this version
   (documented out, the bullet-versus-bullet precedent); particle
   counts cap at 512 and anchors at 32 per body.
@@ -866,7 +866,7 @@ that lies.
 Lattices collide with EACH OTHER (canonical particle pairs behind
 lattice-bound gates; self-collision stays out, the structure rods
 hold a lattice apart), and they hold hands:
-m3SoftBody_AnchorToSoft pins particle to particle across lattices
+m3SoftBody_AnchorToSoftBody pins particle to particle across lattices
 with silent release when either side dies. Wind
 (m3World_SetWind) drives particles with proportional drag toward
 a gusted velocity whose phase ACCUMULATES in the snapshot: a

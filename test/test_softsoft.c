@@ -176,8 +176,8 @@ static void TestRopeBridge(void)
     rd.position = (m3Pos3){-1.1, 2.05, 0.0};
     m3SoftBodyId rope = NewSoftBody(world, &rd);
     // Tie the rope's ends to the inner edges of the two cloths.
-    CHECK(m3SoftBody_AnchorToSoft(world, rope, 0, west, 12) == m3_success &&
-              m3SoftBody_AnchorToSoft(world, rope, 8, east, 10) == m3_success,
+    CHECK(m3SoftBody_AnchorToSoftBody(world, rope, 0, west, 12) == m3_success &&
+              m3SoftBody_AnchorToSoftBody(world, rope, 8, east, 10) == m3_success,
           "the rope ties to both cloths");
 
     m3BodyDef bd = m3DefaultBodyDef();
@@ -225,21 +225,21 @@ static void TestSoftAnchorTableLimit(void)
     {
         CHECK_ACCEPTS(
             world,
-            CHECK(m3SoftBody_AnchorToSoft(world, east, a, west, a) == m3_success, "a pin fits"),
+            CHECK(m3SoftBody_AnchorToSoftBody(world, east, a, west, a) == m3_success, "a pin fits"),
             "a pin that fits counts no misuse");
     }
     uint64_t hash = m3World_Hash(world);
     CHECK_ACCEPTS(world,
-                  CHECK(m3SoftBody_AnchorToSoft(world, west, 39, east, 39) == m3_errorLimit,
+                  CHECK(m3SoftBody_AnchorToSoftBody(world, west, 39, east, 39) == m3_errorLimit,
                         "a pin past the full table is m3_errorLimit"),
                   "a pin past the full table counts no misuse");
     CHECK(m3World_Hash(world) == hash, "the refused pin changes nothing");
     CHECK_REFUSES(world,
-                  CHECK(m3SoftBody_AnchorToSoft(world, west, 0, west, 1) == m3_errorInvalid,
+                  CHECK(m3SoftBody_AnchorToSoftBody(world, west, 0, west, 1) == m3_errorInvalid,
                         "a pin to the same lattice is m3_errorInvalid"),
                   "a pin to the same lattice counts one misuse");
     CHECK_REFUSES(world,
-                  CHECK(m3SoftBody_AnchorToSoft(world, west, 40, east, 0) == m3_errorInvalid,
+                  CHECK(m3SoftBody_AnchorToSoftBody(world, west, 40, east, 0) == m3_errorInvalid,
                         "an out-of-range particle is m3_errorInvalid"),
                   "an out-of-range particle counts one misuse");
     m3DestroyWorld(world);
