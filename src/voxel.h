@@ -27,8 +27,8 @@ bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z);
 // drives these); the public entries validate, call, then journal what
 // landed. The cell must be one m3VoxelCoordsValid accepts. An edit
 // whose surface would pass the box limit changes nothing, counts in
-// voxelEditsRefused and returns false (-1 for the box clear and the
-// carve).
+// voxelEditsRefused (the carve in voxelCarvesDropped) and returns false
+// (-1 for the box clear and the carve).
 bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
                         uint16_t payload);
 

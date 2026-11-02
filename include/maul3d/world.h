@@ -1350,14 +1350,18 @@ extern "C"
         int64_t allocCount;      // blocks the world took from its allocator, cumulative
         int64_t freeCount;       // blocks it gave back, cumulative
         uint64_t misuseCount;    // stale-id, wrong-kind or bad-argument refusals, cumulative
-        // Voxel edits and explosion carves refused because the chunk's
+        // Voxel edits refused with m3_errorLimit because the chunk's
         // surface would merge into more than M3_MAX_VOXEL_SURFACE_BOXES
-        // boxes, cumulative; each changed nothing and journaled nothing,
-        // and each edit returned m3_errorLimit. A
-        // counter, not state: it is not hashed or snapshotted, and a
+        // boxes, cumulative; each changed nothing and journaled nothing.
+        // A counter, not state: it is not hashed or snapshotted, and a
         // restore or a replay's back-out leaves it as it is, so a replay
         // refused after an edit was refused leaves it higher.
         uint64_t voxelEditsRefused;
+        // Explosion carves m3World_Explode skipped for the same bound,
+        // cumulative; each left its chunk as it was while the blast's
+        // impulses still landed, and no status told the caller. A
+        // counter, not state, like voxelEditsRefused.
+        uint64_t voxelCarvesDropped;
         // Broadphase pairs a step found and had no room for, cumulative
         // (m3WorldDef.pairCapacity): the shapes of each got no contact
         // that step and passed through each other. A counter, not

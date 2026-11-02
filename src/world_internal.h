@@ -667,7 +667,8 @@ typedef struct m3Voxels
     // The most boxes a surface may merge into: M3_MAX_VOXEL_SURFACE_BOXES, which
     // the storage holds; a whitebox test lowers it to reach the refusal.
     int32_t voxelBoxLimit;
-    uint64_t voxelEditsRefused; // edits whose surface would pass the limit
+    uint64_t voxelEditsRefused;  // edits whose surface would pass the limit
+    uint64_t voxelCarvesDropped; // explosion carves skipped for the same reason
 } m3Voxels;
 
 // Broadphase: the fat-AABB tree and each shape's proxy.

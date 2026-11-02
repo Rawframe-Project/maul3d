@@ -666,9 +666,10 @@ extern "C"
     /// much when its first chunk was created, so no edit asks the
     /// allocator. An edit whose surface would pass the bound returns
     /// m3_errorLimit: it changes nothing, journals nothing and counts
-    /// no misuse, only m3Counters.voxelEditsRefused, which also counts
-    /// the carves m3World_Explode loses to the bound. A create whose
-    /// grid passes it is refused with m3_errorCapacity.
+    /// no misuse, only m3Counters.voxelEditsRefused; a carve
+    /// m3World_Explode loses to the bound counts in voxelCarvesDropped
+    /// instead. A create whose grid passes it is refused with
+    /// m3_errorCapacity.
     ///
     /// The anchor convention: an island is anchored through the
     /// CHUNK's y = 0 base layer, not through world ground. Build

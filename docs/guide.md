@@ -373,9 +373,10 @@ tree that size (about 84 KB) when its first chunk is created, so a
 world pays only for the slots it fills; the world keeps one 76 KB build
 scratch. An edit, an explosion's carve or the fracture it causes always
 leaves a tree that answers. An edit or a carve whose surface would pass
-the bound changes nothing and journals nothing; it counts in
-m3Counters.voxelEditsRefused, not in misuse, the edit returns
-`m3_errorLimit`, and the explosion's impulses still land. Each edit
+the bound changes nothing and journals nothing, and counts no misuse.
+The edit returns `m3_errorLimit` and counts in
+m3Counters.voxelEditsRefused. The carve counts in
+m3Counters.voxelCarvesDropped, and the explosion's impulses still land. Each edit
 returns an `m3Result`, and `m3VoxelChunkShape_ClearBox` writes the
 count it cleared to its `clearedOut`. A create or a snapshot chunk past the bound is
 refused.
