@@ -142,24 +142,36 @@ extern "C"
         return def;
     }
 
-    /// Creates a world. The checks run in order: the CPU must run the
-    /// library's SIMD backend (m3_errorUnsupported), the def's cookie must
-    /// be valid (m3_errorInvalid), its version must be M3_ABI_VERSION
-    /// (m3_errorVersion), and the rest of the def must hold
-    /// (m3_errorInvalid, or m3_errorLimit for a value past a bound in
-    /// maul3d/base.h, a shape, pair or voxel capacity included). A def whose step
-    /// scratch, sized at its capacities, would pass 2 GiB is refused with m3_errorCapacity
-    /// before anything is allocated; the allocator may refuse too
-    /// (m3_errorCapacity), and then nothing is left allocated. The world takes the scratch
-    /// a step needs here, about 918 bytes per pair of pairCapacity, 126 per body and 416 per
-    /// joint on a 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
-    /// allocator.
-    /// *worldOut is null on any failure.
+    /// Creates a world. The checks run in order: a null worldOut, then the
+    /// CPU, which must run the library's SIMD backend, then the def's
+    /// cookie, its version and the rest of its fields. A def whose step
+    /// scratch, sized at its capacities, would pass 2 GiB is refused before
+    /// anything is allocated; when the allocator refuses, nothing is left
+    /// allocated. The world takes the scratch a step needs here, about 918
+    /// bytes per pair of pairCapacity, 126 per body and 416 per joint on a
+    /// 64-bit target (m3MemoryUsage.scratchCapacity), so no step asks the
+    /// allocator. *worldOut is null on any failure. No world exists yet, so
+    /// no refusal counts misuse.
     ///
     /// @param def       The def, from m3DefaultWorldDef.
     /// @param worldOut  Receives the new world.
-    /// @return m3_success, or one of the refusals above; m3_errorInvalid also
-    ///         for a null def or worldOut.
+    /// @return m3_success; m3_errorUnsupported for a CPU that cannot run the
+    ///         library's SIMD backend; m3_errorInvalid for a null def or
+    ///         worldOut, a def m3DefaultWorldDef did not make, a body, shape,
+    ///         mesh, joint, voxel, character, vehicle or soft body capacity of
+    ///         0 or less, a negative pairCapacity, only one of enqueueTask and
+    ///         finishTask, an allocator with only one of alloc and free, a
+    ///         restitution or hit event threshold that is negative or not
+    ///         finite, a NaN gravity component, or a contact hertz, damping
+    ///         ratio, push speed or maximum linear or angular speed that is not
+    ///         positive or is NaN; m3_errorVersion for a def version other than
+    ///         M3_ABI_VERSION; m3_errorLimit for a shapeCapacity past
+    ///         M3_MAX_SHAPE_CAPACITY, a pairCapacity past M3_MAX_PAIR_CAPACITY,
+    ///         a voxelCapacity past M3_MAX_VOXEL_CAPACITY, a gravity component
+    ///         past M3_ACCEL_LIMIT, a contact hertz past M3_HERTZ_LIMIT, a
+    ///         damping ratio past M3_RATIO_LIMIT, or a push speed or speed cap
+    ///         past M3_SPEED_LIMIT, infinities included; m3_errorCapacity for a
+    ///         step scratch past 2 GiB or an allocator that refuses the world.
     /// @par Thread safety
     /// Safe from any thread; def's allocator is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateWorld(const m3WorldDef* def, m3World** worldOut);
@@ -175,9 +187,9 @@ extern "C"
 
     /// Set the gravity vector, within 1e4 m/s^2 on every axis.
     /// Journaled; sleeping islands stay asleep until disturbed.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A NaN gravity component, or one past 1e4
+    /// m/s^2 or infinite, or a call from host code the world is running,
+    /// changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world    The world.
     /// @param gravity  The gravity, m/s^2, within 1e4 on every axis.
@@ -299,9 +311,10 @@ extern "C"
     /// m/s), each positive. Journaled. Static contacts
     /// use twice the frequency: a soft row against something
     /// immovable stores energy under a tall stack.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A hertz, damping ratio or push speed that is
+    /// not positive or is NaN, or past 1e5, 1e4 or 1e5 or infinite, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world         The world.
     /// @param hertz         The contact frequency, hertz.
@@ -313,9 +326,9 @@ extern "C"
                                          float pushMaxSpeed);
 
     /// Impact speed below the threshold does not bounce. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A negative or non-finite threshold, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world  The world.
     /// @param value  The threshold, m/s, finite and not negative.
@@ -326,9 +339,9 @@ extern "C"
     /// Hard cap on any body's linear speed, applied every substep:
     /// positive and at most 1e5 m/s, the speed the step holds every
     /// body within. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A cap that is not positive or is NaN, or past
+    /// 1e5 or infinite, or a call from host code the world is running, changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param value  The cap, m/s.
@@ -342,9 +355,9 @@ extern "C"
     /// m3Body_EnableFastRotation bypass it. Positive and at most 1e5
     /// rad/s; the step holds every body, flagged or not, within 1e5
     /// rad/s. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A cap that is not positive or is NaN, or past
+    /// 1e5 or infinite, or a call from host code the world is running, changes
+    /// nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param value  The cap, rad/s.
@@ -354,9 +367,8 @@ extern "C"
 
     /// Turn island sleeping on or off. Turning it OFF wakes every
     /// sleeping body. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing; a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param flag   Whether islands may sleep.
@@ -374,9 +386,8 @@ extern "C"
     M3_API bool m3World_IsSleepEnabled(const m3World* world);
 
     /// Turn the continuous phase (CCD) on or off. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing; a call from host code the world is
+    /// running changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param flag   Whether the continuous phase runs.
@@ -403,9 +414,11 @@ extern "C"
     /// each non-negative, on the call and on replay alike. The wind
     /// blows soft particles only; push rigid bodies with forces.
     /// Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A non-finite direction, a negative or NaN
+    /// speed, gust frequency or gust scale, one past 1e5, 1e5 or 1e4 or
+    /// infinite, or a direction whose squared length is outside [0.99, 1.01]
+    /// while the speed is not zero, or a call from host code the world is
+    /// running, changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world      The world.
     /// @param direction  The wind's direction, near unit.
@@ -521,9 +534,12 @@ extern "C"
     /// @param size   The snapshot's length in bytes.
     /// @return m3_success; m3_errorInvalid for a null world, a negative size,
     ///         one this target cannot address, or null data with a positive
-    ///         size; m3_errorVersion or m3_errorFormat as above; m3_errorBusy
-    ///         from host code the world is running. A refusal leaves the world
-    ///         as it was.
+    ///         size; m3_errorVersion or m3_errorFormat as above, which count no
+    ///         misuse; m3_errorCapacity, counting no misuse, for an allocator
+    ///         that refuses the scratch the checks take or the staged content;
+    ///         m3_errorBusy from host code the world is running. A refusal
+    ///         leaves the world as it was, and the invalid and busy refusals
+    ///         count one misuse but a null world's.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_Restore(m3World* world, const void* data, int64_t size);
@@ -675,9 +691,9 @@ extern "C"
     M3_API m3FragmentEvents m3World_GetFragmentEvents(const m3World* world);
 
     /// Hit events require approach speed above this. Journaled.
-    /// A null world does nothing; a refused value, or a call from host
-    /// code the world is running, changes nothing, is not journaled and
-    /// counts one misuse.
+    /// A null world does nothing. A negative or non-finite threshold, or a call
+    /// from host code the world is running, changes nothing, is not journaled
+    /// and counts one misuse.
     ///
     /// @param world  The world.
     /// @param value  The threshold, m/s, finite and not negative.
@@ -814,7 +830,13 @@ extern "C"
     /// @param radius       The capsule's radius.
     /// @param translation  The move to cast along.
     /// @param hitOut       Receives the closest hit.
-    /// @return Whether the capsule hits a shape.
+    /// @return Whether the capsule hits a shape. hitOut is cleared first and
+    ///         holds the hit only on true. A null hitOut, or a null world, a
+    ///         center that is not finite, a half height that is negative or not
+    ///         finite, a radius that is not finite or not positive, or a
+    ///         translation that is NaN or past M3_CAST_LIMIT on an axis, is
+    ///         refused: it returns false and counts one misuse, but a null
+    ///         world counts none.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -840,7 +862,12 @@ extern "C"
     /// @param skin        How far from the capsule a shape still counts.
     /// @param planesOut   Receives up to capacity planes.
     /// @param capacity    planesOut's length, at least 0.
-    /// @return The total number of planes; 0 on a refusal.
+    /// @return The total number of planes; 0 on a refusal, which zeroes the
+    ///         array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a center that is not finite, a half height or
+    ///         skin that is negative or not finite, or a radius that is not
+    ///         finite or not positive.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -857,7 +884,7 @@ extern "C"
     /// @param count   The number of planes.
     /// @return The move and its pressed planes; the wish unchanged with no
     ///         plane pressed for a null planes, a count below 1 or a wish that
-    ///         is not finite.
+    ///         is not finite. No world is involved, so nothing counts misuse.
     /// @par Thread safety
     /// Safe from any thread.
     M3_API m3MoverMove m3SolveMover(m3Vec3 wish, const m3MoverPlane* planes, int32_t count);
@@ -870,7 +897,8 @@ extern "C"
     /// @param count     The number of planes.
     /// @param pressed   m3MoverMove.pressed from that solve.
     /// @return The clipped velocity; velocity unchanged for a null planes, a
-    ///         count below 1 or no pressed plane.
+    ///         count below 1, a velocity that is not finite, or no pressed bit
+    ///         below both count and M3_MAX_MOVER_PLANES.
     /// @par Thread safety
     /// Safe from any thread.
     M3_API m3Vec3 m3ClipMoverVelocity(m3Vec3 velocity, const m3MoverPlane* planes, int32_t count,
@@ -1067,7 +1095,11 @@ extern "C"
     /// @param idsOut    Receives up to capacity shape ids, in ascending shape
     ///                  index order.
     /// @param capacity  idsOut's length, at least 0.
-    /// @return The total number of shapes found; 0 on a refusal.
+    /// @return The total number of shapes found; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity or a null array with
+    ///         a positive one, a bound that is not finite, or a lower bound
+    ///         above the upper bound on an axis.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -1207,9 +1239,12 @@ extern "C"
     /// Apply the explosion now. Journaled; hostile defs apply
     /// nothing and journal nothing. Every push leaves its body within
     /// 1e5 m/s and rad/s.
-    /// A null world does nothing; a null or hostile def, or a call from
-    /// host code the world is running, changes nothing and counts one
-    /// misuse.
+    /// A null world does nothing. A null def, one m3DefaultExplosionDef did
+    /// not make, a position that is not finite or past 1e15 m, a radius,
+    /// falloff or voxel carve that is negative or not finite, an impulse per
+    /// area that is NaN or past 1e10 either way, a soft push that is NaN or
+    /// past 1e4 either way, or a call from host code the world is running,
+    /// changes nothing, is not journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param def    The def, from m3DefaultExplosionDef.
@@ -1229,7 +1264,7 @@ extern "C"
     /// profile). The value every gate compares.
     ///
     /// @param world  The world.
-    /// @return The hash.
+    /// @return The hash; 0 for a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -1244,7 +1279,10 @@ extern "C"
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity body ids.
     /// @param capacity  idsOut's length, at least 0.
-    /// @return The total number of live bodies; 0 on a refusal.
+    /// @return The total number of live bodies; 0 on a refusal, which zeroes
+    ///         the array over its capacity and counts one misuse but a null
+    ///         world's: a null world, a negative capacity, or a null array with
+    ///         a positive one.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -1255,7 +1293,8 @@ extern "C"
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity joint ids.
     /// @param capacity  idsOut's length, at least 0.
-    /// @return The total number of live joints; 0 on a refusal.
+    /// @return The total number of live joints; 0 on a refusal, as
+    ///         m3World_GetBodies lists them.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -1457,10 +1496,14 @@ extern "C"
     /// @param world  The world.
     /// @param data   The tape.
     /// @param size   The tape's length in bytes.
-    /// @return m3_success; m3_errorInvalid for a null world, a negative size,
-    ///         one this target cannot address, or null data with a positive
-    ///         size; m3_errorVersion, m3_errorFormat or m3_errorCapacity as
-    ///         above; m3_errorBusy from host code the world is running.
+    /// @return m3_success, a tape of the 16-byte prefix alone included;
+    ///         m3_errorInvalid for a null world, a negative size, one this
+    ///         target cannot address, or null data with a positive size;
+    ///         m3_errorVersion, m3_errorFormat or m3_errorCapacity as above,
+    ///         which count no misuse; m3_errorBusy from host code the world is
+    ///         running. The invalid and busy refusals count one misuse but a
+    ///         null world's. A replay is not recorded into a running journal,
+    ///         like a restore: stop a journal before replaying.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3World_ReplayJournal(m3World* world, const void* data,
