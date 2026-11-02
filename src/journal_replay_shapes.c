@@ -174,7 +174,7 @@ bool m3ReplayCreateVoxelChunkShape(m3World* world, const m3ReplayRecord* r)
     memset(&geom, 0, sizeof(geom));
     geom.s = record.cellSize;
     m3NormalizeShapeDefBools(&record.def);
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_voxelShape, &geom,
+    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_voxelChunkShape, &geom,
                                           &record.def, &(m3ShapeContent){NULL, NULL, chunk, NULL});
     m3Free(&world->heap, chunk);
     if (index < 0 || (uint32_t)index + 1u != record.expected.index1 ||
@@ -196,7 +196,7 @@ bool m3ReplayVoxelSet(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelChunkShape ||
         !m3VoxelCoordsValid(record.x, record.y, record.z))
     {
         return false;
@@ -216,7 +216,7 @@ bool m3ReplayVoxelClear(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelChunkShape ||
         !m3VoxelCoordsValid(record.x, record.y, record.z))
     {
         return false;
@@ -235,7 +235,7 @@ bool m3ReplayVoxelSetFill(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape ||
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelChunkShape ||
         !m3VoxelCoordsValid(record.x, record.y, record.z) || record.fill == 0)
     {
         return false;
@@ -255,7 +255,7 @@ bool m3ReplayVoxelClearBox(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t shape = m3ShapeSlot(world, record.id);
-    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (shape < 0 || world->shapes.shapeType[shape] != (uint8_t)m3_voxelChunkShape)
     {
         return false;
     }

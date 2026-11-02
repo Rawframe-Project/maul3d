@@ -270,7 +270,7 @@ static void DrawShape(const m3DrawContext* ctx, int32_t shape)
     case m3_heightFieldShape:
         DrawHeightField(ctx, &xf, shape, color);
         break;
-    case m3_voxelShape:
+    case m3_voxelChunkShape:
         DrawVoxels(ctx, &xf, shape, color);
         break;
     case m3_planeShape:
@@ -592,7 +592,7 @@ static void DrawShapeSolid(const m3SolidContext* ctx, int32_t shape)
         }
         return;
     }
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         const m3VoxelSurface* surface =
             &world->voxels.voxelSurface[world->shapes.shapeVoxelIndex[shape]];

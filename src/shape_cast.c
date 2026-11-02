@@ -227,7 +227,7 @@ static void ShapeCastTestShape(m3ShapeCastContext* ctx, int32_t shape)
     {
         return; // filtered out
     }
-    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] == (uint8_t)m3_voxelChunkShape)
     {
         CastVoxels(ctx, shape);
         return;

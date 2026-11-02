@@ -84,7 +84,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
         }
         return best <= ctx->radius;
     }
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         int32_t slot = world->shapes.shapeVoxelIndex[shape];
         const m3VoxelSurface* surface = &world->voxels.voxelSurface[slot];

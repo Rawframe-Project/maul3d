@@ -682,7 +682,7 @@ static M3_NOINLINE m3Result CreateVoxelChunkShapeWorker(m3World* world, m3BodyId
     m3ShapeGeom geom;
     memset(&geom, 0, sizeof(geom));
     geom.s = cellSize;
-    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_voxelShape, &geom, def,
+    int32_t index = m3CreateShapeInternal(world, bodyIndex, (uint8_t)m3_voxelChunkShape, &geom, def,
                                           &(m3ShapeContent){NULL, NULL, chunk, NULL});
     m3Free(&world->heap, chunk);
     if (index < 0)

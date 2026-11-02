@@ -57,7 +57,7 @@ static bool ShapeGeomValid(const m3Incoming* inc)
         {
             return false;
         }
-        if (type == (uint8_t)m3_voxelShape)
+        if (type == (uint8_t)m3_voxelChunkShape)
         {
             // ContentValid has put the index in range and its slot alive.
             float cell;

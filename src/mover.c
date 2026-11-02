@@ -213,7 +213,7 @@ static m3DistanceOutput NearestPiece(const m3World* world, int32_t shape, const 
     uint8_t type = world->shapes.shapeType[shape];
     *coreRadiusOut = 0.0f;
     if (type != (uint8_t)m3_meshShape && type != (uint8_t)m3_heightFieldShape &&
-        type != (uint8_t)m3_voxelShape)
+        type != (uint8_t)m3_voxelChunkShape)
     {
         m3Vec3 scratch[2];
         m3DistanceProxy proxy = m3MakeShapeProxy(world, shape, scratch);

@@ -118,7 +118,7 @@ m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom)
     case m3_meshShape:
     case m3_heightFieldShape:
         return m3CheckValid(ZeroV3(geom->v) && geom->s == 0.0f && restZero);
-    case m3_voxelShape:
+    case m3_voxelChunkShape:
         return m3BothChecks(m3CheckValid(ZeroV3(geom->v) && restZero),
                             m3CheckPositive(geom->s, M3_CELL_LIMIT));
     default:
@@ -182,7 +182,7 @@ static m3Result ShapeContentCheck(const m3World* world, int32_t bodyIndex, uint8
                                   const m3ShapeDef* def, const m3ShapeContent* content)
 {
     bool staticOnly = type == (uint8_t)m3_planeShape || type == (uint8_t)m3_meshShape ||
-                      type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelShape;
+                      type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelChunkShape;
     if (staticOnly && world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
         return m3_errorInvalid;
@@ -314,7 +314,7 @@ static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeConte
         sh->shapeHfIndex[index] = h;
         return true;
     }
-    case m3_voxelShape:
+    case m3_voxelChunkShape:
     {
         // A chunk whose surface passes the box limit has no room in the
         // slot's tree, and the slot's first chunk reserves that tree.

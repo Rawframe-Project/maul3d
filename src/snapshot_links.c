@@ -147,7 +147,7 @@ static ContentKind ShapeContent(uint8_t type)
         return content_hull;
     case m3_meshShape:
         return content_mesh;
-    case m3_voxelShape:
+    case m3_voxelChunkShape:
         return content_voxel;
     case m3_heightFieldShape:
         return content_heightField;

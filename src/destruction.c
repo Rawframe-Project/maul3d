@@ -186,7 +186,7 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
 static void ExplodeShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
 {
     uint8_t type = world->shapes.shapeType[shape];
-    if (type == (uint8_t)m3_voxelShape)
+    if (type == (uint8_t)m3_voxelChunkShape)
     {
         CarveChunk(world, def, shape);
     }

@@ -218,7 +218,7 @@ m3Result m3TypeChangeCheck(const m3World* world, int32_t index, int32_t type)
         {
             uint8_t shape = world->shapes.shapeType[s];
             if (shape == (uint8_t)m3_planeShape || shape == (uint8_t)m3_meshShape ||
-                shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelShape)
+                shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelChunkShape)
             {
                 return m3_errorInvalid;
             }

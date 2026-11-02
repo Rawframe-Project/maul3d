@@ -601,7 +601,7 @@ static m3Result ResolveVoxelShape(const m3World* world, m3ShapeId id, int32_t* s
     {
         return m3Refuse(world, m3MissingId(world, id.index1));
     }
-    if (world->shapes.shapeType[shape] != (uint8_t)m3_voxelShape)
+    if (world->shapes.shapeType[shape] != (uint8_t)m3_voxelChunkShape)
     {
         return m3Refuse(world, m3_errorInvalid); // not a voxel chunk
     }

@@ -23,7 +23,7 @@ static void CollideVoxelPair(m3World* world, m3Manifold* fresh, int32_t shapeA, 
 {
     uint8_t typeA = world->shapes.shapeType[shapeA];
     memset(fresh, 0, sizeof(*fresh));
-    int32_t voxelShape = typeA == (uint8_t)m3_voxelShape ? shapeA : shapeB;
+    int32_t voxelShape = typeA == (uint8_t)m3_voxelChunkShape ? shapeA : shapeB;
     int32_t otherShape = voxelShape == shapeA ? shapeB : shapeA;
     uint8_t ot = world->shapes.shapeType[otherShape];
     if (ot == (uint8_t)m3_sphereShape || ot == (uint8_t)m3_capsuleShape ||
@@ -545,13 +545,13 @@ static const PairCollider s_colliders[M3_SHAPE_TYPE_COUNT][M3_SHAPE_TYPE_COUNT] 
                       {CollideMeshPair},
                       {CollideVoxelPair},
                       {CollideHeightFieldPair}},
-    [m3_voxelShape] = {{CollideVoxelPair},
-                       {CollideVoxelPair},
-                       {CollideVoxelPair},
-                       {CollideVoxelPair},
-                       {CollideVoxelPair},
-                       {CollideVoxelPair},
-                       {CollideVoxelPair}},
+    [m3_voxelChunkShape] = {{CollideVoxelPair},
+                            {CollideVoxelPair},
+                            {CollideVoxelPair},
+                            {CollideVoxelPair},
+                            {CollideVoxelPair},
+                            {CollideVoxelPair},
+                            {CollideVoxelPair}},
     [m3_heightFieldShape] = {{CollideHeightFieldPair},
                              {CollideHeightFieldPair},
                              {CollideHeightFieldPair},
