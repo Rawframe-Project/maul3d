@@ -131,17 +131,18 @@ extern "C"
     ///                     id there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def, points,
     ///         tets or softBodyOut, a def m3DefaultSoftBodyDef did not make,
-    ///         a nonzero bendCompliance or pressure, a NaN position or point,
-    ///         a compliance or maxDeviation that is not finite or is
-    ///         negative, a particle mass or radius that is not positive, too
-    ///         few points or tets, or a tet that names a point out of range or
-    ///         twice or has no positive volume; m3_errorLimit for more than
-    ///         M3_MAX_SOFTBODY_PARTICLES points, M3_MAX_SOFTBODY_TETS tets or
-    ///         M3_MAX_SOFTBODY_EDGES edges, a point or position past its bound
-    ///         above, or a particle mass, radius or gravity scale past its
-    ///         bound, infinities included; m3_errorCapacity for a full pool;
-    ///         m3_errorBusy from host code the world is running. Every refusal
-    ///         but a full pool's and a null world's counts one misuse.
+    ///         a nonzero bendCompliance or pressure, a NaN position, point or
+    ///         gravity scale, a compliance or maxDeviation that is not finite
+    ///         or is negative, a particle mass or radius that is not positive
+    ///         or is NaN, too few points or tets, or a tet that names a point
+    ///         out of range or twice or has no positive volume; m3_errorLimit
+    ///         for more than M3_MAX_SOFTBODY_PARTICLES points,
+    ///         M3_MAX_SOFTBODY_TETS tets or M3_MAX_SOFTBODY_EDGES edges, a
+    ///         point or position past its bound above, or a particle mass,
+    ///         radius or gravity scale past its bound, infinities included;
+    ///         m3_errorCapacity for a full pool; m3_errorBusy from host code
+    ///         the world is running. Every refusal but a full pool's and a
+    ///         null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateTetSoftBody(m3World* world, const m3SoftBodyDef* def,
