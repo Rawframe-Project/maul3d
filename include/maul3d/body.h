@@ -758,9 +758,13 @@ extern "C"
     // the matching angular part.
 
     /// Adds a force at the center of mass for the next step. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The force and torque the body holds for the step stay within 1e20 on
+    /// every axis: a call that would pass that, or a force that is not
+    /// finite, is refused whole.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param body   The body.
@@ -770,9 +774,13 @@ extern "C"
     M3_API void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force);
 
     /// Adds a torque for the next step. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The torque the body holds for the step stays within 1e20 on every
+    /// axis: a call that would pass that, or a torque that is not finite,
+    /// is refused whole.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world   The world.
     /// @param body    The body.
@@ -782,9 +790,13 @@ extern "C"
     M3_API void m3Body_ApplyTorque(m3World* world, m3BodyId body, m3Vec3 torque);
 
     /// Changes the velocity at once by impulse over mass. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The impulse may leave the body at most 1e5 m/s and rad/s on every
+    /// axis: a call that would pass that, or an impulse that is not
+    /// finite, is refused whole.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world    The world.
     /// @param body     The body.
@@ -794,9 +806,13 @@ extern "C"
     M3_API void m3Body_ApplyLinearImpulse(m3World* world, m3BodyId body, m3Vec3 impulse);
 
     /// Changes the angular velocity at once. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The impulse may leave the body at most 1e5 m/s and rad/s on every
+    /// axis: a call that would pass that, or an impulse that is not
+    /// finite, is refused whole.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world    The world.
     /// @param body     The body.
@@ -807,9 +823,14 @@ extern "C"
 
     /// Adds a force at a world point for the next step, with the torque
     /// its arm gives. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The force and torque the body holds for the step stay within 1e20 on
+    /// every axis: a call that would pass that, or a force that is not
+    /// finite, is refused whole.
+    /// A point that is not finite is refused.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world  The world.
     /// @param body   The body.
@@ -821,9 +842,14 @@ extern "C"
 
     /// Applies an impulse at a world point, changing both velocities at
     /// once. Journaled.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// The impulse may leave the body at most 1e5 m/s and rad/s on every
+    /// axis: a call that would pass that, or an impulse that is not
+    /// finite, is refused whole.
+    /// A point that is not finite is refused.
+    /// A stale or null id, a refused target, value or point, or a call
+    /// from host code the world is running changes nothing, is not
+    /// journaled and counts one misuse.
     ///
     /// @param world    The world.
     /// @param body     The body.
