@@ -51,9 +51,11 @@ extern "C"
         /// Internal pressure: a target volume multiplier for
         /// CLOSED lattices (every axis count >= 2). Zero (default)
         /// is off; 1 holds the create
-        /// volume, 2 inflates toward double, and no more than
-        /// M3_SOFTBODY_PRESSURE_LIMIT is taken. One global volume
-        /// constraint over the surface, solved beside the edges.
+        /// volume, 2 inflates toward double, up to
+        /// M3_SOFTBODY_PRESSURE_LIMIT: a larger value is refused with
+        /// m3_errorLimit, and pressure on a lattice that is not closed
+        /// with m3_errorInvalid. One global volume constraint over the
+        /// surface, solved beside the edges.
         float pressure;
         /// Bind-pose tether: every particle clamps to this
         /// radius around its CREATE position each substep. Zero
@@ -78,9 +80,11 @@ extern "C"
     /// negative or non-positive geometry with m3_errorInvalid; counts
     /// past M3_MAX_SOFTBODY_PARTICLES or M3_MAX_SOFTBODY_EDGES, a
     /// particle mass outside M3_MIN_MASS to M3_MASS_LIMIT, a radius or
-    /// spacing past M3_LOCAL_LIMIT, a gravity scale past M3_RATIO_LIMIT
-    /// and a particle past M3_POSITION_LIMIT on any axis with
-    /// m3_errorLimit; and a full pool with m3_errorCapacity, leaving
+    /// spacing past M3_LOCAL_LIMIT, a gravity scale past M3_RATIO_LIMIT,
+    /// a pressure past M3_SOFTBODY_PRESSURE_LIMIT and a particle past
+    /// M3_POSITION_LIMIT on any axis with m3_errorLimit; pressure on a
+    /// lattice with an axis count below 2 with m3_errorInvalid; and a
+    /// full pool with m3_errorCapacity, leaving
     /// *softBodyOut the null id.
     /// Journaled with id verification.
     ///
@@ -100,14 +104,16 @@ extern "C"
                                                   m3SoftBodyId* softBodyOut);
 
     /// A tetrahedral soft body: explicit points (world
-    /// positions after adding def->position, each within 1e15 m on
-    /// every axis) and tets (four point indices each, positive
-    /// volume required). Edges come from
+    /// positions after adding def->position; each point within
+    /// M3_LOCAL_LIMIT, 1e4 m, of def->position and each world position
+    /// within 1e15 m on every axis, or m3_errorLimit) and tets (four
+    /// point indices each, positive volume required). Edges come from
     /// the tet edges, deduplicated in first-touch order, at
     /// def->compliance; every tet holds its create volume rigidly
-    /// (the incompressible jelly). def->countX/Y/Z, spacing,
-    /// bendCompliance, and pressure must be left at defaults (the
-    /// lattice knobs; hostile mixes refuse loudly). Pins, anchors,
+    /// (the incompressible jelly). The lattice's own fields do not
+    /// apply: def->bendCompliance and def->pressure must be 0, or the
+    /// create returns m3_errorInvalid, and def->countX/Y/Z and
+    /// def->spacing are not read, so any value is accepted. Pins, anchors,
     /// wind, water, explosions, and collision all treat the
     /// particles exactly like lattice particles. It refuses as
     /// m3CreateSoftBody does, with m3_errorLimit past
@@ -124,13 +130,18 @@ extern "C"
     /// @param softBodyOut  Receives the new id; any failure leaves the null
     ///                     id there when it is not null.
     /// @return m3_success; m3_errorInvalid for a null world, def, points,
-    ///         tets or softBodyOut, a def m3DefaultSoftBodyDef did not
-    ///         make, a bad field, too few points or tets, or a tet that
-    ///         names a point out of range or twice or has no positive
-    ///         volume; m3_errorLimit and
-    ///         m3_errorCapacity as m3CreateSoftBody; m3_errorBusy from host
-    ///         code the world is running. Every refusal but a full pool's
-    ///         and a null world's counts one misuse.
+    ///         tets or softBodyOut, a def m3DefaultSoftBodyDef did not make,
+    ///         a nonzero bendCompliance or pressure, a NaN position or point,
+    ///         a compliance or maxDeviation that is not finite or is
+    ///         negative, a particle mass or radius that is not positive, too
+    ///         few points or tets, or a tet that names a point out of range or
+    ///         twice or has no positive volume; m3_errorLimit for more than
+    ///         M3_MAX_SOFTBODY_PARTICLES points, M3_MAX_SOFTBODY_TETS tets or
+    ///         M3_MAX_SOFTBODY_EDGES edges, a point or position past its bound
+    ///         above, or a particle mass, radius or gravity scale past its
+    ///         bound, infinities included; m3_errorCapacity for a full pool;
+    ///         m3_errorBusy from host code the world is running. Every refusal
+    ///         but a full pool's and a null world's counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_NODISCARD M3_API m3Result m3CreateTetSoftBody(m3World* world, const m3SoftBodyDef* def,
