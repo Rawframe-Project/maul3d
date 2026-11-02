@@ -1566,7 +1566,8 @@ static int32_t OverlapEach(m3World* world, int32_t kind, m3QueryFilter filter, m
     }
     if (kind == 2)
     {
-        return m3World_OverlapCapsule(world, center, (m3Pos3){1.0, 0.0, 0.0}, 0.5f, filter, ids, 4);
+        return m3World_OverlapCapsule(world, center, (m3Vec3){0.0f, 0.0f, 0.0f},
+                                      (m3Vec3){1.0f, 0.0f, 0.0f}, 0.5f, filter, ids, 4);
     }
     if (kind == 3)
     {
