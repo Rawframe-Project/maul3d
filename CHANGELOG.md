@@ -6,6 +6,55 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.13.0](https://github.com/Rawframe-Project/maul3d/compare/v0.12.0...v0.13.0) (2026-11-02)
+
+### Changed
+
+- **Breaking: five names after the final shape review.** Each keeps
+  its value, type and meaning; rename your uses as below. Neither
+  binding exposes any of them.
+
+  | 0.12.0 | 0.13.0 |
+  |---|---|
+  | `m3_voxelShape` | `m3_voxelChunkShape` |
+  | `m3Vehicle_GetCompression` | `m3Vehicle_GetWheelCompression` |
+  | `m3SoftBody_AnchorToSoft` | `m3SoftBody_AnchorToSoftBody` |
+  | `m3DrivetrainDef.autoShift` | `enableAutoShift` |
+  | `m3DrivetrainDef.diffMode`, `diffCouple` | `differentialMode`, `differentialCoupling` |
+  | `M3_MAX_DRIVETRAIN_CURVE` | `M3_MAX_DRIVETRAIN_CURVE_POINTS` |
+  | `M3_SERVO_REACH_LIMIT` | `M3_TARGET_REACH_LIMIT` |
+  | `M3_BLAST_LIMIT` | `M3_EXPLOSION_IMPULSE_LIMIT` |
+
+  ([#344](https://github.com/Rawframe-Project/maul3d/pull/344))
+- **Breaking: a dropped explosion carve has its own counter.**
+  `m3Counters.voxelEditsRefused` counted both voxel edits refused with
+  `m3_errorLimit` and explosion carves `m3World_Explode` skipped for
+  the same surface bound, which no status reports. It now counts the
+  edits only, and the new `m3Counters.voxelCarvesDropped` counts the
+  skipped carves. A program that watched `voxelEditsRefused` for
+  carves reads `voxelCarvesDropped`.
+  ([#346](https://github.com/Rawframe-Project/maul3d/pull/346))
+- **Breaking: `m3Counters` drops three fields other calls report.**
+  `scratchPeak` and `scratchCapacity` are gone: read them from
+  `m3World_GetMemoryUsage`. `snapshotBytes` is gone: call
+  `m3World_GetSnapshotSize`. `m3World_GetCounters` no longer measures
+  the snapshot.
+  ([#347](https://github.com/Rawframe-Project/maul3d/pull/347))
+- **Formats.** The snapshot keeps format 6, the journal tape format 7
+  and the replay container format 4. As in every release, a snapshot,
+  tape or container written by another release is refused with
+  `m3_errorVersion`.
+
+### Fixed
+
+- **Breaking: a spherical def refuses a negative cone angle.**
+  `m3CreateSphericalJoint` took a negative `coneAngle` while
+  `enableCone` was false, a value `m3SphericalJoint_SetConeAngle`
+  refuses with the cone on or off. The create now refuses it with
+  `m3_errorInvalid` and one misuse whether the cone is on or off, and
+  restore and replay refuse such bytes. Pass an angle of zero or more.
+  ([#341](https://github.com/Rawframe-Project/maul3d/pull/341))
+
 ## [0.12.0](https://github.com/Rawframe-Project/maul3d/compare/v0.11.0...v0.12.0) (2026-11-02)
 
 ### Changed
