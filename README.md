@@ -139,10 +139,11 @@ vehicle, a playable character, cloth in gusting wind and a
 heightfield, with a recording panel that seals the session into an
 M3RP replay and verifies it. Hold R and time runs backward.
 
-[`bindings/`](bindings/) holds starter kits for C# (one P/Invoke file)
-and Godot (a GDExtension node). CI checks both against the C API: every
-function they call, and every struct the C# side mirrors, field by
-field.
+[`bindings/`](bindings/) holds the C# binding (one P/Invoke file),
+which keeps the same 1.x promise as the C headers, and a Godot starter
+kit (a GDExtension node), which follows Godot's versions and is outside
+it. CI checks both against the C API: every function they call, and
+every struct the C# side mirrors, field by field.
 
 ## Determinism
 
@@ -170,12 +171,19 @@ the nightly CI run executes on every platform.
 
 ## Status
 
-Until 1.0.0 the API, the ABI and the snapshot and journal formats may
-change in any minor release; the [changelog](CHANGELOG.md) records
-every change. Defs carry a cookie, so a def that was not set up with
-its `m3Default...Def` function is refused. A snapshot carries its
-format version and solver revision, and a release that changed either
-refuses it; a replay file carries its container version the same way.
+From 1.0.0 the API is settled, and every 1.x release keeps it: a
+program that builds against 1.y builds against any later 1.z and means
+the same. A minor release adds functions, types, enum values and
+fields at the end of a struct, and never removes or renames one; a
+patch release only fixes, and changes no result and no format. A
+result changes only in a minor release, and the
+[changelog](CHANGELOG.md) says what changes. A program built against
+another minor version's headers is refused at `m3CreateWorld` with
+`m3_errorVersion`. Defs carry a cookie, so a def that was not set up
+with its `m3Default...Def` function is refused. A snapshot, a journal
+tape and a replay file are read by every release of the minor version
+that wrote them and refused by any other; a host keeps assets, not
+state, across a minor upgrade.
 
 ## Documentation
 

@@ -67,11 +67,13 @@ extern "C"
 #define M3_VERSION_PATCH 1
 // x-release-please-end
 
-// The binary interface a program is built for: the whole version before
-// 1.0, when any release may break it, and the major and minor version from
-// 1.0 on. The top bit is always set, so a zeroed def never matches. The
-// world def carries it (m3DefaultWorldDef), and m3CreateWorld refuses a
-// def built for another; every other def is used inside a world.
+// The binary interface a program is built for: the major and minor
+// version, since a patch release keeps it and a minor release may add a
+// field at the end of a def. A major version of 0 names the whole
+// version, as the 0.x releases did. The top bit is always set, so a
+// zeroed def never matches. The world def carries it (m3DefaultWorldDef),
+// and m3CreateWorld refuses a def built for another; every other def is
+// used inside a world.
 #define M3_ABI_VERSION                                                                             \
     (UINT32_C(0x80000000) | ((uint32_t)M3_VERSION_MAJOR << 16) |                                   \
      (M3_VERSION_MAJOR == 0 ? (((uint32_t)M3_VERSION_MINOR << 8) | (uint32_t)M3_VERSION_PATCH)     \

@@ -33,8 +33,8 @@ extern "C"
     /// m3_errorInvalid before any pointer is formed.
 
     /// Counts from a journal tape: total records, and how many of them
-    /// are steps. Returns m3_errorVersion for a tape another release
-    /// wrote and m3_errorFormat for malformed framing.
+    /// are steps. Returns m3_errorVersion for a tape another minor
+    /// version wrote and m3_errorFormat for malformed framing.
     typedef struct m3JournalInfo
     {
         int64_t opCount;
@@ -51,7 +51,7 @@ extern "C"
     ///                 was, since the call has no owner.
     /// @return m3_success; m3_errorInvalid for a null tape or infoOut, a
     ///         negative length or one this target cannot address;
-    ///         m3_errorVersion for a tape another release wrote;
+    ///         m3_errorVersion for a tape another minor version wrote;
     ///         m3_errorFormat for a tape too short for its header, another
     ///         format's header, a record with an op code below 1 or a
     ///         negative payload length, or a record whose framing runs past
@@ -89,13 +89,13 @@ extern "C"
     /// (m3World_Hash after the session); verifiers compare against
     /// it. Sets *bytesOut to the bytes written; any failure leaves it as
     /// it was, since the call has no owner. Returns m3_errorVersion
-    /// for a snapshot or tape another release wrote, m3_errorInvalid for
-    /// a null pointer or a containerOut whose first m3GetEncodedReplaySize
-    /// bytes overlap the snapshot or the tape, m3_errorFormat for sizes
-    /// too short to hold a snapshot or a tape, a header that is not a
-    /// snapshot's or a malformed journal, m3_errorLimit for a pair whose
-    /// container no buffer of this target can hold, and m3_errorCapacity
-    /// for a small buffer.
+    /// for a snapshot or tape another minor version wrote,
+    /// m3_errorInvalid for a null pointer or a containerOut whose first
+    /// m3GetEncodedReplaySize bytes overlap the snapshot or the tape,
+    /// m3_errorFormat for sizes too short to hold a snapshot or a tape, a
+    /// header that is not a snapshot's or a malformed journal,
+    /// m3_errorLimit for a pair whose container no buffer of this target
+    /// can hold, and m3_errorCapacity for a small buffer.
     ///
     /// @param snapshot       The session's first snapshot, as
     ///                       m3World_Snapshot wrote it.
@@ -119,8 +119,8 @@ extern "C"
 
     /// Decode and validate framing (the container's header, the
     /// snapshot's and the tape's prefixes, lengths, journal record
-    /// walk). Returns m3_errorVersion when another release wrote the
-    /// container or what it holds, and m3_errorFormat on any
+    /// walk). Returns m3_errorVersion when another minor version wrote
+    /// the container or what it holds, and m3_errorFormat on any
     /// corruption, with the view untouched either way.
     ///
     /// @param data     The container, as m3EncodeReplay wrote it.

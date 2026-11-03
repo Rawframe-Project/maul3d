@@ -1,6 +1,6 @@
 # State formats
 
-maul3d writes three state formats: the snapshot (`m3World_Snapshot`), the journal tape (`m3World_StartJournal` to `m3World_StopJournal`) and the replay container (`m3EncodeReplay`). None of them is read across releases: only the release that wrote the bytes reads them, and any other refuses them with `m3_errorVersion`. A host keeps assets, not state, across an upgrade. maul3d writes no asset format.
+maul3d writes three state formats: the snapshot (`m3World_Snapshot`), the journal tape (`m3World_StartJournal` to `m3World_StopJournal`) and the replay container (`m3EncodeReplay`). None of them is read across minor versions: the releases of the minor version that wrote the bytes read them, since a patch release changes no format and no result, and a release of any other minor version refuses them with `m3_errorVersion`. A host keeps assets, not state, across an upgrade. maul3d writes no asset format.
 
 ## The state prefix
 
@@ -15,13 +15,13 @@ Every state format starts with the same 16 bytes, shared with maul2d, each a lit
 
 A reader checks in this order:
 - Bytes shorter than the prefix, or with another magic, are not this format: `m3_errorFormat`.
-- Another ABI version or format number means another release wrote them: `m3_errorVersion`.
+- Another ABI version or format number means a release of another minor version wrote them: `m3_errorVersion`.
 - Another header size, or bytes too short to hold the header, are corrupt: `m3_errorFormat`.
 - The format's own fields follow. Another build hash is `m3_errorVersion`; another world shape is `m3_errorFormat`.
 
 None of these refusals counts as misuse. A header embedded in another, such as a replay container's snapshot, is checked the same way, and the outer reader returns its refusal.
 
-The golden lines that pin a format's bytes, the snapshot's and the tape's, hash them from offset 8, past the magic and the `abiVersion`. A separate check confirms that each `abiVersion` is this release's, so a release bump moves no line. No golden line hashes a replay container, the one format that embeds others' headers; one that did would zero each embedded `abiVersion` in the hashed copy, as maul2d does for its tape's snapshot.
+The golden lines that pin a format's bytes, the snapshot's and the tape's, hash them from offset 8, past the magic and the `abiVersion`. A separate check confirms that each `abiVersion` is this release's, so a version bump moves no line. No golden line hashes a replay container, the one format that embeds others' headers; one that did would zero each embedded `abiVersion` in the hashed copy, as maul2d does for its tape's snapshot.
 
 ## The headers
 
@@ -33,7 +33,7 @@ The golden lines that pin a format's bytes, the snapshot's and the tape's, hash 
 | Journal tape | `M3JN` | 1 | 16 bytes | nothing; the records start at 16 |
 | Replay container | `M3RP` | 4 | 56 bytes | `finalHash` (`uint64_t`) at 16, then `snapshotBytes`, `journalBytes`, `stepCount` and `opCount` (`int64_t`) at 24, then the snapshot and the tape, each with its own header |
 
-The snapshot's `configHash` covers what the bytes mean within one release: the format number, the solver revision, the sizes of a float and of a position, and the floating-point policy. A snapshot restores only into a world with the same eight capacities.
+The snapshot's `configHash` covers what the bytes mean within one minor version: the format number, the solver revision, the sizes of a float and of a position, and the floating-point policy. A snapshot restores only into a world with the same eight capacities.
 
 A tape's records follow its prefix, each an `int32_t` op, an `int32_t` payload size and the payload. `m3World_StartJournal` writes the prefix when it starts, so a session of no op is 16 bytes, and a run of records cut at record boundaries behind that prefix is a tape too.
 
