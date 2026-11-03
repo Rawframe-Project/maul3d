@@ -160,8 +160,9 @@ static void TestBoxRotationNearUnit(void)
     m3ShapeId hits[4];
     m3Pos3 center = {0.0, 0.5, 0.0};
     m3Vec3 half = {1.0f, 0.6f, 0.3f};
-    // A quarter turn about y, each part a percent long: within the
-    // percent of unit length the box cast takes, so it answers.
+    // A quarter turn about y with each part half a percent long, so its
+    // squared length is about 1% over one: within the 2% the box cast
+    // takes, so it answers.
     m3Quat near = {0.0f, 0.7106f, 0.0f, 0.7106f};
     CHECK(m3World_OverlapBox(world, center, half, near, m3DefaultQueryFilter(), hits, 4) == 1,
           "a near-unit rotation finds the plane");
