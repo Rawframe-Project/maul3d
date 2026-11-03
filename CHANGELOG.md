@@ -9,10 +9,31 @@ API, and an entry says what each changed result changes.
 
 ## [1.0.1](https://github.com/Rawframe-Project/maul3d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
+### Changed
+
+- **The user documentation is in `docs/user/`, one page per feature.**
+  `docs/guide.md` and `docs/index.md` are gone, and `docs/README.md`
+  indexes the pages. Every page was rewritten from the code, its C is
+  built and run by the tests exactly as shown, and its measured figures
+  are named as release 1.0.0's. A link to the old guide moves to the
+  page for its topic.
+  ([#359](https://github.com/Rawframe-Project/maul3d/pull/359),
+  [#360](https://github.com/Rawframe-Project/maul3d/pull/360),
+  [#361](https://github.com/Rawframe-Project/maul3d/pull/361))
 
 ### Fixed
 
-* **journal:** a replay never asks the pre-solve callback ([#363](https://github.com/Rawframe-Project/maul3d/issues/363)) ([5dd2d1d](https://github.com/Rawframe-Project/maul3d/commit/5dd2d1d0870c19a710822c8d8e8ba5c007726a0e)), closes [#362](https://github.com/Rawframe-Project/maul3d/issues/362)
+- **A journal replay never asks the pre-solve callback.** A replayed
+  step that recorded no veto used to call a callback installed on the
+  replaying world. A callback that vetoed then made the replay land on
+  other bits while it still returned `m3_success`. The replay now
+  applies exactly the vetoes each step recorded, as
+  `m3World_SetPreSolveCallback` promised; the `m3PreSolveFunction`
+  comment, which said to register the callback before replaying, was
+  the wrong one and is corrected. Results change only for a replay run
+  with a callback installed, which now lands on the recorded bits. A
+  1.0.0 snapshot steps to the same bits, so 1.0.1 restores it.
+  ([#363](https://github.com/Rawframe-Project/maul3d/pull/363))
 
 ## [1.0.0](https://github.com/Rawframe-Project/maul3d/compare/v0.13.1...v1.0.0) (2026-11-03)
 
