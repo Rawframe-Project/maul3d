@@ -779,8 +779,15 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
         m3Free(&world->heap, snap);
         return m3_errorCapacity;
     }
+    // A replayed step applies its recorded vetoes, none when it recorded
+    // none, and never asks the host: an installed pre-solve callback is
+    // set aside for the replay, so it cannot veto what the recording did
+    // not.
+    m3PreSolveFunction* preSolve = world->preSolveFunction;
+    world->preSolveFunction = NULL;
     m3Result applied = ReplayApply(world, (const uint8_t*)data + M3_JOURNAL_HEADER_BYTES,
                                    size - M3_JOURNAL_HEADER_BYTES);
+    world->preSolveFunction = preSolve;
     if (applied != m3_success)
     {
         m3RestoreCommit(world, &backOut);

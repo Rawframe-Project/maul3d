@@ -63,11 +63,13 @@ static m3Pos3 DeepestPoint(const m3World* world, const m3Manifold* manifold, int
 }
 
 // True when the host's pre-solve callback turns the pair down. A replay
-// carries the recorded decisions instead and never calls the host, so a
-// tape's outcome cannot be second-guessed; a live veto joins the
-// journal so a replay repeats it. Keys arrive in canonical ascending
-// order in both cases. The callback must be pure: replay divergence
-// from an impure one is the host's own.
+// carries the recorded decisions instead and never calls the host: it
+// sets the callback aside for its whole run, so a step that recorded no
+// veto vetoes nothing and a tape's outcome cannot be second-guessed. A
+// live veto joins the journal so a replay repeats it. Keys arrive in
+// canonical ascending order in both cases. The callback must be pure: a
+// resimulation from a snapshot calls it again, and divergence from an
+// impure one is the host's own.
 static bool Vetoed(m3World* world, const m3Manifold* manifold, uint64_t key, int32_t shapeA,
                    int32_t shapeB)
 {
