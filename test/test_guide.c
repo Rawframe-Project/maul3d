@@ -473,10 +473,32 @@ static void TestCrate(void)
     m3DestroyWorld(world);
 }
 
+// queries-and-events.md: a ray cast down onto the floor plane meets it
+// at the origin.
+static void TestRayDown(void)
+{
+    m3World* world = FlatWorld();
+
+    m3Pos3 from = {0.0, 10.0, 0.0};
+    m3Vec3 down = {0.0f, -20.0f, 0.0f}; // the ray runs to y = -10
+    m3CastHit hit;
+    bool found = m3World_CastRayClosest(world, from, down, m3DefaultQueryFilter(), &hit);
+    m3Pos3 ground = from;
+    if (found)
+    {
+        ground = hit.point; // where the ray met the floor
+    }
+
+    CHECK(found && ground.y > -1e-6 && ground.y < 1e-6, "the ray meets the floor at y = 0");
+    CHECK(found && hit.fraction == 0.5f, "half way along its 20 m");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFirstWorld();
     TestCrate();
+    TestRayDown();
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
