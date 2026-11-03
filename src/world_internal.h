@@ -87,6 +87,7 @@ static inline int32_t m3CellFromF(float f, float nanPark)
 #define M3_HULL_MAX_FACES        124
 #define M3_HULL_MAX_FACE_INDICES 372
 #define M3_HULL_MAX_HALF_EDGES   372
+// NOLINTNEXTLINE(misc-redundant-expression): two limits that must agree
 _Static_assert(M3_MAX_CAST_POINTS == M3_HULL_MAX_VERTS, "a cast sweeps at most a hull's vertices");
 
 // Half-edge adjacency (the Gauss-map edge query reads the two faces
