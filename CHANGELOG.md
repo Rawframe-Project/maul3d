@@ -6,6 +6,13 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.13.1](https://github.com/Rawframe-Project/maul3d/compare/v0.13.0...v0.13.1) (2026-11-03)
+
+
+### Fixed
+
+* **snapshot:** a contact pair on a dead shape is never read ([#350](https://github.com/Rawframe-Project/maul3d/issues/350)) ([5ec9e8c](https://github.com/Rawframe-Project/maul3d/commit/5ec9e8c9fff5a91887193e334822386de62ee02e))
+
 ## [0.13.0](https://github.com/Rawframe-Project/maul3d/compare/v0.12.0...v0.13.0) (2026-11-02)
 
 ### Changed
