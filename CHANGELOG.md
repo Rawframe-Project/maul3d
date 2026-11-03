@@ -3,15 +3,44 @@
 All notable changes to this project are recorded here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [Semantic Versioning](https://semver.org/). Before
-1.0.0, any minor release may change the API, the ABI and the
-snapshot and journal formats.
+1.0.0, any minor release could change the API, the ABI and the
+snapshot and journal formats. From 1.0.0 every 1.x release keeps the
+API, and an entry says what each changed result changes.
 
 ## [1.0.0](https://github.com/Rawframe-Project/maul3d/compare/v0.13.1...v1.0.0) (2026-11-03)
 
+### Changed
 
-### Documentation
-
-* the 1.x rules replace the 0.x ones for 1.0.0 ([#355](https://github.com/Rawframe-Project/maul3d/issues/355)) ([6dfcd2c](https://github.com/Rawframe-Project/maul3d/commit/6dfcd2c6a22977c320dc23a483f3d501d8742d3c)), closes [#354](https://github.com/Rawframe-Project/maul3d/issues/354)
+- **The API is settled, and every 1.x release keeps it.** A program
+  that builds against 1.0.0 builds against any later 1.x and means the
+  same: a minor release adds functions, types, enum values and fields
+  at the end of a struct, and never removes or renames one; a patch
+  release only fixes. A change that gives existing inputs a different
+  result ships as a `feat` in a minor release, or as a `fix` in a patch
+  release when it corrects a result the documentation already
+  promised, and its changelog entry says what changes. There is no
+  2.0.0. The API and the results are those of 0.13.1.
+  ([#355](https://github.com/Rawframe-Project/maul3d/pull/355))
+- **The binary interface holds within a minor version.**
+  `M3_ABI_VERSION` is now the major and minor version, so a program
+  built against 1.0.x headers runs on any 1.0.x library, and
+  `m3CreateWorld` refuses a def from another minor version's headers
+  with `m3_errorVersion`. The shared library's `SOVERSION` is `1.0`,
+  and `find_package(maul3d 1.0)` accepts any later 1.x.
+  ([#355](https://github.com/Rawframe-Project/maul3d/pull/355))
+- **The C# binding keeps the same promise as the C headers.**
+  `bindings/csharp/Maul3D.cs` ships with every release; a name it binds
+  is never removed or renamed in 1.x. Bind more of the API in a file of
+  your own, so a later `Maul3D.cs` replaces this one. The Godot starter
+  kit stays outside the promise.
+  ([#355](https://github.com/Rawframe-Project/maul3d/pull/355))
+- **Formats.** The snapshot keeps format 6, the journal tape format 7
+  and the replay container format 4. They carry the new
+  `M3_ABI_VERSION`, so 1.0.0 refuses a snapshot, tape or container
+  that 0.13.1 or any earlier release wrote with `m3_errorVersion`.
+  From 1.0.0 the patch releases of a minor version read each other's,
+  except that a release that changed a result refuses a snapshot
+  written before it.
 
 ## [0.13.1](https://github.com/Rawframe-Project/maul3d/compare/v0.13.0...v0.13.1) (2026-11-03)
 
