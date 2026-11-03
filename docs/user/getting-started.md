@@ -165,5 +165,8 @@ fast a step runs, never what it computes.
   on a static body. Voxel chunks side by side weld into one surface
   ([destruction](destruction.md)).
 - The `cityblock` scene in `bench/`, five thousand bodies with voxel
-  towers and a fracture wave, prints its timings on your machine, and
-  CI pins its final hash on every platform.
+  towers and a fracture wave, prints its timings on your machine. CI's
+  bench job pins its final hash on every push to main and every night,
+  on six native 64-bit cells: GCC 14 on x64 and arm64 Linux, Clang 20
+  on x64 Linux, Clang on arm64 macOS, and clang-cl on x64 and arm64
+  Windows.

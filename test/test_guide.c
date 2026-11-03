@@ -537,12 +537,50 @@ static void TestDoorHinge(void)
     m3DestroyWorld(world);
 }
 
+// limits.md: the pair check. A world with room for one pair, stepped
+// with four balls on the floor, drops pairs and says so.
+static void TestPairsDropped(void)
+{
+    m3WorldDef worldDef = m3DefaultWorldDef();
+    worldDef.bodyCapacity = 8;
+    worldDef.shapeCapacity = 8;
+    worldDef.pairCapacity = 1;
+    m3World* world = NewWorld(&worldDef);
+    m3BodyDef groundDef = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &groundDef);
+    m3ShapeDef shapeDef = m3DefaultShapeDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    NewPlaneShape(world, ground, &shapeDef, &floor);
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m3BodyDef ballDef = m3DefaultBodyDef();
+        ballDef.type = m3_dynamicBody;
+        ballDef.position = (m3Pos3){(double)i * 2.0, 0.5, 0.0};
+        m3BodyId ball = NewBody(world, &ballDef);
+        m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+        NewSphereShape(world, ball, &shapeDef, &sphere);
+    }
+    float dt = 1.0f / 60.0f;
+    bool tooFewPairs = false;
+
+    uint64_t dropped = m3World_GetCounters(world).pairsDropped;
+    (void)m3World_Step(world, dt, 4);
+    if (m3World_GetCounters(world).pairsDropped != dropped)
+    {
+        tooFewPairs = true; // give the world a larger m3WorldDef.pairCapacity
+    }
+
+    CHECK(tooFewPairs, "four balls on the floor need more than one pair");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFirstWorld();
     TestCrate();
     TestRayDown();
     TestDoorHinge();
+    TestPairsDropped();
     TestWaterPool();
     TestCharacterWalk();
     TestRope();

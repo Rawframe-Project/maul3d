@@ -121,13 +121,14 @@ runs whole for every other body. `m3Counters.pairsDropped` counts
 the drops, so check it while a game is in development and raise
 `pairCapacity` until it stays at zero:
 
-    uint64_t dropped = m3World_GetCounters(world).pairsDropped;
-    (void)m3World_Step(world, dt, 4);
-    if (m3World_GetCounters(world).pairsDropped != dropped)
-    {
-        // Bodies passed through each other this step: give the world
-        // a larger m3WorldDef.pairCapacity.
-    }
+```c
+uint64_t dropped = m3World_GetCounters(world).pairsDropped;
+(void)m3World_Step(world, dt, 4);
+if (m3World_GetCounters(world).pairsDropped != dropped)
+{
+    tooFewPairs = true; // give the world a larger m3WorldDef.pairCapacity
+}
+```
 
 The world also takes its step scratch at creation, sized for a step
 at those capacities, so stepping never allocates.
@@ -135,11 +136,14 @@ at those capacities, so stepping never allocates.
 `persistentBytes`), and a world whose scratch would pass 2 GiB, or that
 the allocator refuses, is not created (`m3_errorCapacity`).
 
-As a guide for budgets, release 1.0.0 on a 64-bit target, measured
-with `m3World_GetMemoryUsage`, takes about
+As a guide for budgets, here is what release 1.0.0 takes on a 64-bit
+target. The figures were measured on x86-64 Linux with a clang-20
+build, by creating worlds whose capacities differ by a known count and
+comparing their `m3World_GetMemoryUsage`. Such a world takes about
 
-    918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity
-    + 57 KiB
+```text
+918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity + 57 KiB
+```
 
 bytes of scratch, and each pair also keeps 564 bytes of persistent
 tables, so the default 8 pairs cost about 11.6 KiB per shape. The
