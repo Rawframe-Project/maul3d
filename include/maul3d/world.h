@@ -134,7 +134,7 @@ extern "C"
 
     /// The world defaults, stamped with M3_ABI_VERSION of the headers the
     /// program is built with, so m3CreateWorld can refuse a def made for
-    /// another release's binary interface.
+    /// another minor version's binary interface.
     static inline m3WorldDef m3DefaultWorldDef(void)
     {
         m3WorldDef def = m3DefaultWorldDefValues();
@@ -473,10 +473,10 @@ extern "C"
     /// out the same on every target, after a header carrying the state
     /// prefix (the writing release's M3_ABI_VERSION and the format's
     /// number), a config hash (solver revision, precision, FP policy)
-    /// and the world's capacities. Only the release that wrote a
-    /// snapshot reads it: restore refuses another release, format or
-    /// config with m3_errorVersion and another world shape with
-    /// m3_errorFormat, restores in place, and the restored world
+    /// and the world's capacities. Only the releases of the minor
+    /// version that wrote a snapshot read it: restore refuses another
+    /// minor version, format or config with m3_errorVersion and another
+    /// world shape with m3_errorFormat, restores in place, and the restored world
     /// resimulates bit-exactly. Before any byte lands, every block is
     /// checked: out-of-range indices and counts, flags that are not
     /// flags, and non-finite state refuse with m3_errorFormat and leave
@@ -1484,7 +1484,7 @@ extern "C"
     /// Replay a recorded session into this world. ATOMIC: on any
     /// refusal the world is restored to its pre-call state; a
     /// half-applied session is impossible. Returns m3_errorVersion for a
-    /// tape another release wrote, m3_errorFormat for a damaged tape
+    /// tape another minor version wrote, m3_errorFormat for a damaged tape
     /// (truncation, corruption, an op that cannot re-mint its recorded
     /// id) and m3_errorCapacity when the world's
     /// allocator refuses what the replay or one of its ops needs.

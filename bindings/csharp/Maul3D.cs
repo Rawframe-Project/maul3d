@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Maul3D C# starter kit: P/Invoke over the core surface (world,
-// body, shape, joint, step, queries, snapshot). Single file, no
-// dependencies, blittable structs only. Build the native library
-// with -DMAUL3D_BUILD_SHARED=ON and drop it next to your binary
-// (maul3d.dll / libmaul3d.so / libmaul3d.dylib).
+// Maul3D C# binding: P/Invoke over the core surface (world,
+// body, shape, joint, step, queries, snapshot), under the same 1.x
+// promise as the C headers. Single file, no dependencies, blittable
+// structs only. Build the native library with -DMAUL3D_BUILD_SHARED=ON
+// and drop it next to your binary (maul3d.dll / libmaul3d.so /
+// libmaul3d.dylib).
 //
 // The layout law: every struct here mirrors the C header byte for
 // byte. Call Maul3D.Native.LayoutCheck() once at startup; it
@@ -14,8 +15,8 @@
 // are bytes here (C _Bool is one byte; C# bool marshals as four).
 // A world is an opaque pointer, every call takes it first, and a
 // create or destroy returns a Result with the new id in an out
-// parameter. The rest of the API follows the same pattern; extend as
-// needed.
+// parameter. To bind more of the API, follow the same pattern in a
+// file of your own.
 
 using System;
 using System.Runtime.InteropServices;
@@ -406,8 +407,8 @@ namespace Maul3D
         // x-release-please-end
 
         /// M3_ABI_VERSION of the C headers this file mirrors, computed as
-        /// base.h computes it. DefaultWorldDef stamps it, so a library built
-        /// from other headers refuses the def with Result.ErrorVersion
+        /// base.h computes it. DefaultWorldDef stamps it, so a library of
+        /// another minor version refuses the def with Result.ErrorVersion
         /// instead of misreading it.
         public const uint AbiVersion = 0x80000000u | (VersionMajor << 16) |
             (VersionMajor == 0 ? (VersionMinor << 8) | VersionPatch : VersionMinor);

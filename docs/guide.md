@@ -77,8 +77,10 @@ whose printed state hashes must be equal on every commit.
 
 **Deliberately not promised:**
 
-- Hash stability across library versions. A solver revision or a
-  snapshot format bump moves the bits on purpose and says so.
+- Hash stability across releases. A release may move the bits on
+  purpose, with a solver revision or a format bump: a minor release
+  for a new result, a patch release only to correct a result to what
+  this guide promised. Its changelog entry says what changes.
 - Determinism across DIFFERENT builds of the same version (another
   compiler's build is another timeline; each build is internally
   deterministic and all builds we ship cells for agree, but that
@@ -152,10 +154,11 @@ Deliberately NOT in the snapshot:
 - **Event streams.** Events are transient observations; restore
   clears every stream (contact, sensor, and fragment alike).
 
-A snapshot restores only into the release that wrote it, built
-with the same semantics, and into a world with the same capacities:
-the header's state prefix guards the release, a config hash the
-build. Another release's or another build's snapshot is refused with
+A snapshot restores only into a release of the minor version that
+wrote it, built with the same semantics, and into a world with the
+same capacities: the header's state prefix guards the version, a
+config hash the build. Another minor version's or another build's
+snapshot is refused with
 m3_errorVersion; truncated buffers, corrupted headers, and
 wrong-shaped worlds with m3_errorFormat; each with the target world
 untouched. So is any snapshot this engine could not
@@ -216,8 +219,8 @@ write the same bytes.
 **Replay is atomic.** On any refusal the target world is restored to
 its pre-call state. A half-applied session is impossible. A damaged
 tape (truncation, corruption, an op that cannot re-mint its recorded
-id) is refused with m3_errorFormat, a tape another release wrote
-with m3_errorVersion, and a replay the world's allocator
+id) is refused with m3_errorFormat, a tape another minor version
+wrote with m3_errorVersion, and a replay the world's allocator
 turns down, before the first op or in the middle of one, with
 m3_errorCapacity. Backing out never needs memory, because the replay
 takes it up front: for the whole call it holds a snapshot of the world
@@ -1173,8 +1176,8 @@ containers refuse loudly: the codec validates the container's,
 the snapshot's and the tape's headers, exact lengths, record
 framing, and that the header's counts match its own stream. Like
 the snapshot and the tape it holds, a container is read only by
-the release that wrote it; another release's is refused with
-m3_errorVersion.
+the releases of the minor version that wrote it; another minor
+version's is refused with m3_errorVersion.
 
 ## Lockstep and rollback networking
 
