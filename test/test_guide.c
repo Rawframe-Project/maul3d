@@ -304,6 +304,51 @@ static void TestSnapshotRoundTrip(void)
     m3DestroyWorld(world);
 }
 
+// A world with a floor and a ball dropped from 3 m, built the same way
+// every time.
+static m3World* BallWorld(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef ballDef = m3DefaultBodyDef();
+    ballDef.type = m3_dynamicBody;
+    ballDef.position = (m3Pos3){0.0, 3.0, 0.0};
+    m3BodyId ball = NewBody(world, &ballDef);
+    m3ShapeDef ballShape = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &ballShape, &sphere);
+    return world;
+}
+
+// journal-and-replays.md: a second recorded, then replayed into a twin
+// built the same way. The twin ends on the recorder's hash.
+static void TestJournalReplay(void)
+{
+    m3World* world = BallWorld();
+    m3World* twin = BallWorld();
+
+    uint8_t tape[4096];
+    m3Result result = m3World_StartJournal(world, tape, sizeof tape);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    int64_t tapeBytes = 0;
+    if (result == m3_success)
+    {
+        result = m3World_StopJournal(world, &tapeBytes);
+    }
+
+    if (result == m3_success)
+    {
+        result = m3World_ReplayJournal(twin, tape, tapeBytes);
+    }
+
+    CHECK(result == m3_success && tapeBytes > 16, "the session is recorded and replayed");
+    CHECK(m3World_Hash(twin) == m3World_Hash(world), "the twin lands on the recorder's bits");
+    m3DestroyWorld(twin);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
@@ -313,6 +358,7 @@ int main(void)
     TestChunkCut();
     TestExplosion();
     TestSnapshotRoundTrip();
+    TestJournalReplay();
 
     if (s_failures > 0)
     {

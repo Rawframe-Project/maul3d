@@ -1,62 +1,121 @@
 # The journal and replay files
 
-## The journal law
+The journal records a session: every call that changes a world, in
+order, as a tape of bytes. Replaying the tape into a world that starts
+from the same state makes the same calls and ends on the same bits.
+A replay file packs the starting snapshot, the tape and the final
+hash together, so anyone can check a recorded session on their own
+machine.
 
-The journal records every MUTATION as a discrete op: creates (with
-their full recipes: hull input points, mesh vertex and index
-payloads), destroys, velocity commands, and steps (dt and substep
-count). Getters and queries are not ops.
+## Recording and replaying
 
-`m3World_StartJournal(world, buffer, capacity)` arms recording into a
-caller-owned buffer and writes the tape's 16-byte state prefix at its
-start, so the buffer holds at least those 16 bytes; a session of no
-op is just the prefix. `m3World_StopJournal` returns the bytes written,
-or -1 if the buffer overflowed (an overflowed journal records
-nothing more and can never be mistaken for a good one).
-`m3World_ReplayJournal(world, data, size)` applies a recorded session
-to a world and verifies that every minted id matches the recorded
-one; a world that starts from the same state WILL mint the same ids,
-so a mismatch means the session does not belong to this starting
-state. A def a create records is copied member by member, so the tape
-never holds what the caller's def held in its padding: the same calls
-write the same bytes.
+```c
+uint8_t tape[4096];
+m3Result result = m3World_StartJournal(world, tape, sizeof tape);
+for (int32_t i = 0; i < 60; ++i)
+{
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+}
+int64_t tapeBytes = 0;
+if (result == m3_success)
+{
+    result = m3World_StopJournal(world, &tapeBytes);
+}
+```
 
-**Replay is atomic.** On any refusal the target world is restored to
-its pre-call state. A half-applied session is impossible. A damaged
-tape (truncation, corruption, an op that cannot re-mint its recorded
-id) is refused with m3_errorFormat, a tape another minor version
-wrote with m3_errorVersion, and a replay the world's allocator
-turns down, before the first op or in the middle of one, with
-m3_errorCapacity. Backing out never needs memory, because the replay
-takes it up front: for the whole call it holds a snapshot of the world
-(m3World_GetSnapshotSize bytes) and a second copy of the world's mesh and
-height field content and mesh trees (about contentBytes of
-m3World_GetMemoryUsage) and a few arrays sized by the mesh, shape and
-voxel capacities. Budget that headroom on a tight allocator: without it the
-replay is refused with m3_errorCapacity before any op runs.
+Then, in a world built the same way:
 
-**The composition rule:** a journal must close BEFORE a rollback
-block. A restore is not an op; a journal spanning one would replay a
-longer history than the world lived. Record, End, then snapshot and
-restore freely; arm a new journal after.
+```c
+if (result == m3_success)
+{
+    result = m3World_ReplayJournal(twin, tape, tapeBytes);
+}
+```
 
-## The replay studio
+`m3World_StartJournal` starts recording into a buffer the host owns
+and writes the tape's 16-byte header there, so the buffer must hold at
+least 16 bytes. While a journal runs, every call that changes the
+world is appended to the tape: creates with everything they need to
+create again (a hull's input points, a mesh's vertices and indices),
+destroys, setters, commands, edits, explosions and steps. Getters and
+queries change nothing and are not recorded. A call the world refuses
+is not recorded either.
 
-A replay file is [header | initial snapshot | journal], encoded
-and decoded by pure-memory calls in maul3d/replay.h; file IO
-belongs to hosts and tools (tools/m3replay is the model
-consumer). The header carries step and op counts and the
-recorder's final hash, so verification is self-contained: restore
-the snapshot, replay the journal, compare hashes. A journal cut
-at record boundaries, behind the tape's 16-byte prefix, is itself
-a valid journal; the scrubber in m3replay keyframes every 30
-steps and re-steps to seek anywhere, proving each landing against
-a straight-run prefix hash. When two sessions disagree, m3replay
-diff finds the first divergent step by prefix-hash binary search
-and m3World_Compare names the worst bodies at it. Corrupt
-containers refuse loudly: the codec validates the container's,
-the snapshot's and the tape's headers, exact lengths, record
-framing, and that the header's counts match its own stream. Like
-the snapshot and the tape it holds, a container is read only by
-the releases of the minor version that wrote it; another minor
-version's is refused with m3_errorVersion.
+`m3World_StopJournal` ends the recording and writes the tape's
+length to `bytesOut`. If the tape outgrew the buffer, it returns
+`m3_errorCapacity`: the journal stopped writing at the overflow, so a
+cut tape can never pass for a whole one. Starting a journal while one
+runs, or stopping one when none runs, is refused with
+`m3_errorState`.
+
+A tape holds each def field by field, never the padding between
+fields, and is laid out the same on every target, so the same calls
+write the same bytes on any machine.
+
+## What replay checks
+
+`m3World_ReplayJournal` makes each recorded call again and checks that
+each create gets the id it got when it was recorded. A world that
+starts from the same state hands out the same ids, so a mismatch means
+the tape does not belong to that starting state.
+
+Replay is all or nothing. On any refusal, the world goes back to the
+state it had before the call: a half-replayed session cannot happen.
+A damaged tape, whether cut short, corrupted or holding a create that
+does not get its recorded id, is refused with `m3_errorFormat`. A tape
+written by another minor version is refused with `m3_errorVersion`.
+Neither counts misuse.
+
+To back out without needing memory at the worst moment, the replay
+takes what it needs before the first call: a snapshot of the world, a
+second copy of the world's mesh and height field content and mesh
+trees (about `contentBytes` of `m3World_GetMemoryUsage`), and a few
+arrays sized by the mesh, shape and voxel capacities. With an
+allocator too tight for that, the replay is refused with
+`m3_errorCapacity` before any call runs.
+
+## Journals and rollback
+
+A restore is not recorded, and neither is a replay. A journal that
+runs across a restore therefore records a history longer than the one
+the world lived. Stop the journal before restoring or replaying, and
+start a new one afterwards.
+
+## Replay files
+
+`replay.h` packs a session into one buffer and reads it back. The
+library does no file input or output; the host writes and reads the
+bytes.
+
+- `m3GetEncodedReplaySize` gives the size of a container for a
+  snapshot and a tape of given sizes.
+- `m3EncodeReplay` writes a container from the starting snapshot, the
+  tape and the recorder's final hash. It checks both first, and
+  refuses one that is damaged or was written by another minor version.
+- `m3DecodeReplay` checks a container and gives a view of its parts:
+  the snapshot, the tape, their sizes and the final hash. It checks the
+  container's own header, the snapshot's and the tape's headers, the
+  exact lengths, the tape's record framing, and that the header's
+  counts match the tape.
+- `m3DescribeJournal` counts a tape's records and the steps among
+  them without replaying it.
+
+To verify a recorded session: decode it, restore its snapshot into a
+world of the same capacities, replay its tape, and compare
+`m3World_Hash` with the final hash. A container is read only by the
+releases of the minor version that wrote it.
+
+## Finding a divergence
+
+When two runs that should agree do not, `m3World_Compare` lists every
+body slot that differs between two worlds, worst first, by its
+position, rotation and velocity error, including bodies alive in only
+one of them.
+
+`tools/m3replay` builds on these calls: `record` writes a replay file
+of a built-in demo, `info` describes one, `verify` checks one, `seek` and `play` scrub
+through one, and `diff` finds the first step where two sessions part
+and the bodies that differ there. Seeking restores a snapshot the tool
+keeps every 30 steps and steps forward from it. A tape cut at a record
+boundary is still a whole tape, so a prefix of a session replays on
+its own.
