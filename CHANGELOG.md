@@ -7,6 +7,22 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.1](https://github.com/Rawframe-Project/maul3d/compare/v1.0.0...v1.0.1) (2026-11-03)
+
+### Fixed
+
+- **A journal replay never asks the pre-solve callback.** A replayed
+  step that recorded no veto used to call a callback installed on the
+  replaying world. A callback that vetoed then made the replay land on
+  other bits while it still returned `m3_success`. The replay now
+  applies exactly the vetoes each step recorded, as
+  `m3World_SetPreSolveCallback` promised; the `m3PreSolveFunction`
+  comment, which said to register the callback before replaying, was
+  the wrong one and is corrected. Results change only for a replay run
+  with a callback installed, which now lands on the recorded bits. A
+  1.0.0 snapshot steps to the same bits, so 1.0.1 restores it.
+  ([#363](https://github.com/Rawframe-Project/maul3d/pull/363))
+
 ## [1.0.0](https://github.com/Rawframe-Project/maul3d/compare/v0.13.1...v1.0.0) (2026-11-03)
 
 ### Changed
