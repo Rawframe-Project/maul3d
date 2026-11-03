@@ -571,6 +571,76 @@ static void TestSizesPastInt32(void)
     m3DestroyWorld(world);
 }
 
+// Accepts every contact and counts the calls.
+static bool AcceptAll(m3ShapeId a, m3ShapeId b, m3Pos3 point, m3Vec3 normal, void* context)
+{
+    (void)a;
+    (void)b;
+    (void)point;
+    (void)normal;
+    int* calls = (int*)context;
+    *calls += 1;
+    return true;
+}
+
+// A tape cut at a record boundary is whole, the boundary between a
+// step's vetoes and the step included. Its replay ends with no veto left
+// over, so the next live step asks the host's callback.
+static void TestCutAfterVetoes(void)
+{
+    m3WorldDef def = Def();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.enablePreSolveEvents = true;
+    m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    (void)NewPlaneShape(world, ground, &sd, &fl);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.4, 0.0};
+    m3BodyId box = NewBody(world, &bd);
+    NewBoxShape(world, box, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
+    Snapshot(world, snap, snapBytes);
+    int vetoes = 0;
+    m3World_SetPreSolveCallback(world, VetoAll, &vetoes);
+    static uint8_t journal[4096];
+    StartJournal(world, journal, (int32_t)sizeof(journal));
+    (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    int64_t journalBytes = StopJournal(world);
+    m3DestroyWorld(world);
+
+    // The tape is the step's vetoes, then the step.
+    int32_t op = 0;
+    int32_t vetoBytes = 0;
+    memcpy(&op, journal + 16, 4);
+    memcpy(&vetoBytes, journal + 20, 4);
+    int64_t vetoEnd = 16 + 8 + vetoBytes;
+    CHECK(vetoes > 0 && op == 79 && vetoBytes > 0 && vetoEnd < journalBytes,
+          "the first record is the step's vetoes");
+
+    m3World* cut = NewWorld(&def);
+    m3World* bare = NewWorld(&def);
+    CHECK(Restore(cut, snap, snapBytes) && Restore(bare, snap, snapBytes),
+          "the base snapshot restores");
+    CHECK(ReplayJournal(cut, journal, vetoEnd), "the tape cut after the vetoes replays");
+    CHECK(m3World_Hash(cut) == m3World_Hash(bare), "to the state before the step");
+    int cutCalls = 0;
+    int bareCalls = 0;
+    m3World_SetPreSolveCallback(cut, AcceptAll, &cutCalls);
+    m3World_SetPreSolveCallback(bare, AcceptAll, &bareCalls);
+    (void)m3World_Step(cut, 1.0f / 60.0f, 4);
+    (void)m3World_Step(bare, 1.0f / 60.0f, 4);
+    CHECK(cutCalls > 0 && cutCalls == bareCalls, "the next live step asks the host's callback");
+    CHECK(m3World_Hash(cut) == m3World_Hash(bare),
+          "and lands where a world that replayed nothing does");
+    m3DestroyWorld(cut);
+    m3DestroyWorld(bare);
+    free(snap);
+}
+
 int main(void)
 {
     TestPreSolveReplay();
@@ -583,6 +653,7 @@ int main(void)
     TestBusyStopKeepsSize();
     TestFuzz();
     TestSizesPastInt32();
+    TestCutAfterVetoes();
     if (s_failures == 0)
     {
         printf("test_replayfile: all green\n");

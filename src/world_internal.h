@@ -719,7 +719,8 @@ typedef struct m3Contacts
     // Veto bookkeeping. stepVeto* collects what the live
     // callback vetoed this step (journal fodder); replayVeto* is
     // the pending recorded set the NEXT step must apply, consumed
-    // by PrepareContacts and cleared by restore like events.
+    // by PrepareContacts and cleared by restore like events and by
+    // the end of a replay.
     uint64_t* stepVetoKeys;
     int32_t stepVetoCount;
     uint64_t* replayVetoKeys;
