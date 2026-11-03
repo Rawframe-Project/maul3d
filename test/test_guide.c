@@ -62,9 +62,58 @@ static void TestWaterPool(void)
     m3DestroyWorld(world);
 }
 
+// A world with a floor plane at y = 0.
+static m3World* FlatWorld(void)
+{
+    m3WorldDef worldDef = m3DefaultWorldDef();
+    worldDef.bodyCapacity = 8;
+    worldDef.shapeCapacity = 8;
+    m3World* world = NewWorld(&worldDef);
+    m3BodyDef groundDef = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &groundDef);
+    m3ShapeDef shapeDef = m3DefaultShapeDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    NewPlaneShape(world, ground, &shapeDef, &floor);
+    return world;
+}
+
+// character.md: a walker. It lands on the floor and walks two seconds at
+// 2 m/s along x, standing on the floor at the end.
+static void TestCharacterWalk(void)
+{
+    m3World* world = FlatWorld();
+
+    m3CharacterDef def = m3DefaultCharacterDef();
+    def.position = (m3Pos3){0.0, 1.0, 0.0}; // the capsule's centre
+    m3CharacterId hero;
+    m3Result result = m3CreateCharacter(world, &def, &hero);
+
+    float fallSpeed = 0.0f; // the host's own vertical speed, m/s
+    for (int32_t tick = 0; tick < 120; ++tick)
+    {
+        float dt = 1.0f / 60.0f;
+        fallSpeed -= 9.81f * dt; // gravity is the host's job
+        m3Vec3 move = {2.0f * dt, fallSpeed * dt, 0.0f};
+        m3Character_Move(world, hero, move);
+        if (m3Character_IsGrounded(world, hero))
+        {
+            fallSpeed = 0.0f; // standing: no fall carries over
+        }
+        (void)m3World_Step(world, dt, 4);
+    }
+
+    CHECK(result == m3_success, "the character is created");
+    m3Pos3 p = m3Character_GetPosition(world, hero);
+    CHECK(p.x > 3.9 && p.x < 4.1, "it walks four meters");
+    CHECK(p.y > 0.89 && p.y < 0.95, "its feet rest one skin above the floor");
+    CHECK(m3Character_IsGrounded(world, hero), "it stands on the floor");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
+    TestCharacterWalk();
 
     if (s_failures > 0)
     {
