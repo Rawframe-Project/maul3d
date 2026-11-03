@@ -191,12 +191,84 @@ static void TestCar(void)
     m3DestroyWorld(world);
 }
 
+// destruction.md: a tower cut through. The 64 cells above the cut come
+// loose as one fragment of 0.125 m3 cells, removed from the grid.
+static void TestChunkCut(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef groundDef = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &groundDef);
+
+    uint8_t voxels[4096] = {0}; // index x + 16 * (y + 16 * z)
+    for (int32_t z = 0; z < 4; ++z)
+    {
+        for (int32_t y = 0; y < 8; ++y)
+        {
+            for (int32_t x = 0; x < 4; ++x)
+            {
+                voxels[x + 16 * (y + 16 * z)] = 1; // a 4 by 8 by 4 tower
+            }
+        }
+    }
+    m3ShapeDef chunkDef = m3DefaultShapeDef();
+    m3ShapeId chunk;
+    m3Result result = m3CreateVoxelChunkShape(world, ground, &chunkDef, voxels, NULL, 0.5f, &chunk);
+
+    // Cut the tower through at y = 2: everything above it comes loose.
+    const int32_t lo[3] = {0, 2, 0};
+    const int32_t hi[3] = {3, 2, 3};
+    int32_t cleared = 0;
+    if (result == m3_success)
+    {
+        result = m3VoxelChunkShape_ClearBox(world, chunk, lo, hi, &cleared);
+    }
+    m3FragmentEvents fragments = m3World_GetFragmentEvents(world);
+
+    CHECK(result == m3_success && cleared == 16, "the cut clears one layer of 16 cells");
+    CHECK(fragments.fragmentCount == 1, "the top comes loose as one fragment");
+    CHECK(fragments.fragmentCount == 1 && fragments.fragmentEvents[0].voxelCount == 80 &&
+              fragments.fragmentEvents[0].recipeCount == 80,
+          "it holds the 80 cells above the cut");
+    CHECK(fragments.fragmentCount == 1 && fragments.fragmentEvents[0].mass == 10.0f,
+          "its mass is 80 cells of 0.125 m3 at density 1");
+    m3DestroyWorld(world);
+}
+
+// destruction.md: a blast beside a ball. The ball is pushed away from
+// the blast.
+static void TestExplosion(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef ballDef = m3DefaultBodyDef();
+    ballDef.type = m3_dynamicBody;
+    ballDef.position = (m3Pos3){3.0, 3.0, 1.0};
+    m3BodyId ball = NewBody(world, &ballDef);
+    m3ShapeDef ballShape = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &ballShape, &sphere);
+
+    m3ExplosionDef blast = m3DefaultExplosionDef();
+    blast.position = (m3Pos3){1.0, 3.0, 1.0};
+    blast.radius = 2.0f;          // full strength out to 2 m
+    blast.falloff = 3.0f;         // fading to nothing at 5 m
+    blast.impulsePerArea = 50.0f; // N s for each square metre facing the blast
+    blast.voxelCarve = 1.0f;      // bites a 1 m sphere out of chunks
+    m3World_Explode(world, &blast);
+
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ball);
+    CHECK(v.x > 1.0f, "the ball flies away from the blast along +x");
+    CHECK(v.y > -0.01f && v.y < 0.01f && v.z > -0.01f && v.z < 0.01f, "straight away from it");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
     TestCar();
+    TestChunkCut();
+    TestExplosion();
 
     if (s_failures > 0)
     {

@@ -663,7 +663,7 @@ extern "C"
         int32_t recipeCount;
         m3Vec3 localCenter;    /// island center of mass, chunk frame
         m3Pos3 worldCenter;    /// the same point in world space at emit time
-        float mass;            /// at density one (cell volume times count)
+        float mass;            /// at density one: cell volume times the summed fill / 255
         uint8_t lowerBound[3]; /// island voxel bounds, inclusive
         uint8_t upperBound[3];
     } m3FragmentEvent;
