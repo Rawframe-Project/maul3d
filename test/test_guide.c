@@ -148,11 +148,55 @@ static void TestRope(void)
     m3DestroyWorld(world);
 }
 
+// vehicles.md: a four-wheeled car on full throttle. Its wheels find the
+// floor and the rear pair drives it forward along +x.
+static void TestCar(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef chassisDef = m3DefaultBodyDef();
+    chassisDef.type = m3_dynamicBody;
+    chassisDef.position = (m3Pos3){0.0, 1.0, 0.0};
+    m3BodyId chassis = NewBody(world, &chassisDef);
+    m3ShapeDef chassisShape = m3DefaultShapeDef();
+    chassisShape.density = 300.0f; // about a tonne
+    NewBoxShape(world, chassis, &chassisShape, (m3Vec3){1.5f, 0.3f, 0.9f});
+
+    m3VehicleDef def = m3DefaultVehicleDef();
+    def.chassisId = chassis; // a dynamic body, forward along its local +x
+    def.wheelCount = 4;
+    const float wheelX[4] = {1.2f, 1.2f, -1.2f, -1.2f};
+    const float wheelZ[4] = {-0.8f, 0.8f, -0.8f, 0.8f};
+    for (int32_t w = 0; w < 4; ++w)
+    {
+        def.wheels[w].anchor = (m3Vec3){wheelX[w], -0.2f, wheelZ[w]};
+        def.wheels[w].steerable = w < 2; // the front pair steers
+        def.wheels[w].driven = w >= 2;   // the rear pair drives
+    }
+    m3VehicleId car;
+    m3Result result = m3CreateVehicle(world, &def, &car);
+    m3Vehicle_SetCommands(world, car, 1.0f, 0.0f, 0.0f); // full throttle, straight
+
+    CHECK(result == m3_success, "the car is created");
+    for (int32_t i = 0; i < 180; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    m3Pos3 p = m3Body_GetPosition(world, chassis);
+    CHECK(p.x > 2.0 && p.x < 10.0, "the rear wheels drive it forward");
+    CHECK(p.z > -0.05 && p.z < 0.05, "it runs straight");
+    for (int32_t w = 0; w < 4; ++w)
+    {
+        CHECK(m3Vehicle_IsWheelGrounded(world, car, w), "every wheel is on the floor");
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
+    TestCar();
 
     if (s_failures > 0)
     {
