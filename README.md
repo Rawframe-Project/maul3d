@@ -1,9 +1,13 @@
 # Maul3D
 
-[![ci](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml)
+[![CI](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul3d/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/Rawframe-Project/maul3d)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Rawframe-Project/maul3d)](https://github.com/Rawframe-Project/maul3d/releases)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Rawframe-Project/maul3d/badge)](https://scorecard.dev/viewer/?uri=github.com/Rawframe-Project/maul3d)
 
-A deterministic 3D physics engine for games. Written in C17, with a
-plain C API, no dependencies and an MIT license.
+A deterministic 3D physics engine for games. Written in C23, with a
+plain C API whose headers also compile as C17 and C++17, no
+dependencies and an MIT license.
 
 Same inputs, same bits, on every supported platform and at every
 thread count. A snapshot restores a world exactly, and the command
@@ -102,8 +106,14 @@ cmake --build build
 ctest --test-dir build
 ```
 
-A C17 compiler is required; with MSVC that means Visual Studio 2022 or
-newer, the first version that can turn off floating-point contraction.
+The library needs a C23 compiler: GCC 14, Clang 19 or newer, or
+clang-cl on Windows. Configuring with an older one stops with an
+error, so where the default compiler is older, as Ubuntu 24.04's
+GCC 13 is, name one in the first line with `-DCMAKE_C_COMPILER=gcc-14`
+or `-DCMAKE_C_COMPILER=clang-20`. MSVC's cl cannot build the library,
+but a program built with it can include the public headers, which
+are C17 and C++17.
+
 x64 builds use AVX2 and FMA (Haswell, 2013, and later); configure with
 `-DMAUL3D_SIMD=scalar` for a portable build that gives identical
 results. An AVX2 build started on a CPU without AVX2 refuses to create
@@ -143,11 +153,12 @@ field.
   and a test holds the two paths to the same bits.
 - Fixed tessellations and canonical order on every path; journaled
   defs are treated as untrusted input on replay.
-- CI compares the hashes the tests print across eleven cells: GCC,
-  Clang and MSVC on x64 and arm64 Linux and Windows, Clang on arm64
-  macOS, Debug builds, a sanitizer build on the scalar backend, and
-  WebAssembly. They must also match the values committed in
-  `test/hashes.txt`.
+- Every CI cell checks the hashes the golden scenes print against the
+  values committed in `test/hashes.txt`, so twelve cells agree bit for
+  bit: GCC 14 on x64 and arm64 Linux, Clang 20 on x64 Linux, both on
+  32-bit x86 Linux, clang-cl on x64 and arm64 Windows, Clang on arm64
+  macOS, a shared library, Debug builds under AddressSanitizer on the
+  scalar backend and under ThreadSanitizer, and WebAssembly.
 
 ## Benchmarks
 
@@ -185,8 +196,15 @@ refuses it; a replay file carries its container version the same way.
 - [The conventions](docs/internals/maul-conventions.md): the rules
   every Maul library follows, from naming to commits.
 - [The changelog](CHANGELOG.md): every release and what changed.
-- [Contributing](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md):
-  how to contribute.
+
+## Contributing
+
+Issues are welcome. Pull requests are accepted for issues a maintainer
+has approved; see
+[CONTRIBUTING.md](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md).
+The project is developed with AI coding agents, directed and reviewed
+by its maintainers; outside contributions follow the
+[AI policy](https://github.com/Rawframe-Project/.github/blob/main/AI_POLICY.md).
 
 ## Acknowledgments
 
