@@ -77,9 +77,10 @@ whose printed state hashes must be equal on every commit.
 
 **Deliberately not promised:**
 
-- Hash stability across minor versions. A minor release may move the
-  bits on purpose, with a solver revision or a format bump, and its
-  changelog entry says what changes. A patch release moves none.
+- Hash stability across releases. A release may move the bits on
+  purpose, with a solver revision or a format bump: a minor release
+  for a new result, a patch release only to correct a result to what
+  this guide promised. Its changelog entry says what changes.
 - Determinism across DIFFERENT builds of the same version (another
   compiler's build is another timeline; each build is internally
   deterministic and all builds we ship cells for agree, but that

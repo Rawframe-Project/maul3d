@@ -175,15 +175,18 @@ From 1.0.0 the API is settled, and every 1.x release keeps it: a
 program that builds against 1.y builds against any later 1.z and means
 the same. A minor release adds functions, types, enum values and
 fields at the end of a struct, and never removes or renames one; a
-patch release only fixes, and changes no result and no format. A
-result changes only in a minor release, and the
-[changelog](CHANGELOG.md) says what changes. A program built against
+patch release only fixes. A change that gives existing inputs a
+different result ships as a `feat` in a minor release, or as a `fix`
+in a patch release when it corrects a result the documentation
+already promised, and the [changelog](CHANGELOG.md) says what
+changes. A program built against
 another minor version's headers is refused at `m3CreateWorld` with
 `m3_errorVersion`. Defs carry a cookie, so a def that was not set up
 with its `m3Default...Def` function is refused. A snapshot, a journal
-tape and a replay file are read by every release of the minor version
-that wrote them and refused by any other; a host keeps assets, not
-state, across a minor upgrade.
+tape and a replay file are read only within the minor version that
+wrote them, and a snapshot only by a release with the same results;
+any other release refuses them with `m3_errorVersion`, so a host keeps
+assets, not state, across an upgrade.
 
 ## Documentation
 
