@@ -511,12 +511,16 @@ static bool BroadphaseValid(const m3Incoming* inc)
 // capacity. A pair of two sensors may sit in the list, when a sensor took
 // a destroyed shape's slot, but it never touches: the broad phase never
 // pairs two sensors, and a destroy clears its shape's pairs, so a touching
-// one would make the next step's events name two sensors.
+// one would make the next step's events name two sensors. For the same
+// reason a touching pair names two live shapes: the contact readback, the
+// debug draw and the filter's wake read the body of each, and a dead
+// shape's body slot is -1.
 static bool PairsValid(const m3Incoming* inc)
 {
     const uint8_t* keys = m3InField(inc, offsetof(m3World, contacts.pairKeys));
     const uint8_t* manifolds = m3InField(inc, offsetof(m3World, contacts.manifolds));
     const uint8_t* sensors = m3InField(inc, offsetof(m3World, shapes.shapeSensor));
+    const uint8_t* shapeAlive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
     int32_t count = m3InI32(m3InField(inc, offsetof(m3World, contacts.pairCount)), 0);
     for (int32_t i = 0; i < count; ++i)
     {
@@ -527,7 +531,8 @@ static bool PairsValid(const m3Incoming* inc)
         }
         int32_t points = m3InI32(
             manifolds + (size_t)i * sizeof(m3Manifold) + offsetof(m3Manifold, pointCount), 0);
-        if (points > 0 && sensors[key >> 32] != 0 && sensors[key & 0xFFFFFFFFu] != 0)
+        if (points > 0 && ((sensors[key >> 32] != 0 && sensors[key & 0xFFFFFFFFu] != 0) ||
+                           shapeAlive[key >> 32] == 0 || shapeAlive[key & 0xFFFFFFFFu] == 0))
         {
             return false;
         }

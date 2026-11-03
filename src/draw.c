@@ -316,8 +316,13 @@ static void DrawContacts(const m3DrawContext* ctx)
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
         const m3Manifold* manifold = &world->contacts.manifolds[i];
+        if (manifold->pointCount == 0)
+        {
+            continue; // an untouched pair may name a shape destroyed since the step
+        }
         uint64_t key = world->contacts.pairKeys[i];
         int32_t bodyA = world->shapes.shapeBody[(int32_t)(key >> 32)];
+        M3_ASSERT(bodyA >= 0); // a touching pair names two live shapes
         const m3Transform* xfA = &world->bodies.transforms[bodyA];
         m3Vec3 rlcA = m3RotateVec3(xfA->q, world->bodies.localCenters[bodyA]);
         for (int32_t k = 0; k < manifold->pointCount; ++k)
