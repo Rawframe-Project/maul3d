@@ -8,10 +8,34 @@ snapshot and journal formats.
 
 ## [0.13.1](https://github.com/Rawframe-Project/maul3d/compare/v0.13.0...v0.13.1) (2026-11-03)
 
+### Changed
+
+- **Formats.** The snapshot keeps format 6, the journal tape format 7
+  and the replay container format 4. As in every release, a snapshot,
+  tape or container written by another release is refused with
+  `m3_errorVersion`.
 
 ### Fixed
 
-* **snapshot:** a contact pair on a dead shape is never read ([#350](https://github.com/Rawframe-Project/maul3d/issues/350)) ([5ec9e8c](https://github.com/Rawframe-Project/maul3d/commit/5ec9e8c9fff5a91887193e334822386de62ee02e))
+- **Restore refuses a touching contact pair on a dead shape.** A
+  shape's destroy clears the contacts of its pairs, but their keys stay
+  until the next step, so a snapshot taken in between holds pairs that
+  name a dead shape. Restore checked only that a touching pair was not
+  two sensors, so a snapshot could also hold a touching pair on a dead
+  shape. After such a restore, `m3Body_GetContactData` and
+  `m3Shape_GetContactData` read 24 bytes before the world's transforms
+  array, and `m3World_Draw` and `m3Shape_SetFilter` read the same
+  missing body. Restore now refuses such bytes with `m3_errorFormat`
+  and leaves the world as it was. Snapshots the library writes still
+  restore. ([#350](https://github.com/Rawframe-Project/maul3d/pull/350))
+- **The contact draw skips a pair that does not touch.**
+  `m3World_Draw` with `drawContacts` read the body of each pair's first
+  shape before checking whether the pair touched. Drawing between a
+  shape's destroy and the next step therefore read in front of the
+  transforms array for each pair whose first shape was the dead one.
+  Nothing was drawn from those bytes. The draw now skips a pair with no contact points first
+  and draws the same primitives as before.
+  ([#350](https://github.com/Rawframe-Project/maul3d/pull/350))
 
 ## [0.13.0](https://github.com/Rawframe-Project/maul3d/compare/v0.12.0...v0.13.0) (2026-11-02)
 
