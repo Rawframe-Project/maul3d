@@ -89,6 +89,8 @@ maul_add_test(rebuild)
 maul_add_test(lowmemory)
 maul_add_test(reentry)
 maul_add_test(water)
+# The snippets of docs/user/, as the pages show them.
+maul_add_test(guide)
 maul_add_test(heightfield)
 maul_add_test(mover)
 maul_add_test(hostile)

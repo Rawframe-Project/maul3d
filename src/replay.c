@@ -125,8 +125,8 @@ m3Result m3EncodeReplay(const void* snapshot, int64_t snapshotBytes, const void*
     {
         return m3_errorInvalid;
     }
-    // A container never wraps a malformed stream, nor one another release
-    // wrote.
+    // A container never wraps a malformed stream, nor one another minor
+    // version wrote.
     m3Result checked = m3CheckStatePrefix(snapshot, snapshotBytes, M3_SNAPSHOT_MAGIC,
                                           M3_SNAPSHOT_VERSION, M3_SNAPSHOT_HEADER_BYTES);
     m3JournalInfo info;
@@ -175,8 +175,8 @@ m3Result m3DecodeReplay(const void* data, int64_t bytes, m3ReplayView* viewOut)
     {
         return m3_errorFormat;
     }
-    // The embedded headers are checked like any other: another release's
-    // snapshot or tape inside this container is m3_errorVersion.
+    // The embedded headers are checked like any other: another minor
+    // version's snapshot or tape inside this container is m3_errorVersion.
     const uint8_t* snapshot = p + M3_REPLAY_HEADER_BYTES;
     const uint8_t* journal = snapshot + header.snapshotBytes;
     checked = m3CheckStatePrefix(snapshot, header.snapshotBytes, M3_SNAPSHOT_MAGIC,

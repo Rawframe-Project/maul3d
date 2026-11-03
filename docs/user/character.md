@@ -1,77 +1,160 @@
 # The character controller
 
-## The character controller
+A character is a capsule that walks: it slides along walls, climbs
+stairs, stays on the floor going down slopes, rides moving platforms
+and shoves light bodies out of its way. The engine owns its body, a
+kinematic capsule, and moves it only when the host calls
+`m3Character_Move`. The step never moves a character, except to carry
+it with the floor it stands on.
 
-A character (`m3CreateCharacter`) is a kinematic capsule the
-engine owns, driven only by `m3Character_Move`: a journaled,
-deterministic, rollback-covered command. The body has zero
-velocity by contract and never moves during `m3World_Step` except
-to ride its floor (below). Gravity is the host's job: add it to
-the move each tick, netcode style.
+## Creating and moving a character
 
-- Collide and slide: the move casts the capsule, advances to the
-  first hit keeping `skin`, slides the remainder, up to four
-  times. Steep faces (steeper than `maxSlopeAngle`) are walls and
-  never mint upward motion out of horizontal intent.
-- Stairs: a grounded walker blocked by a steep face lifts up to
-  `stepHeight`, advances, and lands. The landing is accepted only
-  when a ray probing half a radius AHEAD of the landing axis finds
-  walkable floor and the net rise fits one step height (the ray,
-  not the capsule normal, is the floor classifier: capsule casts
-  read stair corners as steep, and an axis ray can be fooled by
-  low floor behind a ramp's crease).
-- Grounding: walkable contact grounds the character and records
-  the body under its feet (`m3Character_GetGroundBody`). A
-  descending character glues to floor within `snapDistance`; no
-  floor in reach means airborne.
-- Riders: each step ends by carrying grounded characters along
-  their ground body's rigid motion, THROUGH the slide casts, so a
-  platform can ferry a walker into a wall and the wall wins.
-  Kinematic platforms, elevators, carousels, and dynamic bodies
-  (fragments) all ferry riders.
-- Pushing: a move blocked by a dynamic body applies impulse =
-  `mass` * blocked displacement at the contact. Per tick that
-  displacement is the walker's velocity in tick units, so the
-  momentum flux comes out mass * speed with no dt in the contract.
-  Walkable floors are standing, not pushing; bodies heavier than
-  `pushMaxMassRatio` * `mass` are walls.
-- Destruction interplay: carving the floor from under a character
-  flips it airborne the SAME step (the voxel edit runs a grounding
-  refresh over overlapping characters).
-- Hostile moves (non-finite, or any component beyond the caster's
-  1e18 float budget) are documented no-ops that never journal.
+```c
+m3CharacterDef def = m3DefaultCharacterDef();
+def.position = (m3Pos3){0.0, 1.0, 0.0}; // the capsule's centre
+m3CharacterId hero;
+m3Result result = m3CreateCharacter(world, &def, &hero);
 
-## The rigid character recipe
+float fallSpeed = 0.0f; // the host's own vertical speed, m/s
+for (int32_t tick = 0; tick < 120; ++tick)
+{
+    float dt = 1.0f / 60.0f;
+    fallSpeed -= 9.81f * dt; // gravity is the host's job
+    m3Vec3 move = {2.0f * dt, fallSpeed * dt, 0.0f};
+    m3Character_Move(world, hero, move);
+    if (m3Character_IsGrounded(world, hero))
+    {
+        fallSpeed = 0.0f; // standing: no fall carries over
+    }
+    (void)m3World_Step(world, dt, 4);
+}
+```
 
-The kinematic controller is the engine path; when you want a
-character with real mass that trades momentum, build the
-rigid variant ON the public API (the suite ships this exact loop
-as its proof): a dynamic capsule with angular locks (bits 3..5)
-so it never tumbles; FRICTIONLESS by recipe, because an
-externally-forced capsule loses the tug of war against static
-friction and stands still while you push; grounding read from
-m3World_CollideMover's plane list, skipping your own shape via
-m3Shape_GetBody (a downward ray finds your own hull first); drive
-and brake with one force toward the target velocity, clamped to
-an actuator budget. The mover toolkit (m3World_CastMover,
-m3World_CollideMover, m3SolveMover, m3ClipMoverVelocity) covers the rest of a custom
-mover's needs as pure queries.
+A move is a displacement in metres, not a velocity, and it happens
+at once, inside the call. World gravity does not touch a character:
+the host adds its own fall to each move, as above. Keeping a little
+downward motion in every move, even while standing, is what keeps a
+walker glued to the floor down a slope or a stair.
 
-## Stance
+The def's fields, with their defaults:
 
-m3Character_SetStance resizes the capsule in place, FEET
-ANCHORED: the center moves so the capsule bottom stays level,
-which also means a mid-air crouch lands shorter, never higher.
-Shrinking always applies (removing volume cannot create
-contact). Growing runs the stand-up veto: the grown capsule is
-cast at its new pose through the same core every move uses, and
-any contact within one skin (a pressing ceiling, a wall against
-a wider radius) refuses the whole change and returns false with
-stance untouched. The veto is bit-deterministic: twins and
-replays grant and refuse in the same pattern.
+| Field | Default | Meaning |
+|---|---|---|
+| `position` | the origin | The capsule's centre at spawn. |
+| `radius` | 0.4 m | The capsule's radius. |
+| `halfHeight` | 0.5 m | Half the length of the capsule's segment; the full height is twice `halfHeight + radius`. |
+| `maxSlopeAngle` | 0.8 rad | The steepest ground, from horizontal, that counts as floor. |
+| `snapDistance` | 0.3 m | How far down a descending character reaches for the floor. |
+| `skin` | 0.02 m | The gap the character keeps from every surface. |
+| `stepHeight` | 0.35 m | The tallest riser it climbs in one move. |
+| `mass` | 80 kg | What its pushes weigh. |
+| `pushMaxMassRatio` | 2 | The heaviest body it pushes, as a multiple of `mass`; 0 never pushes. |
+| `userData` | 0 | The host's own value. |
 
-Only APPLIED changes journal; a vetoed stand writes nothing.
-Stance rides existing state (the capsule shape, the body
-transform, the character config), so snapshots, hashes, and
-rollback cover it with no new machinery. Read it back with
-m3Character_GetStance.
+`m3CreateCharacter` refuses a def that `m3DefaultCharacterDef` did
+not make, a slope outside (0, 1.5] rad, a negative snap distance or
+step height, a skin, radius or mass that is not positive, a negative
+half height or push ratio, or a NaN, with `m3_errorInvalid`. A
+position past 1e15 m, a radius or half height past 1e4 m, a mass
+outside 1e-6 to 1e20 kg, or a push ratio past 1e4 is refused with
+`m3_errorLimit`. `m3DestroyCharacter` removes the character with its
+body and capsule.
+
+The capsule is a shape like any other for queries, and dynamic bodies
+collide with it as with any kinematic body. It belongs to the
+character, though: `m3DestroyShape`, `m3DestroyBody`, `m3Body_SetType`,
+`m3Shape_SetSphere`, `m3Shape_SetCapsule` and a new shape on its body
+are refused with `m3_errorInvalid`. Its rotation is always the
+identity; which way the character faces is for the host to draw.
+
+## What a move does
+
+- **Collide and slide.** The move casts the capsule along the
+  displacement, stops one skin short of the first surface it meets,
+  and slides what is left along that surface, up to four times.
+- **Floors and walls.** A surface whose normal is within
+  `maxSlopeAngle` of straight up, +y, is floor; anything steeper is a
+  wall. Unless the move itself asks to rise, a slide along a wall
+  never turns sideways intent into upward motion, so a character
+  cannot creep up a cliff.
+- **Stairs.** A grounded character whose horizontal move is blocked
+  by a wall tries to lift by up to `stepHeight`, move forward and
+  land. The landing counts only when a ray, cast down half a radius
+  ahead of the capsule's axis, finds floor, and the rise fits one
+  step height. Otherwise the riser is a wall like any other.
+- **Snapping down.** After a descending move, or a move that ended on
+  floor, the character looks down by `snapDistance` and settles onto
+  any floor it finds there. With none in reach, it is airborne.
+- **Pushing.** A move blocked by a dynamic body that is not floor and
+  weighs at most `pushMaxMassRatio` times `mass` shoves that body
+  with an impulse of `mass` times the distance the move lost against
+  it, counted into its surface. The impulse acts at the contact point
+  and wakes the body. A
+  character pushing at a steady speed therefore delivers its mass
+  times that speed every second. A heavier body is a wall.
+
+`m3Character_IsGrounded` says whether the character stands on floor,
+`m3Character_GetGroundNormal` gives that floor's normal (zero in the
+air), and `m3Character_GetGroundBody` the body it stands on.
+`m3Character_GetPosition` gives the capsule's centre.
+
+A move that is NaN or infinite, or larger than 1e18 m on an axis, does
+nothing, and is not recorded. Neither is a move with an id that names
+no character. Each counts one misuse.
+
+## Riding platforms
+
+At the end of every step, each grounded character is carried by the
+motion its ground body made during that step: a kinematic platform,
+an elevator, a turning carousel or a dynamic body all carry their
+riders. The carry is itself a move, so a platform that ferries a
+walker into a wall leaves the walker at the wall. A character whose
+ground body is destroyed is carried no more, and
+`m3Character_GetGroundBody` returns the null id.
+
+When a voxel edit removes the floor under a grounded character, the
+character becomes airborne in that same call, not on the next move.
+
+## Crouching: stance
+
+`m3Character_SetStance` gives the capsule a new half height and
+radius, keeping its feet where they were: the centre moves so the
+bottom of the capsule stays level. `m3Character_GetStance` reads the
+current pair.
+
+Shrinking always succeeds. Growing first checks the room: the larger
+capsule is cast at its new pose, one skin upward, and any contact (a
+ceiling over a crouching character, a wall next to a wider one)
+refuses the change with `m3_errorState`, leaving the stance as it was.
+That refusal is an ordinary outcome and counts no misuse. A NaN
+dimension is refused with `m3_errorInvalid`, and one outside
+`M3_MIN_STANCE` (0.05 m) to `M3_STANCE_LIMIT` (10 m) with
+`m3_errorLimit`.
+
+## Rollback
+
+Creating, destroying, moving and resizing a character are journal
+operations, recorded and replayed like any other, and a refused move
+or stance change is not recorded. The character's capsule, pose,
+settings, stance and ground are all part of a snapshot and of the
+world hash, so rollback and replay bring a character back exactly.
+
+## A character with real mass
+
+The controller above is kinematic: it pushes bodies but is never
+pushed back. A character that should be knocked around is better built
+from a dynamic body on the public API:
+
+- a capsule on a dynamic body, with `m3Body_SetMotionLocks` locking
+  all three angular axes, so it never tips over;
+- a friction of 0 on its shape: a capsule driven by forces against
+  static friction stands still, so the drive does the braking too;
+- a force each tick toward the wanted velocity, clamped to what the
+  character's legs can deliver;
+- grounding read from `m3World_CollideMover`, which lists the
+  surfaces around a capsule. Skip the planes on the character's own
+  shape, found with `m3Shape_GetBody`, and look for one facing up.
+
+`m3World_CastMover`, `m3SolveMover` and `m3ClipMoverVelocity` answer
+the rest of a custom mover's questions without changing the world.
+The `test_mover` suite builds exactly this walker.

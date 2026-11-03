@@ -657,7 +657,7 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int64_t size, m3Rest
     ReadHeader((const uint8_t*)data, &header);
     if (header.configHash != ConfigHash())
     {
-        return m3_errorVersion; // another build of this release
+        return m3_errorVersion; // another build, or another solver revision
     }
     int32_t capacities[M3_SNAPSHOT_CAPACITIES];
     WorldCapacities(world, capacities);
@@ -711,7 +711,7 @@ static M3_NOINLINE m3Result WorldRestoreWorker(m3World* world, const void* data,
     }
     // A snapshot is untrusted data: bytes that fail a check, a short or
     // truncated buffer included, are refused with m3_errorFormat, bytes
-    // another release or build wrote with m3_errorVersion, and neither
+    // another minor version or build wrote with m3_errorVersion, and neither
     // counts misuse. Only arguments a correct program never passes do,
     // a size no buffer of this target can have included.
     if (world == NULL || size < 0 || !m3SizeFitsMemory(size) || (data == NULL && size > 0))
