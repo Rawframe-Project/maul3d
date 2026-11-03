@@ -6,6 +6,13 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [1.0.0](https://github.com/Rawframe-Project/maul3d/compare/v0.13.1...v1.0.0) (2026-11-03)
+
+
+### Documentation
+
+* the 1.x rules replace the 0.x ones for 1.0.0 ([#355](https://github.com/Rawframe-Project/maul3d/issues/355)) ([6dfcd2c](https://github.com/Rawframe-Project/maul3d/commit/6dfcd2c6a22977c320dc23a483f3d501d8742d3c)), closes [#354](https://github.com/Rawframe-Project/maul3d/issues/354)
+
 ## [0.13.1](https://github.com/Rawframe-Project/maul3d/compare/v0.13.0...v0.13.1) (2026-11-03)
 
 ### Changed
