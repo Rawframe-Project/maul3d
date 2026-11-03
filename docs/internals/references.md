@@ -2,7 +2,7 @@
 
 Published sources behind the engines' algorithms. Code is written from
 these descriptions, never copied from other implementations (see
-[the conventions' outside code rule](internals/maul-conventions.md#outside-code-and-data)).
+[the conventions' outside code rule](maul-conventions.md#outside-code-and-data)).
 
 ## Elementary functions
 
@@ -124,7 +124,7 @@ these descriptions, never copied from other implementations (see
   Computational Physics 189, 2003. The free rotation of a rigid body as
   exact turns about its principal axes; maul3d splits off the symmetric
   part first, as
-  [the free rotation](internals/rotation.md) specifies, so a symmetric
+  [the free rotation](rotation.md) specifies, so a symmetric
   top and a sphere turn exactly.
 - D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
   3D", 2013. Point, hinge, slider and fixed constraints written as rows
