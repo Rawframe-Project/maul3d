@@ -440,9 +440,43 @@ static void TestCompareWorlds(void)
     m3DestroyWorld(worldA);
 }
 
+// bodies-and-shapes.md: a crate with two angular locks. It falls onto
+// the floor and comes to rest on it.
+static void TestCrate(void)
+{
+    m3World* world = FlatWorld();
+
+    m3BodyDef def = m3DefaultBodyDef();
+    def.type = m3_dynamicBody;
+    def.position = (m3Pos3){0.0, 2.0, 0.0};
+    def.motionLocks.angularX = true; // stays upright: no tipping about x or z
+    def.motionLocks.angularZ = true;
+    m3BodyId crate;
+    m3Result result = m3CreateBody(world, &def, &crate);
+    m3ShapeDef shapeDef = m3DefaultShapeDef();
+    shapeDef.density = 500.0f; // kg/m3
+    m3ShapeId box;
+    if (result == m3_success)
+    {
+        result = m3CreateBoxShape(world, crate, &shapeDef, (m3Vec3){0.5f, 0.5f, 0.5f}, &box);
+    }
+
+    CHECK(result == m3_success, "the crate and its box are created");
+    float mass = m3Body_GetMass(world, crate);
+    CHECK(mass > 499.9f && mass < 500.1f, "a 1 m cube at 500 kg/m3 weighs 500 kg");
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    double y = m3Body_GetPosition(world, crate).y;
+    CHECK(y > 0.49 && y < 0.51, "it rests on the floor");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFirstWorld();
+    TestCrate();
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
