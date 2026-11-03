@@ -18,8 +18,8 @@ API, and an entry says what each changed result changes.
   applied them in place of its own pre-solve callback, journaled none
   of them, and two worlds that hashed equal stepped to different bits.
   A replay now drops them when it ends, so the next live step calls the
-  callback. Results change only for the first live step after
-  replaying a tape that ends right after a veto record. A whole session
+  callback. Results change only after replaying a tape that ends right
+  after a veto record, from the first live step on. A whole session
   replays as before, and a 1.0.1 snapshot steps to the same bits, so
   1.0.2 restores it.
   ([#368](https://github.com/Rawframe-Project/maul3d/pull/368))
