@@ -1,168 +1,109 @@
 # Joints
 
-## Joints
+A joint constrains how two bodies move against each other. Each type
+has its own def, from its own `m3Default...JointDef`, and its own
+create; a def of another type is refused. Anchors and axes are given in
+each body's frame. By default the two bodies of a joint do not collide
+with each other; `enableConnectedCollision` lets them.
 
-Twelve types, every one built from the same proven row blocks
-(point, axial, rotation-vector) so a new joint is a recipe, not
-new math. Each type has its own def, holding only what that type
-reads, its default and its create: `m3RevoluteJointDef`,
-`m3DefaultRevoluteJointDef` and `m3CreateRevoluteJoint`, and so on.
-A create refuses a def with another type's cookie.
+## A door on a hinge
 
-- `m3_sphericalJoint`: a shared point, plus an optional swing cone
-  (`enableCone`, `coneAngle`) and twist limit pair (`lowerTwist`,
-  `upperTwist`). The cone is the spherical joint's alone: no other
-  type's def holds it.
-  `m3SphericalJoint_EnableCone` and `m3SphericalJoint_SetConeAngle`
-  change it at run time; the angle is never negative, with the cone
-  on or off.
-- `m3_revoluteJoint`: hinge; angle limits (`lowerAngle`,
-  `upperAngle`) and a motor (`motorSpeed`, `maxMotorEffort`).
-- `m3_prismaticJoint`: slider; translation limits
-  (`lowerTranslation`, `upperTranslation`) and a motor.
-- `m3_weldJoint`: the relative pose at create time IS the
-  weld pose; its def holds only the bodies and anchors.
-- `m3_distanceJoint`: rope or rod along the anchor axis, held
-  within `minLength` and `maxLength`. Equal lengths make a rod.
-  The joint spring (`enableSpring`, `springHertz`,
-  `springDampingRatio`) pulls toward `length`, which need not lie
-  in the range: the range holds whatever the spring pulls toward.
-  `m3DistanceJoint_SetLengthRange` and `m3DistanceJoint_SetLength`
-  change them at run time.
-- `m3_genericJoint`: per-axis `m3AxisMode` (locked, free, limited)
-  over three linear and three angular axes, plus one motor on any
-  movable axis, `motorAxis`, which drives while its switch is on,
-  `enableMotor` in the def or `m3Joint_EnableMotor` at run time, as
-  on every type with a motor. The v1 angular contract: at most one limited
-  angular axis, and its neighbors both locked or both free.
-- `m3_wheelJoint`: suspension slide plus free axle spin, its own
-  chapter below.
-- `m3_filterJoint`: no rows at all, BY LAW. Its whole effect is
-  the connected-pair collision filter: ragdoll limbs stop
-  grinding without buying a single constraint.
-- `m3_parallelJoint`: keeps `localAxisA` on body A parallel to
-  `localAxisB` on body B (two angular rows); every translation
-  and the twist about the shared axis stay free.
-- `m3_motorJoint`: the servo weld, its own chapter below.
-- `m3_gearJoint` and `m3_pulleyJoint`: transmissions, their own
-  chapter below.
+```c
+m3RevoluteJointDef def = m3DefaultRevoluteJointDef();
+// The door frame is a static body at the origin, the door a dynamic
+// body 0.5 m along x; the hinge is given in each body's frame.
+def.bodyIdA = frame;
+def.bodyIdB = door;
+def.localAnchorA = (m3Vec3){0.0f, 1.1f, 0.0f};
+def.localAnchorB = (m3Vec3){-0.5f, 0.0f, 0.0f};
+def.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f}; // a vertical hinge
+def.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
+def.enableMotor = true;
+def.motorSpeed = 1.0f;       // rad/s
+def.maxMotorEffort = 500.0f; // N m
+def.enableLimit = true;
+def.lowerAngle = 0.0f;
+def.upperAngle = 1.5f; // it opens to about 86 degrees
+m3JointId hinge;
+m3Result result = m3CreateRevoluteJoint(world, &def, &hinge);
+```
 
-Anchors are body-local; the joint frame's axis is local z. Joint
-impulses persist in the snapshot (warm starts are simulation
-state). Creation validates everything and returns the null id on
-any violation; destroying a body cascades through its joints.
+## The types
 
-## Joint runtime control, drives, and breakage
+| Type | Holds | Parts |
+|---|---|---|
+| Spherical | Two anchors together, a ball joint. | Twist limit about the A frame's axis, a swing cone around it, a spring toward a target rotation. |
+| Revolute | One rotation axis, a hinge. | Limit, motor, spring toward a target angle. |
+| Prismatic | One translation axis, a slider. | Limit, motor, spring toward a target translation. |
+| Weld | Everything, at the pose the bodies had when it was created. | |
+| Distance | The anchors' distance within `[minLength, maxLength]`: a rod when the two are equal, a rope when they differ. | A spring toward `length`, which the range still bounds. |
+| Generic | Each of six axes of the joint frame locked, free or limited. | One motor on a free or limited axis. At most one angular axis may be limited, and the other two must then be both locked or both free. |
+| Wheel | Body B slides along a suspension axis of A and spins freely about its own axle. | Suspension limit and spring, a motor on the spin, and steering. |
+| Filter | Nothing; it only stops its two bodies colliding. | |
+| Parallel | An axis of A parallel to an axis of B; translations and the twist about the axis stay free. | |
+| Motor | B driven toward a target pose relative to A, a servo weld. | Force and torque budgets; the spring sets the stiffness. |
+| Gear | `spinA + ratio * spinB` constant: a positive ratio counter-rotates, a negative one turns the same way. | Both bodies must be hinged to one common frame. |
+| Pulley | A rope from each body over a fixed world point: `length1 + ratio * length2` constant. | The rope is rigid both ways. |
 
-Limits, the motor and the spring each have a switch and value
-setters, and rebind mid-run: `m3Joint_EnableLimit` with
-`m3Joint_SetLimits(lower, upper)`, `m3Joint_EnableMotor` with
-`m3Joint_SetMotorSpeed` and `m3Joint_SetMaxMotorEffort`, and
-`m3Joint_EnableSpring` with `m3Joint_SetSpringHertz` and
-`m3Joint_SetSpringDampingRatio`. `IsLimitEnabled`,
-`IsMotorEnabled`, `IsSpringEnabled` and a getter per value read
-them back. A def can switch the spring on at create through
-`enableSpring`, `springHertz` and `springDampingRatio`. A part keeps its values while it is off, and each
-call zeroes the stored impulse of the rows it changes. A limit
-range is ordered when it is set and whenever the limit is on; a
-spring is positive in hertz while it is on. Only revolute,
-prismatic, wheel and generic joints take a motor, only revolute,
-prismatic, spherical, wheel, motor and distance joints a spring, and
-only revolute, prismatic, spherical and wheel joints take limits;
-the calls refuse every other type, the motor joint and the distance
-joint included, whose budgets and length range have calls of their
-own.
-`m3Joint_EnableConnectedCollision` lets the two jointed bodies collide.
-The spring arms the position drive on revolute (target angle),
-prismatic and wheel (target translation) and spherical (target
-rotation) joints; `m3RevoluteJoint_SetTargetAngle`,
-`m3Joint_SetTargetTranslation` and
-`m3SphericalJoint_SetTargetRotation` move the goal. The rotation target lives in the JOINT FRAMES
-(frame z is the create-time local axis). Reaction readback:
-`m3Joint_GetReactionForce` and `m3Joint_GetReactionTorque` return last-step
-magnitudes assembled per type; they read 0 until the first step
-after a restore. Breakage: `m3Joint_SetBreakLimits` arms
-force/torque caps (zero = off); an over-threshold reaction
-destroys the joint at the end of the step and emits the break
-event. Breakage is an in-step deterministic transition on
-purpose: a host poll would race the journal under rollback.
+A wheel joint's axle is set exactly perpendicular to its suspension
+axis when it is created; one more than slightly skewed is refused. The
+wheel joint is the rigid-wheel path for vehicles; the raycast
+[vehicles](vehicles.md) are the default.
 
-The four-state drive law: a velocity motor alone brakes, a
-position spring alone holds, and TOGETHER they share ONE budget,
-the motor's `maxMotorEffort`. A starved budget makes the drive
-sag instead of borrowing force from nowhere; a zero
-budget with the motor off leaves the spring unbudgeted. This is
-the difference between a servo that stalls under load and one
-that lies.
+## Limits, motors and springs
 
-## The wheel joint
+The setters change a joint's parts while the game runs:
+`m3Joint_EnableLimit` and `m3Joint_SetLimits`, `m3Joint_EnableMotor`,
+`m3Joint_SetMotorSpeed` and `m3Joint_SetMaxMotorEffort`,
+`m3Joint_EnableSpring`, `m3Joint_SetSpringHertz` and
+`m3Joint_SetSpringDampingRatio`. A motor runs at its speed within its
+effort budget, a torque for an angular motor and a force for a linear
+one. A spring pulls toward its target with a frequency up to 1e5 Hz and
+a damping ratio up to 1e4: `m3RevoluteJoint_SetTargetAngle` (in
+[-pi, pi]), `m3Joint_SetTargetTranslation` and
+`m3SphericalJoint_SetTargetRotation`. A setter for a part the joint's
+type does not have changes nothing and counts one misuse; a getter for
+it returns 0. Changing a part wakes both bodies.
 
-m3_wheelJoint is the OPTIONAL rigid-wheel path: the wheel is a
-real body on real contacts (trucks over rubble, wheels in
-fragments), while the raycast vehicle stays the default.
-localAxisA is the suspension axis in the chassis frame,
-localSpinAxisB the axle in the wheel frame; the axle is captured at
-create and snapped exactly perpendicular to the strut (more
-than a small skew refuses loudly). One joint composes both
-halves: the wheel slides along the strut (travel limits from
-enableLimit with lowerTranslation and upperTranslation,
-suspension spring from m3Joint_EnableSpring plus
-m3Joint_SetTargetTranslation) and spins freely about its axle
-(drive with m3Joint_EnableMotor; read the spin with
-m3Joint_GetAngle and the travel with m3Joint_GetTranslation).
+- `m3MotorJoint_SetOffsets` aims a motor joint, and
+  `m3MotorJoint_SetMaxForce` and `m3MotorJoint_SetMaxTorque` set its
+  budgets, 0 for no cap. A motor joint without a spring holds nothing.
+- `m3DistanceJoint_SetLengthRange` and `m3DistanceJoint_SetLength` change
+  a distance joint's range and rest length.
+- `m3WheelJoint_EnableSteering` and the other `m3WheelJoint_` setters
+  steer a wheel joint toward a target angle with a stiffness, a damping
+  and a torque budget of their own.
+- `m3SphericalJoint_EnableCone` and `m3SphericalJoint_SetConeAngle`
+  shape a ball joint's swing.
 
-Breakage works as for every joint: the force cap snaps a
-wheel torn sideways, the torque cap a drive axle overdriven,
-in-step, evented, and deterministic through rollback. The def
-grew nothing and there is no new state: a wheel joint is
-ordinary joint state and rides every snapshot and hash law that
-already existed.
+`m3Joint_GetAngle` and `m3Joint_GetTranslation` read a joint's current
+angle and slide, the spin and the suspension travel for a wheel joint.
 
-Steering: `m3WheelJoint_EnableSteering` switches a soft drive
-that yaws the wheel about its strut toward
-`m3WheelJoint_SetTargetSteeringAngle` (radians, at most 1.0 either
-way), with its own `SetSteeringHertz`, `SetSteeringDampingRatio`
-and `SetMaxSteeringTorque` (0 = uncapped). The values hold while
-steering is off, so set the frequency before enabling it.
-`m3WheelJoint_GetSteeringAngle` reads the live angle back. Steer the front pair of a wheel-joint cart and you
-have rack-and-pinion steering on real contacts, no vehicle
-required. Journaled, snapshotted, bit-exact through rollback.
+## Breaking
 
-## The servo weld
+`m3Joint_SetBreakLimits` gives a joint a force cap and a torque cap.
+When either reaction at the end of a step passes its cap, the joint
+destroys itself inside that step, and `m3World_GetJointEvents` reports
+it. Because the break happens in the step, it replays and rolls back
+like everything else. A cap of 0 is no cap; both 0, the default, make
+a joint unbreakable. `m3Joint_GetReactionForce` and
+`m3Joint_GetReactionTorque` read the size of the last step's reaction,
+and read 0 until the first step after a restore.
 
-`m3_motorJoint` drives body B toward a target pose relative to
-body A with NO hard rows: a soft 3-DOF rotation drive plus a
-soft 3-DOF translation drive, each clamped to its own budget.
-Tune stiffness with the joint spring (shared by both drives),
-aim with `m3MotorJoint_SetOffsets(linearOffset, angularOffset)`
-(the offset in A's create-time frame, the rotation relative to
-the create pose), and budget with the def's `maxForce` and
-`maxTorque` or `m3MotorJoint_SetMaxForce` and
-`m3MotorJoint_SetMaxTorque`, 0 = uncapped. The getters read the
-aim and the budgets back. A fresh servo aims at
-its own create pose; without a spring it holds NOTHING and the
-bodies drift free. Use it for animated platforms, grabbers, and
-kinematic-feeling props that still lose to a bigger
-force: a starved servo sags, it does not teleport.
+## The lever limit
 
-## Gears and pulleys
+A joint holding a heavy body by a long arm, or a light one by a short
+arm against a heavy one, can ask more of the solver than float
+arithmetic can give. Creates and changes that would carry a joint past
+`M3_JOINT_LEVER_LIMIT` are refused with `m3_errorLimit`, which counts
+no misuse since the bodies' masses decide it; [the magnitude
+limits](limits.md#magnitude-limits) explain the ratio.
 
-`m3_gearJoint` couples spin so `spinA + ratio * spinB` keeps its
-create value, where each spin is that body's rotation about its
-own `localAxis`. Positive ratio is the external mesh (counter-
-rotation); negative couples same-direction like a belt. The
-mounting contract, documented and unchecked: both bodies should
-be hinged on a common rigid frame (revolute or wheel joints to
-the same chassis); the gear holds no other degree of freedom and
-puts no reaction on that frame. Angle drift is corrected softly,
-so a mesh cannot creep under load.
+## The joint's life
 
-`m3_pulleyJoint` runs a rope from `localAnchorA` over the WORLD
-point `groundAnchorA`, across to `groundAnchorB`, down to
-`localAnchorB`: `length1 + ratio * length2` keeps its create
-value, `ratio > 0`. The rope is RIGID both ways by contract (it
-can push); pair it with a distance-joint rope when slack
-matters. Ratio 2 is a block and tackle: B moves half as fast and
-carries twice the force. Both types create through the same def
-(`ratio`, `groundAnchorA/B` at the tail), journal, snapshot, and
-hash like every other joint.
+`m3DestroyJoint` removes a joint, and destroying either body removes
+it too. `m3Joint_GetType`, `m3Joint_GetBodyA` and `m3Joint_GetBodyB`
+read a joint back, and `m3Body_GetJoints` lists a body's joints.
+Creating, changing and destroying joints are journal operations, and a
+joint's settings and stored impulses are part of a snapshot and the
+world hash.

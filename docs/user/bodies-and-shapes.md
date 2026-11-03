@@ -1,175 +1,200 @@
 # Bodies and shapes
 
+- [Bodies](#bodies)
+- [Shapes](#shapes)
+- [Forces and impulses](#forces-and-impulses)
+- [Moving bodies by hand](#moving-bodies-by-hand)
+- [Sleep](#sleep)
+- [Materials](#materials)
+- [Collision filters](#collision-filters)
+- [Continuous collision](#continuous-collision)
+- [World settings](#world-settings)
+
+## Bodies
+
+```c
+m3BodyDef def = m3DefaultBodyDef();
+def.type = m3_dynamicBody;
+def.position = (m3Pos3){0.0, 2.0, 0.0};
+def.motionLocks.angularX = true; // stays upright: no tipping about x or z
+def.motionLocks.angularZ = true;
+m3BodyId crate;
+m3Result result = m3CreateBody(world, &def, &crate);
+m3ShapeDef shapeDef = m3DefaultShapeDef();
+shapeDef.density = 500.0f; // kg/m3
+m3ShapeId box;
+if (result == m3_success)
+{
+    result = m3CreateBoxShape(world, crate, &shapeDef, (m3Vec3){0.5f, 0.5f, 0.5f}, &box);
+}
+```
+
+A body is **static** (never moves), **kinematic** (moves at the
+velocity it is given and pushes dynamic bodies without being pushed)
+or **dynamic** (moved by forces, contacts and joints). The default def
+is a static body at the origin.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `type` | static | `m3_staticBody`, `m3_kinematicBody` or `m3_dynamicBody`. |
+| `position`, `rotation` | the origin, identity | The pose. The rotation must be near unit length. |
+| `linearVelocity`, `angularVelocity` | zero | Within 1e5, or 1e10 m/s for a kinematic body's linear velocity. |
+| `gravityScale` | 1 | The share of world gravity the body feels. |
+| `linearDamping`, `angularDamping` | 0 | Per-second slowing. |
+| `enableBullet` | false | Continuous collision against moving bodies too. |
+| `motionLocks` | none | Axes held still: a locked axis's velocity is zeroed every substep. |
+| `enableSleep` | true | False keeps the body awake. |
+| `sleepThreshold` | 0 | The resting speed; 0 uses the world's default of 0.05 m/s. |
+| `enable` | true | False creates the body outside simulation and queries. |
+| `enableFastRotation` | false | Lets the body spin past the world's angular speed cap. |
+| `userData` | 0 | The host's own value. |
+
+A dynamic body's mass, centre of mass and inertia come from its
+shapes, each weighted by its density: `m3Body_GetMass`,
+`m3Body_GetLocalCenter` and `m3Body_GetCentralInertia` read them. No
+call sets them directly. A dynamic body with no shape weighs 1 kg.
+`m3Body_SetName` gives a body a UTF-8 name of up to
+`M3_MAX_BODY_NAME_BYTES` (31) bytes, for tools and logs.
+
+## Shapes
+
+A shape gives a body geometry. A body may carry many, each placed by
+the def's `localPosition` and `localRotation`, so a compound body is
+several shapes on one body; its mass adds them up about their
+offsets.
+
+| Create | Shape | Notes |
+|---|---|---|
+| `m3CreateSphereShape` | sphere | A centre and a radius. |
+| `m3CreateCapsuleShape` | capsule | A segment and a radius; a segment of zero length is refused. |
+| `m3CreateBoxShape` | box | Half extents; built as a convex hull. |
+| `m3CreateCylinderShape` | cylinder | A prism of `2 * segments` vertices, built as a hull; segments clamp to 3 to 32, and 24 rolls smoothly at metre scales. |
+| `m3CreateHullShape` | convex hull | The hull of 4 to 256 points, at most 64 vertices, 124 faces and 372 half edges. |
+| `m3CreateMeshShape` | triangle mesh | Static bodies only; up to 65535 vertices and 65535 triangles, counter-clockwise seen from outside. |
+| `m3CreateHeightFieldShape` | height field | Static bodies only; a grid of 2 to 255 samples per axis, `cellSize` apart, from the body's origin, four bytes per sample. |
+| `m3CreateHeightFieldMeshShape` | height field as a mesh | The same grid, 2 to 32 samples per axis, built as a mesh. |
+| `m3CreatePlaneShape` | plane | Static bodies only; an infinite half-space. |
+| `m3CreateVoxelChunkShape` | voxel chunk | Static bodies only ([destruction](destruction.md)). |
+
+Hulls and meshes with the same content are stored once and shared.
+`m3Shape_SetSphere` and `m3Shape_SetCapsule` change a sphere or capsule
+shape's geometry in place, one into the other included; the body's
+mass follows, and everything around the old and the new bounds wakes.
+Other shapes cannot be reshaped. `m3DestroyShape` removes a shape and
+rebuilds its body's mass.
+
+`m3MeshShape_SetMaterials` paints a mesh: up to
+`M3_MAX_MESH_MATERIALS` (8) materials, with friction, restitution,
+rolling resistance and surface velocity each, and a material index per
+triangle. A contact on a painted triangle uses that material in place
+of the shape's own, so one level mesh can hold ice, tarmac and a
+moving walkway. A contact that touches several triangles takes the
+material of its first point.
+
 ## Forces and impulses
 
-`m3Body_ApplyForce`, `ApplyTorque`, and `ApplyForceAtPoint`
-accumulate for exactly one step: integrated beside gravity every
-substep, consumed after the last. `ApplyLinearImpulse`,
-`ApplyAngularImpulse`, and `ApplyImpulseAtPoint` act immediately.
-At-point arms are measured from the center of mass. Pending
-accumulators are snapshot state: a snapshot taken between an
-application and its step re-lands the same trajectory. Targets
-must be dynamic with mass; anything nonzero wakes the body.
+- `m3Body_ApplyForce`, `m3Body_ApplyTorque` and
+  `m3Body_ApplyForceAtPoint` add to what the next step applies,
+  beside gravity, over every substep; the step then clears them. They
+  are part of a snapshot, so a snapshot taken between a force and its
+  step replays the same motion.
+- `m3Body_ApplyLinearImpulse`, `m3Body_ApplyAngularImpulse` and
+  `m3Body_ApplyLinearImpulseAtPoint` change the velocity at once.
+- `m3Body_SetLinearVelocity` and `m3Body_SetAngularVelocity` set it.
 
-## Runtime body control
+A point is given in world space; the arm runs from the centre of mass.
+Only dynamic bodies take forces and impulses, and anything that is not
+zero wakes the body. An impulse whose result would pass 1e5 m/s or
+rad/s is refused.
 
-`m3Body_SetTransform` teleports and wakes both the departure and
-arrival neighborhoods. `m3Body_SetTargetTransform` is a kinematic
-servo: the body lands exactly on the target next step and the
-order clears; the exit velocity stays yours by contract. A target
-past `M3_TARGET_REACH_LIMIT` from the body returns `m3_errorLimit`.
-`m3Body_SetType` flips dynamic/kinematic/static with a full mass
-rebuild, and returns `m3_errorLimit` when the body's mass, joints or
-speed do not allow the new type. `m3Body_Enable` with false removes the body from
-contacts, CCD, rays, casts, overlaps, and soft-lattice collision.
-`m3Body_SetMotionLocks` freezes any subset of the six axes (bits
-0..2 linear xyz, 3..5 angular xyz), re-zeroed every substep so
-contacts cannot bank motion on a frozen axis.
-`m3Body_SetSleepThreshold` gives a per-body threshold and
-`m3Body_EnableSleep` keeps a body awake; `m3Body_SetAwake` forces
-either edge.
+## Moving bodies by hand
 
-## Materials and world tuning
+- `m3Body_SetTransform` teleports a body: the pose lands at once,
+  velocities stay, and bodies around both the old and the new place
+  wake.
+- `m3Body_SetTargetTransform` drives a kinematic body to a pose: the
+  next step gives it the velocities that land it exactly there, then
+  the target clears. It is how to move elevators, doors and platforms.
+  A target more than 1e6 m away is refused with `m3_errorLimit`.
+- `m3Body_SetType` turns a body static, kinematic or dynamic. Turning
+  dynamic rebuilds its mass from its shapes, turning static zeroes its
+  velocities, and the bodies around it wake. A body with a plane,
+  mesh, height field or voxel chunk stays static.
+- `m3Body_Enable` with false takes a body out of the simulation and
+  out of every query without destroying it.
+- `m3Body_SetMotionLocks` holds any of the six axes still, for 2.5D
+  games and upright enemies.
 
-Shape materials are runtime-settable and journaled:
-`m3Shape_SetFriction`, `SetRestitution`, `SetRollingResistance`,
-and `SetDensity` (the latter rebuilds the body's mass).
-Contacts read materials at prepare, so changes bind next step; a
-sleeping stack keeps its old mix until something wakes it. World
-knobs: `m3World_SetGravity` (sleepers stay asleep until
-disturbed), `SetContactTuning` (hertz, damping ratio, max
-depenetration speed; static contacts run twice the hertz),
-`SetRestitutionThreshold`, `SetMaximumLinearSpeed` (a hard
-per-substep clamp), `EnableSleep` (off wakes everyone), and
-`EnableContinuous`. Knobs are STATE, not config: they journal,
-they snapshot, and they hash only off-default. The config hash
-stays version + solver revision + precision + FP policy, because
-a config-hash knob would refuse the journal instead of replaying
-it.
+## Sleep
 
-Painted mesh materials: m3MeshShape_SetMaterials gives a
-mesh shape up to eight surface materials and one group byte per
-triangle. The struck triangle's entry replaces the MESH side of
-the contact mix (friction, restitution, rolling resistance), and
-its surface velocity feeds the conveyor row per triangle: a
-moving walkway, an ice patch, and tarmac can share one level
-mesh. One welded manifold wears one material (the first,
-id-canonical point picks it, documented v1 contract). Unpainted
-meshes keep using their shape material everywhere, bit-exactly
-as before. Journaled, snapshotted, hostile paint refused loudly.
+A body at rest falls asleep and costs nothing until something wakes
+it ([determinism](determinism.md#the-step)). `m3Body_EnableSleep`
+keeps one body awake, `m3Body_SetSleepThreshold` changes its resting
+speed, and `m3Body_SetAwake` wakes it or puts it to sleep at once with
+its velocities zeroed.
 
-The broadphase rebuild: m3World_RebuildBroadphase replaces
-the incrementally grown tree with a balanced top-down build over
-the live shapes, in one deterministic, journaled pass. Bulk level
-construction inserts one shape at a time and can leave the tree
-lopsided; call this once after building and queries walk a
-balanced tree. It changes NO answer: pairs are canonical and the
-tree is never hashed, so a rebuilt world steps bit-identically to
-its unrebuilt twin (the suite proves it by hash equality). It
-returns m3_errorCapacity, with the tree unchanged and nothing
-journaled, when the world's allocator refuses its scratch.
+## Materials
 
-## Compound shapes and the geometry ceilings
+Each shape has a `friction` (default 0.6), a `restitution` (default 0),
+a `rollingResistance` (default 0) and a `density` (default 1 kg/m3),
+and the setters change them while the game runs; `m3Shape_SetDensity`
+rebuilds the body's mass. A contact reads its shapes' materials when the
+step prepares it, so a change applies from the next step, and a
+sleeping stack keeps its old values until something wakes it.
 
-Every shape may carry a local transform relative to its body:
-localPosition and localRotation in m3ShapeDef (identity by
-default, near-unit rotations demanded loudly). One composed read
-serves the whole engine, so an offset shape collides, casts,
-rays, draws, and weighs exactly as it sits. Mass properties
-compose per shape before the parallel-axis walk: a dumbbell built
-from two offset boxes spins by the composite books. Caster sweeps
-take explicit poses and CCD composes at t0 (documented v1 bound).
-m3DestroyShape removes one shape at runtime and rebuilds the
-owner's mass; the last shape leaves a unit-mass shapeless body.
-
-Ceilings: hulls hold up to 64 vertices (124 faces, 372 half
-edges, input clouds up to 256 points); mesh chunks hold up to
-65,535 triangles and 65,535 vertices with 16-bit indices, stored
-count-derived so empty capacity costs nothing; heightfields
-triangulate through the same mesh path. One triangle or vertex
-past a ceiling refuses at create, loudly.
-
-## The faceted cylinder, reshaping, and the overlap family
-
-m3CreateCylinderShape mints a cylinder as a 2N-vertex prism
-through the interned hull path (N = segments, clamped to 3..32
-so 2N fits the 64-vertex hull law). Everything downstream (mass,
-contacts, casts, CCD, carving, the blast's projected area)
-treats the prism exactly; the documented trade is that the side
-is an N-gon, not a curve, and 24 segments roll visually smooth
-at meter scales.
-
-m3Shape_SetSphere and m3Shape_SetCapsule swap a shape's geometry
-in place, conversions between the two included (journaled, op
-69). Hulls, meshes, voxel chunks, and planes refuse: interned
-slabs are immutable by law. A swap recomputes mass from the new
-volume, wakes everything around BOTH the old and the new bounds
-(a shrink frees what leaned on the old silhouette), and the
-broadphase picks the new box up the same step machinery that
-tracks every mover.
-
-The overlap family joins the sphere: m3World_OverlapCapsule (a
-center and two center-relative points, as the capsule cast takes
-them), an oriented m3World_OverlapBox, and m3World_OverlapHull (a
-base plus up to 64 base-relative points and an optional radius,
-the cast convention). All answer EXACTLY per family: convex
-candidates through the GJK core, planes by minimum point
-distance, voxel chunks and meshes by BVH gather and per-box or
-per-triangle distance. Ascending shape ids, query filters, and
-the observer purity law throughout.
-
-## The native heightfield
-
-m3CreateHeightFieldShape stores an nx-by-nz grid (2..255 per
-axis) as raw samples, four bytes each: the low-memory terrain path
-beside meshes (the mesh-backed m3CreateHeightFieldMeshShape remains
-for small chunks). Cells split into two triangles on coordinate
-parity; contacts run the same welded triangle pipeline as meshes
-over a 16-cell contact window with a halo (bodies wider than the
-window contact within it; window warm-starts reset when it shifts
-a cell; both deterministic and documented). Rays scan the
-segment's cell span; the overlap family and soft particles see
-terrain through the same cell gather. Shape casts and continuous
-collision try only the cells within reach of their path, row by
-row, so a long diagonal costs its length rather than its box;
-meshes and voxel chunks gather the BVH leaves near the path the
-same way. A ray exactly along a
-shared triangle corner can miss by one float ulp, the same
-contract as the mesh path. Static bodies only; journaled (op 76),
-snapshotted count-derived (v49), never world-hashed (content is
-create-derived, like meshes and hulls).
+Rolling resistance brakes rolling at contacts, the larger of the two
+shapes' values, scaled by the pair's size. Without it a sphere rolls
+forever, and the bodies it touches never sleep; 0.01 to 0.1 feels like
+soft ground. A shape's `surfaceVelocity` makes it a conveyor: contacts
+drive the speed along the surface toward it, so crates ride a belt at
+the belt's speed, and a belt on a dynamic deck pushes the deck back.
 
 ## Collision filters
 
-Every shape carries `categoryBits` (default 1), `maskBits`
-(default all), and `groupIndex` (default 0). Two shapes meet only
-when each one's category intersects the other's mask, both ways; a
-shared positive group forces collision, a shared negative group
-forbids it. One chokepoint gates ordinary pairs, sensors, and the
-continuous phase alike. Queries behave like shapes: every ray,
-cast, and overlap takes an `m3QueryFilter`, and
-`m3DefaultQueryFilter()` sees everything. Filters are state and
-hash only off-default.
+Each shape has `categoryBits` (default 1), `maskBits` (default all bits)
+and `groupIndex` (default 0). Two shapes collide when each one's
+category shares a bit with the other's mask. A shared non-zero group
+overrides that: positive always collides, negative never does.
+`m3Shape_SetFilter` changes the three while the game runs. Every ray,
+cast and overlap takes an `m3QueryFilter` the same way;
+`m3DefaultQueryFilter` sees everything.
+
+A **sensor** shape, `isSensor` in its def, detects overlap and fires
+its own begin and end events, but never pushes: bodies pass through it,
+it stops nothing, and it wakes nothing. Sensors do not sense other
+sensors.
 
 ## Continuous collision
 
-Every fast dynamic body sweeps against static geometry, so nothing
-tunnels through a floor. A body flagged `enableBullet` additionally
-sweeps against dynamic and kinematic targets, with both bodies'
-sweeps in the time-of-impact kernel. Bullet versus bullet is not
-resolved (a documented limitation).
-Sensors neither stop nor are stopped.
+A fast dynamic body sweeps against static geometry each step, so it
+cannot pass through a thin wall or a floor between steps. A body with
+`enableBullet` also sweeps against dynamic and kinematic bodies. Two
+bullets do not sweep against each other. `m3World_EnableContinuous`
+turns the whole pass off or on; it is on by default.
 
-## The angular speed cap
+## World settings
 
-The linear speed cap has an angular twin: every substep,
-any dynamic body spinning past the world cap is scaled back onto
-it. The default (800 rad/s) is a catastrophe guard in the same
-philosophy as the 400 m/s linear default: far above anything a
-legal scene does, it exists to stop solver-explosion artifacts,
-not gameplay. Hosts that want a tight clamp set a
-low cap with m3World_SetMaximumAngularSpeed (journaled, hashed
-only off-default) and flag their legal fast spinners, wheels
-above all, with m3Body_EnableFastRotation (journaled). The
-flag lives beside the motion locks, survives lock writes, and
-reads back with m3Body_IsFastRotationEnabled.
+The world def sets these at creation, and each setter changes one while
+the game runs:
+
+| Setter | Default | Meaning |
+|---|---|---|
+| `m3World_SetGravity` | (0, -10, 0) | Sleeping bodies stay asleep until something wakes them. |
+| `m3World_SetContactTuning` | 30 Hz, damping ratio 10, 3 m/s | How stiff contacts are, and how fast an overlap is pushed apart. Contacts with static bodies run at twice the frequency. |
+| `m3World_SetRestitutionThreshold` | 1 m/s | Impacts slower than this do not bounce. |
+| `m3World_SetMaximumLinearSpeed` | 400 m/s | A hard cap on every dynamic body, every substep. |
+| `m3World_SetMaximumAngularSpeed` | 800 rad/s | The same for spin; a body with fast rotation enabled may exceed it, up to 1e5 rad/s. |
+| `m3World_EnableSleep` | on | Off wakes every body. |
+| `m3World_EnableContinuous` | on | The continuous pass above. |
+
+The speed caps guard against a scene that blows up; they sit far above
+anything a working scene reaches. Wheels and other legal fast spinners
+get `m3Body_EnableFastRotation`. Settings are world state: the journal
+records them, a snapshot carries them, and the hash takes them in when
+they differ from their defaults.
+
+`m3World_RebuildBroadphase` rebuilds the broad-phase tree as a
+balanced tree over the live shapes. Building a level one shape at a time
+can leave the tree lopsided; one call afterwards makes queries faster.
+It changes no result, since the tree is not part of the hash and pairs
+are kept in a fixed order.

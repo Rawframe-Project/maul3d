@@ -10,7 +10,8 @@ every product the step forms stays in float range. The limits are
 public constants in `maul3d/base.h`, beside the soft body, vehicle and
 drivetrain counts in their headers. A call past a limit refuses with
 `m3_errorLimit` (a create returns the null id), counts one misuse
-unless the world's state decides it (see the list above), journals
+unless the world's state decides it (see [which refusals count
+misuse](queries-and-events.md#introspection)), journals
 nothing and changes nothing; replay refuses the same values in
 a recorded op. A NaN is invalid rather than past a limit, and returns
 `m3_errorInvalid`; an infinity is past every limit. Each limit sits far
@@ -42,7 +43,7 @@ past what real scenes use. Vectors are bounded per component.
 | Joint lever | `M3_JOINT_LEVER_LIMIT`, 1e10 for mass * arm^2 / moment: see below | a spherical, revolute, prismatic, weld, wheel or motor joint, a shape create, destroy, resize or density change on its bodies, a body's type change |
 | Contact lever | `M3_CONTACT_LEVER_LIMIT`, 1e6 for mass * arm^2 / moment: see below | a shape create, destroy, resize, density or filter change on a dynamic body, a body turning dynamic |
 | Counts | `M3_MAX_HULL_POINTS` 256, `M3_MAX_CAST_POINTS` 64, `M3_MAX_MESH_VERTICES` and `M3_MAX_MESH_TRIANGLES` 65535, `M3_MAX_MESH_MATERIALS` 8, `M3_MAX_HEIGHTFIELD_SIZE` 255, `M3_MAX_HEIGHTFIELD_MESH_SIZE` 32, `M3_MAX_VOXEL_SURFACE_BOXES` 2048, `M3_MAX_BODY_NAME_BYTES` 31 | hull clouds, casts, meshes and their materials, height field grids and mesh height fields, a voxel chunk's surface, a body's name |
-| Capacities | `M3_MAX_SHAPE_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
+| Capacities | `M3_MAX_SHAPE_CAPACITY`, `M3_MAX_PAIR_CAPACITY` and `M3_MAX_VOXEL_CAPACITY` | `m3WorldDef` |
 
 The step holds what it produces within the same limits: every
 body leaves a substep within 1e5 m/s and 1e5 rad/s, a bounce asks
@@ -105,8 +106,10 @@ plane's normal is unit length.
 ## Capacities
 
 Every pool is fixed at world creation (`bodyCapacity`,
-`shapeCapacity`, `jointCapacity`, `meshCapacity`) and never grows.
-Exhaustion refuses with a null id and the world keeps stepping.
+`shapeCapacity`, `meshCapacity`, `jointCapacity`, `voxelCapacity`,
+`characterCapacity`, `vehicleCapacity`, `softBodyCapacity`) and never
+grows. A create past a full pool is refused with `m3_errorCapacity`
+and the null id, counts no misuse, and the world keeps stepping.
 
 The broadphase pair table is fixed too: `pairCapacity` pairs, 8 per
 shape of `shapeCapacity` when it is left 0. A dense pile can find
@@ -118,31 +121,37 @@ runs whole for every other body. `m3Counters.pairsDropped` counts
 the drops, so check it while a game is in development and raise
 `pairCapacity` until it stays at zero:
 
-    uint64_t dropped = m3World_GetCounters(world).pairsDropped;
-    (void)m3World_Step(world, dt, 4);
-    if (m3World_GetCounters(world).pairsDropped != dropped)
-    {
-        // Bodies passed through each other this step: give the world
-        // a larger m3WorldDef.pairCapacity.
-    }
+```c
+uint64_t dropped = m3World_GetCounters(world).pairsDropped;
+(void)m3World_Step(world, dt, 4);
+if (m3World_GetCounters(world).pairsDropped != dropped)
+{
+    tooFewPairs = true; // give the world a larger m3WorldDef.pairCapacity
+}
+```
 
-The world also takes its step scratch at creation, sized for a
-step at those capacities, so stepping never allocates. On a 64-bit
-target it holds about
+The world also takes its step scratch at creation, sized for a step
+at those capacities, so stepping never allocates.
+`m3World_GetMemoryUsage` gives the exact sizes (`scratchCapacity`,
+`persistentBytes`), and a world whose scratch would pass 2 GiB, or that
+the allocator refuses, is not created (`m3_errorCapacity`).
 
-    918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity
-    + 57 KiB
+As a guide for budgets, here is what release 1.0.0 takes on a 64-bit
+target. The figures were measured on x86-64 Linux with a clang-20
+build, by creating worlds whose capacities differ by a known count and
+comparing their `m3World_GetMemoryUsage`. Such a world takes about
 
-bytes, and each pair also keeps 544 bytes of persistent tables, so
-the default 8 pairs cost about 11.4 KiB per shape. The default world
-(1024 bodies, 2048 shapes and 16,384 pairs, 64 joints) takes 14.5 MiB
-of scratch beside 21.4 MiB of pools and arrays.
-`m3World_GetMemoryUsage` gives both exactly (`scratchCapacity`,
-`persistentBytes`), and a world whose scratch would pass 2 GiB, or
-that the allocator refuses, is not created (`m3_errorCapacity`).
-Per-shape geometry ceilings live in one place: the "Compound
-shapes and the geometry ceilings" chapter above (hulls 64
-vertices from up to 256 input points, meshes 65,535 vertices and
-65,535 triangles per chunk, heightfields up to 255 by 255 per
-shape). Those numbers are pinned by an asserted test; if a header
-constant moves, the suite fails before the documentation lies.
+```text
+918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity + 57 KiB
+```
+
+bytes of scratch, and each pair also keeps 564 bytes of persistent
+tables, so the default 8 pairs cost about 11.6 KiB per shape. The
+default world (1024 bodies, 2048 shapes and 16,384 pairs, 64 joints)
+takes 14.5 MiB of scratch beside 21.7 MiB of pools and arrays. A later
+release may change these figures.
+
+Each shape's own ceilings, hulls of 64 vertices from up to 256 input
+points, meshes of 65,535 vertices and 65,535 triangles, and height
+fields of up to 255 by 255 samples, are described with the shapes in
+[bodies and shapes](bodies-and-shapes.md).

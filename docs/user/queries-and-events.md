@@ -1,163 +1,179 @@
 # Queries, events and introspection
 
-## Sensors
+- [Queries](#queries)
+- [Events](#events)
+- [The pre-solve veto](#the-pre-solve-veto)
+- [Debug draw](#debug-draw)
+- [Introspection](#introspection)
 
-A shape created with `isSensor` detects and never responds:
-
-- No contact response: bodies pass through, with no impulse and no
-  effect on trajectories.
-- Its own event streams, read with `m3World_GetSensorEvents`,
-  derived by the same canonical walk as contact events. Each event
-  names its `sensorShapeId` and its `visitorShapeId`, and carries the
-  `step` it belongs to: `m3World_GetStepCount` before that step.
-  Contact streams stay silent for sensor pairs.
-- No waking: a sleeping body inside a sensor keeps sleeping; the
-  begin event stays open (narrowphase keeps watching because only
-  the solver sleeps). No island coupling.
-- No stopping power: continuous collision ignores sensor targets,
-  and a sensor shape on a fast body sweeps nothing.
-- Sensors do not sense other sensors.
-
-## Events
-
-Contact begin/end and sensor begin/end streams are rebuilt every
-step and valid until the next `m3World_Step`, `m3World_Restore`, or
-world destruction. Restore clears all streams (events are
-observations, not state). Event order within a step is canonical and
-deterministic. The count pointer of the accessor may be null if the
-caller only wants the array (it is then unbounded and useless: pass
-the pointer).
-
-## Hit events, move events, and the pre-solve veto
-
-Hit events are opt-in per shape (`m3Shape_EnableHitEvents`) and
-fire at most once per contact per step, for the fastest
-approaching manifold point, when the approach speed clears
-`m3World_SetHitEventThreshold`. Body move events arrive one per
-mover per step in ascending body order with the post-step
-transform and a fell-asleep mark; sleeping bodies cost nothing.
-The joint break stream reports joints that destroyed themselves
-this step; the id inside is already stale, use it as a key. The
-pre-solve veto (`m3World_SetPreSolveCallback` plus
-`m3Shape_EnablePreSolveEvents`) runs serially in canonical pair order
-and may disable any flagged contact for the step: the one-way
-platform tool. THE CONTRACT, LOUD: the callback must be a pure
-function of its arguments; the journal records inputs, never host
-whims, so an impure callback breaks YOUR replay, not the
-engine's. All event streams are transient observers: the next
-step or a restore clears them.
+Queries ask the world questions, events report what the last step did,
+and the counters and the debug draw show what a world holds. None of
+them changes the world: a world read between two snapshots snapshots to
+the same bytes, and queries are safe at any point between steps.
 
 ## Queries
 
-- Rays (`m3World_CastRayClosest`, `m3World_CastRayAll`) hit front
-  faces only. A ray starting inside or exactly on a surface reports
-  a miss for that shape; use `m3World_TestPoint` to ask about
-  containment. All-hits results are sorted by fraction, ties by
-  shape index; when the output array fills, the farthest hit drops.
-- Shape casts (`m3World_CastSphereClosest`,
-  `m3World_CastCapsuleClosest`, `m3World_CastBoxClosest`,
-  `m3World_CastHullClosest`) report the first time of impact along
-  a translation. A cast that starts overlapped reports fraction
-  zero with a zero normal. Box casts take a center, half extents,
-  and an orientation; hull casts take up to 24 base-relative cloud
-  points. A one-point skinless cloud misses by contract (that is a
-  ray). Any translation component beyond 1e18 misses by contract:
-  past that, the kernels' float arithmetic would overflow (the
-  caster's float budget).
-- Every closest cast, the mover cast included, clears its
-  `m3CastHit` at `hitOut` first, then returns `true` and writes the
-  hit there, or returns `false` and leaves it zeroed, on a miss as
-  on a refused input, so no earlier hit survives. `m3World_CastRayAll`
-  fills an array of the same `m3CastHit`.
-- `m3World_TestPoint` treats planes as solid half-spaces and
-  meshes as open surfaces (a point is never "inside" a mesh).
-- Overlap queries (`m3World_OverlapAabb`, `m3World_OverlapSphere`)
-  return exact shape-level results, planes included.
-- Every call that fills an array takes its filter, when it has one,
-  before the array, and the array's capacity right after it. It
-  writes at most that many entries and returns the total, which may
-  be more; a NULL array with capacity 0 measures the total, so a
-  caller can size the array first. A NULL array with a positive
-  capacity, or a negative capacity, is refused.
-- A refused list call (a NULL world, a stale id, a bad argument)
-  returns 0 and zeroes the array over its whole capacity, so no entry
-  of an earlier call is read as the answer; zeroed ids are null ids.
-  A successful answer, an empty one included, writes only its entries
-  and leaves the rest of the array as it was. List calls only read,
-  so none is refused as busy. A refused `m3World_Snapshot` zeroes its
-  buffer over its capacity in the same way, so a host that rings
-  snapshot buffers sizes each with `m3World_GetSnapshotSize` first.
+```c
+m3Pos3 from = {0.0, 10.0, 0.0};
+m3Vec3 down = {0.0f, -20.0f, 0.0f}; // the ray runs to y = -10
+m3CastHit hit;
+bool found = m3World_CastRayClosest(world, from, down, m3DefaultQueryFilter(), &hit);
+m3Pos3 ground = from;
+if (found)
+{
+    ground = hit.point; // where the ray met the floor
+}
+```
 
-Queries read the world and never write it; they are safe to call at
-any point between steps and have no effect on determinism.
+- **Rays.** `m3World_CastRayClosest` returns the first hit along a
+  segment, `m3World_CastRayAll` every hit, sorted by distance and then
+  by shape. A ray sees only the front of a surface: one that starts
+  inside a shape or exactly on its surface misses that shape. Ask
+  `m3World_TestPoint` about containment instead.
+- **Shape casts.** `m3World_CastSphereClosest`,
+  `m3World_CastCapsuleClosest`, `m3World_CastBoxClosest` (a centre,
+  half extents and a rotation) and `m3World_CastHullClosest` (the hull
+  of 2 to `M3_MAX_CAST_POINTS`, 64, points around a base) sweep a shape
+  along a translation and report the first contact. A cast that starts
+  touching something reports a fraction of 0 and a zero normal. A
+  translation past 1e18 m on an axis is refused.
+- **The hit.** Every closest cast clears its `m3CastHit` first. On a
+  hit it returns true and fills in the shape, the world point, the
+  surface normal and the fraction of the translation travelled; on a
+  miss or a refusal it returns false and leaves the hit zeroed, so no
+  earlier hit survives.
+- **Points.** `m3World_TestPoint` says whether a point is inside a
+  shape. A plane is a solid half-space and a voxel chunk's cells are
+  solid; a mesh is an open surface, with no inside.
+- **Overlaps.** `m3World_OverlapAabb`, `m3World_OverlapSphere`,
+  `m3World_OverlapCapsule`, `m3World_OverlapBox` and
+  `m3World_OverlapHull` list the shapes that overlap a region, exactly
+  per shape and not by bounding boxes, in ascending shape order.
+- **Movers.** `m3World_CastMover` and `m3World_CollideMover` cast a
+  capsule and list the planes around it, and `m3SolveMover` and
+  `m3ClipMoverVelocity` turn those planes into a move, for hosts that
+  build their own character ([the character
+  controller](character.md#a-character-with-real-mass)).
+
+Every query takes an `m3QueryFilter`, which works like a shape's filter
+([collision filters](bodies-and-shapes.md#collision-filters));
+`m3DefaultQueryFilter` sees everything. Disabled bodies are invisible
+to every query.
+
+A call that fills an array takes the array's capacity right after it,
+writes at most that many entries, and returns the total, which may be
+more; a null array with a capacity of 0 measures the total first. A
+null array with a positive capacity, or a negative capacity, is
+refused. A refused call returns 0 and zeroes the array over its whole
+capacity, so no entry from an earlier call reads as an answer; a
+successful one, an empty answer included, writes only its own entries.
+List calls only read, so none is refused for a busy world.
+
+## Events
+
+Each step rebuilds the event streams. They stay valid until the next
+step, a restore or the world's destruction, and their order is fixed:
+the same step always reports the same events in the same order.
+
+- **Contacts.** `m3World_GetContactEvents` gives the pairs of shapes
+  that began and ended touching in the last step.
+- **Hits.** A contact on a shape with `enableHitEvents` reports a hit
+  when its fastest approaching point closes faster than the world's
+  hit threshold (`m3World_SetHitEventThreshold`), at most once per
+  contact per step, with the point, the normal and the approach speed. Hits past the
+  stream's capacity still happen; `hitsDropped` counts the events lost.
+- **Sensors.** `m3World_GetSensorEvents` gives the shapes that entered
+  and left each sensor, each event marked with the step it belongs to.
+  Contact events stay silent for sensors, and a sleeping body inside a
+  sensor stays asleep with its begin event open.
+- **Moves.** `m3World_GetBodyEvents` lists every body that moved in the
+  last step, in ascending body order, with its new transform and
+  whether it fell asleep. A sleeping body costs nothing here. Reading
+  moves is cheaper than polling every body.
+- **Joint breaks.** `m3World_GetJointEvents` lists the joints that broke
+  in the last step ([joints](joints.md)). Their ids are already stale:
+  use them as keys.
+- **Fragments.** `m3World_GetFragmentEvents`, from voxel edits
+  ([destruction](destruction.md#fragments)).
+
+Events observe; they are not state. A restore clears every stream.
+
+## The pre-solve veto
+
+`m3World_SetPreSolveCallback` installs a function the step calls for
+each contact about to be solved whose shapes enabled pre-solve events
+(`enablePreSolveEvents` or `m3Shape_EnablePreSolveEvents`). Returning
+false disables that contact for that step only: a one-way platform
+lets a body through from below this way. The callback is called from
+one thread, in a fixed pair order, with the deepest point and the
+normal from shape A to shape B.
+
+Each step's vetoes are recorded by the journal, so a replay applies
+them without the callback, and lands on the recorded bits. Rollback is
+different: resimulating from a snapshot calls the callback again. The
+callback must therefore be a pure function of its arguments, and of
+host state that is the same on every run. One that reads a clock, a
+random source or changing host state breaks the host's own rollback,
+not the engine. Installing the callback is host wiring, and neither
+the journal nor a snapshot holds it.
 
 ## Debug draw
 
-`m3World_Draw` emits the world as segments and points through host
-callbacks (wireframes for every family, contact points with
-impulse-scaled normal whiskers, joint anchors, broadphase fat AABBs,
-a fixed color palette with sensor, sleeping, kinematic, and static
-tints). It is a pure observer: a draw pass between two snapshots
-leaves every byte identical, and the suite holds that promise on
-every commit.
+`m3World_Draw` draws the world through the callbacks of an
+`m3DebugDraw`: segments, points and triangles, each with a colour. Its
+switches choose the layers: shape wireframes, solid shapes, contact
+points with their normals scaled by impulse, joints, the broad phase's
+bounds, a grey tint for sleeping bodies, island colours, each body's
+principal inertia axes, and the broad-phase tree's inner boxes. Start
+from a zeroed `m3DebugDraw`, so a layer a later release adds stays off.
+A draw changes nothing in the world.
 
 ## Introspection
 
-m3World_GetCounters reports the live census: bodies, shapes,
-joints, contacts, characters, vehicles, soft bodies, voxel
-chunks, interned hull and mesh slabs, awake dynamic bodies, the
-last step's island and solver-color counts, the broadphase tree
-height, and the process-wide persistent allocation/free call
-counts. m3World_GetMemoryUsage reports the step scratch high water
-against its reserve, and m3World_GetSnapshotSize the exact snapshot
-size. m3World_GetProfile reports
-wall-clock milliseconds per phase of the last completed step
-(vehicles, broadphase, narrowphase, events, prepare, solve,
-continuous, sleep, characters, soft bodies, and the whole).
+- `m3World_GetCounters` gives a census: bodies, shapes, joints,
+  contacts, characters, vehicles, soft bodies, voxel chunks, shared
+  hulls and meshes, awake bodies, the last step's islands and solver
+  colours, the broad-phase tree's height, the blocks the world took
+  from its allocator and gave back, and the counts of misuse, refused
+  voxel edits, dropped carves, dropped pairs and retaken pushes.
+- `m3World_GetMemoryUsage` gives the world's persistent bytes, its
+  shared content and its step scratch with the scratch's high-water
+  mark.
+- `m3World_GetProfile` gives the last step's wall-clock time per phase:
+  vehicles, broad phase, narrow phase, events, preparation, solving,
+  continuous collision, sleep, characters, soft bodies and the whole.
+  The counters are deterministic; the times are not.
+- `m3Body_GetContactData` and `m3Shape_GetContactData` answer "what
+  touches me": each touching contact in a fixed order, with its world
+  points, separations and the last step's normal impulses.
+- `m3World_GetBodies` and `m3World_GetJoints` list every live body and
+  joint in slot order.
 
-Both are PURE observers: reading them never touches the
-simulation, the snapshot, or the hash, and a suite holds that
-promise with a twin that polls every tick against a twin that
-never looks. Counter values are deterministic; profile times are
-wall-clock and never will be.
+Reading any of these changes nothing, and a test holds a world that
+polls them every step to the bits of a twin that never looks.
 
-m3World_Draw draws everything through one m3DebugDraw: solid
-triangles (drawSolidShapes), wireframes, bounds, contacts and joints,
-and the analysis layers: island tint points (colors cycled by island
-root, sleeping bodies keep the tint of the island they slept in),
-center-of-mass axis frames, and the broadphase tree's internal node
-boxes. One purity gate covers every layer.
-
-Bodies take debug names (m3Body_SetName: UTF-8 with its byte length,
-at most M3_MAX_BODY_NAME_BYTES, journaled, carried by snapshots, NEVER
-hashed; m3Body_GetName copies it out with no terminator) and
-answer "who touches me" through m3Body_GetContactData and
-m3Shape_GetContactData: manifold entries in canonical pair order
-with world points, separations, and last-step normal impulses.
-
-Every refusal returns its status and changes nothing. Misuse against a
-live world also counts in m3Counters.misuseCount, so a host can poll once
-per frame and catch bugs in release builds. Refusals never assert.
+Every refusal returns its result and changes nothing. A refusal also
+counts in `m3Counters.misuseCount` when a correct program would never
+make it, so a host can check the counter once a frame and catch bugs in
+release builds. The engine has no log; the counter and the results are
+how it reports.
 
 Which refusals count misuse, in one place:
 
 - **Misuse, counted once.** What a correct program never does: a null
   pointer, the null id or an id of the wrong kind, a stale id, a NaN, a
   value outside its documented domain, an argument past a published
-  bound, a writer called while the world is busy, and a journal call in
-  the wrong recording state.
+  bound, a call that changes the world from host code the world is
+  running, and a journal call in the wrong recording state.
 - **Not misuse, counted nothing.** What a correct program can meet: a
   full pool or caller buffer, an allocator that refuses, a CPU without
-  the backend, bytes from another version or damaged bytes, and an
-  `m3_errorLimit` that the world's state decides rather than the
-  argument. Those are a voxel edit whose surface would pass
+  the build's SIMD backend, bytes from another version or damaged
+  bytes, and an `m3_errorLimit` that the world's state decides rather
+  than the argument. Those are a voxel edit whose surface would pass
   `M3_MAX_VOXEL_SURFACE_BOXES`, an anchor past a full soft body table, a
   shape create, resize, density change or destroy that would carry the
   body's total mass past `M3_MASS_LIMIT` or a joint past its lever
   ratio, a joint create past that ratio, a type change the body's
-  shapes, joints or speed refuse, and a servo target more than
-  `M3_TARGET_REACH_LIMIT` from where the step left the kinematic body.
-m3SetAssertHandler installs a host hook ahead of the abort for a
-failed internal invariant; returning nonzero declares the failure
-handled (test harnesses, crash reporters). There is no log hook:
-the engine has no log stream to route.
+  shapes, joints or speed refuse, a servo target more than
+  `M3_TARGET_REACH_LIMIT` from where the step left the kinematic body,
+  and a stand-up the character's stance veto refuses.
