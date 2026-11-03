@@ -41,8 +41,8 @@ whether an id still names a live volume.
 
 Each step, every shape of a dynamic body is measured against every
 live volume by its bounding box: the box the broad phase keeps for it,
-which stands 2 cm off the shape on every side (10 cm for a native
-height field). The part of that box inside the water gives:
+a little larger than the shape (in release 1.0.0, 2 cm on every side,
+and 10 cm for a native height field). The part of that box inside the water gives:
 
 - **Buoyancy**: a force against gravity of the submerged volume times
   the water's density, applied at the centre of the submerged part.

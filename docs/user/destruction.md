@@ -100,11 +100,12 @@ fragment; that is the host's choice. A common recipe gives a small
 fragment a hull from its cells' corners and a large one a box from its
 bounds, at a density that matches the reported mass.
 
-The events last until the next step or restore. One step reports at
-most 256 fragments and 8192 recipe entries: a fragment past the
-first limit is still removed but not reported, and
-`fragmentsDropped` counts it; one past the second is reported with a
-`recipeStart` of -1 and no recipe, its count and bounds still set.
+The events last until the next step or restore. The event and recipe
+buffers have fixed sizes, 256 fragments and 8192 recipe entries in
+release 1.0.0. A fragment past the first is still removed but not
+reported, and `fragmentsDropped` counts it; one past the second is
+reported with a `recipeStart` of -1 and no recipe, its count and
+bounds still set.
 
 ## Chunks side by side
 
@@ -119,8 +120,8 @@ Every query sees chunks: contacts, rays, shape casts, overlaps and
 continuous collision. A ray that starts inside solid cells misses
 them, as with every shape. A body whose centre ends up inside the
 solid, from a bad spawn or a huge impulse, is pushed out through the
-nearest open face, by at most two cells' depth each step, rather than
-flung out at once.
+nearest open face a little each step (in release 1.0.0, at most two
+cells' depth), rather than flung out at once.
 
 ## Explosions
 

@@ -105,7 +105,8 @@ meshes, height fields and voxel chunks. Collision filters do not apply
 to particles. Against a shape, a particle takes that shape's friction.
 A particle pushed out of a dynamic body pushes the body back, so a
 block of jelly has weight on a crate. Two particles of different soft
-bodies collide at the sum of their radii, with a friction of 0.5.
+bodies collide at the sum of their radii, with a fixed friction (0.5
+in release 1.0.0).
 Particles of the same soft body never collide with each other: its
 constraints hold it apart.
 
@@ -113,7 +114,7 @@ constraints hold it apart.
 
 `m3World_SetWind` sets a wind that blows soft body particles only; push
 rigid bodies with forces. Each particle is drawn toward the wind's
-velocity at a rate of 0.5 per second. The wind's speed swings by
+velocity at a fixed rate (0.5 per second in release 1.0.0). The wind's speed swings by
 `gustScale` of itself at `gustHertz`, and the swing's phase is part of
 the world's state: a snapshot carries it, so a rollback resumes the
 same gust. A speed of 0 turns the wind off.
