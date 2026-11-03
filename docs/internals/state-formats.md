@@ -1,6 +1,6 @@
 # State formats
 
-maul3d writes three state formats: the snapshot (`m3World_Snapshot`), the journal tape (`m3World_StartJournal` to `m3World_StopJournal`) and the replay container (`m3EncodeReplay`). None of them is read across minor versions: a release of another minor version refuses them by their `abiVersion` with `m3_errorVersion`, and a format's number changes only in a minor release. Within a minor version the patch releases read each other's bytes, except that a snapshot carries the solver revision in its config hash (below), so a release that changed a result refuses a snapshot written before it. A host keeps assets, not state, across an upgrade. maul3d writes no asset format.
+maul3d writes three state formats: the snapshot (`m3World_Snapshot`), the journal tape (`m3World_StartJournal` to `m3World_StopJournal`) and the replay container (`m3EncodeReplay`). None of them is read across minor versions: a release of another minor version refuses them by their `abiVersion` with `m3_errorVersion`, and a format's number changes only in a minor release. Within a minor version the patch releases read each other's bytes, except that a snapshot carries the solver revision in its config hash (below), so a release that changed what a step computes refuses a snapshot written before it. A host keeps assets, not state, across an upgrade. maul3d writes no asset format.
 
 ## The state prefix
 

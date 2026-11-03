@@ -61,9 +61,9 @@ Three things are left out on purpose:
 A snapshot is read by the releases of the minor version that wrote it,
 built with the same settings. Its header carries the writer's
 `M3_ABI_VERSION`, the format number, and a hash of the solver revision,
-the float sizes and the floating-point policy. Another minor version, a
-build of other settings, or a release that changed a result is
-refused with `m3_errorVersion`. A world of other capacities, a
+the float sizes and the floating-point policy. A snapshot from another
+minor version, from a build of other settings, or from before a release
+that changed what a step computes is refused with `m3_errorVersion`. A world of other capacities, a
 truncated buffer or a damaged one is refused with `m3_errorFormat`.
 
 Restore treats the bytes as untrusted. Before it changes anything it
