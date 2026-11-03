@@ -86,12 +86,21 @@ snapshots, across an upgrade.
 ## Size
 
 Snapshot sizes are 64-bit and have no limit of their own: a world
-that fits in memory can be snapshotted. Most of a snapshot is set by the
-world's capacities: each shape slot costs about 1.9 KB, each voxel slot
-13 KB and each soft body slot 100 KB, whether used or not. Content adds
-to that: up to about 1.3 MB for a mesh at the full 65535 triangles,
-5.8 KB for a hull of 64 vertices and 260 KB for a native height field
-at the full 255 by 255 samples.
+that fits in memory can be snapshotted. What is promised is that
+`m3World_GetSnapshotSize` gives a world's exact size; ask it rather
+than computing one.
+
+As a guide for budgets, these are the sizes of release 1.0.0. They
+were measured on x86-64 Linux with a clang-20 build, by comparing
+`m3World_GetSnapshotSize` across capacities; the format has one
+layout on every target, so every target gives the same sizes. Most of
+a snapshot is set by the capacities, used or not: 1924 bytes for each
+shape slot, 12,821 for each voxel slot and 99,659 for each soft body
+slot. Content adds to that, by the format's layout in 1.0.0: about
+1.31 MB for a mesh of 65,535 vertices and 65,535 triangles, 5.8 KB for
+a hull of 64 vertices and 124 faces, and 260 KB for a native height
+field of 255 by 255 samples. A later release may change these sizes,
+and the format's number changes with them.
 
 On a 32-bit target, `m3World_Restore`, `m3World_StartJournal`,
 `m3World_ReplayJournal` and the replay container calls refuse a size
@@ -126,8 +135,9 @@ as written:
 `tools/m3lockstep` runs this recipe as a program: an online peer that
 predicts and rolls back, against an offline peer that steps only on
 inputs it has, over a link that delays each input by one to four
-frames at 60 Hz. Over 300 frames it rolls back about 300 times, up to
-four frames deep, and checks every 60 frames that both peers hold the
-same hash. CI runs it on every change. Input delay, the rollback
+frames at 60 Hz, for 300 frames. Every 60 frames it checks that both
+peers hold the same hash, and it fails when they do not; CI runs it
+on every change. In release 1.0.0 a run rolls back 303 times, at most
+four frames deep. Input delay, the rollback
 window and how to guess inputs are the host's choices; the engine's
 part is that the same inputs give the same bits.
