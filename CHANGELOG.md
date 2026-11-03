@@ -9,18 +9,6 @@ API, and an entry says what each changed result changes.
 
 ## [1.0.1](https://github.com/Rawframe-Project/maul3d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
-### Changed
-
-- **The user documentation is in `docs/user/`, one page per feature.**
-  `docs/guide.md` and `docs/index.md` are gone, and `docs/README.md`
-  indexes the pages. Every page was rewritten from the code, its C is
-  built and run by the tests exactly as shown, and its measured figures
-  are named as release 1.0.0's. A link to the old guide moves to the
-  page for its topic.
-  ([#359](https://github.com/Rawframe-Project/maul3d/pull/359),
-  [#360](https://github.com/Rawframe-Project/maul3d/pull/360),
-  [#361](https://github.com/Rawframe-Project/maul3d/pull/361))
-
 ### Fixed
 
 - **A journal replay never asks the pre-solve callback.** A replayed
