@@ -477,6 +477,49 @@ static void TestExtrasEmit(void)
     CHECK(sinks[0].points == sinks[1].points, "twin extras emit the same counts");
 }
 
+// A destroy zeroes its shape's pairs but leaves their keys until the
+// next step, so a draw between the two meets a pair on a dead shape,
+// whose body slot is -1. The floor is made first, so it is the pair's
+// first shape, the one the contact layer reads the body of. The layer
+// skips the untouched pair before that read: it draws nothing, and its
+// assertion on the body slot, which traps in every build without
+// NDEBUG, never fires.
+static void TestDrawAfterDestroy(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId floorShape = NewPlaneShape(world, ground, &sd, &floor);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 0.5, 0.0};
+    m3BodyId ball = NewBody(world, &bd);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &sd, &sphere);
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    DrawSink sink = MakeSink();
+    m3DebugDraw contacts;
+    memset(&contacts, 0, sizeof(contacts));
+    contacts.drawSegment = SinkSegment;
+    contacts.drawPoint = SinkPoint;
+    contacts.context = &sink;
+    contacts.drawContacts = true;
+    m3World_Draw(world, &contacts);
+    CHECK(sink.points > 0, "the ball's contact draws");
+
+    DestroyShape(world, floorShape);
+    sink = MakeSink();
+    m3World_Draw(world, &contacts);
+    CHECK(sink.points == 0 && sink.segments == 0, "and the contact layer draws nothing for it");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestSolidWindings();
@@ -484,6 +527,7 @@ int main(void)
     TestDrawIsPureObserver();
     TestDrawStreamDeterminism();
     TestExtrasEmit();
+    TestDrawAfterDestroy();
     if (s_failures == 0)
     {
         printf("test_draw: all green\n");
