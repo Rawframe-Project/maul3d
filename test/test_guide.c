@@ -494,11 +494,55 @@ static void TestRayDown(void)
     m3DestroyWorld(world);
 }
 
+// joints.md: a door on a motorized hinge. The motor swings it open
+// until the limit stops it at 1.5 rad.
+static void TestDoorHinge(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef frameDef = m3DefaultBodyDef();
+    m3BodyId frame = NewBody(world, &frameDef);
+    m3BodyDef doorDef = m3DefaultBodyDef();
+    doorDef.type = m3_dynamicBody;
+    doorDef.position = (m3Pos3){0.5, 1.1, 0.0};
+    m3BodyId door = NewBody(world, &doorDef);
+    m3ShapeDef doorShape = m3DefaultShapeDef();
+    doorShape.density = 100.0f;
+    NewBoxShape(world, door, &doorShape, (m3Vec3){0.5f, 1.0f, 0.05f});
+
+    m3RevoluteJointDef def = m3DefaultRevoluteJointDef();
+    // The door frame is a static body at the origin, the door a dynamic
+    // body 0.5 m along x; the hinge is given in each body's frame.
+    def.bodyIdA = frame;
+    def.bodyIdB = door;
+    def.localAnchorA = (m3Vec3){0.0f, 1.1f, 0.0f};
+    def.localAnchorB = (m3Vec3){-0.5f, 0.0f, 0.0f};
+    def.localAxisA = (m3Vec3){0.0f, 1.0f, 0.0f}; // a vertical hinge
+    def.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
+    def.enableMotor = true;
+    def.motorSpeed = 1.0f;       // rad/s
+    def.maxMotorEffort = 500.0f; // N m
+    def.enableLimit = true;
+    def.lowerAngle = 0.0f;
+    def.upperAngle = 1.5f; // it opens to about 86 degrees
+    m3JointId hinge;
+    m3Result result = m3CreateRevoluteJoint(world, &def, &hinge);
+
+    CHECK(result == m3_success, "the hinge is created");
+    for (int32_t i = 0; i < 180; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    float angle = m3Joint_GetAngle(world, hinge);
+    CHECK(angle > 1.45f && angle < 1.55f, "the door stops at its 1.5 rad limit");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFirstWorld();
     TestCrate();
     TestRayDown();
+    TestDoorHinge();
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
