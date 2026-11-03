@@ -152,8 +152,14 @@ bindings() {
 
 # As CI's checks job: on the Release build, where the assertions compile
 # out, and on the Debug build, where they are live. Each hides findings
-# the other shows.
+# the other shows. The header filter is passed here, anchored at this
+# checkout: clang-tidy 20 run from a checkout's root reads the
+# HeaderFilterRegex of .clang-tidy from the directory above it, so the
+# file's own would drop every header finding, and an unanchored one would
+# take in the headers of dependencies fetched under out/.
 tidy() { # files
+    local headers
+    headers="^$(printf '%s' "$root" | sed 's/[][\.*^$+?(){}|]/\\&/g')/(src|include)/"
     for build in Release Debug; do
         step "clang-tidy on $# files, $build"
         cmake --preset linux-clang-20 -S "$root" -B "$out/check-tidy-$build" \
@@ -162,7 +168,7 @@ tidy() { # files
             >"$out/check-tidy-$build.log"
         printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "$out/check-tidy-$build" \
             --quiet --warnings-as-errors='*' --checks=-readability-function-cognitive-complexity \
-            2>/dev/null
+            --header-filter="$headers" 2>/dev/null
     done
 }
 

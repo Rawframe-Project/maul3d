@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   title:
-    uses: Rawframe-Project/.github/.github/workflows/pr-title.yml@da9f20a2a9bf9d40cecbeaf39569d05321f83a37 # v0.0.45
+    uses: Rawframe-Project/.github/.github/workflows/pr-title.yml@bf6d368faca32996200e56051314ba6aaee19603 # v0.0.46
     permissions:
       pull-requests: read
     with:
