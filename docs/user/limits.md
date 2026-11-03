@@ -129,20 +129,24 @@ the drops, so check it while a game is in development and raise
         // a larger m3WorldDef.pairCapacity.
     }
 
-The world also takes its step scratch at creation, sized for a
-step at those capacities, so stepping never allocates. On a 64-bit
-target it holds about
+The world also takes its step scratch at creation, sized for a step
+at those capacities, so stepping never allocates.
+`m3World_GetMemoryUsage` gives the exact sizes (`scratchCapacity`,
+`persistentBytes`), and a world whose scratch would pass 2 GiB, or that
+the allocator refuses, is not created (`m3_errorCapacity`).
+
+As a guide for budgets, release 1.0.0 on a 64-bit target, measured
+with `m3World_GetMemoryUsage`, takes about
 
     918 * pairCapacity + 126 * bodyCapacity + 416 * jointCapacity
     + 57 KiB
 
-bytes, and each pair also keeps 564 bytes of persistent tables, so
-the default 8 pairs cost about 11.6 KiB per shape. The default world
-(1024 bodies, 2048 shapes and 16,384 pairs, 64 joints) takes 14.5 MiB
-of scratch beside 21.7 MiB of pools and arrays.
-`m3World_GetMemoryUsage` gives both exactly (`scratchCapacity`,
-`persistentBytes`), and a world whose scratch would pass 2 GiB, or
-that the allocator refuses, is not created (`m3_errorCapacity`).
+bytes of scratch, and each pair also keeps 564 bytes of persistent
+tables, so the default 8 pairs cost about 11.6 KiB per shape. The
+default world (1024 bodies, 2048 shapes and 16,384 pairs, 64 joints)
+takes 14.5 MiB of scratch beside 21.7 MiB of pools and arrays. A later
+release may change these figures.
+
 Each shape's own ceilings, hulls of 64 vertices from up to 256 input
 points, meshes of 65,535 vertices and 65,535 triangles, and height
 fields of up to 255 by 255 samples, are described with the shapes in
