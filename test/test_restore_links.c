@@ -454,10 +454,55 @@ static void TestRestoreAcceptsWhatTheEngineWrites(void)
     }
 }
 
+// The other side of the first case: the destroyed sphere's pairs keep
+// their keys until the next step, but none of them touches, since the
+// destroy zeroed them. A touching one, which no world holds, would make
+// the contact readback and the debug draw read the dead shape's body
+// slot, -1, so restore refuses it.
+static void TestRestoreRefusesTouchingPairOnDeadShape(void)
+{
+    m3WorldDef def = FuzzWorldDef();
+    m3World* world = NewWorld(&def);
+    FuzzScene scene;
+    CHECK(FuzzBuild(world, &scene), "the scene builds");
+    FuzzStep(world, 4);
+    m3ShapeId shapes[1];
+    CHECK(m3Body_GetShapes(world, scene.ball, shapes, 1) == 1, "the ball has its sphere");
+    int32_t dead = (int32_t)shapes[0].index1 - 1;
+    DestroyBall(world, &scene);
+    int32_t pair = -1;
+    for (int32_t i = 0; i < world->contacts.pairCount && pair < 0; ++i)
+    {
+        uint64_t key = world->contacts.pairKeys[i];
+        pair = (int32_t)(key >> 32) == dead || (int32_t)(key & 0xFFFFFFFFu) == dead ? i : -1;
+    }
+    CHECK(pair >= 0 && world->contacts.manifolds[pair].pointCount == 0,
+          "a pair still names the dead sphere, untouched");
+    int64_t size = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "snapshot taken");
+    if (snap == NULL || pair < 0)
+    {
+        free(snap);
+        m3DestroyWorld(world);
+        return;
+    }
+    uint64_t hash = m3World_Hash(world);
+    PutI32(At(world, snap, FIELD(contacts.manifolds), sizeof(m3Manifold), pair) +
+               offsetof(m3Manifold, pointCount),
+           1);
+    CHECK(m3World_Restore(world, snap, size) == m3_errorFormat,
+          "a touching pair on a dead shape is refused as malformed bytes");
+    CHECK(m3World_Hash(world) == hash, "and the world is left as it was");
+    free(snap);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRestoreRefusesBrokenStructures();
     TestRestoreAcceptsWhatTheEngineWrites();
+    TestRestoreRefusesTouchingPairOnDeadShape();
     if (s_failures == 0)
     {
         printf("test_restore_links: all checks passed\n");
