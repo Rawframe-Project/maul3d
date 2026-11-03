@@ -127,7 +127,7 @@ libraries for Linux (x64 and arm64), Windows and macOS.
 
 ## Samples, the testbed and bindings
 
-The [samples](docs/samples.md) are small complete programs: a falling
+The [samples](docs/user/samples.md) are small complete programs: a falling
 stack that prints the same hash on every machine, the rollback loop,
 a car that turns into a tank, and a character on the stairs.
 `samples/minimal` is a standalone project that finds the installed
@@ -191,11 +191,13 @@ assets, not state, across an upgrade.
 ## Documentation
 
 - [The documentation site](https://rawframe-project.github.io/maul3d/):
-  the guide, the samples and the changelog as web pages.
-- [The guide](docs/guide.md): the engine and host contract, chapter
-  by chapter: rollback, the journal, destruction, vehicles, the
-  character, soft bodies, replays, lockstep networking and an
-  integration checklist.
+  the user pages, the API reference and the changelog as web pages.
+- [The documentation index](docs/README.md): every page, for using
+  the engine, for how it works and for running the project.
+- [The user pages](docs/user/getting-started.md): the engine and host
+  contract, one page per feature: bodies, joints, queries, rollback,
+  the journal, destruction, vehicles, the character, soft bodies and
+  water, from getting started to the integration checklist.
 - [The API reference](https://rawframe-project.github.io/maul3d/api.html):
   every public function with its documentation, generated from the
   headers.
@@ -222,7 +224,7 @@ by its maintainers; outside contributions follow the
 The engine's algorithms follow published work: the soft step schedule
 and soft constraints, the collision, distance and hull methods, the
 mass properties and the particle model.
-[docs/references.md](docs/references.md) lists every source. The
+[docs/internals/references.md](docs/internals/references.md) lists every source. The
 library itself uses no outside code. The testbed, which is not part
 of the library, is built on [raylib](https://github.com/raysan5/raylib)
 (zlib/libpng license), fetched when the testbed is configured.
