@@ -742,7 +742,7 @@ static M3_NOINLINE m3Result WorldReplayJournalWorker(m3World* world, const void*
         return m3Refuse(world, m3_errorBusy);
     }
     // A tape is untrusted data like a snapshot: a damaged or truncated one
-    // is refused with m3_errorFormat, one another release wrote with
+    // is refused with m3_errorFormat, one another minor version wrote with
     // m3_errorVersion, and neither counts misuse. A size no buffer of this
     // target can have is the caller's bug.
     if (world == NULL || size < 0 || !m3SizeFitsMemory(size) || (data == NULL && size > 0))

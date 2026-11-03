@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // A world with a floor plane at y = -5 and a light crate dropped above
 // it at the origin.
@@ -261,6 +262,48 @@ static void TestExplosion(void)
     m3DestroyWorld(world);
 }
 
+// snapshots-and-rollback.md: a round trip. A ball falls for a second
+// after the snapshot; restored and stepped the same second again, the
+// world lands on the same hash.
+static void TestSnapshotRoundTrip(void)
+{
+    m3World* world = FlatWorld();
+    m3BodyDef ballDef = m3DefaultBodyDef();
+    ballDef.type = m3_dynamicBody;
+    ballDef.position = (m3Pos3){0.0, 3.0, 0.0};
+    m3BodyId ball = NewBody(world, &ballDef);
+    m3ShapeDef ballShape = m3DefaultShapeDef();
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, ball, &ballShape, &sphere);
+
+    int64_t size = m3World_GetSnapshotSize(world);
+    uint8_t* buffer = malloc((size_t)size);
+    int64_t written = 0;
+    m3Result result = m3World_Snapshot(world, buffer, size, &written);
+
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    uint64_t first = m3World_Hash(world);
+    double fallen = m3Body_GetPosition(world, ball).y;
+
+    if (result == m3_success)
+    {
+        result = m3World_Restore(world, buffer, written);
+    }
+    free(buffer);
+
+    CHECK(result == m3_success && written == size, "the snapshot is taken and restored");
+    CHECK(m3Body_GetPosition(world, ball).y == 3.0, "the restore puts the ball back");
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(fallen < 3.0 && m3World_Hash(world) == first, "the second run lands on the same bits");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
@@ -269,6 +312,7 @@ int main(void)
     TestCar();
     TestChunkCut();
     TestExplosion();
+    TestSnapshotRoundTrip();
 
     if (s_failures > 0)
     {

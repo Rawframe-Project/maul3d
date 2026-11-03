@@ -36,7 +36,7 @@ m3Result m3CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uin
     }
     if (prefix.abiVersion != M3_ABI_VERSION || prefix.formatVersion != formatVersion)
     {
-        return m3_errorVersion; // written by another release
+        return m3_errorVersion; // written by another minor version
     }
     if (prefix.headerBytes != (uint32_t)headerBytes || size < headerBytes)
     {

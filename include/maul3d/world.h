@@ -1450,7 +1450,8 @@ extern "C"
     /// world. A tape is laid out the same on every target (little-endian, each record as on x86-64)
     /// and never holds a def's padding, so the same calls write the same bytes anywhere. It starts
     /// with the 16-byte state prefix, written when the journal starts, so the buffer holds at least
-    /// 16 bytes and a session of no op is those 16. Only the release that wrote a tape replays it.
+    /// 16 bytes and a session of no op is those 16. Only the releases of the minor version that
+    /// wrote a tape replay it.
     /// Sizes are 64-bit; on a 32-bit target Start refuses a capacity, and Replay a size, past
     /// SIZE_MAX with m3_errorInvalid.
     ///

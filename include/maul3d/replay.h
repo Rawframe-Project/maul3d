@@ -22,8 +22,8 @@ extern "C"
     /// framing and the headers it embeds: the rest of the snapshot is
     /// checked by m3World_Restore like any other, and the journal's
     /// records by replay, each op as the API call it stands for. Only
-    /// the release that wrote a container reads it, like the snapshot
-    /// and the journal tape it holds.
+    /// the releases of the minor version that wrote a container read it,
+    /// like the snapshot and the journal tape it holds.
     ///
     /// Layout, little-endian: the 16-byte state prefix (magic "M3RP",
     /// abiVersion, formatVersion 4, headerBytes 56) | finalHash u64 |
