@@ -397,13 +397,13 @@ namespace Maul3D
         // The version of the C headers this file mirrors. release-please
         // moves it between the markers, as it does in base.h.
         // x-release-please-start-major
-        public const uint VersionMajor = 0;
+        public const uint VersionMajor = 1;
         // x-release-please-end
         // x-release-please-start-minor
-        public const uint VersionMinor = 13;
+        public const uint VersionMinor = 0;
         // x-release-please-end
         // x-release-please-start-patch
-        public const uint VersionPatch = 1;
+        public const uint VersionPatch = 0;
         // x-release-please-end
 
         /// M3_ABI_VERSION of the C headers this file mirrors, computed as
