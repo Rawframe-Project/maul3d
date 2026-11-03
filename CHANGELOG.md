@@ -7,6 +7,13 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.2](https://github.com/Rawframe-Project/maul3d/compare/v1.0.1...v1.0.2) (2026-11-03)
+
+
+### Fixed
+
+* **journal:** a replay leaves no veto for the next live step ([#368](https://github.com/Rawframe-Project/maul3d/issues/368)) ([97dc647](https://github.com/Rawframe-Project/maul3d/commit/97dc647bd9ede3d76c6c45fd614bceb3444341c8)), closes [#365](https://github.com/Rawframe-Project/maul3d/issues/365)
+
 ## [1.0.1](https://github.com/Rawframe-Project/maul3d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
 ### Fixed
