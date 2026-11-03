@@ -8,8 +8,8 @@
 // the deliberate opposite of a build-locked raw world image: no
 // pointers, no layout hash, no SIMD width anywhere in the bytes. The
 // header's config hash covers exactly the things that change the
-// MEANING of the bytes (engine version, solver revision, precision,
-// FP policy) and restore refuses a mismatch loudly.
+// MEANING of the bytes within a minor version (format version, solver
+// revision, precision, FP policy) and restore refuses a mismatch loudly.
 
 #include "snapshot.h"
 
@@ -85,9 +85,9 @@ static void WorldCapacities(const m3World* world, int32_t capacities[M3_SNAPSHOT
 static uint64_t ConfigHash(void)
 {
     // Everything that changes what the serialized bytes MEAN within one
-    // release, and nothing that does not (SIMD backend and worker count
-    // are deliberately absent: the format is portable across them). The
-    // release itself is the prefix's abiVersion.
+    // minor version, and nothing that does not (SIMD backend and worker
+    // count are deliberately absent: the format is portable across them).
+    // The minor version itself is the prefix's abiVersion.
     uint64_t h = M3_HASH_INIT;
     int32_t version = (int32_t)M3_SNAPSHOT_VERSION;
     int32_t solverRev = M3_SOLVER_REV;

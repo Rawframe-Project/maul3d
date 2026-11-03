@@ -28,9 +28,9 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSHARP = os.path.join(ROOT, "bindings", "csharp", "Maul3D.cs")
 # Versions both ABI formulas are evaluated at, besides the current one:
-# both sides of 1.0 and of the major, minor and patch boundaries.
+# across the major, minor and patch boundaries, and a minor past 8 bits.
 VERSION_NAMES = {"VersionMajor", "VersionMinor", "VersionPatch"}
-ABI_SAMPLES = [(0, 0, 1), (0, 1, 0), (0, 3, 7), (1, 0, 0), (1, 2, 3), (2, 15, 4)]
+ABI_SAMPLES = [(1, 0, 0), (1, 0, 7), (1, 2, 3), (1, 300, 0), (2, 15, 4)]
 GODOT = os.path.join(ROOT, "bindings", "godot", "src")
 
 PRIMITIVES = {"byte": 1, "sbyte": 1, "bool": 1, "short": 2, "ushort": 2, "int": 4, "uint": 4,

@@ -69,20 +69,14 @@ extern "C"
 
 // The binary interface a program is built for: the major and minor
 // version, since a patch release keeps it and a minor release may add a
-// field at the end of a def. A major version of 0 names the whole
-// version, as the 0.x releases did. The top bit is always set, so a
-// zeroed def never matches. The world def carries it (m3DefaultWorldDef),
-// and m3CreateWorld refuses a def built for another; every other def is
-// used inside a world.
+// field at the end of a def. The top bit is always set, so a zeroed def
+// never matches. The world def carries it (m3DefaultWorldDef), and
+// m3CreateWorld refuses a def built for another; every other def is used
+// inside a world.
 #define M3_ABI_VERSION                                                                             \
-    (UINT32_C(0x80000000) | ((uint32_t)M3_VERSION_MAJOR << 16) |                                   \
-     (M3_VERSION_MAJOR == 0 ? (((uint32_t)M3_VERSION_MINOR << 8) | (uint32_t)M3_VERSION_PATCH)     \
-                            : (uint32_t)M3_VERSION_MINOR))
+    (UINT32_C(0x80000000) | ((uint32_t)M3_VERSION_MAJOR << 16) | (uint32_t)M3_VERSION_MINOR)
 #if M3_VERSION_MAJOR > 0x7FFF || M3_VERSION_MINOR > 0xFFFF
 #error "M3_VERSION_MAJOR or M3_VERSION_MINOR does not fit M3_ABI_VERSION"
-#endif
-#if M3_VERSION_MAJOR == 0 && (M3_VERSION_MINOR > 0xFF || M3_VERSION_PATCH > 0xFF)
-#error "before 1.0, M3_VERSION_MINOR and M3_VERSION_PATCH must fit 8 bits each"
 #endif
 
     // The status a fallible function returns. Zero is success, negative
