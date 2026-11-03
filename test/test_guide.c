@@ -305,8 +305,8 @@ static void TestSnapshotRoundTrip(void)
 }
 
 // A world with a floor and a ball dropped from 3 m, built the same way
-// every time.
-static m3World* BallWorld(void)
+// every time; ballOut, when not null, receives the ball.
+static m3World* BallWorld(m3BodyId* ballOut)
 {
     m3World* world = FlatWorld();
     m3BodyDef ballDef = m3DefaultBodyDef();
@@ -316,6 +316,10 @@ static m3World* BallWorld(void)
     m3ShapeDef ballShape = m3DefaultShapeDef();
     m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
     NewSphereShape(world, ball, &ballShape, &sphere);
+    if (ballOut != NULL)
+    {
+        *ballOut = ball;
+    }
     return world;
 }
 
@@ -323,8 +327,8 @@ static m3World* BallWorld(void)
 // built the same way. The twin ends on the recorder's hash.
 static void TestJournalReplay(void)
 {
-    m3World* world = BallWorld();
-    m3World* twin = BallWorld();
+    m3World* world = BallWorld(NULL);
+    m3World* twin = BallWorld(NULL);
 
     uint8_t tape[4096];
     m3Result result = m3World_StartJournal(world, tape, sizeof tape);
@@ -405,6 +409,37 @@ static void TestFirstWorld(void)
     CHECK(height > 0.49 && height < 0.51, "the ball rests on the floor");
 }
 
+// determinism.md: two worlds built and stepped the same way agree to
+// the bit; a nudge to one shows up in the hash and in the compare.
+static void TestCompareWorlds(void)
+{
+    m3World* worldA = BallWorld(NULL);
+    m3BodyId ballB;
+    m3World* worldB = BallWorld(&ballB);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        (void)m3World_Step(worldA, 1.0f / 60.0f, 4);
+        (void)m3World_Step(worldB, 1.0f / 60.0f, 4);
+    }
+
+    uint64_t hashA = m3World_Hash(worldA);
+    uint64_t hashB = m3World_Hash(worldB);
+    m3BodyDiff rows[8];
+    int32_t differing = 0;
+    m3Result result = m3World_Compare(worldA, worldB, rows, 8, &differing);
+
+    CHECK(result == m3_success && hashA == hashB && differing == 0, "twins agree to the bit");
+    m3Body_ApplyLinearImpulse(worldB, ballB, (m3Vec3){0.001f, 0.0f, 0.0f});
+    (void)m3World_Step(worldA, 1.0f / 60.0f, 4);
+    (void)m3World_Step(worldB, 1.0f / 60.0f, 4);
+    result = m3World_Compare(worldA, worldB, rows, 8, &differing);
+    CHECK(m3World_Hash(worldA) != m3World_Hash(worldB), "a nudge moves the hash");
+    CHECK(result == m3_success && differing == 1 && rows[0].bodyId.index1 == ballB.index1,
+          "and the compare names the nudged ball");
+    m3DestroyWorld(worldB);
+    m3DestroyWorld(worldA);
+}
+
 int main(void)
 {
     TestFirstWorld();
@@ -416,6 +451,7 @@ int main(void)
     TestExplosion();
     TestSnapshotRoundTrip();
     TestJournalReplay();
+    TestCompareWorlds();
 
     if (s_failures > 0)
     {
