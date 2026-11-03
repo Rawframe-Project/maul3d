@@ -11,6 +11,7 @@
 
 #include "maul3d/maul3d.h"
 
+#include <math.h>
 #include <stdio.h>
 
 // A world with a floor plane at y = -5 and a light crate dropped above
@@ -110,10 +111,48 @@ static void TestCharacterWalk(void)
     m3DestroyWorld(world);
 }
 
+// soft-bodies.md: a rope hung by one end. Laid out along x, it swings
+// down under its pin like a pendulum and keeps its length.
+static void TestRope(void)
+{
+    m3World* world = FlatWorld();
+
+    m3SoftBodyDef def = m3DefaultSoftBodyDef();
+    def.position = (m3Pos3){0.0, 5.0, 0.0}; // the lattice's lowest corner
+    def.countX = 10;                        // ten particles along x
+    def.countY = 1;
+    def.countZ = 1;
+    m3SoftBodyId rope;
+    m3Result result = m3CreateSoftBody(world, &def, &rope);
+    if (result == m3_success)
+    {
+        result = m3SoftBody_PinParticle(world, rope, 0); // hang it by one end
+    }
+
+    CHECK(result == m3_success, "the rope is created and pinned");
+    CHECK(m3SoftBody_GetParticleCount(world, rope) == 10, "it has ten particles");
+    double lowest = 5.0;
+    double longest = 0.0;
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        m3Pos3 end = m3SoftBody_GetParticlePosition(world, rope, 9);
+        double length = sqrt(end.x * end.x + (end.y - 5.0) * (end.y - 5.0));
+        lowest = end.y < lowest ? end.y : lowest;
+        longest = length > longest ? length : longest;
+    }
+    m3Pos3 pin = m3SoftBody_GetParticlePosition(world, rope, 0);
+    CHECK(pin.x == 0.0 && pin.y == 5.0, "the pinned end holds still");
+    CHECK(lowest < 3.0, "the free end swings down under the pin");
+    CHECK(longest < 2.4, "the rope keeps its length of 2.25 m");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWaterPool();
     TestCharacterWalk();
+    TestRope();
 
     if (s_failures > 0)
     {
