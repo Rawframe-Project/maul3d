@@ -732,6 +732,9 @@ static m3Result ReplayApply(m3World* world, const void* data, int64_t size)
             return world->heap.refusedCount != refused ? m3_errorCapacity : m3_errorFormat;
         }
     }
+    // A tape cut at a record boundary is whole: the vetoes of a step it
+    // does not hold go with that step, never to the host's next live one.
+    world->contacts.replayVetoCount = 0;
     return cursor == size ? m3_success : m3_errorFormat;
 }
 
