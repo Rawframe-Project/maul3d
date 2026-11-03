@@ -487,9 +487,9 @@ extern "C"
     /// tree, the contact pairs, shared content and its reference counts,
     /// and the records of characters, vehicles, soft bodies and joints),
     /// and any value past the limit its create or setter keeps (the
-    /// guide's "Magnitude limits"), positions included: creates place
-    /// every body and soft particle within 1e15 m and the step holds it
-    /// there. Replay and restore take a shape's geometry only in the form
+    /// magnitude limits of docs/user/limits.md), positions included:
+    /// creates place every body and soft particle within 1e15 m and the
+    /// step holds it there. Replay and restore take a shape's geometry only in the form
     /// its create leaves it. Mass, center, inertia and
     /// extents are not stored; restore rebuilds them from each body's
     /// type and shapes. A world restore accepts steps, queries and

@@ -47,5 +47,5 @@ the C API is documented in `docs/user/` and in the
 Godot's `_physics_process` delta is fixed, but if you run rollback
 netcode, step the world yourself from your netcode tick instead
 and keep `_physics_process` for interpolation only. Snapshot,
-journal, and hash behave exactly as the guide describes; the
+journal, and hash behave exactly as `docs/user/` describes; the
 binding adds nothing and takes nothing away.

@@ -34,7 +34,7 @@ A correct program never uses an id after destroying its object, so a stale id is
 
 Untrusted bytes are not misuse. A snapshot, tape or container that fails its checks, and a value a tape operation refuses while it replays, return `m3_errorFormat`, or `m3_errorVersion` for bytes another release wrote, and count nothing.
 
-A refusal counts one misuse only for an argument a correct program never passes: a null pointer, the null id or an id of the wrong kind, a NaN, a value outside its documented domain, a value past a published bound. A refusal a correct program can meet because of the world's state counts nothing, whatever its status: a full pool, an allocator that refuses, and an `m3_errorLimit` the world's masses, levers or surfaces decide rather than the argument. The guide's "Which refusals count misuse" lists every case.
+A refusal counts one misuse only for an argument a correct program never passes: a null pointer, the null id or an id of the wrong kind, a NaN, a value outside its documented domain, a value past a published bound. A refusal a correct program can meet because of the world's state counts nothing, whatever its status: a full pool, an allocator that refuses, and an `m3_errorLimit` the world's masses, levers or surfaces decide rather than the argument. [The introspection section](../user/queries-and-events.md#introspection) lists every case.
 
 ## Host code
 
