@@ -384,6 +384,55 @@ static void TestPreSolveReplay(void)
     free(snap);
 }
 
+// The converse: a session recorded with no veto replays to the same bits
+// into a world whose installed callback would veto every contact. A replay
+// never asks the host, so a step that recorded no veto vetoes nothing.
+static void TestReplayIgnoresInstalledCallback(void)
+{
+    m3WorldDef def = Def();
+    m3World* world = NewWorld(&def);
+    int64_t snapBytes = m3World_GetSnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)snapBytes);
+    Snapshot(world, snap, snapBytes);
+    static uint8_t journal[262144];
+    StartJournal(world, journal, (int32_t)sizeof(journal));
+
+    m3BodyDef gd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &gd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3Plane fl = {{0.0f, 1.0f, 0.0f}, 0.0f};
+    m3ShapeId floor = NewPlaneShape(world, ground, &sd, &fl);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId faller = NewBody(world, &bd);
+    NewBoxShape(world, faller, &sd, (m3Vec3){0.4f, 0.4f, 0.4f});
+    m3Shape_EnablePreSolveEvents(world, floor, true);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    int64_t journalBytes = StopJournal(world);
+    uint64_t recorded = m3World_Hash(world);
+    CHECK(m3Body_GetPosition(world, faller).y > 0.3, "with no veto the box rests on the floor");
+    m3DestroyWorld(world);
+
+    m3World* replay = NewWorld(&def);
+    CHECK(Restore(replay, snap, snapBytes), "the base snapshot restores");
+    int calls = 0;
+    m3World_SetPreSolveCallback(replay, VetoAll, &calls);
+    CHECK(ReplayJournal(replay, journal, journalBytes), "the veto-free tape replays");
+    CHECK(calls == 0, "the replay never calls the installed callback");
+    CHECK(m3World_Hash(replay) == recorded, "and lands on the recorded bits");
+    // The box has rested long enough to sleep; wake it so its contact
+    // is solved, and asked about, on the live step.
+    m3Body_SetAwake(replay, faller, true);
+    (void)m3World_Step(replay, 1.0f / 60.0f, 4);
+    CHECK(calls > 0, "a live step after the replay calls it again");
+    m3DestroyWorld(replay);
+    free(snap);
+}
+
 static void TestFuzz(void)
 {
     // The fuzz rule: 200 LCG bit-mutations of a valid container
@@ -525,6 +574,7 @@ static void TestSizesPastInt32(void)
 int main(void)
 {
     TestPreSolveReplay();
+    TestReplayIgnoresInstalledCallback();
     TestRoundTrip();
     TestRefusals();
     TestSmallCapacity();

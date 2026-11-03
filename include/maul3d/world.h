@@ -757,25 +757,26 @@ extern "C"
     /// for THIS step (the one-way platform tool). point is the
     /// deepest contact point, normal points from shape A to shape B.
     ///
-    /// THE DETERMINISM CONTRACT, LOUD: the journal records inputs,
-    /// never host whims. The callback MUST be a pure function of its
-    /// arguments (and of host state that is itself bit-identical on
-    /// replay). Register the SAME pure callback before replaying a
-    /// journal or resimulating from a snapshot; a callback that
-    /// consults a clock, a random source, or mutable host state
-    /// breaks bit-exactness and that breakage is YOURS. The engine
-    /// calls it from the serial prepare pass, never from workers.
+    /// THE DETERMINISM CONTRACT, LOUD: the callback MUST be a pure
+    /// function of its arguments (and of host state that is itself
+    /// bit-identical on every run). A journal replay never calls it:
+    /// each replayed step applies the vetoes its recording made. A
+    /// resimulation from a snapshot does call it, so register the SAME
+    /// pure callback before resimulating; a callback that consults a
+    /// clock, a random source, or mutable host state breaks
+    /// bit-exactness and that breakage is YOURS. The engine calls it
+    /// from the serial prepare pass, never from workers.
     typedef bool m3PreSolveFunction(m3ShapeId shapeA, m3ShapeId shapeB, m3Pos3 point, m3Vec3 normal,
                                     void* context);
 
     /// Register (or clear with NULL) the pre-solve callback. The
     /// REGISTRATION is host wiring (never journaled, never snapshot
     /// state), but the DECISIONS are not: every veto a step makes
-    /// is journaled as that step's annex, so a bare replay
-    /// (m3replay verify included) applies the recorded vetoes with
-    /// no callback installed and lands on the recorded bits. During
-    /// such a step the recorded set wins and any installed callback
-    /// stays silent; do not expect callbacks to fire under replay.
+    /// is journaled as that step's annex, so a replay (m3replay verify
+    /// included) applies each step's recorded vetoes, none for a step
+    /// that recorded none, and lands on the recorded bits. A replay
+    /// never calls the callback, installed or not; do not expect
+    /// callbacks to fire under replay.
     /// A null world does nothing; a call from host code the world is
     /// running changes nothing and counts one misuse.
     ///
