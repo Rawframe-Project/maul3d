@@ -410,8 +410,7 @@ namespace Maul3D
         /// base.h computes it. DefaultWorldDef stamps it, so a library of
         /// another minor version refuses the def with Result.ErrorVersion
         /// instead of misreading it.
-        public const uint AbiVersion = 0x80000000u | (VersionMajor << 16) |
-            (VersionMajor == 0 ? (VersionMinor << 8) | VersionPatch : VersionMinor);
+        public const uint AbiVersion = 0x80000000u | (VersionMajor << 16) | VersionMinor;
 
         [DllImport(Lib, EntryPoint = "m3GetVersion")]
         public static extern Version GetVersion();
