@@ -1,130 +1,169 @@
 # Getting started
 
-This is the contract between the engine and the host, engineer to
-engineer. The README says what Maul3D is; these pages say exactly
-what it promises, what it deliberately does not promise, and the
-rules a host must follow to keep the promises alive. Everything here
-is enforced by a test that runs on every commit; where a rule has a
-number, the number is the one in the code.
+These pages are the contract between the engine and the program that
+uses it, the host: what each call does, what it refuses, and what the
+engine promises in return. The [README](../../README.md) says what
+Maul3D is and how to build it. Where a page gives a number, it is the
+number in the code, and the C on each page is built and run by the
+tests exactly as it is shown.
 
-## The object model
+## A first world
 
-A **world** owns everything: bodies, shapes, joints, contacts,
-events. Worlds are isolated; nothing is shared between two worlds,
-and ids from one world never operate on another.
+```c
+m3WorldDef worldDef = m3DefaultWorldDef();
+m3World* world = NULL;
+m3Result result = m3CreateWorld(&worldDef, &world);
+if (result != m3_success)
+{
+    return;
+}
 
-A **body** is a frame with mass and velocity (static, kinematic, or
-dynamic). A **shape** attaches geometry to a body: sphere, box,
-capsule, convex hull (built by the internal QuickHull), static
-triangle mesh, heightfield chunk, or infinite plane (static bodies
-only). A **joint** constrains two bodies: spherical (optional swing
-cone and twist limits), revolute (limits, motor), prismatic (limits,
-motor).
+m3BodyDef groundDef = m3DefaultBodyDef(); // a static body
+m3BodyId ground;
+result = m3CreateBody(world, &groundDef, &ground);
+m3ShapeDef shapeDef = m3DefaultShapeDef();
+m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f}; // solid below y = 0
+m3ShapeId floorShape;
+if (result == m3_success)
+{
+    result = m3CreatePlaneShape(world, ground, &shapeDef, &floor, &floorShape);
+}
 
-Everything is created from a **def** struct obtained from its
-`m3Default*Def()` function. Defs carry a private cookie; a def that
-was not built from the default function is refused. Every create
-writes an **id** to its last argument. Every refusal changes nothing,
-and a call that can fail returns its status. The library never aborts
-on user input: bad defs, stale ids, exhausted pools, and hostile
-floats are refused through return values
-(assertions guard internal invariants only, states that cannot be
-reached from outside).
+m3BodyDef ballDef = m3DefaultBodyDef();
+ballDef.type = m3_dynamicBody;
+ballDef.position = (m3Pos3){0.0, 4.0, 0.0};
+m3BodyId ball;
+if (result == m3_success)
+{
+    result = m3CreateBody(world, &ballDef, &ball);
+}
+m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+m3ShapeId ballShape;
+if (result == m3_success)
+{
+    result = m3CreateSphereShape(world, ball, &shapeDef, &sphere, &ballShape);
+}
 
-### Id lifecycle
+for (int32_t i = 0; i < 120 && result == m3_success; ++i)
+{
+    result = m3World_Step(world, 1.0f / 60.0f, 4); // 60 Hz, four substeps
+}
+m3Pos3 p = m3Body_GetPosition(world, ball); // resting on the floor: y = 0.5
+m3DestroyWorld(world);
+```
 
-Ids are generation-tagged: `{index1, generation}`, a 1-based slot and
-the generation the slot had when the object was made. A slot's
-generation bumps when the object is destroyed, so a stale id can
-never alias a recycled slot. The rule for staleness is uniform: a
-stale id counts one misuse, a getter returns zeros (the identity for a
-rotation), a command changes nothing, and a call with a status, a
-destroy or a create given a stale body included, returns
+## The objects
+
+A **world** owns everything else. Worlds share nothing, so two worlds
+can step on two threads at once, and an id from one world means
+nothing to another.
+
+A **body** has a pose and a velocity, and is static, kinematic or
+dynamic. A **shape** gives a body its geometry: a sphere, a capsule, a
+box or cylinder (both built as convex hulls), a convex hull of points,
+a triangle mesh, a height field, a voxel chunk, or an infinite plane on
+a static body. A **joint** connects two bodies: spherical, revolute,
+prismatic, weld, distance, generic, wheel, filter, parallel, motor,
+gear or pulley ([joints](joints.md)). On top of these sit
+[characters](character.md), [vehicles](vehicles.md),
+[soft bodies](soft-bodies.md) and [water volumes](water.md).
+
+Every object is made from a **def**, a struct that starts from its
+`m3Default...Def` function and is changed field by field. A def carries
+a private cookie, so one that did not come from its default function is
+refused. A world holds as many of each kind as its def's capacities say:
+creates succeed up to exactly that number, and the next is refused with
+`m3_errorCapacity`. Size a world for its scene, with room for fragments.
+
+## Results and refusals
+
+A call that can fail returns an `m3Result`: `m3_success` (0) or a
+negative error. A refused call changes nothing. The library never
+aborts on what a host passes it: bad defs, stale ids, full pools and
+NaN floats are refused through the result, and its assertions guard
+only internal states no call can reach. A call that takes an argument
+a correct program never passes, such as a null pointer, a NaN or a
+value outside its documented domain, also counts one misuse in
+`m3World_GetCounters`; a refusal a correct program can meet, such as a
+full pool, counts nothing. `m3GetResultName` names any result.
+
+## Ids
+
+An id is a slot and a generation, `{index1, generation}`, where
+`index1` is the slot plus one, so the zeroed id is the null id. Destroying
+an object moves its slot to the next generation, so an old id never
+names the object that reuses the slot. A stale id counts one misuse:
+a getter given one returns zeros (the identity, for a rotation), a
+command changes nothing, and a call with a result returns
 `m3_errorStale`.
 
-A slot names objects under generations 0 to 2^32 - 1, then retires
-instead of wrapping, so a pool of capacity n makes n × 2^32 objects
-over a world's life. With 1000 slots at 1000 creates a second that is
-about 136 years; one slot at 1000 a second lasts about 50 days. A pool
-whose slots have all retired refuses with `m3_errorCapacity`, loudly.
-Every pool follows the rule: bodies, shapes, joints, characters,
-vehicles, soft bodies and water volumes, and the internal hull, mesh,
-height field and voxel slots that shape creates take, so those
-creates can run out the same way. The budget is part of the world's
-state: a snapshot carries every slot's generation and the retired
-slots, and a restore brings back the snapshot's budget, never a fresh
-one.
+A slot's generation runs from 0 to 2^32 - 1; then the slot retires
+rather than wrapping around. A pool of n slots therefore makes
+n times 2^32 objects over a world's life: a thousand slots used a
+thousand times a second last about 136 years. A pool whose slots have
+all retired refuses its next create with `m3_errorCapacity`. Snapshots
+carry each slot's generation, so a restore brings back the world's
+remaining budget, not a fresh one.
 
-One id is valid until its object or its world is destroyed. An id
-means something only to the world that issued it: given to another
-world, it names whatever that world holds in the same slot with the
-same generation. Nothing crashes either way.
-
-Destroying a body cascades: its shapes, its joints and a vehicle
-whose chassis it is go with it. Destroying an already destroyed id
-returns `m3_errorStale` and counts one misuse, as any stale id does.
+Destroying a body takes its shapes, its joints and a vehicle it
+carries with it. Destroying a world destroys everything in it.
 
 ## Units and conventions
 
-SI units: meters, kilograms, seconds, radians. Gravity defaults to
-(0, -10, 0). Right-handed coordinates. Quaternions are xyzw, unit
-length, and a body def's rotation must be within 1 percent of unit
-length (a corrupted quaternion is refused, not renormalized).
-Positions are double precision; everything else is single. Mesh
-triangles wind counter-clockwise seen from outside; backfaces do not
-collide. Planes are half-spaces: `dot(normal, p) <= offset` is
-solid, with p in the body's frame as for every shape. Capsules are
-a segment plus a radius; a zero-length segment is refused (use a
-sphere).
+- SI units: metres, kilograms, seconds, radians. Gravity defaults to
+  (0, -10, 0).
+- Right-handed coordinates. Quaternions are x, y, z, w; a def's
+  rotation must be near unit length, and one that is not is refused,
+  never quietly normalized.
+- Positions are `double`; everything else is `float`.
+- A plane is a half-space: points with `dot(normal, p) <= offset`
+  are solid, in the body's frame.
+- Mesh triangles wind counter-clockwise seen from outside; their back
+  sides do not collide.
+- A capsule is a segment with a radius. A capsule of zero length is
+  refused: that is a sphere.
 
-## Scale
+## Stepping
 
-The engine's scale posture is measured, not promised: the bench
-binary's cityblock scene (nine welded voxel tower stacks, five
-thousand mixed bodies, a mid-run fracture wave) and the scale
-gauntlet behind it are the record; the scale suite proves the same
-contracts at CI size with a real four-thread host pool.
+`m3World_Step(world, dt, substeps)` advances the world by `dt`
+seconds, 1e-4 to 10, in 1 to 256 substeps. More substeps make stiff
+scenes, stacks and chains steadier at the cost of time. A step never
+asks the allocator: the world sets aside what a step needs when it is
+created, sized by its capacities. [Determinism and the
+step](determinism.md) says what a step promises.
 
-- Worker counts are performance knobs, never state inputs: serial
-  and threaded runs of the same ops land on identical bits, at
-  every population.
-- Rollback at scale is priced, not feared: at five thousand bodies
-  a full snapshot runs tens of milliseconds and tens of megabytes,
-  restore the same, both bit-exact (the gauntlet prints the
-  numbers on your machine).
-- The step scratch is taken whole when the world is created, at
-  its capacities, so no step allocates or stalls for memory.
-- Sleep is the sandbox's economy. Give ground-contact debris a
-  small rollingResistance (0.01 to 0.1): a frictionless-rolling
-  sphere never stops on its own, and one eternal roller keeps its
-  whole contact island awake.
-- Capacities are hard books, not hints: worlds create up to
-  exactly their capacity and refuse the next, at 256 and at 8192
-  alike. Size the def for the scene, plus fragments.
-- Large levels tile as chunks (voxel chunks, mesh chunks,
-  heightfield chunks) under one static body each; welding makes
-  grid-aligned voxel seams contact-seamless.
+A world steps on the calling thread by default. A host with its own
+task system passes `enqueueTask` and `finishTask` in the world def, and
+the step spreads its work over them. The worker count changes how
+fast a step runs, never what it computes.
 
-## The integration checklist
+## What to wire first
 
-What an engine evaluator wires first, and where Maul3D answers:
+1. Create a world, step it and read poses: `m3CreateWorld`,
+   `m3World_Step`, and the move events, which list the bodies that
+   moved ([queries and events](queries-and-events.md)).
+2. Create and destroy at run time; a destroyed body takes its shapes
+   and joints with it.
+3. Collision filters on shapes, and the same filters on queries.
+4. Gameplay forces and impulses ([bodies and shapes](bodies-and-shapes.md)).
+5. Teleports, moving platforms and elevators: set a pose, or drive a
+   kinematic body to a target.
+6. Materials and world settings, which can change while the game runs.
+7. Contact events, hit events and the pre-solve veto.
+8. Motors, servos and breakable joints ([joints](joints.md)).
+9. Rays, shape casts and overlaps.
+10. Snapshots and the journal for rollback and replays
+    ([snapshots and rollback](snapshots-and-rollback.md),
+    [the journal](journal-and-replays.md)).
 
-1. Create a world, step it, read transforms: `m3CreateWorld`,
-   `m3World_Step`, body move events (no polling).
-2. Spawn and destroy at runtime: create ops are journaled with id
-   verification; destroys cascade shapes, joints, and anchors.
-3. Layers and masks: collision filters, filtered queries.
-4. Apply gameplay forces: the force/impulse family.
-5. Teleports, character platforms, elevators: SetTransform, the
-   kinematic servo, motion locks.
-6. Tune materials live: the material setters and world knobs.
-7. Contact callbacks: begin/end events, opt-in hit events, the
-   pre-solve veto with its purity contract.
-8. Motorized doors, servos, breakable structures: joint runtime
-   control, drives, and breakage with the break stream.
-9. Queries: rays, casts, overlaps, all filtered, plus the
-   character controller, vehicles, voxels, and soft bodies from
-   earlier arcs.
-10. Determinism: every one of the above is journaled, snapshot
-    round-trips bit-exactly, and CI enforces cross-platform
-    equality on every commit. That last line is the moat.
+## At scale
+
+- Give rolling debris a small `rollingResistance`, 0.01 to 0.1. A
+  sphere that rolls without it never stops, and one body that never
+  stops keeps everything it touches awake.
+- Tile large levels as many chunks, voxel, mesh or height field, each
+  on a static body. Voxel chunks side by side weld into one surface
+  ([destruction](destruction.md)).
+- The `cityblock` scene in `bench/`, five thousand bodies with voxel
+  towers and a fracture wave, prints its timings on your machine, and
+  CI pins its final hash on every platform.

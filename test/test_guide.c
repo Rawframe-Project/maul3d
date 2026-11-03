@@ -349,8 +349,65 @@ static void TestJournalReplay(void)
     m3DestroyWorld(world);
 }
 
+// getting-started.md: a first world. The snippet returns early when the
+// world is refused, so the test reports how far it got: the ball's
+// height once it rests.
+static void FirstWorld(double* heightOut)
+{
+    m3WorldDef worldDef = m3DefaultWorldDef();
+    m3World* world = NULL;
+    m3Result result = m3CreateWorld(&worldDef, &world);
+    if (result != m3_success)
+    {
+        return;
+    }
+
+    m3BodyDef groundDef = m3DefaultBodyDef(); // a static body
+    m3BodyId ground;
+    result = m3CreateBody(world, &groundDef, &ground);
+    m3ShapeDef shapeDef = m3DefaultShapeDef();
+    m3Plane floor = {{0.0f, 1.0f, 0.0f}, 0.0f}; // solid below y = 0
+    m3ShapeId floorShape;
+    if (result == m3_success)
+    {
+        result = m3CreatePlaneShape(world, ground, &shapeDef, &floor, &floorShape);
+    }
+
+    m3BodyDef ballDef = m3DefaultBodyDef();
+    ballDef.type = m3_dynamicBody;
+    ballDef.position = (m3Pos3){0.0, 4.0, 0.0};
+    m3BodyId ball;
+    if (result == m3_success)
+    {
+        result = m3CreateBody(world, &ballDef, &ball);
+    }
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.5f};
+    m3ShapeId ballShape;
+    if (result == m3_success)
+    {
+        result = m3CreateSphereShape(world, ball, &shapeDef, &sphere, &ballShape);
+    }
+
+    for (int32_t i = 0; i < 120 && result == m3_success; ++i)
+    {
+        result = m3World_Step(world, 1.0f / 60.0f, 4); // 60 Hz, four substeps
+    }
+    m3Pos3 p = m3Body_GetPosition(world, ball); // resting on the floor: y = 0.5
+    m3DestroyWorld(world);
+
+    *heightOut = p.y;
+}
+
+static void TestFirstWorld(void)
+{
+    double height = -1.0;
+    FirstWorld(&height);
+    CHECK(height > 0.49 && height < 0.51, "the ball rests on the floor");
+}
+
 int main(void)
 {
+    TestFirstWorld();
     TestWaterPool();
     TestCharacterWalk();
     TestRope();
