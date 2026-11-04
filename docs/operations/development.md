@@ -35,6 +35,7 @@ another machine:
 | `MAUL3D_TEST_PACKAGE` | The package test: installs the build and builds `samples/minimal` against it. |
 | `MAUL3D_FUZZ` | The libFuzzer targets (Clang only). |
 | `MAUL3D_BUILD_TESTBED` | The interactive testbed, which fetches raylib. |
+| `MAUL3D_WEB_UNIT_LINK` | Under Emscripten, the plain unit tests link at `-O1`, and the golden and determinism suites keep the build's level ([checks](checks.md)). |
 
 `MAUL3D_BUILD_TESTS`, `_SAMPLES`, `_BENCH`, `_TOOLS` and `MAUL3D_INSTALL`
 are on when maul3d is the top-level project. `M3_ASSERT` is live in every

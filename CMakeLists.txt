@@ -31,6 +31,7 @@ option(MAUL3D_TEST_PACKAGE "Test the installed package by building samples/minim
 # Engine-specific options.
 set(MAUL3D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
 set_property(CACHE MAUL3D_SIMD PROPERTY STRINGS auto scalar)
+option(MAUL3D_WEB_UNIT_LINK "Link the plain unit tests at -O1 under Emscripten" OFF)
 
 # Every executable (tests, samples, benchmarks, tools) lands in the top
 # of the build tree, so scripts and CI find them in one place.

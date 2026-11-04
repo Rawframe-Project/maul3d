@@ -228,14 +228,19 @@ jobs:
       # clang call it can cache; the runner image may lack ccache. A
       # restored or fresh emsdk carries new mtimes, so ccache knows the
       # compiler by its version output instead.
+      # The links take most of this build, so a pull request and a push to
+      # main link the plain unit tests lower (docs/operations/checks.md);
+      # the nightly and dispatched runs link every test at the full level.
       - name: Build
+        env:
+          WEB_UNIT_LINK: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'ON' || 'OFF' }}
         run: |
           command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
           export CCACHE_COMPILERCHECK="%compiler% --version"
           export EM_COMPILER_WRAPPER=ccache
           ccache --zero-stats >/dev/null
-          cmake --preset wasm-node
+          cmake --preset wasm-node -DMAUL3D_WEB_UNIT_LINK="$WEB_UNIT_LINK"
           cmake --build --preset wasm-node -j 4
           ccache --show-stats
       - name: Save ccache

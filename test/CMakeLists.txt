@@ -143,4 +143,20 @@ if(NOT ${MAUL_PREFIX}_SANITIZE AND NOT ${MAUL_PREFIX}_TSAN AND NOT EMSCRIPTEN)
 endif()
 maul_add_header_tests()
 maul_add_exports_test()
-
+# Under Emscripten each test's link runs wasm-opt over the whole module,
+# the library's code included, and those links take most of the web
+# build. MAUL3D_WEB_UNIT_LINK links the plain unit tests at -O1 instead.
+# The suites that hold results to committed values (golden, bench,
+# warmhold, math, base) and the ones that hold two runs to the same bits
+# (concurrency, draw, introspection, journal, replayfile) keep the
+# build's level, so they run the module a Release link gives.
+if(EMSCRIPTEN AND MAUL3D_WEB_UNIT_LINK)
+    set(maul_full_link golden bench warmhold math base concurrency draw introspection journal
+                       replayfile)
+    get_property(maul_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(maul_target IN LISTS maul_targets)
+        if(maul_target MATCHES "^test_(.+)$" AND NOT CMAKE_MATCH_1 IN_LIST maul_full_link)
+            target_link_options(${maul_target} PRIVATE -O1)
+        endif()
+    endforeach()
+endif()
