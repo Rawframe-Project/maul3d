@@ -227,6 +227,23 @@ static void TestJointContracts(void)
     m3DestroyWorld(world);
 }
 
+// A joint from a dynamic body to itself is refused too, and the world
+// steps on without it.
+static void TestDynamicSelfJoint(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3BodyId b = NewBody(world, &bd);
+    m3SphericalJointDef jd = m3DefaultSphericalJointDef();
+    jd.bodyIdA = b;
+    jd.bodyIdB = b;
+    CHECK(!m3Joint_IsValid(world, NewJoint(world, &jd)), "a dynamic self-joint is refused");
+    CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps");
+    m3DestroyWorld(world);
+}
+
 static m3BodyId MakeDoor(m3World* world, m3RevoluteJointDef* jdOut)
 {
     // A door panel hinged to a static post on the y axis: the hinge
@@ -1677,6 +1694,7 @@ int main(void)
     TestFarErrorClosesAtSpeedLimit();
     TestChainSettlesAndSleeps();
     TestJointContracts();
+    TestDynamicSelfJoint();
     TestDoorSwings();
     TestDoorLimits();
     TestDoorMotor();

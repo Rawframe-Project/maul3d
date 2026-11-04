@@ -21,10 +21,29 @@
 // skip them, and the hash stands still.
 // ---------------------------------------------------------------
 
+// The body checks below. Release builds compile the asserts out, and
+// this helper with them.
+#ifndef NDEBUG
+// A live body slot: what a live joint names. A body's destroy takes its
+// joints with it, and restore checks that a live joint names two
+// different live bodies (snapshot_links.c).
+static bool LiveBody(const m3World* world, int32_t b)
+{
+    return b >= 0 && b < world->bodies.bodyPool.maxIndex && world->bodies.bodyPool.alive[b] != 0;
+}
+#define ASSERT_LIVE_BODY(world, b) M3_ASSERT(LiveBody((world), (b)))
+#else
+#define ASSERT_LIVE_BODY(world, b) ((void)(world), (void)(b))
+#endif
+
+// A node that is not a root has a parent below it: a union links the
+// higher root under the lower, and halving only moves a node to a lower
+// ancestor.
 static int32_t IslandFind(int32_t* parent, int32_t i)
 {
     while (parent[i] != i)
     {
+        M3_ASSERT(parent[i] < i);
         parent[i] = parent[parent[i]]; // halving, deterministic
         i = parent[i];
     }
@@ -45,6 +64,34 @@ static void IslandUnion(int32_t* parent, int32_t a, int32_t b)
         else
         {
             parent[ra] = rb;
+        }
+    }
+}
+
+// Two bodies a touching contact or a joint couples: two dynamic bodies
+// join one island, and a moving kinematic neighbor forces its dynamic
+// partner awake.
+static void IslandCouple(const m3World* world, int32_t* parent, uint8_t* forced, int32_t bodyA,
+                         int32_t bodyB)
+{
+    int dynA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody;
+    int dynB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody;
+    if (dynA && dynB)
+    {
+        IslandUnion(parent, bodyA, bodyB);
+    }
+    else if (dynA || dynB)
+    {
+        int32_t kin = dynA ? bodyB : bodyA;
+        int32_t dyn = dynA ? bodyA : bodyB;
+        if (world->bodies.types[kin] == (uint8_t)m3_kinematicBody)
+        {
+            m3Vec3 v = world->bodies.linearVelocities[kin];
+            m3Vec3 w = world->bodies.angularVelocities[kin];
+            if (m3Dot3(v, v) > 0.0f || m3Dot3(w, w) > 0.0f)
+            {
+                forced[dyn] = 1;
+            }
         }
     }
 }
@@ -82,27 +129,7 @@ int32_t* m3IslandWakePass(m3World* world)
         }
         int32_t bodyA = world->shapes.shapeBody[shapeA];
         int32_t bodyB = world->shapes.shapeBody[shapeB];
-        int dynA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody;
-        int dynB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody;
-        if (dynA && dynB)
-        {
-            IslandUnion(parent, bodyA, bodyB);
-        }
-        else if (dynA || dynB)
-        {
-            // A moving kinematic neighbor forces its contact awake.
-            int32_t kin = dynA ? bodyB : bodyA;
-            int32_t dyn = dynA ? bodyA : bodyB;
-            if (world->bodies.types[kin] == (uint8_t)m3_kinematicBody)
-            {
-                m3Vec3 v = world->bodies.linearVelocities[kin];
-                m3Vec3 w = world->bodies.angularVelocities[kin];
-                if (m3Dot3(v, v) > 0.0f || m3Dot3(w, w) > 0.0f)
-                {
-                    forced[dyn] = 1;
-                }
-            }
-        }
+        IslandCouple(world, parent, forced, bodyA, bodyB);
     }
     // Joints couple islands exactly like touching contacts, and a
     // moving kinematic partner is a wake source through a joint too.
@@ -115,26 +142,10 @@ int32_t* m3IslandWakePass(m3World* world)
         }
         int32_t bodyA = world->joints.jointBodyA[j];
         int32_t bodyB = world->joints.jointBodyB[j];
-        int dynA = world->bodies.types[bodyA] == (uint8_t)m3_dynamicBody;
-        int dynB = world->bodies.types[bodyB] == (uint8_t)m3_dynamicBody;
-        if (dynA && dynB)
-        {
-            IslandUnion(parent, bodyA, bodyB);
-        }
-        else if (dynA || dynB)
-        {
-            int32_t kin = dynA ? bodyB : bodyA;
-            int32_t dyn = dynA ? bodyA : bodyB;
-            if (world->bodies.types[kin] == (uint8_t)m3_kinematicBody)
-            {
-                m3Vec3 v = world->bodies.linearVelocities[kin];
-                m3Vec3 w = world->bodies.angularVelocities[kin];
-                if (m3Dot3(v, v) > 0.0f || m3Dot3(w, w) > 0.0f)
-                {
-                    forced[dyn] = 1;
-                }
-            }
-        }
+        ASSERT_LIVE_BODY(world, bodyA);
+        ASSERT_LIVE_BODY(world, bodyB);
+        M3_ASSERT(bodyA != bodyB);
+        IslandCouple(world, parent, forced, bodyA, bodyB);
     }
 
     // Aggregate: does any island member demand wakefulness?
