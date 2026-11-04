@@ -86,8 +86,12 @@ static inline void FuzzBodyValues(m3World* world, m3BodyId body, m3CharacterId h
     char name[M3_MAX_BODY_NAME_BYTES];
     int32_t length = m3Body_GetName(world, body, name, M3_MAX_BODY_NAME_BYTES);
     (void)m3Body_SetName(world, body, name, length);
-    m3Body_SetLinearVelocity(world, body, m3Body_GetLinearVelocity(world, body));
-    m3Body_SetAngularVelocity(world, body, m3Body_GetAngularVelocity(world, body));
+    // A static body takes no velocity.
+    if (m3Body_GetType(world, body) != m3_staticBody)
+    {
+        m3Body_SetLinearVelocity(world, body, m3Body_GetLinearVelocity(world, body));
+        m3Body_SetAngularVelocity(world, body, m3Body_GetAngularVelocity(world, body));
+    }
     m3Body_SetGravityScale(world, body, m3Body_GetGravityScale(world, body));
     m3Body_SetLinearDamping(world, body, m3Body_GetLinearDamping(world, body));
     m3Body_SetAngularDamping(world, body, m3Body_GetAngularDamping(world, body));

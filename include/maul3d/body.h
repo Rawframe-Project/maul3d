@@ -39,8 +39,8 @@ extern "C"
         m3BodyType type;
         m3Pos3 position;        // world space, double, within 1e15 m
         m3Quat rotation;        // unit quaternion
-        m3Vec3 linearVelocity;  // m/s, within 1e5 (kinematic: 1e10)
-        m3Vec3 angularVelocity; // rad/s, world frame, within 1e5
+        m3Vec3 linearVelocity;  // m/s, within 1e5 (kinematic: 1e10; static: zero)
+        m3Vec3 angularVelocity; // rad/s, world frame, within 1e5 (static: zero)
         float gravityScale;     // within 1e4
         float linearDamping;
         float angularDamping;
@@ -83,9 +83,10 @@ extern "C"
     ///         def m3DefaultBodyDef did not make, a type out of range, a
     ///         rotation that is not finite or not near unit, a damping that is
     ///         not finite or is negative, a sleep threshold that is not finite
-    ///         or is negative, or a NaN position, velocity, spin or gravity
-    ///         scale; m3_errorLimit for a position, velocity, spin or gravity
-    ///         scale past its bound, infinities included; m3_errorCapacity for
+    ///         or is negative, a static def whose velocity or spin is not
+    ///         zero, infinities included, or a NaN position, velocity, spin
+    ///         or gravity scale; m3_errorLimit for a position, velocity, spin
+    ///         or gravity scale past its bound, infinities included; m3_errorCapacity for
     ///         a full body pool; m3_errorBusy from host code the world is
     ///         running. Every refusal but a full pool's and a null world's
     ///         counts one misuse.
@@ -862,10 +863,11 @@ extern "C"
 
     /// Velocities, journaled: within 1e5 m/s on every axis (1e10 m/s
     /// for a kinematic body), and every body's spin within 1e5 rad/s.
-    /// Setting a velocity wakes the body.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// Setting a velocity wakes the body. A static body never moves, so it
+    /// takes no velocity: the call is refused.
+    /// A stale or null id, a static body, a refused value, or a call from
+    /// host code the world is running changes nothing, is not journaled and
+    /// counts one misuse.
     ///
     /// @param world     The world.
     /// @param body      The body.
@@ -875,10 +877,10 @@ extern "C"
     M3_API void m3Body_SetLinearVelocity(m3World* world, m3BodyId body, m3Vec3 velocity);
 
     /// Sets the angular velocity in the world frame, within 1e5 rad/s on
-    /// every axis, and wakes the body.
-    /// A stale or null id, a refused value, or a call from host code the
-    /// world is running changes nothing, is not journaled and counts one
-    /// misuse.
+    /// every axis, and wakes the body. A static body is refused.
+    /// A stale or null id, a static body, a refused value, or a call from
+    /// host code the world is running changes nothing, is not journaled and
+    /// counts one misuse.
     ///
     /// @param world     The world.
     /// @param body      The body.

@@ -100,7 +100,7 @@ static bool BodiesValid(const m3Incoming* inc)
         memcpy(&pose, poses + sizeof(m3Transform) * (size_t)b, sizeof(pose));
         if (!m3BoundedPos3(pose.p) ||
             m3BodyVelocityCheck(types[b], InV3(linear, b)) != m3_success ||
-            m3BodySpinCheck(InV3(angular, b)) != m3_success ||
+            m3BodySpinCheck(types[b], InV3(angular, b)) != m3_success ||
             m3BodyParamCheck(m3_bodyParamGravityScale, m3InF32(gravityScales, b)) != m3_success ||
             m3BodyParamCheck(m3_bodyParamLinearDamping, m3InF32(linearDamping, b)) != m3_success ||
             m3BodyParamCheck(m3_bodyParamAngularDamping, m3InF32(angularDamping, b)) !=

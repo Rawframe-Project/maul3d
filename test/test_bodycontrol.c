@@ -373,6 +373,85 @@ static void TestAwakeCountSkipsDisabled(void)
     m3DestroyWorld(world);
 }
 
+static uint64_t Misuse(const m3World* world)
+{
+    return m3World_GetCounters(world).misuseCount;
+}
+
+// A static body never moves, so it takes no velocity: create refuses a
+// static def that has one, a negative zero excepted, the setters refuse
+// a static body, a replay refuses what the call refuses, and a body
+// turning static stops.
+static void TestStaticTakesNoVelocity(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    static uint8_t tape[4096];
+    CHECK(StartJournal(world, tape, (int64_t)sizeof(tape)), "the tape opens");
+    m3BodyDef gd = m3DefaultBodyDef();
+    uint64_t misuse = Misuse(world);
+    m3BodyId refused = {7, 7};
+    gd.linearVelocity = (m3Vec3){1.0f, 0.0f, 0.0f};
+    CHECK(m3CreateBody(world, &gd, &refused) == m3_errorInvalid && refused.index1 == 0 &&
+              Misuse(world) == misuse + 1,
+          "a static def that moves is refused as misuse");
+    gd.linearVelocity = (m3Vec3){0.0f, 0.0f, 0.0f};
+    gd.angularVelocity = (m3Vec3){0.0f, 0.0f, 1.0f};
+    CHECK(m3CreateBody(world, &gd, &refused) == m3_errorInvalid && Misuse(world) == misuse + 2,
+          "and one that spins");
+    gd.angularVelocity = (m3Vec3){-0.0f, 0.0f, -0.0f};
+    m3BodyId ground = NewBody(world, &gd);
+    CHECK(m3Body_IsValid(world, ground), "a negative zero is zero");
+    m3BodyId crate = Crate(world, (m3Pos3){0.0, 1.0, 0.0});
+
+    misuse = Misuse(world);
+    m3Body_SetLinearVelocity(world, ground, (m3Vec3){5.0f, 0.0f, 0.0f});
+    m3Body_SetLinearVelocity(world, ground, (m3Vec3){0.0f, 0.0f, 0.0f});
+    m3Body_SetAngularVelocity(world, ground, (m3Vec3){0.0f, 1.0f, 0.0f});
+    m3Vec3 v = m3Body_GetLinearVelocity(world, ground);
+    m3Vec3 w = m3Body_GetAngularVelocity(world, ground);
+    CHECK(Misuse(world) == misuse + 3 && v.x == 0.0f && w.y == 0.0f,
+          "the setters refuse a static body, each counting one misuse");
+    m3Body_SetLinearVelocity(world, crate, (m3Vec3){7.25f, 0.0f, 0.0f});
+    int64_t bytes = StopJournal(world);
+    CHECK(bytes > 16, "the tape holds the session");
+
+    // The tape's velocity call names the crate. Pointed at the ground, the
+    // static body, it is refused on replay as the call refuses it.
+    m3World* twin = NewWorld(&def);
+    CHECK(ReplayJournal(twin, tape, bytes), "the tape replays");
+    m3DestroyWorld(twin);
+    float speed = 7.25f;
+    int64_t at = -1;
+    for (int64_t i = 16; i + 4 <= bytes && at < 0; ++i)
+    {
+        at = memcmp(tape + i, &speed, sizeof(speed)) == 0 ? i : -1;
+    }
+    m3BodyId named;
+    CHECK(at >= 16 + (int64_t)sizeof(named), "the velocity call is on the tape");
+    if (at >= 16 + (int64_t)sizeof(named))
+    {
+        memcpy(&named, tape + at - (int64_t)sizeof(named), sizeof(named));
+        CHECK(named.index1 == crate.index1 && named.generation == crate.generation,
+              "and names the crate");
+        memcpy(tape + at - (int64_t)sizeof(named), &ground, sizeof(ground));
+        twin = NewWorld(&def);
+        CHECK(!ReplayJournal(twin, tape, bytes), "a tape that moves the static body is refused");
+        m3DestroyWorld(twin);
+        float still = 0.0f;
+        memcpy(tape + at, &still, sizeof(still));
+        twin = NewWorld(&def);
+        CHECK(!ReplayJournal(twin, tape, bytes), "and so is one that sets it still");
+        m3DestroyWorld(twin);
+    }
+
+    // Turning static stops a moving body.
+    CHECK(m3Body_SetType(world, crate, m3_staticBody) == m3_success, "the crate turns static");
+    v = m3Body_GetLinearVelocity(world, crate);
+    CHECK(v.x == 0.0f && v.y == 0.0f && v.z == 0.0f, "and stops");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestTeleportWakes();
@@ -382,6 +461,7 @@ int main(void)
     TestSleepKnobsAndControlReplay();
     TestDefsCarrySettings();
     TestAwakeCountSkipsDisabled();
+    TestStaticTakesNoVelocity();
     if (s_failures == 0)
     {
         printf("test_bodycontrol: all green\n");
