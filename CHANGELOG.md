@@ -7,6 +7,14 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.4](https://github.com/Rawframe-Project/maul3d/compare/v1.0.3...v1.0.4) (2026-11-04)
+
+
+### Fixed
+
+* **body:** a force never waits on a body the step does not move ([#396](https://github.com/Rawframe-Project/maul3d/issues/396)) ([59e528e](https://github.com/Rawframe-Project/maul3d/commit/59e528e48979378e8fdaaf49ff5d61397a05041b)), closes [#394](https://github.com/Rawframe-Project/maul3d/issues/394)
+* **body:** a static body takes no velocity ([#393](https://github.com/Rawframe-Project/maul3d/issues/393)) ([8eca94a](https://github.com/Rawframe-Project/maul3d/commit/8eca94a9c5b8718e1f77a51a3dcb10d99994af9b)), closes [#391](https://github.com/Rawframe-Project/maul3d/issues/391)
+
 ## [1.0.3](https://github.com/Rawframe-Project/maul3d/compare/v1.0.2...v1.0.3) (2026-11-04)
 
 ### Fixed
