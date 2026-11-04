@@ -7,7 +7,8 @@
 #   tools/check.sh changed   the files changed against origin/main: the
 #                            source and test hygiene rules, formatting,
 #                            the bindings when the API or a binding
-#                            changed, clang-tidy on the changed sources,
+#                            changed, clang-tidy on the changed sources
+#                            (on every source when a header changed),
 #                            and the linux-clang-20-asan preset
 #                            (assertions on) for the tests the changes
 #                            reach, and five seconds of each fuzz target
@@ -152,23 +153,24 @@ bindings() {
 
 # As CI's checks job: on the Release build, where the assertions compile
 # out, and on the Debug build, where they are live. Each hides findings
-# the other shows. The header filter is passed here, anchored at this
-# checkout: clang-tidy 20 run from a checkout's root reads the
-# HeaderFilterRegex of .clang-tidy from the directory above it, so the
-# file's own would drop every header finding, and an unanchored one would
-# take in the headers of dependencies fetched under out/.
+# the other shows. The header filter comes from tools/tidy_filter.sh,
+# anchored at the tree's source directory: clang-tidy 20 run from a
+# checkout's root reads the HeaderFilterRegex of .clang-tidy from the
+# directory above it, so the file's own would drop every header finding,
+# and an unanchored one would take in the headers of dependencies
+# fetched under out/.
 tidy() { # files
-    local headers
-    headers="^$(printf '%s' "$root" | sed 's/[][\.*^$+?(){}|]/\\&/g')/(src|include)/"
+    local filter
     for build in Release Debug; do
         step "clang-tidy on $# files, $build"
         cmake --preset linux-clang-20 -S "$root" -B "$out/check-tidy-$build" \
             -DCMAKE_BUILD_TYPE=$build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL3D_BUILD_TESTS=OFF \
             -DMAUL3D_BUILD_SAMPLES=OFF -DMAUL3D_BUILD_BENCH=OFF -DMAUL3D_BUILD_TOOLS=OFF \
             >"$out/check-tidy-$build.log"
+        filter=$(tools/tidy_filter.sh "$out/check-tidy-$build")
         printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "$out/check-tidy-$build" \
             --quiet --warnings-as-errors='*' --checks=-readability-function-cognitive-complexity \
-            --header-filter="$headers" 2>/dev/null
+            --header-filter="$filter" 2>/dev/null
     done
 }
 
@@ -224,9 +226,17 @@ if [ "$tier" = changed ]; then
             ;;
         esac
     done
+    # A changed header, kept or deleted, reaches every source that
+    # includes it, so it tidies them all.
     sources=()
     for f in "${present[@]+"${present[@]}"}"; do
         case "$f" in src/*.c) sources+=("$f") ;; esac
+    done
+    for f in "${changed[@]}"; do
+        if [[ $f == src/*.h || $f == include/*.h ]]; then
+            mapfile -t sources < <(git ls-files --cached --others --exclude-standard 'src/*.c')
+            break
+        fi
     done
     if [ ${#sources[@]} -gt 0 ]; then
         tidy "${sources[@]}"
