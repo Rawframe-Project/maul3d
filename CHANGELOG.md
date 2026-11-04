@@ -9,11 +9,28 @@ API, and an entry says what each changed result changes.
 
 ## [1.0.3](https://github.com/Rawframe-Project/maul3d/compare/v1.0.2...v1.0.3) (2026-11-04)
 
-
 ### Fixed
 
-* **snapshot:** restore refuses a dynamic body that sleeps while moving ([#380](https://github.com/Rawframe-Project/maul3d/issues/380)) ([b924a83](https://github.com/Rawframe-Project/maul3d/commit/b924a83100c5496d94cc4901f35fcf6726f493b9)), closes [#379](https://github.com/Rawframe-Project/maul3d/issues/379)
-* **snapshot:** restore refuses a static or kinematic body that sleeps ([#392](https://github.com/Rawframe-Project/maul3d/issues/392)) ([1d7d671](https://github.com/Rawframe-Project/maul3d/commit/1d7d671021d366d4710153cd2cac0d217f9f7a71)), closes [#381](https://github.com/Rawframe-Project/maul3d/issues/381)
+- **Restore refuses a sleeping dynamic body that moves.** The engine
+  never writes a dynamic body that is asleep with a linear or angular
+  velocity other than +0.0, but `m3World_Restore` used to accept one
+  in a forged or damaged snapshot. The restored body then reported its
+  velocity while asleep and resumed it when woken, where a body put to
+  sleep through the API starts from rest. Restore now refuses such a
+  snapshot with `m3_errorFormat` and leaves the world as it was,
+  comparing each component bit for bit, so a -0.0 is refused too.
+  Every snapshot the engine writes restores as before, and the check
+  leaves stepping as it was.
+  ([#380](https://github.com/Rawframe-Project/maul3d/pull/380))
+- **Restore refuses a static or kinematic body that sleeps.** Only a
+  dynamic body falls asleep: create and every type change wake a body,
+  and `m3Body_SetAwake` refuses any other type. `m3World_Restore` used
+  to accept a forged or damaged snapshot with a sleeping static or
+  kinematic body. It now refuses one with `m3_errorFormat` and leaves
+  the world as it was. Every snapshot the engine writes restores as
+  before, and the check leaves stepping as it was. A 1.0.2 snapshot
+  steps to the same bits, so 1.0.3 restores it.
+  ([#392](https://github.com/Rawframe-Project/maul3d/pull/392))
 
 ## [1.0.2](https://github.com/Rawframe-Project/maul3d/compare/v1.0.1...v1.0.2) (2026-11-03)
 
