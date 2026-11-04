@@ -7,6 +7,23 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.2](https://github.com/Rawframe-Project/maul3d/compare/v1.0.1...v1.0.2) (2026-11-03)
+
+### Fixed
+
+- **A replay leaves no veto for the next live step.** A journal tape
+  cut right after a step's veto record, and before that step, still
+  replays, since a tape cut at a record boundary is a whole tape. But
+  it used to leave those vetoes pending: the host's next live step
+  applied them in place of its own pre-solve callback, journaled none
+  of them, and two worlds that hashed equal stepped to different bits.
+  A replay now drops them when it ends, so the next live step calls the
+  callback. Results change only after replaying a tape that ends right
+  after a veto record, from the first live step on. A whole session
+  replays as before, and a 1.0.1 snapshot steps to the same bits, so
+  1.0.2 restores it.
+  ([#368](https://github.com/Rawframe-Project/maul3d/pull/368))
+
 ## [1.0.1](https://github.com/Rawframe-Project/maul3d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
 ### Fixed
