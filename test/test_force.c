@@ -193,6 +193,14 @@ static void TestStoppedBodyDropsItsForce(void)
         m3Body_ApplyForce(world, cube, (m3Vec3){600.0f, 0.0f, 0.0f});
         m3Body_ApplyTorque(world, cube, (m3Vec3){0.0f, 60.0f, 0.0f});
         StopMoving(world, cube, (Stop)stop, true);
+        // The engine wrote this state, so its own restore takes it.
+        int64_t size = m3World_GetSnapshotSize(world);
+        uint8_t* snap = (uint8_t*)malloc((size_t)size);
+        m3World* copy = FreeSpace();
+        CHECK(snap != NULL && Snapshot(world, snap, size) == size && Restore(copy, snap, size),
+              "the stopped body's snapshot restores");
+        m3DestroyWorld(copy);
+        free(snap);
         for (int32_t i = 0; i < 3; ++i)
         {
             (void)m3World_Step(world, 1.0f / 60.0f, 4);
