@@ -218,6 +218,22 @@ static void KinematicSleeps(const Scene* scene, uint8_t* snap)
     *At(world, snap, FIELD(bodies.awake), 1, kinematic) = 0;
 }
 
+// A static body never moves: create, the setters and a type change keep
+// its velocities zero.
+static void GroundMoves(const Scene* scene, uint8_t* snap)
+{
+    m3Vec3 moving = {1.0f, 0.0f, 0.0f};
+    memcpy(At(scene->world, snap, FIELD(bodies.linearVelocities), sizeof(m3Vec3), scene->ground),
+           &moving, sizeof(moving));
+}
+
+static void GroundSpins(const Scene* scene, uint8_t* snap)
+{
+    m3Vec3 spinning = {0.0f, 1.0f, 0.0f};
+    memcpy(At(scene->world, snap, FIELD(bodies.angularVelocities), sizeof(m3Vec3), scene->ground),
+           &spinning, sizeof(spinning));
+}
+
 // A density no setter accepts on a dynamic body: the shape weighs less
 // than the mass floor. The box's mass comes from its hull in the tail.
 static void BallBelowMassFloor(const Scene* scene, uint8_t* snap)
@@ -439,6 +455,8 @@ static const Case s_cases[] = {
     {"a sleeping body whose spin is a negative zero", CrateSleepsSpinning},
     {"a static body that sleeps", GroundSleeps},
     {"a kinematic body that sleeps", KinematicSleeps},
+    {"a static body that moves", GroundMoves},
+    {"a static body that spins", GroundSpins},
     {"a ball below the mass floor", BallBelowMassFloor},
     {"a box below the mass floor", BoxBelowMassFloor},
     {"a contact impulse that is not a number", ContactImpulseNotFinite},

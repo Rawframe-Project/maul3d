@@ -128,17 +128,33 @@ bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m
            m3AngularImpulseFits(world, index, m3Cross3(arm, impulse));
 }
 
+// A static body never moves, so its velocities are zero, a negative zero
+// included, or the contacts would carry what touches it.
+static bool StaticStill(uint8_t type, m3Vec3 velocity)
+{
+    return type != (uint8_t)m3_staticBody ||
+           (velocity.x == 0.0f && velocity.y == 0.0f && velocity.z == 0.0f);
+}
+
 // A kinematic body moves at whatever speed its host or its servo gives
-// it, within M3_KINEMATIC_SPEED_LIMIT; every other body within
-// M3_SPEED_LIMIT. Every body spins within M3_SPEED_LIMIT.
+// it, within M3_KINEMATIC_SPEED_LIMIT; a dynamic body within
+// M3_SPEED_LIMIT. A moving body spins within M3_SPEED_LIMIT.
 m3Result m3BodyVelocityCheck(uint8_t type, m3Vec3 velocity)
 {
+    if (!StaticStill(type, velocity))
+    {
+        return m3_errorInvalid;
+    }
     return m3CheckWithinV3(velocity, type == (uint8_t)m3_kinematicBody ? M3_KINEMATIC_SPEED_LIMIT
                                                                        : M3_SPEED_LIMIT);
 }
 
-m3Result m3BodySpinCheck(m3Vec3 velocity)
+m3Result m3BodySpinCheck(uint8_t type, m3Vec3 velocity)
 {
+    if (!StaticStill(type, velocity))
+    {
+        return m3_errorInvalid;
+    }
     return m3CheckWithinV3(velocity, M3_SPEED_LIMIT);
 }
 
@@ -401,10 +417,11 @@ static M3_NOINLINE void BodySetLinearVelocityWorker(m3World* world, m3BodyId bod
     {
         return; // stale or foreign id: contract, not invariant
     }
-    if (m3BodyVelocityCheck(world->bodies.types[index], velocity) != m3_success)
+    if (world->bodies.types[index] == (uint8_t)m3_staticBody ||
+        m3BodyVelocityCheck(world->bodies.types[index], velocity) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
-        return; // hostile command: a documented no-op, never poison
+        return; // a static body or a hostile command: a documented no-op
     }
     if (world->recorder.journalActive != 0)
     {
@@ -436,10 +453,11 @@ static M3_NOINLINE void BodySetAngularVelocityWorker(m3World* world, m3BodyId bo
     {
         return; // stale or foreign id: contract, not invariant
     }
-    if (m3BodySpinCheck(velocity) != m3_success)
+    if (world->bodies.types[index] == (uint8_t)m3_staticBody ||
+        m3BodySpinCheck(world->bodies.types[index], velocity) != m3_success)
     {
         m3Refuse(world, m3_errorInvalid);
-        return; // hostile command: a documented no-op, never poison
+        return; // a static body or a hostile command: a documented no-op
     }
     if (world->recorder.journalActive != 0)
     {

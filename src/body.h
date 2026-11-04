@@ -18,7 +18,7 @@ bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
 bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
 bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
 m3Result m3BodyVelocityCheck(uint8_t type, m3Vec3 velocity);
-m3Result m3BodySpinCheck(m3Vec3 velocity);
+m3Result m3BodySpinCheck(uint8_t type, m3Vec3 velocity);
 
 // The checks the body setters and replay share (src/body.c): a pose
 // within M3_POSITION_LIMIT with a near-unit rotation, a servo target within reach of a kinematic

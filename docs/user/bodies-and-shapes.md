@@ -29,7 +29,7 @@ if (result == m3_success)
 }
 ```
 
-A body is **static** (never moves), **kinematic** (moves at the
+A body is **static** (never moves, and takes no velocity), **kinematic** (moves at the
 velocity it is given and pushes dynamic bodies without being pushed)
 or **dynamic** (moved by forces, contacts and joints). The default def
 is a static body at the origin.
@@ -38,7 +38,7 @@ is a static body at the origin.
 |---|---|---|
 | `type` | static | `m3_staticBody`, `m3_kinematicBody` or `m3_dynamicBody`. |
 | `position`, `rotation` | the origin, identity | The pose. The rotation must be near unit length. |
-| `linearVelocity`, `angularVelocity` | zero | Within 1e5, or 1e10 m/s for a kinematic body's linear velocity. |
+| `linearVelocity`, `angularVelocity` | zero | Within 1e5, or 1e10 m/s for a kinematic body's linear velocity. A static body's are zero: create refuses any other, and the velocity setters refuse a static body. |
 | `gravityScale` | 1 | The share of world gravity the body feels. |
 | `linearDamping`, `angularDamping` | 0 | Per-second slowing. |
 | `enableBullet` | false | Continuous collision against moving bodies too. |

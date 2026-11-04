@@ -80,9 +80,10 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || m3BodyVelocityCheck(world->bodies.types[index], record.v) != m3_success)
+    if (index < 0 || world->bodies.types[index] == (uint8_t)m3_staticBody ||
+        m3BodyVelocityCheck(world->bodies.types[index], record.v) != m3_success)
     {
-        return false; // hostile bytes fail loudly
+        return false; // hostile bytes fail loudly; the call refuses a static body
     }
     m3SetLinearVelocityInternal(world, index, record.v);
     return true;
@@ -99,9 +100,10 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
     }
     memcpy(&record, payload, sizeof(record));
     int32_t index = m3BodySlot(world, record.id);
-    if (index < 0 || m3BodySpinCheck(record.v) != m3_success)
+    if (index < 0 || world->bodies.types[index] == (uint8_t)m3_staticBody ||
+        m3BodySpinCheck(world->bodies.types[index], record.v) != m3_success)
     {
-        return false; // hostile bytes fail loudly
+        return false; // hostile bytes fail loudly; the call refuses a static body
     }
     m3SetAngularVelocityInternal(world, index, record.v);
     return true;

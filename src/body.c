@@ -49,7 +49,7 @@ int32_t m3CreateBodyInternal(m3World* world, const m3BodyDef* def)
                                    m3SleepThresholdValid(def->sleepThreshold));
     result = m3BothChecks(result, m3CheckPosition(def->position));
     result = m3BothChecks(result, m3BodyVelocityCheck((uint8_t)def->type, def->linearVelocity));
-    result = m3BothChecks(result, m3BodySpinCheck(def->angularVelocity));
+    result = m3BothChecks(result, m3BodySpinCheck((uint8_t)def->type, def->angularVelocity));
     result = m3BothChecks(result, m3BodyParamCheck(m3_bodyParamGravityScale, def->gravityScale));
     if (result != m3_success)
     {
