@@ -16,6 +16,7 @@
 - [Water volumes](user/water.md): buoyancy and drag.
 - [Limits and capacities](user/limits.md): every magnitude limit and capacity.
 - [Samples](user/samples.md): small complete programs.
+- [Bindings](user/bindings.md): the C# binding and the Godot starter kit.
 - [The API reference](https://rawframe-project.github.io/maul3d/api.html): every public function, generated from the headers.
 
 ## How it works

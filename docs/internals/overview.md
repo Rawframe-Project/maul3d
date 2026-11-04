@@ -26,7 +26,7 @@ The structs the library fills for the program to read follow one more rule:
 ### The bindings
 
 - **C#.** `bindings/csharp/Maul3D.cs` ships with every release and mirrors the C API: the same names in C# case, the same struct layouts, the same results. It is under the same promise as the headers. It binds a part of the API and grows only when the C API does, by the same additive rules; a name it binds is never removed or renamed in 1.x. `tools/check_bindings.py` checks it against the headers, its `AbiVersion` included.
-- **Godot.** `bindings/godot/` is a starter kit for a GDExtension. It follows Godot's own versions, which this project does not control, so it is outside the promise: a release may change it in any way, and its README says what it covers.
+- **Godot.** `bindings/godot/` is a starter kit for a GDExtension. It follows Godot's own versions, which this project does not control, so it is outside the promise: a release may change it in any way, and [bindings](../user/bindings.md) says what it covers.
 
 ## Ids and misuse
 
