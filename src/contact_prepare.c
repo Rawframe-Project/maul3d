@@ -305,6 +305,9 @@ static void PrepareConstraint(const m3World* world, m3ContactConstraint* c, int3
     c->bodyA = world->shapes.shapeBody[shapeA];
     c->bodyB = world->shapes.shapeBody[shapeB];
     c->manifoldIndex = pair;
+    // Prepare skips an empty manifold, and restore keeps every count
+    // within the manifold: the rows below share the push among the points.
+    M3_ASSERT(manifold->pointCount >= 1 && manifold->pointCount <= M3_MANIFOLD_MAX_POINTS);
     c->pointCount = manifold->pointCount;
     c->normal = manifold->normal;
     m3MakeTangentBasis(c->normal, &c->t1, &c->t2);
