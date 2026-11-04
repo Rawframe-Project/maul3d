@@ -12,6 +12,13 @@
 #include <stdio.h>
 #include <string.h>
 
+// The suites build as C23, where every compiler the family takes has
+// [[nodiscard]], so M3_NODISCARD expands to it and a dropped status
+// warns (GCC 14 reports its C23 as 202000L).
+#define TEXT(x)     #x
+#define EXPANDED(x) TEXT(x)
+static_assert(sizeof(EXPANDED(M3_NODISCARD)) > 1, "M3_NODISCARD is the attribute in C23");
+
 static void TestVersion(void)
 {
     m3Version v = m3GetVersion();
