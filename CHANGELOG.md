@@ -7,6 +7,14 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.3](https://github.com/Rawframe-Project/maul3d/compare/v1.0.2...v1.0.3) (2026-11-04)
+
+
+### Fixed
+
+* **snapshot:** restore refuses a dynamic body that sleeps while moving ([#380](https://github.com/Rawframe-Project/maul3d/issues/380)) ([b924a83](https://github.com/Rawframe-Project/maul3d/commit/b924a83100c5496d94cc4901f35fcf6726f493b9)), closes [#379](https://github.com/Rawframe-Project/maul3d/issues/379)
+* **snapshot:** restore refuses a static or kinematic body that sleeps ([#392](https://github.com/Rawframe-Project/maul3d/issues/392)) ([1d7d671](https://github.com/Rawframe-Project/maul3d/commit/1d7d671021d366d4710153cd2cac0d217f9f7a71)), closes [#381](https://github.com/Rawframe-Project/maul3d/issues/381)
+
 ## [1.0.2](https://github.com/Rawframe-Project/maul3d/compare/v1.0.1...v1.0.2) (2026-11-03)
 
 ### Fixed
