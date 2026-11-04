@@ -18,6 +18,9 @@ bool m3ResolveBody(const m3World* world, m3BodyId body, int32_t* indexOut);
 
 void m3SetAwakeInternal(m3World* world, int32_t index, int awake);
 
+// Clears a body's force and torque when it stops moving.
+void m3DropForcesInternal(m3World* world, int32_t index);
+
 // Whether bytes can be a body's name text: well-formed UTF-8 with no zero
 // byte, whatever their length. The setter, journal replay and restore
 // share it, so each stored name reads back as valid UTF-8.

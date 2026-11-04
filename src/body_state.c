@@ -30,6 +30,15 @@ bool m3ResolveBody(const m3World* world, m3BodyId body, int32_t* indexOut)
     return true;
 }
 
+// The step clears the force and torque of every body it moves. A body
+// that stops moving before the step drops them here, so a force never
+// waits for a later step.
+void m3DropForcesInternal(m3World* world, int32_t index)
+{
+    world->bodies.bodyForce[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+    world->bodies.bodyTorque[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+}
+
 void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
 {
     if (awake)
@@ -42,6 +51,7 @@ void m3SetAwakeInternal(m3World* world, int32_t index, int awake)
         world->bodies.awake[index] = 0;
         world->bodies.linearVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
         world->bodies.angularVelocities[index] = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3DropForcesInternal(world, index); // a sleeping body is not moved
         // Every freeze, API-forced ones included, records its
         // cold pairs or the frozen buffer stops being a pure
         // function of the sleeping state.
