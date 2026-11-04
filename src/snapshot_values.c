@@ -20,12 +20,13 @@
 
 // --- Bodies and shape geometry --------------------------------------------
 
-// A live body's locks are the six axis bits and the fast rotation bit,
-// and a sleeping dynamic body is at rest, its velocities +0.0: every way
-// a body falls asleep stores that constant, every velocity a caller sets
-// wakes it, and a sleeping dynamic body is neither a mover nor in a
-// constraint, so no step writes to it. A kinematic body moves asleep or
-// awake, so the rule leaves it out.
+// A live body's locks are the six axis bits and the fast rotation bit.
+// Only a dynamic body sleeps: create and every type change wake a body,
+// and the island pass and m3Body_SetAwake, the only writers that clear
+// the flag, take dynamic bodies alone. A sleeping one is at rest, its
+// velocities +0.0: every way a body falls asleep stores that constant,
+// every velocity a caller sets wakes it, and a sleeping dynamic body is
+// neither a mover nor in a constraint, so no step writes to it.
 // Whether the incoming vector at is +0.0 in every component: its bits
 // are all zero.
 _Static_assert(sizeof(m3Vec3) == 3 * sizeof(uint32_t), "a vector is three 32-bit floats");
@@ -55,8 +56,8 @@ static bool BodiesValid(const m3Incoming* inc)
             return false;
         }
         size_t at = (size_t)b * sizeof(m3Vec3);
-        if (types[b] == (uint8_t)m3_dynamicBody && awake[b] == 0 &&
-            (!AtRest(linear + at) || !AtRest(angular + at)))
+        if (awake[b] == 0 &&
+            (types[b] != (uint8_t)m3_dynamicBody || !AtRest(linear + at) || !AtRest(angular + at)))
         {
             return false;
         }
