@@ -807,6 +807,25 @@ static double TriangleDistance(const double p[3], const double t[3][3])
     return best;
 }
 
+// An anchor one past the particles is refused while the table has room,
+// and the world steps on without it.
+static void TestAnchorPastParticles(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId post = NewBody(world, &bd);
+    m3SoftBodyDef sd = m3DefaultSoftBodyDef();
+    m3SoftBodyId cube = NewSoftBody(world, &sd);
+    int32_t count = m3SoftBody_GetParticleCount(world, cube);
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorParticle(world, cube, count, post) == m3_errorInvalid,
+                        "an anchor one past the particles is m3_errorInvalid"),
+                  "it counts one misuse");
+    CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps on");
+    m3DestroyWorld(world);
+}
+
 static void TestThinTriangles(void)
 {
     // A particle closer than its radius to a mesh triangle is pushed out
@@ -898,6 +917,7 @@ int main(void)
     TestBindTether();
     TestRestoreKeepsPoolCursors();
     TestAnchorTableLimits();
+    TestAnchorPastParticles();
     TestThinTriangles();
     if (s_failures == 0)
     {

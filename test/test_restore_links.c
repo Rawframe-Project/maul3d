@@ -313,6 +313,63 @@ static void EdgePastParticles(const Scene* scene, uint8_t* snap)
            &past, sizeof(past));
 }
 
+// The slot of the scene's tet body, the soft body that has tets.
+static int32_t TetSlot(const m3World* world)
+{
+    for (int32_t s = 0; s < world->softBodies.softPool.capacity; ++s)
+    {
+        if (world->softBodies.softPool.alive[s] != 0 && world->softBodies.softTetCount[s] > 0)
+        {
+            return s;
+        }
+    }
+    CHECK(false, "the scene holds a tet body");
+    return 0;
+}
+
+static void TetCornerPastParticles(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = TetSlot(world);
+    uint16_t past = (uint16_t)world->softBodies.softParticleCount[slot];
+    memcpy(
+        At(world, snap, FIELD(softBodies.softTetD), sizeof(uint16_t), slot * M3_MAX_SOFTBODY_TETS),
+        &past, sizeof(past));
+}
+
+static void AnchorPastParticles(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->softBodies.softPool.alive, world->softBodies.softPool.capacity);
+    PutI32(I32_AT(softBodies.softAnchorCount, slot), 1);
+    PutI32(I32_AT(softBodies.softAnchorParticle, slot * M3_MAX_SOFTBODY_ANCHORS),
+           world->softBodies.softParticleCount[slot]);
+}
+
+static void SoftAnchorPastParticles(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->softBodies.softPool.alive, world->softBodies.softPool.capacity);
+    int32_t other = TetSlot(world);
+    CHECK(other != slot, "two soft bodies to anchor");
+    int32_t k = slot * M3_MAX_SOFTBODY_ANCHORS;
+    PutI32(I32_AT(softBodies.softSoftCount, slot), 1);
+    PutI32(I32_AT(softBodies.softSoftParticleA, k), world->softBodies.softParticleCount[slot]);
+    PutI32(I32_AT(softBodies.softSoftSlotB, k), other);
+    PutI32(At(world, snap, FIELD(softBodies.softSoftGenB), sizeof(uint32_t), k),
+           (int32_t)world->softBodies.softPool.generations[other]);
+    PutI32(I32_AT(softBodies.softSoftParticleB, k), 0);
+}
+
+static void VoxelCountOff(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->voxels.voxelPool.alive, world->voxels.voxelPool.capacity);
+    uint8_t* count = At(world, snap, FIELD(voxels.voxelData), sizeof(m3VoxelChunkData), slot) +
+                     offsetof(m3VoxelChunkData, filledCount);
+    PutI32(count, GetI32(count) + 1);
+}
+
 static void LatticeOverflowing(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -372,6 +429,10 @@ static const Case s_cases[] = {
     {"a vehicle on a dead chassis", VehicleOnDeadChassis},
     {"a vehicle on a chassis of another generation", VehicleOnStaleChassis},
     {"a soft edge past the particles", EdgePastParticles},
+    {"a tet corner past the particles", TetCornerPastParticles},
+    {"a body anchor past the particles", AnchorPastParticles},
+    {"a soft anchor past the particles", SoftAnchorPastParticles},
+    {"a voxel chunk whose filled count is one off", VoxelCountOff},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},

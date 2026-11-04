@@ -137,6 +137,12 @@ void m3SoftSoftAnchors(m3World* world)
             {
                 continue;
             }
+            // The anchor call checks both particles against their bodies'
+            // counts, and restore refuses one that is not below it.
+            M3_ASSERT(sb->softSoftParticleA[ak] >= 0 &&
+                      sb->softSoftParticleA[ak] < sb->softParticleCount[sa] &&
+                      sb->softSoftParticleB[ak] >= 0 &&
+                      sb->softSoftParticleB[ak] < sb->softParticleCount[other]);
             int32_t ka = sa * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleA[ak];
             int32_t kb = other * M3_MAX_SOFTBODY_PARTICLES + sb->softSoftParticleB[ak];
             float wa = sb->softInvMass[ka];
