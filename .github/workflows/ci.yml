@@ -229,11 +229,13 @@ jobs:
       # restored or fresh emsdk carries new mtimes, so ccache knows the
       # compiler by its version output instead.
       # The links take most of this build, so a pull request and a push to
-      # main link the plain unit tests lower (docs/operations/checks.md);
-      # the nightly and dispatched runs link every test at the full level.
+      # main link the plain unit tests lower (docs/operations/checks.md).
+      # The release pull request, whose required job is the release gate,
+      # and the nightly and dispatched runs link every test at the full
+      # level.
       - name: Build
         env:
-          WEB_UNIT_LINK: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'ON' || 'OFF' }}
+          WEB_UNIT_LINK: ${{ ((github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release-please--')) || github.event_name == 'push') && 'ON' || 'OFF' }}
         run: |
           command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
