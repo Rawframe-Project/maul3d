@@ -105,6 +105,12 @@ static void JointListCycle(const Scene* scene, uint8_t* snap)
     PutI32(At(world, snap, next, sizeof(int32_t), joint), joint);
 }
 
+static void JointOnBodyPastPool(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    PutI32(I32_AT(joints.jointBodyB, world->joints.bodyJointHead[scene->ball]), INT32_MAX);
+}
+
 static void JointOnOneBody(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -344,6 +350,7 @@ static const Case s_cases[] = {
     {"a box that names a mesh", BoxNamesMesh},
     {"a shape list that loops", ShapeListCycle},
     {"a joint list that loops", JointListCycle},
+    {"a joint on a body past the pool", JointOnBodyPastPool},
     {"a joint between a body and itself", JointOnOneBody},
     {"a tree leaf inside out", LeafInsideOut},
     {"a proxy on another shape's leaf", ProxyOnAnotherLeaf},
