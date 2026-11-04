@@ -7,6 +7,43 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.4](https://github.com/Rawframe-Project/maul3d/compare/v1.0.3...v1.0.4) (2026-11-04)
+
+### Fixed
+
+- **A static body takes no velocity.** A static body never moves, but
+  `m3CreateBody` used to store a static def's velocities, and
+  `m3Body_SetLinearVelocity` and `m3Body_SetAngularVelocity` took a
+  static body. The body stayed where it was, but contacts read its
+  velocity and carried whatever touched it. Create now refuses a static
+  def whose velocity or spin is not zero (a negative zero counts as
+  zero) with `m3_errorInvalid`. The two setters refuse a static body,
+  whatever the value, and count one misuse. A journal replay refuses
+  the same calls, so a 1.0.x tape that gives a static body a velocity no
+  longer replays, and `m3World_Restore` refuses a 1.0.x snapshot in
+  which a static body moves, with `m3_errorFormat`. Results change only
+  for a host that gave a static body a velocity or called a velocity
+  setter on one. A shape's `surfaceVelocity` is the way to make a
+  conveyor.
+  ([#393](https://github.com/Rawframe-Project/maul3d/pull/393))
+- **A force never waits for a later step.** A force or torque acts over
+  the next step and then clears, but a body that stopped moving before
+  that step used to keep it, and the force acted in full whenever the
+  body moved again. Such a body was turned static, put to sleep, or
+  disabled, and a force applied to a disabled body waited the same
+  way. Now `m3Body_ApplyForce`, `m3Body_ApplyTorque` and
+  `m3Body_ApplyForceAtPoint` refuse a disabled body as misuse, and so
+  does their replay. A body that stops moving drops the force and
+  torque it held, so it moves on from rest. `m3World_Restore` refuses,
+  with `m3_errorFormat`, a snapshot that holds a force or torque on a
+  body that is not an awake, enabled dynamic body. Besides a stuck
+  force, that refuses a 1.0.3 snapshot taken after a body with a
+  pending force turned kinematic and before the next step, which
+  cleared it. Impulses are unchanged. The step is not changed: a 1.0.3
+  snapshot that holds neither state nor a moving static body steps to
+  the same bits, so 1.0.4 restores it.
+  ([#396](https://github.com/Rawframe-Project/maul3d/pull/396))
+
 ## [1.0.3](https://github.com/Rawframe-Project/maul3d/compare/v1.0.2...v1.0.3) (2026-11-04)
 
 ### Fixed
