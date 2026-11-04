@@ -139,11 +139,12 @@ vehicle, a playable character, cloth in gusting wind and a
 heightfield, with a recording panel that seals the session into an
 M3RP replay and verifies it. Hold R and time runs backward.
 
-[`bindings/`](bindings/) holds the C# binding (one P/Invoke file),
-which keeps the same 1.x promise as the C headers, and a Godot starter
-kit (a GDExtension node), which follows Godot's versions and is outside
-it. CI checks both against the C API: every function they call, and
-every struct the C# side mirrors, field by field.
+`bindings/` holds the C# binding (one P/Invoke file), which keeps the
+same 1.x promise as the C headers, and a Godot starter kit (a
+GDExtension node), which follows Godot's versions and is outside it.
+CI checks both against the C API: every function they call, and every
+struct the C# side mirrors, field by field. [Bindings](docs/user/bindings.md)
+says how to build and use them.
 
 ## Determinism
 
