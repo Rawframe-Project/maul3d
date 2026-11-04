@@ -149,11 +149,131 @@ static void TestForceContracts(void)
     m3DestroyWorld(world);
 }
 
+typedef enum Stop
+{
+    stop_static,
+    stop_kinematic,
+    stop_sleep,
+    stop_disable,
+} Stop;
+
+static void StopMoving(m3World* world, m3BodyId body, Stop stop, bool stopped)
+{
+    if (stop == stop_static || stop == stop_kinematic)
+    {
+        m3BodyType type = stop == stop_static ? m3_staticBody : m3_kinematicBody;
+        CHECK(m3Body_SetType(world, body, stopped ? type : m3_dynamicBody) == m3_success,
+              "the type changes");
+    }
+    else if (stop == stop_sleep)
+    {
+        m3Body_SetAwake(world, body, !stopped);
+    }
+    else
+    {
+        m3Body_Enable(world, body, !stopped);
+    }
+}
+
+// A force acts over the next step or not at all: a body that stops moving
+// before that step drops it, and moves again from rest, however many
+// steps later.
+static void TestStoppedBodyDropsItsForce(void)
+{
+    static const char* const names[] = {
+        "a body turned static drops its force",
+        "a body turned kinematic drops its force",
+        "a body put to sleep drops its force",
+        "a disabled body drops its force",
+    };
+    for (int32_t stop = stop_static; stop <= stop_disable; ++stop)
+    {
+        m3World* world = FreeSpace();
+        m3BodyId cube = UnitCube(world, (m3Pos3){0.0, 0.0, 0.0});
+        m3Body_ApplyForce(world, cube, (m3Vec3){600.0f, 0.0f, 0.0f});
+        m3Body_ApplyTorque(world, cube, (m3Vec3){0.0f, 60.0f, 0.0f});
+        StopMoving(world, cube, (Stop)stop, true);
+        for (int32_t i = 0; i < 3; ++i)
+        {
+            (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        }
+        StopMoving(world, cube, (Stop)stop, false);
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+        m3Vec3 v = m3Body_GetLinearVelocity(world, cube);
+        m3Vec3 w = m3Body_GetAngularVelocity(world, cube);
+        CHECK(v.x == 0.0f && w.y == 0.0f, names[stop]);
+        m3DestroyWorld(world);
+    }
+}
+
+// A disabled body takes no force or torque, live or on replay: the step
+// does not move it, so nothing would act over the next step.
+static void TestDisabledBodyTakesNoForce(void)
+{
+    m3World* world = FreeSpace();
+    static uint8_t tape[4096];
+    CHECK(StartJournal(world, tape, (int64_t)sizeof(tape)), "the tape opens");
+    m3BodyId off = UnitCube(world, (m3Pos3){0.0, 0.0, 0.0});
+    m3BodyId on = UnitCube(world, (m3Pos3){3.0, 0.0, 0.0});
+    m3Body_Enable(world, off, false);
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
+    uint64_t hash = m3World_Hash(world);
+    m3Body_ApplyForce(world, off, (m3Vec3){1.0f, 0.0f, 0.0f});
+    m3Body_ApplyTorque(world, off, (m3Vec3){1.0f, 0.0f, 0.0f});
+    m3Body_ApplyForceAtPoint(world, off, (m3Vec3){1.0f, 0.0f, 0.0f}, (m3Pos3){0.0, 1.0, 0.0});
+    CHECK(m3World_GetCounters(world).misuseCount == misuse + 3 && m3World_Hash(world) == hash,
+          "each apply call refuses the disabled body as misuse");
+    m3Body_ApplyLinearImpulse(world, off, (m3Vec3){1.0f, 0.0f, 0.0f});
+    CHECK(m3Body_GetLinearVelocity(world, off).x == 1.0f, "an impulse still lands at once");
+
+    // Each call recorded on the enabled body, pointed at the disabled one,
+    // is refused on replay as the call refuses it.
+    static const float marks[] = {123.25f, 234.5f, 345.75f};
+    m3Body_ApplyForce(world, on, (m3Vec3){marks[0], 0.0f, 0.0f});
+    m3Body_ApplyTorque(world, on, (m3Vec3){marks[1], 0.0f, 0.0f});
+    m3Body_ApplyForceAtPoint(world, on, (m3Vec3){marks[2], 0.0f, 0.0f}, (m3Pos3){3.0, 1.0, 0.0});
+    int64_t bytes = StopJournal(world);
+    m3World* twin = FreeSpace();
+    CHECK(ReplayJournal(twin, tape, bytes), "the tape replays");
+    m3DestroyWorld(twin);
+    static const char* const names[] = {
+        "a replayed force on the disabled body is refused",
+        "a replayed torque on the disabled body is refused",
+        "a replayed force at a point on the disabled body is refused",
+    };
+    static uint8_t forged[4096];
+    for (int32_t c = 0; c < 3; ++c)
+    {
+        int64_t at = -1;
+        for (int64_t i = 16 + (int64_t)sizeof(m3BodyId); i + 4 <= bytes && at < 0; ++i)
+        {
+            at = memcmp(tape + i, &marks[c], sizeof(float)) == 0 ? i : -1;
+        }
+        CHECK(at > 0, "the call is on the tape");
+        if (at < 0)
+        {
+            continue;
+        }
+        m3BodyId named;
+        memcpy(&named, tape + at - (int64_t)sizeof(named), sizeof(named));
+        CHECK(named.index1 == on.index1 && named.generation == on.generation,
+              "and names the enabled body");
+        memcpy(forged, tape, (size_t)bytes);
+        memcpy(forged + at - (int64_t)sizeof(off), &off, sizeof(off));
+        twin = FreeSpace();
+        CHECK(!ReplayJournal(twin, forged, bytes), names[c]);
+        m3DestroyWorld(twin);
+    }
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestForceAndTorqueBooks();
     TestImpulseBooks();
     TestForceContracts();
+    TestStoppedBodyDropsItsForce();
+    TestDisabledBodyTakesNoForce();
     if (s_failures == 0)
     {
         printf("test_force: all green\n");

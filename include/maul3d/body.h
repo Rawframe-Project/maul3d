@@ -519,7 +519,8 @@ extern "C"
 
     /// Switch dynamic, kinematic, static at runtime. Mass rebuilds
     /// from shapes when turning dynamic; velocities zero when
-    /// turning static; the neighborhood wakes. Journaled. Returns
+    /// turning static; a pending force and torque drop when turning
+    /// static or kinematic; the neighborhood wakes. Journaled. Returns
     /// m3_success; m3_errorLimit when a joint on the body would pass
     /// its lever ratio at the new type's mass, when the body would turn
     /// dynamic with a shape below the mass floors or a total mass past
@@ -540,7 +541,8 @@ extern "C"
     M3_NODISCARD M3_API m3Result m3Body_SetType(m3World* world, m3BodyId body, m3BodyType type);
 
     /// A disabled body vanishes from simulation AND queries without
-    /// being destroyed; enabling wakes its neighborhood. Journaled.
+    /// being destroyed, and drops a pending force and torque; enabling
+    /// wakes its neighborhood. Journaled.
     /// A stale or null id, a refused value, or a call from host code the
     /// world is running changes nothing, is not journaled and counts one
     /// misuse.
@@ -735,8 +737,9 @@ extern "C"
     M3_API bool m3Body_IsAwake(const m3World* world, m3BodyId body);
 
     /// SetAwake(true) wakes; SetAwake(false) puts the single body
-    /// to sleep and zeroes its velocities. Journaled. Only a dynamic body
-    /// takes it: another type is refused.
+    /// to sleep, zeroes its velocities and drops a pending force and
+    /// torque. Journaled. Only a dynamic body takes it: another type is
+    /// refused.
     /// A stale or null id, a refused value, or a call from host code the
     /// world is running changes nothing, is not journaled and counts one
     /// misuse.
@@ -751,7 +754,10 @@ extern "C"
     // Forces and impulses, journaled like every mutation. Forces and
     // torques ACCUMULATE and act over the next step, then clear; impulses
     // change velocity immediately. Only dynamic bodies respond: static
-    // and kinematic targets are refused. The force and torque held over
+    // and kinematic targets are refused, and a force or torque on a
+    // disabled body too, since the step does not move it. A body that
+    // stops moving before the step (turned static or kinematic, put to
+    // sleep or disabled) drops what it held. The force and torque held over
     // a step stay within 1e20 on every axis, and an impulse may leave the
     // body at most 1e5 m/s or rad/s on every axis; a call past either is
     // refused whole, before anything changes. A nonzero application wakes
@@ -759,7 +765,8 @@ extern "C"
     // the matching angular part.
 
     /// Adds a force at the center of mass for the next step. Journaled.
-    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// Only an enabled dynamic body takes it: a static, kinematic or
+    /// disabled target is refused.
     /// The force and torque the body holds for the step stay within 1e20 on
     /// every axis: a call that would pass that, or a force that is not
     /// finite, is refused whole.
@@ -775,7 +782,8 @@ extern "C"
     M3_API void m3Body_ApplyForce(m3World* world, m3BodyId body, m3Vec3 force);
 
     /// Adds a torque for the next step. Journaled.
-    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// Only an enabled dynamic body takes it: a static, kinematic or
+    /// disabled target is refused.
     /// The torque the body holds for the step stays within 1e20 on every
     /// axis: a call that would pass that, or a torque that is not finite,
     /// is refused whole.
@@ -824,7 +832,8 @@ extern "C"
 
     /// Adds a force at a world point for the next step, with the torque
     /// its arm gives. Journaled.
-    /// Only a dynamic body takes it: a static or kinematic target is refused.
+    /// Only an enabled dynamic body takes it: a static, kinematic or
+    /// disabled target is refused.
     /// The force and torque the body holds for the step stay within 1e20 on
     /// every axis: a call that would pass that, or a force that is not
     /// finite, is refused whole.

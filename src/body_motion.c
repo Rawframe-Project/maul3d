@@ -73,15 +73,22 @@ static m3Vec3 ForceArm(const m3World* world, int32_t index, m3Pos3 point)
 // velocities an impulse leaves stay within M3_SPEED_LIMIT. Each computes
 // what its internal above writes, so the public calls and replay refuse
 // exactly what would not fit. NaN fails every comparison.
+// A force acts over the next step, so it lands only on a body that step
+// moves: a disabled body vanishes from the step, and refuses one.
+static bool ForceHolderValid(const m3World* world, int32_t index)
+{
+    return ForceTargetValid(world, index) && world->bodies.bodyEnabled[index] != 0;
+}
+
 bool m3ForceFits(const m3World* world, int32_t index, m3Vec3 force)
 {
-    return ForceTargetValid(world, index) &&
+    return ForceHolderValid(world, index) &&
            m3WithinV3(m3Add3(world->bodies.bodyForce[index], force), M3_FORCE_LIMIT);
 }
 
 bool m3TorqueFits(const m3World* world, int32_t index, m3Vec3 torque)
 {
-    return ForceTargetValid(world, index) &&
+    return ForceHolderValid(world, index) &&
            m3WithinV3(m3Add3(world->bodies.bodyTorque[index], torque), M3_FORCE_LIMIT);
 }
 

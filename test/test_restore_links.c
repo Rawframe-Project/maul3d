@@ -218,6 +218,37 @@ static void KinematicSleeps(const Scene* scene, uint8_t* snap)
     *At(world, snap, FIELD(bodies.awake), 1, kinematic) = 0;
 }
 
+// Only a body the step moves holds a force or torque: the apply calls
+// take an enabled dynamic body, and a body that stops moving drops them.
+static void PutForce(const Scene* scene, uint8_t* snap, size_t field, int32_t body)
+{
+    m3Vec3 push = {1.0f, 0.0f, 0.0f};
+    memcpy(At(scene->world, snap, field, sizeof(m3Vec3), body), &push, sizeof(push));
+}
+
+static void GroundHoldsForce(const Scene* scene, uint8_t* snap)
+{
+    PutForce(scene, snap, FIELD(bodies.bodyForce), scene->ground);
+}
+
+static void SleepingCrateHoldsForce(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    *At(world, snap, FIELD(bodies.awake), 1, scene->crate) = 0;
+    m3Vec3 rest = {0.0f, 0.0f, 0.0f};
+    memcpy(At(world, snap, FIELD(bodies.linearVelocities), sizeof(m3Vec3), scene->crate), &rest,
+           sizeof(rest));
+    memcpy(At(world, snap, FIELD(bodies.angularVelocities), sizeof(m3Vec3), scene->crate), &rest,
+           sizeof(rest));
+    PutForce(scene, snap, FIELD(bodies.bodyForce), scene->crate);
+}
+
+static void DisabledCrateHoldsTorque(const Scene* scene, uint8_t* snap)
+{
+    *At(scene->world, snap, FIELD(bodies.bodyEnabled), 1, scene->crate) = 0;
+    PutForce(scene, snap, FIELD(bodies.bodyTorque), scene->crate);
+}
+
 // A static body never moves: create, the setters and a type change keep
 // its velocities zero.
 static void GroundMoves(const Scene* scene, uint8_t* snap)
@@ -457,6 +488,9 @@ static const Case s_cases[] = {
     {"a kinematic body that sleeps", KinematicSleeps},
     {"a static body that moves", GroundMoves},
     {"a static body that spins", GroundSpins},
+    {"a static body that holds a force", GroundHoldsForce},
+    {"a sleeping body that holds a force", SleepingCrateHoldsForce},
+    {"a disabled body that holds a torque", DisabledCrateHoldsTorque},
     {"a ball below the mass floor", BallBelowMassFloor},
     {"a box below the mass floor", BoxBelowMassFloor},
     {"a contact impulse that is not a number", ContactImpulseNotFinite},

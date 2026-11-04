@@ -297,6 +297,10 @@ void m3SetTypeInternal(m3World* world, int32_t index, uint8_t type)
     m3WakeRegionAabb(world, lo, hi);
     world->bodies.types[index] = type;
     world->bodies.bodyHasTarget[index] = 0; // a type change cancels a pending target
+    if (type != (uint8_t)m3_dynamicBody)
+    {
+        m3DropForcesInternal(world, index); // only a dynamic body takes one
+    }
     for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
         if (world->broadphase.proxyIds[s] != M3_TREE_NULL)
@@ -334,6 +338,10 @@ void m3SetEnabledInternal(m3World* world, int32_t index, int enabled)
     {
         world->bodies.awake[index] = 1;
         world->bodies.sleepTimes[index] = 0.0f;
+    }
+    else
+    {
+        m3DropForcesInternal(world, index); // the step no longer moves it
     }
 }
 

@@ -27,6 +27,10 @@
 // velocities +0.0: every way a body falls asleep stores that constant,
 // every velocity a caller sets wakes it, and a sleeping dynamic body is
 // neither a mover nor in a constraint, so no step writes to it.
+// Only a body the step moves holds a force or torque: the apply calls
+// take an enabled dynamic body and wake it, the step clears what it
+// applied, and a body that stops moving drops them, so any other body's
+// are +0.0.
 // Whether the incoming vector at is +0.0 in every component: its bits
 // are all zero.
 _Static_assert(sizeof(m3Vec3) == 3 * sizeof(uint32_t), "a vector is three 32-bit floats");
@@ -45,6 +49,9 @@ static bool BodiesValid(const m3Incoming* inc)
     const uint8_t* awake = m3InField(inc, offsetof(m3World, bodies.awake));
     const uint8_t* linear = m3InField(inc, offsetof(m3World, bodies.linearVelocities));
     const uint8_t* angular = m3InField(inc, offsetof(m3World, bodies.angularVelocities));
+    const uint8_t* enabled = m3InField(inc, offsetof(m3World, bodies.bodyEnabled));
+    const uint8_t* forces = m3InField(inc, offsetof(m3World, bodies.bodyForce));
+    const uint8_t* torques = m3InField(inc, offsetof(m3World, bodies.bodyTorque));
     for (int32_t b = 0; b < inc->world->bodies.bodyPool.capacity; ++b)
     {
         if (alive[b] == 0)
@@ -58,6 +65,11 @@ static bool BodiesValid(const m3Incoming* inc)
         size_t at = (size_t)b * sizeof(m3Vec3);
         if (awake[b] == 0 &&
             (types[b] != (uint8_t)m3_dynamicBody || !AtRest(linear + at) || !AtRest(angular + at)))
+        {
+            return false;
+        }
+        bool moved = types[b] == (uint8_t)m3_dynamicBody && awake[b] != 0 && enabled[b] != 0;
+        if (!moved && (!AtRest(forces + at) || !AtRest(torques + at)))
         {
             return false;
         }

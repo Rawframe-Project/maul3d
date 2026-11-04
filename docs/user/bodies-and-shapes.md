@@ -104,7 +104,10 @@ material of its first point.
 
 A point is given in world space; the arm runs from the centre of mass.
 Only dynamic bodies take forces and impulses, and anything that is not
-zero wakes the body. An impulse whose result would pass 1e5 m/s or
+zero wakes the body. A disabled body takes no force or torque, since the
+step does not move it, and a body that stops moving before the step,
+turned static or kinematic, put to sleep or disabled, drops the force
+and torque it held. An impulse whose result would pass 1e5 m/s or
 rad/s is refused.
 
 ## Moving bodies by hand
