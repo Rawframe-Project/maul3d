@@ -198,6 +198,26 @@ static void CrateSleepsSpinning(const Scene* scene, uint8_t* snap)
            &spinning, sizeof(spinning));
 }
 
+// Only a dynamic body sleeps: create and a type change wake every body,
+// and nothing puts another type to sleep.
+static void GroundSleeps(const Scene* scene, uint8_t* snap)
+{
+    *At(scene->world, snap, FIELD(bodies.awake), 1, scene->ground) = 0;
+}
+
+static void KinematicSleeps(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t kinematic = 0;
+    while (kinematic < world->bodies.bodyPool.maxIndex &&
+           world->bodies.types[kinematic] != (uint8_t)m3_kinematicBody)
+    {
+        kinematic += 1;
+    }
+    CHECK(kinematic < world->bodies.bodyPool.maxIndex, "the scene holds a kinematic body");
+    *At(world, snap, FIELD(bodies.awake), 1, kinematic) = 0;
+}
+
 // A density no setter accepts on a dynamic body: the shape weighs less
 // than the mass floor. The box's mass comes from its hull in the tail.
 static void BallBelowMassFloor(const Scene* scene, uint8_t* snap)
@@ -360,6 +380,8 @@ static const Case s_cases[] = {
     {"a lock bit no setter writes", LockBitUnknown},
     {"a sleeping body that moves", CrateSleepsMoving},
     {"a sleeping body whose spin is a negative zero", CrateSleepsSpinning},
+    {"a static body that sleeps", GroundSleeps},
+    {"a kinematic body that sleeps", KinematicSleeps},
     {"a ball below the mass floor", BallBelowMassFloor},
     {"a box below the mass floor", BoxBelowMassFloor},
     {"a contact impulse that is not a number", ContactImpulseNotFinite},
@@ -455,6 +477,29 @@ static void PutCrateToSleep(m3World* world, const FuzzScene* scene)
     CHECK(!m3Body_IsAwake(world, scene->crate), "the crate sleeps");
 }
 
+// A type change wakes the body, so a sleeping crate made kinematic is
+// awake, and a target it then takes writes its velocities at the step.
+static void MakeSleepingCrateKinematic(m3World* world, const FuzzScene* scene)
+{
+    PutCrateToSleep(world, scene);
+    CHECK(m3Body_SetType(world, scene->crate, m3_kinematicBody) == m3_success,
+          "the crate turns kinematic");
+    CHECK(m3Body_IsAwake(world, scene->crate), "and wakes");
+    m3Body_SetAwake(world, scene->crate, false);
+    CHECK(m3Body_IsAwake(world, scene->crate), "a kinematic body refuses to sleep");
+}
+
+static void SteerKinematicCrate(m3World* world, const FuzzScene* scene)
+{
+    MakeSleepingCrateKinematic(world, scene);
+    CHECK(m3Body_SetTargetTransform(world, scene->crate, (m3Pos3){0.0, 3.0, 0.0},
+                                    m3MakeIdentityQuat()) == m3_success,
+          "the crate takes a target");
+    FuzzStep(world, 1);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, scene->crate);
+    CHECK(m3Body_IsAwake(world, scene->crate) && v.y != 0.0f, "and moves to it awake");
+}
+
 typedef struct EngineCase
 {
     const char* name;
@@ -466,6 +511,8 @@ static const EngineCase s_engineCases[] = {
     {"a destroyed shape's slot taken by a new one", DestroyBallAndCreate},
     {"a body teleported away from its pairs", TeleportCrate},
     {"a body put to sleep", PutCrateToSleep},
+    {"a sleeping body made kinematic", MakeSleepingCrateKinematic},
+    {"a kinematic body moving to a target", SteerKinematicCrate},
 };
 
 static void TestRestoreAcceptsWhatTheEngineWrites(void)

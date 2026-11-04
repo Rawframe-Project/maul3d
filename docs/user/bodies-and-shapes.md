@@ -131,7 +131,8 @@ A body at rest falls asleep and costs nothing until something wakes
 it ([determinism](determinism.md#the-step)). `m3Body_EnableSleep`
 keeps one body awake, `m3Body_SetSleepThreshold` changes its resting
 speed, and `m3Body_SetAwake` wakes it or puts it to sleep at once with
-its velocities zeroed.
+its velocities zeroed. Only a dynamic body sleeps: a static or kinematic
+body is always awake, and `m3Body_SetAwake` refuses it.
 
 ## Materials
 
