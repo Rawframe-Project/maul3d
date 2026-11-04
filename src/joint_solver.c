@@ -141,10 +141,20 @@ int32_t m3PrepareJoints(m3World* world, m3JointConstraint* joints, float h)
         {
             continue; // nothing awake to move
         }
+        // The wake pass woke every island jointed to an awake body, so
+        // each dynamic side is awake: the stores below write it.
+        M3_ASSERT(world->bodies.types[world->joints.jointBodyA[j]] != (uint8_t)m3_dynamicBody ||
+                  world->bodies.awake[world->joints.jointBodyA[j]] != 0);
+        M3_ASSERT(world->bodies.types[world->joints.jointBodyB[j]] != (uint8_t)m3_dynamicBody ||
+                  world->bodies.awake[world->joints.jointBodyB[j]] != 0);
         m3JointConstraint* c = &joints[count];
         count += 1;
         m3JointFrame frame;
         PrepareCommon(world, c, j, h, &frame);
+        // Create and restore name only known types, and the filter joint,
+        // whose kind has no rows, was skipped above.
+        M3_ASSERT(c->type < (uint8_t)(sizeof(s_kinds) / sizeof(s_kinds[0])) &&
+                  s_kinds[c->type] != NULL && s_kinds[c->type]->prepare != NULL);
         s_kinds[c->type]->prepare(world, c, &frame);
         HoldWarmStart(c);
     }
