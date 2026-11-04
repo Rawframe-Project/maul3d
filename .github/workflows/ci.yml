@@ -214,10 +214,29 @@ jobs:
           # Pinned like every toolchain: an update announces itself through
           # a red build, not a silent drift of the bits.
           version: 6.0.2
+      - name: Restore ccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-web-${{ github.sha }}
+          restore-keys: ccache-web-
+      # emcc runs its clang through EM_COMPILER_WRAPPER, so ccache sees a
+      # clang call it can cache; the runner image may lack ccache.
       - name: Build
         run: |
+          command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export EM_COMPILER_WRAPPER=ccache
+          ccache --zero-stats >/dev/null
           cmake --preset wasm-node
           cmake --build --preset wasm-node -j 4
+          ccache --show-stats
+      - name: Save ccache
+        if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-web-${{ github.sha }}
       - name: Test
         run: |
           ctest --preset wasm-node --no-tests=error | tee "$RUNNER_TEMP/ctest.log"
@@ -463,18 +482,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore ccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-testbed-${{ github.sha }}
+          restore-keys: ccache-testbed-
       - name: Build
         run: |
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          ccache --zero-stats >/dev/null
           cmake -B out/testbed -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc-14 \
-            -D${PREFIX}_WERROR=ON -D${PREFIX}_BUILD_TESTBED=ON -D${PREFIX}_BUILD_TESTS=OFF
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -D${PREFIX}_WERROR=ON -D${PREFIX}_BUILD_TESTBED=ON \
+            -D${PREFIX}_BUILD_TESTS=OFF
           cmake --build out/testbed --target testbed
+          ccache --show-stats
+      - name: Save ccache
+        if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ccache
+          key: ccache-testbed-${{ github.sha }}
 
   # Main's last job: deletes the cache entries of main a newer save
   # replaced, the per-commit ccache and codeql entries and the per-run
   # corpora, so the 10 GB keeps one entry per cache and GitHub never evicts
   # the corpus fuzz-nightly saved. Skipped on a pull request.
   prune-caches:
-    needs: [build, bench, fuzz, fuzz-nightly]
+    needs: [build, bench, web, fuzz, fuzz-nightly, testbed]
     if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     uses: Rawframe-Project/.github/.github/workflows/cache-prune.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
     permissions:
