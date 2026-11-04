@@ -214,6 +214,10 @@ jobs:
           # Pinned like every toolchain: an update announces itself through
           # a red build, not a silent drift of the bits.
           version: 6.0.2
+          # A download lands in a new temporary folder each run, which
+          # emcc's --sysroot argument names; under the workspace,
+          # CCACHE_BASEDIR turns that path relative, so ccache can hit.
+          actions-cache-folder: .cache/emsdk
       - name: Restore ccache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -221,11 +225,14 @@ jobs:
           key: ccache-web-${{ github.sha }}
           restore-keys: ccache-web-
       # emcc runs its clang through EM_COMPILER_WRAPPER, so ccache sees a
-      # clang call it can cache; the runner image may lack ccache.
+      # clang call it can cache; the runner image may lack ccache. A
+      # restored or fresh emsdk carries new mtimes, so ccache knows the
+      # compiler by its version output instead.
       - name: Build
         run: |
           command -v ccache >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache" CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_COMPILERCHECK="%compiler% --version"
           export EM_COMPILER_WRAPPER=ccache
           ccache --zero-stats >/dev/null
           cmake --preset wasm-node
