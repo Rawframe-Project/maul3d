@@ -197,7 +197,9 @@ void m3IdPoolDestroy(m3Heap* heap, m3IdPool* pool)
 
 // The cursors a pool keeps, which every write and restore preserves: the
 // queue holds dead slots below the high-water mark, the mark is within
-// the capacity, and the head is a ring position.
+// the capacity, and the head is a ring position. Release builds compile
+// the check out, and the helper with it.
+#ifndef NDEBUG
 static bool PoolCursorsHold(const m3IdPool* pool)
 {
     return pool->maxIndex >= 0 && pool->maxIndex <= pool->capacity && pool->freeCount >= 0 &&
@@ -205,10 +207,14 @@ static bool PoolCursorsHold(const m3IdPool* pool)
            pool->freeCount + pool->retiredCount <= pool->maxIndex &&
            (pool->capacity == 0 || (pool->freeHead >= 0 && pool->freeHead < pool->capacity));
 }
+#define ASSERT_POOL_CURSORS(pool) M3_ASSERT(PoolCursorsHold(pool))
+#else
+#define ASSERT_POOL_CURSORS(pool) ((void)(pool))
+#endif
 
 int32_t m3IdPoolAlloc(m3IdPool* pool)
 {
-    M3_ASSERT(PoolCursorsHold(pool));
+    ASSERT_POOL_CURSORS(pool);
     // Recycled slots first, in FIFO order (canonical reuse), then fresh
     // slots up to capacity.
     if (pool->freeCount > 0)
@@ -250,7 +256,7 @@ void m3IdPoolFree(m3IdPool* pool, int32_t index)
     pool->generations[index] += 1;
     pool->freeQueue[(pool->freeHead + pool->freeCount) % pool->capacity] = index;
     pool->freeCount += 1;
-    M3_ASSERT(PoolCursorsHold(pool));
+    ASSERT_POOL_CURSORS(pool);
 }
 
 m3IdPoolMark m3IdPoolMarkNow(const m3IdPool* pool)
