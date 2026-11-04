@@ -166,6 +166,32 @@ static void LockBitUnknown(const Scene* scene, uint8_t* snap)
     *At(world, snap, FIELD(bodies.bodyLocks), 1, scene->crate) = 0x80;
 }
 
+// A sleeping body that still moves or spins: the engine writes zero
+// velocities with every freeze.
+static void CrateSleepsMoving(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    *At(world, snap, FIELD(bodies.awake), 1, scene->crate) = 0;
+    m3Vec3 rest = {0.0f, 0.0f, 0.0f};
+    memcpy(At(world, snap, FIELD(bodies.angularVelocities), sizeof(m3Vec3), scene->crate), &rest,
+           sizeof(rest));
+    m3Vec3 moving = {1.0f, 0.0f, 0.0f};
+    memcpy(At(world, snap, FIELD(bodies.linearVelocities), sizeof(m3Vec3), scene->crate), &moving,
+           sizeof(moving));
+}
+
+static void CrateSleepsSpinning(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    *At(world, snap, FIELD(bodies.awake), 1, scene->crate) = 0;
+    m3Vec3 rest = {0.0f, 0.0f, 0.0f};
+    memcpy(At(world, snap, FIELD(bodies.linearVelocities), sizeof(m3Vec3), scene->crate), &rest,
+           sizeof(rest));
+    m3Vec3 spinning = {0.0f, -0.0f, 0.0f};
+    memcpy(At(world, snap, FIELD(bodies.angularVelocities), sizeof(m3Vec3), scene->crate),
+           &spinning, sizeof(spinning));
+}
+
 // A density no setter accepts on a dynamic body: the shape weighs less
 // than the mass floor. The box's mass comes from its hull in the tail.
 static void BallBelowMassFloor(const Scene* scene, uint8_t* snap)
@@ -325,6 +351,8 @@ static const Case s_cases[] = {
     {"a touching pair of two sensors", TouchingPairOfSensors},
     {"a world with no contact stiffness", WorldWithoutStiffness},
     {"a lock bit no setter writes", LockBitUnknown},
+    {"a sleeping body that moves", CrateSleepsMoving},
+    {"a sleeping body whose spin is a negative zero", CrateSleepsSpinning},
     {"a ball below the mass floor", BallBelowMassFloor},
     {"a box below the mass floor", BoxBelowMassFloor},
     {"a contact impulse that is not a number", ContactImpulseNotFinite},
@@ -414,6 +442,12 @@ static void TeleportCrate(m3World* world, const FuzzScene* scene)
     m3Body_SetTransform(world, scene->crate, (m3Pos3){40.0, 5.0, 40.0}, m3MakeIdentityQuat());
 }
 
+static void PutCrateToSleep(m3World* world, const FuzzScene* scene)
+{
+    m3Body_SetAwake(world, scene->crate, false);
+    CHECK(!m3Body_IsAwake(world, scene->crate), "the crate sleeps");
+}
+
 typedef struct EngineCase
 {
     const char* name;
@@ -424,6 +458,7 @@ static const EngineCase s_engineCases[] = {
     {"a shape destroyed, its pairs not yet rebuilt", DestroyBall},
     {"a destroyed shape's slot taken by a new one", DestroyBallAndCreate},
     {"a body teleported away from its pairs", TeleportCrate},
+    {"a body put to sleep", PutCrateToSleep},
 };
 
 static void TestRestoreAcceptsWhatTheEngineWrites(void)

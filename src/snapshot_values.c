@@ -20,14 +20,43 @@
 
 // --- Bodies and shape geometry --------------------------------------------
 
-// A live body's locks are the six axis bits and the fast rotation bit.
+// A live body's locks are the six axis bits and the fast rotation bit,
+// and a sleeping dynamic body is at rest, its velocities +0.0: every way
+// a body falls asleep stores that constant, every velocity a caller sets
+// wakes it, and a sleeping dynamic body is neither a mover nor in a
+// constraint, so no step writes to it. A kinematic body moves asleep or
+// awake, so the rule leaves it out.
+// Whether the incoming vector at is +0.0 in every component: its bits
+// are all zero.
+_Static_assert(sizeof(m3Vec3) == 3 * sizeof(uint32_t), "a vector is three 32-bit floats");
+static bool AtRest(const uint8_t* at)
+{
+    uint32_t bits[3];
+    memcpy(bits, at, sizeof(bits));
+    return (bits[0] | bits[1] | bits[2]) == 0u;
+}
+
 static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
     const uint8_t* locks = m3InField(inc, offsetof(m3World, bodies.bodyLocks));
+    const uint8_t* types = m3InField(inc, offsetof(m3World, bodies.types));
+    const uint8_t* awake = m3InField(inc, offsetof(m3World, bodies.awake));
+    const uint8_t* linear = m3InField(inc, offsetof(m3World, bodies.linearVelocities));
+    const uint8_t* angular = m3InField(inc, offsetof(m3World, bodies.angularVelocities));
     for (int32_t b = 0; b < inc->world->bodies.bodyPool.capacity; ++b)
     {
-        if (alive[b] != 0 && (locks[b] & ~(0x3Fu | M3_LOCKS_ALLOW_FAST_ROTATION)) != 0)
+        if (alive[b] == 0)
+        {
+            continue;
+        }
+        if ((locks[b] & ~(0x3Fu | M3_LOCKS_ALLOW_FAST_ROTATION)) != 0)
+        {
+            return false;
+        }
+        size_t at = (size_t)b * sizeof(m3Vec3);
+        if (types[b] == (uint8_t)m3_dynamicBody && awake[b] == 0 &&
+            (!AtRest(linear + at) || !AtRest(angular + at)))
         {
             return false;
         }
