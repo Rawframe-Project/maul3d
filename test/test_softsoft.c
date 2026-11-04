@@ -207,6 +207,25 @@ static void TestRopeBridge(void)
     m3DestroyWorld(world);
 }
 
+// A pin one past either body's particles is refused while the table has
+// room, and the world steps on without it.
+static void TestSoftAnchorPastParticles(void)
+{
+    m3World* world = PlaneWorld();
+    m3SoftBodyDef sd = m3DefaultSoftBodyDef();
+    sd.position = (m3Pos3){-2.0, 2.0, 0.0};
+    m3SoftBodyId west = NewSoftBody(world, &sd);
+    sd.position = (m3Pos3){2.0, 2.0, 0.0};
+    m3SoftBodyId east = NewSoftBody(world, &sd);
+    int32_t count = m3SoftBody_GetParticleCount(world, east);
+    CHECK_REFUSES(world,
+                  CHECK(m3SoftBody_AnchorToSoftBody(world, west, 0, east, count) == m3_errorInvalid,
+                        "a pin one past the partner's particles is m3_errorInvalid"),
+                  "it counts one misuse");
+    CHECK(m3World_Step(world, 1.0f / 60.0f, 4) == m3_success, "the world steps on");
+    m3DestroyWorld(world);
+}
+
 // The soft-to-soft table holds M3_MAX_SOFTBODY_ANCHORS pins in the lower
 // slot: one more is m3_errorLimit and counts no misuse, and a hostile pin
 // is m3_errorInvalid and counts one.
@@ -251,6 +270,7 @@ int main(void)
     TestRopeDrapesOverCloth();
     TestRopeBridge();
     TestSoftAnchorTableLimit();
+    TestSoftAnchorPastParticles();
     if (s_failures == 0)
     {
         printf("test_softsoft: all green\n");

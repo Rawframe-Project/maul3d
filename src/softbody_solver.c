@@ -23,6 +23,22 @@
 // gather's buffer holds every entry its tree can return.
 #define SOFT_GATHER_CAP 32
 
+// The particle checks below. Release builds compile the asserts out, and
+// this helper with them.
+#ifndef NDEBUG
+// One of the soft body's own particles: what its edges, tets and anchors
+// name. Create and the anchor calls check every index against the
+// particle count, and restore refuses one that is not below it
+// (snapshot_values.c).
+static bool OwnParticle(const m3World* world, int32_t slot, int32_t particle)
+{
+    return particle >= 0 && particle < world->softBodies.softParticleCount[slot];
+}
+#define ASSERT_PARTICLE(world, slot, particle) M3_ASSERT(OwnParticle((world), (slot), (particle)))
+#else
+#define ASSERT_PARTICLE(world, slot, particle) ((void)(world), (void)(slot), (void)(particle))
+#endif
+
 // Closest point on segment ab to p. The parameter is clamped before the
 // division, so the point is a convex combination of a and b, and a
 // zero-length segment gives a.
@@ -615,6 +631,7 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                     continue;
                 }
                 int32_t particle = world->softBodies.softAnchorParticle[abase + a];
+                ASSERT_PARTICLE(world, slot, particle);
                 anchored[particle >> 3] |= (uint8_t)(1u << (particle & 7));
             }
 
@@ -715,6 +732,8 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 float alphaE = e >= bendStart ? bendAlpha : alpha;
                 int32_t ka = base + (int32_t)world->softBodies.softEdgeA[ebase + e];
                 int32_t kb = base + (int32_t)world->softBodies.softEdgeB[ebase + e];
+                ASSERT_PARTICLE(world, slot, ka - base);
+                ASSERT_PARTICLE(world, slot, kb - base);
                 float wa = world->softBodies.softInvMass[ka];
                 float wb = world->softBodies.softInvMass[kb];
                 float wSum = wa + wb;
@@ -785,6 +804,10 @@ void m3SoftBodyPass(m3World* world, float dt, int32_t substeps)
                 int32_t ib = base + (int32_t)world->softBodies.softTetB[tk];
                 int32_t ic = base + (int32_t)world->softBodies.softTetC[tk];
                 int32_t id2 = base + (int32_t)world->softBodies.softTetD[tk];
+                ASSERT_PARTICLE(world, slot, ia - base);
+                ASSERT_PARTICLE(world, slot, ib - base);
+                ASSERT_PARTICLE(world, slot, ic - base);
+                ASSERT_PARTICLE(world, slot, id2 - base);
                 m3Pos3 o = world->softBodies.softPos[ia];
                 m3Vec3 pb2 = {(float)(world->softBodies.softPos[ib].x - o.x),
                               (float)(world->softBodies.softPos[ib].y - o.y),
