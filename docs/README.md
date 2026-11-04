@@ -31,5 +31,7 @@
 
 ## Running the project
 
+- [Development](operations/development.md): the toolchain, the presets, the tests, the golden values and finding where two runs part.
+- [Checks](operations/checks.md): what verifies a change, locally and in CI.
 - [Release](operations/release.md): how a release is made and checked.
 - [The changelog](../CHANGELOG.md): every release and what changed.
