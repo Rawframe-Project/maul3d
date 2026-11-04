@@ -195,13 +195,27 @@ void m3IdPoolDestroy(m3Heap* heap, m3IdPool* pool)
     memset(pool, 0, sizeof(*pool));
 }
 
+// The cursors a pool keeps, which every write and restore preserves: the
+// queue holds dead slots below the high-water mark, the mark is within
+// the capacity, and the head is a ring position.
+static bool PoolCursorsHold(const m3IdPool* pool)
+{
+    return pool->maxIndex >= 0 && pool->maxIndex <= pool->capacity && pool->freeCount >= 0 &&
+           pool->freeCount <= pool->maxIndex && pool->retiredCount >= 0 &&
+           pool->freeCount + pool->retiredCount <= pool->maxIndex &&
+           (pool->capacity == 0 || (pool->freeHead >= 0 && pool->freeHead < pool->capacity));
+}
+
 int32_t m3IdPoolAlloc(m3IdPool* pool)
 {
+    M3_ASSERT(PoolCursorsHold(pool));
     // Recycled slots first, in FIFO order (canonical reuse), then fresh
     // slots up to capacity.
     if (pool->freeCount > 0)
     {
         int32_t index = pool->freeQueue[pool->freeHead];
+        // A queued slot was freed below the mark and is not in use.
+        M3_ASSERT(index >= 0 && index < pool->maxIndex && pool->alive[index] == 0);
         pool->freeHead = (pool->freeHead + 1) % pool->capacity;
         pool->freeCount -= 1;
         pool->alive[index] = 1;
@@ -210,6 +224,7 @@ int32_t m3IdPoolAlloc(m3IdPool* pool)
     if (pool->maxIndex < pool->capacity)
     {
         int32_t index = pool->maxIndex;
+        M3_ASSERT(pool->alive[index] == 0); // no slot at the mark was ever taken
         pool->maxIndex += 1;
         pool->alive[index] = 1;
         return index;
@@ -235,6 +250,7 @@ void m3IdPoolFree(m3IdPool* pool, int32_t index)
     pool->generations[index] += 1;
     pool->freeQueue[(pool->freeHead + pool->freeCount) % pool->capacity] = index;
     pool->freeCount += 1;
+    M3_ASSERT(PoolCursorsHold(pool));
 }
 
 m3IdPoolMark m3IdPoolMarkNow(const m3IdPool* pool)
@@ -245,6 +261,10 @@ m3IdPoolMark m3IdPoolMarkNow(const m3IdPool* pool)
 
 void m3IdPoolRewind(m3IdPool* pool, m3IdPoolMark mark, int32_t index)
 {
+    // The one allocation since the mark moved the cursors forward and left
+    // its slot in use.
+    M3_ASSERT(mark.maxIndex <= pool->maxIndex && mark.freeCount >= pool->freeCount);
+    M3_ASSERT(index < 0 || (index < pool->capacity && pool->alive[index] != 0));
     if (index >= 0 && index < pool->capacity)
     {
         pool->alive[index] = 0;
