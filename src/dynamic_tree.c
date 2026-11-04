@@ -108,9 +108,36 @@ void m3TreeDestroy(m3Heap* heap, m3Tree* tree)
     tree->freeList = M3_TREE_NULL;
 }
 
+// The node checks below. Release builds compile the asserts out, and
+// these helpers with them.
+#ifndef NDEBUG
+// A node in use as a leaf: what every caller hands the calls below, a
+// live shape's proxy, which restore also checks names a leaf of the tree.
+static bool IsLeaf(const m3Tree* tree, int32_t id)
+{
+    return id >= 0 && id < tree->capacity && tree->nodes[id].height == 0 &&
+           tree->nodes[id].userData >= 0;
+}
+
+// A node in the tree, a leaf or a junction: m3TreeValidate asks
+// m3TreeContains of a junction too.
+static bool InUse(const m3Tree* tree, int32_t id)
+{
+    return id >= 0 && id < tree->capacity && tree->nodes[id].height >= 0;
+}
+#define ASSERT_LEAF(tree, id)   M3_ASSERT(IsLeaf((tree), (id)))
+#define ASSERT_IN_USE(tree, id) M3_ASSERT(InUse((tree), (id)))
+#else
+#define ASSERT_LEAF(tree, id)   ((void)(tree), (void)(id))
+#define ASSERT_IN_USE(tree, id) ((void)(tree), (void)(id))
+#endif
+
 static int32_t TakeNode(m3Tree* tree)
 {
     int32_t id = tree->freeList;
+    // Insert counted the room first, and the free chain holds only free
+    // nodes, as restore checks of an incoming one.
+    M3_ASSERT(id >= 0 && id < tree->capacity && tree->nodes[id].height == -1);
     m3TreeNode* node = tree->nodes + id;
     tree->freeList = node->parent;
     tree->nodeCount += 1;
@@ -124,6 +151,7 @@ static int32_t TakeNode(m3Tree* tree)
 
 static void GiveNode(m3Tree* tree, int32_t id)
 {
+    ASSERT_IN_USE(tree, id);
     m3TreeNode* node = tree->nodes + id;
     memset(node, 0, sizeof(*node));
     node->parent = tree->freeList;
@@ -345,6 +373,7 @@ int32_t m3TreeInsert(m3Tree* tree, const double lo[3], const double hi[3], int32
 
 void m3TreeRemove(m3Tree* tree, int32_t nodeId)
 {
+    ASSERT_LEAF(tree, nodeId);
     int32_t junction = Detach(tree, nodeId);
     if (junction != M3_TREE_NULL)
     {
@@ -355,6 +384,7 @@ void m3TreeRemove(m3Tree* tree, int32_t nodeId)
 
 void m3TreeMove(m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
 {
+    ASSERT_LEAF(tree, nodeId);
     int32_t junction = Detach(tree, nodeId);
     SetBounds(tree->nodes + nodeId, lo, hi);
     Attach(tree, nodeId, junction);
@@ -362,6 +392,7 @@ void m3TreeMove(m3Tree* tree, int32_t nodeId, const double lo[3], const double h
 
 void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask)
 {
+    ASSERT_LEAF(tree, nodeId);
     tree->nodes[nodeId].mask = mask;
     for (int32_t id = tree->nodes[nodeId].parent; id != M3_TREE_NULL; id = tree->nodes[id].parent)
     {
@@ -377,6 +408,7 @@ void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask)
 
 bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
 {
+    ASSERT_IN_USE(tree, nodeId);
     const m3TreeNode* node = tree->nodes + nodeId;
     return node->lo[0] <= lo[0] && node->lo[1] <= lo[1] && node->lo[2] <= lo[2] &&
            hi[0] <= node->hi[0] && hi[1] <= node->hi[1] && hi[2] <= node->hi[2];
@@ -417,6 +449,7 @@ void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3],
 
 bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3])
 {
+    ASSERT_LEAF(tree, nodeId);
     return Overlap(tree->nodes[nodeId].lo, tree->nodes[nodeId].hi, lo, hi);
 }
 
