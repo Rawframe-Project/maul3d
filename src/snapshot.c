@@ -162,7 +162,11 @@ static M3_NOINLINE m3Result WorldSnapshotWorker(const m3World* world, void* buff
 
     uint8_t* bytes = (uint8_t*)buffer;
     WriteHeader(bytes, &header);
-    m3WalkOut(world, bytes + M3_SNAPSHOT_HEADER_BYTES, m3_walkWrite, 1);
+    int64_t written = m3WalkOut(world, bytes + M3_SNAPSHOT_HEADER_BYTES, m3_walkWrite, 1);
+    // One walk measures and writes, so the write fills exactly the size the
+    // capacity check used.
+    M3_ASSERT((int64_t)M3_SNAPSHOT_HEADER_BYTES + written == size);
+    (void)written;
     *bytesOut = size; // at most capacity
     return m3_success;
 }

@@ -19,6 +19,12 @@ void m3JournalRecordParts(m3World* world, int32_t op, const m3JournalPart* parts
     {
         return;
     }
+    // Start set the buffer and put the cursor past the header, each record
+    // keeps it within the capacity, and stop clears them together.
+    M3_ASSERT(world->recorder.journalBuffer != NULL &&
+              world->recorder.journalCursor >= M3_JOURNAL_HEADER_BYTES &&
+              world->recorder.journalCursor <= world->recorder.journalCapacity);
+    M3_ASSERT(op >= m3_opStep && op < m3_opCount); // the engine's own op numbers
     int64_t bytes = 0;
     for (int32_t i = 0; i < partCount; ++i)
     {
