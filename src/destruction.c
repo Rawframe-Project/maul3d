@@ -62,23 +62,6 @@ static float ShapeProjectedArea(const m3World* world, int32_t shape, m3Vec3 dire
     return 0.0f;
 }
 
-// The shape's own stable interior point, local frame: the fallback
-// direction anchor when the blast center sits inside the shape.
-static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
-{
-    uint8_t type = world->shapes.shapeType[shape];
-    const m3ShapeGeom* geom = &world->shapes.shapeGeom[shape];
-    if (type == (uint8_t)m3_capsuleShape)
-    {
-        return m3MulSV3(0.5f, m3Add3(geom->v, geom->v2));
-    }
-    if (type == (uint8_t)m3_hullShape)
-    {
-        return world->hulls.hullData[world->shapes.shapeHullIndex[shape]].center;
-    }
-    return geom->v; // sphere center
-}
-
 // Whether the blast touches a shape at all: its body is enabled and the
 // blast's filter lets the shape through.
 M3_NODISCARD static bool BlastTouches(const m3World* world, const m3ExplosionDef* def,
@@ -104,6 +87,39 @@ static void CarveChunk(m3World* world, const m3ExplosionDef* def, int32_t shape)
         // as it was and is counted; the blast's impulses go on.
         (void)m3VoxelCarveSphereInternal(world, shape, vlocal, def->voxelCarve);
     }
+}
+
+// The blast's strength at a surface that far from it: full within the
+// radius, fading linearly to nothing across the falloff.
+static float FalloffScale(const m3ExplosionDef* def, float surface)
+{
+    float scale = 1.0f;
+    if (surface > def->radius && def->falloff > 0.0f)
+    {
+        scale = (def->radius + def->falloff - surface) / def->falloff;
+        scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
+    }
+    return scale;
+}
+
+// The push of a blast inside one of the body's shapes: the unit
+// direction, world frame, from the blast to the body's center of mass,
+// so the push spins nothing. False for a blast at the center of mass
+// itself, which pushes nothing.
+M3_NODISCARD static bool BlastToCenter(const m3World* world, const m3ExplosionDef* def,
+                                       int32_t body, m3Vec3* out)
+{
+    const m3Transform* bxf = &world->bodies.transforms[body];
+    m3Vec3 rlc = m3RotateVec3(bxf->q, world->bodies.localCenters[body]);
+    m3Vec3 d = {(float)(bxf->p.x - def->position.x) + rlc.x,
+                (float)(bxf->p.y - def->position.y) + rlc.y,
+                (float)(bxf->p.z - def->position.z) + rlc.z};
+    if (!(m3Dot3(d, d) > 1e-10f))
+    {
+        return false;
+    }
+    *out = m3Normalize3(d);
+    return true;
 }
 
 // A convex shape's share of the blast: an impulse on its body when the
@@ -143,35 +159,39 @@ static void PushShape(m3World* world, const m3ExplosionDef* def, int32_t shape)
     // The blast wakes everything it reaches, sleepers included.
     m3SetAwakeInternal(world, body, 1);
     m3Vec3 direction;
-    m3Vec3 contact;
-    if (out.distance > 1e-6f && surface > 1e-6f)
+    m3Vec3 contact = point;
+    bool inside = !(out.distance > 1e-6f && surface > 1e-6f);
+    m3Vec3 toCenter = {0.0f, 0.0f, 0.0f};
+    if (!inside)
     {
         direction = m3Normalize3(m3Sub3(out.pointA, point));
         contact = m3Sub3(out.pointA, m3MulSV3(proxy.radius, direction));
     }
     else
     {
-        // The center sits inside the shape: push through the
-        // centroid, a fixed axis when even
-        // that is degenerate.
-        m3Vec3 centroid = ShapeLocalCentroid(world, shape);
-        m3Vec3 d = m3Sub3(centroid, point);
-        direction = m3Dot3(d, d) > 1e-10f ? m3Normalize3(d) : (m3Vec3){1.0f, 0.0f, 0.0f};
-        contact = centroid;
+        // The blast sits inside the shape, its rounding included.
+        if (!BlastToCenter(world, def, body, &toCenter))
+        {
+            return;
+        }
+        direction = m3InvRotateVec3(xf.q, toCenter);
     }
-    float scale = 1.0f;
-    if (surface > def->radius && def->falloff > 0.0f)
-    {
-        scale = (def->radius + def->falloff - surface) / def->falloff;
-        scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
-    }
-    float magnitude = def->impulsePerArea * ShapeProjectedArea(world, shape, direction) * scale;
+    float magnitude = def->impulsePerArea * ShapeProjectedArea(world, shape, direction) *
+                      FalloffScale(def, surface);
     if (magnitude != 0.0f)
     {
-        m3Vec3 impulse = m3MulSV3(magnitude, m3RotateVec3(xf.q, direction));
-        m3Vec3 arm = m3RotateVec3(xf.q, contact);
-        m3Pos3 at = {xf.p.x + (double)arm.x, xf.p.y + (double)arm.y, xf.p.z + (double)arm.z};
-        m3ApplyImpulseAtPointInternal(world, body, impulse, at);
+        if (inside)
+        {
+            // Along the line through the center of mass: no lever arm.
+            m3ApplyLinearImpulseInternal(world, body, m3MulSV3(magnitude, toCenter));
+        }
+        else
+        {
+            m3Vec3 impulse = m3MulSV3(magnitude, m3RotateVec3(xf.q, direction));
+            m3Vec3 arm = m3RotateVec3(xf.q, contact);
+            m3Pos3 at = {xf.p.x + (double)arm.x, xf.p.y + (double)arm.y, xf.p.z + (double)arm.z};
+            m3ApplyImpulseAtPointInternal(world, body, impulse, at);
+        }
         // The push is an outcome, not a host value: like the step, it
         // leaves the body within the speed limit.
         world->bodies.linearVelocities[body] =

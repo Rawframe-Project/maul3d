@@ -138,14 +138,16 @@ m3World_Explode(world, &blast);
 `m3World_Explode` acts at once, inside the call:
 
 - **Bodies.** Every dynamic sphere, capsule and hull, boxes included,
-  within `radius + falloff` of the blast takes an impulse at its
-  point nearest the blast, directed away from it. The impulse is
+  within `radius + falloff` of the blast takes an impulse at its point
+  nearest the blast, directed away from it. The impulse is
   `impulsePerArea` times the area the shape shows the blast, at full
   strength within `radius` and fading linearly to nothing across
   `falloff`. A shape struck off centre spins. A shape with the blast
-  inside it is pushed out through its centroid. Every body the blast
-  reaches wakes, and its speed stays within the speed limit. A
-  negative `impulsePerArea` pulls bodies in.
+  inside it, its rounding included, is pushed in the direction from
+  the blast to its body's centre of mass, so that push spins nothing;
+  a blast inside it at the centre of mass itself pushes nothing. Every
+  body the blast reaches wakes, and its speed stays within the speed
+  limit. A negative `impulsePerArea` pulls bodies in.
 - **Chunks.** With `voxelCarve` above 0, the blast empties the cells
   within that radius of it in every chunk it reaches, and the usual
   fragments follow. A carve whose surface would pass the box limit
