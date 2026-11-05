@@ -87,8 +87,8 @@ static int32_t TakeFace(QhBuilder* b)
 // normal rounded to float, and the offset of the loop's farthest point
 // along it, so the whole loop lies on or below the plane. False when
 // the loop is degenerate.
-static bool LoopPlane(const QhBuilder* b, const int16_t* loop, int32_t n, m3Vec3* normal,
-                      double* offset)
+M3_NODISCARD static bool LoopPlane(const QhBuilder* b, const int16_t* loop, int32_t n,
+                                   m3Vec3* normal, double* offset)
 {
     double nx = 0.0;
     double ny = 0.0;
@@ -120,7 +120,7 @@ static bool LoopPlane(const QhBuilder* b, const int16_t* loop, int32_t n, m3Vec3
 }
 
 // A triangle face through three hull vertices; false when degenerate.
-static bool SetTriangle(QhBuilder* b, int32_t f, int32_t v0, int32_t v1, int32_t v2)
+M3_NODISCARD static bool SetTriangle(QhBuilder* b, int32_t f, int32_t v0, int32_t v1, int32_t v2)
 {
     QhFace* face = &b->faces[f];
     face->v[0] = (int16_t)v0;
@@ -159,7 +159,7 @@ static void LinkEdge(QhBuilder* b, int32_t f, int32_t g)
 
 // The widest-spread axis gives the first two points, the farthest from
 // their line the third, the farthest from their plane the fourth.
-static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
+M3_NODISCARD static bool FindSimplex(const QhBuilder* b, int32_t count, int32_t out[4])
 {
     int32_t lo[3] = {0, 0, 0};
     int32_t hi[3] = {0, 0, 0};
@@ -246,7 +246,7 @@ static void AssignPoint(QhBuilder* b, int32_t point, const int16_t* faces, int32
     }
 }
 
-static bool StartHull(QhBuilder* b, int32_t count)
+M3_NODISCARD static bool StartHull(QhBuilder* b, int32_t count)
 {
     int32_t s[4];
     if (!FindSimplex(b, count, s))
@@ -358,7 +358,7 @@ static int32_t FindHorizon(QhBuilder* b, int32_t apex, int32_t seed, int32_t* vi
 // Adds apex to the hull: the faces it sees give way to a cone of new
 // triangles from the horizon to it, and their waiting points move to the
 // new faces. False when the bookkeeping cannot close the cone.
-static bool AddPoint(QhBuilder* b, int32_t apex, int32_t seed)
+M3_NODISCARD static bool AddPoint(QhBuilder* b, int32_t apex, int32_t seed)
 {
     int32_t nv = 0;
     int32_t nh = FindHorizon(b, apex, seed, &nv);
@@ -469,7 +469,7 @@ typedef struct QhPolygons
 // Chains the boundary of each merged group into one counterclockwise
 // loop: every triangle edge whose neighbor lies in another group, each
 // followed by the boundary edge that starts where it ends.
-static bool TraceLoops(QhBuilder* b, QhPolygons* out)
+M3_NODISCARD static bool TraceLoops(QhBuilder* b, QhPolygons* out)
 {
     out->faceCount = 0;
     out->indexCount = 0;
@@ -577,8 +577,8 @@ static void DropSeamVertices(QhPolygons* poly, int32_t pointCount)
 
 // Writes the hull: vertices in input order, each face's plane from its
 // loop, moved back from the first point in double.
-static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, m3Vec3 origin,
-                     m3HullData* out)
+M3_NODISCARD static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count,
+                                  m3Vec3 origin, m3HullData* out)
 {
     int16_t index[M3_MAX_HULL_POINTS];
     memset(out, 0, sizeof(*out));
@@ -637,7 +637,7 @@ static bool EmitHull(const QhBuilder* b, const QhPolygons* poly, int32_t count, 
 }
 
 // Coordinates past 1e18 or non-finite are refused, never built.
-static bool InputValid(const m3Vec3* points, int32_t count)
+M3_NODISCARD static bool InputValid(const m3Vec3* points, int32_t count)
 {
     if (points == NULL || count < 4 || count > M3_MAX_HULL_POINTS)
     {
@@ -677,8 +677,8 @@ static int32_t WeldPoints(QhBuilder* b, int32_t count)
     return kept;
 }
 
-static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t count,
-                      m3HullData* out)
+M3_NODISCARD static bool BuildHull(m3Heap* heap, QhBuilder* b, const m3Vec3* points, int32_t count,
+                                   m3HullData* out)
 {
     // Work relative to the first point; the tolerance scales with the
     // cloud's extent.

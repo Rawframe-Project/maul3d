@@ -57,8 +57,8 @@ static double UnionArea(const m3TreeNode* node, const double lo[3], const double
     return HalfArea(ulo, uhi);
 }
 
-static bool Overlap(const double aLo[3], const double aHi[3], const double bLo[3],
-                    const double bHi[3])
+M3_NODISCARD static bool Overlap(const double aLo[3], const double aHi[3], const double bLo[3],
+                                 const double bHi[3])
 {
     return aLo[0] <= bHi[0] && bLo[0] <= aHi[0] && aLo[1] <= bHi[1] && bLo[1] <= aHi[1] &&
            aLo[2] <= bHi[2] && bLo[2] <= aHi[2];
@@ -113,7 +113,7 @@ void m3TreeDestroy(m3Heap* heap, m3Tree* tree)
 #ifndef NDEBUG
 // A node in use as a leaf: what every caller hands the calls below, a
 // live shape's proxy, which restore also checks names a leaf of the tree.
-static bool IsLeaf(const m3Tree* tree, int32_t id)
+M3_NODISCARD static bool IsLeaf(const m3Tree* tree, int32_t id)
 {
     return id >= 0 && id < tree->capacity && tree->nodes[id].height == 0 &&
            tree->nodes[id].userData >= 0;
@@ -121,7 +121,7 @@ static bool IsLeaf(const m3Tree* tree, int32_t id)
 
 // A node in the tree, a leaf or a junction: m3TreeValidate asks
 // m3TreeContains of a junction too.
-static bool InUse(const m3Tree* tree, int32_t id)
+M3_NODISCARD static bool InUse(const m3Tree* tree, int32_t id)
 {
     return id >= 0 && id < tree->capacity && tree->nodes[id].height >= 0;
 }

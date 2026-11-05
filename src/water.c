@@ -30,7 +30,7 @@ m3WaterVolumeDef m3DefaultWaterVolumeDef(void)
     return def;
 }
 
-static bool WakeInBoxFn(int32_t shape, void* context)
+M3_NODISCARD static bool WakeInBoxFn(int32_t shape, void* context)
 {
     m3World* world = (m3World*)context;
     int32_t body = world->shapes.shapeBody[shape];

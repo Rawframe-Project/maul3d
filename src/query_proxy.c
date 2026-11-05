@@ -189,7 +189,7 @@ static int ProxyReachesShape(const m3ProxyOverlapContext* ctx, int32_t shape)
                            proxy.radius);
 }
 
-static bool ProxyOverlapCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool ProxyOverlapCallback(int32_t shape, void* userContext)
 {
     m3ProxyOverlapContext* ctx = (m3ProxyOverlapContext*)userContext;
     if (ctx->world->bodies.bodyEnabled[ctx->world->shapes.shapeBody[shape]] == 0)

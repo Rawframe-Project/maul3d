@@ -21,7 +21,7 @@
 // Allocates every owned array, sized from the capacities already set in
 // the world, and adds them to its memory footprint. Returns false when
 // an allocation is refused; m3StateFree releases whatever was allocated.
-bool m3StateAllocate(m3World* world);
+M3_NODISCARD bool m3StateAllocate(m3World* world);
 void m3StateFree(m3World* world);
 
 // The bytes of the fixed snapshot prefix, from the capacities already set
@@ -41,6 +41,6 @@ int64_t m3StateFieldAt(const m3World* world, size_t fieldOffset);
 // Checks the incoming fixed snapshot prefix against the table before any
 // of it lands: every index in range, every flag a flag, every count
 // within its bound, every float finite.
-bool m3StateValidate(const m3World* world, const uint8_t* in);
+M3_NODISCARD bool m3StateValidate(const m3World* world, const uint8_t* in);
 
 #endif // MAUL3D_SRC_WORLD_STATE_H

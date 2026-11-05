@@ -25,18 +25,21 @@ void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value);
 // character's, taking a sphere or capsule the create would take.
 m3Result m3ShapeSwapCheck(const m3World* world, int32_t slot, uint8_t type,
                           const m3ShapeGeom* geom);
-bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom);
+M3_NODISCARD bool m3SetShapeGeomInternal(m3World* world, int32_t slot, uint8_t type,
+                                         const m3ShapeGeom* geom);
 
 // The material wall: count 1..8, finite entries, nonnegative frictions,
 // restitutions and resistances, every triangle byte < count. Set, replay
 // and restore all check paint through it.
-bool m3MeshMaterialsValid(const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                          const uint8_t* triangleMaterials, int32_t triangleCount);
+M3_NODISCARD bool m3MeshMaterialsValid(const m3MeshSurfaceMaterial* materials,
+                                       int32_t materialCount, const uint8_t* triangleMaterials,
+                                       int32_t triangleCount);
 
 // Applies paint that passes the wall (replay hands it raw bytes).
-bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
-                                const m3MeshSurfaceMaterial* materials, int32_t materialCount,
-                                const uint8_t* triangleMaterials);
+M3_NODISCARD bool m3SetMeshMaterialsInternal(m3World* world, int32_t meshIndex,
+                                             const m3MeshSurfaceMaterial* materials,
+                                             int32_t materialCount,
+                                             const uint8_t* triangleMaterials);
 
 // Content a shape create hands over, built before the create: a hull
 // from QuickHull, or staged mesh, voxel or height field content. All NULL
@@ -90,8 +93,8 @@ typedef void (*m3MassShapeRead)(const void* context, int32_t shape, m3MassShape*
 // shape through a contact: a sensor never does, and otherwise a shared
 // positive group, or a category and a mask that are both nonzero, lets
 // the pair filter pass it.
-static inline bool m3ShapeCanCollide(uint8_t sensor, uint64_t categoryBits, uint64_t maskBits,
-                                     int32_t groupIndex)
+M3_NODISCARD static inline bool m3ShapeCanCollide(uint8_t sensor, uint64_t categoryBits,
+                                                  uint64_t maskBits, int32_t groupIndex)
 {
     return sensor == 0 && (groupIndex > 0 || (categoryBits != 0 && maskBits != 0));
 }
@@ -101,8 +104,8 @@ static inline bool m3ShapeCanCollide(uint8_t sensor, uint64_t categoryBits, uint
 // point of a shape that can collide, over the moment that arm turns it,
 // bounded from above at each vertex, sphere and capsule end. A body whose
 // shapes bear no mass keeps it.
-bool m3ContactLeverFits(m3MassShapeRead read, const void* context, int32_t head,
-                        const m3LeverBody* body, const m3Mat3* inertia, bool massive);
+M3_NODISCARD bool m3ContactLeverFits(m3MassShapeRead read, const void* context, int32_t head,
+                                     const m3LeverBody* body, const m3Mat3* inertia, bool massive);
 
 // The mass a dynamic body takes from the shapes listed from head, as the
 // step reads it, its inertia about the center, and whether its shapes bear
@@ -134,33 +137,33 @@ typedef enum m3MassFit
 // only a dynamic body's mass reaches the solver.
 m3MassFit m3ShapeMassFit(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
                          float density);
-bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type, const m3ShapeGeom* geom,
-                     float density);
+M3_NODISCARD bool m3ShapeMassFits(const m3World* world, int32_t slot, uint8_t type,
+                                  const m3ShapeGeom* geom, float density);
 
 // The same bounds over body's shapes as they stand, asked when a body
 // turns dynamic.
-bool m3BodyMassFits(const m3World* world, int32_t body);
+M3_NODISCARD bool m3BodyMassFits(const m3World* world, int32_t body);
 
 // Whether every joint on shape slot's body keeps its lever ratio
 // (src/joint_lever.h), and the body its contact lever ratio, once slot
 // leaves the body. Destroy asks it first.
-bool m3ShapeRemovalFits(const m3World* world, int32_t slot);
+M3_NODISCARD bool m3ShapeRemovalFits(const m3World* world, int32_t slot);
 
 // Whether every joint on body keeps its lever ratio, and the body its
 // contact lever ratio, once the body takes this type and the mass the type
 // gives it. A type change asks it first.
-bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type);
+M3_NODISCARD bool m3BodyTypeFits(const m3World* world, int32_t body, uint8_t type);
 
 // Whether shape slot's body keeps its contact lever ratio once slot can
 // collide or not as collides says. A filter change asks it first.
-bool m3ShapeFilterFits(const m3World* world, int32_t slot, bool collides);
+M3_NODISCARD bool m3ShapeFilterFits(const m3World* world, int32_t slot, bool collides);
 
 // Whether one shape of this type, geometry, density and hull content (NULL
 // for a shape with none) bears no mass or weighs at least M3_MIN_MASS
 // with every principal moment at least M3_MIN_INERTIA; adds its mass to
 // *total. The checks above and restore's ask it.
-bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull, float density,
-                       double* total);
+M3_NODISCARD bool m3ShapeMassFloors(uint8_t type, const m3ShapeGeom* geom, const m3HullData* hull,
+                                    float density, double* total);
 
 // A material scalar a shape setter or replay may write: friction and
 // rolling resistance non-negative, restitution within M3_RATIO_LIMIT
@@ -172,8 +175,9 @@ void m3SetSurfaceVelocityInternal(m3World* world, int32_t slot, m3Vec3 v);
 // Whether shape slot may take this filter: one under which it starts to
 // collide must keep its body's contact lever ratio. The setter and replay
 // ask it first.
-bool m3ShapeFilterKeepsLevers(const m3World* world, int32_t slot, uint64_t categoryBits,
-                              uint64_t maskBits, int32_t groupIndex);
+M3_NODISCARD bool m3ShapeFilterKeepsLevers(const m3World* world, int32_t slot,
+                                           uint64_t categoryBits, uint64_t maskBits,
+                                           int32_t groupIndex);
 void m3SetFilterInternal(m3World* world, int32_t slot, uint64_t categoryBits, uint64_t maskBits,
                          int32_t groupIndex);
 

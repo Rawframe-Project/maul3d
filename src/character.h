@@ -16,7 +16,7 @@ void m3DestroyCharacterInternal(m3World* world, int32_t slot);
 
 // A move the public call and replay accept: within M3_CAST_LIMIT on
 // every axis.
-bool m3CharacterMoveValid(m3Vec3 translation);
+M3_NODISCARD bool m3CharacterMoveValid(m3Vec3 translation);
 
 void m3CharacterMoveInternal(m3World* world, int32_t slot, m3Vec3 translation);
 

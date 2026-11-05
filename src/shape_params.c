@@ -39,7 +39,7 @@ void m3SetShapeDensityInternal(m3World* world, int32_t slot, float value)
 }
 
 // One resolve + one journal + one internal, the body.c pattern.
-static bool ResolveShape(const m3World* world, m3ShapeId id, int32_t* slotOut)
+M3_NODISCARD static bool ResolveShape(const m3World* world, m3ShapeId id, int32_t* slotOut)
 {
     int32_t slot = m3ShapeSlot(world, id);
     if (slot < 0)

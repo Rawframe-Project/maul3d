@@ -81,7 +81,8 @@ static m3Vec3 ShapeLocalCentroid(const m3World* world, int32_t shape)
 
 // Whether the blast touches a shape at all: its body is enabled and the
 // blast's filter lets the shape through.
-static bool BlastTouches(const m3World* world, const m3ExplosionDef* def, int32_t shape)
+M3_NODISCARD static bool BlastTouches(const m3World* world, const m3ExplosionDef* def,
+                                      int32_t shape)
 {
     return world->bodies.bodyEnabled[world->shapes.shapeBody[shape]] != 0 &&
            m3FilterPass(def->filter.categoryBits, def->filter.maskBits,

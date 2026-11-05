@@ -126,7 +126,7 @@ static m3f8 Abs(m3f8 a)
     return m3F8Max(a, m3F8Neg(a));
 }
 
-static bool AllLanesSet(m3f8 mask)
+M3_NODISCARD static bool AllLanesSet(m3f8 mask)
 {
     float lanes[M3_LANES];
     m3F8Store(lanes, mask);

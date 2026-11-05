@@ -241,7 +241,7 @@ static m3Vec3 Blend(const Simplex* s, int32_t which)
     return p;
 }
 
-static bool Repeats(const Simplex* s, int32_t ia, int32_t ib)
+M3_NODISCARD static bool Repeats(const Simplex* s, int32_t ia, int32_t ib)
 {
     for (int32_t i = 0; i < s->count; ++i)
     {

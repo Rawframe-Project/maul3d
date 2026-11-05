@@ -11,12 +11,14 @@
 // What a force, torque or impulse may add, and the velocities a body of a
 // type may hold (src/body_motion.c): the public calls and replay refuse
 // what these refuse, before anything changes.
-bool m3ForceFits(const m3World* world, int32_t index, m3Vec3 force);
-bool m3TorqueFits(const m3World* world, int32_t index, m3Vec3 torque);
-bool m3ForceAtPointFits(const m3World* world, int32_t index, m3Vec3 force, m3Pos3 point);
-bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
-bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
-bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m3Pos3 point);
+M3_NODISCARD bool m3ForceFits(const m3World* world, int32_t index, m3Vec3 force);
+M3_NODISCARD bool m3TorqueFits(const m3World* world, int32_t index, m3Vec3 torque);
+M3_NODISCARD bool m3ForceAtPointFits(const m3World* world, int32_t index, m3Vec3 force,
+                                     m3Pos3 point);
+M3_NODISCARD bool m3LinearImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
+M3_NODISCARD bool m3AngularImpulseFits(const m3World* world, int32_t index, m3Vec3 impulse);
+M3_NODISCARD bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse,
+                                       m3Pos3 point);
 m3Result m3BodyVelocityCheck(uint8_t type, m3Vec3 velocity);
 m3Result m3BodySpinCheck(uint8_t type, m3Vec3 velocity);
 
@@ -24,14 +26,14 @@ m3Result m3BodySpinCheck(uint8_t type, m3Vec3 velocity);
 // within M3_POSITION_LIMIT with a near-unit rotation, a servo target within reach of a kinematic
 // body, a type change that keeps the velocities within the new type's limit, and a gravity scale or
 // damping in range (an m3BodyParam).
-bool m3PoseValid(m3Transform pose);
-bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
+M3_NODISCARD bool m3PoseValid(m3Transform pose);
+M3_NODISCARD bool m3TargetValid(const m3World* world, int32_t index, m3Transform pose);
 // The same for a body of this type at now, as restore reads it.
-bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose);
+M3_NODISCARD bool m3TargetFits(uint8_t type, m3Pos3 now, m3Transform pose);
 m3Result m3TypeChangeCheck(const m3World* world, int32_t index, int32_t type);
 m3Result m3BodyParamCheck(int32_t param, float value);
 // A sleep threshold, m/s: finite and not negative (src/body_sleep.c).
-bool m3SleepThresholdValid(float threshold);
+M3_NODISCARD bool m3SleepThresholdValid(float threshold);
 
 void m3ApplyForceInternal(m3World* world, int32_t index, m3Vec3 force);
 

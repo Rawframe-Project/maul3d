@@ -20,7 +20,7 @@ void m3PrincipalAxes(const m3Mat3* inertia, m3Vec3* momentsOut, m3Quat* frameOut
 
 // Whether the moments allow the free rotation: each finite, the smallest
 // a normal float, so every inverse below is finite.
-bool m3FreeRotationApplies(m3Vec3 moments);
+M3_NODISCARD bool m3FreeRotationApplies(m3Vec3 moments);
 
 // Turns a body at rotation q with world spin w through time h as a free
 // rigid body, by the splitting of its kinetic energy: the world angular

@@ -98,32 +98,32 @@ double m3NowMs(void);
 // simulation state must be finite. NaN comparisons are false and
 // inf minus inf is NaN, so the x - x == 0 form refuses NaN and both
 // infinities in one branchless test, no libm, no macro promotion.
-static inline bool m3FiniteF(float x)
+M3_NODISCARD static inline bool m3FiniteF(float x)
 {
     return x - x == 0.0f; // NOLINT(misc-redundant-expression): the finite test
 }
 
-static inline bool m3FiniteD(double x)
+M3_NODISCARD static inline bool m3FiniteD(double x)
 {
     return x - x == 0.0; // NOLINT(misc-redundant-expression): the finite test
 }
 
-static inline bool m3IsNanF(float x)
+M3_NODISCARD static inline bool m3IsNanF(float x)
 {
     return x != x; // NOLINT(misc-redundant-expression): the NaN test
 }
 
-static inline bool m3FiniteV3(m3Vec3 v)
+M3_NODISCARD static inline bool m3FiniteV3(m3Vec3 v)
 {
     return m3FiniteF(v.x) && m3FiniteF(v.y) && m3FiniteF(v.z);
 }
 
-static inline bool m3FinitePos3(m3Pos3 p)
+M3_NODISCARD static inline bool m3FinitePos3(m3Pos3 p)
 {
     return m3FiniteD(p.x) && m3FiniteD(p.y) && m3FiniteD(p.z);
 }
 
-static inline bool m3FiniteQuat(m3Quat q)
+M3_NODISCARD static inline bool m3FiniteQuat(m3Quat q)
 {
     return m3FiniteF(q.x) && m3FiniteF(q.y) && m3FiniteF(q.z) && m3FiniteF(q.w);
 }
@@ -169,22 +169,22 @@ static inline bool m3FiniteQuat(m3Quat q)
 //   chunk within it.
 #define M3_UNIT_MASS_LIMIT 8.0e12f
 
-static inline bool m3LocalF(float x)
+M3_NODISCARD static inline bool m3LocalF(float x)
 {
     return x >= -M3_LOCAL_LIMIT && x <= M3_LOCAL_LIMIT; // false for NaN
 }
 
-static inline bool m3DensityF(float x)
+M3_NODISCARD static inline bool m3DensityF(float x)
 {
     return x > 0.0f && x <= M3_DENSITY_LIMIT; // false for NaN
 }
 
-static inline bool m3LocalV3(m3Vec3 v)
+M3_NODISCARD static inline bool m3LocalV3(m3Vec3 v)
 {
     return m3LocalF(v.x) && m3LocalF(v.y) && m3LocalF(v.z);
 }
 
-static inline bool m3BoundedPos3(m3Pos3 p)
+M3_NODISCARD static inline bool m3BoundedPos3(m3Pos3 p)
 {
     return p.x >= -M3_POSITION_LIMIT && p.x <= M3_POSITION_LIMIT && p.y >= -M3_POSITION_LIMIT &&
            p.y <= M3_POSITION_LIMIT && p.z >= -M3_POSITION_LIMIT &&
@@ -262,12 +262,12 @@ static inline m3Vec3 m3CapSpeed(m3Vec3 v, float cap)
 #define M3_WARM_MOMENT_LIMIT 1.0e38f
 
 // x within [-limit, limit]; false for NaN.
-static inline bool m3WithinF(float x, float limit)
+M3_NODISCARD static inline bool m3WithinF(float x, float limit)
 {
     return x >= -limit && x <= limit;
 }
 
-static inline bool m3WithinV3(m3Vec3 v, float limit)
+M3_NODISCARD static inline bool m3WithinV3(m3Vec3 v, float limit)
 {
     return m3WithinF(v.x, limit) && m3WithinF(v.y, limit) && m3WithinF(v.z, limit);
 }

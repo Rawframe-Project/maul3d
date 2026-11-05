@@ -85,6 +85,8 @@ jobs:
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
           python3 tools/check_float_env.py
+          python3 tools/check_nodiscard.py --self-test
+          python3 tools/check_nodiscard.py
       # Every test registration, in the configurations that add tests: the
       # Release build's bench scenes, and the shared build's exports and
       # package tests.

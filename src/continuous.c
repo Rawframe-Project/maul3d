@@ -151,7 +151,7 @@ static void SweepPiece(SurfaceSweep* ss, const m3Vec3* points, int32_t count, m3
     ss->path.until = ss->sw->fraction;
 }
 
-static bool SweepTriangle(const m3Vec3 tri[3], void* context)
+M3_NODISCARD static bool SweepTriangle(const m3Vec3 tri[3], void* context)
 {
     m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
     m3Vec3 lo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
@@ -227,7 +227,7 @@ static void SweepHeightField(Sweeper* sw, int32_t shape, int32_t body)
 // Whether the fast shape sweeps against shape at all: only a pair the
 // narrowphase would let touch, never a bullet or a sensor, and moving
 // bodies only for a bullet. Static surfaces are always swept.
-static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
+M3_NODISCARD static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
 {
     const m3World* world = sw->world;
     int32_t body = world->shapes.shapeBody[shape];
@@ -246,7 +246,7 @@ static bool SweepsAgainst(const Sweeper* sw, int32_t shape)
            world->bodies.bulletFlags[sw->body] != 0;
 }
 
-static bool SweepCallback(int32_t shape, void* context)
+M3_NODISCARD static bool SweepCallback(int32_t shape, void* context)
 {
     Sweeper* sw = (Sweeper*)context;
     m3World* world = sw->world;
@@ -343,7 +343,7 @@ static void SweepPlane(const m3World* world, Sweeper* sw, int32_t planeShape)
 
 // Whether a body moved further than half its thinnest extent: the travel
 // of its center of mass plus the arc its farthest point can sweep.
-static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
+M3_NODISCARD static bool MovedFast(const m3World* world, int32_t body, const m3Sweep* sweep)
 {
     float motion = m3Length3(m3Sub3(sweep->c2, sweep->c1)) +
                    m3SweepAngularRateBound(sweep) * world->bodies.maxExtents[body];

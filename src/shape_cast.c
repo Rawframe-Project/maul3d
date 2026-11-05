@@ -138,7 +138,7 @@ static void CastPiece(SurfaceCast* sc, const m3Vec3* points, int32_t count, m3Ve
     sc->path.until = ctx->best.hit ? ctx->best.fraction : 1.0f;
 }
 
-static bool CastTriangle(const m3Vec3 tri[3], void* context)
+M3_NODISCARD static bool CastTriangle(const m3Vec3 tri[3], void* context)
 {
     m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
     m3Vec3 lo = {m3MinF(tv[0].x, m3MinF(tv[1].x, tv[2].x)),
@@ -379,7 +379,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
     }
 }
 
-static bool ShapeCastCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool ShapeCastCallback(int32_t shape, void* userContext)
 {
     ShapeCastTestShape((m3ShapeCastContext*)userContext, shape);
     return true;
@@ -457,10 +457,9 @@ static m3CastResult CastConvexFiltered(const m3World* worldPtr, m3Pos3 base, con
     return ctx.best;
 }
 
-static M3_NOINLINE bool WorldCastBoxClosestWorker(const m3World* world, m3Pos3 center,
-                                                  m3Vec3 halfExtents, m3Quat rotation,
-                                                  m3Vec3 translation, m3QueryFilter filter,
-                                                  m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool
+WorldCastBoxClosestWorker(const m3World* world, m3Pos3 center, m3Vec3 halfExtents, m3Quat rotation,
+                          m3Vec3 translation, m3QueryFilter filter, m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {
@@ -506,10 +505,9 @@ bool m3World_CastBoxClosest(const m3World* world, m3Pos3 center, m3Vec3 halfExte
     return result;
 }
 
-static M3_NOINLINE bool WorldCastHullClosestWorker(const m3World* world, m3Pos3 base,
-                                                   const m3Vec3* points, int32_t count,
-                                                   m3Vec3 translation, m3QueryFilter filter,
-                                                   m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool
+WorldCastHullClosestWorker(const m3World* world, m3Pos3 base, const m3Vec3* points, int32_t count,
+                           m3Vec3 translation, m3QueryFilter filter, m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {
@@ -558,9 +556,9 @@ m3CastResult m3CastConvexClosestEx(const m3World* worldPtr, m3Pos3 base, const m
                               m3DefaultQueryFilter());
 }
 
-static M3_NOINLINE bool WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center,
-                                                     float radius, m3Vec3 translation,
-                                                     m3QueryFilter filter, m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool
+WorldCastSphereClosestWorker(const m3World* world, m3Pos3 center, float radius, m3Vec3 translation,
+                             m3QueryFilter filter, m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {
@@ -582,10 +580,10 @@ bool m3World_CastSphereClosest(const m3World* world, m3Pos3 center, float radius
     return result;
 }
 
-static M3_NOINLINE bool WorldCastCapsuleClosestWorker(const m3World* world, m3Pos3 center,
-                                                      m3Vec3 point1, m3Vec3 point2, float radius,
-                                                      m3Vec3 translation, m3QueryFilter filter,
-                                                      m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool
+WorldCastCapsuleClosestWorker(const m3World* world, m3Pos3 center, m3Vec3 point1, m3Vec3 point2,
+                              float radius, m3Vec3 translation, m3QueryFilter filter,
+                              m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {

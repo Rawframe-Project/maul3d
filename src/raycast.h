@@ -28,7 +28,7 @@ static inline void m3ClearCastHit(m3CastHit* hitOut)
 
 // Writes a hit to hitOut and returns true, or returns false on a miss with
 // hitOut as m3ClearCastHit left it.
-static inline bool m3TakeCastHit(m3CastResult result, m3CastHit* hitOut)
+M3_NODISCARD static inline bool m3TakeCastHit(m3CastResult result, m3CastHit* hitOut)
 {
     if (!result.hit)
     {

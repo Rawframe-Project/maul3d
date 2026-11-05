@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <string.h>
 
-static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -48,7 +48,7 @@ static bool ApplyCreateBody(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyDestroyBody(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyDestroyBody(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -69,7 +69,7 @@ static bool ApplyDestroyBody(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -89,7 +89,7 @@ static bool ApplySetLinearVelocity(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -109,7 +109,7 @@ static bool ApplySetAngularVelocity(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyStepVetoes(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyStepVetoes(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -122,7 +122,7 @@ static bool ApplyStepVetoes(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -144,7 +144,7 @@ static bool ApplyStep(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -195,7 +195,7 @@ static bool ApplyBodyVector(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -230,7 +230,7 @@ static bool ApplyBodyVectorAtPoint(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -258,7 +258,7 @@ static bool ApplyBodyPose(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
 {
     m3OpBodyParam record;
     if (r->bytes != (int32_t)sizeof(record))
@@ -277,7 +277,7 @@ static bool ApplyBodyParam(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyUserData(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyUserData(m3World* world, const m3ReplayRecord* r)
 {
     m3OpUserData record;
     if (r->bytes != (int32_t)sizeof(record))
@@ -305,7 +305,7 @@ static bool ApplyUserData(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -348,7 +348,7 @@ static bool ApplyBodyByte(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetMotionLocks(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetMotionLocks(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -367,7 +367,7 @@ static bool ApplySetMotionLocks(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -386,7 +386,7 @@ static bool ApplySetSleepControls(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetGravity(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetGravity(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -404,7 +404,7 @@ static bool ApplySetGravity(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -422,7 +422,7 @@ static bool ApplySetContactTuning(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyWorldScalar(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyWorldScalar(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -449,7 +449,7 @@ static bool ApplyWorldScalar(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -470,7 +470,7 @@ static bool ApplySetMaximumAngularSpeed(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -494,7 +494,7 @@ static bool ApplySetBodyName(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyRebuildBroadphase(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyRebuildBroadphase(m3World* world, const m3ReplayRecord* r)
 {
     int32_t bytes = r->bytes;
     int32_t zero;
@@ -505,7 +505,7 @@ static bool ApplyRebuildBroadphase(m3World* world, const m3ReplayRecord* r)
     return m3RebuildBroadphaseInternal(world); // no memory refuses the replay
 }
 
-static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -528,7 +528,7 @@ static bool ApplySetAllowFastRotation(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyWorldExplode(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyWorldExplode(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -545,7 +545,7 @@ static bool ApplyWorldExplode(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplyWorldFlag(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplyWorldFlag(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -567,7 +567,7 @@ static bool ApplyWorldFlag(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;
@@ -585,7 +585,7 @@ static bool ApplySetWind(m3World* world, const m3ReplayRecord* r)
     return true;
 }
 
-static bool ApplySetHitEventThreshold(m3World* world, const m3ReplayRecord* r)
+M3_NODISCARD static bool ApplySetHitEventThreshold(m3World* world, const m3ReplayRecord* r)
 {
     const uint8_t* payload = r->payload;
     int32_t bytes = r->bytes;

@@ -152,7 +152,7 @@ typedef struct m3MeshData
 // sizes new ones from the counts already in the struct; Free
 // releases and zeroes. The snapshot read pass and every create
 // and destroy path share these two gates.
-bool m3MeshDataAlloc(m3Heap* heap, m3MeshData* mesh);
+M3_NODISCARD bool m3MeshDataAlloc(m3Heap* heap, m3MeshData* mesh);
 void m3MeshDataFree(m3Heap* heap, m3MeshData* mesh);
 
 // Bakes the edge flags. The scratch holds m3MeshEdgeScratchCount ints.
@@ -182,7 +182,7 @@ typedef struct m3HeightFieldData
 // cell size and finite samples, read as packed bytes. Sets the extremes.
 m3Result m3HeightFieldSamplesCheck(int32_t nx, int32_t nz, float cellSize, const void* samples,
                                    float* minOut, float* maxOut);
-bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf);
+M3_NODISCARD bool m3HeightFieldDataAlloc(m3Heap* heap, m3HeightFieldData* hf);
 void m3HeightFieldDataFree(m3Heap* heap, m3HeightFieldData* hf);
 
 // One cell's two triangles, split by diagonal parity: the one rule every
@@ -224,7 +224,7 @@ int32_t m3HeightFieldGather(const m3HeightFieldData* hf, m3Vec3 lo, m3Vec3 hi, m
                             int32_t cap);
 
 // Whether a triangle's bounds overlap the box lo..hi.
-static inline bool m3TriangleTouchesBox(const m3Vec3 tri[3], m3Vec3 lo, m3Vec3 hi)
+M3_NODISCARD static inline bool m3TriangleTouchesBox(const m3Vec3 tri[3], m3Vec3 lo, m3Vec3 hi)
 {
     m3Vec3 tlo = {m3MinF(tri[0].x, m3MinF(tri[1].x, tri[2].x)),
                   m3MinF(tri[0].y, m3MinF(tri[1].y, tri[2].y)),
@@ -256,7 +256,8 @@ typedef struct m3SurfacePath
 
 // Narrows t0..t1 to where the coordinate s + t d lies within lo..hi.
 // False when no part of t0..t1 does.
-static inline bool m3ClipSlab(double s, double d, double lo, double hi, double* t0, double* t1)
+M3_NODISCARD static inline bool m3ClipSlab(double s, double d, double lo, double hi, double* t0,
+                                           double* t1)
 {
     if (d == 0.0)
     {
@@ -318,7 +319,7 @@ typedef struct m3MeshBvh
 
 // Builds the mesh's BVH. False, with the BVH empty, when an allocation is
 // refused: an empty BVH gathers nothing, so the caller refuses its work.
-bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
+M3_NODISCARD bool m3MeshBvhBuild(m3Heap* heap, m3MeshBvh* bvh, const m3MeshData* mesh);
 
 // The element count of an array, for a call that takes a buffer's size.
 #define M3_COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof((array)[0])))
@@ -393,8 +394,8 @@ void m3MeshBvhFree(m3Heap* heap, m3MeshBvh* bvh);
 // build wraps this with triangle boxes; the voxel surface feeds
 // merged-box bounds). Count is capped at M3_MAX_MESH_TRIANGLES. False, with
 // the BVH empty, when an allocation is refused.
-bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los, const m3Vec3* his,
-                          int32_t count);
+M3_NODISCARD bool m3MeshBvhBuildBounds(m3Heap* heap, m3MeshBvh* bvh, const m3Vec3* los,
+                                       const m3Vec3* his, int32_t count);
 
 // The bytes of scratch a build over count bounds takes.
 int32_t m3MeshBvhScratchBytes(int32_t count);
@@ -454,16 +455,16 @@ typedef struct m3VoxelSurface
     m3MeshBvh bvh;
 } m3VoxelSurface;
 
-bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
+M3_NODISCARD bool m3VoxelGet(const m3VoxelChunkData* chunk, int32_t x, int32_t y, int32_t z);
 int32_t m3VoxelPack(m3VoxelChunkData* chunk, const uint8_t* voxels, const uint16_t* payload,
                     float cellSize);
 // Whether a grid's surface merges into no more boxes than the world's
 // voxel trees hold (voxelBoxLimit). A grid that does not is never
 // landed, so every surface fits its tree.
-bool m3VoxelSurfaceFits(const m3World* world, const m3VoxelChunkData* chunk);
+M3_NODISCARD bool m3VoxelSurfaceFits(const m3World* world, const m3VoxelChunkData* chunk);
 
 // Takes slot's tree storage when it has none; false when refused.
-bool m3VoxelTreeReserve(m3World* world, int32_t slot);
+M3_NODISCARD bool m3VoxelTreeReserve(m3World* world, int32_t slot);
 
 // Rebuilds slot's surface from its grid, which fits, the tree into the
 // slot's storage: allocates nothing, so it never fails.
@@ -1098,7 +1099,7 @@ typedef struct m3World
 // Whether the body in slot index is a live character's own. A character
 // owns its body and the capsule on it: they go with the character, and no
 // call may destroy, retype, reshape or add to them on their own.
-static inline bool m3CharacterOwnsBody(const m3World* world, int32_t index)
+M3_NODISCARD static inline bool m3CharacterOwnsBody(const m3World* world, int32_t index)
 {
     const m3Characters* c = &world->characters;
     for (int32_t i = 0; i < c->charPool.maxIndex; ++i)

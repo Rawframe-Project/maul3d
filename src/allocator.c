@@ -200,7 +200,7 @@ void m3IdPoolDestroy(m3Heap* heap, m3IdPool* pool)
 // the capacity, and the head is a ring position. Release builds compile
 // the check out, and the helper with it.
 #ifndef NDEBUG
-static bool PoolCursorsHold(const m3IdPool* pool)
+M3_NODISCARD static bool PoolCursorsHold(const m3IdPool* pool)
 {
     return pool->maxIndex >= 0 && pool->maxIndex <= pool->capacity && pool->freeCount >= 0 &&
            pool->freeCount <= pool->maxIndex && pool->retiredCount >= 0 &&

@@ -15,7 +15,7 @@
 
 #include <string.h>
 
-static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
+M3_NODISCARD static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 {
     int32_t slot = m3JointSlot(world, id);
     if (slot < 0)

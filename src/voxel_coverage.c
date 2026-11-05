@@ -80,8 +80,8 @@ void m3VoxelRebuildLinks(m3World* world)
 // fully filled? Looks into the slot's own grid, or across the weld
 // into the neighbor's border layer when the box touches the chunk
 // boundary.
-static bool VoxelFaceCovered(const m3World* world, int32_t slot, const uint8_t lo[3],
-                             const uint8_t hi[3], int32_t face)
+M3_NODISCARD static bool VoxelFaceCovered(const m3World* world, int32_t slot, const uint8_t lo[3],
+                                          const uint8_t hi[3], int32_t face)
 {
     static const int32_t axisOf[6] = {0, 0, 1, 1, 2, 2};
     static const int32_t signOf[6] = {-1, 1, -1, 1, -1, 1};

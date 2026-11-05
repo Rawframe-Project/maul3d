@@ -68,6 +68,6 @@ static inline float m3InF32(const uint8_t* block, int32_t i)
 }
 
 // Whether every live record's values are ones its setters accept.
-bool m3SnapshotValuesValid(const m3Incoming* inc);
+M3_NODISCARD bool m3SnapshotValuesValid(const m3Incoming* inc);
 
 #endif // MAUL3D_SRC_SNAPSHOT_VALUES_H

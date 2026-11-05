@@ -84,7 +84,8 @@ bool m3LeverFits(uint8_t type, const m3LeverBody* a, m3Vec3 localA, const m3Leve
 }
 
 // Joint j's fit with body taking next.
-static bool JointFits(const m3World* world, int32_t j, int32_t body, const m3LeverBody* next)
+M3_NODISCARD static bool JointFits(const m3World* world, int32_t j, int32_t body,
+                                   const m3LeverBody* next)
 {
     int32_t bodyA = world->joints.jointBodyA[j];
     int32_t bodyB = world->joints.jointBodyB[j];

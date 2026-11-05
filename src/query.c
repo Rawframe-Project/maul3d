@@ -75,7 +75,7 @@ static void RayAllInsert(m3RayAllContext* ctx, const m3CastResult* hit, int32_t 
     }
 }
 
-static bool RayAllCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool RayAllCallback(int32_t shape, void* userContext)
 {
     m3RayAllContext* ctx = (m3RayAllContext*)userContext;
     if (ctx->world->bodies.bodyEnabled[ctx->world->shapes.shapeBody[shape]] == 0)
@@ -464,7 +464,7 @@ static int SphereReachesShape(const m3World* world, int32_t shape, m3Pos3 center
     return out.distance - proxy.radius <= radius;
 }
 
-static bool OverlapCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool OverlapCallback(int32_t shape, void* userContext)
 {
     {
         m3OverlapContext* fctx = (m3OverlapContext*)userContext;

@@ -256,7 +256,7 @@ static void ClearLinks(m3World* world)
 // The slot pools, the proxy tree and the step scratch live outside the
 // state table. Each reports a refusal as zero capacity; their closed-form
 // footprints join the memory total.
-static bool CreatePools(m3World* world)
+M3_NODISCARD static bool CreatePools(m3World* world)
 {
     m3IdPool* pools[] = {
         &world->bodies.bodyPool,     &world->shapes.shapePool,    &world->hulls.hullPool,
@@ -771,7 +771,7 @@ static void DropRebuildScratch(m3World* world, RebuildScratch* scratch)
 
 // Takes the scratch for every live proxy. False, holding nothing, when
 // the allocator refuses; a world without proxies needs none.
-static bool TakeRebuildScratch(m3World* world, RebuildScratch* scratch)
+M3_NODISCARD static bool TakeRebuildScratch(m3World* world, RebuildScratch* scratch)
 {
     memset(scratch, 0, sizeof(*scratch));
     int32_t maxShape = world->shapes.shapePool.maxIndex;

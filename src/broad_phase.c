@@ -375,7 +375,7 @@ typedef struct m3QueryCtx
     int32_t self;
 } m3QueryCtx;
 
-static bool QueryHit(int32_t other, void* context)
+M3_NODISCARD static bool QueryHit(int32_t other, void* context)
 {
     m3QueryCtx* ctx = (m3QueryCtx*)context;
     if (other == ctx->self)
@@ -452,7 +452,7 @@ typedef struct m3CandidateCtx
     int32_t overflow;
 } m3CandidateCtx;
 
-static bool CandidateHit(int32_t other, void* context)
+M3_NODISCARD static bool CandidateHit(int32_t other, void* context)
 {
     m3CandidateCtx* ctx = (m3CandidateCtx*)context;
     m3World* world = ctx->world;
@@ -554,7 +554,7 @@ typedef struct m3FreezeCtx
     int32_t self;
 } m3FreezeCtx;
 
-static bool FreezeHit(int32_t other, void* context)
+M3_NODISCARD static bool FreezeHit(int32_t other, void* context)
 {
     m3FreezeCtx* ctx = (m3FreezeCtx*)context;
     if (other == ctx->self || !m3PairAllowed(ctx->world, ctx->self, other))

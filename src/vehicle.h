@@ -24,16 +24,17 @@ void m3VehicleTankCommandsInternal(m3World* world, int32_t slot, float left, flo
 
 // Skid-steer commands the public call and replay accept: finite, on a
 // vehicle with no drivetrain.
-bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, float left, float right,
-                                float brake);
+M3_NODISCARD bool m3VehicleTankCommandsValid(const m3World* world, int32_t slot, float left,
+                                             float right, float brake);
 
 // The bounds a wheel and a drivetrain must keep, at create, set, replay
 // and restore.
 m3Result m3WheelDefCheck(const m3WheelDef* wd);
-bool m3DrivetrainDefValid(const m3DrivetrainDef* def);
+M3_NODISCARD bool m3DrivetrainDefValid(const m3DrivetrainDef* def);
 
-bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot, const m3DrivetrainDef* def);
+M3_NODISCARD bool m3VehicleDrivetrainInternal(m3World* world, int32_t slot,
+                                              const m3DrivetrainDef* def);
 
-bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear);
+M3_NODISCARD bool m3VehicleGearInternal(m3World* world, int32_t slot, int32_t gear);
 
 #endif // MAUL3D_SRC_VEHICLE_H

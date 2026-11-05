@@ -252,7 +252,7 @@ typedef struct EdgeAxis
 // Arcs a1 to a2 and b1 to b2 on the unit sphere cross when each arc's
 // endpoints lie on opposite sides of the other's great circle and the two
 // arcs share a hemisphere.
-static bool ArcsCross(m3Vec3 a1, m3Vec3 a2, m3Vec3 b1, m3Vec3 b2)
+M3_NODISCARD static bool ArcsCross(m3Vec3 a1, m3Vec3 a2, m3Vec3 b1, m3Vec3 b2)
 {
     m3Vec3 na = m3Cross3(a1, a2);
     m3Vec3 nb = m3Cross3(b1, b2);

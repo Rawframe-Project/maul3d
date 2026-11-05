@@ -45,6 +45,6 @@ void m3ShapeFatAabb(const m3World* world, int32_t shape, double lo[3], double hi
 
 // Whether shapes i and j may touch: the one pair rule the broadphase and
 // the continuous phase both ask, so they cannot drift apart.
-bool m3PairAllowed(const m3World* world, int32_t i, int32_t j);
+M3_NODISCARD bool m3PairAllowed(const m3World* world, int32_t i, int32_t j);
 
 #endif // MAUL3D_SRC_BROAD_PHASE_H

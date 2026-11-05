@@ -31,9 +31,9 @@ typedef struct m3Walk
 // One slot's tail content: counts first, then what they describe. The
 // read pass refuses hostile counts and sizes the slot through the alloc
 // gate; measure and write only read the slot, and need no heap.
-bool m3WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh);
-bool m3WalkHull(m3Walk* walk, m3HullData* hull);
-bool m3WalkHeightField(m3Heap* heap, m3Walk* walk, m3HeightFieldData* hf);
+M3_NODISCARD bool m3WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh);
+M3_NODISCARD bool m3WalkHull(m3Walk* walk, m3HullData* hull);
+M3_NODISCARD bool m3WalkHeightField(m3Heap* heap, m3Walk* walk, m3HeightFieldData* hf);
 
 // The stream after the header: the state table's fixed prefix, then, with
 // includeMesh, the mesh, hull and height field tails. Returns the byte

@@ -520,7 +520,7 @@ m3CastResult m3RayTestOneShape(const m3World* world, int32_t shape, m3Pos3 origi
     return ctx.best;
 }
 
-static bool RayQueryCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool RayQueryCallback(int32_t shape, void* userContext)
 {
     RayTestShape((m3RayCastContext*)userContext, shape);
     return true;
@@ -584,9 +584,10 @@ m3CastResult m3RayClosestInternal(m3World* world, m3Pos3 origin, m3Vec3 translat
     return m3RayClosestFiltered(world, origin, translation, -1, m3DefaultQueryFilter());
 }
 
-static M3_NOINLINE bool WorldCastRayClosestWorker(const m3World* world, m3Pos3 origin,
-                                                  m3Vec3 translation, m3QueryFilter filter,
-                                                  m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool WorldCastRayClosestWorker(const m3World* world, m3Pos3 origin,
+                                                               m3Vec3 translation,
+                                                               m3QueryFilter filter,
+                                                               m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {

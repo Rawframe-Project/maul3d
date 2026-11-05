@@ -22,22 +22,22 @@ m3Result m3JointMotorCheck(float speed, float maxEffort);
 m3Result m3JointSpringCheck(int32_t enable, float hertz, float dampingRatio);
 // The types whose motor slot is a motor: the gear and the motor joint keep
 // their own values there.
-bool m3JointHasMotor(uint8_t type);
+M3_NODISCARD bool m3JointHasMotor(uint8_t type);
 // The types that take a spring: a position drive toward a target, or for
 // the distance joint toward its length.
-bool m3JointHasSpring(uint8_t type);
+M3_NODISCARD bool m3JointHasSpring(uint8_t type);
 // The types that take limits. The motor joint keeps its force and torque
 // budgets, and the distance joint its length range, in the limit slot and
 // on the limit record, through their own calls.
-bool m3JointHasLimits(uint8_t type);
+M3_NODISCARD bool m3JointHasLimits(uint8_t type);
 m3Result m3JointLimitsCheck(int32_t type, int32_t enable, float lower, float upper);
 // A distance joint's length range: finite, 0 <= minLength <= maxLength.
-bool m3DistanceLengthsFit(float minLength, float maxLength);
+M3_NODISCARD bool m3DistanceLengthsFit(float minLength, float maxLength);
 // A distance joint's spring rest length: finite and not negative.
-bool m3DistanceRestLengthFits(float length);
+M3_NODISCARD bool m3DistanceRestLengthFits(float length);
 // A spherical joint's cone angle: finite and not negative, with the cone on
 // or off.
-bool m3SphericalConeFits(float angle);
+M3_NODISCARD bool m3SphericalConeFits(float angle);
 
 // The reach of a motor joint's aim. Its create aims at the gap between
 // the anchors in body A's frame. Each body's position is within
@@ -49,17 +49,17 @@ bool m3SphericalConeFits(float angle);
 // each component of the aim in body A's frame stays under about 3.61e15.
 // SetOffsets takes an aim within M3_LOCAL_LIMIT.
 #define M3_SERVO_AIM_LIMIT 4.0e15f
-bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable, float hertz,
-                        float zeta);
-bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable, float target,
-                       float hertz, float zeta, float maxEffort);
-bool m3MotorJointOffsetsValid(const m3World* world, int32_t slot, m3Vec3 linearOffset,
-                              m3Quat angularOffset);
+M3_NODISCARD bool m3JointSpringValid(const m3World* world, int32_t slot, int32_t enable,
+                                     float hertz, float zeta);
+M3_NODISCARD bool m3JointSteerValid(const m3World* world, int32_t slot, int32_t enable,
+                                    float target, float hertz, float zeta, float maxEffort);
+M3_NODISCARD bool m3MotorJointOffsetsValid(const m3World* world, int32_t slot, m3Vec3 linearOffset,
+                                           m3Quat angularOffset);
 // The spring and steering checks for a joint of this type, as restore
 // reads it.
-bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta);
-bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz, float zeta,
-                      float maxEffort);
+M3_NODISCARD bool m3JointSpringFits(uint8_t type, int32_t enable, float hertz, float zeta);
+M3_NODISCARD bool m3JointSteerFits(uint8_t type, int32_t enable, float target, float hertz,
+                                   float zeta, float maxEffort);
 
 void m3JointSetLimitsInternal(m3World* world, int32_t j, int32_t enable, float lower, float upper);
 
@@ -95,7 +95,7 @@ void m3JointSetTargetInternal(m3World* world, int32_t j, float scalar, m3Quat q)
 // translation on a prismatic or wheel joint, each with the identity
 // rotation, or a rotation within the unit-length band on a spherical
 // joint, with a zero scalar.
-bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q);
+M3_NODISCARD bool m3JointTargetValid(uint8_t type, float scalar, m3Quat q);
 
 // The gear's spin readback: a body's rotation seen in its
 // own gear frame, twisted about that frame's z (the gear axis).

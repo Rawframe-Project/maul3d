@@ -100,8 +100,8 @@ static void ReadIncomingShape(const void* context, int32_t s, m3MassShape* out)
 // Whether every incoming dynamic body keeps its contact lever ratio, and
 // every incoming joint its lever ratio, at the masses the incoming bodies
 // take from their shapes, as restore will compute them.
-static bool IncomingLeversFit(m3World* world, const uint8_t* prefix, const IncomingShapes* shapes,
-                              bool* fits)
+M3_NODISCARD static bool IncomingLeversFit(m3World* world, const uint8_t* prefix,
+                                           const IncomingShapes* shapes, bool* fits)
 {
 #define M3_IN(field) (prefix + m3StateFieldAt(world, offsetof(m3World, field)))
     const uint8_t* bodyAlive = M3_IN(bodies.bodyPool.alive);

@@ -593,7 +593,7 @@ void m3StateFree(m3World* world)
 }
 
 // Whether an array is snapshot state.
-static bool InSnapshot(const m3StateArray* entry)
+M3_NODISCARD static bool InSnapshot(const m3StateArray* entry)
 {
     return (entry->flags & M3_STATE_SNAPSHOT) != 0;
 }
@@ -671,12 +671,12 @@ int64_t m3StateFieldAt(const m3World* world, size_t fieldOffset)
     return -1;
 }
 
-static bool InRange(int64_t value, int64_t lo, int64_t hi)
+M3_NODISCARD static bool InRange(int64_t value, int64_t lo, int64_t hi)
 {
     return value >= lo && value <= hi;
 }
 
-static bool CheckInt32s(const uint8_t* data, size_t count, int64_t lo, int64_t hi)
+M3_NODISCARD static bool CheckInt32s(const uint8_t* data, size_t count, int64_t lo, int64_t hi)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -690,7 +690,7 @@ static bool CheckInt32s(const uint8_t* data, size_t count, int64_t lo, int64_t h
     return true;
 }
 
-static bool CheckUint16s(const uint8_t* data, size_t count, int64_t range)
+M3_NODISCARD static bool CheckUint16s(const uint8_t* data, size_t count, int64_t range)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -704,7 +704,7 @@ static bool CheckUint16s(const uint8_t* data, size_t count, int64_t range)
     return true;
 }
 
-static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
+M3_NODISCARD static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -719,7 +719,7 @@ static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
 // Each slot as the setter writes it: valid name text, then zeros to the
 // slot's end, its last byte always one of them. The getter measures the
 // slot up to its first zero, so a slot with no zero would read past it.
-static bool CheckBodyNames(const uint8_t* data, size_t count)
+M3_NODISCARD static bool CheckBodyNames(const uint8_t* data, size_t count)
 {
     for (size_t slot = 0; slot + M3_BODY_NAME_CAPACITY <= count; slot += M3_BODY_NAME_CAPACITY)
     {
@@ -732,7 +732,7 @@ static bool CheckBodyNames(const uint8_t* data, size_t count)
     return true;
 }
 
-static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
+M3_NODISCARD static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
 {
     for (size_t at = 0; at + width <= bytes; at += width)
     {
@@ -757,8 +757,8 @@ static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
     return true;
 }
 
-static bool CheckStructs(const m3World* world, const m3StateArray* array, const uint8_t* data,
-                         size_t count, int64_t range)
+M3_NODISCARD static bool CheckStructs(const m3World* world, const m3StateArray* array,
+                                      const uint8_t* data, size_t count, int64_t range)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -841,8 +841,8 @@ static bool CheckStructs(const m3World* world, const m3StateArray* array, const 
     return true;
 }
 
-static bool CheckBlock(const m3World* world, const m3StateArray* array, const uint8_t* data,
-                       size_t count)
+M3_NODISCARD static bool CheckBlock(const m3World* world, const m3StateArray* array,
+                                    const uint8_t* data, size_t count)
 {
     int64_t range = ExtentCount(world, array->range);
     switch ((m3Check)array->check)

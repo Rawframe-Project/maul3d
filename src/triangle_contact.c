@@ -98,7 +98,8 @@ void m3CollideSphereTriangle(m3TriManifold* out, m3Vec3 center, float radius, co
 // Clips segment to the prism over the triangle: the three side planes
 // through its edges, perpendicular to its face. False when nothing is
 // left.
-static bool ClipSegmentToPrism(m3Vec3 segment[2], const m3Vec3 tri[3], m3Vec3 faceNormal)
+M3_NODISCARD static bool ClipSegmentToPrism(m3Vec3 segment[2], const m3Vec3 tri[3],
+                                            m3Vec3 faceNormal)
 {
     for (int32_t i = 0; i < 3; ++i)
     {
@@ -193,8 +194,8 @@ static SegTriClosest ClosestSegmentTriangle(m3Vec3 c1, m3Vec3 c2, const m3Vec3 t
 // Two contact points at the ends of the capsule core clipped to the
 // triangle's prism, each resting on the face. False when the clip leaves
 // nothing.
-static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, float radius,
-                               const m3Vec3 tri[3], m3Vec3 triN, float triOff)
+M3_NODISCARD static bool CapsuleFaceContact(m3TriManifold* out, m3Vec3 c1, m3Vec3 c2, float radius,
+                                            const m3Vec3 tri[3], m3Vec3 triN, float triOff)
 {
     m3Vec3 segment[2] = {c1, c2};
     if (!ClipSegmentToPrism(segment, tri, triN))
@@ -429,7 +430,8 @@ typedef struct HullTriEdge
 // where the arc passes the plane perpendicular to the triangle edge, if
 // that crossing lies on the outer side. The crossing is the direction of
 // the Minkowski face the two edges make, so it also orients the axis.
-static bool TriEdgeArcCrossing(const TriFrame* t, int32_t i, m3Vec3 a, m3Vec3 b, m3Vec3* crossing)
+M3_NODISCARD static bool TriEdgeArcCrossing(const TriFrame* t, int32_t i, m3Vec3 a, m3Vec3 b,
+                                            m3Vec3* crossing)
 {
     float sa = m3Dot3(a, t->edge[i]);
     float sb = m3Dot3(b, t->edge[i]);

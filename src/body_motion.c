@@ -17,7 +17,7 @@
 
 // Forces and impulses. One internal per op so replay and the
 // public wrappers share exactly one application path.
-static bool ForceTargetValid(const m3World* world, int32_t index)
+M3_NODISCARD static bool ForceTargetValid(const m3World* world, int32_t index)
 {
     return world->bodies.types[index] == (uint8_t)m3_dynamicBody &&
            world->bodies.invMass[index] > 0.0f;
@@ -75,7 +75,7 @@ static m3Vec3 ForceArm(const m3World* world, int32_t index, m3Pos3 point)
 // exactly what would not fit. NaN fails every comparison.
 // A force acts over the next step, so it lands only on a body that step
 // moves: a disabled body vanishes from the step, and refuses one.
-static bool ForceHolderValid(const m3World* world, int32_t index)
+M3_NODISCARD static bool ForceHolderValid(const m3World* world, int32_t index)
 {
     return ForceTargetValid(world, index) && world->bodies.bodyEnabled[index] != 0;
 }
@@ -137,7 +137,7 @@ bool m3ImpulseAtPointFits(const m3World* world, int32_t index, m3Vec3 impulse, m
 
 // A static body never moves, so its velocities are zero, a negative zero
 // included, or the contacts would carry what touches it.
-static bool StaticStill(uint8_t type, m3Vec3 velocity)
+M3_NODISCARD static bool StaticStill(uint8_t type, m3Vec3 velocity)
 {
     return type != (uint8_t)m3_staticBody ||
            (velocity.x == 0.0f && velocity.y == 0.0f && velocity.z == 0.0f);

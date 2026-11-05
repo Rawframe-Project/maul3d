@@ -62,7 +62,7 @@ typedef struct PoolFields
 // alive; the free ring holds freeCount distinct dead slots below
 // maxIndex; every other dead slot below it is retired, with its
 // generation spent, and there are retiredCount of them.
-static bool PoolValid(const m3Incoming* inc, int32_t capacity, PoolFields f)
+M3_NODISCARD static bool PoolValid(const m3Incoming* inc, int32_t capacity, PoolFields f)
 {
     const uint8_t* alive = m3InField(inc, f.alive);
     const uint8_t* generations = m3InField(inc, f.generations);
@@ -109,7 +109,7 @@ static bool PoolValid(const m3Incoming* inc, int32_t capacity, PoolFields f)
     return true;
 }
 
-static bool PoolsValid(const m3Incoming* inc)
+M3_NODISCARD static bool PoolsValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     return PoolValid(inc, w->bodies.bodyPool.capacity, M3_POOL_FIELDS(bodies.bodyPool)) &&
@@ -190,7 +190,7 @@ static ContentFields Content(const m3World* w, ContentKind kind)
 // Every live shape names the content its type uses and no other, in a
 // live slot; every slot's stored reference count is the number of live
 // shapes that name it, and a slot is alive exactly when that is nonzero.
-static bool ContentValid(const m3Incoming* inc)
+M3_NODISCARD static bool ContentValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     int32_t shapes = w->shapes.shapePool.capacity;
@@ -236,7 +236,7 @@ static bool ContentValid(const m3Incoming* inc)
 
 // Each live body's shape list holds exactly the live shapes whose body it
 // is, once each, and ends; a dead body's list is empty.
-static bool ShapeListsValid(const m3Incoming* inc)
+M3_NODISCARD static bool ShapeListsValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     int32_t bodies = w->bodies.bodyPool.capacity;
@@ -293,7 +293,7 @@ static bool ShapeListsValid(const m3Incoming* inc)
 // joint list (threaded through nextA where the body is A, nextB where it
 // is B) holds exactly its joints, once each, and ends; a dead body's list
 // is empty.
-static bool JointListsValid(const m3Incoming* inc)
+M3_NODISCARD static bool JointListsValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     int32_t bodies = w->bodies.bodyPool.capacity;
@@ -349,12 +349,12 @@ static bool JointListsValid(const m3Incoming* inc)
 // --- The broadphase tree -------------------------------------------------
 
 // A box the tree could hold: no axis inverted.
-static bool Ordered(const m3TreeNode* n)
+M3_NODISCARD static bool Ordered(const m3TreeNode* n)
 {
     return n->lo[0] <= n->hi[0] && n->lo[1] <= n->hi[1] && n->lo[2] <= n->hi[2];
 }
 
-static bool Contains(const m3TreeNode* outer, const m3TreeNode* inner)
+M3_NODISCARD static bool Contains(const m3TreeNode* outer, const m3TreeNode* inner)
 {
     for (int32_t k = 0; k < 3; ++k)
     {
@@ -370,8 +370,8 @@ static bool Contains(const m3TreeNode* outer, const m3TreeNode* inner)
 // parent, ending at the null node. The block checks put every link, the
 // root and the free list head in [-1, capacity), so each step is a read
 // inside the pool.
-static bool FreeChainValid(const uint8_t* nodes, int32_t capacity, int32_t freeList,
-                           int32_t nodeCount)
+M3_NODISCARD static bool FreeChainValid(const uint8_t* nodes, int32_t capacity, int32_t freeList,
+                                        int32_t nodeCount)
 {
     int32_t length = 0;
     for (int32_t id = freeList; id != M3_TREE_NULL; id = Node(nodes, id).parent)
@@ -391,8 +391,8 @@ static bool FreeChainValid(const uint8_t* nodes, int32_t capacity, int32_t freeL
 // every leaf the proxy of the live, non-plane shape it names. Walked with
 // a stack instead of recursion: balance bounds a valid tree's depth, and
 // a deeper one is refused before the stack could fill.
-static bool TreeValid(const m3Incoming* inc, const uint8_t* nodes, int32_t capacity, int32_t root,
-                      int32_t nodeCount, int32_t* leavesOut)
+M3_NODISCARD static bool TreeValid(const m3Incoming* inc, const uint8_t* nodes, int32_t capacity,
+                                   int32_t root, int32_t nodeCount, int32_t* leavesOut)
 {
     const uint8_t* shapeAlive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
     const uint8_t* shapeType = m3InField(inc, offsetof(m3World, shapes.shapeType));
@@ -462,7 +462,7 @@ static bool TreeValid(const m3Incoming* inc, const uint8_t* nodes, int32_t capac
 // The tree and its free chain partition the node pool, and the tree's
 // leaves are exactly the live, non-plane shapes' proxies: a live
 // non-plane shape names a leaf, and a plane or a dead shape names none.
-static bool BroadphaseValid(const m3Incoming* inc)
+M3_NODISCARD static bool BroadphaseValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     int32_t capacity = w->broadphase.tree.capacity;
@@ -515,7 +515,7 @@ static bool BroadphaseValid(const m3Incoming* inc)
 // reason a touching pair names two live shapes: the contact readback, the
 // debug draw and the filter's wake read the body of each, and a dead
 // shape's body slot is -1.
-static bool PairsValid(const m3Incoming* inc)
+M3_NODISCARD static bool PairsValid(const m3Incoming* inc)
 {
     const uint8_t* keys = m3InField(inc, offsetof(m3World, contacts.pairKeys));
     const uint8_t* manifolds = m3InField(inc, offsetof(m3World, contacts.manifolds));

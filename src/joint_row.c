@@ -171,8 +171,8 @@ static m3Vec3 WithinBall(m3Vec3* accumulated, m3Vec3 impulse, float budget, cons
 // solves for x by two substitutions. False, with x untouched, when a
 // pivot falls below floor times its diagonal: the block has a dependent
 // row, or one too few digits tell apart.
-static bool SolveBlockWide(double k[M3_BLOCK_ROWS][M3_BLOCK_ROWS], int32_t count, double* x,
-                           double floor)
+M3_NODISCARD static bool SolveBlockWide(double k[M3_BLOCK_ROWS][M3_BLOCK_ROWS], int32_t count,
+                                        double* x, double floor)
 {
     if (count < 1 || count > M3_BLOCK_ROWS)
     {
@@ -304,7 +304,7 @@ static void PushBlock(const m3JointRow* response, const bool* linear, const floa
     b->wB = m3Add3(b->wB, change.angB);
 }
 
-static bool IsZero3(m3Vec3 v)
+M3_NODISCARD static bool IsZero3(m3Vec3 v)
 {
     return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
 }

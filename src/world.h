@@ -56,7 +56,7 @@ m3Result m3StepCheck(float dt, int32_t substeps);
 void m3SetGravityInternal(m3World* world, m3Vec3 gravity);
 
 // False, with the tree untouched, when the allocator refuses the scratch.
-bool m3RebuildBroadphaseInternal(m3World* world);
+M3_NODISCARD bool m3RebuildBroadphaseInternal(m3World* world);
 
 void m3SetContactTuningInternal(m3World* world, float hertz, float dampingRatio, float pushSpeed);
 

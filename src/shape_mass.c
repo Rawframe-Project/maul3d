@@ -40,7 +40,7 @@ static m3Mat3 AdjugateInverse(m3Mat3 m, float* detOut)
     return r;
 }
 
-static bool FiniteMat3(m3Mat3 m)
+M3_NODISCARD static bool FiniteMat3(m3Mat3 m)
 {
     return m3FiniteV3(m.cx) && m3FiniteV3(m.cy) && m3FiniteV3(m.cz);
 }
@@ -195,7 +195,7 @@ static const m3HullData* ShapeHull(const m3World* world, int32_t s)
 // floor: inertia - floor E is positive semidefinite exactly when all
 // seven of its principal minors are non-negative. Doubles, no libm, so
 // every platform decides alike.
-static bool InertiaAtLeast(const m3Mat3* ic, double floor)
+M3_NODISCARD static bool InertiaAtLeast(const m3Mat3* ic, double floor)
 {
     double a = (double)ic->cx.x - floor;
     double d = (double)ic->cy.y - floor;
@@ -236,7 +236,8 @@ typedef struct ShapeChange
     bool collides;
 } ShapeChange;
 
-static bool LeversFit(const m3World* world, int32_t body, uint8_t type, const ShapeChange* change);
+M3_NODISCARD static bool LeversFit(const m3World* world, int32_t body, uint8_t type,
+                                   const ShapeChange* change);
 
 // The mass floors and ceiling over body's shapes, with slot (or -1 for
 // none) taking the given type, geometry and density, and every joint on
@@ -583,7 +584,8 @@ bool m3ContactLeverFits(m3MassShapeRead read, const void* context, int32_t head,
 
 // Whether body, taking this type and change, keeps every joint on it
 // within its lever ratio and itself within its contact lever ratio.
-static bool LeversFit(const m3World* world, int32_t body, uint8_t type, const ShapeChange* change)
+M3_NODISCARD static bool LeversFit(const m3World* world, int32_t body, uint8_t type,
+                                   const ShapeChange* change)
 {
     m3Mat3 inertia;
     bool massive;
