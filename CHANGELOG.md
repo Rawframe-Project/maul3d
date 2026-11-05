@@ -7,6 +7,21 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.1.0](https://github.com/Rawframe-Project/maul3d/compare/v1.0.5...v1.1.0) (2026-11-05)
+
+
+### Added
+
+* **world:** a blast inside a shape pushes it toward its center of mass ([#418](https://github.com/Rawframe-Project/maul3d/issues/418)) ([6445e89](https://github.com/Rawframe-Project/maul3d/commit/6445e8993db804887841005a46d76c702d55fdf2)), closes [#417](https://github.com/Rawframe-Project/maul3d/issues/417)
+
+
+### Fixed
+
+* **shape:** bake mesh edge flags in linear time ([#413](https://github.com/Rawframe-Project/maul3d/issues/413)) ([7d4a9e3](https://github.com/Rawframe-Project/maul3d/commit/7d4a9e3352f795b1ed0180c8f4b8906cae701220)), closes [#412](https://github.com/Rawframe-Project/maul3d/issues/412)
+* **snapshot:** restore refuses a wheel direction that is not unit length ([#415](https://github.com/Rawframe-Project/maul3d/issues/415)) ([110ceec](https://github.com/Rawframe-Project/maul3d/commit/110ceecfa68f87b78a29d9f4f3b4d84eda63a8a1)), closes [#414](https://github.com/Rawframe-Project/maul3d/issues/414)
+* **snapshot:** restore refuses edge flags its mesh would not bake ([#416](https://github.com/Rawframe-Project/maul3d/issues/416)) ([d0de593](https://github.com/Rawframe-Project/maul3d/commit/d0de593c7a705e08370bad79d4cea9309327eb1e)), closes [#410](https://github.com/Rawframe-Project/maul3d/issues/410)
+* **voxel:** restore and replay refuse a chunk whose cells disagree ([#409](https://github.com/Rawframe-Project/maul3d/issues/409)) ([b9eb4a6](https://github.com/Rawframe-Project/maul3d/commit/b9eb4a6f0f20bb52fbcdf4a4d39057f531601498)), closes [#408](https://github.com/Rawframe-Project/maul3d/issues/408)
+
 ## [1.0.5](https://github.com/Rawframe-Project/maul3d/compare/v1.0.4...v1.0.5) (2026-11-05)
 
 ### Fixed
