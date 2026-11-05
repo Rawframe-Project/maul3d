@@ -453,7 +453,7 @@ typedef struct m3HfWindowBuffer
     m3Vec3 verts[M3_HF_WINDOW_CORNERS];
     uint16_t tris[3 * M3_HF_WINDOW_TRIANGLES];
     uint8_t flags[M3_HF_WINDOW_TRIANGLES];
-    int32_t bake[2 * (M3_HF_WINDOW_CORNERS + 1) + 3 * M3_HF_WINDOW_TRIANGLES];
+    int32_t bake[2 * M3_HF_WINDOW_CORNERS + 1 + 3 * M3_HF_WINDOW_TRIANGLES];
 } m3HfWindowBuffer;
 
 // The height field cells [cx0, cx1] x [cz0, cz1], at most M3_HF_WINDOW a
