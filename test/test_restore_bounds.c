@@ -698,6 +698,48 @@ static void TestGroundNormalLength(void)
     m3DestroyWorld(world);
 }
 
+// Create stores a vehicle wheel's direction normalized, so restore takes
+// one whose squared length is within 1e-5 of 1: a unit one and one a few
+// ulps long restore, and one a twentieth short, which create takes and
+// would normalize, is refused with the world left as it was, as is one
+// just past the band.
+static void TestWheelDirectionLength(void)
+{
+    Scene s = Build();
+    m3World* world = s.world;
+    int64_t size = m3World_GetSnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && edited != NULL && Snapshot(world, clean, size) == size,
+          "snapshot taken");
+    if (clean != NULL && edited != NULL)
+    {
+        uint64_t hash = m3World_Hash(world);
+        const Value down = COMPONENT(vehicles.vehWheelDir, m3Vec3, which_firstWheel, 1);
+        const double kept[] = {-1.0, -1.000002};
+        for (size_t k = 0; k < sizeof(kept) / sizeof(kept[0]); ++k)
+        {
+            memcpy(edited, clean, (size_t)size);
+            Put(&s, edited, &down, kept[k]);
+            CHECK(Restore(world, edited, size), "a wheel direction of unit length restores");
+            CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "back to the scene");
+        }
+        const double refused[] = {-0.95, -1.00001};
+        for (size_t k = 0; k < sizeof(refused) / sizeof(refused[0]); ++k)
+        {
+            memcpy(edited, clean, (size_t)size);
+            Put(&s, edited, &down, refused[k]);
+            CHECK(m3World_Restore(world, edited, size) == m3_errorFormat,
+                  "a wheel direction off unit length is refused");
+            CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuseCount == 0,
+                  "and the world is left as it was, with no misuse counted");
+        }
+    }
+    free(edited);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 // Soft rest values far past any create gives, and a wheel compression far
 // past its rest length: restore refuses each with the world left as it
 // was and no misuse counted, and the world it keeps steps two seconds
@@ -957,6 +999,7 @@ int main(void)
 {
     TestBoundsAtTheirEdges();
     TestGroundNormalLength();
+    TestWheelDirectionLength();
     TestFarRestValuesAreRefused();
     TestStepHoldsWithinTheLimit();
     TestHoldRoundsWithin();
