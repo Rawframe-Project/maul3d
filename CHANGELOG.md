@@ -7,6 +7,51 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.5](https://github.com/Rawframe-Project/maul3d/compare/v1.0.4...v1.0.5) (2026-11-05)
+
+### Fixed
+
+- **`M3_NODISCARD` warns under GCC 14 in C23 too.** The macro marks
+  every function that returns a status, so that a caller who drops one
+  gets a warning. In C it took the attribute only when
+  `__STDC_VERSION__` was at least 202311L, but GCC 14 reports 202000L in
+  its C23 mode, so under GCC 14 the macro was empty and nothing warned.
+  It now takes the attribute in any dialect after C17 whose compiler has
+  it. A program built with GCC 14 in C23 that drops a status now gets
+  `-Wunused-result`, which fails a build with warnings as errors until
+  the call reads the status or says `(void)`. Clang, C17 and C++ builds
+  see no change.
+  ([#398](https://github.com/Rawframe-Project/maul3d/pull/398))
+- **A body in water never steps to a NaN velocity.** Buoyancy sums a
+  force and a torque over every shape and water volume, from each
+  shape's bounding box. On a long thin body under several dense
+  volumes, the torque times the body's inverse inertia could pass float
+  range, and a large water drag or body damping then turned the
+  infinite spin into a NaN. A debug build trapped in the speed cap, and
+  a release build carried the NaN into the world. Now, when a force's or
+  torque's velocity increment would leave float range, the step takes it
+  again in double precision and holds it within `M3_SPEED_LIMIT` along
+  its direction. The hold changes no step whose arithmetic stays finite,
+  however large its forces: such a step computes the same bits with it
+  as without it. The snapshot and journal formats are unchanged.
+  ([#402](https://github.com/Rawframe-Project/maul3d/pull/402))
+- **Replay refuses a voxel fill on an empty cell.**
+  `m3VoxelChunkShape_SetFill` refuses an empty cell and records nothing,
+  but `m3World_ReplayJournal` took such a record and reported success,
+  though the record changed nothing. A tape the engine cannot write
+  passed as a genuine one. Replay now refuses it with `m3_errorFormat`
+  and leaves the world as it was, like any other record the engine never
+  writes. Tapes the engine wrote replay as before.
+  ([#404](https://github.com/Rawframe-Project/maul3d/pull/404))
+- **The library checks every internal yes-or-no answer it computes.**
+  Every internal function that returns `bool` now carries
+  `M3_NODISCARD`, so a build of the library warns where its own code
+  drops such an answer, and the project's checks keep new ones marked.
+  No public declaration and no result changes, and a program sees
+  nothing new. The marks found the replay bug above, a voxel fill on an
+  empty cell.
+  ([#405](https://github.com/Rawframe-Project/maul3d/pull/405))
+
 ## [1.0.4](https://github.com/Rawframe-Project/maul3d/compare/v1.0.3...v1.0.4) (2026-11-04)
 
 ### Fixed
