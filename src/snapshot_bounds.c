@@ -368,7 +368,11 @@ M3_NODISCARD static bool WheelsValid(const VehicleFields* f, int32_t v)
         wheel.springDampingRatio = m3InF32(f->zeta, k);
         wheel.radius = m3InF32(f->radius, k);
         wheel.brakeShare = m3InF32(f->brakeShare, k);
+        // Create stores the direction normalized, which leaves its squared
+        // length within a few ulps of 1, far inside this band.
+        float d2 = m3Dot3(wheel.direction, wheel.direction);
         if (m3WheelDefCheck(&wheel) != m3_success ||
+            !(d2 > 1.0f - 1.0e-5f && d2 < 1.0f + 1.0e-5f) ||
             !InRange(m3InF32(f->compression, k), 0.0f, wheel.restLength) ||
             !m3WithinF(m3InF32(f->lon, k), 2.0f * M3_KINEMATIC_SPEED_LIMIT))
         {
