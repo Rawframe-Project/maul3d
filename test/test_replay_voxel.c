@@ -32,8 +32,9 @@ typedef struct Chunk
     m3ShapeId shape;
 } Chunk;
 
-// A full chunk on a static body, so every edit lands.
-static Chunk BuildChunk(void)
+// A full chunk on a static body but for the cell at hole, if hole is not
+// null, so every edit elsewhere lands.
+static Chunk BuildChunkWithHole(const int32_t* hole)
 {
     m3WorldDef def = m3DefaultWorldDef();
     Chunk c;
@@ -42,9 +43,18 @@ static Chunk BuildChunk(void)
     m3BodyId body = NewBody(c.world, &bd);
     uint8_t voxels[DIM * DIM * DIM];
     memset(voxels, 1, sizeof(voxels));
+    if (hole != NULL)
+    {
+        voxels[hole[0] + DIM * (hole[1] + DIM * hole[2])] = 0;
+    }
     m3ShapeDef sd = m3DefaultShapeDef();
     c.shape = NewVoxelChunkShape(c.world, body, &sd, voxels, NULL, 0.5f);
     return c;
+}
+
+static Chunk BuildChunk(void)
+{
+    return BuildChunkWithHole(NULL);
 }
 
 static void Apply(Chunk* c, Edit edit, int32_t x, int32_t y, int32_t z)
@@ -133,11 +143,50 @@ static void CheckEdit(const char* name, Edit edit)
     }
 }
 
+// A fill names an occupied cell: its public call refuses an empty one and
+// records nothing. A journal recorded at an occupied cell, with the cell
+// moved to the chunk's one empty cell, fails to replay and leaves the
+// world as it was.
+static void CheckFillOnEmptyCell(void)
+{
+    const int32_t cell[3] = {10, 4, 6};
+    const int32_t hole[3] = {10, 4, 11};
+    Chunk c = BuildChunkWithHole(hole);
+    CHECK(m3Shape_IsValid(c.world, c.shape), "the chunk with a hole builds");
+    CHECK(m3VoxelChunkShape_SetFill(c.world, c.shape, hole[0], hole[1], hole[2], 99) ==
+              m3_errorInvalid,
+          "the public call refuses a fill on the empty cell");
+    int64_t snapshotBytes = m3World_GetSnapshotSize(c.world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
+    CHECK(snapshot != NULL, "the snapshot buffer");
+    Snapshot(c.world, snapshot, snapshotBytes);
+    StartJournal(c.world, s_journal, (int32_t)sizeof(s_journal));
+    Apply(&c, edit_fill, cell[0], cell[1], cell[2]);
+    int64_t bytes = StopJournal(c.world);
+    m3DestroyWorld(c.world);
+
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* replayed = NewWorld(&def);
+    CHECK(Restore(replayed, snapshot, snapshotBytes), "the snapshot restores");
+    CHECK(ReplayJournal(replayed, s_journal, bytes), "the fill replays as recorded");
+    m3DestroyWorld(replayed);
+
+    CHECK(Patch(bytes, cell[2], hole[2]), "the record holds the cell's z once");
+    replayed = NewWorld(&def);
+    CHECK(Restore(replayed, snapshot, snapshotBytes), "the snapshot restores");
+    uint64_t hash = m3World_Hash(replayed);
+    CHECK(!ReplayJournal(replayed, s_journal, bytes), "replay refuses a fill on the empty cell");
+    CHECK(m3World_Hash(replayed) == hash, "the refused fill changes nothing");
+    m3DestroyWorld(replayed);
+    free(snapshot);
+}
+
 int main(void)
 {
     CheckEdit("set voxel", edit_set);
     CheckEdit("clear voxel", edit_clear);
     CheckEdit("set fill", edit_fill);
+    CheckFillOnEmptyCell();
     if (s_failures == 0)
     {
         printf("test_replay_voxel: all green\n");

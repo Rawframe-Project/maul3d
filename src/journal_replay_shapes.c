@@ -240,8 +240,9 @@ bool m3ReplayVoxelSetFill(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
-    m3VoxelSetFillInternal(world, shape, record.x, record.y, record.z, record.fill);
-    return true;
+    // An empty cell takes no fill: its public call refuses one and records
+    // nothing.
+    return m3VoxelSetFillInternal(world, shape, record.x, record.y, record.z, record.fill);
 }
 
 bool m3ReplayVoxelClearBox(m3World* world, const m3ReplayRecord* r)
