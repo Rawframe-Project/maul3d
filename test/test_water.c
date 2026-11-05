@@ -291,9 +291,9 @@ static void TestSoftDragNeverOvershoots(void)
 // A thin rod's loose box under eight dense volumes: the water's torque
 // about the rod's own axis, where its inertia sits at the floor, would
 // spin it past float range in one step, and a drag or damping factor of
-// zero would turn that into a NaN the speed cap traps on. The water's
-// force and torque are held where a host's are, so the rod spins at the
-// world's cap instead.
+// zero would turn that into a NaN the speed cap traps on. Only that
+// increment, past float range, is held to the speed limit, so the rod
+// spins at the world's cap instead.
 static void TestThinRodStaysFinite(float waterDrag, float bodyDamping)
 {
     m3WorldDef wd = m3DefaultWorldDef();
@@ -331,6 +331,36 @@ static void TestThinRodStaysFinite(float waterDrag, float bodyDamping)
     m3DestroyWorld(world);
 }
 
+// A 2e4 m cube of density 1e6 in water of density 1e6 under gravity
+// 100: forces near 1e21 N, all finite, so the step keeps the bits it
+// had before increments past float range were held. The cube floats.
+static void TestHugeCubeFloatsAsBefore(void)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, -100.0f, 0.0f};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.rotation = (m3Quat){0.0998334f, 0.0f, 0.0f, 0.9950042f}; // 0.2 rad about x
+    m3BodyId cube = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = 1.0e6f;
+    NewBoxShape(world, cube, &sd, (m3Vec3){1.0e4f, 1.0e4f, 1.0e4f});
+    m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
+    wdf.bounds.lowerBound = (m3Pos3){-1.0e5, -1.0e5, -1.0e5};
+    wdf.bounds.upperBound = (m3Pos3){1.0e5, 5.0e3, 1.0e5};
+    wdf.density = 1.0e6f;
+    CHECK(m3WaterVolume_IsValid(world, NewWaterVolume(world, &wdf)), "the sea is made");
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        (void)m3World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(fabs(m3Body_GetPosition(world, cube).y) < 2.0, "the cube floats near its waterline");
+    CHECK(m3World_Hash(world) == 0xC67D9F43F812A209ull,
+          "the cube steps to the same bits as before");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFloatAndSink();
@@ -341,6 +371,7 @@ int main(void)
     TestSoftDragNeverOvershoots();
     TestThinRodStaysFinite(1.0e38f, 0.0f);
     TestThinRodStaysFinite(0.0f, 1.0e38f);
+    TestHugeCubeFloatsAsBefore();
     if (s_failures == 0)
     {
         printf("test_water: all passed\n");
