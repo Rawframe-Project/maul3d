@@ -14,12 +14,12 @@
 #include <math.h>
 #include <string.h>
 
-static bool AwakeDynamic(const m3World* world, int32_t body)
+M3_NODISCARD static bool AwakeDynamic(const m3World* world, int32_t body)
 {
     return world->bodies.types[body] == (uint8_t)m3_dynamicBody && world->bodies.awake[body] != 0;
 }
 
-static bool SortedContains(const uint64_t* keys, int32_t count, uint64_t key)
+M3_NODISCARD static bool SortedContains(const uint64_t* keys, int32_t count, uint64_t key)
 {
     int32_t lo = 0;
     int32_t hi = count - 1;
@@ -70,8 +70,8 @@ static m3Pos3 DeepestPoint(const m3World* world, const m3Manifold* manifold, int
 // canonical ascending order in both cases. The callback must be pure: a
 // resimulation from a snapshot calls it again, and divergence from an
 // impure one is the host's own.
-static bool Vetoed(m3World* world, const m3Manifold* manifold, uint64_t key, int32_t shapeA,
-                   int32_t shapeB)
+M3_NODISCARD static bool Vetoed(m3World* world, const m3Manifold* manifold, uint64_t key,
+                                int32_t shapeA, int32_t shapeB)
 {
     if (world->contacts.replayVetoCount > 0)
     {

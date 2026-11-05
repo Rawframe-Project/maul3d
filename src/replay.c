@@ -83,7 +83,8 @@ int64_t m3GetEncodedReplaySize(int64_t snapshotBytes, int64_t journalBytes)
 // addresses are compared as integers, since the buffers may be different
 // objects, and through the distance between their starts, so no end is
 // computed that could wrap. An empty buffer overlaps nothing.
-static bool BytesOverlap(const void* one, int64_t bytes1, const void* two, int64_t bytes2)
+M3_NODISCARD static bool BytesOverlap(const void* one, int64_t bytes1, const void* two,
+                                      int64_t bytes2)
 {
     uintptr_t a = (uintptr_t)one;
     uintptr_t b = (uintptr_t)two;

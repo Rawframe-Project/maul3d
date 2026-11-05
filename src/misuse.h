@@ -27,7 +27,7 @@ uint64_t m3MisuseCount(const m3World* world);
 // with m3_errorBusy. A NULL world is never busy.
 void m3WorldEnter(const m3World* world);
 void m3WorldLeave(const m3World* world);
-bool m3WorldBusy(const m3World* world);
+M3_NODISCARD bool m3WorldBusy(const m3World* world);
 
 // The status for an id that names no live object: m3_errorInvalid for
 // the null id or a NULL world, which names no object at all,
@@ -52,7 +52,7 @@ static inline m3Result m3CreateRefusal(const m3World* world, int32_t refusal)
 // Whether a byte count fits this target's size_t, so a buffer of that
 // length can exist: always on a 64-bit target, and up to SIZE_MAX on a
 // 32-bit one. A size past it is a caller's bug.
-static inline bool m3SizeFitsMemory(int64_t bytes)
+M3_NODISCARD static inline bool m3SizeFitsMemory(int64_t bytes)
 {
 #if SIZE_MAX < INT64_MAX
     return bytes <= (int64_t)SIZE_MAX;
@@ -65,7 +65,7 @@ static inline bool m3SizeFitsMemory(int64_t bytes)
 // A list call's array and capacity: a NULL array with capacity 0
 // measures, any array takes a capacity of 0 or more, and anything else is
 // refused.
-static inline bool m3ListOutputValid(const void* arrayOut, int32_t capacity)
+M3_NODISCARD static inline bool m3ListOutputValid(const void* arrayOut, int32_t capacity)
 {
     return capacity >= 0 && (arrayOut != NULL || capacity == 0);
 }

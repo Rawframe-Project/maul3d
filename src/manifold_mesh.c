@@ -32,7 +32,7 @@ typedef struct Claims
 } Claims;
 
 // Claims a key; true when it was not claimed before.
-static bool Claim(int32_t* keys, int32_t* count, int32_t key)
+M3_NODISCARD static bool Claim(int32_t* keys, int32_t* count, int32_t key)
 {
     for (int32_t i = 0; i < *count; ++i)
     {
@@ -74,7 +74,7 @@ static int32_t ClaimTriangle(Claims* claims, const m3MeshData* mesh, int32_t t)
 // always collides; a tilted hull face on a triangle with any convex edge
 // is real too (a box teetering on a ridge), and on an all-flat triangle
 // only when nothing of the triangle was claimed yet.
-static bool WaitingSurvives(int32_t feature, uint8_t convex, int32_t fresh)
+M3_NODISCARD static bool WaitingSurvives(int32_t feature, uint8_t convex, int32_t fresh)
 {
     switch (feature)
     {
@@ -168,7 +168,8 @@ static MeshProbe MakeMeshProbe(const m3World* world, const m3Transform* xfM, int
 }
 
 // One triangle's contact in the mesh frame; false without points.
-static bool TriangleContact(const MeshProbe* probe, const m3Vec3 tri[3], m3TriManifold* local)
+M3_NODISCARD static bool TriangleContact(const MeshProbe* probe, const m3Vec3 tri[3],
+                                         m3TriManifold* local)
 {
     memset(local, 0, sizeof(*local));
     if (probe->type == (uint8_t)m3_sphereShape)
@@ -200,7 +201,7 @@ static bool TriangleContact(const MeshProbe* probe, const m3Vec3 tri[3], m3TriMa
 // Face contacts are trusted. A hull face resting on a triangle is trusted
 // too when its normal agrees with the triangle's or it sinks deep;
 // otherwise it waits like an edge or vertex contact.
-static bool TrustedContact(const m3TriManifold* local)
+M3_NODISCARD static bool TrustedContact(const m3TriManifold* local)
 {
     if (local->feature == 7)
     {

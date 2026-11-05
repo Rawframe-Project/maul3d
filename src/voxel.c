@@ -287,7 +287,7 @@ typedef struct m3VoxelWakeContext
     m3World* world;
 } m3VoxelWakeContext;
 
-static bool VoxelWakeCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool VoxelWakeCallback(int32_t shape, void* userContext)
 {
     m3World* world = ((m3VoxelWakeContext*)userContext)->world;
     int32_t body = world->shapes.shapeBody[shape];
@@ -412,8 +412,8 @@ static m3VoxelChunkData* StageChunk(m3World* world, int32_t slot)
     return stage;
 }
 
-static bool LandStaged(m3World* world, int32_t shape, int32_t slot, bool fracture,
-                       uint64_t* refusals)
+M3_NODISCARD static bool LandStaged(m3World* world, int32_t shape, int32_t slot, bool fracture,
+                                    uint64_t* refusals)
 {
     if (!m3VoxelSurfaceFits(world, world->voxels.voxelStage))
     {
@@ -731,7 +731,8 @@ static M3_NOINLINE m3Result VoxelChunkSetFillWorker(m3World* world, m3ShapeId sh
         record.fill = fill;
         m3JournalRecord(world, m3_opVoxelSetFill, &record, (int32_t)sizeof(record));
     }
-    m3VoxelSetFillInternal(world, index, x, y, z, fill);
+    // The cell is occupied, checked above, so the fill lands.
+    (void)m3VoxelSetFillInternal(world, index, x, y, z, fill);
     return m3_success;
 }
 

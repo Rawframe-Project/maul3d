@@ -38,7 +38,7 @@ m3Softness m3StiffJointSoftness(float h)
     return m3MakeSoft(M3_JOINT_HERTZ, M3_JOINT_DAMPING_RATIO, h);
 }
 
-static bool AwakeDynamic(const m3World* world, int32_t body)
+M3_NODISCARD static bool AwakeDynamic(const m3World* world, int32_t body)
 {
     return world->bodies.types[body] == (uint8_t)m3_dynamicBody && world->bodies.awake[body] != 0;
 }

@@ -61,11 +61,13 @@ void m3TreeSetMask(m3Tree* tree, int32_t nodeId, uint32_t mask);
 
 /// True when the leaf's fat bounds still contain the given tight
 /// bounds (no move needed).
-bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3]);
+M3_NODISCARD bool m3TreeContains(const m3Tree* tree, int32_t nodeId, const double lo[3],
+                                 const double hi[3]);
 
 /// True when the node's fat bounds overlap the given bounds: the test a
 /// query applies to every leaf.
-bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3], const double hi[3]);
+M3_NODISCARD bool m3TreeOverlaps(const m3Tree* tree, int32_t nodeId, const double lo[3],
+                                 const double hi[3]);
 
 /// Query every leaf overlapping the bounds, in stack order; the callback
 /// returns false to stop early. The order follows the tree's shape,
@@ -88,12 +90,12 @@ void m3TreeQueryMask(const m3Tree* tree, const double lo[3], const double hi[3],
 /// outNodes. order is the caller's scratch of 2 * count entries, so the
 /// rebuild takes no memory and cannot fail halfway. Returns false, with
 /// the old tree untouched, when count exceeds the capacity.
-bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
-                   const int32_t* userDatas, const uint32_t* masks, int32_t count, int32_t* order,
-                   int32_t* outNodes);
+M3_NODISCARD bool m3TreeRebuild(m3Tree* tree, const double (*los)[3], const double (*his)[3],
+                                const int32_t* userDatas, const uint32_t* masks, int32_t count,
+                                int32_t* order, int32_t* outNodes);
 
 /// Test oracle: links both ways, heights, AVL balance, box containment
 /// and the node count.
-bool m3TreeValidate(const m3Tree* tree);
+M3_NODISCARD bool m3TreeValidate(const m3Tree* tree);
 
 #endif // MAUL3D_SRC_DYNAMIC_TREE_H

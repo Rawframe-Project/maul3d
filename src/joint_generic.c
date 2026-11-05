@@ -49,8 +49,8 @@ static uint32_t MotorAxis(const m3JointConstraint* c)
 }
 
 // The motor's row, when the joint has a motor axis and its motor is on.
-static bool MotorRow(const m3JointConstraint* c, const m3JointPose* pose, const m3JointFrames* f,
-                     m3JointRow* row)
+M3_NODISCARD static bool MotorRow(const m3JointConstraint* c, const m3JointPose* pose,
+                                  const m3JointFrames* f, m3JointRow* row)
 {
     uint32_t axis = (c->flags & M3_JOINT_MOTOR) != 0 ? MotorAxis(c) : 15u;
     if (axis < 3u)

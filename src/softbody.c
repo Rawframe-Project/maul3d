@@ -440,8 +440,8 @@ static m3Result TetDefCheck(const m3SoftBodyDef* def, const m3Vec3* points, int3
 
 // The six edges of every tet, deduplicated in first-touch tet order on
 // the slot's own edge arrays. False when they outgrow the edge budget.
-static bool AddTetEdges(m3World* world, int32_t slot, const m3Vec3* points, const uint16_t* tets,
-                        int32_t tetCount)
+M3_NODISCARD static bool AddTetEdges(m3World* world, int32_t slot, const m3Vec3* points,
+                                     const uint16_t* tets, int32_t tetCount)
 {
     int32_t ebase = slot * M3_MAX_SOFTBODY_EDGES;
     static const int32_t pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};

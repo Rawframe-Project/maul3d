@@ -16,7 +16,7 @@
 int32_t m3PrepareContacts(m3World* world, m3ContactConstraint* constraints, float h);
 
 // Colors the prepared constraints. Returns false on a scratch stall.
-bool m3ColorContacts(m3World* world, m3ContactPlan* plan);
+M3_NODISCARD bool m3ColorContacts(m3World* world, m3ContactPlan* plan);
 
 void m3RunContactStage(m3World* world, const m3ContactPlan* plan, m3ContactStage stage);
 

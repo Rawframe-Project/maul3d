@@ -46,7 +46,7 @@ typedef struct m3Heap
 m3Heap m3HeapMake(const m3Allocator* requested);
 
 // Whether an allocator is usable: both functions or neither.
-bool m3AllocatorValid(const m3Allocator* allocator);
+M3_NODISCARD bool m3AllocatorValid(const m3Allocator* allocator);
 
 // Persistent arrays. The field is NULL when the count is not positive,
 // the byte size overflows, or the allocator refuses; callers check it.
@@ -123,7 +123,7 @@ void m3IdPoolFree(m3IdPool* pool, int32_t index);
 int m3IdPoolValid(const m3IdPool* pool, int32_t index, uint32_t generation);
 
 /// True when the next m3IdPoolAlloc will succeed.
-static inline bool m3IdPoolHasRoom(const m3IdPool* pool)
+M3_NODISCARD static inline bool m3IdPoolHasRoom(const m3IdPool* pool)
 {
     return pool->freeCount > 0 || pool->maxIndex < pool->capacity;
 }

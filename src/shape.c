@@ -77,7 +77,7 @@ static m3Result LocalRadius(float r)
     return m3CheckPositive(r, M3_LOCAL_LIMIT);
 }
 
-static bool ZeroV3(m3Vec3 v)
+M3_NODISCARD static bool ZeroV3(m3Vec3 v)
 {
     return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
 }
@@ -246,7 +246,7 @@ static void WriteShapeSlot(m3World* world, int32_t index, int32_t bodyIndex, uin
 
 // An interned hull: the one QuickHull built, or the box of the shape's
 // half extents, which answers to the same wall as any hull.
-static bool AttachHull(m3World* world, int32_t index, const m3HullData* hull)
+M3_NODISCARD static bool AttachHull(m3World* world, int32_t index, const m3HullData* hull)
 {
     m3Shapes* sh = &world->shapes;
     m3HullData box;
@@ -268,7 +268,8 @@ static bool AttachHull(m3World* world, int32_t index, const m3HullData* hull)
 // fresh mesh, height field or voxel slot. Meshes are big and authored,
 // so they are never deduplicated. The mesh BVH and the voxel surface are
 // derived here from the content.
-static bool AttachShapeContent(m3World* world, int32_t index, const m3ShapeContent* content)
+M3_NODISCARD static bool AttachShapeContent(m3World* world, int32_t index,
+                                            const m3ShapeContent* content)
 {
     m3Shapes* sh = &world->shapes;
     switch (sh->shapeType[index])

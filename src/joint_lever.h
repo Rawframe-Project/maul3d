@@ -24,7 +24,7 @@ typedef struct m3LeverBody
 } m3LeverBody;
 
 // Whether joints of this type solve a point block or a held row pair.
-bool m3JointHasBlocks(uint8_t type);
+M3_NODISCARD bool m3JointHasBlocks(uint8_t type);
 
 // The largest eigenvalue of [arm]^T invInertia [arm]: the turn a unit
 // impulse at arm gives the body, both in the body's frame.
@@ -36,11 +36,11 @@ m3LeverBody m3LeverBodyOf(const m3World* world, int32_t b);
 // Whether a joint of this type with anchors localA and localB on bodies of
 // these masses keeps the ratio: their turns over their inverse masses, an
 // upper bound at every relative orientation of the bodies.
-bool m3LeverFits(uint8_t type, const m3LeverBody* a, m3Vec3 localA, const m3LeverBody* b,
-                 m3Vec3 localB);
+M3_NODISCARD bool m3LeverFits(uint8_t type, const m3LeverBody* a, m3Vec3 localA,
+                              const m3LeverBody* b, m3Vec3 localB);
 
 // Whether every joint on body keeps the ratio with body taking the mass
 // next.
-bool m3BodyJointsFit(const m3World* world, int32_t body, const m3LeverBody* next);
+M3_NODISCARD bool m3BodyJointsFit(const m3World* world, int32_t body, const m3LeverBody* next);
 
 #endif // MAUL3D_SRC_JOINT_LEVER_H

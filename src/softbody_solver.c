@@ -30,7 +30,7 @@
 // name. Create and the anchor calls check every index against the
 // particle count, and restore refuses one that is not below it
 // (snapshot_values.c).
-static bool OwnParticle(const m3World* world, int32_t slot, int32_t particle)
+M3_NODISCARD static bool OwnParticle(const m3World* world, int32_t slot, int32_t particle)
 {
     return particle >= 0 && particle < world->softBodies.softParticleCount[slot];
 }

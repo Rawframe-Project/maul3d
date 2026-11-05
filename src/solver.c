@@ -182,7 +182,7 @@ static void* ScratchArray(m3World* world, int32_t count, int32_t elementSize)
 // The sweep starts, the island wake pass (a sleeping body touched by an
 // awake one joins this step) and the per-body drift accumulators. Returns
 // false on a short scratch, which the world's sizing rules out.
-static bool BeginStep(m3World* world, m3StepScratch* s)
+M3_NODISCARD static bool BeginStep(m3World* world, m3StepScratch* s)
 {
     int32_t maxBody = world->bodies.bodyPool.maxIndex;
     s->com0 = (m3Pos3*)ScratchArray(world, maxBody, (int32_t)sizeof(m3Pos3));
@@ -216,7 +216,7 @@ static bool BeginStep(m3World* world, m3StepScratch* s)
 // Contact and joint constraints, the graph coloring, the mover list and
 // the water field for the substep loop. Returns false on a short scratch,
 // which the world's sizing rules out.
-static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t substeps)
+M3_NODISCARD static bool PrepareSolve(m3World* world, m3StepScratch* s, float dt, int32_t substeps)
 {
     s->h = dt / (float)substeps;
     s->invH = s->h > 0.0f ? 1.0f / s->h : 0.0f;

@@ -151,8 +151,8 @@ static m3Result BakePulley(const m3World* world, const m3JointDef* def, int32_t 
 // The wheel frame: x is the suspension axis (from A), z the axle
 // captured from B's world image and snapped exactly perpendicular. An
 // axle along the strut is not a wheel and refuses.
-static bool BakeWheel(const m3World* world, const m3JointDef* def, int32_t bodyA, int32_t bodyB,
-                      JointBake* bake)
+M3_NODISCARD static bool BakeWheel(const m3World* world, const m3JointDef* def, int32_t bodyA,
+                                   int32_t bodyB, JointBake* bake)
 {
     const m3Transform* xfA = &world->bodies.transforms[bodyA];
     const m3Transform* xfB = &world->bodies.transforms[bodyB];
@@ -173,7 +173,7 @@ static bool BakeWheel(const m3World* world, const m3JointDef* def, int32_t bodyA
     return true;
 }
 
-static bool AxesReal(const m3JointDef* def)
+M3_NODISCARD static bool AxesReal(const m3JointDef* def)
 {
     return m3Dot3(def->localAxisA, def->localAxisA) > 0.0f &&
            m3Dot3(def->localAxisB, def->localAxisB) > 0.0f;
@@ -182,7 +182,7 @@ static bool AxesReal(const m3JointDef* def)
 // Sane modes and finite ordered limits on every axis. At most one
 // angular axis is limited, and only when the other two are both locked
 // or both free.
-static bool GenericAxesValid(const m3JointDef* def)
+M3_NODISCARD static bool GenericAxesValid(const m3JointDef* def)
 {
     int32_t limitedAngular = 0;
     int32_t lockedAngular = 0;
@@ -215,7 +215,7 @@ static bool GenericAxesValid(const m3JointDef* def)
 
 // The generic contract: valid axes, at most one motor and only on an
 // axis that can move, and a joint frame with real axes.
-static bool GenericDefValid(const m3JointDef* def)
+M3_NODISCARD static bool GenericDefValid(const m3JointDef* def)
 {
     if (!GenericAxesValid(def) || !AxesReal(def))
     {
@@ -245,7 +245,7 @@ static bool GenericDefValid(const m3JointDef* def)
 
 // The distance contract: an explicit range (a rod has equal bounds), a
 // spring rest length, and neither a limit nor a motor.
-static bool DistanceDefValid(const m3JointDef* def)
+M3_NODISCARD static bool DistanceDefValid(const m3JointDef* def)
 {
     return !def->enableLimit && !def->enableMotor &&
            m3DistanceLengthsFit(def->minLength, def->maxLength) &&
@@ -687,7 +687,7 @@ bool m3Joint_IsValid(const m3World* world, m3JointId joint)
 
 // Resolves a joint id to its slot; for a stale id, refuses and returns
 // false.
-static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
+M3_NODISCARD static bool ResolveJoint(const m3World* world, m3JointId id, int32_t* slotOut)
 {
     int32_t slot = m3JointSlot(world, id);
     if (slot < 0)

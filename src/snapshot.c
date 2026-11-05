@@ -179,7 +179,7 @@ m3Result m3World_Snapshot(const m3World* world, void* buffer, int64_t capacity, 
     return result;
 }
 
-static bool BytesZero(const uint8_t* bytes, size_t count)
+M3_NODISCARD static bool BytesZero(const uint8_t* bytes, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -195,7 +195,7 @@ static bool BytesZero(const uint8_t* bytes, size_t count)
 // content in the buffer: vertices within M3_GEOMETRY_LIMIT, indices into them, and paint
 // that passes the material wall. The BVH build and every contact index
 // the vertices through these, and contacts mix the paint into friction.
-static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
+M3_NODISCARD static bool MeshContentFits(const uint8_t* content, int32_t vc, int32_t tc)
 {
     for (int32_t i = 0; i < vc; ++i)
     {
@@ -387,7 +387,8 @@ static int64_t HeightFieldTailEnd(const m3World* world, const uint8_t* raw, int6
     return cursor;
 }
 
-static bool TailFits(const m3World* world, const uint8_t* raw, int64_t size, int64_t cursor)
+M3_NODISCARD static bool TailFits(const m3World* world, const uint8_t* raw, int64_t size,
+                                  int64_t cursor)
 {
     cursor = MeshTailEnd(world, raw, size, cursor);
     cursor = cursor < 0 ? -1 : HullTailEnd(world, raw, size, cursor);
@@ -464,7 +465,7 @@ void m3RestoreDrop(m3World* world, m3RestoreStage* stage)
 
 // A zeroed array of count elements, or NULL when refused; no elements
 // need no memory.
-static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementSize)
+M3_NODISCARD static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementSize)
 {
     *out = count > 0 ? m3AllocZeroed(heap, count * elementSize) : NULL;
     return count <= 0 || *out != NULL;
@@ -473,7 +474,7 @@ static bool StageArray(m3Heap* heap, void** out, int32_t count, int32_t elementS
 // Whether every live incoming chunk's surface stays within the box
 // limit, as every chunk this build lands does. Each is copied out first,
 // since the buffer need not be aligned for a chunk.
-static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
+M3_NODISCARD static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
 {
     const uint8_t* prefix = raw + M3_SNAPSHOT_HEADER_BYTES;
     const uint8_t* alive =
@@ -497,8 +498,8 @@ static bool VoxelSurfacesFit(m3World* world, const uint8_t* raw)
 
 // Fills the stage from a buffer whose every byte has been checked, so a
 // false return means only that the allocator refused.
-static bool PrepareRestore(m3World* world, const uint8_t* raw, int64_t size, int64_t fixed,
-                           m3RestoreStage* stage)
+M3_NODISCARD static bool PrepareRestore(m3World* world, const uint8_t* raw, int64_t size,
+                                        int64_t fixed, m3RestoreStage* stage)
 {
     m3Heap* heap = &world->heap;
     int32_t meshCap = world->meshes.meshCapacity;

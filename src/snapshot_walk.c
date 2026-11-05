@@ -61,7 +61,7 @@ bool m3WalkMesh(m3Heap* heap, m3Walk* walk, m3MeshData* mesh)
     return true;
 }
 
-static bool HullCountsValid(const m3HullData* hull)
+M3_NODISCARD static bool HullCountsValid(const m3HullData* hull)
 {
     return hull->vertexCount >= 0 && hull->vertexCount <= M3_HULL_MAX_VERTS &&
            hull->faceCount >= 0 && hull->faceCount <= M3_HULL_MAX_FACES && hull->indexCount >= 0 &&

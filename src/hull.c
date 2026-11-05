@@ -211,13 +211,13 @@ bool m3HullMassProperties(m3HullData* hull)
     return true;
 }
 
-static bool Vec3Same(m3Vec3 a, m3Vec3 b)
+M3_NODISCARD static bool Vec3Same(m3Vec3 a, m3Vec3 b)
 {
     return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
 // Whether the hull is the box m3BuildBoxHull makes of its own extents.
-static bool IsItsOwnBox(const m3HullData* hull)
+M3_NODISCARD static bool IsItsOwnBox(const m3HullData* hull)
 {
     m3Vec3 half = hull->vertices[6];
     if (hull->vertexCount != 8 || hull->faceCount != 6 || !(half.x > 0.0f) || !(half.y > 0.0f) ||
@@ -266,7 +266,7 @@ static float PlaneSlack(const m3HullData* hull)
 
 // Each face's plane has a unit normal, holds the face's own vertices and
 // has every vertex of the hull on or below it, within the tolerances.
-static bool PlanesHold(const m3HullData* hull)
+M3_NODISCARD static bool PlanesHold(const m3HullData* hull)
 {
     float slack = PlaneSlack(hull);
     for (int32_t f = 0; f < hull->faceCount; ++f)
@@ -302,7 +302,7 @@ static bool PlanesHold(const m3HullData* hull)
 // The unit mass properties are derived from the vertices and loops: they
 // must be what the builders make of them, bit for bit, and the planes
 // must hold.
-static bool DerivedMatch(const m3HullData* hull)
+M3_NODISCARD static bool DerivedMatch(const m3HullData* hull)
 {
     if (!(hull->unitMass > 0.0f) || hull->unitMass > M3_UNIT_MASS_LIMIT)
     {

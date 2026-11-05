@@ -21,8 +21,9 @@
 // or hashes. Hosts compose them into their own movers; the engine
 // keeps its kinematic controller as the built-in path.
 
-static M3_NOINLINE bool WorldCastMoverWorker(const m3World* world, m3Pos3 center, float halfHeight,
-                                             float radius, m3Vec3 translation, m3CastHit* hitOut)
+M3_NODISCARD static M3_NOINLINE bool WorldCastMoverWorker(const m3World* world, m3Pos3 center,
+                                                          float halfHeight, float radius,
+                                                          m3Vec3 translation, m3CastHit* hitOut)
 {
     if (hitOut == NULL)
     {
@@ -148,7 +149,7 @@ static void OfferPiece(NearestCtx* near, m3DistanceProxy piece)
     }
 }
 
-static bool OfferTriangle(const m3Vec3 tri[3], void* context)
+M3_NODISCARD static bool OfferTriangle(const m3Vec3 tri[3], void* context)
 {
     NearestCtx* near = (NearestCtx*)context;
     m3Vec3 tv[3] = {tri[0], tri[1], tri[2]};
@@ -235,7 +236,7 @@ static m3DistanceOutput NearestPiece(const m3World* world, int32_t shape, const 
     return near.best;
 }
 
-static bool MoverGatherCallback(int32_t shape, void* userContext)
+M3_NODISCARD static bool MoverGatherCallback(int32_t shape, void* userContext)
 {
     m3MoverCollideCtx* ctx = (m3MoverCollideCtx*)userContext;
     const m3World* world = ctx->world;
@@ -368,7 +369,8 @@ typedef struct MoverCandidate
 
 // Solves the k by k Gram system G lambda = r (k up to 3) by Cramer's
 // rule; false when it is degenerate.
-static bool SolveGram(const float g[3][3], const float r[3], int32_t k, float lambda[3])
+M3_NODISCARD static bool SolveGram(const float g[3][3], const float r[3], int32_t k,
+                                   float lambda[3])
 {
     if (k == 1)
     {
@@ -399,8 +401,8 @@ static bool SolveGram(const float g[3][3], const float r[3], int32_t k, float la
 
 // The point closest to the wish on the k planes of set, pushed by each.
 // False when the set is degenerate or a push would pull.
-static bool RestOn(m3Vec3 wish, const m3MoverPlane* planes, const int32_t* set, int32_t k,
-                   m3Vec3* d, uint32_t* pressed)
+M3_NODISCARD static bool RestOn(m3Vec3 wish, const m3MoverPlane* planes, const int32_t* set,
+                                int32_t k, m3Vec3* d, uint32_t* pressed)
 {
     float g[3][3];
     float r[3];

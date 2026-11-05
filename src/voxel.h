@@ -21,7 +21,7 @@ void m3VoxelBoundsHull(m3Vec3 lo, m3Vec3 hi, m3HullData* out);
 
 // Whether a cell lies in a chunk, 0 to M3_VOXEL_DIM - 1 on every axis: the
 // check the public edits and their replay ops ask before an internal.
-bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z);
+M3_NODISCARD bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z);
 
 // Voxel edit internals: apply without journaling (replay
 // drives these); the public entries validate, call, then journal what
@@ -29,18 +29,19 @@ bool m3VoxelCoordsValid(int32_t x, int32_t y, int32_t z);
 // whose surface would pass the box limit changes nothing, counts in
 // voxelEditsRefused (the carve in voxelCarvesDropped) and returns false
 // (-1 for the box clear and the carve).
-bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
-                        uint16_t payload);
+M3_NODISCARD bool m3VoxelSetInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
+                                     uint16_t payload);
 
-bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z);
+M3_NODISCARD bool m3VoxelClearInternal(m3World* world, int32_t shape, int32_t x, int32_t y,
+                                       int32_t z);
 
 int32_t m3VoxelClearBoxInternal(m3World* world, int32_t shape, const int32_t lo[3],
                                 const int32_t hi[3]);
 
-bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y, int32_t z,
-                            uint8_t fill);
+M3_NODISCARD bool m3VoxelSetFillInternal(m3World* world, int32_t shape, int32_t x, int32_t y,
+                                         int32_t z, uint8_t fill);
 
-bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint, m3Vec3* outNormal,
-                   float* outPlane);
+M3_NODISCARD bool m3VoxelEscape(const m3World* world, int32_t slot, m3Vec3 localPoint,
+                                m3Vec3* outNormal, float* outPlane);
 
 #endif // MAUL3D_SRC_VOXEL_H

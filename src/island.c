@@ -27,7 +27,7 @@
 // A live body slot: what a live joint names. A body's destroy takes its
 // joints with it, and restore checks that a live joint names two
 // different live bodies (snapshot_links.c).
-static bool LiveBody(const m3World* world, int32_t b)
+M3_NODISCARD static bool LiveBody(const m3World* world, int32_t b)
 {
     return b >= 0 && b < world->bodies.bodyPool.maxIndex && world->bodies.bodyPool.alive[b] != 0;
 }

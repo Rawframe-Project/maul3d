@@ -107,7 +107,7 @@ reaches_fuzz() {
 }
 
 source_checks() {
-    step "source, documentation, module, length, float environment, snippet and test hygiene rules"
+    step "source, documentation, module, length, float environment, snippet, test hygiene and nodiscard rules"
     python3 tools/check_source.py
     python3 tools/check_docs.py
     python3 tools/check_modules.py
@@ -116,6 +116,8 @@ source_checks() {
     python3 tools/check_guide.py
     python3 tools/check_test_hygiene.py --self-test
     python3 tools/check_test_hygiene.py
+    python3 tools/check_nodiscard.py --self-test
+    python3 tools/check_nodiscard.py
     if [ -f "$org/scripts/docs_check.py" ]; then
         python3 "$org/scripts/docs_check.py"
     else

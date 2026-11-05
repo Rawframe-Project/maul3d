@@ -354,7 +354,8 @@ typedef struct BoxQuery
     uint16_t qhi[3];
 } BoxQuery;
 
-static bool NodeOverlapsBox(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query)
+M3_NODISCARD static bool NodeOverlapsBox(const m3MeshBvh* bvh, const m3MeshBvhNode* node,
+                                         const void* query)
 {
     (void)bvh;
     const BoxQuery* q = (const BoxQuery*)query;
@@ -395,7 +396,8 @@ void m3MeshBvhGather(const m3MeshBvh* bvh, m3Vec3 lo, m3Vec3 hi, m3MeshBvhHits* 
 // The node's box is taken one grid step wider on each side than its
 // quantized bounds, so it holds every box built into it however the
 // build rounded; a flat axis spans the root.
-static bool NodeNearPath(const m3MeshBvh* bvh, const m3MeshBvhNode* node, const void* query)
+M3_NODISCARD static bool NodeNearPath(const m3MeshBvh* bvh, const m3MeshBvhNode* node,
+                                      const void* query)
 {
     const m3SurfacePath* path = (const m3SurfacePath*)query;
     const double rl[3] = {(double)bvh->rootLo.x, (double)bvh->rootLo.y, (double)bvh->rootLo.z};

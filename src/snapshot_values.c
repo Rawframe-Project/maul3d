@@ -34,14 +34,14 @@
 // Whether the incoming vector at is +0.0 in every component: its bits
 // are all zero.
 _Static_assert(sizeof(m3Vec3) == 3 * sizeof(uint32_t), "a vector is three 32-bit floats");
-static bool AtRest(const uint8_t* at)
+M3_NODISCARD static bool AtRest(const uint8_t* at)
 {
     uint32_t bits[3];
     memcpy(bits, at, sizeof(bits));
     return (bits[0] | bits[1] | bits[2]) == 0u;
 }
 
-static bool BodiesValid(const m3Incoming* inc)
+M3_NODISCARD static bool BodiesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
     const uint8_t* locks = m3InField(inc, offsetof(m3World, bodies.bodyLocks));
@@ -79,7 +79,7 @@ static bool BodiesValid(const m3Incoming* inc)
 
 // A live shape's geometry is what its create wrote, by the same check
 // create runs, and a voxel chunk's cell is its content's.
-static bool ShapeGeomValid(const m3Incoming* inc)
+M3_NODISCARD static bool ShapeGeomValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
     const uint8_t* types = m3InField(inc, offsetof(m3World, shapes.shapeType));
@@ -121,7 +121,7 @@ static bool ShapeGeomValid(const m3Incoming* inc)
 // A rotation the engine could hold: within the band of unit length its
 // setters accept. Rotation code assumes unit length; a long one scales
 // what it rotates.
-static bool UnitQuat(const uint8_t* block, size_t stride, size_t at, int32_t i)
+M3_NODISCARD static bool UnitQuat(const uint8_t* block, size_t stride, size_t at, int32_t i)
 {
     m3Quat q;
     memcpy(&q, block + stride * (size_t)i + at, sizeof(q));
@@ -134,7 +134,7 @@ static bool UnitQuat(const uint8_t* block, size_t stride, size_t at, int32_t i)
 // identity on every other type that has one. A wheel joint's slots hold
 // its steering drive's hertz, damping and effort, bounded in
 // snapshot_bounds.c.
-static bool TargetRotationValid(uint8_t type, const uint8_t* block, int32_t j)
+M3_NODISCARD static bool TargetRotationValid(uint8_t type, const uint8_t* block, int32_t j)
 {
     if (type == (uint8_t)m3_wheelJoint)
     {
@@ -151,7 +151,7 @@ static bool TargetRotationValid(uint8_t type, const uint8_t* block, int32_t j)
 
 // Every live body's pose and, when it has one, its target; every live
 // shape's offset; every live joint's frames and target rotation.
-static bool RotationsValid(const m3Incoming* inc)
+M3_NODISCARD static bool RotationsValid(const m3Incoming* inc)
 {
     const m3World* w = inc->world;
     const uint8_t* bodyAlive = m3InField(inc, offsetof(m3World, bodies.bodyPool.alive));
@@ -201,7 +201,7 @@ static bool RotationsValid(const m3Incoming* inc)
 // own), keeps the skin, snap and step its create accepted, and stands on
 // nothing or on a live body (a body's destroy clears the characters
 // standing on it). Its capsule and mass are bounded in snapshot_bounds.c.
-static bool CharactersValid(const m3Incoming* inc)
+M3_NODISCARD static bool CharactersValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, characters.charPool.alive));
     const uint8_t* body = m3InField(inc, offsetof(m3World, characters.charBody));
@@ -243,7 +243,7 @@ static bool CharactersValid(const m3Incoming* inc)
 // drivetrain, when set, has the curve and gear counts its setter
 // accepted, a gear between reverse and the top one and a clutch inside
 // its steps; a vehicle without one holds the zeros the reset wrote.
-static bool VehiclesValid(const m3Incoming* inc)
+M3_NODISCARD static bool VehiclesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, vehicles.vehPool.alive));
     const uint8_t* wheelCount = m3InField(inc, offsetof(m3World, vehicles.vehWheelCount));
@@ -361,7 +361,7 @@ static SoftFields SoftFieldsOf(const m3Incoming* inc)
 // particles, its bend tethers start inside the edges, a pressured body is
 // a closed lattice whose dimensions multiply to its particle count, and
 // only a lattice has a closed rest volume.
-static bool SoftShapeValid(const SoftFields* f, int32_t s)
+M3_NODISCARD static bool SoftShapeValid(const SoftFields* f, int32_t s)
 {
     int32_t count = m3InI32(f->particles, s);
     int32_t edges = m3InI32(f->edgeCount, s);
@@ -404,7 +404,7 @@ static bool SoftShapeValid(const SoftFields* f, int32_t s)
 // Its anchors name its own particles, and each soft-to-soft anchor a
 // particle of the partner too while the partner is the live one of the
 // generation it names.
-static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
+M3_NODISCARD static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
 {
     int32_t count = m3InI32(f->particles, s);
     for (int32_t a = 0; a < m3InI32(f->anchorCount, s); ++a)
@@ -434,7 +434,7 @@ static bool SoftAnchorsValid(const SoftFields* f, int32_t s)
     return true;
 }
 
-static bool SoftBodiesValid(const m3Incoming* inc)
+M3_NODISCARD static bool SoftBodiesValid(const m3Incoming* inc)
 {
     SoftFields f = SoftFieldsOf(inc);
     for (int32_t s = 0; s < inc->world->softBodies.softPool.capacity; ++s)
@@ -454,7 +454,7 @@ static bool SoftBodiesValid(const m3Incoming* inc)
 // motor on a real axis or none; every other joint packs none. A gear
 // joint's reference spins are bounded in snapshot_bounds.c, within the
 // half turn its create keeps them.
-static bool JointModesValid(const m3Incoming* inc)
+M3_NODISCARD static bool JointModesValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, joints.jointPool.alive));
     const uint8_t* types = m3InField(inc, offsetof(m3World, joints.jointType));

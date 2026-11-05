@@ -16,13 +16,13 @@ float m3SoftShapeBound(const m3World* world, int32_t shape, uint8_t stype, m3Vec
 
 // Whether no particle inside [lo, hi] can reach a shape with that bound
 // on a body at xf.
-bool m3SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, float bound, float radius,
-                           const double lo[3], const double hi[3]);
+M3_NODISCARD bool m3SoftShapeOutOfReach(const m3Transform* xf, m3Vec3 center, float bound,
+                                        float radius, const double lo[3], const double hi[3]);
 
 // Whether one of the hull's faces keeps every particle inside [lo, hi]
 // out of its reach.
-bool m3SoftHullOutOfReach(const m3World* world, int32_t shape, const m3Transform* xf, float radius,
-                          const double lo[3], const double hi[3]);
+M3_NODISCARD bool m3SoftHullOutOfReach(const m3World* world, int32_t shape, const m3Transform* xf,
+                                       float radius, const double lo[3], const double hi[3]);
 
 void m3SoftGrowBox(double lo[3], double hi[3], m3Pos3 p);
 

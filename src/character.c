@@ -156,8 +156,8 @@ void m3DestroyCharacterInternal(m3World* world, int32_t slot)
 // the truth a walker cares about. The ray starts inside our own
 // capsule, and the ray contract (start-inside misses) filters self
 // for free.
-static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, float reach,
-                          m3CastResult* outHit)
+M3_NODISCARD static bool WalkableBelow(m3World* world, int32_t slot, m3Pos3 center, float reach,
+                                       m3CastResult* outHit)
 {
     float depth = world->characters.charHalfHeight[slot] + world->characters.charRadius[slot] +
                   reach + world->characters.charSkin[slot];
