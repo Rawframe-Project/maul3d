@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The explosion gate: one journaled call pushes every dynamic
-// convex shape in range. A symmetric ring flies outward on mirrored
-// speeds, the falloff band grades the push, sleepers in range wake
-// while sleepers beyond it nap on, a negative impulse implodes, the
-// filter and static bodies stand aside, an off-center hit spins its
-// target, the tree's history changes nothing, and the whole storm
-// rides twins, replay, rollback, and a hostile tape without losing a
-// bit.
+// The explosion gate: one journaled call pushes every dynamic convex
+// shape in range. A symmetric ring flies outward on mirrored speeds,
+// the falloff band grades the push, sleepers in range wake while
+// sleepers beyond it nap on, a negative impulse implodes, the filter
+// and static bodies stand aside, an off-center hit spins its target,
+// a blast inside a shape pushes its body toward the center of mass
+// without spin, the tree's history changes nothing, and the whole
+// storm rides twins, replay, rollback, and a hostile tape without
+// losing a bit.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -135,6 +136,72 @@ static void TestOffCenterSpin(void)
     m3Vec3 w = m3Body_GetAngularVelocity(world, crate);
     CHECK(Speed(world, crate) > 0.0f, "the off-center blast still pushes");
     CHECK(sqrtf(w.x * w.x + w.y * w.y + w.z * w.z) > 0.01f, "the lever arm spins the crate");
+    m3DestroyWorld(world);
+}
+
+// Whether a blast at the point pushes the body straight toward its
+// center of mass, without spin.
+static bool PushedToCenter(m3World* world, m3BodyId body, m3Pos3 blast)
+{
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = blast;
+    def.radius = 1.0f;
+    def.falloff = 0.0f;
+    def.impulsePerArea = 1.0f;
+    m3Pos3 com = m3Body_GetWorldCenterOfMass(world, body);
+    m3Vec3 d = {(float)(com.x - blast.x), (float)(com.y - blast.y), (float)(com.z - blast.z)};
+    m3World_Explode(world, &def);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, body);
+    m3Vec3 w = m3Body_GetAngularVelocity(world, body);
+    m3Vec3 c = {v.y * d.z - v.z * d.y, v.z * d.x - v.x * d.z, v.x * d.y - v.y * d.x};
+    float along = v.x * d.x + v.y * d.y + v.z * d.z;
+    float off = sqrtf(c.x * c.x + c.y * c.y + c.z * c.z);
+    return along > 0.0f && off <= 1e-5f * along && w.x == 0.0f && w.y == 0.0f && w.z == 0.0f;
+}
+
+static void TestBlastInside(void)
+{
+    // A square pyramid: its vertex average sits at y = 0.4, its center
+    // of mass at y = 0.5. A blast inside it off the axis pushes it
+    // toward the center of mass, not toward any point of the shape.
+    m3Vec3 pyramid[5] = {{-1.0f, 0.0f, -1.0f},
+                         {1.0f, 0.0f, -1.0f},
+                         {1.0f, 0.0f, 1.0f},
+                         {-1.0f, 0.0f, 1.0f},
+                         {0.0f, 2.0f, 0.0f}};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    m3World* world = BlastWorld();
+    m3BodyId hull = NewBody(world, &bd);
+    NewHullShape(world, hull, &sd, pyramid, 5);
+    CHECK(PushedToCenter(world, hull, (m3Pos3){0.3, 0.1, 0.0}),
+          "a blast inside a hull pushes it toward its center of mass, without spin");
+    m3DestroyWorld(world);
+
+    // A blast at the center of mass itself pushes nothing.
+    world = BlastWorld();
+    hull = NewBody(world, &bd);
+    NewHullShape(world, hull, &sd, pyramid, 5);
+    uint64_t hash = m3World_Hash(world);
+    m3ExplosionDef def = m3DefaultExplosionDef();
+    def.position = m3Body_GetWorldCenterOfMass(world, hull);
+    def.impulsePerArea = 1.0f;
+    m3World_Explode(world, &def);
+    CHECK(m3World_Hash(world) == hash, "a blast at the center of mass pushes nothing");
+    m3DestroyWorld(world);
+
+    // A capsule with a ball above it, so the body's center of mass is
+    // off the capsule: a blast in the capsule's rounding, past its
+    // segment's end, follows the same rule.
+    world = BlastWorld();
+    m3BodyId body = NewBody(world, &bd);
+    m3Capsule capsule = {{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 0.5f};
+    NewCapsuleShape(world, body, &sd, &capsule);
+    m3Sphere ball = {{0.0f, 3.0f, 0.0f}, 0.5f};
+    NewSphereShape(world, body, &sd, &ball);
+    CHECK(PushedToCenter(world, body, (m3Pos3){1.3, -0.2, 0.1}),
+          "a blast in a capsule's rounding pushes its body toward the center of mass");
     m3DestroyWorld(world);
 }
 
@@ -476,6 +543,7 @@ int main(void)
     TestRingAndFalloff();
     TestWakeFilterAndStatics();
     TestOffCenterSpin();
+    TestBlastInside();
     TestVoxelCarveCoupling();
     TestCarveSkipsHiddenChunks();
     TestTreeHistoryChangesNothing();
