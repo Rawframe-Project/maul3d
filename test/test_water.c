@@ -288,6 +288,49 @@ static void TestSoftDragNeverOvershoots(void)
     m3DestroyWorld(world);
 }
 
+// A thin rod's loose box under eight dense volumes: the water's torque
+// about the rod's own axis, where its inertia sits at the floor, would
+// spin it past float range in one step, and a drag or damping factor of
+// zero would turn that into a NaN the speed cap traps on. The water's
+// force and torque are held where a host's are, so the rod spins at the
+// world's cap instead.
+static void TestThinRodStaysFinite(float waterDrag, float bodyDamping)
+{
+    m3WorldDef wd = m3DefaultWorldDef();
+    wd.gravity = (m3Vec3){0.0f, -1.0e4f, -1.0e4f};
+    m3World* world = NewWorld(&wd);
+    m3BodyDef bd = m3DefaultBodyDef();
+    bd.type = m3_dynamicBody;
+    bd.rotation = (m3Quat){0.3390050f, 0.3390050f, 0.0f, 0.8775826f}; // 1 rad about (1, 1, 0)
+    bd.angularDamping = bodyDamping;
+    m3BodyId rod = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    sd.density = 3.5e-5f; // a principal moment just above the floor
+    m3Capsule capsule = {{-1.0e4f, 0.0f, 0.0f}, {1.0e4f, 0.0f, 0.0f}, 1.0e-3f};
+    NewCapsuleShape(world, rod, &sd, &capsule);
+    m3WaterVolumeDef wdf = m3DefaultWaterVolumeDef();
+    wdf.bounds.lowerBound = (m3Pos3){-1.0e5, -1.0e5, 0.0};
+    wdf.bounds.upperBound = (m3Pos3){1.0e5, 0.0, 1.0e5};
+    wdf.density = 1.0e6f;
+    wdf.angularDrag = waterDrag;
+    bool made = true;
+    for (int32_t k = 0; k < 8; ++k)
+    {
+        made = made && m3WaterVolume_IsValid(world, NewWaterVolume(world, &wdf));
+    }
+    CHECK(made, "eight overlapping volumes are made");
+    CHECK(m3World_Step(world, 10.0f, 1) == m3_success, "the rod's step runs");
+    m3Vec3 w = m3Body_GetAngularVelocity(world, rod);
+    m3Vec3 v = m3Body_GetLinearVelocity(world, rod);
+    float cap = wd.maximumAngularSpeed;
+    CHECK(isfinite(w.x) && isfinite(w.y) && isfinite(w.z) && isfinite(v.x) && isfinite(v.y) &&
+              isfinite(v.z),
+          "the rod's velocities stay finite");
+    CHECK(sqrtf(w.x * w.x + w.y * w.y + w.z * w.z) <= cap * 1.0001f,
+          "the rod spins at most at the world's cap");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFloatAndSink();
@@ -296,6 +339,8 @@ int main(void)
     TestWaterWalls();
     TestSoftBuoyancy();
     TestSoftDragNeverOvershoots();
+    TestThinRodStaysFinite(1.0e38f, 0.0f);
+    TestThinRodStaysFinite(0.0f, 1.0e38f);
     if (s_failures == 0)
     {
         printf("test_water: all passed\n");

@@ -57,6 +57,11 @@ The step adds the buoyant force and torque to the body's velocity,
 then pulls the velocity toward the flow and damps the spin, both
 implicitly, so a strong drag settles a body on the current and never
 pushes it past. The body's own damping and the speed caps apply after.
+Together with any force and torque the body holds from the host, the
+buoyant force and torque are each held to the length of a host force
+of `M3_FORCE_LIMIT` on every axis, with their direction kept. Only a
+body whose bounding box is far larger than its inertia suggests, such
+as a long thin rod under several dense volumes, reaches that.
 
 The model reads bounding boxes, not shapes: a sphere floats like its
 box, a long body turned diagonally holds more water than its volume,

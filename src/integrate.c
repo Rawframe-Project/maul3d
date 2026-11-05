@@ -57,6 +57,24 @@ int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt)
     return moverCount;
 }
 
+// The longest force or torque the setters let a body hold: M3_FORCE_LIMIT
+// on every axis.
+#define M3_HELD_FORCE_LENGTH (1.7320508f * M3_FORCE_LIMIT)
+
+// The factor, at most 1, that brings the length of a + b within
+// M3_HELD_FORCE_LENGTH. Exactly 1 when the sum is within it, so a step
+// whose forces stay there computes the same bits as without the hold.
+// Both are finite, so the sum's length in double is too.
+static float HeldShare(m3Vec3 a, m3Vec3 b)
+{
+    double x = (double)a.x + (double)b.x;
+    double y = (double)a.y + (double)b.y;
+    double z = (double)a.z + (double)b.z;
+    double length = sqrt(x * x + y * y + z * z);
+    return length > (double)M3_HELD_FORCE_LENGTH ? (float)((double)M3_HELD_FORCE_LENGTH / length)
+                                                 : 1.0f;
+}
+
 void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverCount,
                            const m3Buoyancy* buoy, float h)
 {
@@ -70,26 +88,53 @@ void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverC
         }
         m3Vec3 v = world->bodies.linearVelocities[i];
         m3Vec3 w = world->bodies.angularVelocities[i];
+        // The host's force and torque and the water's are the only
+        // ones the body carries in, and their totals are held to the
+        // length a host force alone may reach, which the setters and
+        // restore keep. The water's sums over every shape and volume,
+        // and on a thin body its loose box could otherwise spin it past
+        // float range, where a drag or damping factor of zero turns the
+        // infinity into a NaN.
+        bool wet = buoy->active > 0 && (buoy->lin[m] > 0.0f || buoy->force[m].y != 0.0f ||
+                                        buoy->force[m].x != 0.0f || buoy->force[m].z != 0.0f);
+        m3Vec3 force = world->bodies.bodyForce[i];
+        m3Vec3 torque = world->bodies.bodyTorque[i];
+        m3Vec3 wetForce = {0.0f, 0.0f, 0.0f};
+        m3Vec3 wetTorque = {0.0f, 0.0f, 0.0f};
+        if (wet)
+        {
+            wetForce = buoy->force[m];
+            wetTorque = buoy->torque[m];
+            float share = HeldShare(force, wetForce);
+            if (share < 1.0f)
+            {
+                force = m3MulSV3(share, force);
+                wetForce = m3MulSV3(share, wetForce);
+            }
+            share = HeldShare(torque, wetTorque);
+            if (share < 1.0f)
+            {
+                torque = m3MulSV3(share, torque);
+                wetTorque = m3MulSV3(share, wetTorque);
+            }
+        }
         v = m3Add3(v, m3MulSV3(h * world->bodies.gravityScales[i], world->gravity));
         // Host forces and torques integrate beside
         // gravity, every substep, so a force held for one step
         // delivers exactly force times dt.
-        v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], world->bodies.bodyForce[i]));
-        if (world->bodies.bodyTorque[i].x != 0.0f || world->bodies.bodyTorque[i].y != 0.0f ||
-            world->bodies.bodyTorque[i].z != 0.0f)
+        v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], force));
+        if (torque.x != 0.0f || torque.y != 0.0f || torque.z != 0.0f)
         {
-            w = m3Add3(
-                w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), world->bodies.bodyTorque[i])));
+            w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), torque)));
         }
-        if (buoy->active > 0 && (buoy->lin[m] > 0.0f || buoy->force[m].y != 0.0f ||
-                                 buoy->force[m].x != 0.0f || buoy->force[m].z != 0.0f))
+        if (wet)
         {
             // The water field: buoyant impulse, torque
             // about the submerged centroid, then drag pulls the
             // RELATIVE velocity toward the flow (the damping
             // recipe, recentered on the current).
-            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], buoy->force[m]));
-            w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), buoy->torque[m])));
+            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], wetForce));
+            w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), wetTorque)));
             m3Vec3 rel = m3Sub3(v, buoy->flow[m]);
             v = m3Add3(buoy->flow[m], m3MulSV3(1.0f / (1.0f + h * buoy->lin[m]), rel));
             w = m3MulSV3(1.0f / (1.0f + h * buoy->ang[m]), w);
