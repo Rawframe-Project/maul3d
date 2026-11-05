@@ -10,80 +10,113 @@
 
 int32_t m3MeshEdgeScratchCount(const m3MeshData* mesh)
 {
-    return 2 * (mesh->vertexCount + 1) + 3 * mesh->triangleCount;
+    return 2 * mesh->vertexCount + 1 + 3 * mesh->triangleCount;
 }
 
-// The first other triangle, by index, that shares the edge v1 v2 in
-// either direction, from v1's list of triangles; its vertex opposite the
-// edge, or -1 when the edge is a boundary.
-static int32_t OppositeVertex(const m3MeshData* mesh, const int32_t* start, const int32_t* list,
-                              int32_t t, int32_t v1, int32_t v2)
+// Edge e is triangle e / 3's edge e % 3, from its vertex e % 3 to the
+// next; its lower and higher vertex.
+static int32_t EdgeLo(const m3MeshData* mesh, int32_t e)
 {
-    for (int32_t i = start[v1]; i < start[v1 + 1]; ++i)
+    int32_t a = mesh->indices[e];
+    int32_t b = mesh->indices[3 * (e / 3) + (e % 3 + 1) % 3];
+    return a < b ? a : b;
+}
+
+static int32_t EdgeHi(const m3MeshData* mesh, int32_t e)
+{
+    int32_t a = mesh->indices[e];
+    int32_t b = mesh->indices[3 * (e / 3) + (e % 3 + 1) % 3];
+    return a < b ? b : a;
+}
+
+// Sets edge e's flag bit when it is a boundary (far < 0) or a convex
+// ridge: the neighbor's far vertex lies below its triangle's plane.
+static void FlagEdge(m3MeshData* mesh, int32_t e, int32_t far)
+{
+    const float tol = 0.005f;
+    int32_t t = e / 3;
+    m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
+    m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
+    m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
+    m3Vec3 n = m3Normalize3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)));
+    float off = m3Dot3(n, a);
+    if (far < 0 || m3Dot3(n, mesh->vertices[far]) - off < -tol)
     {
-        int32_t u = list[i];
-        if (u == t)
-        {
-            continue;
-        }
-        for (int32_t j = 0; j < 3; ++j)
-        {
-            int32_t w1 = mesh->indices[3 * u + j];
-            int32_t w2 = mesh->indices[3 * u + (j + 1) % 3];
-            if ((w1 == v2 && w2 == v1) || (w1 == v1 && w2 == v2))
-            {
-                return mesh->indices[3 * u + (j + 2) % 3];
-            }
-        }
+        mesh->edgeFlags[t] |= (uint8_t)(1 << (e % 3));
     }
-    return -1;
 }
 
 // An edge is a real contact feature when it is a boundary or a convex
 // ridge: the neighbor's far vertex lies below this triangle's plane.
 // Flat and concave edges stay clear, ghost candidates for the welding.
-// Each vertex lists the triangles that use it in ascending order (a
-// counting sort into scratch), so the neighbor across an edge is found
-// among the few triangles around its first vertex.
+// The neighbor across an edge is the lowest other triangle that has the
+// same two vertices, at its first such edge, so the result never depends
+// on how many triangles meet at a vertex. The edges are counted into
+// buckets by their lower vertex, in edge order; within a bucket, first
+// and second hold, per higher vertex, the first edge and the first edge
+// of another triangle. Linear in the vertices and triangles: the scratch
+// is the bucket counts, reused as first once the edges are placed, the
+// edge order and second.
 void m3BakeMeshEdgeFlags(m3MeshData* mesh, int32_t* scratch)
 {
-    const float tol = 0.005f;
     int32_t vertexCount = mesh->vertexCount;
-    int32_t triCount = mesh->triangleCount;
-    int32_t* start = scratch;
-    int32_t* cursor = scratch + vertexCount + 1;
-    int32_t* list = cursor + vertexCount + 1;
-    memset(start, 0, (size_t)(vertexCount + 1) * sizeof(int32_t));
-    for (int32_t i = 0; i < 3 * triCount; ++i)
+    int32_t edgeCount = 3 * mesh->triangleCount;
+    int32_t* count = scratch;
+    int32_t* order = scratch + vertexCount + 1;
+    int32_t* second = order + edgeCount;
+    memset(count, 0, (size_t)(vertexCount + 1) * sizeof(int32_t));
+    for (int32_t e = 0; e < edgeCount; ++e)
     {
-        start[mesh->indices[i] + 1] += 1;
+        count[EdgeLo(mesh, e) + 1] += 1;
     }
     for (int32_t v = 0; v < vertexCount; ++v)
     {
-        start[v + 1] += start[v];
-        cursor[v] = start[v];
+        count[v + 1] += count[v];
     }
-    for (int32_t i = 0; i < 3 * triCount; ++i)
+    for (int32_t e = 0; e < edgeCount; ++e)
     {
-        list[cursor[mesh->indices[i]]++] = i / 3;
+        order[count[EdgeLo(mesh, e)]++] = e;
     }
-    for (int32_t t = 0; t < triCount; ++t)
+    int32_t* first = count;
+    memset(first, 0xFF, (size_t)vertexCount * sizeof(int32_t));
+    memset(second, 0xFF, (size_t)vertexCount * sizeof(int32_t));
+    memset(mesh->edgeFlags, 0, (size_t)mesh->triangleCount);
+    for (int32_t begin = 0; begin < edgeCount;)
     {
-        m3Vec3 a = mesh->vertices[mesh->indices[3 * t + 0]];
-        m3Vec3 b = mesh->vertices[mesh->indices[3 * t + 1]];
-        m3Vec3 c = mesh->vertices[mesh->indices[3 * t + 2]];
-        m3Vec3 n = m3Normalize3(m3Cross3(m3Sub3(b, a), m3Sub3(c, a)));
-        float off = m3Dot3(n, a);
-        mesh->edgeFlags[t] = 0;
-        for (int32_t k = 0; k < 3; ++k)
+        int32_t lo = EdgeLo(mesh, order[begin]);
+        int32_t end = begin + 1;
+        while (end < edgeCount && EdgeLo(mesh, order[end]) == lo)
         {
-            int32_t far = OppositeVertex(mesh, start, list, t, mesh->indices[3 * t + k],
-                                         mesh->indices[3 * t + (k + 1) % 3]);
-            if (far < 0 || m3Dot3(n, mesh->vertices[far]) - off < -tol)
+            end += 1;
+        }
+        for (int32_t i = begin; i < end; ++i)
+        {
+            int32_t e = order[i];
+            int32_t hi = EdgeHi(mesh, e);
+            if (first[hi] < 0)
             {
-                mesh->edgeFlags[t] |= (uint8_t)(1 << k);
+                first[hi] = e;
+            }
+            else if (second[hi] < 0 && e / 3 != first[hi] / 3)
+            {
+                second[hi] = e;
             }
         }
+        for (int32_t i = begin; i < end; ++i)
+        {
+            int32_t e = order[i];
+            int32_t hi = EdgeHi(mesh, e);
+            int32_t other = e / 3 != first[hi] / 3 ? first[hi] : second[hi];
+            int32_t far = other < 0 ? -1 : mesh->indices[3 * (other / 3) + (other % 3 + 2) % 3];
+            FlagEdge(mesh, e, far);
+        }
+        for (int32_t i = begin; i < end; ++i)
+        {
+            int32_t hi = EdgeHi(mesh, order[i]);
+            first[hi] = -1;
+            second[hi] = -1;
+        }
+        begin = end;
     }
 }
 
