@@ -7,6 +7,70 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.1.0](https://github.com/Rawframe-Project/maul3d/compare/v1.0.5...v1.1.0) (2026-11-05)
+
+### Changed
+
+- **1.1.0 refuses snapshots, tapes and containers from 1.0.x.** The
+  snapshot keeps format 6, the journal tape format 7 and the replay
+  container format 4, but they carry `M3_ABI_VERSION`, which now names
+  1.1, so 1.1.0 refuses a snapshot, tape or container that 1.0.x wrote
+  with `m3_errorVersion`. `m3CreateWorld` refuses a def from 1.0
+  headers the same way: rebuild against the 1.1 headers. The shared
+  library's `SOVERSION` is `1.1`.
+- **A blast inside a shape pushes its body toward its centre of mass.**
+  When the blast of `m3World_Explode` lay inside a shape, its rounding
+  included, the body was pushed from the blast toward a point of that
+  shape, with the impulse applied there. That point was a sphere's centre,
+  the middle of a capsule's segment, or the average of a hull's
+  vertices. A lopsided hull, or a body with several shapes, therefore
+  spun for no physical reason. A blast exactly at that point pushed
+  along the shape's own x axis. Now the push runs from the blast to the
+  body's centre of mass, as maul2d's does, so it spins nothing, and a
+  blast at the centre of mass itself pushes nothing; the body still
+  wakes. `m3World_Explode`, and a replay of a journaled explosion, can
+  give a different velocity to a body one of whose shapes holds the
+  blast. A shape the blast is outside of is pushed as before.
+  ([#418](https://github.com/Rawframe-Project/maul3d/pull/418))
+
+### Fixed
+
+- **A mesh create no longer takes seconds on a fan.** The edge flags a
+  mesh bakes on create found each edge's neighbor by scanning every
+  triangle around one of its vertices, so a fan of triangles around one
+  vertex took time quadratic in its size: about 5.4 s for 65533
+  triangles. The bake now takes time linear in the mesh, about 0.025 s
+  for the same fan, and gives the same flags byte for byte, so no
+  contact or result changes. The same holds for a mesh create that
+  `m3World_ReplayJournal` replays.
+  ([#413](https://github.com/Rawframe-Project/maul3d/pull/413))
+- **Restore refuses a voxel chunk whose cells disagree.** An occupied
+  cell always has a fill of 1 to 255, and an empty cell has fill 0 and
+  payload 0. `m3World_Restore` refused neither an occupied cell with
+  fill 0 nor an empty cell with a fill or a payload, and
+  `m3World_ReplayJournal` took the same states from a chunk create
+  record. Both now refuse such a chunk with `m3_errorFormat`, and
+  restore leaves the world as it was. No chunk the library writes is
+  refused.
+  ([#409](https://github.com/Rawframe-Project/maul3d/pull/409))
+- **Restore refuses a wheel direction that is not unit length.** A
+  vehicle create takes a wheel direction whose squared length lies
+  between 0.81 and 1.21 and stores it normalized, but restore took any
+  stored direction in that band, so a restored wheel could push along
+  a scaled direction. Restore now requires the squared length within
+  1e-5 of 1, about 24 times what normalizing leaves, and refuses
+  anything else with `m3_errorFormat`.
+  ([#415](https://github.com/Rawframe-Project/maul3d/pull/415))
+- **Restore refuses mesh edge flags the mesh would not bake.** A mesh's
+  edge flags are derived from its geometry, and contact welding reads
+  them, but restore took them as stored. Restore now bakes each mesh's
+  flags again and refuses a snapshot whose flags differ, with
+  `m3_errorFormat`, or `m3_errorCapacity` when it cannot allocate the
+  bake's scratch. No snapshot the library writes is refused. On the
+  largest mesh the limits allow, 65522 triangles, a restore took about
+  26 to 29 ms with the check against 22 ms without it.
+  ([#416](https://github.com/Rawframe-Project/maul3d/pull/416))
+
 ## [1.0.5](https://github.com/Rawframe-Project/maul3d/compare/v1.0.4...v1.0.5) (2026-11-05)
 
 ### Fixed
