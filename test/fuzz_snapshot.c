@@ -17,14 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void Require(bool condition)
-{
-    if (!condition)
-    {
-        abort();
-    }
-}
-
 // The world each input lands on: the shared scene after a short
 // session, so a refusal has real state to leave alone.
 static uint8_t* s_scene;
@@ -77,7 +69,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3World* world = FreshWorld();
     Require(m3World_Restore(world, s_scene, s_sceneBytes) == m3_success);
     m3Result result = m3World_Restore(world, data, (int64_t)size);
-    Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
+    RequireStatus(result,
+                  result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     int64_t bytes = 0;
     uint8_t* written = SnapshotOf(world, &bytes);
     if (result != m3_success)

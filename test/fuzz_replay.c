@@ -17,14 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void Require(bool condition)
-{
-    if (!condition)
-    {
-        abort();
-    }
-}
-
 static m3World* FreshWorld(void)
 {
     m3WorldDef def = FuzzWorldDef();
@@ -44,7 +36,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3ReplayView view;
     memset(&view, 0, sizeof(view));
     m3Result result = m3DecodeReplay(data, (int64_t)size, &view);
-    Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
+    RequireStatus(result,
+                  result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     if (result != m3_success)
     {
         return 0;
@@ -66,12 +59,13 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     m3World* restored = FreshWorld();
     m3Result restore = m3World_Restore(restored, view.snapshot, view.snapshotBytes);
     // The decode checked the snapshot's prefix, not its build hash.
-    Require(restore == m3_success || restore == m3_errorFormat || restore == m3_errorVersion);
+    RequireStatus(restore,
+                  restore == m3_success || restore == m3_errorFormat || restore == m3_errorVersion);
     m3DestroyWorld(restored);
 
     m3World* replayed = FreshWorld();
     m3Result replay = m3World_ReplayJournal(replayed, view.journal, view.journalBytes);
-    Require(replay == m3_success || replay == m3_errorFormat);
+    RequireStatus(replay, replay == m3_success || replay == m3_errorFormat);
     m3DestroyWorld(replayed);
     return 0;
 }

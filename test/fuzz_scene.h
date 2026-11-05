@@ -20,9 +20,39 @@
 #include "maul3d/softbody.h"
 #include "maul3d/vehicle.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define FUZZ_DT 1.0f / 60.0f
+
+// A fuzz target's promise: when it breaks, one line names it and stops
+// the run, the "FILE:LINE: expectation failed: ..." line that
+// tools/fuzz_target.sh keeps in a finding's report. The line holds the
+// promise's own text, never the input's bytes.
+#define Require(condition) FuzzRequire((condition), __FILE__, __LINE__, #condition, NULL, 0)
+
+// The same for a promise about a status, whose value the line adds.
+#define RequireStatus(status, condition)                                                           \
+    FuzzRequire((condition), __FILE__, __LINE__, #condition, "status", (int32_t)(status))
+
+static inline void FuzzRequire(bool condition, const char* file, int line, const char* promise,
+                               const char* name, int32_t value)
+{
+    if (!condition)
+    {
+        if (name != NULL)
+        {
+            fprintf(stderr, "%s:%d: expectation failed: %s, %s %d\n", file, line, promise, name,
+                    (int)value);
+        }
+        else
+        {
+            fprintf(stderr, "%s:%d: expectation failed: %s\n", file, line, promise);
+        }
+        abort();
+    }
+}
 
 static inline m3WorldDef FuzzWorldDef(void)
 {

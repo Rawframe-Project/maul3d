@@ -14,14 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void Require(bool condition)
-{
-    if (!condition)
-    {
-        abort();
-    }
-}
-
 static uint8_t* SnapshotOf(const m3World* world, int64_t* bytesOut)
 {
     int64_t size = m3World_GetSnapshotSize(world);
@@ -54,7 +46,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     int64_t beforeBytes = 0;
     uint8_t* before = SnapshotOf(world, &beforeBytes);
     m3Result result = m3World_ReplayJournal(world, data, (int64_t)size);
-    Require(result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
+    RequireStatus(result,
+                  result == m3_success || result == m3_errorFormat || result == m3_errorVersion);
     if (result != m3_success)
     {
         int64_t afterBytes = 0;
