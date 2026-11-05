@@ -7,6 +7,16 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.0.5](https://github.com/Rawframe-Project/maul3d/compare/v1.0.4...v1.0.5) (2026-11-05)
+
+
+### Fixed
+
+* **build:** make `M3_NODISCARD` the attribute under GCC 14's C23 too ([#398](https://github.com/Rawframe-Project/maul3d/issues/398)) ([eade1d7](https://github.com/Rawframe-Project/maul3d/commit/eade1d70fe119ad6e26f0a4534240fb6f5b4bbb6)), closes [#397](https://github.com/Rawframe-Project/maul3d/issues/397)
+* mark every internal bool function nodiscard ([#405](https://github.com/Rawframe-Project/maul3d/issues/405)) ([bf1f25c](https://github.com/Rawframe-Project/maul3d/commit/bf1f25c2fe70278012e923f0a360755e49ed8892))
+* **solver:** hold only a velocity increment that leaves float range ([#402](https://github.com/Rawframe-Project/maul3d/issues/402)) ([f6bff08](https://github.com/Rawframe-Project/maul3d/commit/f6bff082dae42fad74e4e1032575ac3e9481562a)), closes [#401](https://github.com/Rawframe-Project/maul3d/issues/401)
+* **voxel:** replay refuses a fill on an empty cell ([#404](https://github.com/Rawframe-Project/maul3d/issues/404)) ([e1d6bdc](https://github.com/Rawframe-Project/maul3d/commit/e1d6bdcfb117fe93b9e755fabc583dc84055a789)), closes [#403](https://github.com/Rawframe-Project/maul3d/issues/403)
+
 ## [1.0.4](https://github.com/Rawframe-Project/maul3d/compare/v1.0.3...v1.0.4) (2026-11-04)
 
 ### Fixed

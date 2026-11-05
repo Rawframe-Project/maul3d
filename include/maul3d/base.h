@@ -71,7 +71,7 @@ extern "C"
 #define M3_VERSION_MINOR 0
 // x-release-please-end
 // x-release-please-start-patch
-#define M3_VERSION_PATCH 4
+#define M3_VERSION_PATCH 5
 // x-release-please-end
 
 // The binary interface a program is built for: the major and minor
