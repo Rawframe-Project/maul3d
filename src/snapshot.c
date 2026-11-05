@@ -284,6 +284,55 @@ static int64_t MeshTailEnd(const m3World* world, const uint8_t* raw, int64_t siz
     return cursor;
 }
 
+// Each mesh's edge flags as its geometry bakes them: the flags are
+// derived, and the contact welding reads them, so a mesh whose stored
+// flags differ is one the library never wrote. The tail is the one
+// MeshTailEnd checked, read from cursor; its arrays are copied to aligned
+// scratch for the bake.
+M3_NODISCARD static m3Result MeshEdgesFit(m3World* world, const uint8_t* raw, int64_t cursor)
+{
+    for (int32_t m = 0; m < world->meshes.meshCapacity; ++m)
+    {
+        m3MeshData mesh;
+        memset(&mesh, 0, sizeof(mesh));
+        memcpy(&mesh.vertexCount, raw + cursor, 4);
+        memcpy(&mesh.triangleCount, raw + cursor + 4, 4);
+        cursor += 8;
+        if (mesh.triangleCount == 0)
+        {
+            continue;
+        }
+        const uint8_t* content = raw + cursor;
+        int64_t vertexBytes = (int64_t)mesh.vertexCount * (int64_t)sizeof(m3Vec3);
+        int64_t indexBytes = 6LL * mesh.triangleCount;
+        cursor += vertexBytes + indexBytes + 2LL * mesh.triangleCount + 4 +
+                  (int64_t)(M3_MAX_MESH_MATERIALS * sizeof(m3MeshSurfaceMaterial));
+        if (!m3MeshDataAlloc(&world->heap, &mesh))
+        {
+            return m3_errorCapacity;
+        }
+        int32_t* scratch = (int32_t*)m3AllocArray(&world->heap, m3MeshEdgeScratchCount(&mesh),
+                                                  (int64_t)sizeof(int32_t));
+        if (scratch == NULL)
+        {
+            m3MeshDataFree(&world->heap, &mesh);
+            return m3_errorCapacity;
+        }
+        memcpy(mesh.vertices, content, (size_t)vertexBytes);
+        memcpy(mesh.indices, content + vertexBytes, (size_t)indexBytes);
+        m3BakeMeshEdgeFlags(&mesh, scratch);
+        bool same = memcmp(mesh.edgeFlags, content + vertexBytes + indexBytes,
+                           (size_t)mesh.triangleCount) == 0;
+        m3Free(&world->heap, scratch);
+        m3MeshDataFree(&world->heap, &mesh);
+        if (!same)
+        {
+            return m3_errorFormat;
+        }
+    }
+    return m3_success;
+}
+
 static int64_t HullTailEnd(const m3World* world, const uint8_t* raw, int64_t size, int64_t cursor)
 {
     // The hull tail: same pre-validation, four counts per
@@ -698,6 +747,11 @@ m3Result m3RestorePrepare(m3World* world, const void* data, int64_t size, m3Rest
     if (masses != m3_success)
     {
         return masses;
+    }
+    m3Result edges = MeshEdgesFit(world, raw, fixed);
+    if (edges != m3_success)
+    {
+        return edges;
     }
     if (!PrepareRestore(world, raw, size, fixed, stage))
     {

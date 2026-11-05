@@ -482,6 +482,40 @@ static void VoxelEmptyWithPayload(const Scene* scene, uint8_t* snap)
     memcpy(chunk + offsetof(m3VoxelChunkData, payload) + 2 * (size_t)v, &payload, 2);
 }
 
+// The scene's mesh's first edge flag byte in the snapshot's tail: right
+// after the mesh's vertices and indices, which are found by their bytes.
+static uint8_t* MeshFlagAt(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->meshes.meshPool.alive, world->meshes.meshPool.capacity);
+    const m3MeshData* mesh = &world->meshes.meshData[slot];
+    size_t vertexBytes = (size_t)mesh->vertexCount * sizeof(m3Vec3);
+    size_t indexBytes = 6 * (size_t)mesh->triangleCount;
+    int64_t size = m3World_GetSnapshotSize(world);
+    int64_t at = -1;
+    for (int64_t i = HEADER_BYTES; i + (int64_t)(vertexBytes + indexBytes) <= size; ++i)
+    {
+        if (memcmp(snap + i, mesh->vertices, vertexBytes) == 0 &&
+            memcmp(snap + i + vertexBytes, mesh->indices, indexBytes) == 0)
+        {
+            CHECK(at < 0, "the mesh's geometry is in the snapshot once");
+            at = i;
+        }
+    }
+    CHECK(at >= 0, "the mesh's geometry is in the snapshot");
+    return snap + (at < 0 ? 0 : at) + vertexBytes + indexBytes;
+}
+
+static void MeshFlagPastBits(const Scene* scene, uint8_t* snap)
+{
+    *MeshFlagAt(scene, snap) |= 0x08;
+}
+
+static void MeshFlagFlipped(const Scene* scene, uint8_t* snap)
+{
+    *MeshFlagAt(scene, snap) ^= 0x01;
+}
+
 static void LatticeOverflowing(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -555,6 +589,8 @@ static const Case s_cases[] = {
     {"a voxel chunk with an occupied cell of fill 0", VoxelOccupiedUnfilled},
     {"a voxel chunk with an empty cell that holds a fill", VoxelEmptyFilled},
     {"a voxel chunk with an empty cell that holds a payload", VoxelEmptyWithPayload},
+    {"a mesh edge flag byte with a bit the bake never sets", MeshFlagPastBits},
+    {"a mesh edge flag that disagrees with the mesh's geometry", MeshFlagFlipped},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},
