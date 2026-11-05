@@ -86,9 +86,11 @@ read the particles back.
 
 Each substep, for each soft body in slot order, the step:
 
-1. moves every free particle by its velocity, gravity, any pending
-   explosion kick, the wind and the water, capped at the world's speed
-   limit;
+1. moves every free particle by its velocity, gravity and any pending
+   explosion kick, capped at the world's speed limit, then by the wind
+   and the water, which come after the cap: in dense water the lift can
+   carry a particle past the limit within one substep, and the next
+   substep caps its velocity again;
 2. satisfies each constraint once, in a fixed order, then the
    `maxDeviation` limit, the tetrahedra's volumes and the pressure;
 3. moves each anchored particle to its anchor, passing its pull to the
