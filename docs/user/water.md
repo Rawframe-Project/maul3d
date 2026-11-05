@@ -57,6 +57,12 @@ The step adds the buoyant force and torque to the body's velocity,
 then pulls the velocity toward the flow and damps the spin, both
 implicitly, so a strong drag settles a body on the current and never
 pushes it past. The body's own damping and the speed caps apply after.
+The forces themselves are not limited: a huge dense body in dense water
+feels its full buoyancy. Only a velocity or spin increment past float
+range, which a long thin rod under several dense volumes can reach, is
+held to `M3_SPEED_LIMIT` along its direction, as for every force (see
+[the speed caps](bodies-and-shapes.md#world-settings)). The drag and
+damping then multiply a finite velocity.
 
 The model reads bounding boxes, not shapes: a sphere floats like its
 box, a long body turned diagonally holds more water than its volume,

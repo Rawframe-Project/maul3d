@@ -192,7 +192,12 @@ the game runs:
 | `m3World_EnableContinuous` | on | The continuous pass above. |
 
 The speed caps guard against a scene that blows up; they sit far above
-anything a working scene reaches. Wheels and other legal fast spinners
+anything a working scene reaches. Before them, the step adds the
+increment of each force and torque, the host's and the water's, to the
+velocities exactly as computed. Only an increment whose sum
+would leave float range is held to `M3_SPEED_LIMIT` along its
+direction, so a velocity the damping or the caps then read is always
+finite, and every step whose arithmetic stays finite keeps its result. Wheels and other legal fast spinners
 get `m3Body_EnableFastRotation`. Settings are world state: the journal
 records them, a snapshot carries them, and the hash takes them in when
 they differ from their defaults.

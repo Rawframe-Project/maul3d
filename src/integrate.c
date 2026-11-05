@@ -10,6 +10,7 @@
 #include "solver_math.h"
 #include "world_internal.h"
 
+#include <float.h>
 #include <math.h>
 
 // The mover list: awake dynamics and kinematics in ascending slot order,
@@ -57,6 +58,55 @@ int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt)
     return moverCount;
 }
 
+// v plus an increment whose float sum left float range, which the
+// integrator takes again in double, exact, where every finite input stays
+// finite, and holds within M3_SPEED_LIMIT along its direction, the limit
+// the mover caps apply next. A double increment within it, as when float
+// terms that overflowed cancel, is kept as it is. An increment without a
+// direction, from an input that is not finite itself, is dropped. So a
+// velocity a drag or damping factor multiplies is always finite, and a
+// factor of zero leaves zero, never a NaN.
+static m3Vec3 AddHeld(m3Vec3 v, double x, double y, double z)
+{
+    double length = sqrt(x * x + y * y + z * z);
+    if (!(length > 0.0) || !(length <= DBL_MAX))
+    {
+        return v;
+    }
+    double k = length > (double)M3_SPEED_LIMIT ? (double)M3_SPEED_LIMIT / length : 1.0;
+    return m3Add3(v, (m3Vec3){(float)(k * x), (float)(k * y), (float)(k * z)});
+}
+
+// v + s f in float, as the step has always added it; only a sum that
+// leaves float range takes AddHeld instead, so a step whose arithmetic
+// stays finite keeps its bits.
+static m3Vec3 AddLinear(m3Vec3 v, float s, m3Vec3 f)
+{
+    m3Vec3 sum = m3Add3(v, m3MulSV3(s, f));
+    if (m3FiniteV3(sum))
+    {
+        return sum;
+    }
+    return AddHeld(v, (double)s * (double)f.x, (double)s * (double)f.y, (double)s * (double)f.z);
+}
+
+// w + h I t, I a world inverse inertia, held as AddLinear holds it.
+static m3Vec3 AddAngular(m3Vec3 w, float h, const m3Mat3* inv, m3Vec3 t)
+{
+    m3Vec3 sum = m3Add3(w, m3MulSV3(h, m3MulMV3(*inv, t)));
+    if (m3FiniteV3(sum))
+    {
+        return sum;
+    }
+    double x = (double)t.x;
+    double y = (double)t.y;
+    double z = (double)t.z;
+    return AddHeld(
+        w, (double)h * ((double)inv->cx.x * x + (double)inv->cy.x * y + (double)inv->cz.x * z),
+        (double)h * ((double)inv->cx.y * x + (double)inv->cy.y * y + (double)inv->cz.y * z),
+        (double)h * ((double)inv->cx.z * x + (double)inv->cy.z * y + (double)inv->cz.z * z));
+}
+
 void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverCount,
                            const m3Buoyancy* buoy, float h)
 {
@@ -74,12 +124,12 @@ void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverC
         // Host forces and torques integrate beside
         // gravity, every substep, so a force held for one step
         // delivers exactly force times dt.
-        v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], world->bodies.bodyForce[i]));
+        v = AddLinear(v, h * world->bodies.invMass[i], world->bodies.bodyForce[i]);
         if (world->bodies.bodyTorque[i].x != 0.0f || world->bodies.bodyTorque[i].y != 0.0f ||
             world->bodies.bodyTorque[i].z != 0.0f)
         {
-            w = m3Add3(
-                w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), world->bodies.bodyTorque[i])));
+            m3Mat3 inv = m3WorldInvInertia(world, i);
+            w = AddAngular(w, h, &inv, world->bodies.bodyTorque[i]);
         }
         if (buoy->active > 0 && (buoy->lin[m] > 0.0f || buoy->force[m].y != 0.0f ||
                                  buoy->force[m].x != 0.0f || buoy->force[m].z != 0.0f))
@@ -88,8 +138,9 @@ void m3IntegrateVelocities(m3World* world, const int32_t* movers, int32_t moverC
             // about the submerged centroid, then drag pulls the
             // RELATIVE velocity toward the flow (the damping
             // recipe, recentered on the current).
-            v = m3Add3(v, m3MulSV3(h * world->bodies.invMass[i], buoy->force[m]));
-            w = m3Add3(w, m3MulSV3(h, m3MulMV3(m3WorldInvInertia(world, i), buoy->torque[m])));
+            v = AddLinear(v, h * world->bodies.invMass[i], buoy->force[m]);
+            m3Mat3 inv = m3WorldInvInertia(world, i);
+            w = AddAngular(w, h, &inv, buoy->torque[m]);
             m3Vec3 rel = m3Sub3(v, buoy->flow[m]);
             v = m3Add3(buoy->flow[m], m3MulSV3(1.0f / (1.0f + h * buoy->lin[m]), rel));
             w = m3MulSV3(1.0f / (1.0f + h * buoy->ang[m]), w);
