@@ -442,6 +442,26 @@ typedef struct m3VoxelChunkData
 _Static_assert(sizeof(m3VoxelChunkData) == 8 + 512 + 8192 + 4096,
                "voxel chunk must be padding-free");
 
+// Whether every cell's fill and payload agree with its occupancy as the
+// library writes them: an occupied cell has a fill of 1 or more, and an
+// empty one a fill and a payload of 0. It reads the three arrays as
+// bytes, so a snapshot's unaligned copy can be checked where it lies.
+M3_NODISCARD static inline bool m3VoxelCellsAgree(const uint8_t* occupancy, const uint8_t* payload,
+                                                  const uint8_t* fill)
+{
+    for (int32_t v = 0; v < M3_VOXEL_COUNT; ++v)
+    {
+        bool occupied = ((occupancy[v >> 3] >> (v & 7)) & 1u) != 0;
+        bool agrees = occupied ? fill[v] != 0
+                               : fill[v] == 0 && payload[2 * v] == 0 && payload[2 * v + 1] == 0;
+        if (!agrees)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 typedef struct m3VoxelSurface
 {
     int32_t boxCount;

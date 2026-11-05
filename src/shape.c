@@ -202,7 +202,11 @@ static m3Result ShapeContentCheck(const m3World* world, int32_t bodyIndex, uint8
     if (content->voxels != NULL)
     {
         const m3VoxelChunkData* chunk = content->voxels;
-        return m3BothChecks(m3CheckValid(!def->isSensor && chunk->filledCount > 0),
+        // The public create packs agreeing cells; a journal's chunk is
+        // checked as recorded.
+        bool agrees =
+            m3VoxelCellsAgree(chunk->occupancy, (const uint8_t*)chunk->payload, chunk->fill);
+        return m3BothChecks(m3CheckValid(!def->isSensor && chunk->filledCount > 0 && agrees),
                             m3CheckPositive(chunk->cellSize, M3_CELL_LIMIT));
     }
     return m3_success;

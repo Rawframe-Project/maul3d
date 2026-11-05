@@ -819,7 +819,9 @@ M3_NODISCARD static bool CheckStructs(const m3World* world, const m3StateArray* 
                     filled += 1;
                 }
             }
-            ok = m3FiniteF(chunk.cellSize) && chunk.filledCount == filled;
+            ok = m3FiniteF(chunk.cellSize) && chunk.filledCount == filled &&
+                 m3VoxelCellsAgree(occupancy, at + offsetof(m3VoxelChunkData, payload),
+                                   at + offsetof(m3VoxelChunkData, fill));
             break;
         }
         case m3_check_transform:

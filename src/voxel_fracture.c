@@ -82,7 +82,6 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         // edit's state transition) and emit the event.
         float cell = chunk->cellSize;
         m3Vec3 com = {0.0f, 0.0f, 0.0f};
-        m3Vec3 comEq = {0.0f, 0.0f, 0.0f}; // unweighted twin (see below)
         int64_t fillSum = 0;
         uint8_t lo[3] = {255, 255, 255};
         uint8_t hi[3] = {0, 0, 0};
@@ -100,7 +99,6 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
             m3Vec3 center = {((float)x + 0.5f) * cell, ((float)y + 0.5f) * cell,
                              ((float)z + 0.5f) * cell};
             com = m3Add3(com, m3MulSV3(w, center));
-            comEq = m3Add3(comEq, center);
             lo[0] = x < lo[0] ? (uint8_t)x : lo[0];
             lo[1] = y < lo[1] ? (uint8_t)y : lo[1];
             lo[2] = z < lo[2] ? (uint8_t)z : lo[2];
@@ -110,20 +108,10 @@ void m3VoxelFractureSweep(m3World* world, int32_t shape)
         }
         chunk->filledCount -= count;
         removedAny = true;
-        if (fillSum > 0)
-        {
-            com = m3MulSV3(1.0f / (float)fillSum, com);
-        }
-        else
-        {
-            // A legitimate stream never gets here (occupied implies
-            // fill >= 1), but a mutated snapshot can set occupancy
-            // bits over zeroed fill bytes, and 1/0 would mint a NaN
-            // center that infects the whole simulation. The equal
-            // weight center is the fallback (count >= 1 in
-            // this branch by construction).
-            com = m3MulSV3(1.0f / (float)count, comEq);
-        }
+        // Every occupied cell has a fill of 1 or more: restore and replay
+        // refuse a chunk whose cells disagree (m3VoxelCellsAgree).
+        M3_ASSERT(fillSum > 0);
+        com = m3MulSV3(1.0f / (float)fillSum, com);
 
         if (world->events.fragmentEventCount >= M3_FRAGMENT_EVENT_CAP)
         {

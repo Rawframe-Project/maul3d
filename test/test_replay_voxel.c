@@ -181,12 +181,98 @@ static void CheckFillOnEmptyCell(void)
     free(snapshot);
 }
 
+// A journal that creates a chunk replays, and the same journal fails to
+// replay, leaving the world as it was, with one cell's fill or payload
+// made to disagree with its occupancy: a state the library never writes.
+// Cell k is occupied with a payload nothing else holds, and cell k + 1 is
+// empty, so the record's arrays are found by that payload.
+static void CheckChunkCellsAgree(void)
+{
+    enum
+    {
+        COUNT = DIM * DIM * DIM,
+        CELL = 3 + DIM * (4 + DIM * 5)
+    };
+    const uint16_t mark = 0xA1B2;
+    const char* names[3] = {"an empty cell with a payload", "an empty cell with a fill",
+                            "an occupied cell of fill 0"};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        char what[160];
+        m3WorldDef def = m3DefaultWorldDef();
+        m3World* world = NewWorld(&def);
+        m3BodyDef bd = m3DefaultBodyDef();
+        m3BodyId body = NewBody(world, &bd);
+        int64_t snapshotBytes = m3World_GetSnapshotSize(world);
+        uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotBytes);
+        CHECK(snapshot != NULL, "the snapshot buffer");
+        Snapshot(world, snapshot, snapshotBytes);
+        static uint8_t voxels[COUNT];
+        static uint16_t payload[COUNT];
+        memset(voxels, 1, sizeof(voxels));
+        memset(payload, 0, sizeof(payload));
+        voxels[CELL + 1] = 0;
+        payload[CELL] = mark;
+        m3ShapeDef sd = m3DefaultShapeDef();
+        StartJournal(world, s_journal, (int32_t)sizeof(s_journal));
+        m3ShapeId shape = NewVoxelChunkShape(world, body, &sd, voxels, payload, 0.5f);
+        int64_t bytes = StopJournal(world);
+        CHECK(m3Shape_IsValid(world, shape), "the chunk builds");
+        m3DestroyWorld(world);
+
+        m3World* replayed = NewWorld(&def);
+        CHECK(Restore(replayed, snapshot, snapshotBytes), "the snapshot restores");
+        CHECK(ReplayJournal(replayed, s_journal, bytes), "the chunk replays as recorded");
+        m3DestroyWorld(replayed);
+
+        int64_t at = -1;
+        for (int64_t i = TAPE_HEADER_BYTES; i + 2 <= bytes; ++i)
+        {
+            if (memcmp(s_journal + i, &mark, 2) == 0)
+            {
+                CHECK(at < 0, "the record holds the payload once");
+                at = i;
+            }
+        }
+        CHECK(at >= 0, "the record holds the payload");
+        if (at < 0)
+        {
+            free(snapshot);
+            continue;
+        }
+        int64_t payloadStart = at - 2 * (int64_t)CELL;
+        int64_t fillStart = payloadStart + 2 * (int64_t)COUNT;
+        if (k == 0)
+        {
+            s_journal[payloadStart + 2 * (CELL + 1)] = 9; // the empty cell's payload
+        }
+        else if (k == 1)
+        {
+            s_journal[fillStart + CELL + 1] = 7; // the empty cell's fill
+        }
+        else
+        {
+            s_journal[fillStart + CELL] = 0; // the occupied cell's fill
+        }
+        replayed = NewWorld(&def);
+        CHECK(Restore(replayed, snapshot, snapshotBytes), "the snapshot restores");
+        uint64_t hash = m3World_Hash(replayed);
+        snprintf(what, sizeof(what), "replay refuses a chunk with %s", names[k]);
+        CHECK(!ReplayJournal(replayed, s_journal, bytes), what);
+        snprintf(what, sizeof(what), "the refused chunk with %s changes nothing", names[k]);
+        CHECK(m3World_Hash(replayed) == hash, what);
+        m3DestroyWorld(replayed);
+        free(snapshot);
+    }
+}
+
 int main(void)
 {
     CheckEdit("set voxel", edit_set);
     CheckEdit("clear voxel", edit_clear);
     CheckEdit("set fill", edit_fill);
     CheckFillOnEmptyCell();
+    CheckChunkCellsAgree();
     if (s_failures == 0)
     {
         printf("test_replay_voxel: all green\n");
