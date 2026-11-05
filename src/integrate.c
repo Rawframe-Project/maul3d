@@ -58,13 +58,14 @@ int32_t m3BuildMovers(m3World* world, int32_t* movers, float dt)
     return moverCount;
 }
 
-// v plus an increment past float range, which the integrator takes again
-// in double, exact, where every finite input stays finite, and holds to
-// M3_SPEED_LIMIT along its direction, the limit the mover caps apply
-// next. An increment without a direction, from an input that is not
-// finite itself, is dropped. So a velocity a drag or damping factor
-// multiplies is always finite, and a factor of zero leaves zero, never a
-// NaN.
+// v plus an increment whose float sum left float range, which the
+// integrator takes again in double, exact, where every finite input stays
+// finite, and holds within M3_SPEED_LIMIT along its direction, the limit
+// the mover caps apply next. A double increment within it, as when float
+// terms that overflowed cancel, is kept as it is. An increment without a
+// direction, from an input that is not finite itself, is dropped. So a
+// velocity a drag or damping factor multiplies is always finite, and a
+// factor of zero leaves zero, never a NaN.
 static m3Vec3 AddHeld(m3Vec3 v, double x, double y, double z)
 {
     double length = sqrt(x * x + y * y + z * z);
@@ -72,7 +73,7 @@ static m3Vec3 AddHeld(m3Vec3 v, double x, double y, double z)
     {
         return v;
     }
-    double k = (double)M3_SPEED_LIMIT / length;
+    double k = length > (double)M3_SPEED_LIMIT ? (double)M3_SPEED_LIMIT / length : 1.0;
     return m3Add3(v, (m3Vec3){(float)(k * x), (float)(k * y), (float)(k * z)});
 }
 
