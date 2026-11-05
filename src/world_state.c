@@ -757,6 +757,29 @@ M3_NODISCARD static bool CheckFinite(const uint8_t* data, size_t bytes, size_t w
     return true;
 }
 
+// One voxel chunk, unaligned in a snapshot: a finite cell size, a filled
+// count that the occupancy bits agree with (fracture and mass read it
+// without recounting), and cells whose fill and payload agree with them.
+M3_NODISCARD static bool VoxelChunkValid(const uint8_t* at)
+{
+    float cellSize;
+    int32_t filledCount;
+    memcpy(&cellSize, at + offsetof(m3VoxelChunkData, cellSize), sizeof(float));
+    memcpy(&filledCount, at + offsetof(m3VoxelChunkData, filledCount), sizeof(int32_t));
+    const uint8_t* occupancy = at + offsetof(m3VoxelChunkData, occupancy);
+    int32_t filled = 0;
+    for (int32_t byte = 0; byte < M3_VOXEL_COUNT / 8; ++byte)
+    {
+        for (uint32_t bits = occupancy[byte]; bits != 0; bits &= bits - 1)
+        {
+            filled += 1;
+        }
+    }
+    return m3FiniteF(cellSize) && filledCount == filled &&
+           m3VoxelCellsAgree(occupancy, at + offsetof(m3VoxelChunkData, payload),
+                             at + offsetof(m3VoxelChunkData, fill));
+}
+
 M3_NODISCARD static bool CheckStructs(const m3World* world, const m3StateArray* array,
                                       const uint8_t* data, size_t count, int64_t range)
 {
@@ -803,25 +826,8 @@ M3_NODISCARD static bool CheckStructs(const m3World* world, const m3StateArray* 
             break;
         }
         case m3_check_voxel:
-        {
-            m3VoxelChunkData chunk;
-            memcpy(&chunk.cellSize, at + offsetof(m3VoxelChunkData, cellSize), sizeof(float));
-            memcpy(&chunk.filledCount, at + offsetof(m3VoxelChunkData, filledCount),
-                   sizeof(int32_t));
-            // The count is derived from the occupancy bits, and fracture and
-            // mass read it without recounting, so the two must agree.
-            const uint8_t* occupancy = at + offsetof(m3VoxelChunkData, occupancy);
-            int32_t filled = 0;
-            for (int32_t byte = 0; byte < M3_VOXEL_COUNT / 8; ++byte)
-            {
-                for (uint32_t bits = occupancy[byte]; bits != 0; bits &= bits - 1)
-                {
-                    filled += 1;
-                }
-            }
-            ok = m3FiniteF(chunk.cellSize) && chunk.filledCount == filled;
+            ok = VoxelChunkValid(at);
             break;
-        }
         case m3_check_transform:
         {
             m3Transform xf;

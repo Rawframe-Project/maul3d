@@ -437,6 +437,51 @@ static void VoxelCountOff(const Scene* scene, uint8_t* snap)
     PutI32(count, GetI32(count) + 1);
 }
 
+// The scene's chunk in the snapshot, and its first cell that is
+// occupied, or empty, as wanted.
+static uint8_t* VoxelChunkAt(const Scene* scene, uint8_t* snap, bool occupied, int32_t* cellOut)
+{
+    const m3World* world = scene->world;
+    int32_t slot = LiveSlot(world->voxels.voxelPool.alive, world->voxels.voxelPool.capacity);
+    const m3VoxelChunkData* chunk = &world->voxels.voxelData[slot];
+    *cellOut = -1;
+    for (int32_t v = 0; v < M3_VOXEL_COUNT && *cellOut < 0; ++v)
+    {
+        if ((((chunk->occupancy[v >> 3] >> (v & 7)) & 1u) != 0) == occupied)
+        {
+            *cellOut = v;
+        }
+    }
+    CHECK(*cellOut >= 0, "the scene's chunk has such a cell");
+    if (*cellOut < 0)
+    {
+        *cellOut = 0;
+    }
+    return At(world, snap, FIELD(voxels.voxelData), sizeof(m3VoxelChunkData), slot);
+}
+
+static void VoxelOccupiedUnfilled(const Scene* scene, uint8_t* snap)
+{
+    int32_t v;
+    uint8_t* chunk = VoxelChunkAt(scene, snap, true, &v);
+    chunk[offsetof(m3VoxelChunkData, fill) + (size_t)v] = 0;
+}
+
+static void VoxelEmptyFilled(const Scene* scene, uint8_t* snap)
+{
+    int32_t v;
+    uint8_t* chunk = VoxelChunkAt(scene, snap, false, &v);
+    chunk[offsetof(m3VoxelChunkData, fill) + (size_t)v] = 7;
+}
+
+static void VoxelEmptyWithPayload(const Scene* scene, uint8_t* snap)
+{
+    int32_t v;
+    uint8_t* chunk = VoxelChunkAt(scene, snap, false, &v);
+    uint16_t payload = 42;
+    memcpy(chunk + offsetof(m3VoxelChunkData, payload) + 2 * (size_t)v, &payload, 2);
+}
+
 static void LatticeOverflowing(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -507,6 +552,9 @@ static const Case s_cases[] = {
     {"a body anchor past the particles", AnchorPastParticles},
     {"a soft anchor past the particles", SoftAnchorPastParticles},
     {"a voxel chunk whose filled count is one off", VoxelCountOff},
+    {"a voxel chunk with an occupied cell of fill 0", VoxelOccupiedUnfilled},
+    {"a voxel chunk with an empty cell that holds a fill", VoxelEmptyFilled},
+    {"a voxel chunk with an empty cell that holds a payload", VoxelEmptyWithPayload},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},
