@@ -15,14 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void Require(bool condition)
-{
-    if (!condition)
-    {
-        abort();
-    }
-}
-
 static uint8_t* s_scene;
 static int64_t s_sceneBytes;
 
