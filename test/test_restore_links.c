@@ -784,11 +784,77 @@ static void TestRestoreRefusesTouchingPairOnDeadShape(void)
     m3DestroyWorld(world);
 }
 
+// A mesh create needs 3 vertices. A mesh of 3 whose one triangle uses
+// only the first two is cut to 2 and to 1 vertex in its snapshot's tail:
+// the count word drops and the unused vertices' bytes go. Restore refuses
+// both with the world left as it was and no misuse counted, and the
+// mesh of 3 restores.
+static void TestRestoreRefusesMeshUnderThreeVertices(void)
+{
+    m3WorldDef def = m3DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId body = NewBody(world, &bd);
+    const m3Vec3 vertices[3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.5f, 0.0f, 0.0f}};
+    const uint16_t indices[3] = {0, 1, 0};
+    m3ShapeDef sd = m3DefaultShapeDef();
+    m3ShapeId mesh;
+    CHECK(m3CreateMeshShape(world, body, &sd, vertices, 3, indices, 1, &mesh) == m3_success,
+          "a mesh of 3 vertices is created");
+    CHECK(m3CreateMeshShape(world, body, &sd, vertices, 2, indices, 1, &mesh) == m3_errorInvalid,
+          "and one of 2 is refused");
+    int64_t size = m3World_GetSnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* cut = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && cut != NULL && Snapshot(world, clean, size) == size, "snapshot taken");
+    if (clean == NULL || cut == NULL)
+    {
+        free(cut);
+        free(clean);
+        m3DestroyWorld(world);
+        return;
+    }
+    // The tail's counts, 3 and 1, then the vertices, found by their bytes.
+    int64_t at = -1;
+    for (int64_t i = HEADER_BYTES; i + 8 + (int64_t)sizeof(vertices) <= size; ++i)
+    {
+        if (GetI32(clean + i) == 3 && GetI32(clean + i + 4) == 1 &&
+            memcmp(clean + i + 8, vertices, sizeof(vertices)) == 0)
+        {
+            CHECK(at < 0, "the mesh's tail is in the snapshot once");
+            at = i;
+        }
+    }
+    CHECK(at >= 0, "the mesh's tail is in the snapshot");
+    uint64_t hash = m3World_Hash(world);
+    uint64_t misuse = m3World_GetCounters(world).misuseCount;
+    for (int32_t keep = 2; keep >= 1 && at >= 0; --keep)
+    {
+        size_t head = (size_t)at + 8 + sizeof(m3Vec3) * (size_t)keep;
+        size_t rest = (size_t)at + 8 + sizeof(vertices);
+        memcpy(cut, clean, head);
+        memcpy(cut + head, clean + rest, (size_t)size - rest);
+        PutI32(cut + at, keep);
+        int64_t cutSize = size - (int64_t)(rest - head);
+        CHECK(m3World_Restore(world, cut, cutSize) == m3_errorFormat,
+              "a mesh with fewer than 3 vertices is refused as malformed bytes");
+        CHECK(m3World_Hash(world) == hash && m3World_GetCounters(world).misuseCount == misuse,
+              "and the world is left as it was, with no misuse counted");
+    }
+    CHECK(Restore(world, clean, size) && m3World_Hash(world) == hash, "the mesh of 3 restores");
+    free(cut);
+    free(clean);
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRestoreRefusesBrokenStructures();
     TestRestoreAcceptsWhatTheEngineWrites();
     TestRestoreRefusesTouchingPairOnDeadShape();
+    TestRestoreRefusesMeshUnderThreeVertices();
     if (s_failures == 0)
     {
         printf("test_restore_links: all checks passed\n");
