@@ -516,6 +516,33 @@ static void MeshFlagFlipped(const Scene* scene, uint8_t* snap)
     *MeshFlagAt(scene, snap) ^= 0x01;
 }
 
+// The scene's first live shape of a type.
+static int32_t ShapeOfType(const m3World* world, m3ShapeType type)
+{
+    for (int32_t s = 0; s < world->shapes.shapePool.capacity; ++s)
+    {
+        if (world->shapes.shapePool.alive[s] != 0 && world->shapes.shapeType[s] == (uint8_t)type)
+        {
+            return s;
+        }
+    }
+    CHECK(false, "the scene holds a shape of the type");
+    return 0;
+}
+
+static void MeshOnKinematicBody(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    int32_t body = world->shapes.shapeBody[ShapeOfType(world, m3_meshShape)];
+    *At(world, snap, FIELD(bodies.types), 1, body) = (uint8_t)m3_kinematicBody;
+}
+
+static void VoxelChunkSensor(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    *At(world, snap, FIELD(shapes.shapeSensor), 1, ShapeOfType(world, m3_voxelChunkShape)) = 1;
+}
+
 static void LatticeOverflowing(const Scene* scene, uint8_t* snap)
 {
     const m3World* world = scene->world;
@@ -591,6 +618,8 @@ static const Case s_cases[] = {
     {"a voxel chunk with an empty cell that holds a payload", VoxelEmptyWithPayload},
     {"a mesh edge flag byte with a bit the bake never sets", MeshFlagPastBits},
     {"a mesh edge flag that disagrees with the mesh's geometry", MeshFlagFlipped},
+    {"a mesh on a kinematic body", MeshOnKinematicBody},
+    {"a voxel chunk that is a sensor", VoxelChunkSensor},
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},

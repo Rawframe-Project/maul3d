@@ -116,6 +116,34 @@ M3_NODISCARD static bool ShapeGeomValid(const m3Incoming* inc)
     return true;
 }
 
+// Planes, meshes, height fields and voxel chunks are static geometry:
+// create puts them only on a static body, and the type change refuses to
+// move such a body. A voxel chunk is never a sensor: create refuses one,
+// and no setter changes a shape's sensor flag. The shape lists have put
+// every live shape's body in range and alive.
+M3_NODISCARD static bool StaticGeometryValid(const m3Incoming* inc)
+{
+    const uint8_t* alive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
+    const uint8_t* types = m3InField(inc, offsetof(m3World, shapes.shapeType));
+    const uint8_t* sensors = m3InField(inc, offsetof(m3World, shapes.shapeSensor));
+    const uint8_t* shapeBody = m3InField(inc, offsetof(m3World, shapes.shapeBody));
+    const uint8_t* bodyTypes = m3InField(inc, offsetof(m3World, bodies.types));
+    for (int32_t s = 0; s < inc->world->shapes.shapePool.capacity; ++s)
+    {
+        uint8_t type = types[s];
+        if (alive[s] == 0 || !m3ShapeIsStaticOnly(type))
+        {
+            continue;
+        }
+        if (bodyTypes[m3InI32(shapeBody, s)] != (uint8_t)m3_staticBody ||
+            (type == (uint8_t)m3_voxelChunkShape && sensors[s] != 0))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- Rotations -----------------------------------------------------------------
 
 // A rotation the engine could hold: within the band of unit length its
@@ -511,6 +539,7 @@ M3_NODISCARD static bool JointModesValid(const m3Incoming* inc)
 
 bool m3SnapshotValuesValid(const m3Incoming* inc)
 {
-    return BodiesValid(inc) && RotationsValid(inc) && ShapeGeomValid(inc) && CharactersValid(inc) &&
-           VehiclesValid(inc) && SoftBodiesValid(inc) && JointModesValid(inc);
+    return BodiesValid(inc) && RotationsValid(inc) && ShapeGeomValid(inc) &&
+           StaticGeometryValid(inc) && CharactersValid(inc) && VehiclesValid(inc) &&
+           SoftBodiesValid(inc) && JointModesValid(inc);
 }

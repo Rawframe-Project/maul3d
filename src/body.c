@@ -216,9 +216,7 @@ m3Result m3TypeChangeCheck(const m3World* world, int32_t index, int32_t type)
         for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1;
              s = world->shapes.shapeNext[s])
         {
-            uint8_t shape = world->shapes.shapeType[s];
-            if (shape == (uint8_t)m3_planeShape || shape == (uint8_t)m3_meshShape ||
-                shape == (uint8_t)m3_heightFieldShape || shape == (uint8_t)m3_voxelChunkShape)
+            if (m3ShapeIsStaticOnly(world->shapes.shapeType[s]))
             {
                 return m3_errorInvalid;
             }
