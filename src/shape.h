@@ -99,6 +99,14 @@ M3_NODISCARD static inline bool m3ShapeCanCollide(uint8_t sensor, uint64_t categ
     return sensor == 0 && (groupIndex > 0 || (categoryBits != 0 && maskBits != 0));
 }
 
+// Whether a shape of this type is static geometry, which lives only on a
+// static body: create, the type change and restore each hold to it.
+M3_NODISCARD static inline bool m3ShapeIsStaticOnly(uint8_t type)
+{
+    return type == (uint8_t)m3_planeShape || type == (uint8_t)m3_meshShape ||
+           type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelChunkShape;
+}
+
 // Whether a dynamic body of this mass and inertia keeps M3_CONTACT_LEVER_LIMIT
 // over the shapes listed from head: its mass times the squared arm of any
 // point of a shape that can collide, over the moment that arm turns it,

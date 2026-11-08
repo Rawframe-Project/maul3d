@@ -181,9 +181,7 @@ static m3Result MeshContentCheck(const m3MeshData* mesh)
 static m3Result ShapeContentCheck(const m3World* world, int32_t bodyIndex, uint8_t type,
                                   const m3ShapeDef* def, const m3ShapeContent* content)
 {
-    bool staticOnly = type == (uint8_t)m3_planeShape || type == (uint8_t)m3_meshShape ||
-                      type == (uint8_t)m3_heightFieldShape || type == (uint8_t)m3_voxelChunkShape;
-    if (staticOnly && world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
+    if (m3ShapeIsStaticOnly(type) && world->bodies.types[bodyIndex] != (uint8_t)m3_staticBody)
     {
         return m3_errorInvalid;
     }
