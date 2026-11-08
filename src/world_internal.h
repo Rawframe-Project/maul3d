@@ -148,6 +148,10 @@ typedef struct m3MeshData
     m3MeshSurfaceMaterial materials[M3_MAX_MESH_MATERIALS];
 } m3MeshData;
 
+// The fewest vertices a live mesh holds: create, replay and restore each
+// refuse fewer.
+#define M3_MESH_MIN_VERTICES 3
+
 // Count-derived ownership: Alloc frees any old arrays and
 // sizes new ones from the counts already in the struct; Free
 // releases and zeroes. The snapshot read pass and every create

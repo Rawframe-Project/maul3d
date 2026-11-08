@@ -341,7 +341,8 @@ m3Result m3CreateHullShape(m3World* world, m3BodyId body, const m3ShapeDef* def,
 static m3Result MeshInputCheck(const m3Vec3* vertices, int32_t vertexCount, const uint16_t* indices,
                                int32_t triangleCount)
 {
-    if (vertices == NULL || indices == NULL || vertexCount < 3 || triangleCount < 1)
+    if (vertices == NULL || indices == NULL || vertexCount < M3_MESH_MIN_VERTICES ||
+        triangleCount < 1)
     {
         return m3_errorInvalid;
     }
