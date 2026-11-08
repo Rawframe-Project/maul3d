@@ -257,10 +257,10 @@ static int64_t MeshTailEnd(const m3World* world, const uint8_t* raw, int64_t siz
         memcpy(&vc, raw + cursor, 4);
         memcpy(&tc, raw + cursor + 4, 4);
         cursor += 8;
-        // A live mesh has the 3 vertices and 1 triangle a create needs;
+        // A live mesh has the vertices and the triangle a create needs;
         // an empty slot has neither.
         if (vc < 0 || vc > M3_MAX_MESH_VERTICES || tc < 0 || tc > M3_MAX_MESH_TRIANGLES ||
-            (vc == 0) != (tc == 0) || (vc > 0 && vc < 3))
+            (vc == 0) != (tc == 0) || (vc > 0 && vc < M3_MESH_MIN_VERTICES))
         {
             return -1; // corrupt counts refuse before any write
         }

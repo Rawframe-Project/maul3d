@@ -145,7 +145,7 @@ m3Result m3PlainGeomCheck(uint8_t type, const m3ShapeGeom* geom)
 
 static m3Result MeshContentCheck(const m3MeshData* mesh)
 {
-    if (mesh->vertexCount < 3 || mesh->triangleCount < 1)
+    if (mesh->vertexCount < M3_MESH_MIN_VERTICES || mesh->triangleCount < 1)
     {
         return m3_errorInvalid;
     }

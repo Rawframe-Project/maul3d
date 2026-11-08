@@ -53,7 +53,7 @@ bool m3ReplayCreateMeshShape(m3World* world, const m3ReplayRecord* r)
         return false;
     }
     memcpy(&record, payload, sizeof(record));
-    if (record.vertexCount < 3 || record.vertexCount > M3_MAX_MESH_VERTICES ||
+    if (record.vertexCount < M3_MESH_MIN_VERTICES || record.vertexCount > M3_MAX_MESH_VERTICES ||
         record.triangleCount < 1 || record.triangleCount > M3_MAX_MESH_TRIANGLES)
     {
         return false;

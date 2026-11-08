@@ -786,9 +786,11 @@ static void TestRestoreRefusesTouchingPairOnDeadShape(void)
 
 // A mesh create needs 3 vertices. A mesh of 3 whose one triangle uses
 // only the first two is cut to 2 and to 1 vertex in its snapshot's tail:
-// the count word drops and the unused vertices' bytes go. Restore refuses
-// both with the world left as it was and no misuse counted, and the
-// mesh of 3 restores.
+// the count word drops and the unused vertices' bytes go, and the cut to
+// 1 vertex also names vertex 0 at every corner, so each cut passes the
+// index check and only the vertex count is short. Restore refuses both
+// with the world left as it was and no misuse counted, and the mesh of 3
+// restores.
 static void TestRestoreRefusesMeshUnderThreeVertices(void)
 {
     m3WorldDef def = m3DefaultWorldDef();
@@ -837,6 +839,10 @@ static void TestRestoreRefusesMeshUnderThreeVertices(void)
         memcpy(cut, clean, head);
         memcpy(cut + head, clean + rest, (size_t)size - rest);
         PutI32(cut + at, keep);
+        if (keep == 1)
+        {
+            memset(cut + head, 0, sizeof(indices));
+        }
         int64_t cutSize = size - (int64_t)(rest - head);
         CHECK(m3World_Restore(world, cut, cutSize) == m3_errorFormat,
               "a mesh with fewer than 3 vertices is refused as malformed bytes");
