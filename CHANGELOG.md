@@ -9,11 +9,27 @@ API, and an entry says what each changed result changes.
 
 ## [1.1.1](https://github.com/Rawframe-Project/maul3d/compare/v1.1.0...v1.1.1) (2026-11-08)
 
-
 ### Fixed
 
-* **snapshot:** restore refuses a mesh with fewer than 3 vertices ([#423](https://github.com/Rawframe-Project/maul3d/issues/423)) ([c25527f](https://github.com/Rawframe-Project/maul3d/commit/c25527fa9892e4402852629d596ad1776251ebae)), closes [#422](https://github.com/Rawframe-Project/maul3d/issues/422)
-* **snapshot:** restore refuses moved static geometry and voxel sensors ([#425](https://github.com/Rawframe-Project/maul3d/issues/425)) ([4a5b992](https://github.com/Rawframe-Project/maul3d/commit/4a5b992d6f851366bb093f0231ad80cf69905b0a)), closes [#424](https://github.com/Rawframe-Project/maul3d/issues/424)
+- **Restore refuses a mesh with fewer than 3 vertices.**
+  `m3CreateMeshShape`, and a mesh create that `m3World_ReplayJournal`
+  replays, refuse a mesh of 1 or 2 vertices with `m3_errorInvalid`, but
+  `m3World_Restore` took one from a snapshot and the restored world
+  stepped with it. Restore now refuses such a mesh with
+  `m3_errorFormat` and leaves the world as it was. No snapshot the
+  library writes is refused.
+  ([#423](https://github.com/Rawframe-Project/maul3d/pull/423))
+- **Restore refuses static geometry on a moving body, and a voxel
+  sensor.** A plane, mesh, height field or voxel chunk lives only on a
+  static body: create puts it there, and `m3Body_SetType` refuses to
+  make that body kinematic or dynamic. A voxel chunk is never a sensor,
+  since its create refuses a sensor def. Restore checked neither rule,
+  so a restored world could step a kinematic body that carried static
+  geometry, or a voxel chunk that sensed and blocked nothing. Restore
+  now refuses both with `m3_errorFormat` and leaves the world as it
+  was. Mesh, height field and plane sensors stay legal, and no snapshot
+  the library writes is refused.
+  ([#425](https://github.com/Rawframe-Project/maul3d/pull/425))
 
 ## [1.1.0](https://github.com/Rawframe-Project/maul3d/compare/v1.0.5...v1.1.0) (2026-11-05)
 
