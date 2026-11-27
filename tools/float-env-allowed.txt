@@ -106,6 +106,7 @@ stored floats read back as they are, with no arithmetic:
     m3Joint_GetMotorSpeed
     m3Joint_GetSpringDampingRatio
     m3Joint_GetSpringHertz
+    m3Joint_GetTargetTranslation
     m3MeshShape_GetIndices
     m3MeshShape_GetVertices
     m3MotorJoint_GetAngularOffset
@@ -113,11 +114,13 @@ stored floats read back as they are, with no arithmetic:
     m3MotorJoint_GetMaxForce
     m3MotorJoint_GetMaxTorque
     m3PulleyJoint_GetGroundAnchors
+    m3RevoluteJoint_GetTargetAngle
     m3Shape_GetCapsule
     m3Shape_GetLocalPose
     m3Shape_GetPlane
     m3Shape_GetSphere
     m3SphericalJoint_GetConeAngle
+    m3SphericalJoint_GetTargetRotation
     m3VoxelChunkShape_GetVoxels
     m3WheelJoint_GetMaxSteeringTorque
     m3WheelJoint_GetSteeringDampingRatio

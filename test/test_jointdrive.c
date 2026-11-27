@@ -419,6 +419,76 @@ static void TestSwitchesKeepValues(void)
     m3DestroyWorld(world);
 }
 
+static void TestTargetsReadBack(void)
+{
+    // Each spring target reads back as its setter stored it, the default
+    // until one is set; a refused set keeps the old one. Another type, a
+    // stale id and a null world read the default, the first two counting
+    // one misuse.
+    m3World* world = SmallWorld();
+    m3BodyId a = Box(world, (m3Pos3){0.0, 2.0, 0.0}, 0.2f, 0);
+    m3BodyId b = Box(world, (m3Pos3){1.0, 2.0, 0.0}, 0.4f, 1);
+    m3RevoluteJointDef jdHinge = m3DefaultRevoluteJointDef();
+    jdHinge.bodyIdA = a;
+    jdHinge.bodyIdB = b;
+    m3JointId hinge = NewJoint(world, &jdHinge);
+    m3PrismaticJointDef jdSlide = m3DefaultPrismaticJointDef();
+    jdSlide.bodyIdA = a;
+    jdSlide.bodyIdB = b;
+    m3JointId slide = NewJoint(world, &jdSlide);
+    m3WheelJointDef jdWheel = m3DefaultWheelJointDef();
+    jdWheel.bodyIdA = a;
+    jdWheel.bodyIdB = b;
+    m3JointId wheel = NewJoint(world, &jdWheel);
+    m3SphericalJointDef jdBall = m3DefaultSphericalJointDef();
+    jdBall.bodyIdA = a;
+    jdBall.bodyIdB = b;
+    m3JointId ball = NewJoint(world, &jdBall);
+
+    m3Quat q = m3SphericalJoint_GetTargetRotation(world, ball);
+    CHECK(m3RevoluteJoint_GetTargetAngle(world, hinge) == 0.0f &&
+              m3Joint_GetTargetTranslation(world, slide) == 0.0f &&
+              m3Joint_GetTargetTranslation(world, wheel) == 0.0f && q.x == 0.0f && q.y == 0.0f &&
+              q.z == 0.0f && q.w == 1.0f,
+          "a fresh joint's targets read the defaults");
+    m3RevoluteJoint_SetTargetAngle(world, hinge, -1.25f);
+    m3Joint_SetTargetTranslation(world, slide, 0.75f);
+    m3Joint_SetTargetTranslation(world, wheel, -0.125f);
+    m3Quat target = {0.0f, 0.6f, 0.0f, 0.8f};
+    m3SphericalJoint_SetTargetRotation(world, ball, target);
+    q = m3SphericalJoint_GetTargetRotation(world, ball);
+    CHECK(m3RevoluteJoint_GetTargetAngle(world, hinge) == -1.25f &&
+              m3Joint_GetTargetTranslation(world, slide) == 0.75f &&
+              m3Joint_GetTargetTranslation(world, wheel) == -0.125f && q.x == target.x &&
+              q.y == target.y && q.z == target.z && q.w == target.w,
+          "each target reads back as set");
+    CHECK_REFUSES(world, m3RevoluteJoint_SetTargetAngle(world, hinge, 4.0f),
+                  "an angle past pi refuses");
+    CHECK(m3RevoluteJoint_GetTargetAngle(world, hinge) == -1.25f,
+          "a refused angle keeps the old target");
+
+    CHECK_REFUSES(world, (void)m3RevoluteJoint_GetTargetAngle(world, slide),
+                  "a slider has no target angle");
+    CHECK_REFUSES(world, (void)m3Joint_GetTargetTranslation(world, ball),
+                  "a ball joint has no target translation");
+    CHECK_REFUSES(world, q = m3SphericalJoint_GetTargetRotation(world, hinge),
+                  "a hinge has no target rotation");
+    CHECK(q.x == 0.0f && q.y == 0.0f && q.z == 0.0f && q.w == 1.0f,
+          "another type reads the identity");
+    CHECK(m3RevoluteJoint_GetTargetAngle(world, slide) == 0.0f &&
+              m3Joint_GetTargetTranslation(world, ball) == 0.0f,
+          "another type reads zero");
+    m3JointId stale = hinge;
+    stale.index1 += 99;
+    CHECK_REFUSES(world, (void)m3RevoluteJoint_GetTargetAngle(world, stale),
+                  "a stale id counts one misuse");
+    q = m3SphericalJoint_GetTargetRotation(NULL, ball);
+    CHECK(m3RevoluteJoint_GetTargetAngle(NULL, hinge) == 0.0f &&
+              m3Joint_GetTargetTranslation(NULL, slide) == 0.0f && q.w == 1.0f,
+          "a null world reads the defaults");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRuntimeMotorAndLimits();
@@ -430,6 +500,7 @@ int main(void)
     TestSphericalRotationDrive();
     TestHostileRuntime();
     TestSwitchesKeepValues();
+    TestTargetsReadBack();
     if (s_failures == 0)
     {
         printf("test_jointdrive: all green\n");

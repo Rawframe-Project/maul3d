@@ -175,6 +175,19 @@ static inline bool FuzzJointValues(m3World* world, m3JointId joint)
         m3Joint_SetSpringDampingRatio(world, joint, m3Joint_GetSpringDampingRatio(world, joint));
         m3Joint_EnableSpring(world, joint, m3Joint_IsSpringEnabled(world, joint));
     }
+    if (type == m3_revoluteJoint)
+    {
+        m3RevoluteJoint_SetTargetAngle(world, joint, m3RevoluteJoint_GetTargetAngle(world, joint));
+    }
+    else if (type == m3_prismaticJoint || type == m3_wheelJoint)
+    {
+        m3Joint_SetTargetTranslation(world, joint, m3Joint_GetTargetTranslation(world, joint));
+    }
+    else if (type == m3_sphericalJoint)
+    {
+        m3SphericalJoint_SetTargetRotation(world, joint,
+                                           m3SphericalJoint_GetTargetRotation(world, joint));
+    }
     if (type == m3_distanceJoint)
     {
         float minLength = 0.0f;

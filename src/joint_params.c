@@ -932,3 +932,39 @@ void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat 
     JointSetTargetRotationWorker(world, joint, target);
     m3FloatEnvLeave(env);
 }
+
+// The slot of a joint of one of two types, or -1 for a stale id and for
+// any other type, each of which counts one misuse.
+static int32_t TargetJointSlot(const m3World* world, m3JointId joint, m3JointType a, m3JointType b)
+{
+    int32_t slot;
+    if (!ResolveJoint(world, joint, &slot))
+    {
+        return -1;
+    }
+    uint8_t type = world->joints.jointType[slot];
+    if (type != (uint8_t)a && type != (uint8_t)b)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return -1;
+    }
+    return slot;
+}
+
+float m3RevoluteJoint_GetTargetAngle(const m3World* world, m3JointId joint)
+{
+    int32_t slot = TargetJointSlot(world, joint, m3_revoluteJoint, m3_revoluteJoint);
+    return slot >= 0 ? world->joints.jointTargetScalar[slot] : 0.0f;
+}
+
+float m3Joint_GetTargetTranslation(const m3World* world, m3JointId joint)
+{
+    int32_t slot = TargetJointSlot(world, joint, m3_prismaticJoint, m3_wheelJoint);
+    return slot >= 0 ? world->joints.jointTargetScalar[slot] : 0.0f;
+}
+
+m3Quat m3SphericalJoint_GetTargetRotation(const m3World* world, m3JointId joint)
+{
+    int32_t slot = TargetJointSlot(world, joint, m3_sphericalJoint, m3_sphericalJoint);
+    return slot >= 0 ? world->joints.jointTargetQ[slot] : (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+}
