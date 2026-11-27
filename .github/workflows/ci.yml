@@ -215,7 +215,7 @@ jobs:
         with:
           # Pinned like every toolchain: an update announces itself through
           # a red build, not a silent drift of the bits.
-          version: 6.0.2
+          version: 7.0.1
           # A download lands in a new temporary folder each run, which
           # emcc's --sysroot argument names; under the workspace,
           # CCACHE_BASEDIR turns that path relative, so ccache can hit.
