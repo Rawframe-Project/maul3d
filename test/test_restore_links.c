@@ -13,6 +13,7 @@
 // that follows it.
 
 #include "fuzz_scene.h"
+#include "joint_solver.h"
 #include "state_prefix.h"
 #include "test_harness.h"
 #include "world_internal.h"
@@ -579,6 +580,26 @@ static void ShoulderTargetShort(const Scene* scene, uint8_t* snap)
            &target, sizeof(target));
 }
 
+// The scene's first live joint of a type.
+static int32_t JointOfType(const m3World* world, m3JointType type)
+{
+    for (int32_t j = 0; j < world->joints.jointPool.capacity; ++j)
+    {
+        if (world->joints.jointPool.alive[j] != 0 && world->joints.jointType[j] == (uint8_t)type)
+        {
+            return j;
+        }
+    }
+    CHECK(false, "the scene holds a joint of the type");
+    return 0;
+}
+
+static void ShoulderMotorFlag(const Scene* scene, uint8_t* snap)
+{
+    *At(scene->world, snap, FIELD(joints.jointFlags), 1,
+        JointOfType(scene->world, m3_sphericalJoint)) |= M3_JOINT_MOTOR;
+}
+
 typedef struct Case
 {
     const char* name;
@@ -635,6 +656,7 @@ static const Case s_cases[] = {
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},
     {"a spherical target the setter refuses", ShoulderTargetShort},
+    {"a motor flag on a joint with no motor", ShoulderMotorFlag},
 };
 
 static void TestRestoreRefusesBrokenStructures(void)
