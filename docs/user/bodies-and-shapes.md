@@ -85,7 +85,10 @@ rebuilds its body's mass.
 
 The geometry reads back: `m3Shape_GetSphere`, `m3Shape_GetCapsule` and
 `m3Shape_GetPlane` return it as it was stored, `m3HullShape_GetVertices`
-lists a hull's vertices, a box's and a cylinder's included, and
+lists a hull's vertices, a box's and a cylinder's included,
+`m3MeshShape_GetVertices` and `m3MeshShape_GetIndices` a mesh's,
+`m3HeightFieldShape_GetHeights` a height field's samples and grid,
+`m3VoxelChunkShape_GetVoxels` a voxel chunk's fills and payloads, and
 `m3Shape_GetLocalPose` reads the shape's offset from its body.
 
 `m3MeshShape_SetMaterials` paints a mesh: up to

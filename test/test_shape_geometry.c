@@ -621,6 +621,96 @@ static void TestGeometryReadsBack(void)
     m3DestroyWorld(world);
 }
 
+static void TestStaticGeometryReadsBack(void)
+{
+    // A mesh, a height field and a voxel chunk read back as created, the
+    // chunk's edits included; another kind, a bad buffer and a stale id
+    // read the null values.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+
+    static const m3Vec3 quad[4] = {
+        {-1.0f, 0.0f, -1.0f}, {-1.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 1.0f}, {1.0f, 0.25f, -1.0f}};
+    static const uint16_t tris[6] = {0, 1, 2, 0, 2, 3};
+    m3ShapeId mesh = NewMeshShape(world, ground, &sd, quad, 4, tris, 2);
+    m3Vec3 vertices[8];
+    uint16_t indices[8];
+    CHECK(m3MeshShape_GetVertices(world, mesh, vertices, 8) == 4 &&
+              memcmp(vertices, quad, sizeof(quad)) == 0,
+          "a mesh's vertices read back as created");
+    CHECK(m3MeshShape_GetIndices(world, mesh, indices, 8) == 6 &&
+              memcmp(indices, tris, sizeof(tris)) == 0,
+          "and its triangles");
+    CHECK(m3MeshShape_GetIndices(world, mesh, NULL, 0) == 6, "a null buffer measures");
+
+    static const float samples[6] = {0.0f, 0.5f, 1.0f, -0.25f, 0.75f, 2.0f};
+    m3ShapeId field = NewHeightFieldShape(world, ground, &sd, samples, 3, 2, 0.5f);
+    float heights[8];
+    int32_t nx = 0;
+    int32_t nz = 0;
+    float cellSize = 0.0f;
+    int32_t got = -1;
+    CHECK(m3HeightFieldShape_GetHeights(world, field, heights, 8, &nx, &nz, &cellSize) == 6 &&
+              memcmp(heights, samples, sizeof(samples)) == 0 && nx == 3 && nz == 2 &&
+              cellSize == 0.5f,
+          "a height field's samples and grid read back as created");
+    CHECK(m3HeightFieldShape_GetHeights(world, field, NULL, 0, NULL, NULL, NULL) == 6,
+          "a null buffer measures the samples");
+    m3ShapeId fieldMesh = NewHeightFieldMeshShape(world, ground, &sd, samples, 3, 2, 0.5f);
+    CHECK(m3MeshShape_GetVertices(world, fieldMesh, NULL, 0) > 0,
+          "a height field built as a mesh lists as a mesh");
+    CHECK_REFUSES(
+        world,
+        got = m3HeightFieldShape_GetHeights(world, fieldMesh, heights, 8, &nx, &nz, &cellSize),
+        "a height field mesh is not a native height field");
+    CHECK(got == 0 && nx == 0 && nz == 0 && cellSize == 0.0f && heights[0] == 0.0f &&
+              heights[5] == 0.0f,
+          "and reads a zero grid and a cleared buffer");
+
+    static uint8_t voxels[4096];
+    static uint16_t payload[4096];
+    memset(voxels, 0, sizeof(voxels));
+    memset(payload, 0, sizeof(payload));
+    voxels[0] = 1;
+    voxels[1] = 7;
+    voxels[4095] = 1;
+    payload[1] = 513;
+    payload[2] = 9; // empty: a create keeps no payload there
+    m3ShapeId chunk = NewVoxelChunkShape(world, ground, &sd, voxels, payload, 0.25f);
+    CHECK(m3VoxelChunkShape_SetFill(world, chunk, 0, 0, 0, 100) == m3_success,
+          "a voxel wears down");
+    static uint8_t fill[4096];
+    static uint16_t payloadBack[4096];
+    float chunkCell = 0.0f;
+    CHECK(m3VoxelChunkShape_GetVoxels(world, chunk, fill, payloadBack, &chunkCell) == 3,
+          "the chunk counts its three voxels");
+    CHECK(fill[0] == 100 && fill[1] == 255 && fill[4095] == 255 && fill[2] == 0 &&
+              payloadBack[1] == 513 && payloadBack[2] == 0 && chunkCell == 0.25f,
+          "each voxel's fill and payload read back");
+    CHECK(m3VoxelChunkShape_GetVoxels(world, chunk, NULL, NULL, NULL) == 3,
+          "the count needs no buffer");
+
+    CHECK_REFUSES(world, (void)m3MeshShape_GetVertices(world, field, vertices, 8),
+                  "a height field is not a mesh");
+    CHECK_REFUSES(world, (void)m3MeshShape_GetIndices(world, mesh, indices, -1),
+                  "a negative capacity refuses");
+    m3ShapeId stale = chunk;
+    stale.index1 += 99;
+    chunkCell = 1.0f;
+    CHECK_REFUSES(world,
+                  got = m3VoxelChunkShape_GetVoxels(world, stale, fill, payloadBack, &chunkCell),
+                  "a stale chunk counts one misuse");
+    CHECK(got == 0 && fill[0] == 0 && fill[1] == 0 && payloadBack[1] == 0 && chunkCell == 0.0f,
+          "and reads an empty grid");
+    CHECK(m3MeshShape_GetVertices(NULL, mesh, vertices, 8) == 0 &&
+              m3VoxelChunkShape_GetVoxels(NULL, chunk, NULL, NULL, NULL) == 0,
+          "a null world reads nothing");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestPlaneOffsetAtTheLimit();
@@ -631,6 +721,7 @@ int main(void)
     TestStaticGeometryAtTheLimit();
     TestLongCapsuleKeepsItsAxialMoment();
     TestGeometryReadsBack();
+    TestStaticGeometryReadsBack();
     if (s_failures == 0)
     {
         printf("test_shape_geometry: all checks passed\n");

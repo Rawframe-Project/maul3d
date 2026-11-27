@@ -893,6 +893,78 @@ extern "C"
     M3_API int32_t m3HullShape_GetVertices(const m3World* world, m3ShapeId shape,
                                            m3Vec3* verticesOut, int32_t capacity);
 
+    /// Lists a mesh shape's vertices as create took them, in the shape's
+    /// frame. A height field built as a mesh lists the vertices create made
+    /// from its grid.
+    ///
+    /// @param world        The world.
+    /// @param shape        The shape.
+    /// @param verticesOut  Receives up to capacity vertices.
+    /// @param capacity     verticesOut's length, at least 0.
+    /// @return The mesh's vertex count; 0 on a refusal, as
+    ///         m3HullShape_GetVertices lists them.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API int32_t m3MeshShape_GetVertices(const m3World* world, m3ShapeId shape,
+                                           m3Vec3* verticesOut, int32_t capacity);
+
+    /// Lists a mesh shape's triangles as create took them: three vertex
+    /// indices each, counter-clockwise seen from outside.
+    ///
+    /// @param world       The world.
+    /// @param shape       The shape.
+    /// @param indicesOut  Receives up to capacity indices.
+    /// @param capacity    indicesOut's length, at least 0.
+    /// @return Three times the mesh's triangle count; 0 on a refusal, as
+    ///         m3HullShape_GetVertices lists them.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API int32_t m3MeshShape_GetIndices(const m3World* world, m3ShapeId shape,
+                                          uint16_t* indicesOut, int32_t capacity);
+
+    /// Lists a height field shape's samples as create took them, row-major
+    /// with x fastest, and reads its grid. Each of nxOut, nzOut and
+    /// cellSizeOut may be null; each reads 0 on a refusal.
+    ///
+    /// @param world        The world.
+    /// @param shape        The shape.
+    /// @param heightsOut   Receives up to capacity samples.
+    /// @param capacity     heightsOut's length, at least 0.
+    /// @param nxOut        Receives the samples along x.
+    /// @param nzOut        Receives the samples along z.
+    /// @param cellSizeOut  Receives the sample spacing, meters.
+    /// @return nx * nz; 0 on a refusal, as m3HullShape_GetVertices lists them.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API int32_t m3HeightFieldShape_GetHeights(const m3World* world, m3ShapeId shape,
+                                                 float* heightsOut, int32_t capacity,
+                                                 int32_t* nxOut, int32_t* nzOut,
+                                                 float* cellSizeOut);
+
+    /// Reads a voxel chunk's 4096 voxels in create's order, x fastest then
+    /// y then z: each voxel's fill, 0 for an empty one and 1 to 255 for an
+    /// occupied one (255 at create), and its payload, 0 for an empty one.
+    /// Creating a chunk from the fills and payloads gives the same grid,
+    /// with every fill whole. Each out pointer may be null.
+    ///
+    /// @param world        The world.
+    /// @param shape        The shape.
+    /// @param fillOut      Receives 4096 fills.
+    /// @param payloadOut   Receives 4096 payloads.
+    /// @param cellSizeOut  Receives the cell size, meters.
+    /// @return The occupied voxel count; 0, with every output zero, for a
+    ///         null world, and for a stale or null id or another kind of
+    ///         shape, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API int32_t m3VoxelChunkShape_GetVoxels(const m3World* world, m3ShapeId shape,
+                                               uint8_t* fillOut, uint16_t* payloadOut,
+                                               float* cellSizeOut);
+
     /// Who touches this shape now: fills up to capacity entries and
     /// returns the total, which may exceed capacity; a NULL array with
     /// capacity 0 measures. A stale shape is a refusal. A refusal zeroes the array over its whole
