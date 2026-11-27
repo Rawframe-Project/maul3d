@@ -823,6 +823,76 @@ extern "C"
     /// several readers at once.
     M3_API m3WorldAabb m3Shape_GetAabb(const m3World* world, m3ShapeId shape);
 
+    /// Returns a sphere shape's geometry as it was created or last set, in
+    /// the shape's frame.
+    ///
+    /// @param world  The world.
+    /// @param shape  The shape.
+    /// @return The sphere; all zeros for a null world, and for a stale or null
+    ///         id or another kind of shape, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API m3Sphere m3Shape_GetSphere(const m3World* world, m3ShapeId shape);
+
+    /// Returns a capsule shape's geometry as it was created or last set, in
+    /// the shape's frame. A character's capsule reads back too.
+    ///
+    /// @param world  The world.
+    /// @param shape  The shape.
+    /// @return The capsule; all zeros for a null world, and for a stale or
+    ///         null id or another kind of shape, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API m3Capsule m3Shape_GetCapsule(const m3World* world, m3ShapeId shape);
+
+    /// Returns a plane shape's geometry as create stored it: the normal
+    /// normalized and the offset as given.
+    ///
+    /// @param world  The world.
+    /// @param shape  The shape.
+    /// @return The plane; all zeros for a null world, and for a stale or null
+    ///         id or another kind of shape, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API m3Plane m3Shape_GetPlane(const m3World* world, m3ShapeId shape);
+
+    /// Reads the shape's transform relative to its body, the def's
+    /// localPosition and localRotation as create stored them. Either out
+    /// pointer may be null.
+    ///
+    /// @param world        The world.
+    /// @param shape        The shape.
+    /// @param positionOut  Receives the offset; zero for a null world, and for
+    ///                     a stale or null id, which counts one misuse.
+    /// @param rotationOut  Receives the rotation; the identity likewise.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API void m3Shape_GetLocalPose(const m3World* world, m3ShapeId shape, m3Vec3* positionOut,
+                                     m3Quat* rotationOut);
+
+    /// Lists a hull shape's vertices, in the shape's frame: the points the
+    /// builder kept, at most 64, in the hull's own order. A box and a
+    /// cylinder are hulls and list theirs. Creating a hull from them builds
+    /// the same hull.
+    ///
+    /// @param world        The world.
+    /// @param shape        The shape.
+    /// @param verticesOut  Receives up to capacity vertices.
+    /// @param capacity     verticesOut's length, at least 0.
+    /// @return The hull's vertex count; 0 on a refusal: a null world, a stale
+    ///         or null id, another kind of shape, a negative capacity or a
+    ///         null verticesOut with a positive one, each counting one misuse
+    ///         but a null world's.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API int32_t m3HullShape_GetVertices(const m3World* world, m3ShapeId shape,
+                                           m3Vec3* verticesOut, int32_t capacity);
+
     /// Who touches this shape now: fills up to capacity entries and
     /// returns the total, which may exceed capacity; a NULL array with
     /// capacity 0 measures. A stale shape is a refusal. A refusal zeroes the array over its whole

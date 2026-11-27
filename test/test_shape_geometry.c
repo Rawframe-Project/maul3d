@@ -509,6 +509,118 @@ static void TestLongCapsuleKeepsItsAxialMoment(void)
     }
 }
 
+// Whether two vertex lists hold the same points, in any order.
+static bool SameVertices(const m3Vec3* a, int32_t countA, const m3Vec3* b, int32_t countB)
+{
+    if (countA != countB)
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < countA; ++i)
+    {
+        bool found = false;
+        for (int32_t k = 0; k < countB && !found; ++k)
+        {
+            found = a[i].x == b[k].x && a[i].y == b[k].y && a[i].z == b[k].z;
+        }
+        if (!found)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void TestGeometryReadsBack(void)
+{
+    // Each shape's geometry reads back as its create or setter stored it,
+    // and a hull's vertices build the same hull again. Another kind, a
+    // stale id and a null world read the null values.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId ground = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    m3BodyId body = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+
+    m3Plane floor = {{0.0f, 2.0f, 0.0f}, -0.5f};
+    m3ShapeId plane = NewPlaneShape(world, ground, &sd, &floor);
+    m3Plane p = m3Shape_GetPlane(world, plane);
+    CHECK(p.normal.x == 0.0f && p.normal.y == 1.0f && p.normal.z == 0.0f && p.offset == -0.5f,
+          "a plane reads back with its normal normalized and its offset as given");
+
+    m3Sphere ball = {{0.25f, -0.5f, 1.0f}, 0.75f};
+    m3ShapeId sphere = NewSphereShape(world, body, &sd, &ball);
+    m3Sphere s = m3Shape_GetSphere(world, sphere);
+    CHECK(s.center.x == 0.25f && s.center.y == -0.5f && s.center.z == 1.0f && s.radius == 0.75f,
+          "a sphere reads back as created");
+    m3Capsule pill = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.25f};
+    CHECK(m3Shape_SetCapsule(world, sphere, &pill) == m3_success, "the sphere becomes a capsule");
+    m3Capsule c = m3Shape_GetCapsule(world, sphere);
+    CHECK(c.point1.y == -0.5f && c.point2.y == 0.5f && c.point1.x == 0.0f && c.radius == 0.25f,
+          "and reads back as the setter stored it");
+    CHECK_REFUSES(world, s = m3Shape_GetSphere(world, sphere), "a capsule is not a sphere");
+    CHECK(s.radius == 0.0f && s.center.y == 0.0f, "and reads a zero sphere");
+
+    sd.localPosition = (m3Vec3){0.0f, 1.5f, -2.0f};
+    sd.localRotation = (m3Quat){0.0f, 0.6f, 0.0f, 0.8f};
+    m3ShapeId box = NewBoxShape(world, body, &sd, (m3Vec3){0.5f, 0.25f, 1.0f});
+    m3Vec3 position = {0.0f, 0.0f, 0.0f};
+    m3Quat rotation = {0.0f, 0.0f, 0.0f, 0.0f};
+    m3Shape_GetLocalPose(world, box, &position, &rotation);
+    CHECK(position.x == 0.0f && position.y == 1.5f && position.z == -2.0f &&
+              fabsf(rotation.y - 0.6f) < 1e-6f && fabsf(rotation.w - 0.8f) < 1e-6f,
+          "the shape's local pose reads back");
+    m3Shape_GetLocalPose(world, box, NULL, NULL);
+    sd.localPosition = (m3Vec3){0.0f, 0.0f, 0.0f};
+    sd.localRotation = (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+
+    m3Vec3 corners[64];
+    int32_t count = m3HullShape_GetVertices(world, box, corners, 64);
+    bool onCorners = count == 8;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        onCorners = onCorners && fabsf(corners[i].x) == 0.5f && fabsf(corners[i].y) == 0.25f &&
+                    fabsf(corners[i].z) == 1.0f;
+    }
+    CHECK(onCorners, "a box lists its eight corners");
+    CHECK(m3HullShape_GetVertices(world, box, NULL, 0) == 8, "a null buffer measures");
+    m3Vec3 two[2];
+    CHECK(m3HullShape_GetVertices(world, box, two, 2) == 8, "the total survives a short buffer");
+
+    m3Cylinder drum = {{0.0f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.0f}, 0.4f};
+    m3ShapeId cylinder = NewCylinderShape(world, body, &sd, &drum, 12);
+    m3Vec3 rim[64];
+    int32_t rimCount = m3HullShape_GetVertices(world, cylinder, rim, 64);
+    CHECK(rimCount == 24, "a cylinder of 12 segments lists 24 vertices");
+    m3ShapeId again = NewHullShape(world, body, &sd, rim, rimCount);
+    m3Vec3 rebuilt[64];
+    int32_t rebuiltCount = m3HullShape_GetVertices(world, again, rebuilt, 64);
+    CHECK(SameVertices(rim, rimCount, rebuilt, rebuiltCount),
+          "a hull built from the vertices keeps them all");
+
+    CHECK_REFUSES(world, count = m3HullShape_GetVertices(world, sphere, corners, 64),
+                  "a capsule has no hull vertices");
+    CHECK(count == 0 && corners[0].x == 0.0f && corners[7].z == 0.0f, "and the buffer is cleared");
+    CHECK_REFUSES(world, (void)m3HullShape_GetVertices(world, box, NULL, 4),
+                  "a null buffer with a positive capacity refuses");
+    CHECK_REFUSES(world, (void)m3HullShape_GetVertices(world, box, corners, -1),
+                  "a negative capacity refuses");
+    CHECK_REFUSES(world, (void)m3Shape_GetPlane(world, box), "a box is not a plane");
+    m3ShapeId stale = box;
+    stale.index1 += 99;
+    position.x = 3.0f;
+    CHECK_REFUSES(world, m3Shape_GetLocalPose(world, stale, &position, &rotation),
+                  "a stale pose read counts one misuse");
+    CHECK(position.x == 0.0f && rotation.w == 1.0f, "and reads the identity pose");
+    c = m3Shape_GetCapsule(NULL, sphere);
+    CHECK(c.radius == 0.0f && m3HullShape_GetVertices(NULL, box, corners, 64) == 0 &&
+              m3Shape_GetSphere(NULL, sphere).radius == 0.0f,
+          "a null world reads the null values");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestPlaneOffsetAtTheLimit();
@@ -518,6 +630,7 @@ int main(void)
     TestParticlesStayWithinTheLimit();
     TestStaticGeometryAtTheLimit();
     TestLongCapsuleKeepsItsAxialMoment();
+    TestGeometryReadsBack();
     if (s_failures == 0)
     {
         printf("test_shape_geometry: all checks passed\n");
