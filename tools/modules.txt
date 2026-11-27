@@ -76,7 +76,7 @@ snapshot: fpenv hull misuse shape snapshot_links snapshot_mass snapshot_walk sta
 snapshot_mass: hull joint_lever shape world_internal world_state
 snapshot_links: allocator snapshot_bounds snapshot_values world_internal world_state
 snapshot_bounds: body joint joint_solver journal shape snapshot_values vehicle world world_internal
-snapshot_values: body_state joint_solver shape world_internal world_state
+snapshot_values: body_state joint joint_solver shape world_internal world_state
 snapshot_walk: state_prefix world_internal world_state
 softbody: body_state fpenv journal misuse world_internal
 softbody_cull: world_internal

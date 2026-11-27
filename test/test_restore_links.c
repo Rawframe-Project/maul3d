@@ -568,6 +568,17 @@ static void HingeWithGenericModes(const Scene* scene, uint8_t* snap)
            &modes, sizeof(modes));
 }
 
+// Inside the band restore keeps for other rotations, outside the
+// setter's: squared length 0.985.
+static void ShoulderTargetShort(const Scene* scene, uint8_t* snap)
+{
+    const m3World* world = scene->world;
+    m3Quat target = {0.0f, 0.0f, 0.0f, 0.9925f};
+    memcpy(At(world, snap, FIELD(joints.jointTargetQ), sizeof(m3Quat),
+              world->joints.bodyJointHead[scene->ball]),
+           &target, sizeof(target));
+}
+
 typedef struct Case
 {
     const char* name;
@@ -623,6 +634,7 @@ static const Case s_cases[] = {
     {"a lattice whose dimensions overflow 32 bits", LatticeOverflowing},
     {"a joint flag no setter writes", JointFlagUnknown},
     {"a hinge with generic modes", HingeWithGenericModes},
+    {"a spherical target the setter refuses", ShoulderTargetShort},
 };
 
 static void TestRestoreRefusesBrokenStructures(void)
