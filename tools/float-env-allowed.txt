@@ -96,6 +96,7 @@ stored floats read back as they are, with no arithmetic:
     m3Character_GetStance
     m3DistanceJoint_GetLength
     m3DistanceJoint_GetLengthRange
+    m3HullShape_GetVertices
     m3Joint_GetBreakLimits
     m3Joint_GetLimits
     m3Joint_GetLocalAnchors
@@ -109,6 +110,10 @@ stored floats read back as they are, with no arithmetic:
     m3MotorJoint_GetMaxForce
     m3MotorJoint_GetMaxTorque
     m3PulleyJoint_GetGroundAnchors
+    m3Shape_GetCapsule
+    m3Shape_GetLocalPose
+    m3Shape_GetPlane
+    m3Shape_GetSphere
     m3SphericalJoint_GetConeAngle
     m3WheelJoint_GetMaxSteeringTorque
     m3WheelJoint_GetSteeringDampingRatio

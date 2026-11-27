@@ -83,6 +83,11 @@ mass follows, and everything around the old and the new bounds wakes.
 Other shapes cannot be reshaped. `m3DestroyShape` removes a shape and
 rebuilds its body's mass.
 
+The geometry reads back: `m3Shape_GetSphere`, `m3Shape_GetCapsule` and
+`m3Shape_GetPlane` return it as it was stored, `m3HullShape_GetVertices`
+lists a hull's vertices, a box's and a cylinder's included, and
+`m3Shape_GetLocalPose` reads the shape's offset from its body.
+
 `m3MeshShape_SetMaterials` paints a mesh: up to
 `M3_MAX_MESH_MATERIALS` (8) materials, with friction, restitution,
 rolling resistance and surface velocity each, and a material index per

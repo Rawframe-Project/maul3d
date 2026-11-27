@@ -642,3 +642,94 @@ void m3Shape_SetUserData(m3World* world, m3ShapeId shape, uint64_t userData)
     }
     world->shapes.shapeUserData[slot] = userData;
 }
+
+// The slot of a live shape of one type, or -1 for a stale id and for
+// another type, each of which counts one misuse.
+static int32_t ShapeSlotOfType(const m3World* world, m3ShapeId shape, m3ShapeType type)
+{
+    int32_t slot;
+    if (!ResolveShape(world, shape, &slot))
+    {
+        return -1;
+    }
+    if (world->shapes.shapeType[slot] != (uint8_t)type)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        return -1;
+    }
+    return slot;
+}
+
+m3Sphere m3Shape_GetSphere(const m3World* world, m3ShapeId shape)
+{
+    int32_t slot = ShapeSlotOfType(world, shape, m3_sphereShape);
+    m3Sphere sphere = {{0.0f, 0.0f, 0.0f}, 0.0f};
+    if (slot >= 0)
+    {
+        sphere.center = world->shapes.shapeGeom[slot].v;
+        sphere.radius = world->shapes.shapeGeom[slot].s;
+    }
+    return sphere;
+}
+
+m3Capsule m3Shape_GetCapsule(const m3World* world, m3ShapeId shape)
+{
+    int32_t slot = ShapeSlotOfType(world, shape, m3_capsuleShape);
+    m3Capsule capsule = {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, 0.0f};
+    if (slot >= 0)
+    {
+        capsule.point1 = world->shapes.shapeGeom[slot].v;
+        capsule.point2 = world->shapes.shapeGeom[slot].v2;
+        capsule.radius = world->shapes.shapeGeom[slot].s;
+    }
+    return capsule;
+}
+
+m3Plane m3Shape_GetPlane(const m3World* world, m3ShapeId shape)
+{
+    int32_t slot = ShapeSlotOfType(world, shape, m3_planeShape);
+    m3Plane plane = {{0.0f, 0.0f, 0.0f}, 0.0f};
+    if (slot >= 0)
+    {
+        plane.normal = world->shapes.shapeGeom[slot].v;
+        plane.offset = world->shapes.shapeGeom[slot].s;
+    }
+    return plane;
+}
+
+void m3Shape_GetLocalPose(const m3World* world, m3ShapeId shape, m3Vec3* positionOut,
+                          m3Quat* rotationOut)
+{
+    int32_t slot;
+    bool live = ResolveShape(world, shape, &slot);
+    if (positionOut != NULL)
+    {
+        *positionOut = live ? world->shapes.shapeLocalPos[slot] : (m3Vec3){0.0f, 0.0f, 0.0f};
+    }
+    if (rotationOut != NULL)
+    {
+        *rotationOut = live ? world->shapes.shapeLocalRot[slot] : (m3Quat){0.0f, 0.0f, 0.0f, 1.0f};
+    }
+}
+
+int32_t m3HullShape_GetVertices(const m3World* world, m3ShapeId shape, m3Vec3* verticesOut,
+                                int32_t capacity)
+{
+    if (world == NULL || !m3ListOutputValid(verticesOut, capacity))
+    {
+        return m3RefuseList(world, verticesOut, capacity, sizeof(*verticesOut));
+    }
+    int32_t slot = ShapeSlotOfType(world, shape, m3_hullShape);
+    if (slot < 0)
+    {
+        m3ClearListOutput(verticesOut, capacity, sizeof(*verticesOut));
+        return 0;
+    }
+    const m3HullData* hull = &world->hulls.hullData[world->shapes.shapeHullIndex[slot]];
+    int32_t count = hull->vertexCount;
+    for (int32_t i = 0; i < count && i < capacity; ++i)
+    {
+        verticesOut[i] = hull->vertices[i];
+    }
+    return count;
+}
