@@ -733,3 +733,120 @@ int32_t m3HullShape_GetVertices(const m3World* world, m3ShapeId shape, m3Vec3* v
     }
     return count;
 }
+
+int32_t m3MeshShape_GetVertices(const m3World* world, m3ShapeId shape, m3Vec3* verticesOut,
+                                int32_t capacity)
+{
+    if (world == NULL || !m3ListOutputValid(verticesOut, capacity))
+    {
+        return m3RefuseList(world, verticesOut, capacity, sizeof(*verticesOut));
+    }
+    int32_t slot = ShapeSlotOfType(world, shape, m3_meshShape);
+    if (slot < 0)
+    {
+        m3ClearListOutput(verticesOut, capacity, sizeof(*verticesOut));
+        return 0;
+    }
+    const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[slot]];
+    int32_t count = mesh->vertexCount;
+    for (int32_t i = 0; i < count && i < capacity; ++i)
+    {
+        verticesOut[i] = mesh->vertices[i];
+    }
+    return count;
+}
+
+int32_t m3MeshShape_GetIndices(const m3World* world, m3ShapeId shape, uint16_t* indicesOut,
+                               int32_t capacity)
+{
+    if (world == NULL || !m3ListOutputValid(indicesOut, capacity))
+    {
+        return m3RefuseList(world, indicesOut, capacity, sizeof(*indicesOut));
+    }
+    int32_t slot = ShapeSlotOfType(world, shape, m3_meshShape);
+    if (slot < 0)
+    {
+        m3ClearListOutput(indicesOut, capacity, sizeof(*indicesOut));
+        return 0;
+    }
+    const m3MeshData* mesh = &world->meshes.meshData[world->shapes.shapeMeshIndex[slot]];
+    int32_t count = 3 * mesh->triangleCount;
+    for (int32_t i = 0; i < count && i < capacity; ++i)
+    {
+        indicesOut[i] = mesh->indices[i];
+    }
+    return count;
+}
+
+int32_t m3HeightFieldShape_GetHeights(const m3World* world, m3ShapeId shape, float* heightsOut,
+                                      int32_t capacity, int32_t* nxOut, int32_t* nzOut,
+                                      float* cellSizeOut)
+{
+    int32_t total = 0;
+    int32_t nx = 0;
+    int32_t nz = 0;
+    float cellSize = 0.0f;
+    if (world == NULL || !m3ListOutputValid(heightsOut, capacity))
+    {
+        (void)m3RefuseList(world, heightsOut, capacity, sizeof(*heightsOut));
+    }
+    else
+    {
+        int32_t slot = ShapeSlotOfType(world, shape, m3_heightFieldShape);
+        if (slot < 0)
+        {
+            m3ClearListOutput(heightsOut, capacity, sizeof(*heightsOut));
+        }
+        else
+        {
+            const m3HeightFieldData* hf =
+                &world->heightFields.hfData[world->shapes.shapeHfIndex[slot]];
+            nx = hf->nx;
+            nz = hf->nz;
+            cellSize = hf->cellSize;
+            total = nx * nz;
+            for (int32_t i = 0; i < total && i < capacity; ++i)
+            {
+                heightsOut[i] = hf->heights[i];
+            }
+        }
+    }
+    if (nxOut != NULL)
+    {
+        *nxOut = nx;
+    }
+    if (nzOut != NULL)
+    {
+        *nzOut = nz;
+    }
+    if (cellSizeOut != NULL)
+    {
+        *cellSizeOut = cellSize;
+    }
+    return total;
+}
+
+int32_t m3VoxelChunkShape_GetVoxels(const m3World* world, m3ShapeId shape, uint8_t* fillOut,
+                                    uint16_t* payloadOut, float* cellSizeOut)
+{
+    int32_t slot = ShapeSlotOfType(world, shape, m3_voxelChunkShape);
+    const m3VoxelChunkData* chunk =
+        slot >= 0 ? &world->voxels.voxelData[world->shapes.shapeVoxelIndex[slot]] : NULL;
+    for (int32_t v = 0; v < M3_VOXEL_COUNT; ++v)
+    {
+        bool on = chunk != NULL && ((chunk->occupancy[v >> 3] >> (v & 7)) & 1) != 0;
+        if (fillOut != NULL)
+        {
+            fillOut[v] = on ? chunk->fill[v] : 0;
+        }
+        if (payloadOut != NULL)
+        {
+            payloadOut[v] = on ? chunk->payload[v] : 0;
+        }
+    }
+    if (cellSizeOut != NULL)
+    {
+        *cellSizeOut = chunk != NULL ? chunk->cellSize : 0.0f;
+    }
+    return chunk != NULL ? chunk->filledCount : 0;
+}
