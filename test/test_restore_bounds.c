@@ -267,6 +267,16 @@ static const Case s_cases[] = {
     {"target on a gear", SCALAR(joints.jointTargetScalar, which_gear), (double)(0.0), +1},
     {"generic linear range", COMPONENT(joints.jointGenLinUpper, m3Vec3, which_six, 0), (double)(-0.5), -1},
     {"generic angular range", COMPONENT(joints.jointGenAngUpper, m3Vec3, which_six, 1), (double)(-0.25), -1},
+    // The slots a joint's type does not use stay as its create left them.
+    {"unused break slot", COMPONENT(joints.jointBreak, m3Vec3, which_hinge, 2), (double)(0.0), +1},
+    {"unused spring slot", COMPONENT(joints.jointSpring, m3Vec3, which_hinge, 2), (double)(0.0), -1},
+    {"cone slot on a hinge", COMPONENT(joints.jointLimits, m3Vec3, which_hinge, 2), (double)(0.0), +1},
+    {"limit slot on a gear", COMPONENT(joints.jointLimits, m3Vec3, which_gear, 0), (double)(0.0), -1},
+    {"motor slot on a ball", COMPONENT(joints.jointMotor, m3Vec3, which_cone, 0), (double)(0.0), +1},
+    {"motor slot on a rope", COMPONENT(joints.jointMotor, m3Vec3, which_rope, 1), (double)(0.0), +1},
+    {"motor slot on a pulley", COMPONENT(joints.jointMotor, m3Vec3, which_pulley, 0), (double)(0.0), -1},
+    {"ground anchor off a pulley", POSITION(joints.jointGroundA, m3Pos3, which_hinge, 0), (double)(0.0), +1},
+    {"generic range off a generic joint", COMPONENT(joints.jointGenLinUpper, m3Vec3, which_hinge, 0), (double)(0.0), +1},
     // Characters.
     {"character radius", SCALAR(characters.charRadius, which_hero), (double)(M3_LOCAL_LIMIT), +1},
     {"character radius positive", SCALAR(characters.charRadius, which_hero), (double)FLT_TRUE_MIN, -1},

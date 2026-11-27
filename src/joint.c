@@ -252,6 +252,72 @@ M3_NODISCARD static bool DistanceDefValid(const m3JointDef* def)
            m3DistanceRestLengthFits(def->length);
 }
 
+M3_NODISCARD static bool ZeroV3(m3Vec3 v)
+{
+    return v.x == 0.0f && v.y == 0.0f && v.z == 0.0f;
+}
+
+M3_NODISCARD static bool ZeroPos(m3Pos3 p)
+{
+    return p.x == 0.0 && p.y == 0.0 && p.z == 0.0;
+}
+
+M3_NODISCARD static bool UnitZ(m3Vec3 v)
+{
+    return v.x == 0.0f && v.y == 0.0f && v.z == 1.0f;
+}
+
+// Whether the generic joint's fields keep their defaults: locked axes, no
+// ranges and no motor axis.
+M3_NODISCARD static bool GenericFieldsDefault(const m3JointDef* def)
+{
+    if (def->genericMotorAxis != 255)
+    {
+        return false;
+    }
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        if (def->genericLinear[k] != m3_axisLocked || def->genericAngular[k] != m3_axisLocked ||
+            def->genericLinearLower[k] != 0.0f || def->genericLinearUpper[k] != 0.0f ||
+            def->genericAngularLower[k] != 0.0f || def->genericAngularUpper[k] != 0.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Whether every field the def's type has no public def field for keeps its
+// m3JointDefaults value, as each create's conversion leaves it
+// (src/joint_create.c). Replay hands m3CreateJointInternal raw journal
+// bytes, so without this a create op could give a type a part it has no
+// field for: a motor on a ball joint, a cone on a hinge.
+M3_NODISCARD static bool JointDefFieldsFit(const m3JointDef* def)
+{
+    m3JointType t = def->type;
+    uint8_t type = (uint8_t)t;
+    bool anchors = t != m3_filterJoint && t != m3_gearJoint;
+    bool axes = t == m3_sphericalJoint || t == m3_revoluteJoint || t == m3_prismaticJoint ||
+                t == m3_genericJoint || t == m3_wheelJoint || t == m3_parallelJoint ||
+                t == m3_gearJoint;
+    bool ratio = t == m3_gearJoint || t == m3_pulleyJoint;
+    return (anchors || (ZeroV3(def->localAnchorA) && ZeroV3(def->localAnchorB))) &&
+           (axes || (UnitZ(def->localAxisA) && UnitZ(def->localAxisB))) &&
+           (m3JointHasLimits(type) ||
+            (!def->enableLimit && def->lowerLimit == 0.0f && def->upperLimit == 0.0f)) &&
+           (m3JointHasMotor(type) ||
+            (!def->enableMotor && def->motorSpeed == 0.0f && def->maxMotorEffort == 0.0f)) &&
+           (m3JointHasSpring(type) ||
+            (!def->enableSpring && def->springHertz == 0.0f && def->springDampingRatio == 0.0f)) &&
+           (t == m3_sphericalJoint || (!def->enableCone && def->coneAngle == 0.0f)) &&
+           (t != m3_filterJoint || !def->enableConnectedCollision) &&
+           (t == m3_genericJoint || GenericFieldsDefault(def)) && (ratio || def->ratio == 1.0f) &&
+           (t == m3_pulleyJoint || (ZeroPos(def->groundAnchorA) && ZeroPos(def->groundAnchorB))) &&
+           (t == m3_motorJoint || (def->maxForce == 0.0f && def->maxTorque == 0.0f)) &&
+           (t == m3_distanceJoint ||
+            (def->minLength == 0.0f && def->maxLength == 0.0f && def->length == 0.0f));
+}
+
 // The whole def contract in one place: known type, real axes where the
 // type needs them, the generic and distance rules, and finite, ordered
 // fields. m3CreateJointFromDef runs it before resolving the bodies, and
@@ -263,20 +329,20 @@ static m3Result JointDefCheck(const m3JointDef* def)
     {
         return m3_errorInvalid;
     }
-    bool typeValid = true;
+    bool typeValid = JointDefFieldsFit(def);
     switch (def->type)
     {
     case m3_revoluteJoint:
     case m3_prismaticJoint:
     case m3_wheelJoint:
     case m3_parallelJoint:
-        typeValid = AxesReal(def);
+        typeValid = typeValid && AxesReal(def);
         break;
     case m3_genericJoint:
-        typeValid = GenericDefValid(def);
+        typeValid = typeValid && GenericDefValid(def);
         break;
     case m3_distanceJoint:
-        typeValid = DistanceDefValid(def);
+        typeValid = typeValid && DistanceDefValid(def);
         break;
     default:
         break;

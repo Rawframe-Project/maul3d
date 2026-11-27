@@ -268,8 +268,53 @@ M3_NODISCARD static bool JointLimitsFit(uint8_t type, uint8_t flags, m3Vec3 limi
            !(type == (uint8_t)m3_pulleyJoint && limits.z < 0.0f);
 }
 
+// A joint's slots its type does not use, as its create leaves them and no
+// setter writes them: the third break and spring values; the limit range
+// off the types with a limit, a distance range or a servo's budgets; the
+// cone slot off the spherical, distance and pulley joints; the motor
+// values off the types with a motor, the servo's aim and the gear's spins;
+// the ground anchors off a pulley; the generic ranges off a generic joint;
+// and the motor flag off the types with a motor, the cone or steering
+// flag off the spherical and wheel joints, and the limit flag off the
+// types with a limit and the distance joint.
+M3_NODISCARD static bool JointUnusedSlotsClear(const JointFields* f, int32_t j,
+                                               const m3Vec3 genericRanges[4])
+{
+    uint8_t type = f->types[j];
+    uint8_t flags = f->flags[j];
+    m3Vec3 limits = InV3(f->limits, j);
+    m3Vec3 motor = InV3(f->motors, j);
+    bool limited = m3JointHasLimits(type);
+    bool ranged = limited || type == (uint8_t)m3_distanceJoint || type == (uint8_t)m3_motorJoint;
+    bool coned = type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_distanceJoint ||
+                 type == (uint8_t)m3_pulleyJoint;
+    bool motored =
+        m3JointHasMotor(type) || type == (uint8_t)m3_motorJoint || type == (uint8_t)m3_gearJoint;
+    bool pulley = type == (uint8_t)m3_pulleyJoint;
+    m3Pos3 groundA = InPos(f->groundA, j);
+    m3Pos3 groundB = InPos(f->groundB, j);
+    bool grounded = pulley || (groundA.x == 0.0 && groundA.y == 0.0 && groundA.z == 0.0 &&
+                               groundB.x == 0.0 && groundB.y == 0.0 && groundB.z == 0.0);
+    bool generic = type == (uint8_t)m3_genericJoint;
+    for (int32_t k = 0; k < 4 && !generic; ++k)
+    {
+        if (genericRanges[k].x != 0.0f || genericRanges[k].y != 0.0f || genericRanges[k].z != 0.0f)
+        {
+            return false;
+        }
+    }
+    return InV3(f->breaks, j).z == 0.0f && InV3(f->springs, j).z == 0.0f &&
+           (ranged || (limits.x == 0.0f && limits.y == 0.0f)) && (coned || limits.z == 0.0f) &&
+           (motored || (motor.x == 0.0f && motor.y == 0.0f)) && grounded &&
+           ((flags & M3_JOINT_MOTOR) == 0 || m3JointHasMotor(type)) &&
+           ((flags & M3_JOINT_CONE) == 0 || type == (uint8_t)m3_sphericalJoint ||
+            type == (uint8_t)m3_wheelJoint) &&
+           ((flags & M3_JOINT_LIMIT) == 0 || limited || type == (uint8_t)m3_distanceJoint);
+}
+
 // A live joint's anchors in its bodies' frames, its break thresholds, its
-// target, its generic ranges, its limits and its drive.
+// target, its generic ranges, its limits, its drive and the slots its type
+// does not use.
 M3_NODISCARD static bool JointsValid(const m3Incoming* inc)
 {
     const uint8_t* alive = M3_IN(joints.jointPool.alive);
@@ -292,11 +337,14 @@ M3_NODISCARD static bool JointsValid(const m3Incoming* inc)
             continue;
         }
         m3Vec3 thresholds = InV3(f.breaks, j);
+        const m3Vec3 ranges[4] = {InV3(linLower, j), InV3(linUpper, j), InV3(angLower, j),
+                                  InV3(angUpper, j)};
         if (!m3LocalV3(InV3(localA, j)) || !m3LocalV3(InV3(localB, j)) || thresholds.x < 0.0f ||
             thresholds.y < 0.0f || !TargetScalarFits(f.types[j], m3InF32(targets, j)) ||
             !GenericRangesFit(m3InU16(modes, j), 0, InV3(linLower, j), InV3(linUpper, j)) ||
             !GenericRangesFit(m3InU16(modes, j), 6, InV3(angLower, j), InV3(angUpper, j)) ||
-            !JointLimitsFit(f.types[j], f.flags[j], InV3(f.limits, j)) || !JointDriveValid(&f, j))
+            !JointLimitsFit(f.types[j], f.flags[j], InV3(f.limits, j)) || !JointDriveValid(&f, j) ||
+            !JointUnusedSlotsClear(&f, j, ranges))
         {
             return false;
         }

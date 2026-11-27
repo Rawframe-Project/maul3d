@@ -126,6 +126,7 @@ maul_add_test(contact_lever WHITEBOX)
 maul_add_test(restore_bounds WHITEBOX)
 maul_add_test(fuzz_oracle WHITEBOX)
 maul_add_test(shape_geometry WHITEBOX)
+maul_add_test(joint_defs WHITEBOX)
 maul_add_test(warmhold WHITEBOX)
 maul_add_test(rowsolve WHITEBOX)
 # The warm start scenes are pinned in test/hashes.txt too. A shared build
