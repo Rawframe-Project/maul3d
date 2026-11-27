@@ -12,6 +12,7 @@
 #include "snapshot_values.h"
 
 #include "body_state.h"
+#include "joint.h"
 #include "joint_solver.h"
 #include "shape.h"
 
@@ -157,8 +158,9 @@ M3_NODISCARD static bool UnitQuat(const uint8_t* block, size_t stride, size_t at
     return qq > 0.98f && qq < 1.02f;
 }
 
-// A joint's target rotation as its create and setters keep it: a unit
-// rotation on a spherical joint's target and a motor joint's aim, the
+// A joint's target rotation as its create and setters keep it: on a
+// spherical joint, a target its setter takes, by the setter's own rule; a
+// unit rotation on a motor joint's aim, which its setter normalizes; the
 // identity on every other type that has one. A wheel joint's slots hold
 // its steering drive's hertz, damping and effort, bounded in
 // snapshot_bounds.c.
@@ -168,12 +170,16 @@ M3_NODISCARD static bool TargetRotationValid(uint8_t type, const uint8_t* block,
     {
         return true;
     }
-    if (type == (uint8_t)m3_sphericalJoint || type == (uint8_t)m3_motorJoint)
+    if (type == (uint8_t)m3_motorJoint)
     {
         return UnitQuat(block, sizeof(m3Quat), 0, j);
     }
     m3Quat q;
     memcpy(&q, block + sizeof(m3Quat) * (size_t)j, sizeof(q));
+    if (type == (uint8_t)m3_sphericalJoint)
+    {
+        return m3JointTargetValid(type, 0.0f, q);
+    }
     return q.x == 0.0f && q.y == 0.0f && q.z == 0.0f && q.w == 1.0f;
 }
 
