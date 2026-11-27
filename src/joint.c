@@ -727,3 +727,56 @@ m3BodyId m3Joint_GetBodyB(const m3World* world, m3JointId joint)
 {
     return JointBody(world, joint, true);
 }
+
+void m3Joint_GetLocalAnchors(const m3World* world, m3JointId joint, m3Vec3* anchorAOut,
+                             m3Vec3* anchorBOut)
+{
+    int32_t slot;
+    bool live = ResolveJoint(world, joint, &slot);
+    m3Vec3 zero = {0.0f, 0.0f, 0.0f};
+    if (anchorAOut != NULL)
+    {
+        *anchorAOut = live ? world->joints.jointLocalA[slot] : zero;
+    }
+    if (anchorBOut != NULL)
+    {
+        *anchorBOut = live ? world->joints.jointLocalB[slot] : zero;
+    }
+}
+
+void m3Joint_GetLocalFrames(const m3World* world, m3JointId joint, m3Quat* frameAOut,
+                            m3Quat* frameBOut)
+{
+    int32_t slot;
+    bool live = ResolveJoint(world, joint, &slot);
+    m3Quat identity = {0.0f, 0.0f, 0.0f, 1.0f};
+    if (frameAOut != NULL)
+    {
+        *frameAOut = live ? world->joints.jointFrameQA[slot] : identity;
+    }
+    if (frameBOut != NULL)
+    {
+        *frameBOut = live ? world->joints.jointFrameQB[slot] : identity;
+    }
+}
+
+void m3PulleyJoint_GetGroundAnchors(const m3World* world, m3JointId joint, m3Pos3* groundAOut,
+                                    m3Pos3* groundBOut)
+{
+    int32_t slot;
+    bool live = ResolveJoint(world, joint, &slot);
+    if (live && world->joints.jointType[slot] != (uint8_t)m3_pulleyJoint)
+    {
+        m3Refuse(world, m3_errorInvalid);
+        live = false;
+    }
+    m3Pos3 origin = {0.0, 0.0, 0.0};
+    if (groundAOut != NULL)
+    {
+        *groundAOut = live ? world->joints.jointGroundA[slot] : origin;
+    }
+    if (groundBOut != NULL)
+    {
+        *groundBOut = live ? world->joints.jointGroundB[slot] : origin;
+    }
+}

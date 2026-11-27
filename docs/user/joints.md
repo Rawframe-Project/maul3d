@@ -102,8 +102,10 @@ limits](limits.md#magnitude-limits) explain the ratio.
 ## The joint's life
 
 `m3DestroyJoint` removes a joint, and destroying either body removes
-it too. `m3Joint_GetType`, `m3Joint_GetBodyA` and `m3Joint_GetBodyB`
-read a joint back, and `m3Body_GetJoints` lists a body's joints.
+it too. `m3Joint_GetType`, `m3Joint_GetBodyA`, `m3Joint_GetBodyB`,
+`m3Joint_GetLocalAnchors` and `m3Joint_GetLocalFrames` read a joint
+back, `m3PulleyJoint_GetGroundAnchors` a pulley's world points, and
+`m3Body_GetJoints` lists a body's joints.
 Creating, changing and destroying joints are journal operations, and a
 joint's settings and stored impulses are part of a snapshot and the
 world hash.

@@ -786,6 +786,57 @@ extern "C"
     /// several readers at once.
     M3_API m3BodyId m3Joint_GetBodyB(const m3World* world, m3JointId joint);
 
+    /// Reads the joint's anchors as its def gave them, each a point in its
+    /// body's frame; zero on a gear or filter joint, whose def has none.
+    /// Either out pointer may be null.
+    ///
+    /// @param world       The world.
+    /// @param joint       The joint.
+    /// @param anchorAOut  Receives body A's anchor; zero for a null world, and
+    ///                    for a stale or null id, which counts one misuse.
+    /// @param anchorBOut  Receives body B's anchor, likewise.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API void m3Joint_GetLocalAnchors(const m3World* world, m3JointId joint, m3Vec3* anchorAOut,
+                                        m3Vec3* anchorBOut);
+
+    /// Reads the joint's frames, each a unit rotation from the frame into
+    /// its body's frame, as create built them. On a ball, hinge, slider,
+    /// generic, parallel or gear joint, each frame's z axis is its def's
+    /// local axis, normalized. On a wheel joint, frame A's x axis is the
+    /// suspension axis and its z axis the axle snapped perpendicular to it,
+    /// and frame B is the same frame at the create pose. A weld's and a
+    /// servo's frames coincide at the create pose, with frame A the
+    /// identity. A distance, pulley or filter joint has none and reads the
+    /// identity. Either out pointer may be null.
+    ///
+    /// @param world      The world.
+    /// @param joint      The joint.
+    /// @param frameAOut  Receives frame A; the identity for a null world, and
+    ///                   for a stale or null id, which counts one misuse.
+    /// @param frameBOut  Receives frame B, likewise.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API void m3Joint_GetLocalFrames(const m3World* world, m3JointId joint, m3Quat* frameAOut,
+                                       m3Quat* frameBOut);
+
+    /// Reads a pulley joint's ground anchors, the world points its def
+    /// gave. Either out pointer may be null.
+    ///
+    /// @param world       The world.
+    /// @param joint       The joint.
+    /// @param groundAOut  Receives the ground anchor over body A; the origin
+    ///                    for a null world, and for a stale or null id or a
+    ///                    joint that is not a pulley, which counts one misuse.
+    /// @param groundBOut  Receives the ground anchor over body B, likewise.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API void m3PulleyJoint_GetGroundAnchors(const m3World* world, m3JointId joint,
+                                               m3Pos3* groundAOut, m3Pos3* groundBOut);
+
     /// Runtime joint control. All journaled; both bodies wake on any
     /// change, and each call zeroes the stored impulse of the rows it
     /// changes, so a stale warm start cannot kick. A refused call changes

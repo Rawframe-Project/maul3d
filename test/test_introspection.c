@@ -462,6 +462,90 @@ static void TestReadback(void)
     m3DestroyWorld(world);
 }
 
+static void TestJointGeometryReadback(void)
+{
+    // A joint's anchors and frames read back as create stored them, and a
+    // pulley's ground anchors as its def gave them; another type, a stale
+    // id and a null world read the null values.
+    m3WorldDef def = m3DefaultWorldDef();
+    m3World* world = NewWorld(&def);
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId post = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){1.0, 2.0, 0.0};
+    m3BodyId door = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    (void)NewBoxShape(world, door, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+
+    m3RevoluteJointDef jd = m3DefaultRevoluteJointDef();
+    jd.bodyIdA = post;
+    jd.bodyIdB = door;
+    jd.localAnchorA = (m3Vec3){0.5f, 2.0f, 0.0f};
+    jd.localAnchorB = (m3Vec3){-0.5f, 0.0f, 0.0f};
+    jd.localAxisA = (m3Vec3){0.0f, 2.0f, 0.0f}; // not unit: the frame normalizes it
+    jd.localAxisB = (m3Vec3){0.0f, 1.0f, 0.0f};
+    m3JointId hinge = NewJoint(world, &jd);
+    m3Vec3 anchorA = {0.0f, 0.0f, 0.0f};
+    m3Vec3 anchorB = {0.0f, 0.0f, 0.0f};
+    m3Joint_GetLocalAnchors(world, hinge, &anchorA, &anchorB);
+    CHECK(anchorA.x == 0.5f && anchorA.y == 2.0f && anchorA.z == 0.0f && anchorB.x == -0.5f &&
+              anchorB.y == 0.0f && anchorB.z == 0.0f,
+          "the hinge's anchors read back as the def gave them");
+    m3Quat frameA = {0.0f, 0.0f, 0.0f, 0.0f};
+    m3Quat frameB = {0.0f, 0.0f, 0.0f, 0.0f};
+    m3Joint_GetLocalFrames(world, hinge, &frameA, &frameB);
+    m3Vec3 zA = m3RotateVec3(frameA, (m3Vec3){0.0f, 0.0f, 1.0f});
+    m3Vec3 zB = m3RotateVec3(frameB, (m3Vec3){0.0f, 0.0f, 1.0f});
+    CHECK(NearF(zA.y, 1.0f, 1e-6f) && NearF(zB.y, 1.0f, 1e-6f),
+          "each frame's z axis is its def's axis, normalized");
+    m3Joint_GetLocalAnchors(world, hinge, NULL, NULL);
+    m3Joint_GetLocalFrames(world, hinge, NULL, NULL);
+
+    m3WeldJointDef jdWeld = m3DefaultWeldJointDef();
+    jdWeld.bodyIdA = post;
+    jdWeld.bodyIdB = door;
+    m3JointId weld = NewJoint(world, &jdWeld);
+    m3Joint_GetLocalFrames(world, weld, &frameA, &frameB);
+    CHECK(frameA.x == 0.0f && frameA.y == 0.0f && frameA.z == 0.0f && frameA.w == 1.0f,
+          "a weld's frame A is the identity");
+
+    m3PulleyJointDef jdPulley = m3DefaultPulleyJointDef();
+    jdPulley.bodyIdA = post;
+    jdPulley.bodyIdB = door;
+    jdPulley.groundAnchorA = (m3Pos3){-1.0, 6.0, 0.25};
+    jdPulley.groundAnchorB = (m3Pos3){1.0, 6.0, 0.25};
+    m3JointId pulley = NewJoint(world, &jdPulley);
+    m3Pos3 groundA = {0.0, 0.0, 0.0};
+    m3Pos3 groundB = {0.0, 0.0, 0.0};
+    m3PulleyJoint_GetGroundAnchors(world, pulley, &groundA, &groundB);
+    CHECK(groundA.x == -1.0 && groundA.y == 6.0 && groundA.z == 0.25 && groundB.x == 1.0 &&
+              groundB.y == 6.0 && groundB.z == 0.25,
+          "the pulley's ground anchors read back as the def gave them");
+    m3Joint_GetLocalFrames(world, pulley, &frameA, &frameB);
+    CHECK(frameA.w == 1.0f && frameB.w == 1.0f, "a pulley has no frames: the identity");
+
+    CHECK_REFUSES(world, m3PulleyJoint_GetGroundAnchors(world, hinge, &groundA, &groundB),
+                  "a hinge has no ground anchors");
+    CHECK(groundA.x == 0.0 && groundA.y == 0.0 && groundB.y == 0.0, "and reads the origin");
+    m3JointId stale = hinge;
+    stale.index1 += 99;
+    CHECK_REFUSES(world, m3Joint_GetLocalAnchors(world, stale, &anchorA, &anchorB),
+                  "a stale id counts one misuse");
+    CHECK(anchorA.x == 0.0f && anchorA.y == 0.0f && anchorB.x == 0.0f, "and reads zero anchors");
+    CHECK_REFUSES(world, m3Joint_GetLocalFrames(world, stale, &frameA, &frameB),
+                  "a stale frame read counts one misuse");
+    CHECK(frameA.w == 1.0f && frameB.w == 1.0f, "and reads the identity");
+    anchorA.x = 3.0f;
+    frameA.w = 0.0f;
+    groundA.x = 3.0;
+    m3Joint_GetLocalAnchors(NULL, hinge, &anchorA, NULL);
+    m3Joint_GetLocalFrames(NULL, hinge, &frameA, NULL);
+    m3PulleyJoint_GetGroundAnchors(NULL, pulley, &groundA, NULL);
+    CHECK(anchorA.x == 0.0f && frameA.w == 1.0f && groundA.x == 0.0,
+          "a null world reads the null values");
+    m3DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCountsMatchTheScene();
@@ -472,6 +556,7 @@ int main(void)
     TestRestoreRefusesBrokenNameSlots();
     TestContactReadback();
     TestReadback();
+    TestJointGeometryReadback();
     if (s_failures == 0)
     {
         printf("test_introspection: all passed\n");
