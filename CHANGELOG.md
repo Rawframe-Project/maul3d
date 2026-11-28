@@ -7,6 +7,24 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.2.0](https://github.com/Rawframe-Project/maul3d/compare/v1.1.1...v1.2.0) (2026-11-28)
+
+
+### Added
+
+* **joint:** read back the anchors and frames ([#432](https://github.com/Rawframe-Project/maul3d/issues/432)) ([0d2c173](https://github.com/Rawframe-Project/maul3d/commit/0d2c173420174f590219ed33333f90c32b9a1331)), closes [#364](https://github.com/Rawframe-Project/maul3d/issues/364)
+* **joint:** read back the spring targets ([#438](https://github.com/Rawframe-Project/maul3d/issues/438)) ([0621a93](https://github.com/Rawframe-Project/maul3d/commit/0621a93d0310b17b36754dabd8f779c7cf47c4a4)), closes [#364](https://github.com/Rawframe-Project/maul3d/issues/364)
+* **shape:** read back meshes, height fields and voxel chunks ([#441](https://github.com/Rawframe-Project/maul3d/issues/441)) ([b058528](https://github.com/Rawframe-Project/maul3d/commit/b0585286414d397274567f2baf51b9a5fdd64d7f)), closes [#364](https://github.com/Rawframe-Project/maul3d/issues/364)
+* **shape:** read back sphere, capsule, plane and hull geometry ([#433](https://github.com/Rawframe-Project/maul3d/issues/433)) ([018226c](https://github.com/Rawframe-Project/maul3d/commit/018226ca2fea58c712b0aeeb3ea11fc29c555a96)), closes [#364](https://github.com/Rawframe-Project/maul3d/issues/364)
+
+
+### Fixed
+
+* **joint:** restore and replay refuse values a type does not have ([#435](https://github.com/Rawframe-Project/maul3d/issues/435)) ([cd6e552](https://github.com/Rawframe-Project/maul3d/commit/cd6e552c89d426a38cb934868500964b89b07c79)), closes [#434](https://github.com/Rawframe-Project/maul3d/issues/434)
+* **journal:** replay refuses a limit flag on a motor joint ([#442](https://github.com/Rawframe-Project/maul3d/issues/442)) ([30990ba](https://github.com/Rawframe-Project/maul3d/commit/30990bad2a97dbf609850a76285e0824dafdda73)), closes [#440](https://github.com/Rawframe-Project/maul3d/issues/440)
+* **query:** a closest shape cast keeps a hit tied with the best ([#444](https://github.com/Rawframe-Project/maul3d/issues/444)) ([99d517b](https://github.com/Rawframe-Project/maul3d/commit/99d517b296a85f1b36b99a6f8a43a079607a2a71)), closes [#443](https://github.com/Rawframe-Project/maul3d/issues/443)
+* **snapshot:** restore refuses a spherical target the setter refuses ([#431](https://github.com/Rawframe-Project/maul3d/issues/431)) ([a1d675a](https://github.com/Rawframe-Project/maul3d/commit/a1d675aed0c06b00cb2408b1d9ca485182ead14a)), closes [#429](https://github.com/Rawframe-Project/maul3d/issues/429)
+
 ## [1.1.1](https://github.com/Rawframe-Project/maul3d/compare/v1.1.0...v1.1.1) (2026-11-08)
 
 ### Fixed
