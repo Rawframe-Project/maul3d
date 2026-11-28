@@ -1508,6 +1508,17 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3RevoluteJoint_SetTargetAngle(m3World* world, m3JointId joint, float radians);
 
+    /// Returns the revolute spring's target angle, 0 until one is set.
+    ///
+    /// @param world  The world.
+    /// @param joint  The joint.
+    /// @return The target, radians; 0 for a null world, and for a stale or null
+    ///         id or another joint type, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API float m3RevoluteJoint_GetTargetAngle(const m3World* world, m3JointId joint);
+
     /// Sets the prismatic or wheel spring's target translation.
     /// Journaled.
     /// A null world does nothing. A stale or null id, a joint that is not a
@@ -1521,6 +1532,19 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3Joint_SetTargetTranslation(m3World* world, m3JointId joint, float meters);
+
+    /// Returns the prismatic or wheel spring's target translation, 0 until
+    /// one is set.
+    ///
+    /// @param world  The world.
+    /// @param joint  The joint.
+    /// @return The target, meters; 0 for a null world, and for a stale or null
+    ///         id or a joint that is not a prismatic or wheel joint, which
+    ///         counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API float m3Joint_GetTargetTranslation(const m3World* world, m3JointId joint);
 
     /// The target must be a unit rotation; garbage refuses loudly by
     /// doing nothing. The target lives in the JOINT FRAMES (frame z
@@ -1540,6 +1564,18 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M3_API void m3SphericalJoint_SetTargetRotation(m3World* world, m3JointId joint, m3Quat target);
+
+    /// Returns the spherical joint's target rotation as it was set, frame B
+    /// relative to frame A; the identity until one is set.
+    ///
+    /// @param world  The world.
+    /// @param joint  The joint.
+    /// @return The target; the identity for a null world, and for a stale or
+    ///         null id or another joint type, which counts one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M3_API m3Quat m3SphericalJoint_GetTargetRotation(const m3World* world, m3JointId joint);
 
     /// The swing cone (m3SphericalJointDef enableCone and coneAngle), switched and
     /// moved at run time; each takes effect in its own call. The angle is

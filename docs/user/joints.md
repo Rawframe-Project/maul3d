@@ -61,7 +61,8 @@ effort budget, a torque for an angular motor and a force for a linear
 one. A spring pulls toward its target with a frequency up to 1e5 Hz and
 a damping ratio up to 1e4: `m3RevoluteJoint_SetTargetAngle` (in
 [-pi, pi]), `m3Joint_SetTargetTranslation` and
-`m3SphericalJoint_SetTargetRotation`. A setter for a part the joint's
+`m3SphericalJoint_SetTargetRotation`, each read back by its `Get`
+twin. A setter for a part the joint's
 type does not have changes nothing and counts one misuse; a getter for
 it returns 0. Changing a part wakes both bodies.
 
