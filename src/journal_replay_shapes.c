@@ -32,6 +32,10 @@ bool m3ReplayCreateShape(m3World* world, const m3ReplayRecord* r)
     {
         return false;
     }
+    if (record.type == (uint8_t)m3_capsuleShape && !m3CapsuleHasLength(&record.geom))
+    {
+        return false; // a capsule create refuses one whose points meet
+    }
     m3NormalizeShapeDefBools(&record.def);
     int32_t index = m3CreateShapeInternal(world, bodyIndex, record.type, &record.geom, &record.def,
                                           &(m3ShapeContent){NULL, NULL, NULL, NULL});

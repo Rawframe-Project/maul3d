@@ -183,8 +183,7 @@ static M3_NOINLINE m3Result CreateCapsuleShapeWorker(m3World* world, m3BodyId bo
     {
         return m3Refuse(world, shape);
     }
-    m3Vec3 axis = m3Sub3(capsule->point2, capsule->point1);
-    if (!(m3Dot3(axis, axis) > 0.0f))
+    if (!m3CapsuleHasLength(&geom))
     {
         // A zero-length capsule is a sphere; asking for one is a
         // contract violation, refused loudly (use m3CreateSphereShape).

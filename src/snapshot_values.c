@@ -78,13 +78,32 @@ M3_NODISCARD static bool BodiesValid(const m3Incoming* inc)
     return true;
 }
 
+// Whether a live character owns the body. A body index is compared, not
+// followed, so neither needs to be in range yet.
+M3_NODISCARD static bool CharacterOwns(const m3Incoming* inc, int32_t bodyIndex)
+{
+    const uint8_t* alive = m3InField(inc, offsetof(m3World, characters.charPool.alive));
+    const uint8_t* body = m3InField(inc, offsetof(m3World, characters.charBody));
+    for (int32_t c = 0; c < inc->world->characters.charPool.capacity; ++c)
+    {
+        if (alive[c] != 0 && m3InI32(body, c) == bodyIndex)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // A live shape's geometry is what its create wrote, by the same check
-// create runs, and a voxel chunk's cell is its content's.
+// create runs, and a voxel chunk's cell is its content's. A capsule whose
+// points meet is a sphere, which every call refuses except as a
+// character's own capsule, whose stance may have zero height.
 M3_NODISCARD static bool ShapeGeomValid(const m3Incoming* inc)
 {
     const uint8_t* alive = m3InField(inc, offsetof(m3World, shapes.shapePool.alive));
     const uint8_t* types = m3InField(inc, offsetof(m3World, shapes.shapeType));
     const uint8_t* geoms = m3InField(inc, offsetof(m3World, shapes.shapeGeom));
+    const uint8_t* shapeBody = m3InField(inc, offsetof(m3World, shapes.shapeBody));
     const uint8_t* voxelIndex = m3InField(inc, offsetof(m3World, shapes.shapeVoxelIndex));
     const uint8_t* voxelData = m3InField(inc, offsetof(m3World, voxels.voxelData));
     for (int32_t s = 0; s < inc->world->shapes.shapePool.capacity; ++s)
@@ -97,6 +116,11 @@ M3_NODISCARD static bool ShapeGeomValid(const m3Incoming* inc)
         memcpy(&geom, geoms + (size_t)s * sizeof(m3ShapeGeom), sizeof(geom));
         uint8_t type = types[s];
         if (m3ShapeGeomCheck(type, &geom) != m3_success)
+        {
+            return false;
+        }
+        if (type == (uint8_t)m3_capsuleShape && !m3CapsuleHasLength(&geom) &&
+            !CharacterOwns(inc, m3InI32(shapeBody, s)))
         {
             return false;
         }

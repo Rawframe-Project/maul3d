@@ -126,6 +126,12 @@ m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom)
     }
 }
 
+bool m3CapsuleHasLength(const m3ShapeGeom* geom)
+{
+    m3Vec3 axis = m3Sub3(geom->v2, geom->v);
+    return m3Dot3(axis, axis) > 0.0f;
+}
+
 // The plain m3ShapeGeom door (journal op 4): spheres, planes, capsules
 // and box hulls, whose half extents ride in geom.v.
 m3Result m3PlainGeomCheck(uint8_t type, const m3ShapeGeom* geom)
@@ -602,13 +608,9 @@ m3Result m3ShapeSwapCheck(const m3World* world, int32_t slot, uint8_t type, cons
         return m3_errorInvalid; // a character's capsule changes only through its stance
     }
     m3Result result = m3PlainGeomCheck(type, geom);
-    if (result == m3_success && type == (uint8_t)m3_capsuleShape)
+    if (result == m3_success && type == (uint8_t)m3_capsuleShape && !m3CapsuleHasLength(geom))
     {
-        m3Vec3 axis = m3Sub3(geom->v2, geom->v);
-        if (!(m3Dot3(axis, axis) > 0.0f))
-        {
-            return m3_errorInvalid; // a zero-length capsule is a sphere
-        }
+        return m3_errorInvalid; // a zero-length capsule is a sphere
     }
     return result;
 }
