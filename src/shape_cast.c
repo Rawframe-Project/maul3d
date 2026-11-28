@@ -372,7 +372,7 @@ static void ShapeCastTestPlane(m3ShapeCastContext* ctx, int32_t shape)
             return;
         }
         t += (sep - target) / rate;
-        if (t >= maxFraction)
+        if (t > maxFraction)
         {
             return;
         }
