@@ -14,11 +14,14 @@ on:
     - cron: "37 4 * * *"
   workflow_dispatch:
 
-# A new push to a pull request cancels its running CI; runs on main get a
-# group of their own, so they are never cancelled.
+# A new push to a pull request cancels its running CI. On main a running
+# check is never cancelled: it finishes, and the pushes queued behind it
+# collapse into the newest one, which contains every earlier push, so main
+# is still checked in full, once per batch. The nightly and manual runs
+# keep groups of their own, apart from the pushes.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
