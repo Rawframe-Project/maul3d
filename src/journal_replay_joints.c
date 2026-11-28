@@ -158,11 +158,23 @@ bool m3ReplayJointVector(m3World* world, const m3ReplayRecord* r)
     if (op == m3_opJointSetLimits)
     {
         uint8_t type = world->joints.jointType[slot];
-        bool fits =
-            type == (uint8_t)m3_distanceJoint
-                ? record.enable == 1 && m3DistanceLengthsFit(record.a, record.b)
-                : (m3JointHasLimits(type) || type == (uint8_t)m3_motorJoint) &&
-                      m3JointLimitsCheck(type, record.enable, record.a, record.b) == m3_success;
+        // A distance joint's range is always on; a motor joint's budgets
+        // ride the limit record with its limit flag, which no call sets.
+        bool fits = false;
+        if (type == (uint8_t)m3_distanceJoint)
+        {
+            fits = record.enable == 1 && m3DistanceLengthsFit(record.a, record.b);
+        }
+        else if (type == (uint8_t)m3_motorJoint)
+        {
+            fits =
+                record.enable == 0 && m3JointLimitsCheck(type, 0, record.a, record.b) == m3_success;
+        }
+        else
+        {
+            fits = m3JointHasLimits(type) &&
+                   m3JointLimitsCheck(type, record.enable, record.a, record.b) == m3_success;
+        }
         if (!fits)
         {
             return false;

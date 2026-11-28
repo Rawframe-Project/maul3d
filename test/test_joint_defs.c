@@ -5,7 +5,8 @@
 // and each public create fills only the fields its type's def has. Replay
 // takes a create op only in that form: a tape that builds one joint of
 // several types replays, and the same tape with one field set that the
-// joint's type has no public field for is refused.
+// joint's type has no public field for is refused. A motor joint's budget
+// record replays only with the limit switch its setter writes, off.
 
 #include "helpers.h"
 #include "journal.h"
@@ -165,9 +166,69 @@ static void TestReplayTakesOnlyTypeFields(void)
     free(tape);
 }
 
+// A motor joint's budgets ride a limit record whose switch is the joint's
+// limit flag, which no call sets on a motor joint: a tape that sets a
+// budget replays, and the same tape with the record's switch on is
+// refused.
+static void TestReplayKeepsServoLimitOff(void)
+{
+    uint8_t* tape = (uint8_t*)malloc(TAPE_BYTES);
+    m3World* world = DefaultWorld();
+    CHECK(tape != NULL && StartJournal(world, tape, TAPE_BYTES), "the journal starts");
+    if (tape == NULL)
+    {
+        m3DestroyWorld(world);
+        return;
+    }
+    m3BodyDef bd = m3DefaultBodyDef();
+    m3BodyId anchor = NewBody(world, &bd);
+    bd.type = m3_dynamicBody;
+    bd.position = (m3Pos3){0.0, 2.0, 0.0};
+    m3BodyId crate = NewBody(world, &bd);
+    m3ShapeDef sd = m3DefaultShapeDef();
+    (void)NewBoxShape(world, crate, &sd, (m3Vec3){0.5f, 0.5f, 0.5f});
+    m3MotorJointDef jd = m3DefaultMotorJointDef();
+    jd.bodyIdA = anchor;
+    jd.bodyIdB = crate;
+    m3JointId servo = NewJoint(world, &jd);
+    m3MotorJoint_SetMaxForce(world, servo, 50.0f);
+    int64_t bytes = StopJournal(world);
+    m3DestroyWorld(world);
+
+    m3World* again = DefaultWorld();
+    CHECK(ReplayJournal(again, tape, bytes), "the tape replays");
+    m3DestroyWorld(again);
+
+    int32_t limits = -1;
+    for (int32_t at = M3_JOURNAL_HEADER_BYTES; at + 8 <= bytes;)
+    {
+        int32_t op;
+        int32_t size;
+        memcpy(&op, tape + at, sizeof(op));
+        memcpy(&size, tape + at + 4, sizeof(size));
+        if (op == (int32_t)m3_opJointSetLimits)
+        {
+            limits = at + 8;
+        }
+        at += 8 + size;
+    }
+    CHECK(limits >= 0, "the budget is a limit record on the tape");
+    if (limits >= 0)
+    {
+        int32_t on = 1;
+        memcpy(tape + limits + offsetof(m3OpJointVector, enable), &on, sizeof(on));
+        m3World* refused = DefaultWorld();
+        CHECK(m3World_ReplayJournal(refused, tape, bytes) == m3_errorFormat,
+              "a budget record with the limit switch on is refused");
+        m3DestroyWorld(refused);
+    }
+    free(tape);
+}
+
 int main(void)
 {
     TestReplayTakesOnlyTypeFields();
+    TestReplayKeepsServoLimitOff();
     if (s_failures == 0)
     {
         printf("test_joint_defs: all checks passed\n");
