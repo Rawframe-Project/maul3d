@@ -9,6 +9,12 @@
 # distribution (tools/linux.sh); elsewhere it runs directly.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
+# The check reads the working tree, so a change left out of the commit would
+# pass here and fail in CI; the tree must be what is pushed.
+if ! git -C "$root" diff --quiet HEAD --; then
+    echo "pre-push: tracked files differ from HEAD; commit or stash them, so the check tests what is pushed" >&2
+    exit 1
+fi
 workspace=""
 dir=$root
 while [ "$dir" != "$(dirname "$dir")" ]; do
