@@ -7,6 +7,90 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 snapshot and journal formats. From 1.0.0 every 1.x release keeps the
 API, and an entry says what each changed result changes.
 
+## [1.2.0](https://github.com/Rawframe-Project/maul3d/compare/v1.1.1...v1.2.0) (2026-11-28)
+
+### Added
+
+- **A joint's anchors and frames read back.** A joint def's anchors and
+  axes, and a pulley's ground anchors, could be set but not read, so a
+  host that wanted them later had to keep its own copy.
+  `m3Joint_GetLocalAnchors` reads both anchors as the def gave them
+  (zero on a gear or filter joint, whose def has none).
+  `m3Joint_GetLocalFrames` reads both joint frames as create built
+  them: on most types each frame's z axis is the def's axis,
+  normalized, and `joint.h` says what the frames are on a wheel, a weld,
+  a servo and a joint without axes. `m3PulleyJoint_GetGroundAnchors`
+  reads a pulley's world points. A stale id reads zero anchors, identity
+  frames and origin ground anchors and counts one misuse, as does a
+  ground anchor read on a joint that is not a pulley.
+  ([#432](https://github.com/Rawframe-Project/maul3d/pull/432))
+- **A joint's spring target reads back.**
+  `m3RevoluteJoint_GetTargetAngle`, `m3Joint_GetTargetTranslation` (a
+  prismatic or wheel joint) and `m3SphericalJoint_GetTargetRotation`
+  return the target as its setter stored it: 0, or the identity
+  rotation, until one is set. Another joint type or a stale id reads
+  that default and counts one misuse.
+  ([#438](https://github.com/Rawframe-Project/maul3d/pull/438))
+- **Every shape's geometry reads back.** `m3Shape_GetSphere`,
+  `m3Shape_GetCapsule` and `m3Shape_GetPlane` return the geometry as
+  create or a setter stored it, a plane with its normal normalized.
+  `m3Shape_GetLocalPose` reads a shape's offset and rotation from its
+  body. `m3HullShape_GetVertices` lists a hull's vertices, a box's and a
+  cylinder's included. `m3MeshShape_GetVertices` and
+  `m3MeshShape_GetIndices` list a mesh as create took it, and
+  `m3HeightFieldShape_GetHeights` lists a height field's samples with
+  its grid size and cell size. `m3VoxelChunkShape_GetVoxels` reads a
+  chunk's 4096 fills and payloads after its edits, with its cell size,
+  and returns the occupied count. The list readers take a caller buffer
+  and its capacity and return the total, as `m3Body_GetShapes` does: a
+  null buffer with capacity 0 measures. Another kind of shape or a stale
+  id reads the null values and counts one misuse.
+  ([#433](https://github.com/Rawframe-Project/maul3d/pull/433),
+  [#441](https://github.com/Rawframe-Project/maul3d/pull/441))
+
+With these, the joint anchors, frames and targets and the shape
+geometry that could only be set now read back ([#364](https://github.com/Rawframe-Project/maul3d/issues/364)).
+Each reader only adds a function; nothing that exists changes.
+
+### Fixed
+
+- **A closest shape cast keeps a hit tied with the best.** `m3CastHit`
+  says ties break to the lower shape index, but
+  `m3World_CastSphereClosest`, `m3World_CastCapsuleClosest`,
+  `m3World_CastBoxClosest` and `m3World_CastHullClosest` dropped a shape the cast reached at exactly the
+  best fraction so far, so the higher index could win. The tie now
+  reaches the rule. A cast with no exact tie reports what it did before,
+  and the step, continuous collision and every golden hash stay the
+  same.
+  ([#444](https://github.com/Rawframe-Project/maul3d/pull/444))
+- **Restore refuses a spherical joint target its setter refuses.**
+  `m3SphericalJoint_SetTargetRotation` takes a target whose squared
+  length is in [0.99, 1.01], and journal replay holds the same rule, but
+  `m3World_Restore` took one in the looser band it keeps for poses, so a
+  restored world could hold a target that reading back and setting
+  again refuses. Restore now refuses such a snapshot with
+  `m3_errorFormat` and leaves the world as it was.
+  ([#431](https://github.com/Rawframe-Project/maul3d/pull/431))
+- **Restore and replay refuse a joint value its type does not have.**
+  Each joint type's def has only the fields that type reads, and every
+  setter refuses a part the type does not have, but restore took a
+  snapshot with a value in an unused slot (a third break or spring
+  value, a cone angle on a hinge, a motor flag on a ball joint and
+  more), and replay took a forged create with fields the type's def
+  has none of. Such a world hashed differently from one that steps the
+  same way. Restore now refuses such a snapshot and replay such a
+  journal with `m3_errorFormat`, leaving the world as it was.
+  ([#435](https://github.com/Rawframe-Project/maul3d/pull/435))
+- **Replay refuses a limit flag on a servo.** A motor joint keeps its
+  force and torque budgets where other joints keep a limit, and its
+  journal record carries the limit switch, which no call turns on for a
+  servo. Replay took the switch on, so the replayed world's own
+  snapshot would not restore. Replay now refuses such a journal with
+  `m3_errorFormat`.
+  ([#442](https://github.com/Rawframe-Project/maul3d/pull/442))
+
+No snapshot or journal the library writes is refused by these fixes.
+
 ## [1.1.1](https://github.com/Rawframe-Project/maul3d/compare/v1.1.0...v1.1.1) (2026-11-08)
 
 ### Fixed
