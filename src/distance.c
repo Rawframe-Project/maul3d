@@ -431,7 +431,9 @@ m3TOIOutput m3TimeOfImpact(const m3TOIInput* input)
             return output;
         }
         t += (d.distance - target) / bound;
-        if (t >= input->maxFraction)
+        // Only past maxFraction: a hit at exactly that fraction is a tie
+        // with the caller's best, which its own rule breaks.
+        if (t > input->maxFraction)
         {
             output.state = m3_toiStateSeparated;
             return output;

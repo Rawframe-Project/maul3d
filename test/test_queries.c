@@ -322,6 +322,49 @@ static void TestShapeCasts(void)
     m3DestroyWorld(world);
 }
 
+// Two boxes at the same place, so every sweep toward them reaches both at
+// the same fraction: the closest cast reports the lower shape index. The
+// first box is destroyed and made again, so it takes back the lower index
+// but enters the tree after the other one, and the tie is met by
+// advancing to the fraction the other box already holds. Each body type
+// takes the lower index once.
+static void TestCastTieGoesToLowerIndex(void)
+{
+    static const m3Vec3 cube[8] = {
+        {-0.2f, -0.2f, -0.2f}, {0.2f, -0.2f, -0.2f}, {-0.2f, 0.2f, -0.2f}, {0.2f, 0.2f, -0.2f},
+        {-0.2f, -0.2f, 0.2f},  {0.2f, -0.2f, 0.2f},  {-0.2f, 0.2f, 0.2f},  {0.2f, 0.2f, 0.2f}};
+    for (int32_t order = 0; order < 2; ++order)
+    {
+        m3WorldDef def = m3DefaultWorldDef();
+        def.gravity = (m3Vec3){0.0f, 0.0f, 0.0f};
+        m3World* world = NewWorld(&def);
+        m3ShapeDef sd = m3DefaultShapeDef();
+        m3BodyDef bd = m3DefaultBodyDef();
+        bd.position = (m3Pos3){3.0, 0.0, 0.0};
+        bd.type = order == 0 ? m3_dynamicBody : m3_staticBody;
+        m3BodyId a = NewBody(world, &bd);
+        bd.type = order == 0 ? m3_staticBody : m3_dynamicBody;
+        m3BodyId b = NewBody(world, &bd);
+        m3Vec3 half = {0.5f, 0.5f, 0.5f};
+        m3ShapeId first = NewBoxShape(world, a, &sd, half);
+        m3ShapeId second = NewBoxShape(world, b, &sd, half);
+        CHECK(m3DestroyShape(world, first) == m3_success, "the first box goes");
+        m3ShapeId again = NewBoxShape(world, a, &sd, half);
+        CHECK(again.index1 < second.index1, "the box made again takes back the lower index");
+        m3CastHit hit = {0};
+        bool found =
+            m3World_CastSphereClosest(world, (m3Pos3){0.0, 0.0, 0.0}, 0.25f,
+                                      (m3Vec3){6.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+        CHECK(found && hit.fraction > 0.0f && hit.shapeId.index1 == again.index1,
+              "a sphere cast tied on two boxes reports the lower shape index");
+        found = m3World_CastHullClosest(world, (m3Pos3){0.0, 0.0, 0.0}, cube, 8,
+                                        (m3Vec3){6.0f, 0.0f, 0.0f}, m3DefaultQueryFilter(), &hit);
+        CHECK(found && hit.fraction > 0.0f && hit.shapeId.index1 == again.index1,
+              "a hull cast tied on two boxes reports the lower shape index");
+        m3DestroyWorld(world);
+    }
+}
+
 static void TestRayStartInsideContract(void)
 {
     // The documented family-by-family contract: rays MISS shapes
@@ -1625,6 +1668,7 @@ int main(void)
     TestListOutputs();
     TestCastHitContract();
     TestShapeCasts();
+    TestCastTieGoesToLowerIndex();
     TestRayStartInsideContract();
     TestMultiHitSorted();
     TestPointAndOverlaps();
