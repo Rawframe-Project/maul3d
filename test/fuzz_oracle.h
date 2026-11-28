@@ -9,7 +9,8 @@
 // takes (a limit range left unordered while off, a servo's aim at a gap
 // past the setter's reach), the oracle checks the create's rule instead.
 // The character's own body keeps its type, which SetType refuses for that
-// body whatever the type. The oracle changes the world (a setter moves,
+// body whatever the type, and its capsule keeps its geometry, which only
+// the stance changes. The oracle changes the world (a setter moves,
 // wakes and renames bodies and zeroes warm impulses), so a target runs it
 // last.
 
@@ -61,6 +62,23 @@ static inline void FuzzShapeValues(m3World* world, m3ShapeId shape)
     (void)m3Shape_SetFilter(world, shape, category, mask, group);
 }
 
+// A sphere's and a capsule's geometry, the only kinds whose geometry a
+// setter changes.
+static inline void FuzzShapeGeometry(m3World* world, m3ShapeId shape)
+{
+    m3ShapeType type = m3Shape_GetType(world, shape);
+    if (type == m3_sphereShape)
+    {
+        m3Sphere sphere = m3Shape_GetSphere(world, shape);
+        (void)m3Shape_SetSphere(world, shape, &sphere);
+    }
+    else if (type == m3_capsuleShape)
+    {
+        m3Capsule capsule = m3Shape_GetCapsule(world, shape);
+        (void)m3Shape_SetCapsule(world, shape, &capsule);
+    }
+}
+
 // Whether a body is the character's own: the kinematic body the character
 // stands on, at the character's position.
 static inline bool FuzzCharacterBody(const m3World* world, m3BodyId body, m3CharacterId hero)
@@ -107,9 +125,14 @@ static inline void FuzzBodyValues(m3World* world, m3BodyId body, m3CharacterId h
     }
     m3ShapeId shapes[FUZZ_ORACLE_CAPACITY];
     int32_t count = m3Body_GetShapes(world, body, shapes, FUZZ_ORACLE_CAPACITY);
+    bool own = FuzzCharacterBody(world, body, hero);
     for (int32_t i = 0; i < count && i < FUZZ_ORACLE_CAPACITY; ++i)
     {
         FuzzShapeValues(world, shapes[i]);
+        if (!own)
+        {
+            FuzzShapeGeometry(world, shapes[i]);
+        }
     }
 }
 

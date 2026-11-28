@@ -60,6 +60,10 @@ typedef struct m3ShapeContent
 m3Result m3ShapeDefCheck(const m3ShapeDef* def);
 m3Result m3ShapeGeomCheck(uint8_t type, const m3ShapeGeom* geom);
 m3Result m3PlainGeomCheck(uint8_t type, const m3ShapeGeom* geom);
+// A capsule whose points meet is a sphere: every create of a shape and
+// the setter refuse one. Only a character's own capsule, which create and
+// the stance build, may have zero height.
+M3_NODISCARD bool m3CapsuleHasLength(const m3ShapeGeom* geom);
 
 int32_t m3CreateShapeInternal(m3World* world, int32_t bodyIndex, uint8_t type,
                               const m3ShapeGeom* geom, const m3ShapeDef* def,
